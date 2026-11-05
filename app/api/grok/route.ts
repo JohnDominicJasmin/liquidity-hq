@@ -293,11 +293,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  /* ONE COIN IS NOT COVERED AND IT IS LOGGED RATHER THAN HIDDEN. `hype` has no Binance perp, so
-     lib/marketSnapshotData.ts:91 leaves it out of SYMS while lib/coins.ts:64 still offers it. For
-     that coin `fields` is empty and the browser's numbers stand - today's behaviour for every coin,
-     kept for one. lib/arenaServerNumbers.ts argues the choice; this line makes it visible in the
-     logs, because a carve-out nobody can see is how it becomes permanent. */
+  /* SOME COINS ARE NOT COVERED AND IT IS LOGGED RATHER THAN HIDDEN. For those `fields` is empty
+     and the browser's numbers stand - today's behaviour for every coin, kept for the uncovered
+     ones. lib/arenaServerNumbers.ts argues the choice; this line makes it visible in the logs,
+     because a carve-out nobody can see is how it becomes permanent.
+
+     THIS SAID "ONE COIN" AND NAMED hype UNTIL 2026-11-06. It is four - hype, pepe, bonk and xau -
+     measured on prod: the snapshot carries 46 of the 50 tracked coins. The code never cared, since
+     `coinOutsideCoverage` is set by the ticker having no entry for the coin rather than by a list,
+     so the behaviour was right the whole time. But the stale count read as a 3-coin regression from
+     outside and cost a release-blocker investigation, which is why the number is gone rather than
+     updated: this branch covers whatever is missing, and the count is the part that rots. */
   if (gathered.coinOutsideCoverage) {
     console.warn(`[grok] ${logTag(coin)} is outside server market coverage - prompt keeps client numbers`);
   }
