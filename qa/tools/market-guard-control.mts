@@ -67,3 +67,41 @@ for (const c of CASES) {
 }
 console.log(`\n${pass} pass, ${fail} fail, ${divergences} case(s) the old guard got wrong`);
 if (fail > 0) process.exitCode = 1;
+
+/* ── entitlementsUnresolved: the third branch ─────────────────────────────────────────────── */
+
+const { entitlementsUnresolved } = await import(SHARED) as {
+  entitlementsUnresolved: (p: unknown) => Promise<string | null>;
+};
+
+/* The real copy, read off the components so the control cannot drift from them:
+   EntitlementUnknownCard renders class `locked-card-term-wrap` + data-testid, and its `title` is
+   ARENA_CONFLUENCE_GATE_TITLE = "Confluence Score". LockedFeatureCard says "part of Pro". */
+const PRO_STRINGS = /part of Pro|Unlock with Pro/i;
+
+const BRANCHES = [
+  { name: 'entitled: the real Confluence card',
+    testids: 0, body: 'Confluence Score 72 EMA Ribbon Order Flow', expectSkip: false },
+  { name: 'UNKNOWN: the couldn\'t-verify card (the blind spot)',
+    testids: 1, body: 'COULD NOT VERIFY Confluence Score We could not confirm your plan. Retry', expectSkip: true },
+  { name: 'free: LockedFeatureCard',
+    testids: 0, body: 'Confluence Score is part of Pro. Unlock with Pro', expectSkip: false },
+];
+
+let bPass = 0, bFail = 0;
+console.log('\nbranch                                              new-skip  old-Pro-control');
+for (const b of BRANCHES) {
+  const page = { locator: (_sel: string) => ({ count: async () => b.testids }) };
+  const reason = await entitlementsUnresolved(page);
+  const skipped = reason !== null;
+  /* What the pre-fix control alone would have concluded: it only ever looked for the Pro strings. */
+  const oldWouldCatch = PRO_STRINGS.test(b.body);
+  const ok = skipped === b.expectSkip;
+  ok ? bPass++ : bFail++;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${b.name.padEnd(46)} ${skipped ? 'SKIP   ' : 'proceed'}   ${oldWouldCatch ? 'caught' : 'MISSED'}`);
+  if (skipped) console.log(`      reason: ${String(reason).slice(0, 110)}`);
+}
+console.log(`\n${bPass} pass, ${bFail} fail`);
+console.log('The UNKNOWN row is the point: the old Pro-string control MISSED it (that card says');
+console.log('neither string), so it reached the card assertion and reported "did not appear at all".');
+if (bFail > 0) process.exitCode = 1;

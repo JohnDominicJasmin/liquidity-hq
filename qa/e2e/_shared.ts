@@ -989,3 +989,42 @@ export async function marketDataUnavailable(
 
   return null;
 }
+
+/* THE THIRD BRANCH THE PRO-GATE CONTROL CANNOT SEE.
+ *
+ * `app/(main)/arena/page.tsx:2707` has THREE outcomes, and five copies of the positive control
+ * across four specs could only distinguish two of them:
+ *
+ *   entitled  -> <ConfluenceScore>            renders `.sms-card` containing "Confluence"
+ *   unknown   -> <EntitlementUnknownCard>     renders `locked-card-term-wrap`, NOT `.sms-card`
+ *   free      -> <LockedFeatureCard>          says "part of Pro" / "Unlock with Pro"
+ *
+ * `.not.toMatch(/part of Pro|Unlock with Pro/i)` passes on the middle one, because the
+ * couldn't-verify card says NEITHER of those things. So a failed entitlements read sails through
+ * the control and then fails the next assertion as "the Confluence card did not appear at all" -
+ * a sentence about the product, produced by a database read.
+ *
+ * AND THE TITLE MAKES IT WORSE, which is why the text filter cannot be widened instead:
+ * `ARENA_CONFLUENCE_GATE_TITLE` is the string **"Confluence Score"**, so the unknown card holds
+ * the very words the locator filters on and is excluded only by its class. Matching on text
+ * alone would silently start accepting the gate card AS the Confluence card.
+ *
+ * So key on the testid the component already exposes - `data-testid="entitlement-unknown"`,
+ * which `entitlement-unknown.spec.ts` is built on - rather than on copy that two branches share.
+ *
+ * SKIP, NOT FAIL, and the boundary is the same one `marketDataUnavailable` draws: a spec that
+ * could not resolve entitlements has not found a defect, it failed to measure. The behaviour
+ * itself is owned by `entitlement-unknown.spec.ts` and by
+ * `strategy-panel-entitlement-unknown.spec.ts`, neither of which calls this - so skipping here
+ * hides nothing. If this helper ever gates those, nobody tests the card. */
+export async function entitlementsUnresolved(
+  page: { locator: (selector: string) => { count: () => Promise<number> } },
+): Promise<string | null> {
+  const n = await page.locator('[data-testid="entitlement-unknown"]').count();
+  if (n === 0) return null;
+  return `the entitlements read failed, so Arena is showing the couldn't-verify card ` +
+    `(${n} on the page) instead of the Pro surface. Every assertion below is about content that ` +
+    `cannot render in this state, and the Pro-gate control does NOT catch it - that card says ` +
+    `neither "part of Pro" nor "Unlock with Pro". A failed DB read, not a product defect. ` +
+    `Not a finding.`;
+}
