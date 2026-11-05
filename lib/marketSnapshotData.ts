@@ -62,7 +62,7 @@
  * remainder, not an oversight.
  */
 
-import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor } from './coins.ts';
+import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, bybitPriceFactor } from './coins.ts';
 import { cached } from './apiCache.ts';
 import { runPool, HttpStatusError, isRateLimitStatus } from './pool.ts';
 import { parseRatioPair } from './ratioPair.ts';
@@ -89,6 +89,19 @@ const SPOT_HOSTS    = ['https://api.binance.com', 'https://api1.binance.com', 'h
 const FUTURES_HOSTS = ['https://fapi.binance.com', 'https://fapi1.binance.com', 'https://fapi2.binance.com'];
 
 const SYMS = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
+
+/* THE SPOT BATCH GETS A SPOT SYMBOL LIST, WHICH IS NOT THE SAME LIST.
+ *
+ * `BINANCE_SYMS` is built from `fapi/v1/exchangeInfo` - futures. `SPXUSDT` is listed there and NOT
+ * on spot, and Binance's batched `api/v3/ticker/24hr?symbols=[...]` rejects the ENTIRE request on
+ * one unlisted symbol with `400 -1121`. So the spot call below returned nothing on every single
+ * run, the futures fallback always took over, and `source` was permanently `'futures'` - with no
+ * visible symptom, because the app still had prices. Full reasoning in `lib/coins.ts` beside
+ * `BINANCE_SPOT_SYMS`; guarded at generation so a future delisting cannot repeat it.
+ *
+ * The futures fallback below deliberately keeps using `SYMS`: SPX's futures listing is real, so
+ * excluding it there would lose a working source. */
+const SPOT_SYMS = Object.entries(BINANCE_SPOT_SYMS).filter(([c]) => c !== 'hype');
 
 interface TickerEntry { price: number; change: number; high: number; low: number; vol24: number }
 interface LsrEntry {
@@ -234,7 +247,7 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
      rather than once per visitor. */
   const spot = await resolveHost(SPOT_HOSTS, '/api/v3/ping');
   if (spot) {
-    const batch = encodeURIComponent(JSON.stringify(SYMS.map(([, s]) => s)));
+    const batch = encodeURIComponent(JSON.stringify(SPOT_SYMS.map(([, s]) => s)));
     absorb(await get(`${spot}/api/v3/ticker/24hr?symbols=${batch}`));
   }
 
@@ -260,6 +273,19 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
      getBybit() already proves, so this costs one extra call regardless of
      how many coins are missing rather than one per coin. */
   const viaFallback: string[] = [];
+  /* `SYMS`, NOT `SPOT_SYMS`, AND THAT IS DELIBERATE. QA's note on #1975 - do not tidy this line.
+   *
+   * `SPOT_SYMS` is what the spot request above may ASK for; `SYMS` is what this snapshot owes an
+   * answer for. SPX is in the second and not the first, so it lands here as "missing" and the Bybit
+   * single-shot below fills it. Narrowing this to `SPOT_SYMS` to "match" the request would drop SPX
+   * from the work list entirely and it would silently lose its price - the coin would simply be
+   * absent rather than visibly broken.
+   *
+   * The same mechanism is why `pepe`, `bonk` and `xau` have NO entry in this snapshot at all: they
+   * are held out of `BINANCE_SYMS` (see `BINANCE_HOLD`), so they never reach `SYMS`, so they never
+   * reach this list, so the Bybit fallback - which could serve all three - is never asked. Measured
+   * on prod 2026-11-06: 46 of the 50 rendered coins are present. Reported separately; not changed
+   * here, because widening the work list changes what every AI route sees. */
   const missingCoins = SYMS.map(([c]) => c).filter(c => !out[c]);
   if (missingCoins.length > 0) {
     try {

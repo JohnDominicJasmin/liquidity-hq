@@ -203,3 +203,149 @@ test('P2. a spec that stubs a paid AI path also installs the fence, so a renamed
     + 'for it. Add `await installPaidAiFence(page)` BEFORE the spec\'s own routes (Playwright matches the most recently '
     + 'registered handler first, so installing it last would swallow the stubs instead).');
 });
+
+/* ── P5: `unrouteAll` is the OTHER way to lose the fence ──────────────────────────────────────── */
+
+/* P4 ASKS WHETHER THE FENCE WAS INSTALLED TOO LATE. IT CANNOT SEE THE FENCE BEING REMOVED.
+ *
+ * `installPaidAiFence` registers with `page.route` (`_no-paid-ai.ts:94`), and
+ * `page.unrouteAll()` clears EVERY page.route handler - the fence among them. So a spec can
+ * install the fence correctly, satisfy P4, and then disarm itself halfway through.
+ *
+ * NOT HYPOTHETICAL. Dev Team found exactly this reviewing #1968, in two specs I had just
+ * "fenced": `real-yield` (fence, then `unrouteAll`, then a full `/arena` load) and
+ * `score-perps-coupling` (same shape, and it was that file's only fenced test, so the fence
+ * covered the first load and nothing after it). On a deployed host the second load is precisely
+ * the billed call the fence was added to prevent. My own header told specs to install the fence
+ * before their stubs, which is correct and was incomplete.
+ *
+ * THE NAVIGATION IS USUALLY INDIRECT, which is why this resolves helpers. Neither offender called
+ * `goto` after its `unrouteAll`; they called `cardText(page)` and `readScore(page)`, module-scope
+ * helpers in the same file that navigate internally. A line-level search for `goto` finds nothing
+ * in both cases - a check that only looked for the literal would have passed on the live defect.
+ *
+ * ONLY FILES THAT INSTALL THE FENCE ARE JUDGED. A spec with no fence is not claiming the
+ * protection, and P2 already covers whether it should have one. */
+const NAVIGATES = /\b(goto|gotoSignedIn|gotoGuarded)\s*\(/;
+
+/** Module-scope helpers in this file that navigate, directly or through another such helper. */
+function navigatingHelpers(src: string): Set<string> {
+  const bodies = moduleHelpers(src);
+  const out = new Set<string>();
+  for (let pass = 0; pass < 3; pass++) {
+    for (const [name, body] of bodies) {
+      if (out.has(name)) continue;
+      if (NAVIGATES.test(body)) { out.add(name); continue; }
+      /* A helper that calls an already-known navigating helper navigates too. Three passes rather
+         than a fixed point because the depth here is one or two and an unbounded walk would need
+         cycle handling for no benefit. */
+      for (const inner of out) if (new RegExp(`\\b${inner}\\s*\\(`).test(body)) { out.add(name); break; }
+    }
+  }
+  return out;
+}
+
+test('P5. a spec that calls page.unrouteAll re-arms the fence before navigating again', () => {
+  const offenders: string[] = [];
+  let checked = 0;
+
+  for (const f of specs) {
+    const src = readFileSync(join(SPEC_DIR, f), 'utf8');
+    if (!/installPaidAiFence\s*\(/.test(src)) continue;
+    if (!/\.unrouteAll\s*\(/.test(src)) continue;
+    checked++;
+
+    const navHelpers = navigatingHelpers(src);
+    const navPattern = new RegExp(
+      [NAVIGATES.source, ...[...navHelpers].map((n) => `\\b${n}\\s*\\(`)].join('|'),
+    );
+
+    const lines = src.split(/\r?\n/);
+    let disarmedAt = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const L = lines[i];
+      /* A mention inside a comment is not a call. The two offenders now carry a comment ABOUT
+         unrouteAll beside the fix, and counting that as a disarm would report the fixed file as
+         broken - a check whose false alarm would prompt removing the repair. */
+      if (/^\s*(\/\/|\*|\/\*)/.test(L)) continue;
+      if (/\.unrouteAll\s*\(/.test(L)) { disarmedAt = i + 1; continue; }
+      if (/installPaidAiFence\s*\(/.test(L)) { disarmedAt = 0; continue; }
+      if (disarmedAt && navPattern.test(L)) {
+        offenders.push(`${f}: unrouteAll at line ${disarmedAt} removed the fence, then line ${i + 1} navigates - "${L.trim().slice(0, 72)}"`);
+        disarmedAt = 0;   // one report per disarm, not one per line after it
+      }
+    }
+  }
+
+  /* The sweep must have had something to sweep. Zero files with both an install and an unrouteAll
+     makes this cell pass by having nothing to look at - and it would then keep passing after
+     someone reintroduced the pattern, which is the shape this whole file exists to refuse. */
+  assert.ok(checked > 0,
+    'no spec installs the fence AND calls unrouteAll, so this cell examined nothing. If that is '
+    + 'genuinely true the pattern is gone and this can be deleted - but check, because a broken '
+    + 'file-level filter looks identical.');
+
+  assert.deepEqual(offenders, [],
+    `the fence is removed and not put back before the next navigation:\n  ${offenders.join('\n  ')}\n\n`
+    + '`page.unrouteAll()` clears every page.route handler and the fence is one of them, so the '
+    + 'navigation above runs unfenced - on a deployed host that is a real, billed xAI call. Add '
+    + '`await installPaidAiFence(page)` immediately after the unrouteAll, BEFORE the spec re-registers '
+    + 'its own stubs, so the stub stays the more recent handler and still wins for its own path.');
+});
+
+/* ── P4: THE FENCE MUST NOT BE INSTALLED AFTER A ROUTE IT WOULD SWALLOW ──────────────────────────
+ *
+ * P2 above asserts the fence IS installed. It cannot see WHERE, and that gap cost four cells.
+ *
+ * `qa/e2e/arena-stale-result-labelling.spec.ts` called `installPaidAiFence(page)` twice in one
+ * function: once correctly ahead of its routes, and again immediately before the `/api/grok-chat`
+ * stub - which put it AFTER the `/api/grok` stub. Playwright matches the most recently registered
+ * handler, and the helper is idempotent on its RECORD but not on its HANDLER ("Installing twice
+ * registers a second handler"), so that second install aborted the very POST the first stub existed
+ * to fulfil. The symptom was "QUICK never reached the stubbed /api/grok" with the POST sitting right
+ * there in the trace's network log - a request made, aborted, and never counted.
+ *
+ * It read as a product defect for six days and was suspected of being #1910's server-side gather
+ * breaking the stubs. It was neither. Before/after on the same URL with only that one line removed:
+ * 4 failed -> 4 passed.
+ *
+ * WHY A SECOND INSTALL IS NOT BANNED OUTRIGHT: one per test is correct and common -
+ * `auth-gate-render.spec.ts` has three, each after its own `newPage()` and before that test's
+ * routes, and it is right. What is never correct is an install that follows a `page.route` on the
+ * same page, because from then on the fence outranks that route. */
+test('P4. no spec installs the paid-AI fence AFTER one of its own page.route calls', () => {
+  const offenders: string[] = [];
+  const checked: string[] = [];
+
+  for (const f of readdirSync(SPEC_DIR).filter((x) => x.endsWith('.spec.ts'))) {
+    const lines = readFileSync(join(SPEC_DIR, f), 'utf8').split(/\r?\n/);
+    checked.push(f);
+    /* `newPage()` starts a fresh page, so the ordering question restarts with it. */
+    let sawRoute = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const L = lines[i];
+      if (/\bnewPage\s*\(/.test(L)) { sawRoute = 0; continue; }
+      /* ONLY A ROUTE THE FENCE WOULD ACTUALLY MATCH, and the first version of this cell got that
+         wrong. It flagged any fence-after-route and fired on arena-read-card.spec.ts:98, where the
+         fence follows a market/klines stub - which the fence cannot swallow, because it intercepts
+         only paid AI paths. A guard whose false alarm sends someone to rewrite correct code is
+         worse than no guard, so the hazard is narrowed to the routes that can actually collide. */
+      if (/^\s*(?:await\s+)?page\.route\s*\(/.test(L)) {
+        const pat = /page\.route\s*\(\s*['"]([^'"]+)/.exec(L)?.[1] ?? '';
+        if (declared.some((seg) => new RegExp('/api/' + seg + '(?:[/*?\'"]|$)').test(pat))) sawRoute = i + 1;
+        continue;
+      }
+      if (/installPaidAiFence\s*\(\s*page\s*\)/.test(L) && sawRoute) {
+        offenders.push(`${f}:${i + 1} installs the fence after the page.route at line ${sawRoute}`);
+      }
+    }
+  }
+
+  assert.ok(checked.length > 10,
+    `only ${checked.length} spec files scanned, so this cell is not looking at the suite - check SPEC_DIR`);
+  assert.deepEqual(offenders, [],
+    `${offenders.join(' | ')}\n\nPlaywright matches the MOST RECENTLY registered handler, so a fence installed after a `
+    + 'route outranks it and aborts the requests that route exists to fulfil - the spec then fails saying the request '
+    + 'never arrived, while the trace shows it was made. Move the install above the first page.route for that page. '
+    + 'One install per newPage() is fine; an install that follows a route on the same page never is.');
+});

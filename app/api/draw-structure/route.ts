@@ -28,7 +28,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { cached } from '@/lib/apiCache';
-import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
+import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
@@ -151,18 +151,60 @@ function buildPrompt(coin: string, tf: string, candles: readonly StructureCandle
   ].join('\n');
 }
 
+/* THE THREE WAYS AN EMPTY RESULT HAPPENS, AND WHY THEY MUST NOT SHARE ONE RETURN.
+ *
+ * This returned `[]` for all of them: no JSON in the reply, JSON that would not parse, and a
+ * model that genuinely proposed nothing. The route then answered 200 with `structures: []` for
+ * each, and the client rendered DRAW_STRUCTURE_NONE - "Nothing proposed on this window." So two
+ * failures reached the trader as a calm statement about their chart, which is the same shape as
+ * an unreadable AI answer drawn as FLAT. PM's ruling on #1263, 2026-11-05.
+ *
+ * `ok: false` IS NOT "NO PROPOSALS", it is "I could not read the reply". The caller refunds the
+ * reservation and refuses, exactly as `app/api/grok/route.ts` does for BAD_ANSWER - a comment
+ * there records that "no refund, as for any failed xAI call" was wrong, because the user paid for
+ * a read they did not get.
+ *
+ * AN EMPTY `raw` WITH `ok: true` IS STILL A REAL ANSWER. `{"structures": []}` is the model saying
+ * it saw nothing to draw, which is worth a read and worth the empty state. The distinction this
+ * function now draws is exactly: did the model answer? */
+type UnreadableReason = 'no-json' | 'bad-json' | 'not-an-array';
+type ParsedProposals =
+  | { ok: true; raw: RawProposal[] }
+  | { ok: false; reason: UnreadableReason };
+
 /** The model is asked for JSON only, and sometimes fences it anyway. */
-function parseProposals(text: string): RawProposal[] {
+function parseProposals(text: string): ParsedProposals {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const body = (fenced ? fenced[1] : text).trim();
   const start = body.indexOf('{');
   const end = body.lastIndexOf('}');
-  if (start < 0 || end <= start) return [];
+  if (start < 0 || end <= start) return { ok: false, reason: 'no-json' };
+  let parsed: { structures?: unknown };
   try {
-    const parsed = JSON.parse(body.slice(start, end + 1)) as { structures?: unknown };
-    return Array.isArray(parsed.structures) ? parsed.structures as RawProposal[] : [];
+    parsed = JSON.parse(body.slice(start, end + 1)) as { structures?: unknown };
   } catch {
-    return [];
+    return { ok: false, reason: 'bad-json' };
+  }
+  /* A reply with no `structures` key at all is not an empty window - it is a reply that did not
+     answer the question asked. Separated from `bad-json` so the log says which it was. */
+  if (!Array.isArray(parsed.structures)) return { ok: false, reason: 'not-an-array' };
+  return { ok: true, raw: parsed.structures as RawProposal[] };
+}
+
+/** The reply could not be read at all. Carries the reason for the log, never for the user. */
+class UnreadableAnswerError extends Error {
+  constructor(readonly reason: UnreadableReason) {
+    super('unreadable answer');
+    this.name = 'UnreadableAnswerError';
+  }
+}
+
+/** The model answered and every proposal was undrawable. Distinct from "it proposed nothing":
+ *  the trader paid for a read that produced something we then had to throw away. */
+class UndrawableAnswerError extends Error {
+  constructor(readonly proposed: number) {
+    super('no drawable proposals');
+    this.name = 'UndrawableAnswerError';
   }
 }
 
@@ -239,6 +281,30 @@ export async function POST(req: NextRequest) {
     .digest('hex')
     .slice(0, 16);
 
+  /* Set inside the cache-miss path below, read by the catch. `null` means this request never
+     reserved - a cache hit, or a refusal before the reservation - and must not be refunded.
+
+     A ONE-FIELD BOX RATHER THAN A `let`, because TypeScript's control-flow analysis does not
+     follow an assignment made inside the nested async closure below: it still believes the
+     variable is `null` at the catch, so `if (reserved)` narrowed it to `never` and the refund
+     calls failed to compile. The box is not narrowed, and it reads as what it is - a slot the
+     inner function fills for the outer one. */
+  const reserved: { current: { userId: string; on: string } | null } = { current: null };
+
+  /* HAS xAI BEEN PAID YET? A box for the same reason `reserved` is one - TS control-flow analysis
+   * does not follow an assignment made inside the nested async closure below.
+   *
+   * It separates the two kinds of post-2xx failure, which the catch previously treated alike:
+   *
+   *   - a TYPED answer-quality refusal (unreadable / undrawable) still refunds. That is PM/DevOps's
+   *     ruling and it is deliberate: the user paid and got nothing usable, and it is capped at
+   *     three refunds per UTC day.
+   *   - an UNCLASSIFIED throw after the 2xx does NOT. Those are our own bugs and upstream format
+   *     changes - `aiRes.json()` failing, `recordAiCall` throwing - and refunding them hands back a
+   *     read for tokens xAI has already billed, with nothing bounding how often a bad deploy could
+   *     do it. */
+  const spent = { current: false };
+
   try {
     const result = await cached(
       `draw-structure:${coin}:${tf}:${bar}:${windowHash}`,
@@ -249,8 +315,16 @@ export async function POST(req: NextRequest) {
          * (see 20261023a), which is also why a missing migration cannot leak a free paid call:
          * the RPC refuses an unknown column and this throws before `xaiFetch`. */
         const tier = await getUsageTier(token, authData.user.id);
+        /* THE DATE IS CAPTURED HERE, BESIDE THE RESERVATION, and handed to the refund below rather
+           than recomputed. `lib/aiUsage.ts` records why: an AI call can outlive UTC midnight, and
+           `todayUtc()` at refund time would credit the next day's row - quota minted on one day
+           against a charge left standing on the other. Flagged by a security review on the grok
+           route and the same hazard applies here.
+           Assigned to the outer `reserved` so the catch, which is outside this closure and outside
+           `cached()`, can tell a request that paid from one that never got as far as reserving. */
         const usage = await incrementToolUsage(authData.user.id, 'drawStructure', tier);
         if (usage.blocked) throw new RateLimitError(usage.limit, usage.reason);
+        reserved.current = { userId: authData.user.id, on: todayUtc() };
 
         const aiRes = await xaiFetch('https://api.x.ai/v1/chat/completions', {
           method: 'POST',
@@ -277,6 +351,10 @@ export async function POST(req: NextRequest) {
           throw new Error(err.error ?? 'AI error');
         }
 
+        /* 2xx: the tokens are billed from here. A non-2xx above bills nothing, which is why this
+           sits after the check rather than before the call. */
+        spent.current = true;
+
         const aiData = await aiRes.json();
         await recordAiCall({
           userId: authData.user.id,
@@ -289,19 +367,72 @@ export async function POST(req: NextRequest) {
         /* Every well-formed proposal is returned and NONE is ranked or filtered for strength -
          * there is no validated statistic to rank on. `toDrawable` drops anything that is not
          * drawable (unknown type, invented index, fewer than two distinct points) and drops the
-         * confidence field if the model volunteered one. An empty array is a real answer here,
-         * not an error: it means the model saw nothing to draw. */
-        const structures = parseProposals(text)
+         * confidence field if the model volunteered one.
+         *
+         * THREE OUTCOMES, NOT ONE. This block used to collapse all of them into `structures: []`
+         * and a 200, so a reply we could not read and a reply we could read but not use both
+         * reached the trader as "Nothing proposed on this window." - a calm statement about their
+         * chart. Only the third is that:
+         *
+         *   unreadable      no JSON, unparseable JSON, or no `structures` key -> refuse, refund
+         *   all undrawable  the model answered, every proposal failed toDrawable -> refuse, refund
+         *   empty answer    `{"structures": []}` -> 200, and the empty state is CORRECT
+         *
+         * THROWN FROM INSIDE `cached()` ON PURPOSE: it stores only successes, so a refusal is
+         * never pinned for the TTL and the next trader on the same bar gets a fresh attempt. */
+        const parsed = parseProposals(text);
+        if (!parsed.ok) throw new UnreadableAnswerError(parsed.reason);
+
+        const structures = parsed.raw
           .map(p => toDrawable(p, candles))
           .filter((s): s is DrawableStructure => s !== null);
+
+        /* The model proposed things and not one of them was drawable. Distinguished from an empty
+         * answer because the cause is ours or the model's, not the market's: an unknown type, an
+         * index outside the window, or fewer than two distinct points. Telling the trader their
+         * chart has no structure would be describing our parse failure as their chart. */
+        if (parsed.raw.length > 0 && structures.length === 0) {
+          throw new UndrawableAnswerError(parsed.raw.length);
+        }
 
         return { structures, coin, tf };
       },
     );
     return NextResponse.json(result);
   } catch (e) {
+    /* THE TWO REFUSALS THAT COST A READ, AND BOTH REFUND IT.
+     *
+     * `app/api/grok/route.ts` already settled this and corrected itself in the process: its
+     * comment records that "no refund, as for any failed xAI call" was wrong, because the user
+     * paid for a read they did not get. Same here. 502 rather than 500, matching that route's
+     * BAD_ANSWER, because the failure is upstream's answer and not our request.
+     *
+     * THE MESSAGE IS THE SERVER'S OWN WORDS, which is this feature's established pattern -
+     * `components/KLineProChart.tsx:2753` prefers a server `message` over the local
+     * DRAW_STRUCTURE_FAILED default precisely because only this side knows why. So no new label
+     * key and no new owner copy approval: these two reuse the one string the client already has
+     * for a failed read, and the CODE is what distinguishes them for us.
+     *
+     * NEITHER SAYS WHAT WENT WRONG. A trader cannot act on "the model returned nothing
+     * drawable", and naming a cause in the UI is how a log line becomes a claim. The reason and
+     * the count go to the log. */
+    if (e instanceof UnreadableAnswerError) {
+      console.error(`[draw-structure] UNREADABLE reason=${e.reason} coin=${coin} tf=${tf}`);
+      if (reserved.current) await refundToolUsage(reserved.current.userId, 'drawStructure', reserved.current.on);
+      return NextResponse.json({ error: 'Could not read the chart. Try again.', code: 'BAD_ANSWER' }, { status: 502 });
+    }
+    if (e instanceof UndrawableAnswerError) {
+      console.error(`[draw-structure] UNDRAWABLE proposed=${e.proposed} drawable=0 coin=${coin} tf=${tf}`);
+      if (reserved.current) await refundToolUsage(reserved.current.userId, 'drawStructure', reserved.current.on);
+      return NextResponse.json({ error: 'Could not read the chart. Try again.', code: 'UNDRAWABLE' }, { status: 502 });
+    }
     if (e instanceof RateLimitError) {
-      /* `not_enabled` is not a rate limit and must not be sent as one: it means this tool's usage
+      /* NO REFUND HERE, AND THAT IS CORRECT RATHER THAN AN OMISSION. `incrementToolUsage` throws
+       * this when `usage.blocked`, which is BEFORE `reserved.current` is assigned - so there is
+       * nothing to give back. The guard below would also skip it, but saying so stops the next
+       * reader "fixing" it.
+       *
+       * `not_enabled` is not a rate limit and must not be sent as one: it means this tool's usage
        * column is missing, which is our deployment state, not the user's quota. 503 so a client
        * retry-after-reset heuristic does not treat it as "wait until tomorrow". */
       const notEnabled = e.reason === 'not_enabled';
@@ -309,6 +440,35 @@ export async function POST(req: NextRequest) {
         { error: e.message, code: notEnabled ? 'NOT_ENABLED' : 'RATE_LIMIT' },
         { status: notEnabled ? 503 : 429 },
       );
+    }
+
+    /* AN UNCLASSIFIED FAILURE REFUNDS TOO - BUT ONLY BEFORE xAI HAS BEEN PAID.
+     *
+     * The first half was a real gap rather than a nicety, and QA caught it on #1956: an xAI
+     * network error, a non-2xx from xAI, a body that would not parse before the call, anything
+     * thrown inside `cached()` on the way there. The user is in exactly the position the two typed
+     * refusals above refund for, and the fact that we could not NAME the cause is not a reason to
+     * keep their quota. The grok route's own comment is the precedent and it records being wrong
+     * about this once already: "no refund, as for any failed xAI call" - which was wrong in the
+     * one case where the user had paid.
+     *
+     * `!spent.current` IS THE SECOND HALF, and it closes the other direction. As first written
+     * this branch also caught failures AFTER the 2xx - `aiRes.json()` throwing on a malformed
+     * body, `recordAiCall` failing - and refunded reads for tokens xAI had already billed. Those
+     * are our own bugs and upstream format changes rather than a user's bad luck, and nothing
+     * bounded how often a bad deploy could give reads away.
+     *
+     * The two TYPED branches above are deliberately NOT gated this way. An unreadable or
+     * undrawable answer arrives after the 2xx and still refunds, because the user paid and got
+     * nothing usable - PM/DevOps's ruling, capped at three refunds per UTC day. The distinction
+     * this branch draws is "we cannot name the cause", not "the call failed late".
+     *
+     * `reserved.current` is null on a cache hit and on any refusal before the reservation, so
+     * this cannot credit a read nobody paid for. That is also why it is a box rather than a
+     * boolean: it carries the user id and the reservation DATE, and refunding against today's
+     * date after a call crossed UTC midnight would credit a row that never paid. */
+    if (reserved.current && !spent.current) {
+      await refundToolUsage(reserved.current.userId, 'drawStructure', reserved.current.on);
     }
     return apiError('draw-structure', e, 502, 'Request failed');
   }

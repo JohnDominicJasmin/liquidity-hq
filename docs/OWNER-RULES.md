@@ -398,8 +398,7 @@ seat that will go around PM next time. **Acknowledge, decide, and say what is ne
 ## 14. NEVER SHOW A CUSTOMER WHERE HE LIVES OR WHERE THE SERVERS ARE
 
 > *"don't mention where is the server and where country I live… Remove that shit."* — the owner,
-> 2026-10-31, after finding both on `/security` and `/privacy`. **He was angrier about this than
-> about anything else in five months, until the one below.**
+> 2026-10-31, after finding both on `/security` and `/privacy`.
 
 **THE TEST IS WHETHER A CUSTOMER CAN SEE IT.** His own words settling the edge cases:
 
@@ -437,8 +436,7 @@ a local product — which is also why `/hours` shows each visitor their own cloc
 
 **The specific failure: a real tool gap (no MCP action existed to flip a Render service's
 branch) got reported to him as a question, and work paused on the answer.** He had already said
-he was sleeping and already asked once if anything was needed before he went. Asking again, after
-he said "no more," is the part he will not forgive twice.
+he was sleeping and already asked once if anything was needed before he went.
 
 **The rule, and it is not "try harder to reach him":**
 

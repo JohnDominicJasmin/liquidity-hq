@@ -25,17 +25,32 @@
  *    safely is retried, never guessed at, and never billed.
  *
  * 2. THE COIN IS OUTSIDE THE SERVER'S COVERAGE. The ticker section is populated but holds nothing
- *    for this coin. Today that is exactly one coin: `lib/marketSnapshotData.ts:91` excludes `hype`
- *    from `SYMS` because it has no Binance perp, while `lib/coins.ts:64` lists it as a tracked,
- *    selectable coin. **So `hype` keeps the browser's numbers**, and `fields` comes back empty.
+ *    for this coin. **FOUR coins are in that state, not one**, and this comment said "exactly one
+ *    coin: hype" until 2026-11-06, which cost a release-blocker investigation - PM/DevOps read it
+ *    and reasonably asked whether an AI read for PEPE now refuses. Measured on prod the same day:
+ *    the snapshot carries 46 of the 50 tracked coins, and `hype`, `pepe`, `bonk` and `xau` are
+ *    absent from both `ticker` and `klines`.
+ *
+ *    `hype` is excluded from `SYMS` by name (`lib/marketSnapshotData.ts`). The other three never
+ *    reach `SYMS` at all: `BINANCE_HOLD` keeps `pepe` and `bonk` out of `BINANCE_SYMS`, and `xau`
+ *    has no Binance symbol - so the Bybit single-shot that could serve all three is never asked
+ *    for them, because `missingCoins` is derived from `SYMS`.
+ *
+ *    **So all four keep the browser's numbers**, and `fields` comes back empty. The count is not
+ *    restated here on purpose: the branch below is keyed on the ticker having no entry for the
+ *    coin, so it covers whatever is missing, and a number in a comment is the part that rots.
  *
  * WHY 2 IS NOT REFUSED, SINCE IT IS THE WEAKER CHOICE AND SHOULD BE ARGUED FOR RATHER THAN
  * ASSUMED. Refusing it would turn "the server cannot source HYPE" into "Pro users cannot get an AI
  * read on HYPE", which is removing a paid feature to close a hole that is open for every coin
- * today. Keeping the client's numbers for one coin is **exactly today's behaviour for that coin**
- * and strictly better for the other forty-four. The carve-out is one coin, named here, for a
- * reason that is visible in the code it comes from - not a silent fallback that covers whatever
- * happens to be missing.
+ * today. Keeping the client's numbers for an uncovered coin is **exactly today's behaviour for
+ * that coin** and strictly better for the 46 that are covered.
+ *
+ * AND THE BRANCH IS DELIBERATELY A CLASS RATHER THAN A LIST. There is no `coin === 'hype'` here.
+ * It tests whether a POPULATED ticker holds an entry for this coin, so three coins joining the gap
+ * after it was written changed nothing about the behaviour - which is the whole value of having
+ * written it that way, and the reason the stale count above was a documentation bug rather than a
+ * regression.
  *
  * It is also a FOLLOW-UP rather than a resting place. `lib/marketRsi.ts` already sources HYPE from
  * Bybit (`BY_TIMEFRAMES`), and `marketSnapshotData` already carries `bybitTickerToEntry` and
@@ -78,7 +93,9 @@ export type ArenaNumbersResult =
       sourced: readonly ServerSourcedField[];
       /** Snapshot sections that came back empty, passed through for logging. */
       partial: readonly string[];
-      /** True when the ticker is populated but holds nothing for this coin (today: `hype`). */
+      /** True when the ticker is populated but holds nothing for this coin. Four coins are in
+          that state as of 2026-11-06 - hype, pepe, bonk, xau - but this is not keyed on a list;
+          see the header. */
       coinOutsideCoverage: boolean;
     }
   | { ok: false; reason: unknown };
