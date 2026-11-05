@@ -5,6 +5,8 @@ import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { detectEMASignals, DEFAULT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCore';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { exchangeFetch } from '@/lib/exchangeGuard';
+import { firstVenueThatAnswers } from '@/lib/venueFallback';
+import { reportHealth, healthError } from '@/lib/apiHealth';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,12 +44,26 @@ async function fetchBybitKlines(sym: string, interval: string, limit: number): P
   return list.map(k => ({ time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
 }
 
+/* THE THIRD CALL SITE OF THE #1263 SHAPE. This read:
+ *
+ *     if (bnSym) return fetchBinanceFuturesKlines(...);
+ *     if (bySym) return fetchBybitKlines(...);
+ *
+ * which is not a fallback. The first branch returns on success AND throws on failure, so the Bybit
+ * line was reachable only for a coin Binance does not list - the one case where it is not a fallback.
+ * lib/venueFallback.ts's own header names this shape and the two call sites already converted
+ * (useEMAStrategy, backtestEngine); this route was the third and was missed.
+ *
+ * MEASURED, because "has a fallback now" is worth less than how much of the route it covers: all 8 of
+ * the 8 TRACKED_COINS carry BOTH a Binance and a Bybit symbol, so 100% of this route's fetches were
+ * single-venue and all 8 gain a second one. There is no coin here for which this changes nothing. */
 async function fetchOHLCV(coin: CoinId, tf: string, limit: number): Promise<OHLCV[]> {
   const bnSym = BINANCE_SYMS[coin];
   const bySym = BYBIT_SYMS[coin];
-  if (bnSym) return fetchBinanceFuturesKlines(bnSym, TF_BN[tf], limit);
-  if (bySym) return fetchBybitKlines(bySym, TF_BY[tf], limit);
-  throw new Error(`No symbol for ${coin}`);
+  return firstVenueThatAnswers<OHLCV[]>([
+    bnSym ? { venue: 'Binance futures', run: () => fetchBinanceFuturesKlines(bnSym, TF_BN[tf], limit) } : null,
+    bySym ? { venue: 'Bybit',           run: () => fetchBybitKlines(bySym, TF_BY[tf], limit) } : null,
+  ], `${coin}/${tf}`);
 }
 
 interface OpenRow {
@@ -130,6 +146,27 @@ async function runTracking(): Promise<{ logged: string[]; resolved: string[]; er
       errors.push(`resolve #${sig.id}: ${String(err)}`);
     }
   }));
+
+  /* THE PASS REPORTED NOTHING, SO AN OUTAGE HERE WAS INVISIBLE. Every failure above is swallowed into
+   * `errors` and the route answers `ok: true` either way, so a run where all 16 coin/timeframe fetches
+   * failed and a run that worked perfectly are the same 200 to the scheduler. /ops had no row for this
+   * route to show otherwise.
+   *
+   * ONE report per pass, not per coin: 8 coins x 2 timeframes plus the resolve leg would be up to 16
+   * writes an hour for one logical outcome, which is the waste lib/apiHealth's own coalescing comment
+   * was written about. `ok` is false on ANY error rather than only on a total failure - a partial
+   * outage that silently stops logging half the coins is exactly what this is for, and shouldWrite's
+   * throttle already bounds how often that can write.
+   *
+   * The HTTP body is deliberately unchanged: it already returns `errors`, and flipping its status
+   * would change what the external scheduler (cron-job.org, see docs/INFRASTRUCTURE.md) alerts on. */
+  reportHealth(
+    'signals-track', 'market', errors.length === 0,
+    errors.length === 0
+      ? `${logged.length} logged, ${resolved.length} resolved`
+      : `${errors.length} failed - ${healthError(errors[0])}`,
+    logged.length + resolved.length,
+  );
 
   return { logged, resolved, errors };
 }
