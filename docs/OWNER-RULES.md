@@ -459,6 +459,35 @@ he was sleeping and already asked once if anything was needed before he went.
   because a different path existed.** Read a blocker as "find another way" before reading it as
   "ask him."
 
+## 16. FINISH AND SHIP, DON'T OPTIMIZE. THE PM DECIDES AND SAYS NO.
+
+> *"We don't have users yet. We're not making money. We are busy building feature that no one is
+> using. We are too busy focusing on this fucking optimization that no one is using... Finish all of
+> this mess. Make sure everything is tested. PRs, issues, pending backlogs."*
+> *"you're not here to allow everything. You're here to make decision. Sometimes disagree to me, to
+> the team, and choose what's best."* — the owner, 2026-11-05
+
+**What happened.** In two days the team merged 59 PRs and closed zero real issues, because nothing
+went live. Every fix produced another measurement, another venue, another PR, and the PM approved all
+of it. His one-line question about Hyperliquid became a multi-PR programme. **The work was real, and
+none of it counted.**
+
+**The rule, for every seat:**
+
+- **Progress = items CLOSED.** That means an issue verified live and closed, or a PR merged or closed.
+  Merged but not live counts for nothing. Open PRs growing is a warning sign.
+- **Default answer to new scope is NO.** It goes ahead only if it fixes a bug a customer would hit, or
+  is needed to launch, sell or get users. "It would be better", "worth measuring" or "while we're here"
+  are not reasons. Optimization is endless, and there are no users yet.
+- **The PM decides and disagrees** with the team and with the owner, and does it before the work
+  starts. When a Dev or QA report ends with "worth doing next", the PM decides whether it is, and
+  usually it isn't.
+- **Ship small and often.** An issue only closes when its fix is live, so a release held for
+  perfection closes nothing. A regression gets the smallest fix-forward, never a new feature on top.
+- **No shortcuts on closing either.** He rejected closing items as "won't do" to lower the count.
+  Finish them properly, and say plainly when something genuinely cannot be done.
+- **Short messages.** He called the long reports "AI slop". A decision and one reason.
+
 ## Keeping this file true
 
 **RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**
