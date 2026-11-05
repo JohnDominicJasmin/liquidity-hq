@@ -432,6 +432,105 @@ if (dupes.length) {
   process.exit(2);
 }
 
+/* ── BINANCE SPOT LISTING: THE `binance` COLUMN IS A FUTURES FACT AND DOES NOT COVER SPOT ───────
+ *
+ * Every symbol in this file's `binance` column comes from `fapi/v1/exchangeInfo`. The app also
+ * calls SPOT endpoints (`api.binance.com/api/v3/*`) with those same symbols, and the two markets
+ * list different things. `SPXUSDT` is on futures and NOT on spot.
+ *
+ * That cost more than one coin, because Binance's batched `api/v3/ticker/24hr?symbols=[...]`
+ * rejects the ENTIRE request on one unlisted symbol with `400 -1121`. So the market snapshot's
+ * spot call returned nothing on every run for as long as SPX has been in the universe, the futures
+ * fallback always took over, and `source` was permanently `'futures'` - with no visible symptom,
+ * since the app still had prices. Found by QA on #1651.
+ *
+ * `lib/coins.ts` holds the exclusion by hand (`BINANCE_SPOT_HOLD`), because a hand list that names
+ * each coin is more honest than a derived one here would be - the `binance` column still means
+ * "futures", and overloading it would hide which market a symbol was proved on.
+ *
+ * SO THIS CHECKS BOTH DIRECTIONS, and the second one is the one that rots quietly:
+ *
+ *   - a symbol the app WILL send to spot that spot does not list -> the -1121 again, on every run
+ *   - a symbol held out of the spot list that HAS started trading on spot -> a working source
+ *     silently excluded forever, which nothing would ever surface
+ *
+ * REFUSES rather than warns, same as the unit-agreement check: a generation that writes a file
+ * whose spot batch is known-broken is worse than no generation. Exit 2 for the same reason as the
+ * duplicate-id guard - "do not commit what you just generated", not "regenerate".
+ *
+ * THE HOLD LIST IS READ FROM lib/coins.ts, NOT DUPLICATED HERE. A second copy would drift, and the
+ * drift would disable the check that exists to catch drift. */
+const spotInfo = await j('https://api.binance.com/api/v3/exchangeInfo');
+const spotListed = new Set(
+  (spotInfo.symbols ?? []).filter(s => s.status === 'TRADING').map(s => s.symbol),
+);
+if (spotListed.size === 0) {
+  console.error('binance SPOT exchangeInfo returned no TRADING symbols - refusing to judge the');
+  console.error('  spot list against an empty set, which would "pass" every symbol.');
+  process.exit(2);
+}
+
+const coinsSrc = readFileSync(new URL('../lib/coins.ts', import.meta.url), 'utf8');
+
+/* THREE LISTS, ALL READ FROM lib/coins.ts RATHER THAN COPIED. A copy would drift, and the drift
+   would disable the very check that exists to catch drift. */
+const listFromCoins = (decl, re) => {
+  const m = re.exec(coinsSrc);
+  if (!m) {
+    console.error(`could not find ${decl} in lib/coins.ts.`);
+    console.error('  This check reads it from there on purpose - a copy here would drift. If the');
+    console.error('  declaration was renamed, update this regex rather than hardcoding the list.');
+    process.exit(2);
+  }
+  return new Set([...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]));
+};
+const spotHold = listFromCoins('BINANCE_SPOT_HOLD',
+  /const BINANCE_SPOT_HOLD = new Set\(\[([^\]]*)\]\)/);
+const binanceHold = listFromCoins('BINANCE_HOLD',
+  /const BINANCE_HOLD = new Set\(\[([^\]]*)\]\)/);
+const renderedIds = listFromCoins('RENDERED_IDS',
+  /const RENDERED_IDS: readonly string\[\] = \[([\s\S]*?)\];/);
+if (renderedIds.size === 0) {
+  console.error('RENDERED_IDS parsed as empty - refusing to check an empty set, which passes everything.');
+  process.exit(2);
+}
+
+/* ONLY THE CURATED COINS, AND GETTING THIS WRONG IS WHY THE FIRST VERSION OF THIS CHECK WAS
+   USELESS. It looped every row in the 463-instrument universe and reported **137 problems** on a
+   tree that was perfectly fine - because `BINANCE_SYMS` is built from `RENDERED_IDS`, not from the
+   whole universe, so the app never sends those other 400-odd symbols to spot at all. A guard that
+   fires on every generation gets switched off, not obeyed.
+
+   Caught by running the negative control - the check against the unmodified tree - rather than only
+   the positive one. The positive control "passed" in the sense that it failed, which is exactly how
+   a guard this broken can look correct. */
+const spotProblems = [];
+for (const r of rows) {
+  if (!r.binance) continue;
+  if (!renderedIds.has(r.id)) continue;   // not rendered -> never sent to spot
+  if (binanceHold.has(r.id)) continue;    // not in BINANCE_SYMS at all, so not in the spot map
+  const held = spotHold.has(r.id);
+  const listed = spotListed.has(r.binance);
+  if (!held && !listed) {
+    spotProblems.push(
+      `${r.id} (${r.binance}): the app sends this to SPOT but spot does not list it. One such `
+      + 'symbol makes the whole batched ticker call fail with -1121. Add it to '
+      + "BINANCE_SPOT_HOLD in lib/coins.ts.",
+    );
+  } else if (held && listed) {
+    spotProblems.push(
+      `${r.id} (${r.binance}): held out of the spot list but spot DOES list it now. Remove it `
+      + 'from BINANCE_SPOT_HOLD - it is a working source being excluded for no reason.',
+    );
+  }
+}
+if (spotProblems.length) {
+  console.error(`BINANCE SPOT LIST DISAGREES WITH THE VENUE (${spotProblems.length}):`);
+  for (const p of spotProblems) console.error(`  - ${p}`);
+  process.exit(2);
+}
+console.log(`binance spot list agrees with the venue (${spotListed.size} spot symbols checked)`);
+
 const body = `/* GENERATED by scripts/generate-coins.mjs - DO NOT EDIT BY HAND.
  *
  * Every instrument both Bybit and Binance trade as a USDT perpetual, ranked by 24h turnover on

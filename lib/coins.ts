@@ -177,6 +177,77 @@ export const BINANCE_SYMS: Record<string, string> = Object.fromEntries(
     .filter(([, s]) => s) as [string, string][],
 );
 
+/* ── BINANCE_SYMS IS A **FUTURES** MAP, AND USING IT FOR A SPOT CALL IS A REAL DEFECT ──────────
+ *
+ * `scripts/generate-coins.mjs` builds the `binance` column from `fapi/v1/exchangeInfo` - FUTURES
+ * only. It never asks `api/v3/exchangeInfo`, so a symbol in `BINANCE_SYMS` is proof of a futures
+ * listing and says NOTHING about spot.
+ *
+ * `SPXUSDT` is the live case. Measured 2026-11-05 against both endpoints:
+ *
+ *     binance FUTURES exchangeInfo : SPXUSDT present
+ *     binance SPOT    exchangeInfo : SPXUSDT ABSENT
+ *
+ * ── WHY ONE MISSING SYMBOL COST ALL 46 ─────────────────────────────────────────────────────────
+ *
+ * Binance's batched `api/v3/ticker/24hr?symbols=[...]` fails the WHOLE request on one unlisted
+ * symbol - `400 {"code":-1121,"msg":"Invalid symbol."}`. QA measured it and ran the control:
+ *
+ *     all 46 symbols      -> HTTP 400, -1121
+ *     the same 46 less SPX -> HTTP 200, 45 entries
+ *
+ * The 200 on retry is what makes it a DATA error rather than a batch-size or weight limit.
+ *
+ * ── IT HAD NO SYMPTOM, WHICH IS WHY IT LASTED ──────────────────────────────────────────────────
+ *
+ * `lib/marketSnapshotData.ts` falls back to the futures ticker whenever the spot result is empty,
+ * and the spot result was ALWAYS empty. So the app always had prices and `source` was permanently
+ * `'futures'`. Three costs, none of them visible:
+ *
+ *   1. Every 24h volume in the app has been the degraded figure. That file's own comment says
+ *      "Perp volume is not identical to spot volume for the same pair, so this is a degraded
+ *      answer rather than an equal one - which is why it is a fallback and not the default."
+ *      It has been the default in practice.
+ *   2. The weight budgeted as "Weight 80 either way" bought a 400 on every TTL expiry.
+ *   3. The independent-bucket protection was gone in one direction: the fallback exists because
+ *      spot and futures fail independently (found with spot 418 while futures answered). With spot
+ *      permanently dead, a futures failure dropped straight to the Bybit single-shot at #1236.
+ *
+ * ── WHY SPX IS NOT SIMPLY REMOVED FROM BINANCE_SYMS ────────────────────────────────────────────
+ *
+ * Because its futures listing is REAL. Dropping it from the map would lose a working source to fix
+ * a problem that only exists on the other market. The venue fact differs per market, so the map
+ * has to differ per market - the same reasoning that split `bybitMult` from `binanceMult`.
+ *
+ * `BINANCE_HOLD`'s comment already considered SPX and set it aside: "SPX turned out to be a
+ * different problem entirely - it is SPX6900, a memecoin, and the app was calling it the S&P 500.
+ * That is fixed at the label and in the classifier, not here." That was right about the label and
+ * incomplete about the consequences: it also poisons the spot batch, which the fallback absorbed.
+ *
+ * ── HAND-MAINTAINED, AND GUARDED AT GENERATION ─────────────────────────────────────────────────
+ *
+ * `scripts/generate-coins.mjs` now fetches `api/v3/exchangeInfo` and REFUSES TO WRITE THE FILE if
+ * any symbol left in this map is not spot-listed, or if a symbol held out here has started trading
+ * on spot. So a future delisting cannot silently degrade the batch again, and this list cannot rot
+ * into excluding something that works - the same "refuse rather than go quietly wrong" mechanism
+ * the OKX agreement check already uses. */
+const BINANCE_SPOT_HOLD = new Set(['spx']);
+
+/**
+ * Binance **spot** symbols. Use this for `api.binance.com` / `api/v3/*`; use `BINANCE_SYMS` for
+ * `fapi.binance.com`.
+ *
+ * Deliberately a separate export rather than a filter at the call site, so a new spot consumer gets
+ * it right by reaching for the obvious name instead of rediscovering -1121.
+ */
+export const BINANCE_SPOT_SYMS: Record<string, string> = Object.fromEntries(
+  Object.entries(BINANCE_SYMS).filter(([id]) => !BINANCE_SPOT_HOLD.has(id)),
+);
+
+/** Coins with a Binance futures listing but no spot one - for a health or diagnostic surface. */
+export const BINANCE_SPOT_EXCLUDED: string[] = Object.keys(BINANCE_SYMS)
+  .filter(id => BINANCE_SPOT_HOLD.has(id));
+
 // Bybit linear perp symbols - includes the 1000x meme listings and the synthetics.
 export const BYBIT_SYMS: Record<string, string> = Object.fromEntries(
   RENDERED_IDS.map(id => [id, BY_ID.get(id)?.bybit]).filter(([, s]) => s) as [string, string][],

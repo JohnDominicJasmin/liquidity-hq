@@ -62,7 +62,7 @@
  * remainder, not an oversight.
  */
 
-import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor } from './coins.ts';
+import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, bybitPriceFactor } from './coins.ts';
 import { cached } from './apiCache.ts';
 import { runPool, HttpStatusError, isRateLimitStatus } from './pool.ts';
 import { parseRatioPair } from './ratioPair.ts';
@@ -89,6 +89,19 @@ const SPOT_HOSTS    = ['https://api.binance.com', 'https://api1.binance.com', 'h
 const FUTURES_HOSTS = ['https://fapi.binance.com', 'https://fapi1.binance.com', 'https://fapi2.binance.com'];
 
 const SYMS = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
+
+/* THE SPOT BATCH GETS A SPOT SYMBOL LIST, WHICH IS NOT THE SAME LIST.
+ *
+ * `BINANCE_SYMS` is built from `fapi/v1/exchangeInfo` - futures. `SPXUSDT` is listed there and NOT
+ * on spot, and Binance's batched `api/v3/ticker/24hr?symbols=[...]` rejects the ENTIRE request on
+ * one unlisted symbol with `400 -1121`. So the spot call below returned nothing on every single
+ * run, the futures fallback always took over, and `source` was permanently `'futures'` - with no
+ * visible symptom, because the app still had prices. Full reasoning in `lib/coins.ts` beside
+ * `BINANCE_SPOT_SYMS`; guarded at generation so a future delisting cannot repeat it.
+ *
+ * The futures fallback below deliberately keeps using `SYMS`: SPX's futures listing is real, so
+ * excluding it there would lose a working source. */
+const SPOT_SYMS = Object.entries(BINANCE_SPOT_SYMS).filter(([c]) => c !== 'hype');
 
 interface TickerEntry { price: number; change: number; high: number; low: number; vol24: number }
 interface LsrEntry {
@@ -234,7 +247,7 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
      rather than once per visitor. */
   const spot = await resolveHost(SPOT_HOSTS, '/api/v3/ping');
   if (spot) {
-    const batch = encodeURIComponent(JSON.stringify(SYMS.map(([, s]) => s)));
+    const batch = encodeURIComponent(JSON.stringify(SPOT_SYMS.map(([, s]) => s)));
     absorb(await get(`${spot}/api/v3/ticker/24hr?symbols=${batch}`));
   }
 
