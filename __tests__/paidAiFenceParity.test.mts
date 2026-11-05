@@ -204,6 +204,95 @@ test('P2. a spec that stubs a paid AI path also installs the fence, so a renamed
     + 'registered handler first, so installing it last would swallow the stubs instead).');
 });
 
+/* ── P5: `unrouteAll` is the OTHER way to lose the fence ──────────────────────────────────────── */
+
+/* P4 ASKS WHETHER THE FENCE WAS INSTALLED TOO LATE. IT CANNOT SEE THE FENCE BEING REMOVED.
+ *
+ * `installPaidAiFence` registers with `page.route` (`_no-paid-ai.ts:94`), and
+ * `page.unrouteAll()` clears EVERY page.route handler - the fence among them. So a spec can
+ * install the fence correctly, satisfy P4, and then disarm itself halfway through.
+ *
+ * NOT HYPOTHETICAL. Dev Team found exactly this reviewing #1968, in two specs I had just
+ * "fenced": `real-yield` (fence, then `unrouteAll`, then a full `/arena` load) and
+ * `score-perps-coupling` (same shape, and it was that file's only fenced test, so the fence
+ * covered the first load and nothing after it). On a deployed host the second load is precisely
+ * the billed call the fence was added to prevent. My own header told specs to install the fence
+ * before their stubs, which is correct and was incomplete.
+ *
+ * THE NAVIGATION IS USUALLY INDIRECT, which is why this resolves helpers. Neither offender called
+ * `goto` after its `unrouteAll`; they called `cardText(page)` and `readScore(page)`, module-scope
+ * helpers in the same file that navigate internally. A line-level search for `goto` finds nothing
+ * in both cases - a check that only looked for the literal would have passed on the live defect.
+ *
+ * ONLY FILES THAT INSTALL THE FENCE ARE JUDGED. A spec with no fence is not claiming the
+ * protection, and P2 already covers whether it should have one. */
+const NAVIGATES = /\b(goto|gotoSignedIn|gotoGuarded)\s*\(/;
+
+/** Module-scope helpers in this file that navigate, directly or through another such helper. */
+function navigatingHelpers(src: string): Set<string> {
+  const bodies = moduleHelpers(src);
+  const out = new Set<string>();
+  for (let pass = 0; pass < 3; pass++) {
+    for (const [name, body] of bodies) {
+      if (out.has(name)) continue;
+      if (NAVIGATES.test(body)) { out.add(name); continue; }
+      /* A helper that calls an already-known navigating helper navigates too. Three passes rather
+         than a fixed point because the depth here is one or two and an unbounded walk would need
+         cycle handling for no benefit. */
+      for (const inner of out) if (new RegExp(`\\b${inner}\\s*\\(`).test(body)) { out.add(name); break; }
+    }
+  }
+  return out;
+}
+
+test('P5. a spec that calls page.unrouteAll re-arms the fence before navigating again', () => {
+  const offenders: string[] = [];
+  let checked = 0;
+
+  for (const f of specs) {
+    const src = readFileSync(join(SPEC_DIR, f), 'utf8');
+    if (!/installPaidAiFence\s*\(/.test(src)) continue;
+    if (!/\.unrouteAll\s*\(/.test(src)) continue;
+    checked++;
+
+    const navHelpers = navigatingHelpers(src);
+    const navPattern = new RegExp(
+      [NAVIGATES.source, ...[...navHelpers].map((n) => `\\b${n}\\s*\\(`)].join('|'),
+    );
+
+    const lines = src.split(/\r?\n/);
+    let disarmedAt = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const L = lines[i];
+      /* A mention inside a comment is not a call. The two offenders now carry a comment ABOUT
+         unrouteAll beside the fix, and counting that as a disarm would report the fixed file as
+         broken - a check whose false alarm would prompt removing the repair. */
+      if (/^\s*(\/\/|\*|\/\*)/.test(L)) continue;
+      if (/\.unrouteAll\s*\(/.test(L)) { disarmedAt = i + 1; continue; }
+      if (/installPaidAiFence\s*\(/.test(L)) { disarmedAt = 0; continue; }
+      if (disarmedAt && navPattern.test(L)) {
+        offenders.push(`${f}: unrouteAll at line ${disarmedAt} removed the fence, then line ${i + 1} navigates - "${L.trim().slice(0, 72)}"`);
+        disarmedAt = 0;   // one report per disarm, not one per line after it
+      }
+    }
+  }
+
+  /* The sweep must have had something to sweep. Zero files with both an install and an unrouteAll
+     makes this cell pass by having nothing to look at - and it would then keep passing after
+     someone reintroduced the pattern, which is the shape this whole file exists to refuse. */
+  assert.ok(checked > 0,
+    'no spec installs the fence AND calls unrouteAll, so this cell examined nothing. If that is '
+    + 'genuinely true the pattern is gone and this can be deleted - but check, because a broken '
+    + 'file-level filter looks identical.');
+
+  assert.deepEqual(offenders, [],
+    `the fence is removed and not put back before the next navigation:\n  ${offenders.join('\n  ')}\n\n`
+    + '`page.unrouteAll()` clears every page.route handler and the fence is one of them, so the '
+    + 'navigation above runs unfenced - on a deployed host that is a real, billed xAI call. Add '
+    + '`await installPaidAiFence(page)` immediately after the unrouteAll, BEFORE the spec re-registers '
+    + 'its own stubs, so the stub stays the more recent handler and still wins for its own path.');
+});
+
 /* ── P4: THE FENCE MUST NOT BE INSTALLED AFTER A ROUTE IT WOULD SWALLOW ──────────────────────────
  *
  * P2 above asserts the fence IS installed. It cannot see WHERE, and that gap cost four cells.

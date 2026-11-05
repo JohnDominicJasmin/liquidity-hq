@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { marketDataUnavailable, entitlementsUnresolved } from './_shared';
+import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 
 /* Does the 10Y REAL YIELD reach the Confluence card? (#60, #311, dev's PR #319)
@@ -136,6 +137,15 @@ test.describe('10Y real yield reaches the Confluence card', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE, AND RE-ARMED AFTER ANY unrouteAll.
+      These specs were safe in CI only by accident of the environment:
+      `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the SERVER, so a browser
+      request reaching a paid AI route cost nothing. Against a DEPLOYED service that stub does not
+      exist and the call is real and billed - the whole reason a targeted staging run needed this
+      first.
+      Before the spec's own routes because Playwright matches the most recently registered handler,
+      so installing it last would swallow the stubs instead (#1958). */
+      await installPaidAiFence(page);
     await pinYield(page, 'tightening');
     const text = await cardText(page);
 
@@ -151,6 +161,12 @@ test.describe('10Y real yield reaches the Confluence card', () => {
        a quiet one. The line above is the deterministic claim; this is context. */
     // eslint-disable-next-line no-console
     console.log(`[yield] tightening - band text: ${/danger|caution|elevated|calm/i.exec(text)?.[0] ?? 'no band word found'}`);
+      /* THE FENCE ASSERTED, not just installed. The abort protects the bill on its own, but a
+         spec whose stub glob stops matching would then reach a paid route, be silently aborted,
+         and still pass - so an unasserted fence is a fence with a gate (this helper's own
+         header). Last statement in the try so a real assertion failure above surfaces first
+         rather than being masked by this one. */
+      assertNoUnstubbedPaidAi(page, 'real-yield');
     } finally { await ctx.close(); }
   });
 
@@ -158,6 +174,15 @@ test.describe('10Y real yield reaches the Confluence card', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE, AND RE-ARMED AFTER ANY unrouteAll.
+      These specs were safe in CI only by accident of the environment:
+      `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the SERVER, so a browser
+      request reaching a paid AI route cost nothing. Against a DEPLOYED service that stub does not
+      exist and the call is real and billed - the whole reason a targeted staging run needed this
+      first.
+      Before the spec's own routes because Playwright matches the most recently registered handler,
+      so installing it last would swallow the stubs instead (#1958). */
+      await installPaidAiFence(page);
     /* Past the same threshold as tightening, and renders nothing on purpose.
        This test exists so that "the easing case is missing" reads as a decision
        rather than an oversight the next time someone audits this file. */
@@ -169,6 +194,12 @@ test.describe('10Y real yield reaches the Confluence card', () => {
       `card's RISK band - good news in a warning box teaches people to read the colour as ` +
       `decoration. If this is now intended, lib/confluence.ts:166 is the decision to revisit.`)
       .not.toMatch(YIELD_LINE);
+      /* THE FENCE ASSERTED, not just installed. The abort protects the bill on its own, but a
+         spec whose stub glob stops matching would then reach a paid route, be silently aborted,
+         and still pass - so an unasserted fence is a fence with a gate (this helper's own
+         header). Last statement in the try so a real assertion failure above surfaces first
+         rather than being masked by this one. */
+      assertNoUnstubbedPaidAi(page, 'real-yield');
     } finally { await ctx.close(); }
   });
 
@@ -176,11 +207,26 @@ test.describe('10Y real yield reaches the Confluence card', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE, AND RE-ARMED AFTER ANY unrouteAll.
+      These specs were safe in CI only by accident of the environment:
+      `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the SERVER, so a browser
+      request reaching a paid AI route cost nothing. Against a DEPLOYED service that stub does not
+      exist and the call is real and billed - the whole reason a targeted staging run needed this
+      first.
+      Before the spec's own routes because Playwright matches the most recently registered handler,
+      so installing it last would swallow the stubs instead (#1958). */
+      await installPaidAiFence(page);
     await pinYield(page, 'neutral');
     const text = await cardText(page);
     expect(text,
       `a +3bp move is under the 10bp threshold and should be silent, but a line appeared`)
       .not.toMatch(YIELD_LINE);
+      /* THE FENCE ASSERTED, not just installed. The abort protects the bill on its own, but a
+         spec whose stub glob stops matching would then reach a paid route, be silently aborted,
+         and still pass - so an unasserted fence is a fence with a gate (this helper's own
+         header). Last statement in the try so a real assertion failure above surfaces first
+         rather than being masked by this one. */
+      assertNoUnstubbedPaidAi(page, 'real-yield');
     } finally { await ctx.close(); }
   });
 
@@ -188,6 +234,15 @@ test.describe('10Y real yield reaches the Confluence card', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE, AND RE-ARMED AFTER ANY unrouteAll.
+      These specs were safe in CI only by accident of the environment:
+      `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the SERVER, so a browser
+      request reaching a paid AI route cost nothing. Against a DEPLOYED service that stub does not
+      exist and the call is real and billed - the whole reason a targeted staging run needed this
+      first.
+      Before the spec's own routes because Playwright matches the most recently registered handler,
+      so installing it last would swallow the stubs instead (#1958). */
+      await installPaidAiFence(page);
     await pinYield(page, 'unknown');
     const text = await cardText(page);
     expect(text,
@@ -195,6 +250,12 @@ test.describe('10Y real yield reaches the Confluence card', () => {
       `means "checked, nothing happening" - which is a different statement from "could not ` +
       `check", and the user cannot tell them apart. Card text: ${text.slice(0, 300)}`)
       .toMatch(YIELD_LINE);
+      /* THE FENCE ASSERTED, not just installed. The abort protects the bill on its own, but a
+         spec whose stub glob stops matching would then reach a paid route, be silently aborted,
+         and still pass - so an unasserted fence is a fence with a gate (this helper's own
+         header). Last statement in the try so a real assertion failure above surfaces first
+         rather than being masked by this one. */
+      assertNoUnstubbedPaidAi(page, 'real-yield');
     } finally { await ctx.close(); }
   });
 
@@ -202,6 +263,15 @@ test.describe('10Y real yield reaches the Confluence card', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE, AND RE-ARMED AFTER ANY unrouteAll.
+      These specs were safe in CI only by accident of the environment:
+      `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the SERVER, so a browser
+      request reaching a paid AI route cost nothing. Against a DEPLOYED service that stub does not
+      exist and the call is real and billed - the whole reason a targeted staging run needed this
+      first.
+      Before the spec's own routes because Playwright matches the most recently registered handler,
+      so installing it last would swallow the stubs instead (#1958). */
+      await installPaidAiFence(page);
     /* The four tests above each pass in isolation while the property that
        actually matters fails. Two of them assert absence and two assert
        presence, and nothing so far compares the quiet card to the unavailable
@@ -213,6 +283,12 @@ test.describe('10Y real yield reaches the Confluence card', () => {
     const quiet = await cardText(page);
 
     await page.unrouteAll({ behavior: 'ignoreErrors' });
+    /* unrouteAll CLEARS THE FENCE TOO - it removes every page.route handler, and the fence is
+       one (_no-paid-ai.ts:94). Re-armed here, BEFORE the pin below registers its stub, so the
+       stub stays the more recent handler and still wins for its own path. Without this the
+       navigation that follows is unfenced, which on a deployed host is exactly the billed call
+       this fence exists to stop. Found by Dev Team reviewing #1968. */
+    await installPaidAiFence(page);
     await pinYield(page, 'unknown');
     const absent = await cardText(page);
 
@@ -223,6 +299,12 @@ test.describe('10Y real yield reaches the Confluence card', () => {
 
     expect(absent, 'the unavailable state produced no line').toMatch(YIELD_LINE);
     expect(quiet, 'the quiet state produced a line').not.toMatch(YIELD_LINE);
+      /* THE FENCE ASSERTED, not just installed. The abort protects the bill on its own, but a
+         spec whose stub glob stops matching would then reach a paid route, be silently aborted,
+         and still pass - so an unasserted fence is a fence with a gate (this helper's own
+         header). Last statement in the try so a real assertion failure above surfaces first
+         rather than being masked by this one. */
+      assertNoUnstubbedPaidAi(page, 'real-yield');
     } finally { await ctx.close(); }
   });
 });
