@@ -3,8 +3,20 @@
  * The shape of the deal: ONE scheduled job calls the exchange and writes here;
  * page requests only read. Enforced by the database as well as by convention -
  * `lhq_market_snapshot` has a read policy for anon/authenticated and no write
- * policy at all, so only the service-role client used by the ingest route can
- * write a row (20260923b_market_snapshot.sql).
+ * policy at all, so only a service-role client can write a row
+ * (20260923b_market_snapshot.sql).
+ *
+ * THE ONE EXCEPTION, NAMED RATHER THAN LEFT TO BE DISCOVERED (#1651).
+ * `app/api/ath` writes the `ath` key itself, from a page request. The reason the
+ * rule exists is to stop per-visitor upstream fan-out, and that reason is not
+ * engaged here: the write sits INSIDE its `cachedStale` producer, so it happens
+ * only on a real cache miss - at most once per six hours per instance, however
+ * many visitors arrive. What it buys is the thing a scheduled job would also
+ * buy and the in-memory cache cannot: a value that survives a restart, which is
+ * the whole failure being fixed.
+ *
+ * If a third writer ever wants the same carve-out, that is the point to move
+ * these fetches into the ingest job properly rather than widen this paragraph.
  *
  * WHY A TABLE AND NOT A LONGER CACHE TTL. Measured over four runs in #1397:
  * upstream calls held at ~5/second while the page-load rate varied by 56%, so
@@ -287,9 +299,10 @@ export function mergeCoverage(previous: unknown, next: unknown): { payload: unkn
   return { payload: { ...nextObj, data: merged, staleSymbols: kept }, kept };
 }
 
-/** Writes one snapshot row. Only the ingest route calls this, and only with the
- *  service-role client; an anon or authenticated caller has no write policy to
- *  use even if this were reachable from a page request. */
+/** Writes one snapshot row, with the service-role client; an anon or authenticated
+ *  caller has no write policy to use even if this were reachable from a page
+ *  request. Callers: the ingest route, and `app/api/ath` for the `ath` key only -
+ *  see the carve-out in this file's header before adding a third. */
 export async function writeSnapshot(key: string, payload: unknown, source: string | null): Promise<void> {
   const sb = getSupabaseAdmin();
   const { error } = await sb.from(T.market_snapshot).upsert({
