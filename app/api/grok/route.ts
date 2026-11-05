@@ -369,15 +369,37 @@ export async function POST(req: NextRequest) {
   const usageResult = await incrementUsageColumn(userId, role, column, limit);
   if (usageResult.blocked) {
     const label = type === 'deep' ? 'deep analyses' : 'quick analyses';
+    /* A BLOCK THAT IS OUR STATE IS NOT A RATE LIMIT, AND 429 TOLD THE USER A LIE.
+     *
+     * Three of the reasons are not the user's quota at all: `error` is a DB failure in
+     * `increment_ai_usage`, `not_enabled` is a migration we have not applied, and `disabled` is the
+     * admin kill switch. All three were answered `429 RATE_LIMIT`, and `rateLimitMessage`'s own
+     * copy for a limit says when it resets - so a database outage told a paying user they had used
+     * up their analyses and named a reset time for a cap they had not reached.
+     *
+     * The MESSAGES were already right for these three; only the status and the code were wrong. 503
+     * so a client's retry-after-reset heuristic does not wait until tomorrow for something that may
+     * work in a second, which is the same reasoning as draw-structure's NOT_ENABLED. */
+    const ourFault = usageResult.reason === 'error'
+      || usageResult.reason === 'not_enabled'
+      || usageResult.reason === 'disabled';
     return NextResponse.json(
-      { error: rateLimitMessage(usageResult.reason, limit, label), code: 'RATE_LIMIT', usage: allUsage() },
-      { status: 429 }
+      {
+        error: rateLimitMessage(usageResult.reason, limit, label),
+        code: ourFault ? 'UNAVAILABLE' : 'RATE_LIMIT',
+        usage: allUsage(),
+      },
+      { status: ourFault ? 503 : 429 }
     );
   }
 
   // ── Call xAI ──────────────────────────────────────────────────────────────
   let text: string;
   let citations: string[] = [];
+  /* HAS xAI BEEN PAID YET? A box rather than a plain `let` for the reason #1965 records: TS
+   * control-flow analysis does not follow an assignment made inside a nested closure, and this is
+   * read in the `catch` below. Set the moment a 2xx is confirmed, in BOTH branches. */
+  const spent = { current: false };
   try {
     if (type === 'deep') {
       // Responses API with live web + X search. #1651 item 1: X is searched over yesterday and today only - Deep asks why the coin is
@@ -403,6 +425,7 @@ export async function POST(req: NextRequest) {
         const e = await r.json().catch(() => ({})) as { error?: string };
         throw new Error(`xAI ${r.status}: ${e.error ?? r.statusText}`);
       }
+      spent.current = true; // 2xx: the tokens are billed from here
       const d = await r.json();
       await recordAiCall({ userId, callType: 'deep', model: d.model ?? 'grok-4.3', usage: d.usage });
       text = answerText(d, true);
@@ -424,11 +447,26 @@ export async function POST(req: NextRequest) {
         const e = await r.json().catch(() => ({})) as { error?: string };
         throw new Error(`xAI ${r.status}: ${e.error ?? r.statusText}`);
       }
+      spent.current = true; // 2xx: the tokens are billed from here
       const d = await r.json();
       await recordAiCall({ userId, callType: 'quick', model: d.model ?? 'grok-4.3', usage: d.usage });
       text = answerText(d, false);
     }
   } catch (e: unknown) {
+    /* THE READ GOES BACK IF WE NEVER PAID FOR IT. `incrementUsageColumn` reserved it above, so a
+     * network error to xAI, a non-2xx, or a body that would not parse left the user one analysis
+     * down with nothing to show. That is the same position draw-structure and smc-snapshot refund
+     * for (#1965, #1978).
+     *
+     * `!spent.current` is the whole condition: after a 2xx the tokens are billed, so a later
+     * failure - a malformed body, `recordAiCall` throwing, `answerText` finding no verdict - must
+     * NOT hand the read back. Those are our bugs and upstream format changes, and refunding them
+     * gives away quota for money already spent. `reservedOn` is the date the reservation was
+     * written under, not today's, so a Deep call that crossed UTC midnight credits the row that
+     * actually paid. */
+    if (!spent.current) {
+      await refundUsageColumn(userId, column, reservedOn);
+    }
     return apiError('grok', e, 500, 'AI service error');
   }
 
