@@ -942,8 +942,24 @@ jobs:
         # around 60-75 minutes, roughly +35 to +50. `timeout-minutes: 120` on this job already
         # accommodates that, demonstrated by mobile rather than argued.
         #
-        # EVERY OTHER EVENT KEEPS 25, so CI minutes on `dev` pushes and feature PRs stay bounded.
-        run: npm run test:e2e -- --project=${{ matrix.project }} ${{ matrix.project == 'desktop' && (github.base_ref == 'main' && '--max-failures=50' || '--max-failures=25') || '' }}
+        # WHICH EVENTS ACTUALLY REACH THIS LINE, because the first version of this comment got it
+        # wrong and Dev Team caught it. The whole `e2e` job is gated at :636 on
+        # `base_ref == 'main' || (workflow_dispatch && inputs.e2e)`, so it NEVER runs on a `dev`
+        # push or a feature PR. "Every other event keeps 25, so CI minutes on dev pushes stay
+        # bounded" justified a cap for events this job cannot receive.
+        #
+        # There are exactly TWO reachable cases, and both now get 50:
+        #   * a PR into `main`  - the release gate, the case this was raised for
+        #   * `workflow_dispatch` with `inputs.e2e` - and this is the one the first version got
+        #     backwards. `base_ref` is EMPTY outside a pull request, so a manual run fell through
+        #     to 25: the investigation path, the run most likely to be looking at a suite already
+        #     failing in bulk, was the one capped lowest. A cap that bites hardest exactly when
+        #     someone is deliberately investigating is the opposite of what it is for.
+        #
+        # So the condition is "is this a run we actually care to see the end of", which both are.
+        # The 25 branch is now unreachable and kept only so a future event that does fall through
+        # inherits the bounded value rather than no cap at all.
+        run: npm run test:e2e -- --project=${{ matrix.project }} ${{ matrix.project == 'desktop' && ((github.base_ref == 'main' || github.event_name == 'workflow_dispatch') && '--max-failures=50' || '--max-failures=25') || '' }}
         # ── MOBILE IS NON-BLOCKING FOR ITS FIRST RUN. REVERT AFTER v2026.10.29c ──────
         #
         # ⚠️ TEMPORARY. Remove this line once the mobile leg has one completed run on

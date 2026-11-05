@@ -284,3 +284,21 @@ export async function refundUsageColumn(userId: string, column: string, reserved
     return null;
   }
 }
+
+/** The refund half of `incrementToolUsage`, for a one-shot tool whose reservation bought nothing.
+ *
+ *  WHY THIS EXISTS RATHER THAN EXPORTING `EXTRA_TOOL_COLUMN`. A caller that knew the column name
+ *  would be free to refund a column it never reserved, and the mapping from tool to column is the
+ *  one thing those routes should not be able to get wrong - `incrementToolUsage` already keeps it
+ *  private for the same reason. Taking the tool and resolving the column here means the reserve
+ *  and the refund cannot disagree about which counter they are talking about.
+ *
+ *  `reservedOn` IS PASSED IN, NOT RECOMPUTED, and that is the lesson `refundUsageColumn` records
+ *  above: an AI call can outlive UTC midnight, so `todayUtc()` at refund time would credit the
+ *  next day's row - quota minted on one day against a charge left standing on the other. A tool
+ *  route must capture the date beside its reservation and hand it back here. */
+export async function refundToolUsage(
+  userId: string, tool: ExtraTool, reservedOn: string,
+): Promise<number | null> {
+  return refundUsageColumn(userId, EXTRA_TOOL_COLUMN[tool], reservedOn);
+}

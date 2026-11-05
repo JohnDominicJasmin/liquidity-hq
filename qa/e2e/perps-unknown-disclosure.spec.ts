@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
+import { entitlementsUnresolved } from './_shared';
 
 /* When perps vs spot CANNOT be measured, does Arena SAY so? (#340)
  *
@@ -70,6 +71,14 @@ test.describe('an unmeasurable perps reading is disclosed, not absorbed', () => 
       /* POSITIVE CONTROL. Every assertion here is about text being PRESENT, but
          a signed-out or half-rendered page would fail them for the wrong
          reason - so prove the Pro surface actually rendered first. */
+      /* The entitlements branch the control below cannot see - `entitlementsUnresolved` in
+         `_shared.ts` has the mechanism. Note this is a DIFFERENT "unknown" from the one this
+         spec is about: this file tests whether Arena discloses that PERPS VS SPOT could not be
+         measured, and the skip here is for ENTITLEMENTS not resolving, which hides the Pro
+         surface entirely and would fail the disclosure assertions for the wrong reason. */
+      const unresolved = await entitlementsUnresolved(page);
+      test.skip(unresolved !== null, unresolved ?? '');
+
       expect(body, 'the Pro surfaces did not render - this run measured nothing')
         .not.toMatch(/part of Pro|Unlock with Pro/i);
 
@@ -122,6 +131,10 @@ test.describe('an unmeasurable perps reading is disclosed, not absorbed', () => 
       await gotoSignedIn(page, '/arena');
       await page.waitForTimeout(25_000);
       const body = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
+      /* Same third branch as above - the couldn't-verify card trips neither Pro string. */
+      const unresolvedControl = await entitlementsUnresolved(page);
+      test.skip(unresolvedControl !== null, unresolvedControl ?? '');
+
       expect(body, 'the Pro surfaces did not render - this control measured nothing')
         .not.toMatch(/part of Pro|Unlock with Pro/i);
 

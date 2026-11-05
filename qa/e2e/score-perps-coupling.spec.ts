@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { marketDataUnavailable } from './_shared';
+import { marketDataUnavailable, entitlementsUnresolved } from './_shared';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 
 /* Does the perps/spot reading move the Confluence Score? (#340)
@@ -119,6 +119,12 @@ async function readScore(page: Page, mode: 'leading' | 'absent' | 'spotled'): Pr
      into ~40 failures, several of which read as Pro-gating defects. */
   const down = await marketDataUnavailable(page.request);
   test.skip(down !== null, down ?? '');
+
+  /* The third branch - see `entitlementsUnresolved` in `_shared.ts`. The couldn't-verify card
+     says neither "part of Pro" nor "Unlock with Pro", so the control below passes on it and the
+     card assertion reports a failed DB read as a missing product feature. */
+  const unresolved = await entitlementsUnresolved(page);
+  test.skip(unresolved !== null, unresolved ?? '');
 
   expect(body, 'the Confluence card is Pro-gated and did not render - this run measured nothing')
     .not.toMatch(/part of Pro|Unlock with Pro/i);

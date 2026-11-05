@@ -68,11 +68,16 @@ async function measureTnav(browser: Browser, lang: 'ru' | 'en') {
 
 test.describe('.tnav at 768px, signed in (#1255)', () => {
   test('in Russian, .tnav does not overflow: scrollWidth equals clientWidth', async ({ browser }) => {
-    // KNOWN RED, #1255: measured scrollWidth 1003 vs clientWidth 768 on staging 03443d7
-    // (overflowing items "Инструменты" and "Новости"). test.fail() keeps the suite from
-    // going red on a known open defect AND reports a failure the day this starts
-    // PASSING, so whoever fixes #1255 is told to delete this line.
-    test.fail(true, '#1255: .tnav overflows at 768px in Russian (1003 > 768) - remove when Dev fixes it');
+    /* #1255 IS FIXED AND THIS LINE IS GONE, which is the annotation working rather than a change of mind.
+       It carried `test.fail(true, ...)` because the overflow was a known open defect: measured
+       scrollWidth 1003 against clientWidth 768 on staging 03443d7, with "Инструменты" and "Новости"
+       spilling. The annotation said of itself that it "reports a failure the day this starts PASSING,
+       so whoever fixes #1255 is told to delete this line".
+    
+       That is exactly what happened. #1255 is CLOSED, the cell passes, and Playwright reported
+       "Expected to fail, but passed" - which counts as a FAILURE and was one of the 30 mobile reds
+       on run 41916597244. The message was delivered and nobody read it, because the mobile leg is
+       `continue-on-error` so its green is unconditional and nobody looks at its log. */
     const m = await measureTnav(browser, 'ru');
     test.info().annotations.push({ type: 'measurement-ru', description: JSON.stringify(m) });
     expect(m.scrollWidth, `.tnav overflows at 768px in Russian: scrollWidth ${m.scrollWidth} > clientWidth ${m.clientWidth}. ${JSON.stringify(m)}`)
