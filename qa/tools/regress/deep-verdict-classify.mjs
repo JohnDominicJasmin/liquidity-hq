@@ -23,6 +23,16 @@ export const CANNOT_RUN_CODES = {
   RATE_LIMIT: 'this account has spent its daily Deep reads, or the global cap is reached',
   COIN_LOCKED: 'the test account is not entitled to this coin',
   COIN_REQUIRED: 'the route rejected this body - THIS TOOL is out of date, not the product',
+  /* Added for #1994. `/api/grok` now answers 503 UNAVAILABLE for three states that are OURS
+     rather than the user's quota: `error` (increment_ai_usage failed), `not_enabled` (an unapplied
+     migration), and `disabled` (the admin kill switch). All three used to return 429 RATE_LIMIT,
+     which told a paying user they had hit a cap they had not reached AND named a reset time for it.
+
+     SO IT BELONGS HERE AND NOT IN THE CATCH-ALL, for exactly the reason the status moved: a
+     database outage is a can-not-run, not a product failure. Classifying it as a failed verdict
+     would make every DB blip read as the model answering wrongly - the confusion this map exists
+     to prevent. RATE_LIMIT stays above it and still means what it says: a real cap, really hit. */
+  UNAVAILABLE: 'the route could not run for a reason on OUR side - a failed usage write, an unapplied migration, or the kill switch',
   /* Added for #1631 item 5, and found the same way AUTH_REQUIRED was: by the control cell, not by
      reading. `/api/grok` builds the prompt server-side now and refuses a body carrying the old
      client-built `prompt` field with this code.
