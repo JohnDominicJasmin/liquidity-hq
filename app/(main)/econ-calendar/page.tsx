@@ -149,6 +149,9 @@ export default function EconCalendarPage() {
           owner-approved, matching scanner/journal. The data-source credit that
           shared the old subtitle line is kept, standalone. */}
       <PageHint pageKey="econ-calendar" title={t('ECON_CALENDAR_HINT_TITLE')} body={t('ECON_CALENDAR_HINT_BODY')} />
+      {/* For screen readers and search engines only, same as /calc: nothing visible comes back, but the page
+          needs a heading that names it, and the hint collapses to a chip for returning visitors. */}
+      <h1 className="sr-only">{t('ECON_CALENDAR_HINT_TITLE')}</h1>
 
       {source && (
         <div style={{ padding: '20px 0 16px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{source}</div>

@@ -8,6 +8,10 @@ const BASE = 'https://liquidity-hq.com';
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: BASE, changeFrequency: 'weekly', priority: 1 },
+    /* The translated landing pages. Both are public and return 200. The hreflang links between them and `/`
+       are already on the pages themselves (app/(main)/page.tsx and app/(intl)/[locale]/page.tsx). */
+    { url: `${BASE}/ko`, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${BASE}/zh`, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${BASE}/learn`, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${BASE}/about`, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${BASE}/contact`, changeFrequency: 'monthly', priority: 0.5 },
