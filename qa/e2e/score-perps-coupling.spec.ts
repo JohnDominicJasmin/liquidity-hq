@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { marketDataUnavailable, entitlementsUnresolved } from './_shared';
-import { installPaidAiFence } from './_no-paid-ai';
+import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 
 /* Does the perps/spot reading move the Confluence Score? (#340)
@@ -250,17 +250,24 @@ test.describe('perps reading and the Confluence Score', () => {
   test('the score is decoupled from the perps reading (until step 3)', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
-      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE. These specs were safe in CI only by accident
-         of the environment: `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the
-         SERVER, so a browser request reaching a paid AI route cost nothing. Against a DEPLOYED
-         service that stub does not exist and the call is real and billed - which is the whole reason
-         a targeted staging run needed this first. Installed before the spec's own routes because
-         Playwright matches the most recently registered handler, so installing it last would swallow
-         the stubs instead (#1958). */
-      await installPaidAiFence(page);
     try {
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE, AND RE-ARMED AFTER ANY unrouteAll.
+      These specs were safe in CI only by accident of the environment:
+      `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the SERVER, so a browser
+      request reaching a paid AI route cost nothing. Against a DEPLOYED service that stub does not
+      exist and the call is real and billed - the whole reason a targeted staging run needed this
+      first.
+      Before the spec's own routes because Playwright matches the most recently registered handler,
+      so installing it last would swallow the stubs instead (#1958). */
+      await installPaidAiFence(page);
       const a = await readScore(page, 'leading');
       await page.unrouteAll({ behavior: 'ignoreErrors' });
+      /* unrouteAll CLEARS THE FENCE TOO - it removes every page.route handler, and the fence is
+         one (_no-paid-ai.ts:94). Re-armed here, BEFORE the pin below registers its stub, so the
+         stub stays the more recent handler and still wins for its own path. Without this the
+         navigation that follows is unfenced, which on a deployed host is exactly the billed call
+         this fence exists to stop. Found by Dev Team reviewing #1968. */
+      await installPaidAiFence(page);
       const b = await readScore(page, 'spotled');
 
       // eslint-disable-next-line no-console
@@ -322,6 +329,12 @@ test.describe('perps reading and the Confluence Score', () => {
           `EXPECT_COUPLED at the top of this file. If not, this is accidental coupling.`)
           .toEqual(a.score);
       }
+      /* THE FENCE ASSERTED, not just installed. The abort protects the bill on its own, but a
+         spec whose stub glob stops matching would then reach a paid route, be silently aborted,
+         and still pass - so an unasserted fence is a fence with a gate (this helper's own
+         header). Last statement in the try so a real assertion failure above surfaces first
+         rather than being masked by this one. */
+      assertNoUnstubbedPaidAi(page, 'score-perps-coupling');
     } finally { await ctx.close(); }
   });
 });
