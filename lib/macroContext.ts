@@ -4,10 +4,18 @@
 // parameter properties and route-only exports aren't valid outside the
 // framework's own build step). No behavior change from the extraction.
 
-export interface MacroMetric { price: number; chg: number }
+/* `chg` IS NULLABLE, AND THAT IS THE FIX FOR "NaN%" REACHING A PAID AI CALL.
+   Yahoo's `range=2d&interval=1d` response does not always carry `meta.previousClose`, so
+   `pctChange` was dividing by `undefined` and producing NaN. `NaN ?? null` is NaN - `??` only
+   catches null and undefined - so it flowed into the prompt as "NaN%" and into the card as
+   +0.00%. A price with no comparable prior close is a price whose change is UNKNOWN, and the
+   type now says so instead of carrying a number that is not one. */
+export interface MacroMetric { price: number; chg: number | null }
 
-export function pctChange(price: number, prev: number) {
-  return ((price - prev) / prev) * 100;
+export function pctChange(price: number, prev: number | null | undefined): number | null {
+  if (prev == null || !Number.isFinite(prev) || prev === 0) return null;
+  const v = ((price - prev) / prev) * 100;
+  return Number.isFinite(v) ? v : null;
 }
 
 // #1309 item 11: takes each metric as `MacroMetric | null` (null = that
@@ -22,15 +30,20 @@ export function buildMacroPrompt(d: {
   oil: MacroMetric | null; tnx: MacroMetric | null; goldOilRatio: number | null;
 }): string {
   const fmt = (n: number, dec = 2) => n.toFixed(dec);
-  const chgStr = (c: number) => (c >= 0 ? '+' : '') + c.toFixed(2) + '%';
+  /* SAYS "change unavailable" RATHER THAN INVENTING ONE. The owner's copy rule applies to what
+     the AI is told as much as to what a user reads: a fabricated 0.00% is a claim the data does
+     not support, and the model will reason from it.
+     Carries its own " today" so the unknown case does not read "change unavailable today". */
+  const chgStr = (c: number | null) =>
+    c == null ? 'change unavailable' : (c >= 0 ? '+' : '') + c.toFixed(2) + '% today';
 
   const lines: string[] = [];
   const unavailable: string[] = [];
-  if (d.dxy) lines.push(`DXY (US Dollar Index): ${fmt(d.dxy.price)} (${chgStr(d.dxy.chg)} today)`); else unavailable.push('DXY');
-  if (d.vix) lines.push(`VIX (Fear Index):       ${fmt(d.vix.price)} (${chgStr(d.vix.chg)} today)`); else unavailable.push('VIX');
-  if (d.gold) lines.push(`Gold (XAU/USD):         $${fmt(d.gold.price, 0)} (${chgStr(d.gold.chg)} today)`); else unavailable.push('Gold');
-  if (d.oil) lines.push(`WTI Oil:                $${fmt(d.oil.price, 1)} (${chgStr(d.oil.chg)} today)`); else unavailable.push('WTI Oil');
-  if (d.tnx) lines.push(`10Y Treasury Yield:     ${fmt(d.tnx.price, 2)}% (${chgStr(d.tnx.chg)} today)`); else unavailable.push('10Y Treasury Yield');
+  if (d.dxy) lines.push(`DXY (US Dollar Index): ${fmt(d.dxy.price)} (${chgStr(d.dxy.chg)})`); else unavailable.push('DXY');
+  if (d.vix) lines.push(`VIX (Fear Index):       ${fmt(d.vix.price)} (${chgStr(d.vix.chg)})`); else unavailable.push('VIX');
+  if (d.gold) lines.push(`Gold (XAU/USD):         $${fmt(d.gold.price, 0)} (${chgStr(d.gold.chg)})`); else unavailable.push('Gold');
+  if (d.oil) lines.push(`WTI Oil:                $${fmt(d.oil.price, 1)} (${chgStr(d.oil.chg)})`); else unavailable.push('WTI Oil');
+  if (d.tnx) lines.push(`10Y Treasury Yield:     ${fmt(d.tnx.price, 2)}% (${chgStr(d.tnx.chg)})`); else unavailable.push('10Y Treasury Yield');
   if (d.goldOilRatio != null) lines.push(`Gold/Oil Ratio:         ${fmt(d.goldOilRatio, 1)}x`);
 
   return [

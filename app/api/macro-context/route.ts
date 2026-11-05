@@ -24,7 +24,13 @@ function sb(token: string) {
   return userClient(token);
 }
 
-interface YFMeta { regularMarketPrice: number; previousClose: number; shortName?: string }
+/* `previousClose` IS OPTIONAL, because Yahoo's `range=2d&interval=1d` response does not always
+   carry it - which is how "NaN%" reached a paid AI call. It was typed as a required number, so
+   nothing made the caller handle its absence. */
+interface YFMeta { regularMarketPrice: number; previousClose?: number; shortName?: string }
+
+/** The daily bars the same response carries, used when `meta.previousClose` is missing. */
+interface YFQuote { close?: Array<number | null> }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -45,7 +51,7 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 // exist, which %255EVIX isn't. DX-Y.NYB has no special characters, so
 // double-encoding was a no-op for it alone - exactly why it was the only
 // one of the 5 that ever worked.
-async function fetchYFOnce(symbol: string): Promise<{ price: number; prev: number } | null> {
+async function fetchYFOnce(symbol: string): Promise<{ price: number; prev: number | null } | null> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=2d&interval=1d`;
   const res = await fetch(url, {
     headers: {
@@ -58,13 +64,32 @@ async function fetchYFOnce(symbol: string): Promise<{ price: number; prev: numbe
     const body = await res.text().catch(() => '');
     throw new Error(`YF ${symbol}: HTTP ${res.status} - ${body.slice(0, 200)}`);
   }
-  const data = await res.json() as { chart?: { result?: Array<{ meta?: YFMeta }> } };
-  const meta = data.chart?.result?.[0]?.meta;
+  const data = await res.json() as {
+    chart?: { result?: Array<{ meta?: YFMeta; indicators?: { quote?: YFQuote[] } }> };
+  };
+  const result = data.chart?.result?.[0];
+  const meta = result?.meta;
   if (!meta?.regularMarketPrice) throw new Error(`YF ${symbol}: no regularMarketPrice in response`);
-  return { price: meta.regularMarketPrice, prev: meta.previousClose };
+
+  /* THE PRIOR BAR, WHEN `meta.previousClose` IS ABSENT - and `null` when neither exists.
+   *
+   * The request asks for `range=2d&interval=1d`, so the response carries two daily closes even
+   * when the meta block omits `previousClose`. The older of the two IS the previous close, so
+   * reading it recovers the figure rather than giving up on it.
+   *
+   * `?? null` and never a guess: a price whose prior close we cannot establish has an UNKNOWN
+   * change, and `pctChange` now returns null for it. The old code passed `undefined` into a
+   * division and produced NaN, which `?? null` does not catch, so "NaN%" went into the prompt a
+   * paid Pro call reasons from and the card rendered +0.00%. */
+  const closes = result?.indicators?.quote?.[0]?.close ?? [];
+  const priorBar = closes.length >= 2 ? closes[closes.length - 2] : null;
+  const prev = typeof meta.previousClose === 'number' ? meta.previousClose
+    : (typeof priorBar === 'number' ? priorBar : null);
+
+  return { price: meta.regularMarketPrice, prev };
 }
 
-async function fetchYF(symbol: string, initialDelayMs = 0): Promise<{ price: number; prev: number } | null> {
+async function fetchYF(symbol: string, initialDelayMs = 0): Promise<{ price: number; prev: number | null } | null> {
   if (initialDelayMs > 0) await sleep(initialDelayMs);
   try {
     return await fetchYFOnce(symbol);

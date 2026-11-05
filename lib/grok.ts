@@ -873,7 +873,14 @@ function fieldRx(name: string): RegExp {
   return new RegExp('\\*{0,2}' + name + '\\*{0,2}:\\s*', 'i');
 }
 
-export function parseCombinedResponse(text: string, tf: string, session: string, nowMs: number = Date.now()): CombinedResult {
+/* NO LONGER EXPORTED, and that is the point rather than tidiness. This function answers FLAT at
+   0% for an answer that never said so, and nothing inside it prevents that reaching a user - the
+   protection was a promise made in another file, that every caller checks `parseVerdict` first.
+   `parseCombinedRead` below is the entry point that REFUSES instead, and __tests__/aiReadChecks
+   pins that it returns null rather than defaulting. Un-exporting is what makes the safe path the
+   only reachable one; a comment asking callers to prefer it is not a mechanism.
+   Nothing outside this file imported it - checked before removing the keyword. */
+function parseCombinedResponse(text: string, tf: string, session: string, nowMs: number = Date.now()): CombinedResult {
   // Normalise: strip leading ** from every line so field detection works
   const clean = text.split('\n').map(l => l.replace(/^\*{1,2}/, '').replace(/\*{1,2}$/, '')).join('\n');
 
