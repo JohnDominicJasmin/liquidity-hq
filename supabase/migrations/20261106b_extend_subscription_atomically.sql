@@ -47,10 +47,22 @@
 -- day back, which overflows into the next month when the target is short. That is
 -- `setUTCDate(1); setUTCMonth(+n); setUTCDate(day)`, which is what `addPeriod` does.
 --
--- **UTC EXPLICITLY, NOT THE SESSION'S TimeZone.** `extract(day from ...)` on a `timestamptz`
--- depends on the session setting, and the JS uses `getUTCDate`. A session in Asia/Manila would
--- extract a different day for a late-evening UTC timestamp and the two paths would disagree by a
--- day for exactly the accounts this fix is about.
+-- **UTC EXPLICITLY, NOT THE SESSION'S TimeZone - IN TWO PLACES.** `extract(day from ...)` on a
+-- `timestamptz` depends on the session setting, and the JS uses `getUTCDate`. A session in
+-- Asia/Manila would extract a different day for a late-evening UTC timestamp and the two paths
+-- would disagree by a day for exactly the accounts this fix is about.
+--
+-- **AND THE INTERVAL ADDITION ITSELF, which is QA's catch on #2009 and is a second mechanism.**
+-- `timestamptz + interval '1 month'` is resolved by converting to the session zone, adding to the
+-- LOCAL date, and converting back - so a DST boundary inside the added month shifts the result by
+-- an hour. Measured: adding one month to 2026-02-14T20:00Z gives 2026-03-14T20:00Z under UTC and
+-- Asia/Manila, and **2026-03-14T19:00Z under America/New_York**, which crosses US DST.
+--
+-- Our sessions are UTC today, so this is not a live divergence - but it made the `IMMUTABLE`
+-- marking on `lhq_add_period` a false claim, since the result depended on a session setting. Every
+-- function here now carries `SET TimeZone TO 'UTC'` beside its `search_path`, which pins the
+-- arithmetic and makes IMMUTABLE honest. A function with a `SET` clause is never inlined, which is
+-- the small cost of saying what we mean.
 --
 -- ── THE ADMIN-GRANT GUARD IS KEPT, AND IT IS NOT THE RACE ──────────────────────────────────────
 --
@@ -94,6 +106,7 @@ CREATE OR REPLACE FUNCTION public.lhq_add_period(p_base timestamptz, p_months in
  LANGUAGE sql
  IMMUTABLE
  SET search_path TO 'public'
+ SET TimeZone TO 'UTC'
 AS $function$
   SELECT CASE
     WHEN coalesce(p_months, 0) = 0 THEN p_base
@@ -118,6 +131,7 @@ CREATE OR REPLACE FUNCTION public.lhq_extend_subscription(
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
+ SET TimeZone TO 'UTC'
 AS $function$
 begin
   /* An admin grant is not time-limited and a payment must not make it so. Same condition the JS
@@ -174,6 +188,7 @@ CREATE OR REPLACE FUNCTION public.lhq_dev_add_period(p_base timestamptz, p_month
  LANGUAGE sql
  IMMUTABLE
  SET search_path TO 'public'
+ SET TimeZone TO 'UTC'
 AS $function$
   SELECT CASE
     WHEN coalesce(p_months, 0) = 0 THEN p_base
@@ -197,6 +212,7 @@ CREATE OR REPLACE FUNCTION public.lhq_dev_extend_subscription(
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
+ SET TimeZone TO 'UTC'
 AS $function$
 begin
   if exists (
