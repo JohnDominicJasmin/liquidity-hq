@@ -256,8 +256,10 @@ export const LABEL_KEYS = [
   // #861 Phase 1: the payment-method step on /upgrade (crypto via BoomFi).
   'UPGRADE_METHOD_PANEL_TITLE', 'UPGRADE_METHOD_CRYPTO_CTA',
   'UPGRADE_METHOD_CRYPTO_NOTE', 'UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE',
-  // Owner, 2026-10-08: honest crypto-payment copy - what to pay in (under the plan price), what happens at checkout (under the pay button).
-  'UPGRADE_CRYPTO_NETWORKS_NOTE', 'UPGRADE_CRYPTO_CHECKOUT_NOTE',
+  // Owner, 2026-10-08: honest crypto-payment copy - what to pay in (under the plan price).
+  // Its pair, the on-chain "pay through BoomFi" checkout note, was removed on 2026-11-05:
+  // BoomFi is paused, nothing rendered it, and it must not ship.
+  'UPGRADE_CRYPTO_NETWORKS_NOTE',
   // #1567 Phase 2: the Whop payment panel (replaces the crypto/BoomFi panel copy above, which stays defined but is no longer rendered).
   'UPGRADE_WHOP_FINAL_NOTE', 'UPGRADE_WHOP_EMBED_LOADING', 'UPGRADE_WHOP_EMBED_FALLBACK', 'UPGRADE_RETURN_PENDING', 'UPGRADE_RETURN_FAILED', 'UPGRADE_RETURN_CANCELED', 'UPGRADE_WHOP_EMAIL_SENTENCE', 'UPGRADE_WHOP_PANEL_TITLE', 'UPGRADE_WHOP_CTA', 'UPGRADE_WHOP_EMAIL_NOTE', 'UPGRADE_WHOP_CHECKOUT_NOTE',
   // #861: the X that closes the payment-method panel.
