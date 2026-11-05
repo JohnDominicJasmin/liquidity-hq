@@ -184,6 +184,37 @@ begin
 end;
 $function$;
 
+/* ── EXECUTE GRANTS, EXPLICIT IN BOTH SECTIONS. THIS IS NOT BOILERPLATE. ───────────────────────
+ *
+ * `CREATE OR REPLACE` on an EXISTING function keeps its privileges, but on a function that does
+ * not exist it CREATES one - and a newly created function gets `EXECUTE` to **PUBLIC** by default,
+ * which in Supabase means `anon` and `authenticated`.
+ *
+ * That matters here specifically because the guard is in the WRAPPER, not in this function.
+ * `refund_ai_usage` refuses a caller with a non-null `auth.uid()`; `refund_ai_usage_impl` has no
+ * such check and never did. So a client that could execute the impl directly over PostgREST could
+ * decrement ANY user's counters by user id - unlimited AI calls for the price of guessing a uuid.
+ *
+ * PROD IS ALREADY TIGHT AND STAYS TIGHT, measured rather than assumed - all four of these
+ * functions carry exactly `postgres=X/postgres | service_role=X/postgres`, with no PUBLIC entry.
+ * So on prod the `CREATE OR REPLACE` above changes nothing about access.
+ *
+ * **DEV HAS NO SUCH FUNCTION**, so there the statement above CREATES it and the default grant
+ * applies. Without the lines below, applying this file to dev would publish a SECURITY DEFINER
+ * function that rewrites usage rows to `anon`.
+ *
+ * Written into BOTH sections so the file's security does not depend on whether the function
+ * happened to exist - which is the same reasoning as 20261023d, where anon grants were inherited
+ * by table copies nobody had thought about.
+ *
+ * GRANTS RATHER THAN AN IN-BODY `auth.role()` CHECK, deliberately: `increment_ai_usage_impl` is
+ * protected the same way, and the two halves of this pair should fail the same way. A one-off
+ * guard on only the refund side would be a second mechanism to keep in step. */
+revoke all on function public.refund_ai_usage_impl(uuid, date, text) from public;
+revoke all on function public.refund_ai_usage_impl(uuid, date, text) from anon;
+revoke all on function public.refund_ai_usage_impl(uuid, date, text) from authenticated;
+grant execute on function public.refund_ai_usage_impl(uuid, date, text) to service_role;
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- DEV  (wdtjhrilakoitfcezxpx)
 -- Run this section against DEV ONLY. `qa` and `staging` share this project.
@@ -234,6 +265,37 @@ begin
   return v_new;
 end;
 $function$;
+
+/* ── EXECUTE GRANTS, EXPLICIT IN BOTH SECTIONS. THIS IS NOT BOILERPLATE. ───────────────────────
+ *
+ * `CREATE OR REPLACE` on an EXISTING function keeps its privileges, but on a function that does
+ * not exist it CREATES one - and a newly created function gets `EXECUTE` to **PUBLIC** by default,
+ * which in Supabase means `anon` and `authenticated`.
+ *
+ * That matters here specifically because the guard is in the WRAPPER, not in this function.
+ * `refund_ai_usage` refuses a caller with a non-null `auth.uid()`; `refund_ai_usage_impl` has no
+ * such check and never did. So a client that could execute the impl directly over PostgREST could
+ * decrement ANY user's counters by user id - unlimited AI calls for the price of guessing a uuid.
+ *
+ * PROD IS ALREADY TIGHT AND STAYS TIGHT, measured rather than assumed - all four of these
+ * functions carry exactly `postgres=X/postgres | service_role=X/postgres`, with no PUBLIC entry.
+ * So on prod the `CREATE OR REPLACE` above changes nothing about access.
+ *
+ * **DEV HAS NO SUCH FUNCTION**, so there the statement above CREATES it and the default grant
+ * applies. Without the lines below, applying this file to dev would publish a SECURITY DEFINER
+ * function that rewrites usage rows to `anon`.
+ *
+ * Written into BOTH sections so the file's security does not depend on whether the function
+ * happened to exist - which is the same reasoning as 20261023d, where anon grants were inherited
+ * by table copies nobody had thought about.
+ *
+ * GRANTS RATHER THAN AN IN-BODY `auth.role()` CHECK, deliberately: `increment_ai_usage_impl` is
+ * protected the same way, and the two halves of this pair should fail the same way. A one-off
+ * guard on only the refund side would be a second mechanism to keep in step. */
+revoke all on function public.refund_ai_usage_impl(uuid, date, text) from public;
+revoke all on function public.refund_ai_usage_impl(uuid, date, text) from anon;
+revoke all on function public.refund_ai_usage_impl(uuid, date, text) from authenticated;
+grant execute on function public.refund_ai_usage_impl(uuid, date, text) to service_role;
 
 -- ⚠️ DEV ALSO NEEDS THE WRAPPER, IF 20261023a's dev section has not run. The wrapper is what
 -- refuses a client-side caller, and without it nothing does. Checked before applying:
