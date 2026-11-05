@@ -18,6 +18,7 @@
  * failover for as long as that comment has been there, for no reason.
  */
 import { COIN_UNIVERSE, type CoinRow } from './coinUniverse.generated.ts';
+import { hlMultiplier } from './hyperliquid.ts';
 
 /* A coin id is now any string the generated universe contains, not a closed union.
  *
@@ -271,6 +272,72 @@ export const BYBIT_SYMS: Record<string, string> = Object.fromEntries(
 export const OKX_SYMS: Record<string, string> = Object.fromEntries(
   RENDERED_IDS.map(id => [id, BY_ID.get(id)?.okx]).filter(([, s]) => s) as [string, string][],
 );
+
+/* ── HYPERLIQUID NAMES, AND A REFUSED NAME GETS NO ENTRY RATHER THAN A WRONG PRICE ─────────────
+ *
+ * The FOURTH venue (#1651 D4). Hyperliquid names an instrument by its bare base - `BTC`, not
+ * `BTCUSDT` - and prefixes its 1000x listings with `k`: `kPEPE`, `kBONK`.
+ *
+ * HAND-LISTED RATHER THAN DERIVED FROM THE ID, for the reason `OKX_SYMS` is read from a generated
+ * column: a venue naming a DIFFERENT asset by a ticker we already use is the `BB`/`QNT` problem,
+ * which was off by factors of 1266 and 0.16. `name.toUpperCase()` would be right for 46 of these
+ * and silently wrong on the day it is not.
+ *
+ * VERIFIED, NOT ASSUMED. Every entry's Hyperliquid price was measured against Binance or Bybit
+ * per-token on 2026-11-06. All 48 agree to within **0.11%** - max disagreement `bonk` and `gmx` at
+ * 0.11%, and none without a reference. `scripts/generate-coins.mjs` re-measures this on every
+ * generation and refuses to write the file if any pair disagrees by more than 5%, so a collision
+ * arriving later stops the generator rather than reaching this map.
+ *
+ * `mana` and `xau` are absent: Hyperliquid lists neither. A coin missing here simply has no
+ * Hyperliquid fallback, exactly as one missing from `BINANCE_SYMS` has no Binance one.
+ *
+ * ── THE FILTER IS THE POINT, AND IT IS WHY THIS IS NOT A PLAIN LITERAL ────────────────────────
+ *
+ * `hlMultiplier` returns `null` for a `k`-prefixed name whose multiplier is not VERIFIED, and for
+ * any name on `HL_REFUSED` - today `kDOGS`, whose implied multiplier measured 4390 and then 4611
+ * hours apart, so no constant converts it. Those names are dropped here, so the map cannot hand a
+ * caller a name it must not price.
+ *
+ * That ordering is the contract PM/DevOps asked to see demonstrated first: **a null multiplier
+ * reaches the user as "no Hyperliquid source", never as a price at x1.** A caller cannot get it
+ * wrong by forgetting to check, because the entry does not exist. Proven by mutation rather than
+ * by assertion - see the PR: adding `kDOGS` to `HL_MULTIPLIER` does not re-admit it, and planting
+ * a refusal for a rendered coin drops that coin out of this map.
+ *
+ * No rendered coin is refused today, which is exactly why the mutation test matters: there is no
+ * live instance to notice a regression by. */
+const HL_NAMES: Readonly<Record<string, string>> = {
+  btc: 'BTC',    eth: 'ETH',    sol: 'SOL',    xrp: 'XRP',    bnb: 'BNB',
+  hype: 'HYPE',  near: 'NEAR',  sui: 'SUI',    doge: 'DOGE',  avax: 'AVAX',
+  link: 'LINK',  ada: 'ADA',    dot: 'DOT',    atom: 'ATOM',  wif: 'WIF',
+  pepe: 'kPEPE', bonk: 'kBONK', ltc: 'LTC',    bch: 'BCH',    trx: 'TRX',
+  xlm: 'XLM',    etc: 'ETC',    fil: 'FIL',    arb: 'ARB',    op: 'OP',
+  apt: 'APT',    sei: 'SEI',    inj: 'INJ',    tia: 'TIA',    aave: 'AAVE',
+  uni: 'UNI',    ldo: 'LDO',    rune: 'RUNE',  gmx: 'GMX',    crv: 'CRV',
+  stx: 'STX',    jup: 'JUP',    wld: 'WLD',    render: 'RENDER', tao: 'TAO',
+  fet: 'FET',    ondo: 'ONDO',  pyth: 'PYTH',  ena: 'ENA',    dydx: 'DYDX',
+  sand: 'SAND',  gmt: 'GMT',    spx: 'SPX',
+};
+
+/**
+ * Hyperliquid instrument names for the coins this app renders.
+ *
+ * Only coins whose multiplier is known: a name `hlMultiplier` refuses is absent, so there is
+ * nothing to price at the wrong scale. Use `hlMultiplier(HL_SYMS[coin])` to convert.
+ */
+export const HL_SYMS: Record<string, string> = Object.fromEntries(
+  RENDERED_IDS
+    .map(id => [id, HL_NAMES[id]])
+    .filter(([, name]) => typeof name === 'string' && hlMultiplier(name as string) !== null),
+);
+
+/* Names listed here but dropped by the refusal filter above - empty today, and exported so the
+   generator and a test can assert that a refusal actually removes something rather than trusting
+   that it would. An entry here is not a bug; it is the filter working, and worth seeing. */
+export const HL_SYMS_REFUSED: string[] = Object.entries(HL_NAMES)
+  .filter(([, name]) => hlMultiplier(name) === null)
+  .map(([id, name]) => `${id} -> ${name}`);
 
 /* IS THERE A SECOND SOURCE FOR THIS COIN? ANSWERED FROM THE SHIPPED MAPS, not from the
  * generated row, and the difference was a lie about the one thing this function exists to say.
