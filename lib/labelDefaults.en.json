@@ -2084,6 +2084,7 @@
   "SPOTLIGHT_TOUR_BACK_BTN": "← Back",
   "SPOTLIGHT_TOUR_NEXT_BTN": "Next →",
   "SPOTLIGHT_TOUR_OPEN_ARENA_BTN": "Open Arena →",
+  "SPOTLIGHT_TOUR_EXAMPLE_TAG": "Example",
   "LIQ_FEED_TITLE": "Live Liquidations",
   "LIQ_FEED_TOOLTIP": "Every leveraged position force-closed for >$10K on Binance or Bybit, in real time. A burst of same-side liquidations in a short window ('cascade') can accelerate a move as forced selling/buying feeds on itself.",
   "LIQ_FEED_BINANCE_STATUS_TITLE": "Binance: {status}",
