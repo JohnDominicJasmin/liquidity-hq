@@ -85,6 +85,16 @@
 -- The control is the load-bearing one. It is the set this file must NOT touch, and it returns the
 -- same count and the same mean, which is what separates "corrected the 51" from "rescaled pepe".
 --
+-- Re-run after the half-correction guard was added, with a control on the guard itself:
+--
+--     matched without the guard (first draft)        51
+--     matched with the guard (this file)             51   <- the guard changes nothing today
+--     guard applied to a SYNTHETIC trap row     0 of 1   <- and it is not merely inert
+--
+-- The second line alone would not have been evidence. "51 and 51" is equally consistent with a
+-- clause that never excludes anything, so the synthetic row is what shows the guard can actually
+-- fire. A guard verified only against data that cannot trigger it has not been verified.
+--
 -- ── WHY IT IS A RECOMPUTE AND NOT A DELETE ──────────────────────────────────────────────────────
 --
 -- The fires happened and `price_24h`/`price_48h` are correct, so the outcome is recoverable rather
@@ -99,6 +109,41 @@
 --
 -- No ids are hardcoded: the predicate is value-based, so a row that was somehow missed is caught on
 -- a later run, and a row already corrected cannot be corrected twice.
+--
+-- ── IT CANNOT HALF-CORRECT A ROW, AND THAT GUARD IS QA'S CATCH ──────────────────────────────────
+--
+-- The last line of each WHERE clause is `(price_48h IS NOT NULL OR outcome_pct_48h IS NULL)`, and
+-- it closes a trap the first draft of this file had.
+--
+-- Without it: a row with a fabricated `outcome_pct_48h` but a NULL `price_48h` would have matched
+-- the predicate, had its 24h percentage fixed and its `price_at_fire` rewritten per-token — while
+-- the 48h `CASE` fell through to `outcome_pct_48h` unchanged, keeping the ±99.9 value. And because
+-- `price_at_fire` is now per-token, `price_at_fire >= 1e-4` is false and **the row would never
+-- match again.** Permanently half-corrected, by the very mechanism that makes the file idempotent.
+--
+-- Measured on prod 2026-11-05: **0 rows are in that state** — all 51 have a non-NULL `price_48h`
+-- and `resolved_48h` true. So the first draft would not have damaged anything today. It was safe by
+-- data coincidence rather than by construction, which is not the same thing and is exactly the
+-- distinction worth writing down: the guard costs one line and removes the dependence on a fact
+-- that nothing enforces.
+--
+-- A row the guard excludes is left ENTIRELY alone — fully wrong, but still matching the pre-flight
+-- query above, so it stays visible and correctable rather than becoming a silent half-row.
+--
+-- ── NO DATE BOUND, DELIBERATELY, AND THE TRADE-OFF IS REAL ──────────────────────────────────────
+--
+-- The predicate names no date, although every known affected row is from 2026-07-30/31 or
+-- 2026-09-22. Adding `AND fired_at < '2026-11-05'` would pin it to exactly today's known set.
+--
+-- It is left out because the defect's live source is fixed (#1970) and a value-based predicate with
+-- no date bound is self-healing: a row in this state that nobody has found yet is corrected by the
+-- same run, and so is one that appears later from a path still unfixed.
+--
+-- **The cost of that choice, stated rather than left implicit:** if some future code writes a
+-- legitimately 1000x `price_at_fire` alongside a per-token `price_24h` — a combination that is
+-- wrong today but that nothing in the schema forbids — this file would "correct" it on a re-run.
+-- So re-running it is not free of judgement. Run the pre-flight and the match count first, and if
+-- the count is not the number you expect, find out why before running the update rather than after.
 --
 -- ── THE DIVISOR IS 1000 BECAUSE THIS SET IS pepe AND bonk ONLY. DO NOT COPY THIS FILE BLINDLY ───
 --
@@ -123,15 +168,42 @@
 --   -- and the control that must NOT move: the 205 same-scale rows
 --   SELECT count(*) AS should_be_205, round(avg(outcome_pct_24h),2) AS should_stay_0_35
 --   FROM lhq_alert_fires
---   WHERE coin IN ('pepe','bonk') AND price_at_fire >= 1e-4 AND resolved_24h
---     AND (price_24h IS NULL OR price_24h >= 1e-4);
+--   WHERE coin IN ('pepe','bonk') AND price_at_fire >= 1e-4
+--     AND price_24h IS NOT NULL AND price_24h >= 1e-4;
 --   -- NOTE: after the fix above, `price_at_fire >= 1e-4` no longer selects the corrected 51, so
 --   -- this control returns the same 205 rows and the same mean before and after. If it moves,
 --   -- the update touched rows it should not have.
+--   --
+--   -- `price_24h IS NOT NULL` rather than `resolved_24h AND (price_24h IS NULL OR ...)`, on QA's
+--   -- point: a NULL `price_24h` row is UNRESOLVED, not "same scale", and including it made the
+--   -- control mean two things at once. Both spellings return 205 / +0.35 today because there are
+--   -- **0** unresolved 1000x rows (measured), so this is a clarity fix rather than a number
+--   -- change — and it stays correct if an unresolved one ever appears.
+--
+--   -- PRE-FLIGHT. RUN THIS BEFORE THE UPDATE. It must be 0.
+--   SELECT count(*) AS must_be_zero
+--   FROM lhq_alert_fires
+--   WHERE coin IN ('pepe','bonk') AND price_at_fire >= 1e-4
+--     AND price_24h IS NOT NULL AND price_24h < 1e-4
+--     AND price_48h IS NULL AND outcome_pct_48h IS NOT NULL;
+--   -- Rows this counts are EXCLUDED by the last line of the WHERE clause below and are left
+--   -- entirely alone. If it is not 0, handle those rows deliberately instead of running this file
+--   -- and assuming it covered them.
 
 -- ════════════════════════════════════════════════════════════════════════════
--- PROD  (lhq_)  — 51 rows expected
+-- PROD  (qdpwhnvmhqgzijuwopso, lhq_)  — 51 rows expected
+--
+-- Run this section against PROD ONLY. `lhq_dev_alert_fires` does not exist in this project, so
+-- running the whole file here errors on the dev section — same split as every other migration in
+-- this directory (see 20261101a).
+--
+-- IN A TRANSACTION, on QA's point. The UPDATE is one statement and would be atomic anyway, but the
+-- explicit block is what lets you run the `SELECT` below it, read the count, and ROLLBACK if it is
+-- not 51 — without that, the only way to find out is to have already committed. Prod Supabase is
+-- on the free plan and has NO BACKUPS, which is the whole reason that matters here.
 -- ════════════════════════════════════════════════════════════════════════════
+
+BEGIN;
 
 UPDATE lhq_alert_fires
 SET
@@ -151,15 +223,32 @@ SET
 WHERE coin IN ('pepe', 'bonk')
   AND price_at_fire >= 1e-4           -- fired at the 1000x scale
   AND price_24h IS NOT NULL
-  AND price_24h  <  1e-4;             -- resolved at the per-token scale: the actual defect
+  AND price_24h  <  1e-4              -- resolved at the per-token scale: the actual defect
+  -- NEVER HALF-CORRECT. Skip a row whose 48h percentage could not be recomputed; correcting its
+  -- 24h value would rewrite price_at_fire and make the row unmatchable with a fabricated 48h left
+  -- in it. 0 rows today — see the pre-flight query and the section above.
+  AND (price_48h IS NOT NULL OR outcome_pct_48h IS NULL);
+
+-- READ THE COUNT, THEN DECIDE. Expect 51. `ROLLBACK;` instead if it is not.
+SELECT count(*) AS still_matching_should_now_be_0
+FROM lhq_alert_fires
+WHERE coin IN ('pepe', 'bonk')
+  AND price_at_fire >= 1e-4 AND price_24h IS NOT NULL AND price_24h < 1e-4;
+
+COMMIT;
 
 -- ════════════════════════════════════════════════════════════════════════════
--- DEV  (lhq_dev_)  — 0 rows expected, and that is MEASURED, not assumed.
+-- DEV  (wdtjhrilakoitfcezxpx, lhq_dev_)  — 0 rows expected, and that is MEASURED, not assumed.
 --
--- Queried 2026-11-05: dev holds no row in this state. The statement is kept so the two projects
--- stay symmetrical and so a later dev fire in the same state is caught by re-running the file,
--- rather than leaving dev as the project nobody wrote a statement for. Expect `UPDATE 0`.
+-- Run this section against DEV ONLY. Queried 2026-11-05: dev holds no row in this state. The
+-- statement is kept so the two projects stay symmetrical and so a later dev fire in the same state
+-- is caught by re-running the file, rather than leaving dev as the project nobody wrote a statement
+-- for. Expect `UPDATE 0`.
+--
+-- Note `qa` and `staging` both point at this project, so "dev" here means all three.
 -- ════════════════════════════════════════════════════════════════════════════
+
+BEGIN;
 
 UPDATE lhq_dev_alert_fires
 SET
@@ -179,4 +268,12 @@ SET
 WHERE coin IN ('pepe', 'bonk')
   AND price_at_fire >= 1e-4
   AND price_24h IS NOT NULL
-  AND price_24h  <  1e-4;
+  AND price_24h  <  1e-4
+  AND (price_48h IS NOT NULL OR outcome_pct_48h IS NULL);   -- never half-correct; see PROD section
+
+SELECT count(*) AS still_matching_should_now_be_0
+FROM lhq_dev_alert_fires
+WHERE coin IN ('pepe', 'bonk')
+  AND price_at_fire >= 1e-4 AND price_24h IS NOT NULL AND price_24h < 1e-4;
+
+COMMIT;
