@@ -132,15 +132,16 @@ export async function GET(req: NextRequest) {
      * with no Authorization header, and this app's auth tokens live in localStorage rather than a
      * cookie, so the server has no way to tell an admin from a visitor on this request.
      *
-     * /ops keeps its copy from DEFAULT_EN_LABELS, the build-time snapshot the client already
-     * bundles. The trade-off, stated rather than discovered later: an `OPS_*` row edited in the
-     * database no longer reaches /ops until the next deploy. Acceptable for admin console copy;
-     * it would not be for customer-facing text.
+     * /ops takes its copy from lib/labelDefaults.ops.en.json instead: the sign-in and gate strings
+     * as props from the /ops layout (a server component), the rest from the admin-only
+     * /api/ops/labels. The trade-off, stated rather than discovered later: an `OPS_*` row edited in
+     * the database does not reach /ops until that file changes and deploys. Acceptable for admin
+     * console copy; it would not be for customer-facing text.
      *
-     * THIS CLOSES ONE OF TWO PATHS. components/LabelsProvider.tsx is a client component that
-     * imports lib/labelDefaults.en.json whole, so those same 195 strings ship inside the public JS
-     * bundle to every anonymous visitor regardless of this filter. See the issue - that half needs
-     * the defaults file split, and it is not done here. */
+     * THE OTHER PATH IS CLOSED TOO. components/LabelsProvider.tsx bundles lib/labelDefaults.en.json
+     * whole into every page, and that file used to carry these same 195 strings. The split moved
+     * them out. This filter stays regardless - it is also what keeps scripts/regen-label-defaults.mjs,
+     * which snapshots this route, from writing them back into the public file. */
     data = Object.fromEntries(
       [...merged].filter(([key]) => !key.startsWith('OPS_'))
     );

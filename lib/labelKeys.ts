@@ -1199,6 +1199,11 @@ export const LABEL_KEYS = [
   'TRADE_JOURNAL_STATS_PERFORMANCE_BY_SETUP_LABEL', 'TRADE_JOURNAL_STATS_TRADES_COUNT',
   'TRADE_JOURNAL_AUTH_TITLE', 'TRADE_JOURNAL_AUTH_DESC', 'TRADE_JOURNAL_LOADING_MESSAGE',
 
+  // EVERY `OPS_*` key below gets its English default from lib/labelDefaults.ops.en.json, NOT
+  // lib/labelDefaults.en.json (#1632 item 15). The second file ships in every visitor's JS; the
+  // admin console's copy must not. Registered here all the same, so t() still type-checks them.
+  // A new `OPS_*` key goes in the ops file by hand - scripts/regen-label-defaults.mjs never writes it.
+
   // Wave 12: ops layout + login + cards
   'OPS_LAYOUT_DENY_TITLE', 'OPS_LAYOUT_DENY_EMAIL_PREFIX', 'OPS_LAYOUT_DENY_EMAIL_SUFFIX',
   'OPS_LAYOUT_DENY_NO_EMAIL', 'OPS_LAYOUT_DENY_HINT', 'OPS_LAYOUT_SIGN_OUT_SWITCH', 'OPS_LAYOUT_BACK_TO_APP',
