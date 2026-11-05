@@ -273,6 +273,19 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
      getBybit() already proves, so this costs one extra call regardless of
      how many coins are missing rather than one per coin. */
   const viaFallback: string[] = [];
+  /* `SYMS`, NOT `SPOT_SYMS`, AND THAT IS DELIBERATE. QA's note on #1975 - do not tidy this line.
+   *
+   * `SPOT_SYMS` is what the spot request above may ASK for; `SYMS` is what this snapshot owes an
+   * answer for. SPX is in the second and not the first, so it lands here as "missing" and the Bybit
+   * single-shot below fills it. Narrowing this to `SPOT_SYMS` to "match" the request would drop SPX
+   * from the work list entirely and it would silently lose its price - the coin would simply be
+   * absent rather than visibly broken.
+   *
+   * The same mechanism is why `pepe`, `bonk` and `xau` have NO entry in this snapshot at all: they
+   * are held out of `BINANCE_SYMS` (see `BINANCE_HOLD`), so they never reach `SYMS`, so they never
+   * reach this list, so the Bybit fallback - which could serve all three - is never asked. Measured
+   * on prod 2026-11-06: 46 of the 50 rendered coins are present. Reported separately; not changed
+   * here, because widening the work list changes what every AI route sees. */
   const missingCoins = SYMS.map(([c]) => c).filter(c => !out[c]);
   if (missingCoins.length > 0) {
     try {

@@ -4,7 +4,7 @@ import {
   MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
   BINANCE_SYMS, BYBIT_SYMS,
 } from '@/lib/marketStore';
-import { bybitPriceFactor } from '@/lib/coins';
+import { bybitPriceFactor, BINANCE_SPOT_SYMS } from '@/lib/coins';
 import { computeRSI14 } from '@/lib/rsi';
 import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
@@ -172,7 +172,15 @@ export default function MarketProvider(
   /* ── Binance REST fallback ── */
   const restPoll = useCallback(async () => {
     try {
-      const syms = Object.values(BINANCE_SYMS).filter(s => s !== 'HYPEUSDT');
+      /* SPOT LIST, NOT THE FUTURES ONE. `/api/proxy?type=binance-24hr` is Binance SPOT
+         (`api/v3/ticker/24hr`), and `BINANCE_SYMS` is generated from `fapi/v1/exchangeInfo` - so it
+         included `SPXUSDT`, which spot does not list. Binance rejects the WHOLE batch on one
+         unlisted symbol (`400 -1121`), so this poll failed on every single run and the proxy's
+         Bybit fallback answered every time. Measured: 46 symbols -> 400, 45 -> 200.
+         No symptom, because the fallback works - the ticker had numbers, they just never came from
+         the source this call names. Same defect as the market snapshot's batched ticker; see
+         `BINANCE_SPOT_SYMS` in lib/coins.ts. */
+      const syms = Object.values(BINANCE_SPOT_SYMS).filter(s => s !== 'HYPEUSDT');
       const batch = encodeURIComponent(JSON.stringify(syms));
       const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`);
       const data = await res.json();
