@@ -4,6 +4,8 @@ import { usePathname } from 'next/navigation';
 import { htmlLangFor } from '@/lib/htmlLang';
 import { LabelsContext, Locale, loadLocalLocale, saveLocalLocale, interpolate } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+// Public by construction: this file ships in every visitor's JS. The admin console's `OPS_*` copy
+// is NOT in it - that is lib/labelDefaults.ops.en.json, imported only by server code (#1632 item 15).
 import DEFAULT_EN_LABELS from '@/lib/labelDefaults.en.json';
 
 // Not user-scoped (labels are public content, same for every visitor), so
