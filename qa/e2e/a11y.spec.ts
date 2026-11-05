@@ -150,11 +150,42 @@ test.describe('accessibility', () => {
       'rather than the app. The count below is not comparable to the baseline until this is empty.')
       .toEqual([]);
 
+    /* THE COUNT WITHOUT THE OFFENDERS COSTS A 522 MB DOWNLOAD TO ACT ON.
+     *
+     * `found` has always been preserved - the `testInfo.attach` above writes every entry - but
+     * only into the Playwright report, and on 2026-11-05 `playwright-report-mobile-1` was
+     * **522,465,849 bytes**. So "which controls?" meant half a gigabyte onto the owner's laptop,
+     * for a list that is a few hundred characters. PM/DevOps asked me to read the 33 new ones
+     * "from the cell's own found[] list, no run" - a reasonable instruction that turned out to
+     * cost more than a re-run, because the data was reachable in principle and not in practice.
+     *
+     * So the message now carries the summary. The attachment stays - it is the complete record,
+     * and this is the actionable slice of it. The grouping is by SELECTOR with a count, because
+     * the historical cause has always been one shared component repeated (the comment at the top
+     * of this test records ~85% from the footer), so the shape of the answer is "which component",
+     * not "which 146 elements".
+     *
+     * Sizes are dropped from the group key on purpose: the same control renders at 15x15 on one
+     * route and 15x14 on another, and splitting those hides that they are one fix. */
+    const bySelector = new Map<string, number>();
+    const byRoute = new Map<string, number>();
+    for (const f of found) {
+      const [route, rest = ''] = f.split(/\s{2,}/);
+      bySelector.set(rest.replace(/\s+\d+x\d+\s+".*$/, ''), (bySelector.get(rest.replace(/\s+\d+x\d+\s+".*$/, '')) ?? 0) + 1);
+      byRoute.set(route, (byRoute.get(route) ?? 0) + 1);
+    }
+    const rank = (m: Map<string, number>, n: number) => [...m.entries()]
+      .sort((a, b) => b[1] - a[1]).slice(0, n)
+      .map(([k, c]) => `    ${String(c).padStart(4)}  ${k}`).join('\n');
+
     expect(
       found.length,
       `Tap targets under 24px went ${found.length > BASELINE.tapTargetsUnder24 ? 'UP' : 'DOWN'} ` +
       `(${BASELINE.tapTargetsUnder24} -> ${found.length}). If DOWN, lower BASELINE.tapTargetsUnder24 ` +
-      `in qa/e2e/_shared.ts in this same commit. If UP, you added a control that fails WCAG 2.2 AA.`,
+      `in qa/e2e/_shared.ts in this same commit. If UP, you added a control that fails WCAG 2.2 AA.` +
+      `\n\n  by selector (count, then selector) - ${bySelector.size} distinct:\n${rank(bySelector, 15)}` +
+      `\n\n  by route - ${byRoute.size} of ${ROUTES.length} routes contribute:\n${rank(byRoute, 15)}` +
+      `\n\n  Full list: the tap-targets-under-24px.txt attachment on this test.`,
     ).toBeLessThanOrEqual(BASELINE.tapTargetsUnder24);
   });
 
