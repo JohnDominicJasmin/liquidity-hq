@@ -101,6 +101,36 @@ export function faqGraph(): JsonLdGraph {
   };
 }
 
+/** /playbook as an Article - the richest public page (~2,100 words) carried only the site-wide Organization.
+ *
+ *  ONLY WHAT THE PAGE ITSELF ESTABLISHES. `headline` is the page's <h1> label, `description` is the meta
+ *  description passed in by the layout (so the two cannot disagree), `publisher` is the Organization above.
+ *
+ *  NO author, datePublished, dateModified, image or rating, and each omission is deliberate: we have no true
+ *  value for any of them. The page has no byline and no publish date, and the only image on hand is the logo,
+ *  which does not depict the article. Google lists no required Article properties, so an Article without them
+ *  is incomplete; one with an invented date or author is wrong. Add a field when the page shows it. */
+export function playbookArticleGraph(description: string): JsonLdGraph {
+  const url = `${BASE_URL}/playbook`;
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: L.PLAYBOOK_PAGE_TITLE ?? 'Liquidity Playbook',
+    description,
+    url,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+    /* The server-rendered page is English: labels are seeded from the English defaults and the plays are
+       English text. A visitor's saved language swaps the labels only after load, never for a crawler. */
+    inLanguage: 'en',
+    publisher: {
+      '@type': 'Organization',
+      name: 'LiquidityHQ',
+      url: BASE_URL,
+      logo: { '@type': 'ImageObject', url: `${BASE_URL}/icons/icon-512.png` },
+    },
+  };
+}
+
 /** Home > <page>. Two levels is all this site's flat routing supports; a deeper trail would be invented. */
 export function breadcrumbGraph(name: string, path: string): JsonLdGraph {
   return {
