@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { gotoGuarded, marketDataUnavailable } from './_shared';
+import { gotoGuarded, marketDataUnavailable, entitlementsUnresolved } from './_shared';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 
 /* Does the STALE-CALENDAR state reach the screen? (#298, dev's PR #307)
@@ -102,6 +102,15 @@ async function macroText(page: Page): Promise<string> {
      into ~40 failures, several of which read as Pro-gating defects. */
   const down = await marketDataUnavailable(page.request);
   test.skip(down !== null, down ?? '');
+
+  /* THE THIRD BRANCH, which the Pro-gate control below cannot see. `arena/page.tsx:2707` renders
+     the couldn't-verify card when the entitlements read fails, and that card says NEITHER
+     "part of Pro" nor "Unlock with Pro" - so the control passes and the card assertion then
+     fails as "did not appear at all", which is a sentence about the product produced by a
+     database read. Must come BEFORE the Pro-gate control: of the two it is the one that would
+     otherwise be reported as something else. */
+  const unresolved = await entitlementsUnresolved(page);
+  test.skip(unresolved !== null, unresolved ?? '');
 
   expect(body, 'the Confluence card is Pro-gated and did not render - this run measured nothing')
     .not.toMatch(/part of Pro|Unlock with Pro/i);
