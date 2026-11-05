@@ -488,6 +488,17 @@ none of it counted.**
   Finish them properly, and say plainly when something genuinely cannot be done.
 - **Short messages.** He called the long reports "AI slop". A decision and one reason.
 
+**VISUAL SIGN-OFF IS NO LONGER HIS. Waived 2026-11-06, and this supersedes condition 5 and every
+"visual needs the owner" line elsewhere in this file and in `CLAUDE.md`:**
+
+> *"This small stuff, visual stuff... Just ship it. I don't give a shit about this visual stuff. Do the
+> verification. Do the work. You should be the one doing it. And ship it. Our focus right now is
+> marketing and distribution... We have to make money before end of the year."*
+
+PM verifies visual changes on a deployed URL and ships them. Nobody asks him about a visual again.
+**The priority is getting users and revenue before the end of 2026.** Rank work by acquisition,
+then conversion, then retention. Anything else waits.
+
 ## Keeping this file true
 
 **RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**
