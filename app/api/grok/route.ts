@@ -380,17 +380,21 @@ export async function POST(req: NextRequest) {
      * The MESSAGES were already right for these three; only the status and the code were wrong. 503
      * so a client's retry-after-reset heuristic does not wait until tomorrow for something that may
      * work in a second, which is the same reasoning as draw-structure's NOT_ENABLED. */
+    /* TWO EXPLICIT RETURNS, NOT A TERNARY ON `code`, and that is a test contract rather than style.
+       __tests__/deepVerdictMonitorClassification D5 scans this file with
+       /code:\s*'([A-Z][A-Z_]+)'/g to check that every code the route can return is one
+       qa/tools/regress/deep-verdict-classify.mjs knows about. A ternary puts an identifier after
+       `code:` instead of a literal, so the scan saw NEITHER code - it found 6 where 7 were
+       expected and reported RATE_LIMIT as no longer returned. The cell caught it; writing the two
+       literals plainly keeps that check able to see them. */
     const ourFault = usageResult.reason === 'error'
       || usageResult.reason === 'not_enabled'
       || usageResult.reason === 'disabled';
-    return NextResponse.json(
-      {
-        error: rateLimitMessage(usageResult.reason, limit, label),
-        code: ourFault ? 'UNAVAILABLE' : 'RATE_LIMIT',
-        usage: allUsage(),
-      },
-      { status: ourFault ? 503 : 429 }
-    );
+    const blockedBody = { error: rateLimitMessage(usageResult.reason, limit, label), usage: allUsage() };
+    if (ourFault) {
+      return NextResponse.json({ ...blockedBody, code: 'UNAVAILABLE' }, { status: 503 });
+    }
+    return NextResponse.json({ ...blockedBody, code: 'RATE_LIMIT' }, { status: 429 });
   }
 
   // ── Call xAI ──────────────────────────────────────────────────────────────
