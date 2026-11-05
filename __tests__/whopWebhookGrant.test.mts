@@ -227,11 +227,19 @@ test('G5c. two deliveries of the same payment racing each other grant exactly on
   assert.ok(d > 28 && d < 32, `one month expected, got ${d} days`);
 });
 
-test('G6. month-end arithmetic: one month from the 31st lands on the last day of the next month, a year from a leap day on the 28th', () => {
+test('G6. month-end arithmetic OVERFLOWS rather than clamping: one month from the 31st runs past the short month, and a year from a leap day lands in March', () => {
+  /* OVERFLOW IS THE FIX, NOT A QUIRK. PM chose it on 2026-11-06 over adding an anchor column.
+     The clamp was PERMANENT, because `extendedPeriodEnd` chains the next period off the STORED
+     end: February pulled the anchor back to the 28th and it never recovered, so a buyer on the
+     29th-31st lost 1-2 days of paid access every cycle from the first March onward - access
+     ending BEFORE the renewal charge, on roughly 10% of start dates.
+     Each date below is the overflow computed from the month's real length, which is why the three
+     differ: Feb 2026 has 28 days so Jan 31 + 1mo is Mar 3; Feb 2028 has 29 so it is Mar 2; and
+     Feb 29 2028 + 12mo is Feb 29 2029, which in a 28-day February is Mar 1. */
   const add1 = { months: 1 }; const add12 = { months: 12 };
-  assert.equal(extendedPeriodEnd(null, new Date('2026-01-31T10:00:00Z'), add1).toISOString().slice(0, 10), '2026-02-28');
-  assert.equal(extendedPeriodEnd(null, new Date('2028-01-31T10:00:00Z'), add1).toISOString().slice(0, 10), '2028-02-29');
-  assert.equal(extendedPeriodEnd(null, new Date('2028-02-29T10:00:00Z'), add12).toISOString().slice(0, 10), '2029-02-28');
+  assert.equal(extendedPeriodEnd(null, new Date('2026-01-31T10:00:00Z'), add1).toISOString().slice(0, 10), '2026-03-03');
+  assert.equal(extendedPeriodEnd(null, new Date('2028-01-31T10:00:00Z'), add1).toISOString().slice(0, 10), '2028-03-02');
+  assert.equal(extendedPeriodEnd(null, new Date('2028-02-29T10:00:00Z'), add12).toISOString().slice(0, 10), '2029-03-01');
   assert.equal(extendedPeriodEnd(null, new Date('2026-12-15T10:00:00Z'), { days: 14 }).toISOString().slice(0, 10), '2026-12-29');
   // a stored end in the future is the base; a stored end in the past or garbage is ignored
   const now = new Date('2026-06-01T00:00:00Z');
