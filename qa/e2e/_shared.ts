@@ -903,18 +903,89 @@ export async function startFailOnceServer(opts: {
   };
 }
 
+/* "CAN THIS SPEC MEASURE THE PRODUCT?" - AND IT MUST NOT ASK THE APP'S ERROR CONTRACT TO ANSWER.
+ *
+ * THIS GUARD INVERTED ON RUN 41935796786 AND TOOK 15 CELLS WITH IT. It used to read
+ * `res.status()` and nothing else: 200 meant "data is available". On a GitHub runner, which
+ * cannot reach Binance at all, `/api/market/klines` answered **HTTP 200 with zero candles** - so
+ * the guard reported healthy, every spec below it ran against a priceless store, and
+ * `ConfluenceScore.tsx:43` (`if (!d?.price) return null`) rendered nothing. Eleven cells across
+ * econ-staleness, real-yield and score-perps-coupling failed as "the Confluence card did not
+ * appear at all", and `klines-route.spec.ts:122` independently reported the same 200-with-zero
+ * as the #228 violation it is.
+ *
+ * So the guard was keyed to the very thing it was guarding against - Dev's #1632 design point,
+ * one level up. It trusted the app to report its own data path as broken, and the app's failure
+ * to do that is what the guard existed to survive. The comment on the `test.skip` in
+ * econ-staleness even records this cause producing "~40 failures" once before; it kept happening
+ * because the instrument could not see it.
+ *
+ * SO READ THE PAYLOAD THE SPECS ACTUALLY DEPEND ON, not the status wrapping it. A 200 is not
+ * data. The two probes are the two different endpoints the product needs, because they fail
+ * independently:
+ *
+ *   klines   `/api/market/klines` - what the chart draws. #228 records Binance returning 418 for
+ *            this one endpoint while ticker kept working.
+ *   ticker   `/api/market/snapshot` -> `ticker.btc.price` - where the Confluence card's price
+ *            comes from. Keyed by COIN id (`buildTicker` writes `out[coin]`), NOT by symbol.
+ *
+ * Checking only klines is what let the card's own precondition go unmeasured: they are different
+ * Binance endpoints in different rate-limit buckets, and `lib/marketSnapshotData.ts` documents
+ * them diverging in both directions.
+ *
+ * THIS SKIP IS NOT A WAY TO GO GREEN, and the distinction is one I have gotten wrong before by
+ * turning 67 truthful reds into skips. The defect of a 200-on-refusal is still reported, by
+ * `klines-route.spec.ts`, which uses `getGuarded` and deliberately does NOT call this function.
+ * One cell owns the error contract; everything else skips when the data is simply not there. If
+ * this function ever starts gating that cell, the contract stops being tested by anyone. */
 export async function marketDataUnavailable(
-  request: { get: (url: string) => Promise<{ status(): number }> },
+  request: { get: (url: string) => Promise<{ status(): number; json(): Promise<unknown> }> },
   baseURL?: string,
 ): Promise<string | null> {
-  const url = `${baseURL ?? ''}/api/market/klines?source=binance&symbol=BTCUSDT&interval=1h&limit=3`;
+  const unreachable = (what: string, e: unknown) =>
+    `the app's ${what} could not be reached (${String(e).slice(0, 80)}) - nothing below ` +
+    `measures the product. Not a finding.`;
+
+  /* 1. KLINES - and an empty 200 counts as unavailable, which is the whole correction. */
+  const klinesUrl =
+    `${baseURL ?? ''}/api/market/klines?source=binance&symbol=BTCUSDT&interval=1h&limit=3`;
   try {
-    const res = await request.get(url);
-    if (res.status() === 200) return null;
-    return `the app's market-data route returned ${res.status()} - the upstream is refusing this ` +
-      `deployment, so nothing below measures the product. Not a finding.`;
+    const res = await request.get(klinesUrl);
+    if (res.status() !== 200) {
+      return `the app's market-data route returned ${res.status()} - the upstream is refusing ` +
+        `this deployment, so nothing below measures the product. Not a finding.`;
+    }
+    /* `source=binance` returns the rows as a bare array of arrays (the bybit shape is nested,
+       which is why this probe pins the source rather than taking whatever is cheapest). */
+    const body = await res.json();
+    if (!Array.isArray(body) || body.length === 0) {
+      return `the app's market-data route answered 200 with ${
+        Array.isArray(body) ? 'ZERO candles' : 'a body that is not an array of candles'
+      } - the upstream is refusing this deployment and the route is not saying so (#228). ` +
+        `Nothing below measures the product. Not a finding.`;
+    }
   } catch (e) {
-    return `the app's market-data route could not be reached (${String(e).slice(0, 80)}) - ` +
-      `nothing below measures the product. Not a finding.`;
+    return unreachable('market-data route', e);
   }
+
+  /* 2. TICKER - the price the Confluence card needs, which klines above does not establish. */
+  try {
+    const res = await request.get(`${baseURL ?? ''}/api/market/snapshot`);
+    if (res.status() !== 200) {
+      return `the app's market snapshot returned ${res.status()} - no price reaches the store, ` +
+        `so any card gated on one cannot render. Nothing below measures the product. Not a finding.`;
+    }
+    const snap = await res.json() as { ticker?: Record<string, { price?: unknown }> };
+    const price = snap?.ticker?.btc?.price;
+    if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0) {
+      const n = snap?.ticker ? Object.keys(snap.ticker).length : 0;
+      return `the app's market snapshot carries no usable btc price (${n} ticker entries, ` +
+        `btc.price=${JSON.stringify(price)}) - ConfluenceScore returns null without one, so a ` +
+        `missing card below would measure the upstream, not the product. Not a finding.`;
+    }
+  } catch (e) {
+    return unreachable('market snapshot', e);
+  }
+
+  return null;
 }
