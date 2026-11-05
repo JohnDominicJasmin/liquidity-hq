@@ -55,7 +55,7 @@ test.describe('#1119 entitlement retry-exhaustion (#1184 hook)', () => {
          roughly the backoff sum (~3s), not the 15s-per-attempt timeout a
          real failure would cost. Timeout here is generous headroom, not the
          expected wait. */
-      await expect(page.locator(UNKNOWN_CARD),
+      await expect(page.locator(UNKNOWN_CARD).first(),
         'a Pro account whose entitlements read is forced to fail must see the couldn\'t-verify card, not silently keep/lose access').toBeVisible({ timeout: 15_000 });
 
       /* CONTROL, in the same test rather than a separate one - the two
@@ -81,7 +81,7 @@ test.describe('#1119 entitlement retry-exhaustion (#1184 hook)', () => {
     const page = await ctx.newPage();
     try {
       await gotoSignedIn(page, '/arena');
-      await expect(page.locator(UNKNOWN_CARD)).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator(UNKNOWN_CARD).first()).toBeVisible({ timeout: 15_000 });
 
       /* Clearing the flag alone must not resolve anything on its own -
          retryEntitlements() is what re-runs the fetch effect. Clicking
@@ -96,10 +96,14 @@ test.describe('#1119 entitlement retry-exhaustion (#1184 hook)', () => {
       // matched, so .click() hung to the test's own 240s timeout rather
       // than a clean assertion failure. The label is the source of truth;
       // fixed here, not there.
-      await page.locator(UNKNOWN_CARD).getByRole('button', { name: 'Try again' }).click();
+      await page.locator(UNKNOWN_CARD).first().getByRole('button', { name: 'Try again' }).click();
 
       await expect(page.locator(REAL_CONTENT),
         'Retry must recover to the real Pro state once the backend answers again').toBeVisible({ timeout: 15_000 });
+      /* NO .first() HERE, DELIBERATELY. This asserts the card is GONE, so it has to count every
+         match - `.first()` narrows to one element and would pass while a second card remained. The
+         sites above use `.first()` because the app renders the card twice and strict mode refuses
+         an ambiguous match; counting zero is the one assertion that needs the opposite. */
       await expect(page.locator(UNKNOWN_CARD)).toHaveCount(0);
       await expect(page.locator(LOCKED_CARD)).toHaveCount(0);
     } finally {
