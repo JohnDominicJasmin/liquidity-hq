@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { ROUTES, gotoGuarded } from './_shared';
-import { signedInContext } from './_auth';
+import { signedInContext, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
 import { installMarketFixtures } from './_fixtures';
 import { installPaidAiFence } from './_no-paid-ai';
 
@@ -351,6 +351,18 @@ test.describe('text is not silently tappable as a control', () => {
    * finished. This opens the panel first, which makes the subtree live, then
    * runs the same probe against it. */
   test('the chat panel: opening it makes its text reachable, and none of it is tappable', async ({ browser }, testInfo) => {
+    /* THE ONLY CREDENTIALED TEST IN THIS FILE, SO THE GUARD GOES HERE AND NOT AT THE TOP.
+     *
+     * Without it, a run with no fixtures reached `signedInContext` below and failed on the
+     * missing credentials rather than skipping - a red that says nothing about the product.
+     *
+     * DELIBERATELY NOT FILE-WIDE. The other two tests here take `{ browser }` and never call
+     * `signedInContext`: the detector self-check and the inert-text sweep need no account. A
+     * `test.skip(!AUTH_READY)` at describe level would silence both whenever credentials are
+     * absent, turning two working tests into silent passes to fix one honest failure. That trade
+     * is the one I have already made wrongly at scale - 67 truthful reds converted to skips - so
+     * the guard is scoped to the test that actually needs an account. */
+    test.skip(!AUTH_READY, AUTH_SKIP_REASON);
     /* SIGNED IN, AND ON AN APP ROUTE. The first version did neither and hung for
      * the full 240s test timeout.
      *
