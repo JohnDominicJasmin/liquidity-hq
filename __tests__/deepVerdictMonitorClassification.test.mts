@@ -63,19 +63,12 @@ const ARRIVING_WITH: Readonly<Record<string, string>> = {
    * because those are mutually exclusive states of the same list - which is why #1854 and the
    * classifier PR could not both be green at once and were sequenced instead. */
 
-  /* SECOND CUSTOMER, and it is the direction this list exists for. #1994 moves three states off
-     429 RATE_LIMIT onto 503 UNAVAILABLE - `error` (increment_ai_usage failed), `not_enabled` (an
-     unapplied migration) and `disabled` (the kill switch) - because all three told a paying user
-     they had hit a cap they had not reached, and named a reset time for it.
-
-     The classifier knows UNAVAILABLE as of this commit; the route does not return it until #1994
-     merges. Without this entry D5 calls it orphaned and `dev` goes red on a tool change that is
-     merely early - and Dev would be blocked waiting for my file to land in lockstep with theirs.
-
-     REMOVE THIS ENTRY WHEN #1994 MERGES. D5's `landed` assertion fails until someone does, by
-     design, so the cleanup is demanded rather than remembered. That red is a one-line fix that
-     announces itself, not a regression. */
-  UNAVAILABLE: '#1994 - /api/grok returns 503 UNAVAILABLE for our-side failures instead of 429 RATE_LIMIT',
+  /* SECOND CUSTOMER'S ENTRY IS GONE TOO, AND THE EMPTY STATE IS AGAIN THE POINT.
+     It held UNAVAILABLE while #1994 was unmerged, and did its job: D5 stayed green on `dev`
+     while the classifier already knew a code the route did not yet return. #1994 landed, so
+     the entry would now be a lie about a change still in flight - and D5's `landed` assertion
+     is what demanded this removal rather than anyone remembering it. Second time that has
+     worked, which is the argument for keeping the assertion rather than the list. */
 };
 
 test('D1. a parseable verdict is the only exit 0, whatever the status says', () => {
