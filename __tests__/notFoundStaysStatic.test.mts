@@ -114,7 +114,51 @@ test('N3. every root layout, plus loading and global-error - all rendered with e
     `the resolved root layout ${appPath('app/layout.tsx')} is not among the discovered roots [${roots.join(', ')}]`,
   );
 
-  for (const f of [...roots, appPath('app/loading.tsx'), appPath('app/global-error.tsx')]) {
+  /* LOADING FILES ARE DERIVED, NOT NAMED - and the reason is that one of them was deleted under
+     this cell.
+
+     This loop used to read `appPath('app/loading.tsx')`. #1961 deleted `app/(main)/loading.tsx`,
+     because its implicit <Suspense> streamed every (main) page's content into a `display:none`
+     div that only client JS moves - so with JS off every page in the group rendered ~42-50 words.
+     `appPath` then threw "nothing serves app/loading.tsx", and this cell was the only red in 2319
+     tests.
+
+     A NAMED FILE IS GREEN ON EXACTLY ONE SIDE OF THAT MERGE. Hardcoding the surviving set makes
+     this cell red on any tree that still has the file, and hardcoding the old set keeps it red on
+     Dev's. Deriving is green on both, which is the only form that can be pushed before the fix it
+     has to coexist with.
+
+     WHICH ONES COUNT: a `loading.tsx` is rendered with every page only if every segment between
+     `app/` and it is a ROUTE GROUP - groups are invisible in the URL, so they wrap the whole
+     group. `app/(main)/loading.tsx` qualified; `app/(main)/funding/loading.tsx` does not, because
+     `funding` is a real segment and that skeleton renders on one route. #1961 left it in place
+     deliberately (it parks the same way but only 24 words, and those pages fetch their copy
+     client-side anyway), so it must stay OUT of this sweep rather than being swept and excused.
+
+     Zero root loading files is a VALID state and must not fail: the sweep below still covers every
+     root layout plus global-error, both asserted non-empty above. */
+  const rootLoading = appFiles().filter((f) => {
+    if (!/\/loading\.tsx$/.test(f)) return false;
+    const between = f.split('/').slice(1, -1); // drop the leading `app` and the filename
+    return between.every(isGroupSegment);
+  });
+
+  /* The derivation has to be shown to fire, or "no root loading files" and "the predicate is
+     broken" look identical - the vacuous shape this file already guards against for `roots`. */
+  assert.equal(
+    ['app/loading.tsx', 'app/(main)/loading.tsx', 'app/(a)/(b)/loading.tsx']
+      .filter((f) => f.split('/').slice(1, -1).every(isGroupSegment)).length,
+    3,
+    'the root-loading predicate no longer recognises group-only paths, so it would sweep nothing',
+  );
+  assert.equal(
+    ['app/(main)/funding/loading.tsx', 'app/funding/loading.tsx']
+      .filter((f) => f.split('/').slice(1, -1).every(isGroupSegment)).length,
+    0,
+    'the root-loading predicate now accepts a real URL segment, so it would indict per-route skeletons',
+  );
+
+  for (const f of [...roots, ...rootLoading, appPath('app/global-error.tsx')]) {
     const src = code(f);
     assert.equal(REQUEST_TIME.test(src), false, `${f} reads the request - it renders with every page, so every page goes dynamic`);
     assert.equal(/export\s+const\s+dynamic\s*=\s*['"]force-dynamic['"]/.test(src), false, `${f} forces dynamic rendering for the whole app`);

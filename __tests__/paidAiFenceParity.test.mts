@@ -203,3 +203,60 @@ test('P2. a spec that stubs a paid AI path also installs the fence, so a renamed
     + 'for it. Add `await installPaidAiFence(page)` BEFORE the spec\'s own routes (Playwright matches the most recently '
     + 'registered handler first, so installing it last would swallow the stubs instead).');
 });
+
+/* ── P4: THE FENCE MUST NOT BE INSTALLED AFTER A ROUTE IT WOULD SWALLOW ──────────────────────────
+ *
+ * P2 above asserts the fence IS installed. It cannot see WHERE, and that gap cost four cells.
+ *
+ * `qa/e2e/arena-stale-result-labelling.spec.ts` called `installPaidAiFence(page)` twice in one
+ * function: once correctly ahead of its routes, and again immediately before the `/api/grok-chat`
+ * stub - which put it AFTER the `/api/grok` stub. Playwright matches the most recently registered
+ * handler, and the helper is idempotent on its RECORD but not on its HANDLER ("Installing twice
+ * registers a second handler"), so that second install aborted the very POST the first stub existed
+ * to fulfil. The symptom was "QUICK never reached the stubbed /api/grok" with the POST sitting right
+ * there in the trace's network log - a request made, aborted, and never counted.
+ *
+ * It read as a product defect for six days and was suspected of being #1910's server-side gather
+ * breaking the stubs. It was neither. Before/after on the same URL with only that one line removed:
+ * 4 failed -> 4 passed.
+ *
+ * WHY A SECOND INSTALL IS NOT BANNED OUTRIGHT: one per test is correct and common -
+ * `auth-gate-render.spec.ts` has three, each after its own `newPage()` and before that test's
+ * routes, and it is right. What is never correct is an install that follows a `page.route` on the
+ * same page, because from then on the fence outranks that route. */
+test('P4. no spec installs the paid-AI fence AFTER one of its own page.route calls', () => {
+  const offenders: string[] = [];
+  const checked: string[] = [];
+
+  for (const f of readdirSync(SPEC_DIR).filter((x) => x.endsWith('.spec.ts'))) {
+    const lines = readFileSync(join(SPEC_DIR, f), 'utf8').split(/\r?\n/);
+    checked.push(f);
+    /* `newPage()` starts a fresh page, so the ordering question restarts with it. */
+    let sawRoute = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const L = lines[i];
+      if (/\bnewPage\s*\(/.test(L)) { sawRoute = 0; continue; }
+      /* ONLY A ROUTE THE FENCE WOULD ACTUALLY MATCH, and the first version of this cell got that
+         wrong. It flagged any fence-after-route and fired on arena-read-card.spec.ts:98, where the
+         fence follows a market/klines stub - which the fence cannot swallow, because it intercepts
+         only paid AI paths. A guard whose false alarm sends someone to rewrite correct code is
+         worse than no guard, so the hazard is narrowed to the routes that can actually collide. */
+      if (/^\s*(?:await\s+)?page\.route\s*\(/.test(L)) {
+        const pat = /page\.route\s*\(\s*['"]([^'"]+)/.exec(L)?.[1] ?? '';
+        if (declared.some((seg) => new RegExp('/api/' + seg + '(?:[/*?\'"]|$)').test(pat))) sawRoute = i + 1;
+        continue;
+      }
+      if (/installPaidAiFence\s*\(\s*page\s*\)/.test(L) && sawRoute) {
+        offenders.push(`${f}:${i + 1} installs the fence after the page.route at line ${sawRoute}`);
+      }
+    }
+  }
+
+  assert.ok(checked.length > 10,
+    `only ${checked.length} spec files scanned, so this cell is not looking at the suite - check SPEC_DIR`);
+  assert.deepEqual(offenders, [],
+    `${offenders.join(' | ')}\n\nPlaywright matches the MOST RECENTLY registered handler, so a fence installed after a `
+    + 'route outranks it and aborts the requests that route exists to fulfil - the spec then fails saying the request '
+    + 'never arrived, while the trace shows it was made. Move the install above the first page.route for that page. '
+    + 'One install per newPage() is fine; an install that follows a route on the same page never is.');
+});
