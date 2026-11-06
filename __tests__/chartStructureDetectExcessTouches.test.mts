@@ -36,6 +36,7 @@ import {
   MIN_EXTRA_TOUCHES,
   MIN_TRENDLINE_PIVOTS,
 } from '../lib/chartStructureDetect.ts';
+import { findSwingPivots, lineValueAt } from '../lib/chartStructures.ts';
 import type { StructureCandle } from '../lib/chartStructures.ts';
 
 const TF = '4h';
@@ -256,6 +257,92 @@ test('P5. a lone HORIZONTAL rail is not a trendline (#2022)', () => {
     'this fixture has ONE flat rail and unstructured lows, so no range can form and there is ' +
     'nothing offerable. If it returned a structure, the lone-horizontal guard is gone and the ' +
     'R² gate has an unguarded bypass.',
+  );
+});
+
+test('P6. a channel\'s DERIVED rail is tangent - outside every opposite pivot, never through them (#2023)', () => {
+  /* THE CELL DEV ASKED FOR BY NAME, because his first version passed "kind === 'channel'" while
+     being wrong. He held the anchor's slope and took the LEAST-SQUARES intercept over the opposite
+     pivots - which sounds principled and is a regression line through the MIDDLE of the opposite
+     swing cloud. A channel rail is not there. It is tangent: offset so it sits just outside all of
+     them, touching the most extreme one, which is how a trader draws it.
+
+     HIS OWN SYMPTOM WAS A NEGATIVE EXCESS: SOL 1h came back with 39 pivots and FEWER touches than
+     pivots, extra = -39. Nonsense on its face, and only legible because `pointCount` had just been
+     changed to count the pivots actually ON the rail.
+
+     SO THE ASSERTION CANNOT BE "A CHANNEL WAS FOUND". Both constructions find one. What separates
+     them is WHERE the second rail sits, so that is what this checks:
+
+       1. every opposite pivot is on the outside of the derived rail, or exactly on it
+       2. the derived rail's own excess is >= 0 - a rail cannot be touched fewer times than the
+          pivots it is drawn through
+
+     The pivot set is derived here with `findSwingPivots` rather than read from `rail.pivots`,
+     because the rail only carries the pivots ON it - which is precisely the set that would still
+     look fine under a least-squares intercept. Checking a rail against its own survivors cannot
+     see a rail in the wrong place. */
+  const S = 0.01, WIDTH = 5, PROM = 0.10, n = 90;
+  /* THE LOW PIVOTS MUST SIT AT VARYING DEPTHS, and my first version of this fixture did not - which
+     made the cell useless. With every low pivot at an identical offset from the rail there is no
+     swing CLOUD to be in the middle of, so the mean of identical offsets equals the tangent and the
+     two constructions are indistinguishable. P6 passed under the least-squares mutation.
+
+     Varying the depths is what separates them: tangent offsets to the DEEPEST pivot and contains
+     all of them; a mean lands mid-cloud and leaves the deeper ones outside. Measured on this
+     fixture - tangent 0 of 9 pivots beyond the rail, mean 2 of 9. */
+  const DEPTH = [0, 0.25, 0.5, 0.25, 0, 0.4, 0.15, 0.5, 0.3, 0.1, 0.45, 0.2];
+  let d = 0;
+  const candles: StructureCandle[] = [];
+  for (let i = 0; i < n; i++) {
+    const hi = 100 + S * i, lo = hi - WIDTH;
+    /* Prominence must exceed 3x the slope or a later bar overtakes the pivot and
+       findSwingPivots never sees it - the same geometry as P2. */
+    const highPivot = i % 8 === 0 && i >= 5 && i <= n - 7;
+    const lowPivot = i % 8 === 4 && i >= 5 && i <= n - 7;
+    candles.push(bar(
+      i,
+      highPivot ? hi : hi - PROM,
+      lowPivot ? lo + DEPTH[(d++) % DEPTH.length] : lo + PROM + 0.6,
+    ));
+  }
+
+  const res = detectStructures(candles, { timeframe: TF });
+  const channel = res.structures.find(s => s.kind === 'channel');
+  assert.ok(channel, `a textbook rising channel must be detected as one. Got ${
+    res.structures.map(s => s.kind).join(', ') || `nothing (${res.reason})`}`);
+
+  const derived = channel.rails.find(r => r.gate === 'derived');
+  assert.ok(derived, 'a channel has exactly one derived rail - the anchor copied across');
+  assert.equal(derived.fit.r2, null,
+    'a derived rail fitted no slope, so there is nothing for an R2 to describe. A number here ' +
+    'would be a defensible-looking value for a line nobody fitted.');
+
+  /* 2. A rail cannot be touched fewer times than the pivots it is drawn through. */
+  const excess = derived.quality.touchCount - derived.fit.pointCount;
+  assert.ok(excess >= 0,
+    `the derived rail reports ${derived.quality.touchCount} touches against ${derived.fit.pointCount} ` +
+    `points, excess ${excess}. A negative excess is the least-squares intercept: the rail is through ` +
+    'the middle of the opposite pivots rather than tangent to them.');
+
+  /* 1. THE ONE THAT SEPARATES TANGENT FROM LEAST-SQUARES. */
+  const { highs, lows } = findSwingPivots(candles, 3, 3);
+  const opposite = derived.side === 'high' ? highs : lows;
+  assert.ok(opposite.length >= 3, 'needs opposite pivots to be a meaningful check');
+
+  const band = 0.003 * 100; // the default tolerance at this fixture's price
+  const outside = [];
+  for (const p of opposite) {
+    const railPrice = lineValueAt(derived.fit, p.index);
+    const beyond = derived.side === 'high' ? railPrice - p.price : p.price - railPrice;
+    if (beyond < -band) outside.push({ index: p.index, pivot: p.price, rail: railPrice });
+  }
+  assert.deepEqual(
+    outside, [],
+    `${outside.length} of ${opposite.length} opposite pivots sit BEYOND the derived rail by more ` +
+    `than the tolerance band - so the rail cuts through the swing cloud instead of containing it. ` +
+    `Worst: ${JSON.stringify(outside[0])}. A channel that does not contain its own pivots is not a ` +
+    'channel, and this is exactly what a least-squares intercept produces.',
   );
 });
 
