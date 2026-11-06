@@ -77,7 +77,24 @@
  *     0.995      4.3%        ok          ok            ok
  *
  * So fixing the gate halved the noise rate rather than trading anything away: 10.7% -> 5.7% with
- * one more control passing than before. 0.995 measures 4.3% and all three controls still pass, so
+ * one more control passing than before.
+ *
+ * AND THE FIRST VERSION OF THAT GATE WAS ITSELF WRONG - QA caught it before it merged, and it is
+ * recorded here because the synthetic controls above all PASSED while it was broken. It tested
+ * pivot SPREAD against the touch band (`max - min <= 0.3% of price`) instead of SLOPE. On BTCUSDT
+ * that band is ~229 dollars and four 15m swing highs land inside it routinely, so the exemption
+ * from the only quality gate in the file became the cheapest way in. Measured on live data: rails
+ * admitted at R2 0.34 (BTC 15m), 0.28 (ADA 15m) and 0.05 (BNB 15m) while MIN_TRENDLINE_R2 was
+ * 0.99, one of them clearing the spread test by 79 CENTS with a cluster 99.7% as wide as the band.
+ *
+ * Two repairs: the test is now slope-per-bar relative to price (the scale-free form) AND requires
+ * the cluster to sit well inside the band rather than merely within it. After them, a live audit
+ * of all 40 cells admitted 7 structures, every one via the sloped gate, worst R2 0.9917, none
+ * below 0.99.
+ *
+ * THE LESSON THAT GENERALISES: a synthetic control cannot catch a threshold that is wrong about
+ * SCALE, because the synthetic prices were ~100 and the defect needs a price of ~76,000 to open
+ * up. Null models bound noise; they say nothing about whether the gate means what it says. 0.995 measures 4.3% and all three controls still pass, so
  * there is headroom left - it is not taken here because 0.99 is the conventional threshold and the
  * extra 1.4 points costs tolerance for genuinely sloped trendlines that nothing has measured yet.
  *
@@ -168,6 +185,13 @@ export type StructureKind = 'trendline' | 'channel' | 'range';
 /** One rail of a structure: the line, and the evidence for it. */
 export interface StructureRail {
   side: 'high' | 'low';
+  /** Which gate admitted this rail.
+   *
+   *  CARRIED BECAUSE THE OUTPUT USED TO LIE ABOUT IT. A rail admitted on the horizontal path was
+   *  emitted as `kind: 'trendline'`, so a structure that had never been held to the sloped R²
+   *  standard claimed to be a sloped structure and nothing downstream could tell. A horizontal
+   *  rail is now only ever offered as part of a `range`. */
+  gate: 'sloped' | 'horizontal';
   fit: LineFit;
   quality: FitQuality;
   /** The pivots the line was fitted through - kept so the UI can mark them and the user can see
@@ -247,9 +271,28 @@ function toleranceBand(tolerance: TouchTolerance, price: number): number {
   return 'pct' in tolerance ? Math.abs(price) * tolerance.pct : tolerance.abs;
 }
 
+/** How tightly a horizontal rail's pivots must cluster, as a fraction of the touch band.
+ *
+ * NOT 1.0, AND THAT WAS THE DEFECT QA FOUND. The first version asked only `spread <= band`, which
+ * on BTCUSDT is a 229-dollar window - four 15m swing highs land inside it routinely. A measured
+ * case cleared it by 79 CENTS with a spread 99.7% as wide as the band, which is not a level, it is
+ * a smear as wide as the tolerance itself. If every pivot sits at the edge of what counts as a
+ * touch, they are not at one price. */
+export const HORIZONTAL_SPREAD_FRACTION = 0.35;
+
 /**
- * Is this candidate a HORIZONTAL rail - every fitted pivot at the same level, by the app's own
- * definition of "the same level"?
+ * Is this candidate a HORIZONTAL rail?
+ *
+ * TWO TESTS, AND THE FIRST ONE IS THE REPAIR. "Flat" is a statement about SLOPE, so it is tested
+ * as slope per candle relative to the line's own price - the scale-free form already used by
+ * `MAX_RANGE_SLOPE_PCT_PER_BAR`. The original version tested only pivot SPREAD against the touch
+ * band, which is a different claim: "a small range relative to a large price" rather than "flat".
+ * Because this path is an exemption from the only quality gate in the file, that made "nearly flat
+ * on an expensive asset" the cheapest way in - it admitted rails at R2 0.05 to 0.34 on live data
+ * while MIN_TRENDLINE_R2 was 0.99.
+ *
+ * The second test keeps the cluster tight: the pivots must sit well inside the band, not merely
+ * within it. See HORIZONTAL_SPREAD_FRACTION.
  *
  * WHY THIS EXISTS, AND WHY R² CANNOT ANSWER IT. R² asks how much of the pivots' price VARIANCE the
  * line explains. A horizontal rail has almost none, so the cleaner the rail the worse it scores,
@@ -270,7 +313,9 @@ function toleranceBand(tolerance: TouchTolerance, price: number): number {
  */
 function isHorizontalCandidate(
   window: readonly SwingPivot[],
+  fit: LineFit,
   tolerance: TouchTolerance,
+  lastIndex: number,
 ): boolean {
   let min = Infinity;
   let max = -Infinity;
@@ -280,7 +325,14 @@ function isHorizontalCandidate(
     if (p.price > max) max = p.price;
   }
   if (!Number.isFinite(min) || !Number.isFinite(max)) return false;
-  return max - min <= toleranceBand(tolerance, (min + max) / 2);
+
+  /* FLAT is about slope. Null when the line has extrapolated to zero or below, where a percentage
+     of it is meaningless - treated as not-horizontal rather than admitted. */
+  const perBar = slopePctPerBar(fit, lastIndex);
+  if (perBar === null || Math.abs(perBar) > MAX_RANGE_SLOPE_PCT_PER_BAR) return false;
+
+  /* And the pivots must be at ONE price, not merely inside the tolerance. */
+  return max - min <= HORIZONTAL_SPREAD_FRACTION * toleranceBand(tolerance, (min + max) / 2);
 }
 
 /** Best rail for one side, or null. "Best" is by touch count then R², among at most three nested
@@ -308,7 +360,7 @@ function bestRail(
        `pointCount >= MIN_TRENDLINE_PIVOTS` is required on BOTH paths, so the horizontal path
        cannot become a way in for the 2-point lines the sloped path refuses by checking r2 null. */
     if (fit.pointCount < MIN_TRENDLINE_PIVOTS) continue;
-    const horizontal = isHorizontalCandidate(window, tolerance);
+    const horizontal = isHorizontalCandidate(window, fit, tolerance, candles.length - 1);
     if (!horizontal && (fit.r2 === null || fit.r2 < minR2)) continue;
 
     const quality = measureFit(candles, fit, { side, tolerance });
@@ -331,6 +383,7 @@ function bestRail(
     const lastIndex = candles.length - 1;
     best = {
       side,
+      gate: horizontal ? 'horizontal' : 'sloped',
       fit,
       quality,
       pivots: [...window],
@@ -458,9 +511,17 @@ export function detectStructures(
   /* Single trendlines are offered whether or not a channel was found: a channel's rails are
      individually useful, and the caller ranks. A rail already inside a channel is not repeated -
      it is the same object, so the caller can identify it by reference if it wants to. */
+  /* A SINGLE RAIL IS A TRENDLINE ONLY IF THE SLOPED GATE ADMITTED IT. The declared kinds are
+     trendline, channel and range - there is no "level" - so a lone horizontal rail is simply not
+     an offerable structure in Phase 1, and calling it a trendline is the claim QA caught. A
+     horizontal rail reaches the output only as half of a range. */
   if (!structures.length) {
-    if (highRail) structures.push(build('trendline', [highRail.rail], highRail.considered));
-    if (lowRail) structures.push(build('trendline', [lowRail.rail], lowRail.considered));
+    if (highRail?.rail.gate === 'sloped') {
+      structures.push(build('trendline', [highRail.rail], highRail.considered));
+    }
+    if (lowRail?.rail.gate === 'sloped') {
+      structures.push(build('trendline', [lowRail.rail], lowRail.considered));
+    }
   }
 
   if (!structures.length) return { structures: [], reason: 'no-fit-cleared-thresholds' };
