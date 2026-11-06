@@ -114,6 +114,39 @@ function threePivotsWithRealExcess(): StructureCandle[] {
   return out;
 }
 
+/**
+ * A textbook rising channel: highs on a shallow line, lows on a parallel one below it.
+ *
+ * THE LOW PIVOTS SIT AT VARYING DEPTHS, and my first version of this fixture had them all at an
+ * identical offset - which made P6 useless. With every low pivot the same distance from the rail
+ * there is no swing CLOUD to be in the middle of, so the mean of identical offsets IS the tangent:
+ * the two constructions are not merely hard to separate, they are arithmetically the same function
+ * on that input. The fixture was degenerate in exactly the dimension the behaviour lives in, and it
+ * went green.
+ *
+ * Varying the depths did not make the test stricter, it made the test possible. Measured - tangent
+ * leaves 0 of 9 opposite pivots beyond the rail, a least-squares intercept leaves 2 of 9.
+ */
+function risingChannel(): StructureCandle[] {
+  const S = 0.01, WIDTH = 5, PROM = 0.10, n = 90;
+  const DEPTH = [0, 0.25, 0.5, 0.25, 0, 0.4, 0.15, 0.5, 0.3, 0.1, 0.45, 0.2];
+  let d = 0;
+  const out: StructureCandle[] = [];
+  for (let i = 0; i < n; i++) {
+    const hi = 100 + S * i, lo = hi - WIDTH;
+    /* Prominence must exceed 3x the slope or a later bar overtakes the pivot and findSwingPivots
+       never sees it - the same geometry as threePivotsWithRealExcess. */
+    const highPivot = i % 8 === 0 && i >= 5 && i <= n - 7;
+    const lowPivot = i % 8 === 4 && i >= 5 && i <= n - 7;
+    out.push(bar(
+      i,
+      highPivot ? hi : hi - PROM,
+      lowPivot ? lo + DEPTH[(d++) % DEPTH.length] : lo + PROM + 0.6,
+    ));
+  }
+  return out;
+}
+
 test('P1. a line whose only touches are its own fitted pivots is NOT a structure', () => {
   const res = detectStructures(threePivotsNoExcess(), { timeframe: TF });
 
@@ -282,31 +315,7 @@ test('P6. a channel\'s DERIVED rail is tangent - outside every opposite pivot, n
      because the rail only carries the pivots ON it - which is precisely the set that would still
      look fine under a least-squares intercept. Checking a rail against its own survivors cannot
      see a rail in the wrong place. */
-  const S = 0.01, WIDTH = 5, PROM = 0.10, n = 90;
-  /* THE LOW PIVOTS MUST SIT AT VARYING DEPTHS, and my first version of this fixture did not - which
-     made the cell useless. With every low pivot at an identical offset from the rail there is no
-     swing CLOUD to be in the middle of, so the mean of identical offsets equals the tangent and the
-     two constructions are indistinguishable. P6 passed under the least-squares mutation.
-
-     Varying the depths is what separates them: tangent offsets to the DEEPEST pivot and contains
-     all of them; a mean lands mid-cloud and leaves the deeper ones outside. Measured on this
-     fixture - tangent 0 of 9 pivots beyond the rail, mean 2 of 9. */
-  const DEPTH = [0, 0.25, 0.5, 0.25, 0, 0.4, 0.15, 0.5, 0.3, 0.1, 0.45, 0.2];
-  let d = 0;
-  const candles: StructureCandle[] = [];
-  for (let i = 0; i < n; i++) {
-    const hi = 100 + S * i, lo = hi - WIDTH;
-    /* Prominence must exceed 3x the slope or a later bar overtakes the pivot and
-       findSwingPivots never sees it - the same geometry as P2. */
-    const highPivot = i % 8 === 0 && i >= 5 && i <= n - 7;
-    const lowPivot = i % 8 === 4 && i >= 5 && i <= n - 7;
-    candles.push(bar(
-      i,
-      highPivot ? hi : hi - PROM,
-      lowPivot ? lo + DEPTH[(d++) % DEPTH.length] : lo + PROM + 0.6,
-    ));
-  }
-
+  const candles = risingChannel();
   const res = detectStructures(candles, { timeframe: TF });
   const channel = res.structures.find(s => s.kind === 'channel');
   assert.ok(channel, `a textbook rising channel must be detected as one. Got ${
@@ -319,11 +328,16 @@ test('P6. a channel\'s DERIVED rail is tangent - outside every opposite pivot, n
     'would be a defensible-looking value for a line nobody fitted.');
 
   /* 2. A rail cannot be touched fewer times than the pivots it is drawn through. */
-  const excess = derived.quality.touchCount - derived.fit.pointCount;
-  assert.ok(excess >= 0,
-    `the derived rail reports ${derived.quality.touchCount} touches against ${derived.fit.pointCount} ` +
-    `points, excess ${excess}. A negative excess is the least-squares intercept: the rail is through ` +
-    'the middle of the opposite pivots rather than tangent to them.');
+  /* `excessTouches` RATHER THAN A HAND-COMPUTED DIFFERENCE. I originally wrote
+     `touchCount - fit.pointCount`, and flagged to Dev that it was checking a property the SLOPED
+     rail did not have: `fit.pointCount` meant "pivots fitted" there and "pivots on the rail" on a
+     derived rail, so the same subtraction asked different questions on the two rails of one
+     channel. #2024 gave the rail its own field with one meaning on both paths. */
+  assert.ok(derived.excessTouches >= 0,
+    `the derived rail reports ${derived.quality.touchCount} touches against ${derived.pivotsOnRail} ` +
+    `pivots on the rail, excessTouches ${derived.excessTouches}. A negative figure is the ` +
+    'least-squares intercept: the rail runs through the middle of the opposite pivots rather than ' +
+    'tangent to them.');
 
   /* 1. THE ONE THAT SEPARATES TANGENT FROM LEAST-SQUARES. */
   const { highs, lows } = findSwingPivots(candles, 3, 3);
@@ -344,6 +358,85 @@ test('P6. a channel\'s DERIVED rail is tangent - outside every opposite pivot, n
     `Worst: ${JSON.stringify(outside[0])}. A channel that does not contain its own pivots is not a ` +
     'channel, and this is exactly what a least-squares intercept produces.',
   );
+});
+
+test('P7. every pivot a rail CARRIES sits on that rail - sloped included (#2024)', () => {
+  /* THE CELL DEV ASKED TO PIN HARDEST, and it is not about arithmetic - `rail.pivots` is the set a
+     UI marks on the chart. Before #2024 a SLOPED rail carried every pivot it was FITTED through,
+     including ones nowhere near the resulting line, so a consumer marking those candles would have
+     circled the wrong ones in front of the user. Dev found it only by changing the field, and says
+     he would not have caught it until it was on screen.
+
+     WHY R-SQUARED CANNOT STAND IN FOR THIS, measured on live data before the fix: ADAUSDT 1d scored
+     r2 0.998441 - clearing the 0.99 gate - with 1 of its 3 fitted pivots on the line and the other
+     two 0.72% and 0.54% away against a 0.3% band, so 2.4x and 1.8x outside it. R-squared is
+     variance explained over the pivot SPREAD; a touch is an absolute band. A steep line over a wide
+     range scores beautifully while passing near none of its own points.
+
+     SO THE PROPERTY IS CHECKED DIRECTLY, on every rail of every structure, both gates. Run against
+     the two fixtures that produce structures here - P2's trendline and P6's channel, the latter
+     having opposite pivots at VARYING depths, so its tangent genuinely leaves some off the rail and
+     they must not be carried. */
+  const fixtures: Array<[string, StructureCandle[]]> = [
+    ['single trendline', threePivotsWithRealExcess()],
+    ['channel', risingChannel()],
+  ];
+
+  let railsChecked = 0;
+  for (const [name, candles] of fixtures) {
+    const res = detectStructures(candles, { timeframe: TF });
+    assert.ok(res.structures.length > 0, `${name}: needs a structure to inspect (${res.reason})`);
+
+    for (const s of res.structures) {
+      for (const rail of s.rails) {
+        railsChecked++;
+        const band = (price: number) => 0.003 * price;
+        const off = rail.pivots
+          .map(p => ({ index: p.index, pivot: p.price, rail: lineValueAt(rail.fit, p.index) }))
+          .filter(x => Math.abs(x.pivot - x.rail) > band(x.rail) + 1e-9);
+
+        assert.deepEqual(
+          off, [],
+          `${name}: a ${rail.gate} rail CARRIES ${off.length} of ${rail.pivots.length} pivots that ` +
+          `are NOT within tolerance of its own line. Worst: ${JSON.stringify(off[0])}. ` +
+          'rail.pivots is what a chart marks for the user, so an off-rail pivot here is a circled ' +
+          'candle the line does not touch. R-squared cannot establish this - see the header.',
+        );
+
+        /* And the count must agree with the set it describes. */
+        assert.equal(
+          rail.pivotsOnRail, rail.pivots.length,
+          `${name}: a ${rail.gate} rail reports pivotsOnRail ${rail.pivotsOnRail} while carrying ` +
+          `${rail.pivots.length} pivots. The count and the set must be the same thing.`,
+        );
+        assert.equal(
+          rail.excessTouches, rail.quality.touchCount - rail.pivotsOnRail,
+          'excessTouches must be touchCount minus pivotsOnRail, on both paths - one meaning per field',
+        );
+      }
+    }
+  }
+  assert.ok(railsChecked >= 3, `expected at least 3 rails across both fixtures, checked ${railsChecked}`);
+
+  /* WHAT THIS CELL DOES NOT COVER, stated because Dev asked for the sloped half specifically and it
+     is NOT pinned here. Mutation-measured, both directions:
+
+       derived rail carries all opposite pivots   -> P7 RED      (covered)
+       sloped rail carries the FITTED window      -> P7 GREEN    (NOT covered)
+
+     The sloped mutation survives because every fitted pivot in both fixtures is already on its
+     rail, so `[...window]` and `onRail` are the same set and the two versions agree.
+
+     AND PART OF THAT IS STRUCTURAL RATHER THAN A FIXTURE GAP. `MIN_PIVOTS_ON_RAIL` equals
+     `MIN_TRENDLINE_PIVOTS`, both 3, so for a 3-pivot window all three must be on the rail to pass
+     at all - window and onRail are identical BY CONSTRUCTION. The distinction can only exist for
+     the 4- and 5-pivot windows, and those are reachable: a live sweep found sloped rails with 3, 4
+     and 5+ pivots on rail.
+
+     So a fixture that would pin the sloped half needs a 4- or 5-pivot window that clears R² >= 0.99
+     and the excess gate while leaving at least one fitted pivot outside tolerance. I could not
+     construct one: the displacement needed to put a pivot off the band also sinks R² at the shallow
+     slopes the pivot-prominence geometry forces. That is a real gap, not a solved problem. */
 });
 
 /* ── MUTATION RESULT, AND THE TWO MUTATIONS THAT PROVED NOTHING ──────────────────────────────────
