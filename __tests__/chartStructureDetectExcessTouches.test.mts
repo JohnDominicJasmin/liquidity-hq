@@ -147,6 +147,28 @@ function risingChannel(): StructureCandle[] {
   return out;
 }
 
+/**
+ * Five recent high pivots on a shallow line, with the OLDEST of the five displaced outside the
+ * tolerance band. So the nested 3-pivot window (the three newest) is clean, and the 4- and 5-pivot
+ * windows carry the displacement.
+ *
+ * `displaceMult` is in units of the tolerance band at that pivot's price.
+ */
+function fivePivotsOneDisplaced(displaceMult: number): StructureCandle[] {
+  const S = 0.01, PROM = 0.10, n = 90, SP = 8;
+  const out: StructureCandle[] = [];
+  for (let i = 0; i < n; i++) {
+    const rail = 100 + S * i;
+    const isPivot = i % SP === 0 && i >= 5 && i <= n - 7;
+    out.push(bar(i, isPivot ? rail : rail - PROM, rail - 8));
+  }
+  const { highs } = findSwingPivots(out, 3, 3);
+  const target = highs.slice(-5)[0].index;
+  const band = 0.003 * (100 + S * target);
+  out[target] = { ...out[target], high: out[target].high + displaceMult * band };
+  return out;
+}
+
 test('P1. a line whose only touches are its own fitted pivots is NOT a structure', () => {
   const res = detectStructures(threePivotsNoExcess(), { timeframe: TF });
 
@@ -438,6 +460,44 @@ test('P7. every pivot a rail CARRIES sits on that rail - sloped included (#2024)
      construct one: the displacement needed to put a pivot off the band also sinks R² at the shallow
      slopes the pivot-prominence geometry forces. That is a real gap, not a solved problem. */
 });
+
+/* ── WHY THERE IS NO P8, AND WHY THE SLOPED HALF OF P7 IS UNWRITABLE ────────────────────────────
+ *
+ * Dev measured 250 configurations and concluded the off-rail sloped state is UNREACHABLE. That
+ * conclusion is CONFIRMED from this side. His stated MECHANISM is not.
+ *
+ * He attributed it to the RANKING: `bestRail` ranks by touch count then R-squared, so a clean nested
+ * 3-window beats a dirty wider one, and the window carrying the off-rail pivot is never admitted. He
+ * suggested pinning the ranking instead of the pivots, and I wrote that cell.
+ *
+ * **IT PASSED UNDER A RANKING MUTATION.** Rewriting `better` to prefer `fit.pointCount` over touch
+ * count - the exact change he said would make the state reachable - left all eight cells green. So
+ * the ranking is not what keeps it unreachable, and a cell asserting the ranking guards nothing.
+ *
+ * WHAT ACTUALLY REFUSES IT, measured per candidate window with the displaced pivot at 1.2x to 5x the
+ * band:
+ *
+ *   shallow slopes (0.01/bar)   the 5-window is refused by R-SQUARED: 0.011, 0.102, 0.237, 0.351.
+ *                               One displaced pivot dominates the variance when the line's own range
+ *                               over the window is only a few bands wide.
+ *   steeper slopes (0.03-0.09)  R-squared recovers to 0.99+, but then the FIT ABSORBS the
+ *                               displacement - onRail comes back 5/5, so there is no off-rail pivot
+ *                               to carry. A single outlier among five points rotates the line toward
+ *                               itself.
+ *
+ * And the slope cannot go higher: pivot prominence must exceed 3x the slope for `findSwingPivots` to
+ * see a pivot at all, while staying inside the touch band so the non-pivot bars still count as
+ * touches. That squeezes the usable slope from both sides.
+ *
+ * SO THE TWO EXPLANATIONS ARE DIFFERENT AND THE DIFFERENCE MATTERS: under his, the state becomes
+ * reachable if the ranking is ever changed, and a ranking cell would warn. Under this one, changing
+ * the ranking does nothing - the dirty window is refused or absorbed before ranking is consulted -
+ * so there is nothing a cell can usefully hold.
+ *
+ * A cell that passes under the mutation it was written to catch is documentation wearing an
+ * assertion's clothes, which is the thing this whole file keeps catching. So there is no P8. The
+ * sloped half of P7 rests on the implementation and the live audit, and this note is the record of
+ * why that is the honest state rather than an oversight. */
 
 /* ── MUTATION RESULT, AND THE TWO MUTATIONS THAT PROVED NOTHING ──────────────────────────────────
  *
