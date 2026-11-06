@@ -150,6 +150,22 @@ export const MAX_CANDIDATES_PER_SIDE = CANDIDATE_PIVOT_COUNTS.length;
  *  MEASURED, not chosen; see the null-model tables in the header. */
 export const MIN_TRENDLINE_R2 = 0.99;
 
+/** How many of a fitted candidate's own pivots must lie within tolerance of the line it produced.
+ *
+ * R-SQUARED DOES NOT GUARANTEE THIS, and that is the defect this closes. R-squared is variance
+ * explained over the pivots' own SPREAD; a touch is an absolute percentage band. Different
+ * questions - so a steep line across a wide price range scores beautifully while sitting outside a
+ * tight band at every single point. Measured on ADAUSDT 1d: R-squared 0.998441 with 1 of 3 fitted
+ * pivots on the line, the other two 1.8x and 2.4x the band away.
+ *
+ * Until now only the excess-touch gate caught that, and by ordering rather than by design - the two
+ * gates were compensating for each other by accident. A line we invite someone to look at has to
+ * pass through the points it claims to describe, so that is now required directly.
+ *
+ * Equal to MIN_TRENDLINE_PIVOTS: every pivot of a 3-pivot candidate must be on the line, and a 4-
+ * or 5-pivot candidate may carry one or two that are not. */
+export const MIN_PIVOTS_ON_RAIL = MIN_TRENDLINE_PIVOTS;
+
 /** Touches IN EXCESS of the pivots the line was fitted through.
  *
  * THIS IS THE THRESHOLD THAT DOES THE WORK, and the first version of this file got it wrong in a
@@ -203,10 +219,27 @@ export interface StructureRail {
   gate: 'sloped' | 'horizontal' | 'derived';
   fit: LineFit;
   quality: FitQuality;
-  /** The pivots the line was fitted through - kept so the UI can mark them and the user can see
-   *  WHAT the line was drawn through rather than only the line, the same reasoning
-   *  `lib/drawStructure.ts` gives for keeping `touchTimestamps`. */
+  /** The pivots that actually sit ON this rail, within tolerance - kept so the UI can mark them
+   *  and the user can see WHAT the line was drawn through rather than only the line, the same
+   *  reasoning `lib/drawStructure.ts` gives for keeping `touchTimestamps`.
+   *
+   *  ON-RAIL ON BOTH PATHS, which it was not before: a sloped rail used to carry every pivot it
+   *  was FITTED through, including ones nowhere near the resulting line. */
   pivots: SwingPivot[];
+  /** How many of the candidate pivots are within tolerance of the rail. The same question on both
+   *  paths, which `fit.pointCount` is not - see the note on `excessTouches`. */
+  pivotsOnRail: number;
+  /** `quality.touchCount - pivotsOnRail`: candles touching the rail beyond its own pivots.
+   *
+   *  THIS FIELD EXISTS BECAUSE `fit.pointCount` MEANT TWO DIFFERENT THINGS. Phase 0 defines it as
+   *  "how many points the line was fitted through", which is what the sloped path produces; the
+   *  derived path was overwriting it with the on-rail count. So the excess was not comparable
+   *  between the two rails of one channel, and on live data it went NEGATIVE on the sloped path -
+   *  worst -4, with BTCUSDT 1w reporting pointCount 5 against touchCount 2 while four of those
+   *  five fitted pivots sat 9k-12k dollars from their own line inside a 264 dollar band.
+   *
+   *  It failed safe only because the gate wants a positive excess, which is why it went unseen. */
+  excessTouches: number;
   /** The rail's endpoints in chart coordinates, ready for an overlay. */
   from: { timestamp: number; price: number };
   to: { timestamp: number; price: number };
@@ -273,6 +306,20 @@ function candidateWindows(pivots: readonly SwingPivot[]): SwingPivot[][] {
     out.push(pivots.slice(pivots.length - n));
   }
   return out;
+}
+
+/** The pivots of a candidate set that lie within tolerance of a line. ONE definition, used by both
+ *  paths, so `pivotsOnRail` answers the same question wherever it appears. */
+function pivotsWithinTolerance(
+  pivots: readonly SwingPivot[],
+  fit: LineFit,
+  tolerance: TouchTolerance,
+): SwingPivot[] {
+  return pivots.filter(p => {
+    const line = lineValueAt(fit, p.index);
+    return Number.isFinite(line) && Number.isFinite(p.price) &&
+      Math.abs(p.price - line) <= toleranceBand(tolerance, line);
+  });
 }
 
 /** The price band `measureFit` would call a touch, at this price level. */
@@ -372,9 +419,17 @@ function bestRail(
     const horizontal = isHorizontalCandidate(window, fit, tolerance, candles.length - 1);
     if (!horizontal && (fit.r2 === null || fit.r2 < minR2)) continue;
 
+    /* THE LINE MUST PASS THROUGH ITS OWN PIVOTS - see MIN_PIVOTS_ON_RAIL. R-squared cannot
+       establish this, and a drawn line whose own swing points are off it fails in front of the
+       user, who is looking at both. */
+    const onRail = pivotsWithinTolerance(window, fit, tolerance);
+    if (onRail.length < MIN_PIVOTS_ON_RAIL) continue;
+
     const quality = measureFit(candles, fit, { side, tolerance });
-    /* EXCESS, not the raw count - the fitted pivots are touches by construction. */
-    if (quality.touchCount - fit.pointCount < minExtraTouches) continue;
+    /* EXCESS over the pivots ON the rail, so the figure means the same thing here as on a derived
+       rail. Measured against `fit.pointCount` it could go negative, which is what hid the defect
+       described on `excessTouches`. */
+    if (quality.touchCount - onRail.length < minExtraTouches) continue;
 
     /* Touch count first, and ONLY touch count as a tiebreak between a horizontal and a sloped
        candidate: `r2 ?? 0` would rank a perfect flat rail (null) below a mediocre sloped one,
@@ -395,7 +450,9 @@ function bestRail(
       gate: horizontal ? 'horizontal' : 'sloped',
       fit,
       quality,
-      pivots: [...window],
+      pivots: onRail,
+      pivotsOnRail: onRail.length,
+      excessTouches: quality.touchCount - onRail.length,
       from: { timestamp: candles[firstIndex].timestamp, price: lineValueAt(fit, firstIndex) },
       to: { timestamp: candles[lastIndex].timestamp, price: lineValueAt(fit, lastIndex) },
     };
@@ -463,19 +520,15 @@ function deriveParallelRail(
   const fit: LineFit = {
     slope: anchor.slope,
     intercept,
-    /* The pivots actually ON the rail, within tolerance - not every pivot on that side. The
-       intercept is set by ONE of them and the rest may sit far inside; reporting all of them as
-       the rail's points would make `touchCount - pointCount` meaningless and claim evidence the
-       rail does not have. */
-    pointCount: 0,
+    /* ONE, and Phase 0's own definition is why: "how many points the line was fitted through". A
+       tangent is fitted through exactly one - the extreme pivot that set the intercept - with its
+       slope borrowed from the anchor. This used to be overwritten with the on-rail count, which
+       gave the field a second meaning and made the excess incomparable between the two rails of
+       one channel. The on-rail count now lives in `pivotsOnRail`. */
+    pointCount: 1,
     r2: null,                       // nothing was fitted - see the header
   };
-  const onRail = oppositePivots.filter(p => {
-    const line = lineValueAt(fit, p.index);
-    return Number.isFinite(line) &&
-      Math.abs(p.price - line) <= toleranceBand(tolerance, line);
-  });
-  fit.pointCount = onRail.length;
+  const onRail = pivotsWithinTolerance(oppositePivots, fit, tolerance);
 
   const lastIndex = candles.length - 1;
   /* The derived rail must sit on its own side of the anchor, at both ends, or the two lines cross
@@ -496,6 +549,8 @@ function deriveParallelRail(
     fit,
     quality,
     pivots: onRail,
+    pivotsOnRail: onRail.length,
+    excessTouches: quality.touchCount - onRail.length,
     from: { timestamp: candles[firstIndex].timestamp, price: lineValueAt(fit, firstIndex) },
     to: { timestamp: candles[lastIndex].timestamp, price: lineValueAt(fit, lastIndex) },
   };
