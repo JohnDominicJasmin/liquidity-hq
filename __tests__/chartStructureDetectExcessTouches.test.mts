@@ -204,6 +204,61 @@ test('P4. nothing in the output can be read as advice', () => {
   );
 });
 
+test('P5. a lone HORIZONTAL rail is not a trendline (#2022)', () => {
+  /* THE DEFECT THIS PINS, found on live data and now deterministic. The flatness exemption at
+     `isHorizontalCandidate` lets a rail skip the R² gate. Before `27ad38ab` a rail admitted that way
+     could still be emitted as `kind: 'trendline'` — so the output claimed a SLOPED structure that had
+     never been held to the sloped standard.
+
+     Measured on BTCUSDT 15m at the time: a rail reported as a trendline with R² 0.339, admitted
+     because its four fitted pivots spanned $228.00 against a $228.79 band — inside it by 79 cents.
+     Two more in the same sweep: ADA 15m at R² 0.275, and a "range" at R² 0.050.
+
+     THE FIXTURE BELOW REPRODUCES IT WITHOUT THE MARKET: a flat high rail with many touches, and lows
+     that wander so no low rail forms and therefore no range can. The declared kinds are trendline,
+     channel and range — there is no "level" — so a lone horizontal rail is not an offerable Phase 1
+     structure at all. It reaches the output only as half of a range.
+
+     MUTATION-PROVEN. Dropping the `gate === 'sloped'` condition emits exactly one structure:
+     `kind: trendline, gate: horizontal, r2: 0.0975`. That is this cell going red, and it is the
+     pre-fix behaviour. */
+  let seed = 7;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  const candles: StructureCandle[] = [];
+  for (let i = 0; i < 80; i++) {
+    /* A flat rail: pivots at one price, the rest a hair below, so the spread clears
+       HORIZONTAL_SPREAD_FRACTION and the slope clears MAX_RANGE_SLOPE_PCT_PER_BAR. */
+    const isPivot = i % 9 === 0 && i >= 5 && i <= 74;
+    candles.push(bar(i, isPivot ? 100 : 99.98, 85 + rnd() * 8));
+  }
+
+  const res = detectStructures(candles, { timeframe: TF });
+
+  for (const s of res.structures) {
+    const horizontalRails = s.rails.filter(r => r.gate === 'horizontal');
+    assert.ok(
+      s.kind !== 'trendline' || horizontalRails.length === 0,
+      `a ${s.kind} was emitted containing a rail admitted by the HORIZONTAL gate ` +
+      `(R² ${s.rails.map(r => r.fit.r2).join(', ')}). A rail that skipped the R² gate cannot be ` +
+      'reported as a trendline - that is the output claiming a standard it was never held to.',
+    );
+    if (horizontalRails.length > 0) {
+      assert.equal(
+        s.kind, 'range',
+        'a horizontal rail reaches the output only as half of a range, never alone',
+      );
+      assert.equal(s.rails.length, 2, 'a range has two rails');
+    }
+  }
+
+  assert.deepEqual(
+    res.structures, [],
+    'this fixture has ONE flat rail and unstructured lows, so no range can form and there is ' +
+    'nothing offerable. If it returned a structure, the lone-horizontal guard is gone and the ' +
+    'R² gate has an unguarded bypass.',
+  );
+});
+
 /* ── MUTATION RESULT, AND THE TWO MUTATIONS THAT PROVED NOTHING ──────────────────────────────────
  *
  * THE ONE THAT WORKS - the original defect, raw count against MIN_TRENDLINE_PIVOTS:
