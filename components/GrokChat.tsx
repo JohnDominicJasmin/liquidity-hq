@@ -664,8 +664,8 @@ export default function GrokChat() {
         data-testid="grok-launcher"
         className={`gchat-fab${open ? ' gchat-fab-open' : ''}${!fabVisible ? ' gchat-fab-scrolling' : ''}`}
         onClick={() => { setOpen(v => !v); if (open) { setExpanded(false); setShowLoginModal(false); } }}
-        title="Ask Grok"
-        aria-label="Open Grok chat"
+        title="Ask AI"
+        aria-label="Open AI chat"
       >
         <span style={{ lineHeight: 0 }}>
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">

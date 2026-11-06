@@ -12,7 +12,7 @@ export const SECRETS: Secret[] = [
   { n: 4, name: 'Tightness beats dollar size', cat: 'hunt', text: 'A bright $80M cluster in a 1-2% range hits harder than a dark $400M cluster spread over 10%+. Density and brightness matter 10x more than dollar amount.' },
   { n: 5, name: 'The magnet effect', cat: 'hunt', text: 'Once price gets within 0.8% of a massive cluster it often gets pulled in. The closer it gets, the harder it accelerates. That final sprint is the fastest part of the whole raid.' },
   { n: 6, name: 'The 2.5% rule', cat: 'hunt', text: 'Price moves more than 2.5% in under 30 minutes with almost no pullback = the signature of a liquidity raid, not a real trend. Real moves breathe and pull back. Raids rip straight through.' },
-  { n: 7, name: 'Double cluster rule', cat: 'hunt', text: 'Strongest moves happen when two big liquidity pools are stacked close together. Price sweeps both in one violent move - first one side, immediately the other. Highest probability setup.' },
+  { n: 7, name: 'Double cluster rule', cat: 'hunt', text: 'Strongest moves happen when two big liquidity pools are stacked close together. Price sweeps both in one violent move - first one side, immediately the other. Two stacked pools is the cleanest version of this pattern.' },
   { n: 8, name: 'The 3-touch rule', cat: 'hunt', text: 'Any pool that gets swept and fails to reverse strongly will get raided again within 48 hours. First touch = warning. Second = setup. Third = slaughter.' },
   { n: 9, name: 'Equal and opposite', cat: 'hunt', text: 'A raid up is often followed by a similar-sized raid down within 48-72 hours. They rarely leave one side of the book unbalanced, so after a short squeeze the longs are the side left exposed.' },
   { n: 10, name: 'Post-raid collapse', cat: 'hunt', text: 'The most violent moves die within 4-6 hours after the main liquidity is taken. Fuel is gone. Price goes flat or reverses hard. Do not hold after the touch.' },
@@ -35,7 +35,7 @@ export const SECRETS: Secret[] = [
   // window; left as written rather than snapped to the window boundary, since
   // it describes a specific observed move rather than the session open itself.
   { n: 19, name: 'London open fake (09:30 UTC)', cat: 'time', text: 'Around 09:30–10:00 UTC, watch for a fake move first. They shake out early positions before the real daily direction shows up. Never enter on the first move.' },
-  { n: 20, name: '48-hour coil rule', cat: 'time', text: 'Bitcoin stuck in a tight range for 48+ hours = probability of violent raid goes through the roof. The longer the range, the bigger the spring that gets released.' },
+  { n: 20, name: '48-hour coil rule', cat: 'time', text: 'Bitcoin stuck in a tight range for 48+ hours is how a violent raid gets set up. The longer the range, the bigger the spring that gets released.' },
   { n: 21, name: 'Bait candle', cat: 'trap', text: 'They create one extremely clean beautiful candle on the 15min or 1H chart to make retail think this is the real move. Once retail FOMOs in, the reversal comes. That clean candle is pure bait.' },
   { n: 22, name: 'Stop sweep - they hunt in pairs', cat: 'trap', text: 'Massive wick up takes out the shorts first. Then immediately a wick down takes out the new longs who just bought the breakout. Two hunts, one move. Called a stop sweep.' },
   { n: 23, name: 'The head fake', cat: 'trap', text: 'Price breaks a level cleanly, retail piles in, then within 20-40 minutes reverses violently. The cleaner the breakout looks, the faster the reversal comes.' },
@@ -70,7 +70,7 @@ export const SECRETS: Secret[] = [
   { n: 52, name: 'Ghost liquidity - the invisible trap', cat: 'trap', text: 'Old clusters that have been sitting untouched for 2+ days are highly suspicious. The real liquidity may have already been taken in the dark via OTC. What you see on the heatmap could be a ghost - the map looks bright but the prey is already gone.' },
   { n: 53, name: 'The already-touched cluster trap', cat: 'trap', text: 'A very bright cluster that price has already touched once and reversed from has a high chance of being already cleaned. Do not trade a second touch expecting the same violent reaction. The fuel is gone - you are walking into an empty room.' },
   { n: 54, name: 'Sudden cluster with no volume = fake', cat: 'trap', text: 'A cluster that appears suddenly on the heatmap with no volume behind the move is manufactured. The big players are baiting you into thinking there is a raid target there. If volume does not confirm the cluster appearance, treat it as fake and ignore it.' },
-  { n: 55, name: 'The golden confirmation - all 3 must align', cat: 'hunt', text: 'The best setups have all three at the same time: very bright, very tight range, and price sprinting toward it with increasing volume. If even one is missing the probability drops significantly. Wait for all three before pulling the trigger.' },
+  { n: 55, name: 'The golden confirmation - all 3 must align', cat: 'hunt', text: 'The best setups have all three at the same time: very bright, very tight range, and price sprinting toward it with increasing volume. If even one is missing, this is not that setup. Wait for all three before pulling the trigger.' },
 ];
 
 export function getDailySecret(): Secret {
