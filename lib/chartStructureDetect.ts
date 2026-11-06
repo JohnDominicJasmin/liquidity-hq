@@ -178,6 +178,11 @@ export const MAX_RANGE_SLOPE_PCT_PER_BAR = 0.0002;
  *  rail, so it is scale-free and does not punish a steep channel for a small absolute difference. */
 export const MAX_CHANNEL_SLOPE_DIVERGENCE = 0.25;
 
+/** Touches a DERIVED channel rail must collect to be believed. It is judged on touches alone -
+ *  its slope was given, not measured - so this is the only evidence it has and it is held to the
+ *  same bar as a fitted rail's excess. */
+export const MIN_DERIVED_TOUCHES = 5;
+
 /* ── Output ───────────────────────────────────────────────────────────────── */
 
 export type StructureKind = 'trendline' | 'channel' | 'range';
@@ -190,8 +195,12 @@ export interface StructureRail {
    *  CARRIED BECAUSE THE OUTPUT USED TO LIE ABOUT IT. A rail admitted on the horizontal path was
    *  emitted as `kind: 'trendline'`, so a structure that had never been held to the sloped R²
    *  standard claimed to be a sloped structure and nothing downstream could tell. A horizontal
-   *  rail is now only ever offered as part of a `range`. */
-  gate: 'sloped' | 'horizontal';
+   *  rail is now only ever offered as part of a `range`.
+ *
+ *  `'derived'` is a channel's OPPOSITE rail: not fitted at all, but the anchor rail's slope with
+ *  its own intercept - see `deriveParallelRail`. Its evidence is touches, never R², because no
+ *  slope was fitted for an R² to describe. */
+  gate: 'sloped' | 'horizontal' | 'derived';
   fit: LineFit;
   quality: FitQuality;
   /** The pivots the line was fitted through - kept so the UI can mark them and the user can see
@@ -395,6 +404,103 @@ function bestRail(
   return best ? { rail: best, considered: windows.length } : null;
 }
 
+/**
+ * A channel's opposite rail: the anchor's SLOPE with its own intercept.
+ *
+ * WHY CONSTRUCTED RATHER THAN FITTED, which is the whole point of this function. A parallel
+ * channel is one line plus an offset - a trader fits the trendline and copies it to the other
+ * side. The first version of this file instead fitted both rails independently and then tested
+ * whether they happened to be parallel, which is a different and much stricter thing: each rail
+ * had to clear R² >= 0.99 and the excess-touch gate on its own, so the joint probability was
+ * roughly the product of two already-strict tests. MEASURED consequence: across 40 live cells
+ * (8 coins x 5 timeframes) that produced ZERO channels and ZERO ranges - every hit was a single
+ * trendline, because only one rail ever passed.
+ *
+ * It is also not what the structure IS. Two independent best-fit lines that are coincidentally
+ * parallel is a stricter claim than a channel, and a weaker description of one.
+ *
+ * THE INTERCEPT IS TANGENT TO THE OPPOSITE EXTREME, not a least-squares fit, and the measurement
+ * is what settled it. The first version held the slope fixed and took the least-squares intercept,
+ * i.e. the MEAN of `price - slope * index` over the opposite pivots. That is a regression line
+ * through the middle of the opposite swing cloud, which is not where a channel rail goes - and the
+ * touch count said so immediately: on SOL 1h the derived rail came back with 39 pivots and FEWER
+ * touches than pivots, because a line through the middle of the lows is near none of them.
+ *
+ * A channel rail is tangent: offset so the line sits just outside every opposite pivot, touching
+ * the most extreme one. That is how the structure is drawn and it is why the channel contains
+ * price rather than bisecting it. One outlier can push the rail wide, which is a real cost - and
+ * it shows up honestly as a low touch count rather than as a wrong-looking line.
+ *
+ * NO R² IS REPORTED, and `fitLine`'s own convention is why: it returns null rather than a
+ * defensible-looking number when the figure would describe something that was never measured. No
+ * slope was fitted here, so there is nothing for an R² to be about. The rail carries
+ * `gate: 'derived'` and its evidence is touches.
+ *
+ * Returns null when the opposite side has nothing to anchor to, or when the derived rail would sit
+ * on the wrong side of the anchor - a "channel" whose low rail is above its high rail is a parse
+ * failure wearing one, the same reasoning `fitLine` applies to a vertical line.
+ */
+function deriveParallelRail(
+  candles: readonly StructureCandle[],
+  anchor: LineFit,
+  oppositePivots: readonly SwingPivot[],
+  side: 'high' | 'low',
+  tolerance: TouchTolerance,
+): StructureRail | null {
+  if (!oppositePivots.length) return null;
+
+  /* Tangent: the extreme offset over the opposite pivots, so the rail sits outside all of them. */
+  let intercept: number | null = null;
+  for (const p of oppositePivots) {
+    if (!Number.isFinite(p.price) || !Number.isFinite(p.index)) continue;
+    const offset = p.price - anchor.slope * p.index;
+    if (intercept === null) intercept = offset;
+    else if (side === 'high') intercept = Math.max(intercept, offset);
+    else intercept = Math.min(intercept, offset);
+  }
+  if (intercept === null) return null;
+
+  const fit: LineFit = {
+    slope: anchor.slope,
+    intercept,
+    /* The pivots actually ON the rail, within tolerance - not every pivot on that side. The
+       intercept is set by ONE of them and the rest may sit far inside; reporting all of them as
+       the rail's points would make `touchCount - pointCount` meaningless and claim evidence the
+       rail does not have. */
+    pointCount: 0,
+    r2: null,                       // nothing was fitted - see the header
+  };
+  const onRail = oppositePivots.filter(p => {
+    const line = lineValueAt(fit, p.index);
+    return Number.isFinite(line) &&
+      Math.abs(p.price - line) <= toleranceBand(tolerance, line);
+  });
+  fit.pointCount = onRail.length;
+
+  const lastIndex = candles.length - 1;
+  /* The derived rail must sit on its own side of the anchor, at both ends, or the two lines cross
+     inside the window and the "channel" is two lines through each other. */
+  for (const i of [0, lastIndex]) {
+    const here = lineValueAt(fit, i);
+    const there = lineValueAt(anchor, i);
+    if (side === 'high' ? here < there : here > there) return null;
+  }
+
+  const quality = measureFit(candles, fit, { side, tolerance });
+  if (quality.touchCount < MIN_DERIVED_TOUCHES) return null;
+
+  const firstIndex = (onRail[0] ?? oppositePivots[0]).index;
+  return {
+    side,
+    gate: 'derived',
+    fit,
+    quality,
+    pivots: onRail,
+    from: { timestamp: candles[firstIndex].timestamp, price: lineValueAt(fit, firstIndex) },
+    to: { timestamp: candles[lastIndex].timestamp, price: lineValueAt(fit, lastIndex) },
+  };
+}
+
 /** Slope as a fraction of the line's own price at the newest candle, so "flat" means the same
  *  thing on BTC and on a sub-cent coin. Null when the line has extrapolated to zero or below,
  *  where a percentage of it is meaningless rather than merely large - the same rule
@@ -483,34 +589,52 @@ export function detectStructures(
   };
 
   /* A RANGE IS CHECKED BEFORE A CHANNEL, because a range IS a channel whose rails are both flat and
-     calling it "a rising channel with a slope of nearly zero" would be true and useless. */
-  if (highRail && lowRail) {
-    const highSlopePct = slopePctPerBar(highRail.rail.fit, lastIndex);
-    const lowSlopePct = slopePctPerBar(lowRail.rail.fit, lastIndex);
-    const rails = [lowRail.rail, highRail.rail];
-    const considered = highRail.considered + lowRail.considered;
+     calling it "a rising channel with a slope of nearly zero" would be true and useless.
 
-    const bothFlat =
-      highSlopePct !== null && lowSlopePct !== null &&
-      Math.abs(highSlopePct) <= MAX_RANGE_SLOPE_PCT_PER_BAR &&
-      Math.abs(lowSlopePct) <= MAX_RANGE_SLOPE_PCT_PER_BAR;
+     A RANGE STILL NEEDS TWO INDEPENDENTLY ADMITTED RAILS, deliberately, and that is not
+     inconsistent with the channel below. A range's rails are two separate price levels, each with
+     its own evidence. A channel's second rail is the first one copied across. Deriving a range's
+     opposite rail from a flat anchor would put it at the mean of the opposite pivots and measure
+     touches against that, which describes a band around one level rather than a box between two. */
+  if (highRail?.rail.gate === 'horizontal' && lowRail?.rail.gate === 'horizontal') {
+    structures.push(build(
+      'range',
+      [lowRail.rail, highRail.rail],
+      highRail.considered + lowRail.considered,
+    ));
+  }
 
-    if (bothFlat) {
-      structures.push(build('range', rails, considered));
-    } else {
-      /* Parallel enough? Compared against the STEEPER rail so the test is scale-free; two rails
-         sloping 1.0 and 1.2 are a channel, two sloping 0.1 and 0.3 are not. */
-      const a = highRail.rail.fit.slope;
-      const b = lowRail.rail.fit.slope;
-      const steeper = Math.max(Math.abs(a), Math.abs(b));
-      const parallel = steeper > 0 && Math.abs(a - b) / steeper <= MAX_CHANNEL_SLOPE_DIVERGENCE;
-      if (parallel) structures.push(build('channel', rails, considered));
+  /* THE CHANNEL IS ONE LINE PLUS AN OFFSET - see `deriveParallelRail` for why, and for the 40-cell
+     measurement showing the two-independent-fits version could never produce one.
+
+     The ANCHOR is whichever side the sloped gate admitted; if both, the one with more touches,
+     since that rail has more evidence behind it. Only a `'sloped'` rail may anchor: a horizontal
+     anchor would make a channel out of a range, which the branch above describes better. */
+  if (!structures.length) {
+    const anchors = [highRail, lowRail]
+      .filter((r): r is NonNullable<typeof r> => r?.rail.gate === 'sloped')
+      .sort((a, b) => b.rail.quality.touchCount - a.rail.quality.touchCount);
+    const anchor = anchors[0];
+
+    if (anchor) {
+      const oppositeSide: 'high' | 'low' = anchor.rail.side === 'high' ? 'low' : 'high';
+      const derived = deriveParallelRail(
+        candles,
+        anchor.rail.fit,
+        oppositeSide === 'high' ? highs : lows,
+        oppositeSide,
+        tolerance,
+      );
+      if (derived) {
+        structures.push(build(
+          'channel',
+          anchor.rail.side === 'low' ? [anchor.rail, derived] : [derived, anchor.rail],
+          anchor.considered,
+        ));
+      }
     }
   }
 
-  /* Single trendlines are offered whether or not a channel was found: a channel's rails are
-     individually useful, and the caller ranks. A rail already inside a channel is not repeated -
-     it is the same object, so the caller can identify it by reference if it wants to. */
   /* A SINGLE RAIL IS A TRENDLINE ONLY IF THE SLOPED GATE ADMITTED IT. The declared kinds are
      trendline, channel and range - there is no "level" - so a lone horizontal rail is simply not
      an offerable structure in Phase 1, and calling it a trendline is the claim QA caught. A
