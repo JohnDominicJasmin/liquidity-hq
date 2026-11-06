@@ -68,6 +68,23 @@
 //   detail of using it rather than a feature. If it stays off, the entry stays as it is and the
 //   feature is announced in the release that turns it on.
 //
+//   MEASURED ON 2026-11-06, AND IT IS STILL OFF, so the line stays out of the 2026-11-06 entry.
+//   Both databases, queried directly rather than inferred from the migrations folder:
+//
+//     prod (qdpwhnvmhqgzijuwopso)  draw_structure_count column: ABSENT   20261031a applied: NO
+//     dev  (wdtjhrilakoitfcezxpx)  draw_structure_count column: ABSENT   20261031a applied: NO
+//
+//   `qa` and `staging` both point at the dev database, so that is all four environments. The
+//   route's gate turns a `not_enabled` reason into `503 NOT_ENABLED` (route.ts:438-441), so a
+//   Pro user clicking Draw Structure today gets a 503 and nothing else.
+//
+//   PM/DevOps asked for the line on the grounds that Draw Structure is "the one thing a Pro user
+//   would want to hear about" in this release. That is true about the feature and is exactly why
+//   it must wait: the entry would be the first thing a Pro user reads and the thing they would
+//   immediately go and try. Announcing it is announcing a 503. Rule 2 and the owner's standing
+//   rule both land the same way, and the pre-drafted sentence above is ready for whichever
+//   release applies 20261031a.
+//
 //   The release tag's own summary agrees - 'What a user can see: #1804 only' - and the other
 //   27 commits are tests, QA tooling, CI corrections and documentation with no runtime effect.
 //
@@ -93,10 +110,14 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     /* THE TAG IS NOT CUT YET. PM/DevOps tags after deploying, because only the person who
-       deployed knows it reached live - so whoever tags must check this string matches. The date
-       is the release date rather than the day this was written; they are the same today. */
-    date: '2026-11-05',
-    tag: 'v2026.11.05',
+       deployed knows it reached live - so whoever tags must check this string matches.
+
+       MOVED FROM 2026-11-05 TO 2026-11-06 ON PM/DEVOPS'S CALL: the release ships on the 6th in
+       both UTC and PHT, and the date here is the release date rather than the day the entry was
+       written. The note above used to say "they are the same today", which was true when written
+       and is the kind of sentence that quietly stops being true. */
+    date: '2026-11-06',
+    tag: 'v2026.11.06',
     items: [
       'A page that does not exist now says "Page not found", with a larger empty chart.',
       'When market data is unavailable, an AI read on AI Arena now says so instead of answering, and it does not use up one of your reads.',
