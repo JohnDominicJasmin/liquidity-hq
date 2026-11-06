@@ -60,9 +60,26 @@
  *     R2     extra=2   extra=3   extra=5   extra=8      channel / range still found?
  *     0.90    42.0%     32.3%     17.0%      8.7%       extra=8 degrades channel to trendline
  *     0.95    31.3%     24.3%     12.7%      7.0%       same
- *     0.97    26.7%     21.3%    *10.7%*     5.0%       * chosen: both controls still pass
+ *     0.97    26.7%     21.3%     10.7%      5.0%       both controls passed
  *     0.99    16.0%     12.0%      5.3%      2.0%       RANGE NO LONGER FOUND
  *     0.995   12.7%      9.3%      4.0%      1.7%       RANGE NO LONGER FOUND
+ *
+ * THAT LAST COLUMN WAS THE BUG, NOT A TRADEOFF, and the second table is the one that matters now.
+ * Horizontal rails were being judged by R², which is the wrong question for them - so the range
+ * row was not telling us "0.99 is too strict", it was telling us the range gate was broken. With
+ * `isHorizontalCandidate` splitting the two shapes, re-swept against the same 300 walks plus a
+ * THIRD control (a textbook range whose rails are exactly flat, which the old code could not find
+ * at any threshold):
+ *
+ *     R2      noise FP    channel   wobbly range   EXACT range
+ *     0.97      11.0%        ok          ok            ok
+ *     0.99     * 5.7% *      ok          ok            ok        * chosen
+ *     0.995      4.3%        ok          ok            ok
+ *
+ * So fixing the gate halved the noise rate rather than trading anything away: 10.7% -> 5.7% with
+ * one more control passing than before. 0.995 measures 4.3% and all three controls still pass, so
+ * there is headroom left - it is not taken here because 0.99 is the conventional threshold and the
+ * extra 1.4 points costs tolerance for genuinely sloped trendlines that nothing has measured yet.
  *
  * TWO THINGS THAT TABLE SHOWS WHICH ARE WORTH MORE THAN THE CHOSEN CELL:
  *
@@ -75,10 +92,10 @@
  *      touches, no R² - should let the sloped structures move to 0.99 and roughly halve the noise
  *      rate again. Left as a follow-up rather than done here, because it needs its own controls.
  *
- * 10.7% ON PURE NOISE IS NOT A GOOD NUMBER and is recorded as a known limit rather than presented
- * as a result. It is tolerable only because nothing here asserts: the caller offers a line, marks
- * the candles it was drawn through, and the user declines it. It would not be tolerable in
- * anything that fired an alert.
+ * 5.7% ON PURE NOISE IS STILL NOT A GOOD NUMBER and is recorded as a known limit rather than
+ * presented as a result. It is tolerable only because nothing here asserts: the caller offers a
+ * line, marks the candles it was drawn through, and the user declines it. It would not be
+ * tolerable in anything that fired an alert.
  *
  * ── WHAT IS NOT HERE ──────────────────────────────────────────────────────────────────────────
  *
@@ -111,10 +128,10 @@ export const MIN_TRENDLINE_PIVOTS = 3;
 export const CANDIDATE_PIVOT_COUNTS: readonly number[] = [3, 4, 5];
 export const MAX_CANDIDATES_PER_SIDE = CANDIDATE_PIVOT_COUNTS.length;
 
-/** A line has to explain this much of its pivots' variance to be offered at all. MEASURED, not
- *  chosen - see the null-model table in the header. Exported so tuning is a one-line change with
- *  a test rather than an edit buried in a condition. */
-export const MIN_TRENDLINE_R2 = 0.97;
+/** How much of a SLOPED line's pivot variance it must explain. Horizontal rails do not go through
+ *  this gate at all - see `isHorizontalCandidate` for why R² is the wrong question for them.
+ *  MEASURED, not chosen; see the null-model tables in the header. */
+export const MIN_TRENDLINE_R2 = 0.99;
 
 /** Touches IN EXCESS of the pivots the line was fitted through.
  *
@@ -225,6 +242,47 @@ function candidateWindows(pivots: readonly SwingPivot[]): SwingPivot[][] {
   return out;
 }
 
+/** The price band `measureFit` would call a touch, at this price level. */
+function toleranceBand(tolerance: TouchTolerance, price: number): number {
+  return 'pct' in tolerance ? Math.abs(price) * tolerance.pct : tolerance.abs;
+}
+
+/**
+ * Is this candidate a HORIZONTAL rail - every fitted pivot at the same level, by the app's own
+ * definition of "the same level"?
+ *
+ * WHY THIS EXISTS, AND WHY R² CANNOT ANSWER IT. R² asks how much of the pivots' price VARIANCE the
+ * line explains. A horizontal rail has almost none, so the cleaner the rail the worse it scores,
+ * which is the opposite of the intended direction. Measured:
+ *
+ *     3 pivots at an identical price      -> r2: null   (ssTot === 0; `fitLine` returns null, and
+ *                                            the sloped gate refuses null outright)
+ *     3 pivots at a NEARLY identical price -> r2: 0.138  (the line is explaining noise)
+ *
+ * So a textbook range whose rails are exactly flat scored WORSE than a random walk, and returned
+ * nothing at any threshold. This is not the 0.99-only effect the first version of this file
+ * recorded - QA found the null case from the other direction and it holds at 0.97 too.
+ *
+ * The test is the one the rest of the app already uses for "same level": the pivots' total price
+ * spread fits inside the band `measureFit` would count as a touch. If they are all within a touch
+ * of each other, they are one level, and the question is how many candles came back to it - not
+ * how well a line through them explains their wobble.
+ */
+function isHorizontalCandidate(
+  window: readonly SwingPivot[],
+  tolerance: TouchTolerance,
+): boolean {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const p of window) {
+    if (!Number.isFinite(p.price)) return false;
+    if (p.price < min) min = p.price;
+    if (p.price > max) max = p.price;
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return false;
+  return max - min <= toleranceBand(tolerance, (min + max) / 2);
+}
+
 /** Best rail for one side, or null. "Best" is by touch count then R², among at most three nested
  *  candidates - see the header for why the search is this small. */
 function bestRail(
@@ -240,18 +298,33 @@ function bestRail(
 
   for (const window of windows) {
     const fit = fitLine(window.map(p => ({ index: p.index, price: p.price })));
-    /* r2 null means it could not discriminate - fewer than 3 points, or no variance. Phase 0
-       returns null rather than 1 exactly so this comparison cannot silently admit it. */
-    if (!fit || fit.r2 === null || fit.r2 < minR2) continue;
+    if (!fit) continue;
+
+    /* TWO GATES, because the two shapes are measured by different things - see
+       `isHorizontalCandidate`. A horizontal rail is judged by whether its pivots sit at one level
+       and how many candles returned to it; a sloped one by R². Applying R² to both is what made a
+       perfectly flat range unfindable at every threshold.
+
+       `pointCount >= MIN_TRENDLINE_PIVOTS` is required on BOTH paths, so the horizontal path
+       cannot become a way in for the 2-point lines the sloped path refuses by checking r2 null. */
+    if (fit.pointCount < MIN_TRENDLINE_PIVOTS) continue;
+    const horizontal = isHorizontalCandidate(window, tolerance);
+    if (!horizontal && (fit.r2 === null || fit.r2 < minR2)) continue;
 
     const quality = measureFit(candles, fit, { side, tolerance });
     /* EXCESS, not the raw count - the fitted pivots are touches by construction. */
     if (quality.touchCount - fit.pointCount < minExtraTouches) continue;
 
+    /* Touch count first, and ONLY touch count as a tiebreak between a horizontal and a sloped
+       candidate: `r2 ?? 0` would rank a perfect flat rail (null) below a mediocre sloped one,
+       which is the same inversion this change exists to remove. R² breaks ties only when both
+       candidates have one. */
+    const bothHaveR2 = fit.r2 !== null && best !== null && best.fit.r2 !== null;
     const better =
       best === null ||
       quality.touchCount > best.quality.touchCount ||
-      (quality.touchCount === best.quality.touchCount && (fit.r2 ?? 0) > (best.fit.r2 ?? 0));
+      (quality.touchCount === best.quality.touchCount && bothHaveR2 &&
+        (fit.r2 as number) > (best.fit.r2 as number));
     if (!better) continue;
 
     const firstIndex = window[0].index;
