@@ -65,7 +65,7 @@
 import { ARENA_CONTEXT_KEYS, parseArenaContext, parseArenaChart, parseSelection } from '../lib/arenaContext.ts';
 import { COINS } from '../lib/coins.ts';
 import { ARENA_TFS } from '../lib/limits.ts';
-import { VERDICT_RESTATED_CHECK } from '../lib/grok.ts';
+import { VERDICT_RESTATED_CHECK } from '../lib/verdictChecks.ts';
 
 const BASE        = (process.env.CANARY_BASE_URL ?? '').replace(/\/+$/, '');
 const SB_URL      = (process.env.CANARY_SUPABASE_URL ?? '').replace(/\/+$/, '');

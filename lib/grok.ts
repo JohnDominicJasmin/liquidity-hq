@@ -115,19 +115,10 @@ export const GROK_EMPTY_ANSWER_MESSAGE = 'The AI read came back empty. Try again
 /** #1651 item 3: shown when the answer named no verdict we can read, even after one retry. Never replaced by a default FLAT ("Wait"). */
 export const GROK_UNREADABLE_ANSWER_MESSAGE = 'The AI answer did not give a clear verdict, so it is not shown. Try again in a moment.';
 
-/* The `checks` entry that records a verdict repaired by the restate pass (#1631, QA review of #2063).
- *
- * A CONSTANT RATHER THAN THE INLINE LITERAL IT WAS, because it is no longer read only by humans. The
- * Deep canary distinguishes a clean read from one that only parsed on the second attempt, and it can
- * only tell them apart by this entry - the response carries no `restated` flag. Matching our own prose
- * from another file is a second definition of one string: reword it there and the canary silently stops
- * noticing degraded reads while continuing to report OK, which is the exact class of failure it exists
- * to catch.
- *
- * WHY IT MATTERS THAT THIS IS DISTINGUISHABLE AT ALL: a restated read was billed TWICE (the Deep call
- * plus the repair) and the model did not answer in the required form. The user sees a normal verdict,
- * so nothing on screen says the contract is degrading. */
-export const VERDICT_RESTATED_CHECK = 'verdict restated by a second pass: the answer did not state SIGNAL and CONFIDENCE in the required form';
+/* Re-exported from lib/verdictChecks.ts, which must stay import-free: the Deep canary runs with no
+ * `npm ci`, and importing a VALUE from this file drags in lib/supabase.ts and @supabase/supabase-js.
+ * That broke the canary's selfcheck job in CI while passing locally. Importers here are unaffected. */
+export { VERDICT_RESTATED_CHECK } from './verdictChecks.ts';
 
 /** The SIGNAL and CONFIDENCE lines, shared by parseVerdict and parseCombinedResponse so the two can never read an answer differently.
  *  `\*{0,2}` after the colon: "**SIGNAL:** BEARISH" (bold label, value outside it) left "**" between the colon and the value after the
