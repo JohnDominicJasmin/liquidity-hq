@@ -174,3 +174,50 @@ test('C6. every _WATCH string describes what traders watch, rather than instruct
     '"Traders watch for X" describes a market; "Watch for X" instructs the reader, which is the ' +
     'line this panel is not allowed to cross.');
 });
+
+test('C7. the panel RESERVES its height before the dismissal state is known', () => {
+  /* WHY THIS IS A SOURCE ASSERTION AND NOT A BROWSER ONE. The property is "the box occupies its
+     space before the answer arrives", which is visible in the render path and does not need a
+     deployed page. perf.spec.ts already measures the CONSEQUENCE - /arena CLS under 0.1, which has
+     really fired, at 0.146 in run 42057776390 - but it only sees shifts inside navigation + ~3.7s
+     (settle waits 2500ms, then the observer collects 1200ms with buffered:true replaying the gap).
+     A dismissal read that ever moves from localStorage to a database could land outside that
+     window. This cell asserts the property that survives that change. */
+  assert.match(panelSrc, /visibility:\s*state === 'pending' \? 'hidden' : 'visible'/,
+    "the 'pending' state must render HIDDEN at full height, not be skipped. If the panel returns " +
+    'early or renders nothing while the dismissal state is unknown, it inserts post-paint and gives ' +
+    "back the CLS win #1987 bought on /arena (0.365 -> 0.068, and 0.146 failing as recently as run " +
+    '42057776390).');
+
+  /* The reservation is worth nothing if an early return beats it. :108 `if (!copy) return null`
+     already does exactly that for any uncovered type - which is why C8 exists. */
+  const reservationIdx = panelSrc.search(/visibility:\s*state === 'pending'/);
+  const earlyReturns = [...panelSrc.matchAll(/\breturn null;/g)].map((m) => m.index ?? 0)
+    .filter((i) => i < reservationIdx);
+  assert.ok(earlyReturns.length <= 1,
+    `${earlyReturns.length} early \`return null\` statements run BEFORE the height reservation. ` +
+    'Each one is a path on which no space is reserved. One is known and tracked by C8; more than ' +
+    'that means a new unreserved path has been added.');
+});
+
+test('C8. SCOPE: exactly five types are uncovered, so C7 cannot quietly keep testing 7 of 12', () => {
+  /* THE HALF THAT STOPS C7 PASSING VACUOUSLY. C7 asserts a property of the render path, but
+     `:108 if (!copy) return null` means the path is never reached for a type with no copy - so the
+     reservation is untested for those, and scoping C7 "to covered types" alone would silently keep
+     testing 7 of 12 forever.
+     So the uncovered set is pinned HERE, and hardcoded ONLY here. Everything else in this file
+     derives from PATTERN_TYPES. */
+  const UNCOVERED_TODAY = ['wedge_rising', 'wedge_falling', 'triangle_asc', 'triangle_desc', 'triangle_sym'];
+  const referenced = new Set([...panelSrc.matchAll(/'(PATTERN_[A-Z_]+)'/g)].map((m) => m[1]));
+  const uncovered = PATTERN_TYPES.filter(
+    (t) => !SUFFIXES.every((s) => referenced.has(`PATTERN_${t.toUpperCase()}_${s}`)));
+
+  assert.deepEqual([...uncovered].sort(), [...UNCOVERED_TODAY].sort(),
+    `the uncovered set has changed - it is now [${uncovered.join(', ')}].\n\n` +
+    'IF THIS IS RED BECAUSE THE SET SHRANK, THAT IS GOOD NEWS: copy has been written. Widen C7 to ' +
+    'cover the newly covered types and update the list here in the same commit.\n' +
+    'IF IT GREW, a type was added to PATTERN_TYPES without copy and the panel renders nothing for ' +
+    'it - see C2.\n' +
+    'Either way this is the one assertion in this file allowed to name types explicitly; it exists ' +
+    'so C7 cannot keep covering 7 of 12 while 12 exist.');
+});
