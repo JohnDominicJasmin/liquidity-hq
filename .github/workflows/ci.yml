@@ -484,6 +484,25 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # THE UNIT TESTS READ GIT TAGS, so a tagless checkout makes them lie.
+          #
+          # __tests__/changelogTracksReleases.test.mts C1/C2 compare the newest changelog entry
+          # against the newest RELEASE TAG. The default checkout is fetch-depth 1 with no tags, so
+          # on every PR into dev they failed with "only 0 release tags found" - the instrument
+          # missing its input, not the changelog being wrong. It is what made #2042's build red.
+          #
+          # NOT SKIPPED WHEN THERE ARE NO TAGS, deliberately. A skip exits 0, so the check would
+          # read green while comparing nothing - which is the exact failure this check exists to
+          # prevent, reintroduced one level up. The fix belongs in the instrument's input.
+          #
+          # REPRODUCED AND FIXED LOCALLY BEFORE THIS WAS WRITTEN, rather than assuming which
+          # mechanism works. A --no-tags clone of this repo fails C1/C2 with that same message and
+          # passes C3/C4, matching CI exactly; fetching tags into that same clone restores 47 of
+          # them and all four pass. fetch-tags is the checkout-native form of that fetch, and it
+          # keeps fetch-depth 1 - the classify job above needs fetch-depth 0 for a two-endpoint
+          # diff, which this job does not.
+          fetch-tags: true
 
       - uses: actions/setup-node@v4
         with:
