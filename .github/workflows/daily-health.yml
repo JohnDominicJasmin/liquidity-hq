@@ -158,6 +158,13 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -uo pipefail
+          # The label must exist before `gh issue create --label` will accept it, and it does
+          # not yet - `gh label list` on this repo returns only release-drift and release-parked.
+          # Created here rather than by hand so the workflow cannot fail on a missing label on its
+          # first real run, and so nobody has to remember the step when the repo is forked or
+          # restored. Idempotent: a second run just reports that it already exists.
+          gh label create health-check --repo "$REPO" --color B60205 --description "Production /api/health is failing, or could not be measured" 2>/dev/null || echo "label health-check already present"
+
           OPEN=$(gh issue list --repo "$REPO" --label health-check --state open \
                    --json number --jq '.[0].number // empty' 2>/dev/null || echo "")
 
