@@ -248,7 +248,23 @@ export function readWhopPayment(event: Record<string, unknown>): WhopPayment | n
       /* `data.customer_email`, NOT `data.user.email`. The real `user` object carries id, name,
          username and profile_picture and NO email at all - the docs' note that email needs the
          `member:email:read` permission turns out to mean the field is simply not there. Documented
-         path kept as a fallback. */
+         path kept as a fallback.
+         ── TRUST LEVEL OF THIS FIELD, because it is a payment identity and the next reader should
+         not have to infer it. `customer_email` is TYPED AT CHECKOUT by the payer, so it is
+         payer-controlled, not Whop-verified. Preferring it over `user.email` is a step DOWN in
+         assurance and is taken only because `user.email` does not exist in a real body: the
+         alternative is no grant for anybody, which is the defect this fixes.
+         WHAT BOUNDS IT TODAY: `lib/whopGrant.ts` grants only to an account whose CONFIRMED email
+         equals this value (`:306` match, `:308` confirmation), so a payer typing someone else's
+         address cannot TAKE access - at worst they pay for the real owner's Pro. There is no
+         escalation here; the residual is paying and then disputing, which the owner's never-revoke
+         ruling accepts deliberately and which does not depend on which email field is read.
+         THE RIGHT FIX IS NOT A BETTER EMAIL FIELD. `data.metadata` exists on the body and arrives
+         EMPTY because we never populate it. Putting our own user id in the checkout metadata and
+         joining on that removes a payer-controlled key from the identity path entirely and makes
+         email the fallback. QA proposed it and an automated review reached the same place from the
+         security side. Tracked on #1630; not done here, because whether the embedded checkout
+         surface carries metadata has to be measured on a real body and we have exactly one. */
       payerEmail: str(data?.customer_email) ?? str(user?.email),
       /* `data.account_id` added ahead of the envelope fallback: it is present on a real body
          (`biz_...`) while `data.company` is absent. The envelope fallback is the only reason the
