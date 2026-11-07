@@ -110,8 +110,23 @@ export async function DELETE(req: NextRequest) {
       .update({ telegram_chat_id: '', updated_at: new Date().toISOString() })
       .eq('user_id', auth.user.id);
     if (error) return apiError('telegram/link-code', error);
-    // Also burn any outstanding codes, so disconnecting cannot be undone by a
-    // code that was still in flight.
+    /* Also burn any outstanding codes, so disconnecting cannot be undone by a
+       code that was still in flight.
+
+       ── `used_at` MEANS "SPENT", NOT "REDEEMED", AND THAT IS A MEASUREMENT TRAP (#1113) ──────────
+       This stamp and the bot's successful redemption (app/api/telegram/webhook/route.ts) write the
+       SAME column, so a disconnect is indistinguishable from a completed link once it has happened.
+       `count(used_at)` therefore counts spent codes, NOT people who connected Telegram, and it
+       reads exactly like a completion metric.
+       It has already misled once: dev shows 9 codes with 9 `used_at` across 3 users, which was
+       nearly reported as "9 successful links, so the write downstream must be failing". It supports
+       no such thing - any mix of redemptions and disconnects produces it.
+       Nothing distinguishes them in what we keep: `telegram_chat_id` has no history and
+       `lhq_alert_fires` has no `user_id`. If adoption ever needs measuring, that needs a new signal
+       (a `burned_at`, or a reason on this row) rather than a cleverer query - deliberately NOT added
+       now, because it is new schema for a metric nobody is reading yet (PM/DevOps, 2026-11-08).
+       The one thing that IS reliable today: a non-empty `telegram_chat_id` means linked right now,
+       which is what the onboarding checklist derives its Telegram tick from. */
     await admin.from(T.telegram_link_codes)
       .update({ used_at: new Date().toISOString() })
       .eq('user_id', auth.user.id)
