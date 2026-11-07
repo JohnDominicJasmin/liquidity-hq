@@ -66,21 +66,55 @@ export function detectPatterns(candles: Candle[]): string[] {
   const r10 = candles.slice(-10);
   const highs10 = r10.map(c => c.h);
   const lows10  = r10.map(c => c.l);
+  /* MONOTONIC *AND* ACTUALLY HIGHER AT THE END (QA, #1263 defect 1).
+   *
+   * These were `>=` on both sides with no net-progress test, so TEN IDENTICAL CANDLES satisfied
+   * both and a dead-flat market reported an uptrend. Verified: 12 candles of o=h=l=c=100 returned
+   * 'Higher highs + higher lows (uptrend)'.
+   *
+   * IT WAS THE WORST POSSIBLE PLACE FOR IT. This is the first `found.push` in the function and
+   * `app/api/telegram/alert/route.ts` sends `pats[0]`, so on a flat market this was not one label
+   * among several - it was THE label a paying user received.
+   *
+   * Same shape as the RSI flat-series defect in #2015 this week: an unknown or absent reading
+   * resolving to a confident directional answer. There, no price movement produced RSI 100
+   * (maximally overbought); here, no price movement produced "uptrend".
+   *
+   * `>=` STAYS ON THE STEPS, and that is deliberate rather than a half-fix. Equal highs are
+   * ordinary in real candles and demanding strict increase at every step would reject genuine
+   * trends on any series with one repeated high. What was missing is net progress, so that is what
+   * is added: non-decreasing throughout AND higher at the end than at the start. A flat series
+   * fails on the second test, which is the one it should fail. */
   const allHH = highs10.every((h, i) => i === 0 || h >= highs10[i - 1]);
   const allHL = lows10.every ((l, i) => i === 0 || l >= lows10[i - 1]);
   const allLH = highs10.every((h, i) => i === 0 || h <= highs10[i - 1]);
   const allLL = lows10.every ((l, i) => i === 0 || l <= lows10[i - 1]);
-  if (allHH && allHL) found.push('Higher highs + higher lows (uptrend)');
-  else if (allLH && allLL) found.push('Lower highs + lower lows (downtrend)');
+  const roseNet = highs10[highs10.length - 1] > highs10[0] && lows10[lows10.length - 1] > lows10[0];
+  const fellNet = highs10[highs10.length - 1] < highs10[0] && lows10[lows10.length - 1] < lows10[0];
+  if (allHH && allHL && roseNet) found.push('Higher highs + higher lows (uptrend)');
+  else if (allLH && allLL && fellNet) found.push('Lower highs + lower lows (downtrend)');
 
   // ── 2. Engulfing (last 2 candles) ──
   if (candles.length >= 2) {
     const [p, c] = candles.slice(-2);
     const pr = Math.abs(p.c - p.o);
     const cr = Math.abs(c.c - c.o);
-    if (p.c > p.o && c.c < c.o && c.o >= p.c && c.c <= p.o && cr >= pr * 0.8)
+    /* THE `cr >= pr * 0.8` RATIO IS GONE BECAUSE IT COULD NEVER FAIL (QA, #1263 defect 3).
+     *
+     * In the bearish case `pr = p.c - p.o` and `cr = c.o - c.c`, and the guards in front of it -
+     * `c.o >= p.c` and `c.c <= p.o` - force `c.o - c.c >= p.c - p.o`, so `cr >= pr` holds
+     * arithmetically and a 0.8 multiple of it cannot bind. The bullish branch is symmetric.
+     * Measured: 200,000 generated inputs that passed the geometric guards, the ratio failed on 0.
+     *
+     * Harmless, but it READ as a tunable threshold and was not one - anyone loosening 0.8 to widen
+     * engulfing detection would have changed nothing and gone looking elsewhere for the reason.
+     *
+     * HOW QA FOUND IT IS THE REUSABLE PART: it was a mutation their suite could not kill, and an
+     * unkillable mutation is either a missing test or unreachable code. Only reading the source
+     * says which. A line nobody can break is not necessarily covered - it may be dead. */
+    if (p.c > p.o && c.c < c.o && c.o >= p.c && c.c <= p.o)
       found.push('Bearish engulfing');
-    if (p.c < p.o && c.c > c.o && c.o <= p.c && c.c >= p.o && cr >= pr * 0.8)
+    if (p.c < p.o && c.c > c.o && c.o <= p.c && c.c >= p.o)
       found.push('Bullish engulfing');
   }
 
@@ -145,10 +179,53 @@ export function detectPatterns(candles: Candle[]): string[] {
     }
   }
 
-  return found;
+  /* Ranked here rather than at the call site, so a consumer reading `pats[0]` cannot get the
+     statement-order answer by forgetting to sort. See RANK. */
+  return rankPatterns(found);
 }
 
 /** Convenience: returns comma-separated string or empty string */
+/* The order `detectPatterns` returns, most consequential first.
+ *
+ * WHY THIS EXISTS (QA, #1263 defect 2). `found` was built in source-statement order - trend,
+ * engulfing, doji, hammer, consolidation, then double top/bottom LAST - and
+ * `app/api/telegram/alert/route.ts` sends `pats[0]`. So a chart with both a trend and a double top
+ * reported "uptrend", and double top, arguably the most consequential name in the set, was the
+ * LEAST likely to ever be shown. The old comment read "show first pattern", so it was never a
+ * priority decision at all; it was an accident of where the `if` blocks happened to sit.
+ *
+ * THE RANKING IS A JUDGEMENT AND IS WRITTEN DOWN AS ONE. More bars of evidence first, because a
+ * 20-bar formation survives one noisy candle and a 1-bar one does not: double top and bottom (20),
+ * then the flags (11), then the 10-bar trend read, then two-candle engulfing, then the
+ * single-candle shapes, then tight consolidation - which is last because it describes an absence
+ * of movement and is the least informative thing to lead with.
+ *
+ * A name missing from this list sorts to the end rather than being dropped, so adding a pattern
+ * cannot silently remove it from the output. */
+const RANK: readonly string[] = [
+  'Double top',
+  'Double bottom',
+  'Bull flag (sharp rally + tight consolidation)',
+  'Bear flag (sharp drop + tight consolidation)',
+  'Higher highs + higher lows (uptrend)',
+  'Lower highs + lower lows (downtrend)',
+  'Bearish engulfing',
+  'Bullish engulfing',
+  'Shooting star',
+  'Hammer',
+  'Hanging man',
+  'Inverted hammer',
+  'Doji',
+  'Tight consolidation',
+];
+
+/** `detectPatterns` ordered by RANK. Exported so a caller taking only the first item gets the most
+ *  consequential one rather than whichever `if` block came first in the source. */
+export function rankPatterns(names: readonly string[]): string[] {
+  const at = (n: string) => { const i = RANK.indexOf(n); return i === -1 ? RANK.length : i; };
+  return [...names].sort((a, b) => at(a) - at(b));
+}
+
 export function detectPatternsStr(candles: Candle[]): string {
   return detectPatterns(candles).join('; ');
 }
