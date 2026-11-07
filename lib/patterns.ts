@@ -1,3 +1,45 @@
+/* Candle and short-window formations, read from the last 25 bars.
+ *
+ * ── THE ADVICE CLAUSES ARE GONE, 2026-11-08 ─────────────────────────────────────────────────────
+ *
+ * These strings reach a user over Telegram and on the Arena. Six of them carried a prediction:
+ *
+ *     'Doji (indecision)'                                    -> 'Doji'
+ *     'Hammer (bullish reversal)'                            -> 'Hammer'
+ *     'Shooting star (bearish reversal)'                     -> 'Shooting star'
+ *     'Double top (bearish reversal setup)'                  -> 'Double top'
+ *     'Double bottom (bullish reversal setup)'               -> 'Double bottom'
+ *     'Tight consolidation (compression - breakout pending)' -> 'Tight consolidation'
+ *
+ * PRODUCT.md rule 1 bans accuracy and outcome claims, and nothing here measured any of them.
+ * "breakout pending" is the plainest: a flat prediction about the next bars, sent to a paying user,
+ * with no evidence behind it. The NAMES stay because a name is a description; the parentheses were
+ * the claim.
+ *
+ * This was found the other way round. #1818's teaching panel was written under a rule that it may
+ * describe a shape and say what traders WATCH FOR, never what the shape does - and the owner's own
+ * phrase "expected action" was refused on that basis. QA then measured that the OLD path was
+ * already shipping exactly what the new one had been forbidden. Mirroring the two had to run in
+ * this direction; the new layer adopting the old voice would have been the easy mistake.
+ *
+ * `patternBias()` IS DELETED. It returned 'bullish' | 'bearish' | 'neutral' from a list of these
+ * names - the most advice-shaped function in the codebase - and had ZERO callers across app/,
+ * components/, lib/, qa/ and __tests__/. QA checked all five. Deleted rather than maintained: an
+ * unused function that converts descriptions into a directional verdict is a loaded gun in a
+ * drawer.
+ *
+ * ── WHAT THIS FILE IS AND IS NOT, now that #1818 exists ─────────────────────────────────────────
+ *
+ * 25 bars. `lib/chartPatterns.ts` needs about 200 before a rail fits, so the two are not rival
+ * implementations of one idea - they answer different questions from different amounts of evidence.
+ * One- and two-candle formations are honest here and `chartPatterns` does not detect them at all.
+ *
+ * The one genuine collision is `Bull flag` / `Bear flag`: both files emit those exact words, and on
+ * the same 200 bars they disagree - this file says "Bull flag", `chartPatterns` says
+ * `channel_rising`. That is a contradiction a user can see, and it is resolved by this file losing
+ * them once the teaching panel is wired to a page. Removing them before then would mean nothing in
+ * the product says "bull flag" at all, which is a worse state than the disagreement.
+ */
 /**
  * Chart pattern detection - pure OHLC logic.
  * Works in browser (MarketProvider, Arena) and Node.js (Telegram alert route).
@@ -45,16 +87,16 @@ export function detectPatterns(candles: Candle[]): string[] {
   // ── 3. Doji - indecision (body < 10% of total range) ──
   const wick = last.h - last.l;
   if (wick > 0 && Math.abs(last.c - last.o) / wick < 0.1)
-    found.push('Doji (indecision)');
+    found.push('Doji');
 
   // ── 4. Hammer / Shooting star (last candle) ──
   const body  = Math.abs(last.c - last.o);
   const lower = Math.min(last.o, last.c) - last.l;
   const upper = last.h - Math.max(last.o, last.c);
   if (body > 0 && lower >= body * 2 && upper < body * 0.5)
-    found.push(last.c >= last.o ? 'Hammer (bullish reversal)' : 'Hanging man');
+    found.push(last.c >= last.o ? 'Hammer' : 'Hanging man');
   if (body > 0 && upper >= body * 2 && lower < body * 0.5)
-    found.push(last.c <= last.o ? 'Shooting star (bearish reversal)' : 'Inverted hammer');
+    found.push(last.c <= last.o ? 'Shooting star' : 'Inverted hammer');
 
   // ── 5. Tight consolidation → flag detection ──
   const last6  = candles.slice(-6);
@@ -74,7 +116,7 @@ export function detectPatterns(candles: Candle[]): string[] {
         ? 'Bull flag (sharp rally + tight consolidation)'
         : 'Bear flag (sharp drop + tight consolidation)');
     } else {
-      found.push('Tight consolidation (compression - breakout pending)');
+      found.push('Tight consolidation');
     }
   }
 
@@ -89,7 +131,7 @@ export function detectPatterns(candles: Candle[]): string[] {
     });
     if (h1i !== h2i && Math.abs(h1i - h2i) >= 3) {
       const pctDiff = Math.abs(r20[h1i].h - r20[h2i].h) / r20[h1i].h;
-      if (pctDiff < 0.005) found.push('Double top (bearish reversal setup)');
+      if (pctDiff < 0.005) found.push('Double top');
     }
     // Two lowest lows
     let l1i = 0, l2i = 0;
@@ -99,7 +141,7 @@ export function detectPatterns(candles: Candle[]): string[] {
     });
     if (l1i !== l2i && Math.abs(l1i - l2i) >= 3) {
       const pctDiff = Math.abs(r20[l1i].l - r20[l2i].l) / r20[l1i].l;
-      if (pctDiff < 0.005) found.push('Double bottom (bullish reversal setup)');
+      if (pctDiff < 0.005) found.push('Double bottom');
     }
   }
 
@@ -112,14 +154,3 @@ export function detectPatternsStr(candles: Candle[]): string {
 }
 
 /** Pattern bias: 'bullish' | 'bearish' | 'neutral' | null */
-export function patternBias(patterns: string[]): 'bullish' | 'bearish' | 'neutral' | null {
-  if (patterns.length === 0) return null;
-  const bullRx = /bull|higher high|engulf.*bull|hammer(?! man)|morning|double bot/i;
-  const bearRx = /bear|lower high|engulf.*bear|shooting|hanging|double top|evening/i;
-  const hasBull = patterns.some(p => bullRx.test(p));
-  const hasBear = patterns.some(p => bearRx.test(p));
-  if (hasBull && !hasBear) return 'bullish';
-  if (hasBear && !hasBull) return 'bearish';
-  if (hasBull || hasBear) return 'neutral';
-  return 'neutral';
-}
