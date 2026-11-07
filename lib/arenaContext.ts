@@ -33,8 +33,18 @@ import { isArenaTf } from './limits.ts';
 
 /** Per-field ceiling. Every GrokContext field is a short pre-formatted display string - the longest in
  *  normal use is a news or events block of a few hundred characters. 4,000 matches the per-turn cap
- *  `parseChatHistory` already applies in lib/chatPrompt.ts, and the whole-body bound still comes from the
- *  route's own request-size check. */
+ *  `parseChatHistory` already applies in lib/chatPrompt.ts.
+ *
+ *  THIS USED TO SAY "the whole-body bound still comes from the route's own request-size check". THERE
+ *  IS NO SUCH CHECK (#1631 box 4, measured 2026-11-08). `app/api/grok-chat/route.ts` does not bound the
+ *  request body, and the only route in the repo that does is `app/api/backup/route.ts`.
+ *
+ *  WHAT IS AND IS NOT BOUNDED, so the correction does not read as an alarm. Forwarded content IS
+ *  bounded - this 4,000 per field, and 4,000 per turn over at most 8 turns in `parseChatHistory`, a
+ *  32,000-character ceiling - and `max_output_tokens` is clamped rather than trusted in that route. So
+ *  what we SEND and what we are billed for are capped. What is unbounded is what the server will accept
+ *  and parse before applying these caps: a resource question, not a spend one. PM/DevOps decided on
+ *  2026-11-08 to leave it, recorded on #1631. */
 const MAX_FIELD_CHARS = 4_000;
 
 /** Arena's own indicator limit is 3 for Pro (lib/strategyRegistry.ts LIMITS), so 8 is loose enough never to
