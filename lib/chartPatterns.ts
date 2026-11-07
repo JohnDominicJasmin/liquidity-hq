@@ -37,6 +37,42 @@
  * The second is a probability claim with no evidence behind it. **The owner's phrase was "expected
  * action" and it is deliberately not implemented**: an expected action is a recommendation however
  * it is worded, and PRODUCT.md rule 1 rules it out. Flagged to him rather than quietly substituted.
+ *
+ * ── TWO NULL MODELS, AND THEY DISAGREE. NO RELIABILITY CLAIM SURVIVES THEM ──────────────────────
+ *
+ * The one thing BOTH models agree on, and the only thing stated here as a property of this code:
+ *
+ *     named == found, exactly, in every run at every volatility.
+ *
+ * `detectPatterns` names what `detectStructures` already found and invents nothing. That holds
+ * because it is an EQUALITY, not a rate - and an equality between two counts of the same walks
+ * cannot be an artefact of how the walks were made.
+ *
+ * EVERY RATE BELOW IS A PROPERTY OF ITS GENERATOR, and the two generators disagree flatly:
+ *
+ *   Dev, additive step: `p += (rnd() - 0.5) * 4` from p = 100, 160 bars, 300 walks
+ *     - that is a FIXED +-2 on a price of 100, so ~2% per bar and not scale-free
+ *     structures 16/300 (5.3%)   1-rail 16   2-rail 0
+ *
+ *   QA, geometric: 300 bars, 300 walks, two volatilities
+ *     vol 0.5%/bar   structures 88/300 (29.3%)   1-rail 39   2-rail 53
+ *                    channel_falling 23, channel_rising 23, range 4, bear_flag 2, bull_flag 1
+ *     vol 1.0%/bar   structures 58/300 (19.3%)   1-rail 52   2-rail  9
+ *
+ * I CONCLUDED FROM THE FIRST THAT "A CHANNEL IS ~0% FALSE-POSITIVE WHILE A TREND LINE CARRIES
+ * 5.3%", AND PROPOSED IT AS A PRODUCT FACT. Under QA's model two-rail is the COMMONEST false
+ * positive - 46 channels in 300 walks - the exact inverse. The code is not in dispute; we ran the
+ * same functions. My walk is roughly four times noisier per bar, which leaves less that fits a
+ * straight line, so it under-produces exactly the shapes a quieter walk over-produces.
+ *
+ * SO NOTHING HERE RANKS THE SHAPES BY RELIABILITY, and the teaching copy must not either. Telling a
+ * beginner that channels are trustworthy and trend lines less so would be teaching an artefact of
+ * one generator as a fact about markets.
+ *
+ * A DEFENSIBLE VERSION WOULD NEED A NOISE MODEL WE DID NOT INVENT - shuffled REAL returns per
+ * symbol, so the volatility and tick structure are the market's rather than ours. That is its own
+ * piece of work. Until it exists, the honest answer to "which shape is more reliable" is that we
+ * have not measured it.
  */
 import {
   detectStructures,
