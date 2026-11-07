@@ -53,6 +53,15 @@
  *   1. The two rails of one channel report metrics that are not comparable, because the same field
  *      name counts different things on each.
  *   2. `excess` is emitted on the output and is meaningless when negative.
+ *   0. **AND SECTION 2 OF THIS TOOL IS NOW EXPECTED TO PRINT NEGATIVES, which is not the defect
+ *      returning.** #2024 fixed the RAIL by giving it `pivotsOnRail` and `excessTouches`. This tool
+ *      computes `touchCount - fit.pointCount` from Phase 0's primitives directly, and Phase 0's
+ *      `pointCount` is "pivots fitted" - which is correct at that layer and was never the bug. I
+ *      nearly reported this tool's own output as evidence the fix had failed. To check the RAIL,
+ *      read `rail.excessTouches` through `detectStructures`; measured that way across 40 live cells
+ *      after #2024: 0 negatives, 0 sloped rails with fewer than 3 pivots on their line, 0 pivots
+ *      carried outside tolerance.
+ *
  *   3. It fails SAFE — the gate needs >= 5, so a negative value is refused — which is exactly why
  *      nobody noticed. A metric can be absurd and harmless at the same time, and then stop being
  *      harmless when something starts reading it.
