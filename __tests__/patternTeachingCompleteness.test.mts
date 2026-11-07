@@ -53,9 +53,24 @@ const SUFFIXES = ['NAME', 'WHAT', 'WATCH'];
 
 test('C1. CONTROL: the derivation reads both maps, so the gaps below are real', () => {
   /* Without this, a regex that stopped matching would report every type as missing and the cell
-     would look like a catastrophic finding instead of a broken scan. */
-  assert.ok(PATTERN_TYPES.length >= 12,
-    `only ${PATTERN_TYPES.length} entries in PATTERN_TYPES - the import is wrong, so every count below is meaningless`);
+     would look like a catastrophic finding instead of a broken scan.
+
+     THIS ASSERTION USED TO BE `PATTERN_TYPES.length >= 12` AND THAT WAS A DEFECT IN THE CONTROL
+     ITSELF. Its job is "the import resolved". `>= 12` does not measure that - it measures how many
+     pattern types the product currently has, which is a legitimate product decision, and it changed
+     four hours later when the five unreachable types were removed. So a correct product change
+     reported itself as a broken scan, and the failure message said "the import is wrong" - a cause
+     the assertion never tested, sending the next reader to debug an import that was working.
+
+     A CONTROL WHOSE MESSAGE ASSERTS A CAUSE IT DID NOT MEASURE IS WORSE THAN A BARE ASSERTION,
+     because it is confidently wrong about where to look. Asserting the thing actually depended on:
+     the import resolved iff a KNOWN member is present and the union is non-empty. Both are
+     independent of how many types exist. */
+  assert.ok(PATTERN_TYPES.length > 0, 'PATTERN_TYPES is empty - the import from lib/chartPatterns.ts did not resolve');
+  assert.ok((PATTERN_TYPES as readonly string[]).includes('bull_flag'),
+    `PATTERN_TYPES does not contain bull_flag (got: ${PATTERN_TYPES.join(', ')}). Either the import ` +
+    'resolved to the wrong module, or bull_flag has been renamed - and if it was renamed, this ' +
+    'control needs a different known member rather than loosening.');
 
   const copyKeys = [...panelSrc.matchAll(/'(PATTERN_[A-Z_]+)'/g)].map((m) => m[1]);
   assert.ok(copyKeys.length >= 21,
@@ -200,24 +215,34 @@ test('C7. the panel RESERVES its height before the dismissal state is known', ()
     'that means a new unreserved path has been added.');
 });
 
-test('C8. SCOPE: exactly five types are uncovered, so C7 cannot quietly keep testing 7 of 12', () => {
-  /* THE HALF THAT STOPS C7 PASSING VACUOUSLY. C7 asserts a property of the render path, but
-     `:108 if (!copy) return null` means the path is never reached for a type with no copy - so the
-     reservation is untested for those, and scoping C7 "to covered types" alone would silently keep
-     testing 7 of 12 forever.
-     So the uncovered set is pinned HERE, and hardcoded ONLY here. Everything else in this file
-     derives from PATTERN_TYPES. */
-  const UNCOVERED_TODAY = ['wedge_rising', 'wedge_falling', 'triangle_asc', 'triangle_desc', 'triangle_sym'];
+test('C8. SCOPE: coverage is TOTAL, so C7 cannot quietly keep testing a subset', () => {
+  /* WHAT THIS CELL WAS FOR, AND WHY IT IS NOW A REGRESSION GUARD INSTEAD.
+     C7 asserts a property of the render path, but `if (!copy) return null` means that path is never
+     reached for a type with no copy - so the reservation went untested for those, and scoping C7 "to
+     covered types" alone would have silently kept testing 7 of 12 forever. This cell pinned the
+     uncovered set at exactly five so that could not happen quietly.
+
+     IT RESOLVED THE OTHER WAY, AND MY OWN REMEDY DID NOT COVER IT. The message used to say "if the
+     set shrank, copy has been written - widen C7". The set shrank because the five unreachable TYPES
+     WERE REMOVED, which is a different cause with the same symptom, and the instruction I wrote did
+     not fit it. Two routes to one observation, and I had anticipated only one.
+
+     SO IT NOW ASSERTS TOTAL COVERAGE RATHER THAN A NAMED SUBSET - no type may lack copy, whatever
+     the union contains. That is cheap, it needs no list, and it guards the regression rather than
+     celebrating the fix: if anyone reintroduces a `Partial` map or adds a type without copy, this
+     goes red. Deleting it would have been defensible too - C3 plus total maps make the compiler hold
+     the line, and deleting an entry now fails tsc with TS1360/TS2741 - but a type error only fires
+     for someone editing the maps, and this fires for anyone running the suite. */
   const referenced = new Set([...panelSrc.matchAll(/'(PATTERN_[A-Z_]+)'/g)].map((m) => m[1]));
   const uncovered = PATTERN_TYPES.filter(
     (t) => !SUFFIXES.every((s) => referenced.has(`PATTERN_${t.toUpperCase()}_${s}`)));
 
-  assert.deepEqual([...uncovered].sort(), [...UNCOVERED_TODAY].sort(),
-    `the uncovered set has changed - it is now [${uncovered.join(', ')}].\n\n` +
-    'IF THIS IS RED BECAUSE THE SET SHRANK, THAT IS GOOD NEWS: copy has been written. Widen C7 to ' +
-    'cover the newly covered types and update the list here in the same commit.\n' +
-    'IF IT GREW, a type was added to PATTERN_TYPES without copy and the panel renders nothing for ' +
-    'it - see C2.\n' +
-    'Either way this is the one assertion in this file allowed to name types explicitly; it exists ' +
-    'so C7 cannot keep covering 7 of 12 while 12 exist.');
+  assert.deepEqual([...uncovered], [],
+    `${uncovered.length} of ${PATTERN_TYPES.length} pattern types have no copy wired into the panel: ` +
+    `${uncovered.join(', ')}.\n\n` +
+    'C7 therefore does not test the reservation for them, because `if (!copy) return null` returns ' +
+    'before it. Two legitimate fixes, the same two as C2: write the copy, or remove the type from ' +
+    'PATTERN_TYPES if nothing can produce it.\n' +
+    'This also means a `Partial` map has come back - both COPY and PATTERN_ILLUSTRATIONS are total ' +
+    'over PatternType as of 8d3360e4, which is what makes the compiler catch this first.');
 });
