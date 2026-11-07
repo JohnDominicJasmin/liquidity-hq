@@ -114,6 +114,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      # THE VERSION PIN IS LOAD-BEARING, DO NOT LOWER IT (QA, review of #2063). The script imports
+      # lib/*.ts directly and is run by plain `node`, not tsx, so it depends on Node's UNFLAGGED native
+      # type stripping - which landed in 23.6. Below that the canary fails at import, before it can
+      # reach any assertion, which surfaces as a dead job rather than as a reported state.
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -134,6 +138,12 @@ jobs:
 
       # No `npm ci`: the script imports lib/*.ts relatively and Node strips the types itself. Nothing it
       # touches reaches node_modules, so installing would only add a minute and a cache to go stale.
+      #
+      # Which makes THE VERSION PIN LOAD-BEARING - do not lower it. Unflagged native type stripping
+      # landed in Node 23.6; below that this fails at import rather than at a visible assertion, so the
+      # job dies without reporting a state. The issue step treats an empty state as UNKNOWN, so the
+      # failure is at least not a false pass - but it reads as "could not measure" rather than naming
+      # the real cause.
       - uses: actions/setup-node@v4
         with:
           node-version: 24
