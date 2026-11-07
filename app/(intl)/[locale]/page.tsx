@@ -86,12 +86,17 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
       /* #1740: hreflang for the three landing locales that ACTUALLY EXIST. Reciprocal on all three, with
          x-default on the English one, so they stop competing with each other for the same queries.
 
-         `ar` and `ru` are NOT listed, and that is the point rather than an omission. They 404:
-         SUPPORTED_LOCALES in lib/i18n/dictionaries.ts is ['ko','zh'] and generateStaticParams with
-         dynamicParams=false rejects everything else before it renders. Prod lhq_labels holds 2,679 rows
-         each for ar and ru, but ZERO landing strings - the landing copy lives only in dictionaries.ts and
-         LandingContent takes it as a prop, not from the label table. So adding them is a translation job,
-         not a list change, and listing an hreflang that 404s is worse than omitting it.
+         `ar` is NOT listed, and that is the point rather than an omission. It 404s: SUPPORTED_LOCALES in
+         lib/i18n/dictionaries.ts does not carry it and generateStaticParams with dynamicParams=false
+         rejects everything else before it renders. Prod lhq_labels holds 2,679 rows for ar, but ZERO
+         landing strings - the landing copy lives only in dictionaries.ts and LandingContent takes it as a
+         prop, not from the label table. So adding it is a translation job, not a list change, and listing
+         an hreflang that 404s is worse than omitting it.
+
+         THIS PARAGRAPH NAMED `ru` TOO UNTIL 2026-11-08, and the note below already said ru had been
+         added - one comment block asserting both. Corrected rather than left, because the stale half is
+         the half a reader greps and believes: "ru is NOT listed, and that is the point" reads as a
+         decision, not as a fact that expired.
 
          ONLY THE LANDING CARRIES THIS. /about, /faq and the rest have no translations, so claiming
          alternates for them would point a crawler at pages that do not exist in that language.
@@ -102,9 +107,16 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
          checks only one cannot detect them disagreeing. They agree today - `ko`/`zh` both ways, both
          lowercase - and keeping them in step is a manual obligation of editing either. If this map
          ever grows a locale, SUPPORTED_LOCALES has to grow it too or the hreflang points at a 404.
-         `ru` was added on 2026-11-08 and that is exactly what happened: FOUR lists had to move in
-         one commit - this map, the identical one in app/(main)/page.tsx, SUPPORTED_LOCALES and the
-         `dictionaries` map, plus the sitemap. Nothing enforces it; see the note there. */
+         `ru` was added on 2026-11-08 and that is exactly what happened. SIX places had to move in one
+         commit, and this list is now complete because an incomplete one is what caused the defect:
+         this map, the identical one in app/(main)/page.tsx, SUPPORTED_LOCALES, the `dictionaries` map,
+         app/sitemap.ts, and LANDING_LOCALES in lib/navRoutes.ts.
+
+         THAT LAST ONE WAS MISSING FROM THIS LIST AND WAS THE ONE THAT GOT MISSED. /ru shipped to CI
+         with the app nav over the marketing page; `__tests__/navOwnNavRoutes.test.mts` caught it, which
+         is the only reason this paragraph can name it. The others here are unenforced - a test binds
+         LANDING_LOCALES to SUPPORTED_LOCALES, and nothing binds these two hreflang maps or the sitemap
+         to either. So the enumeration above is the whole safety net for four of the six. */
       languages: {
         en: '/',
         ko: '/ko',
