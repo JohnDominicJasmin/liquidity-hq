@@ -646,9 +646,15 @@ new deploy has been triggered to pick up the changes."*
     trigger: { envUpdated: false, manual: false, rollback: false,
                deployedByRender: false, firstBuild: false, user: <the account> }
 
-`envUpdated: false` is the discriminator. `trigger: "api"` on the deploy record is NOT - every
-deploy this service has ever had carries it. So the platform did not auto-deploy; the MCP tool wrote
-the variables and then called the deploy endpoint itself.
+**`envUpdated: false` AND `manual: false` together are the discriminator, and it takes both.** Those
+are three distinguishable categories - platform-triggered by an env change, a dashboard click, and
+a plain API deploy call - and this build is the third. `envUpdated: false` alone only rules out the
+first; `manual: false` rules out the second, which is what makes "an MCP tool called the deploy
+endpoint itself" the remaining explanation rather than merely a plausible one. QA's addition.
+
+`trigger: "api"` on the DEPLOY record is not a discriminator at all. Every event in the window
+carries `envUpdated: false` and `manual: false`, so this service has only ever been deployed by the
+API - the string is the transport, the event object is the cause.
 
 **What that means in practice:**
 
@@ -656,9 +662,10 @@ the variables and then called the deploy endpoint itself.
   and do NOT also call `trigger_deploy` - the build is already running. A variable someone else must
   set (a secret that should not pass through a transcript) is therefore a second build by
   construction; plan for two rather than trying to merge them.
-- **Via the Render dashboard or the raw API, this is UNMEASURED.** `envUpdated` exists as a flag, so
-  Render clearly can attribute a build to an env update in some path - but nobody here has observed
-  that path. Do not assume either way.
+- **Via the Render dashboard or the raw API, this is UNMEASURED - genuinely, not just unverified by
+  us.** `envUpdated` and `manual` both exist as flags, so Render can clearly attribute a build to an
+  env update and to a dashboard click, and a dashboard "Manual Deploy" would presumably set
+  `manual: true`. Neither path has been observed here. Do not assume either way.
 - **It did not cost an extra build.** Only one build ran and that build was needed anyway, since
   `autoDeploy: "no"` means the #2038 merge to `dev` shipped nothing on its own. An earlier draft of
   this note claimed a wasted build hour on the ~500/month cap; that was wrong, and QA caught it by
