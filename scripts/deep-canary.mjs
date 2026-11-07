@@ -7,9 +7,17 @@
  *
  * ── THREE OUTCOMES, AND UNKNOWN IS NOT HEALTHY ────────────────────────────────────────────────────
  *
- *   OK       a Deep read came back and parsed into the contract
- *   FAIL     Deep answered and the answer was not usable, or our request was refused as malformed
- *   UNKNOWN  could not measure - no credential, service asleep, quota exhausted, plan read down
+ *   OK        a Deep read came back and parsed into the contract FIRST TIME
+ *   DEGRADED  it worked, but only via the restate pass - billed twice, and the model is no longer
+ *             answering in the required form. Opens the issue; never closes it as OK.
+ *   FAIL      Deep answered and the answer was not usable, or our request was refused as malformed
+ *   UNKNOWN   could not measure - no credential, service asleep, quota exhausted, plan read down
+ *
+ * DEGRADED exists because QA found the hole in the first version of this file: a read repaired by the
+ * restate pass returns a valid 200 with a real verdict, so the canary called it OK while the contract
+ * was visibly rotting and the customer was being billed twice for it. "Still works, for twice the
+ * money, via a repair path" is precisely a thing you want to see trending, and it is invisible on
+ * screen - the user just sees a verdict.
  *
  * The UNKNOWN set is the whole design. A canary that reports FAIL when the fixture ran out of quota
  * gets muted within a week, and a muted canary is worse than none because it reads as covered. So
@@ -57,6 +65,7 @@
 import { ARENA_CONTEXT_KEYS, parseArenaContext, parseArenaChart, parseSelection } from '../lib/arenaContext.ts';
 import { COINS } from '../lib/coins.ts';
 import { ARENA_TFS } from '../lib/limits.ts';
+import { VERDICT_RESTATED_CHECK } from '../lib/grok.ts';
 
 const BASE        = (process.env.CANARY_BASE_URL ?? '').replace(/\/+$/, '');
 const SB_URL      = (process.env.CANARY_SUPABASE_URL ?? '').replace(/\/+$/, '');
@@ -164,6 +173,101 @@ function validateBody(body) {
   return null;
 }
 
+/* ── The classifier, exported and pure so the table can be tested ─────────────────────────────────
+ *
+ * EXTRACTED BECAUSE QA FOUND A HOLE IN IT. The first version of this file read the HTTP status and
+ * the verdict shape and called a repaired read OK - see the DEGRADED note in the header. That is a
+ * logic defect in a table of eight rows, and a table of eight rows with no test is exactly where one
+ * hides. Nothing here does any I/O, so every row can be exercised from a fixture.
+ *
+ * THE SPLIT THAT MATTERS: "Deep gave a bad answer" is a FAIL, "we never got to ask" is UNKNOWN, and
+ * "it answered, for twice the money, via the repair path" is DEGRADED. 429 and 503 PLAN_UNKNOWN are
+ * the two that look like failures and are not.
+ *
+ * @param status  the HTTP status from POST /api/grok
+ * @param code    the response body's `code` field, or null
+ * @param json    the parsed response body, or null if it did not parse
+ * @param ms      how long the call took, for the reason text
+ * @param log     optional sink for the lines worth keeping; defaults to discarding them
+ */
+export function classifyDeepResponse({ status, code = null, json = null, ms = 0, log = () => {} }) {
+  if (status === 429) {
+    return verdict('UNKNOWN', `the fixture's Deep quota is exhausted (HTTP 429${code ? ` ${code}` : ''}), so no read was made. Not a Deep failure.`, { ms });
+  }
+  if (status === 503 && code === 'PLAN_UNKNOWN') {
+    return verdict('UNKNOWN', 'the plan read failed (503 PLAN_UNKNOWN), so the request was refused before reaching Deep. Not a Deep failure.', { ms });
+  }
+  if (status === 401 || status === 403) {
+    return verdict('UNKNOWN', `the Deep call was rejected as unauthenticated (HTTP ${status}) even though sign-in succeeded. Not a Deep failure.`, { ms });
+  }
+  if (status === 400) {
+    /* Our fault, and worth an alarm: a 400 means the request contract moved and the canary is no
+       longer measuring anything. Generated fields cannot cause this; the chart or body shape can. */
+    return verdict('FAIL', `/api/grok refused the canary's request as invalid (HTTP 400${code ? ` ${code}` : ''}). The request contract has changed and this canary is measuring nothing until it is updated.`, { ms });
+  }
+  if (status === 502 && code === 'BAD_ANSWER') {
+    /* THE FAILURE THIS WHOLE THING EXISTS FOR: Deep ran, was billed, and produced nothing usable. */
+    return verdict('FAIL', 'Deep answered and the answer could not be read as a verdict (502 BAD_ANSWER). This is the silent failure #1594 was written about: the user pays for a read and sees an error.', { ms });
+  }
+  if (status !== 200) {
+    return verdict('FAIL', `Deep returned HTTP ${status}${code ? ` code=${code}` : ''}.`, { ms, head: JSON.stringify(json ?? {}).slice(0, 300) });
+  }
+
+  /* THE CONTRACT - shape only, never content. */
+  const result = json?.result;
+  if (!result || typeof result !== 'object') {
+    return verdict('FAIL', 'Deep returned HTTP 200 with no `result` object.', { ms, head: JSON.stringify(json ?? {}).slice(0, 300) });
+  }
+  if (!SIGNALS.includes(result.signal)) {
+    return verdict('FAIL', `Deep returned HTTP 200 but \`result.signal\` was ${JSON.stringify(result.signal)}, which is not one of the five verdicts.`, { ms });
+  }
+  if (typeof result.confidence !== 'number' || !Number.isFinite(result.confidence)
+      || result.confidence < 0 || result.confidence > 100) {
+    return verdict('FAIL', `Deep returned HTTP 200 and a valid signal, but \`result.confidence\` was ${JSON.stringify(result.confidence)} rather than a number in 0-100.`, { ms });
+  }
+
+  const used = json?.usage?.deep_used, limit = json?.usage?.deep_limit;
+  log(`contract satisfied: signal=${result.signal} confidence=${result.confidence} citations=${Array.isArray(result.citations) ? result.citations.length : 0}`);
+
+  /* A 200 WITH A VALID VERDICT IS NOT NECESSARILY A CLEAN READ (QA, review of #2063).
+   *
+   * When the answer does not state SIGNAL and CONFIDENCE in the required form, the route runs a
+   * second, separately billed repair call and - if that works - returns a perfectly valid 200. The
+   * user sees a normal verdict. Nothing on screen says the model stopped answering in the required
+   * form, and the only trace in the response is this one `checks` entry. So a degrading contract
+   * looked exactly like health here, which is the failure class this canary exists to catch.
+   *
+   * DEGRADED, not FAIL: the read worked and the customer got an answer, so calling it a failure would
+   * be wrong and would eventually get the canary muted. But it must never close the issue as OK
+   * either, because "it still works, for twice the money, via a repair path" is the thing you want to
+   * see trending.
+   *
+   * ONLY THE RESTATE MARKER COUNTS. `checks` also carries applyResultChecks' CONTENT judgements -
+   * tier-vs-counted mismatches, "raid dropped: no liquidation cluster data", "perps-vs-spot disclosure
+   * added" (lib/grok.ts). Those depend on what the model said and what data existed that minute, so
+   * alarming on them would make this fail at random and break the contract-not-content rule the whole
+   * design rests on. They are logged, never alarmed. */
+  const checks   = Array.isArray(result.checks) ? result.checks.filter((c) => typeof c === 'string') : [];
+  const restated = checks.includes(VERDICT_RESTATED_CHECK);
+  const other    = checks.filter((c) => c !== VERDICT_RESTATED_CHECK);
+  if (checks.length) log(`result.checks (${checks.length}): ${JSON.stringify(checks)}`);
+  if (other.length) log(`  ${other.length} of those are content judgements - logged, deliberately not alarmed on`);
+
+  if (restated) {
+    return verdict('DEGRADED',
+      `a Deep read completed in ${(ms / 1000).toFixed(1)}s and the verdict parsed - but only after the restate pass, ` +
+      `so the model did not answer in the required form and the read was billed TWICE. The customer sees a normal verdict, ` +
+      `which is why this is invisible without the canary. Fixture quota now ${used ?? '?'}/${limit ?? '?'}.` +
+      (other.length ? ` Also present, and NOT alarmed on: ${JSON.stringify(other)}.` : ''),
+      { ms, checks });
+  }
+
+  return verdict('OK',
+    `a Deep read completed in ${(ms / 1000).toFixed(1)}s and parsed into the contract first time (signal and a 0-100 confidence), with no restate pass. Fixture quota now ${used ?? '?'}/${limit ?? '?'}.` +
+    (other.length ? ` Content checks present and deliberately not alarmed on: ${JSON.stringify(other)}.` : ''),
+    { ms, checks });
+}
+
 /* ── Run ──────────────────────────────────────────────────────────────────────────────────────── */
 async function run() {
   log(`fields in generated context: ${ARENA_CONTEXT_KEYS.length} (from ARENA_CONTEXT_KEYS)`);
@@ -245,69 +349,47 @@ async function run() {
   const code   = json?.code ?? null;
   log(`POST /api/grok -> HTTP ${status}${code ? ` code=${code}` : ''} in ${deep.ms}ms`);
 
-  /* 5. CLASSIFY. The split that matters: "Deep gave a bad answer" is a FAIL, "we never got to ask"
-        is UNKNOWN. 429 and 503 PLAN_UNKNOWN are the two that look like failures and are not. */
-  if (status === 429) {
-    return verdict('UNKNOWN', `the fixture's Deep quota is exhausted (HTTP 429${code ? ` ${code}` : ''}), so no read was made. Not a Deep failure.`, { ms: deep.ms });
-  }
-  if (status === 503 && code === 'PLAN_UNKNOWN') {
-    return verdict('UNKNOWN', 'the plan read failed (503 PLAN_UNKNOWN), so the request was refused before reaching Deep. Not a Deep failure.', { ms: deep.ms });
-  }
-  if (status === 401 || status === 403) {
-    return verdict('UNKNOWN', `the Deep call was rejected as unauthenticated (HTTP ${status}) even though sign-in succeeded. Not a Deep failure.`, { ms: deep.ms });
-  }
-  if (status === 400) {
-    /* Our fault, and worth an alarm: a 400 means the request contract moved and the canary is no
-       longer measuring anything. Generated fields cannot cause this; the chart or the body shape can. */
-    return verdict('FAIL', `/api/grok refused the canary's request as invalid (HTTP 400${code ? ` ${code}` : ''}). The request contract has changed and this canary is measuring nothing until it is updated.`, { ms: deep.ms });
-  }
-  if (status === 502 && code === 'BAD_ANSWER') {
-    /* THE FAILURE THIS WHOLE THING EXISTS FOR: Deep ran, was billed, and produced nothing usable. */
-    return verdict('FAIL', 'Deep answered and the answer could not be read as a verdict (502 BAD_ANSWER). This is the silent failure #1594 was written about: the user pays for a read and sees an error.', { ms: deep.ms });
-  }
-  if (status !== 200) {
-    return verdict('FAIL', `Deep returned HTTP ${status}${code ? ` code=${code}` : ''}.`, { ms: deep.ms, head: JSON.stringify(json ?? {}).slice(0, 300) });
-  }
-
-  /* 6. THE CONTRACT. */
-  const result = json?.result;
-  if (!result || typeof result !== 'object') {
-    return verdict('FAIL', 'Deep returned HTTP 200 with no `result` object.', { ms: deep.ms, head: JSON.stringify(json ?? {}).slice(0, 300) });
-  }
-  if (!SIGNALS.includes(result.signal)) {
-    return verdict('FAIL', `Deep returned HTTP 200 but \`result.signal\` was ${JSON.stringify(result.signal)}, which is not one of the five verdicts.`, { ms: deep.ms });
-  }
-  if (typeof result.confidence !== 'number' || !Number.isFinite(result.confidence)
-      || result.confidence < 0 || result.confidence > 100) {
-    return verdict('FAIL', `Deep returned HTTP 200 and a valid signal, but \`result.confidence\` was ${JSON.stringify(result.confidence)} rather than a number in 0-100.`, { ms: deep.ms });
-  }
-
-  const used = json?.usage?.deep_used, limit = json?.usage?.deep_limit;
-  log(`contract satisfied: signal=${result.signal} confidence=${result.confidence} citations=${Array.isArray(result.citations) ? result.citations.length : 0}`);
-  return verdict('OK',
-    `a Deep read completed in ${(deep.ms / 1000).toFixed(1)}s and parsed into the contract (signal and a 0-100 confidence). Fixture quota now ${used ?? '?'}/${limit ?? '?'}.`,
-    { ms: deep.ms });
+  /* 5. CLASSIFY - the whole table lives in classifyDeepResponse above, which is pure and exported so
+     every row can be tested without a network call or a credential. */
+  return classifyDeepResponse({ status, code, json, ms: deep.ms, log });
 }
 
-const v = await run().catch((e) => verdict('UNKNOWN', `the canary itself threw before reaching a verdict: ${e instanceof Error ? e.message : String(e)}`));
+/* ── Entry point, guarded so this file can be IMPORTED ────────────────────────────────────────────
+ *
+ * WITHOUT THIS GUARD THE FILE IS NOT TESTABLE, and it fails in the worst way. Importing it to reach
+ * `classifyDeepResponse` ran the whole canary, which then called process.exit() and killed the
+ * importing test before a single assertion - a suite that exits 0 having checked nothing. Found
+ * exactly that way while exercising the classification table, which is also why the table is now
+ * reachable from a test at all. */
+import { pathToFileURL } from 'node:url';
 
-log('');
-log(`STATE=${v.state}`);
-log(`REASON=${v.reason}`);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const v = await run().catch((e) =>
+    verdict('UNKNOWN', `the canary itself threw before reaching a verdict: ${e instanceof Error ? e.message : String(e)}`));
 
-if (process.env.GITHUB_OUTPUT) {
-  const { appendFileSync } = await import('node:fs');
-  /* FLATTENED TO ONE LINE. GITHUB_OUTPUT is `key=value` per line, so a reason carrying a newline would
-     not merely truncate - the remainder would be parsed as further key=value pairs, letting an upstream
-     error message define step outputs. Reasons here are written as single lines, but several interpolate
-     a thrown error's message, and that text is not ours. */
-  const flat = (s) => String(s).replace(/[\r\n]+/g, ' ').slice(0, 1500);
-  appendFileSync(process.env.GITHUB_OUTPUT, `state=${flat(v.state)}\nreason=${flat(v.reason)}\n`);
+  log('');
+  log(`STATE=${v.state}`);
+  log(`REASON=${v.reason}`);
+
+  if (process.env.GITHUB_OUTPUT) {
+    const { appendFileSync } = await import('node:fs');
+    /* FLATTENED TO ONE LINE. GITHUB_OUTPUT is `key=value` per line, so a reason carrying a newline
+       would not merely truncate - the remainder would be parsed as further key=value pairs, letting an
+       upstream error message define step outputs. Reasons here are written as single lines, but
+       several interpolate a thrown error's message, and that text is not ours. */
+    const flat = (s) => String(s).replace(/[\r\n]+/g, ' ').slice(0, 1500);
+    appendFileSync(process.env.GITHUB_OUTPUT, `state=${flat(v.state)}\nreason=${flat(v.reason)}\n`);
+  }
+  if (process.env.CANARY_LOG_FILE) {
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(process.env.CANARY_LOG_FILE, out.join('\n') + '\n');
+  }
+
+  /* Exit 0 for OK, DEGRADED and UNKNOWN; FAIL is the only non-zero.
+   *
+   * "Could not measure" must not turn the job red or the red stops meaning anything, and DEGRADED is a
+   * read that WORKED - the issue is what reports it, not the job status. The workflow reads the state
+   * from the step output and never from this exit code, which is the rule this repo learned the hard
+   * way: a gate read from a pipeline exit code is how a red run becomes silence. */
+  process.exit(v.state === 'FAIL' ? 1 : 0);
 }
-if (process.env.CANARY_LOG_FILE) {
-  const { writeFileSync } = await import('node:fs');
-  writeFileSync(process.env.CANARY_LOG_FILE, out.join('\n') + '\n');
-}
-// Exit 0 for OK and UNKNOWN: "could not measure" must not turn the job red, or the red stops meaning
-// anything. FAIL is the only non-zero.
-process.exit(v.state === 'FAIL' ? 1 : 0);

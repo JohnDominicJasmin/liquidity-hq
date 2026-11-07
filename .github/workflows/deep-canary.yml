@@ -43,11 +43,17 @@
 # the target is staging, which shares the dev database and so accepts the dev fixture. A green run here
 # means Deep works on the staging build, which is the same code, not that production is serving it.
 #
-# ── THREE OUTCOMES, AND UNKNOWN IS NOT HEALTHY ────────────────────────────────────────────────────
+# ── FOUR OUTCOMES, AND ONLY ONE OF THEM CLOSES THE ISSUE ──────────────────────────────────────────
 #
-#   OK       the issue is closed
-#   FAIL     opened or updated - Deep answered unusably, or our own request was refused
-#   UNKNOWN  opened or updated, and NEVER closed on this
+#   OK        the issue is closed - a clean, first-time parse
+#   DEGRADED  opened or updated, and NEVER closed on this. The read WORKED, but only after the route
+#             ran a second, separately billed repair call because the model did not answer in the
+#             required form. Twice the money, and nothing on screen says so.
+#   FAIL      opened or updated - Deep answered unusably, or our own request was refused
+#   UNKNOWN   opened or updated, and NEVER closed on this
+#
+# DEGRADED exists because QA found the hole in the first version: a repaired read returns a valid 200
+# with a real verdict, so the canary reported OK while the contract was rotting underneath it.
 #
 # The UNKNOWN set is load-bearing. Exhausted fixture quota, a sleeping service, a stale credential and
 # a failed plan read all look like failures and are not, and a canary that cries wolf at them gets
@@ -178,10 +184,13 @@ jobs:
           OPEN=$(gh issue list --repo "$REPO" --label deep-canary --state open \
                    --json number --jq '.[0].number // empty' 2>/dev/null || echo "")
 
+          # ONLY a clean first-time parse closes this. DEGRADED is a read that worked, so it is not a
+          # FAIL - but closing on it would retire the issue while the contract is still rotting and
+          # the customer is still being billed twice, which is the hole QA found in the first version.
           if [ "$STATE" = "OK" ]; then
             if [ -n "$OPEN" ]; then
               gh issue close "$OPEN" --repo "$REPO" \
-                --comment "A real Deep read succeeded against ${TARGET}. ${REASON} Closing automatically. ${RUN_URL}"
+                --comment "A real Deep read succeeded against ${TARGET}, first-time parse with no restate pass. ${REASON} Closing automatically. ${RUN_URL}"
             else
               echo "Deep is healthy and nothing is open - nothing to do"
             fi
@@ -196,6 +205,14 @@ jobs:
             if [ "$STATE" = "UNKNOWN" ]; then
               echo "> **Unknown is not healthy and this issue will not close on it.** A Deep read that was"
               echo "> never made is not evidence that Deep works. It closes on an actual successful read."
+              echo
+            fi
+            if [ "$STATE" = "DEGRADED" ]; then
+              echo "> **This is not a failure - the read worked and the customer got a verdict.** It is also"
+              echo "> not health: the model did not answer in the required form, so the route ran a second,"
+              echo "> separately billed repair call to recover the verdict. **The read cost twice as much and"
+              echo "> nothing on screen says so.** This issue will not close on a degraded read - only on a"
+              echo "> clean first-time parse."
               echo
             fi
             echo "This canary asserts the **contract** - HTTP 200, a signal from the five, a 0-100"
