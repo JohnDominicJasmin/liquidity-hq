@@ -27,9 +27,10 @@
  * PRODUCT.md rule 1 forbids and the one a beginner would read first. The shape stops where the
  * measured geometry stops.
  *
- * Wedges and triangles are absent on purpose: a derived channel rail is parallel by construction,
- * so nothing can currently produce them (see `lib/chartPatterns.ts`). Drawing a shape the detector
- * cannot find would be a picture of a feature that does not exist.
+ * Wedges and triangles are absent because they are no longer `PatternType`s at all - measured
+ * unreachable, since a derived channel rail is parallel by construction. See
+ * `UNDETECTABLE_PATTERN_TYPES` in `lib/chartPatterns.ts`. Drawing a shape the detector cannot find
+ * would be a picture of a feature that does not exist.
  */
 import type { PatternType } from '@/lib/chartPatterns';
 
@@ -136,13 +137,16 @@ function LineResistance() {
   );
 }
 
-/** Every pattern this layer can draw.
+/** Every pattern this layer can draw - TOTAL over `PatternType`, so a shape with no drawing does
+ *  not compile.
  *
- *  KEYED BY `PatternType`, BUT DELIBERATELY NOT `Record<PatternType, ...>`. A total record would
- *  force an entry for wedges and triangles, which nothing can currently produce - so the type
- *  would make us draw a picture of a feature that does not exist in order to compile. Partial,
- *  with `illustrationFor` returning null, keeps "we cannot find this shape" expressible. */
-export const PATTERN_ILLUSTRATIONS: Partial<Record<PatternType, React.JSX.Element>> = {
+ *  This was `Partial`, for a reason that was sound while wedges and triangles were members of
+ *  `PatternType`: a total record would have forced a picture of a shape nothing can produce. Those
+ *  five are no longer members (see `UNDETECTABLE_PATTERN_TYPES`), so the honest version of that
+ *  argument is now the total record - the vocabulary lists only producible shapes, and every one of
+ *  them must have a drawing. "We cannot find this shape" is expressed by not being a `PatternType`,
+ *  which is where it belongs, rather than by a null the caller has to remember to handle. */
+export const PATTERN_ILLUSTRATIONS: Record<PatternType, React.JSX.Element> = {
   bull_flag: <BullFlag />,
   bear_flag: <BearFlag />,
   channel_rising: <ChannelRising />,
@@ -152,13 +156,13 @@ export const PATTERN_ILLUSTRATIONS: Partial<Record<PatternType, React.JSX.Elemen
   line_resistance: <LineResistance />,
 };
 
-/** The drawing for a pattern, or null when there is none - which a caller must render as nothing
- *  rather than as a placeholder. An empty box where a picture was promised is worse than no box.
+/** The drawing for a pattern. Never null now that the record is total - a `PatternType` without a
+ *  drawing is a build error, not a blank box at runtime.
  *
  *  ELEMENTS, NOT COMPONENT FUNCTIONS. Returning a factory meant the caller looked a component up at
  *  runtime and rendered `<Illustration />`, which is creating a component during render - React can
  *  remount it on any re-render and the lint rule that caught it is right to. These take no props and
  *  are deterministic, so one element each, built once at module scope, is both correct and simpler. */
-export function illustrationFor(type: PatternType): React.JSX.Element | null {
-  return PATTERN_ILLUSTRATIONS[type] ?? null;
+export function illustrationFor(type: PatternType): React.JSX.Element {
+  return PATTERN_ILLUSTRATIONS[type];
 }

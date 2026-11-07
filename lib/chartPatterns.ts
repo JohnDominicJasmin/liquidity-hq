@@ -86,10 +86,10 @@ import { lineValueAt, type StructureCandle } from './chartStructures.ts';
 /** The rungs that produce structures. MEASURED - see the header. */
 export const PATTERN_TIMEFRAMES: readonly string[] = ['15m', '1h', '4h'];
 
+/** Shapes this file can NAME, measured rather than intended - see `UNDETECTABLE_PATTERN_TYPES`
+ *  below for the five that were here and why they left. */
 export const PATTERN_TYPES = [
   'bull_flag', 'bear_flag',
-  'wedge_rising', 'wedge_falling',
-  'triangle_asc', 'triangle_desc', 'triangle_sym',
   'channel_rising', 'channel_falling',
   'range',
   /* THE OWNER NAMED THIS ONE AND THE FIRST VERSION DROPPED IT. His ask was "either a parallel line
@@ -101,6 +101,36 @@ export const PATTERN_TYPES = [
   'line_support', 'line_resistance',
 ] as const;
 export type PatternType = (typeof PATTERN_TYPES)[number];
+
+/**
+ * Shapes the proposal names that this detector CANNOT currently produce. Declared rather than
+ * silently absent, because a vocabulary that lists what it cannot find is how a teaching panel ends
+ * up rendering nothing for a shape it just drew.
+ *
+ * MEASURED, NOT ASSUMED. 1,200 generated shapes across a wide space of slopes, convergence rates,
+ * amplitudes, periods and lengths produced 171 two-rail structures. ALL 171 had identical rail
+ * slopes, and the only distinct `gapEnd / gapStart` ratio observed was exactly 1.0000.
+ *
+ * The reason is structural and is my own doing (#2023): a channel's second rail is DERIVED from the
+ * anchor's slope, so the two rails are parallel by construction and the gap between them is
+ * constant. A convergence test can therefore never fire. A range is the other two-rail case, and it
+ * is matched earlier by both-rails-flat, so it never reaches the convergence check either.
+ *
+ * SO THE CONVERGENCE BRANCH IS GONE TOO, not left in place against a future need. Keeping an
+ * unreachable branch that reads as functional is the exact defect QA found in `lib/patterns.ts`
+ * this week - `cr >= pr * 0.8`, arithmetically impossible to fail, which read as a tunable
+ * threshold and sent the next reader looking elsewhere. Doing the same thing here knowingly, having
+ * just removed that one, would be indefensible.
+ *
+ * WHAT IT WOULD TAKE TO BRING THEM BACK: two INDEPENDENTLY fitted rails, which #2023 removed
+ * because the joint probability of both clearing R-squared and the excess-touch gate produced ZERO
+ * channels across 40 live cells. That is a real fork with its own gates to measure, not a threshold
+ * to nudge - and it is what #1818's Phase 2 checkbox is actually asking for.
+ */
+export const UNDETECTABLE_PATTERN_TYPES = [
+  'wedge_rising', 'wedge_falling',
+  'triangle_asc', 'triangle_desc', 'triangle_sym',
+] as const;
 
 /* ── Thresholds ───────────────────────────────────────────────────────────── */
 
@@ -251,18 +281,13 @@ export function classify(
      flat, and "a rising channel with a slope of nearly zero" is true and useless. */
   if (highFlat && lowFlat) return { type: 'range', ...base, pole: null };
 
-  /* CONVERGING - a wedge or a triangle, told apart by WHICH rail is doing the work. */
-  if (ratio <= CONVERGENCE_RATIO) {
-    if (highFlat) return { type: 'triangle_asc', ...base, pole: null };   // flat ceiling, rising floor
-    if (lowFlat) return { type: 'triangle_desc', ...base, pole: null };   // flat floor, falling ceiling
-    if (hs > 0 && ls > 0) return { type: 'wedge_rising', ...base, pole: null };
-    if (hs < 0 && ls < 0) return { type: 'wedge_falling', ...base, pole: null };
-    return { type: 'triangle_sym', ...base, pole: null };                 // closing from both sides
-  }
-
-  /* DIVERGING rails are a broadening shape, which Phase 4 may name and this vocabulary does not.
-     Returning null rather than the nearest word. */
-  if (ratio >= DIVERGENCE_RATIO) return null;
+  /* CONVERGING AND DIVERGING BOTH RETURN NULL, and the convergence branch that used to sit here
+     has been removed rather than left unreachable - see UNDETECTABLE_PATTERN_TYPES. Measured: every
+     two-rail structure this detector produces has parallel rails, so `ratio` is always exactly 1
+     and neither bound can be crossed. The comparisons stay because they are the honest guard: if a
+     future detection path ever produces non-parallel rails, this returns null rather than calling a
+     wedge a channel. */
+  if (ratio <= CONVERGENCE_RATIO || ratio >= DIVERGENCE_RATIO) return null;
 
   /* PARALLEL ENOUGH - a channel, and possibly a flag. A FLAG IS A CHANNEL PLUS A CONTEXT: the
      channel drifts AGAINST a strong recent move and is short relative to it. Checked before the

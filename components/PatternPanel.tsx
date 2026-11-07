@@ -62,10 +62,18 @@ interface Props {
  *  that does not exist is a BUILD error rather than a blank space on screen. A template literal
  *  would hand that guarantee back for four saved lines.
  *
- *  Only the patterns that can be produced appear here. Wedges and triangles are unreachable while a
- *  channel's second rail is derived (see `lib/chartPatterns.ts`), so they have no keys and no copy -
- *  writing copy for a shape nothing can detect is how a changelog ends up describing a feature that
- *  does not exist. */
+ *  TOTAL, NOT PARTIAL, AND THAT IS THE WHOLE ANSWER TO QA'S GAP. This was
+ *  `Partial<Record<PatternType, ...>>` with a `if (!copy) return null` behind it, which is a panel
+ *  that renders NOTHING for a shape it has just drawn - silently, with no build error and no runtime
+ *  complaint. QA was right that the silence is unacceptable; where we differed was the fix. They
+ *  proposed writing copy for five shapes; measurement says those five cannot occur, so the copy
+ *  would describe a feature that does not exist.
+ *
+ *  So the five left `PATTERN_TYPES` instead (see `UNDETECTABLE_PATTERN_TYPES` in
+ *  `lib/chartPatterns.ts` for the measurement), and this record became total. Now the TYPE enforces
+ *  what a spec could only observe: adding a pattern type without copy for it does not compile. No
+ *  cell has to notice, and the absence of the five is declared in one place rather than implied by
+ *  which keys happen to be here. */
 const COPY = {
   bull_flag: ['PATTERN_BULL_FLAG_NAME', 'PATTERN_BULL_FLAG_WHAT', 'PATTERN_BULL_FLAG_WATCH'],
   bear_flag: ['PATTERN_BEAR_FLAG_NAME', 'PATTERN_BEAR_FLAG_WHAT', 'PATTERN_BEAR_FLAG_WATCH'],
@@ -74,14 +82,14 @@ const COPY = {
   range: ['PATTERN_RANGE_NAME', 'PATTERN_RANGE_WHAT', 'PATTERN_RANGE_WATCH'],
   line_support: ['PATTERN_LINE_SUPPORT_NAME', 'PATTERN_LINE_SUPPORT_WHAT', 'PATTERN_LINE_SUPPORT_WATCH'],
   line_resistance: ['PATTERN_LINE_RESISTANCE_NAME', 'PATTERN_LINE_RESISTANCE_WHAT', 'PATTERN_LINE_RESISTANCE_WATCH'],
-} as const satisfies Partial<Record<PatternType, readonly [string, string, string]>>;
+} as const satisfies Record<PatternType, readonly [string, string, string]>;
 
 export default function PatternPanel({ type, timeframe }: Props) {
   const storageKey = `lhq_hint_pattern_${type}`;
   const [state, setState] = useState<'pending' | 'show' | 'collapsed'>('pending');
   const { t } = useLabels();
   const illustration = illustrationFor(type);
-  const copy = COPY[type as keyof typeof COPY] ?? null;
+  const copy = COPY[type];
 
   useEffect(() => {
     try {
@@ -101,11 +109,6 @@ export default function PatternPanel({ type, timeframe }: Props) {
   /* NO MARKER WRITE ON REOPEN, matching PageHint: reopening is for this session, and the next visit
      still starts collapsed rather than re-showing the full panel unprompted. */
   function reopen() { setState('show'); }
-
-  /* NO COPY MEANS NO PANEL. A pattern with no entry in COPY is one this layer cannot explain, and
-     an empty bordered box where a picture and an explanation were promised is worse than nothing.
-     Checked before the collapsed branch so a reopener cannot appear for a panel that has no body. */
-  if (!copy) return null;
 
   if (state === 'collapsed') {
     return (
