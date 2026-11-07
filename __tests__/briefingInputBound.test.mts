@@ -58,7 +58,7 @@ before(async () => {
   ) as CryptoKeyPair;
   publicJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
 
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  globalThis.fetch = (async (input: RequestInfo | URL, _init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     seen.push(url);
 

@@ -21,7 +21,7 @@
  * that is the after reading on #1474. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { appPath, appRoutes } from './_appPath.mts';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
