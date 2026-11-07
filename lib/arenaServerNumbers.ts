@@ -1,0 +1,180 @@
+/* #1631 ITEM 5, STEP 2: THE SERVER FETCHES THE ARENA'S NUMBERS ITSELF.
+ *
+ * Step 1 moved the prompt ASSEMBLY to `app/api/grok/route.ts` and shared the formatters in
+ * `lib/arenaContextFields.ts`. Every number in that prompt still arrived from the browser, so a
+ * hand-made request could describe any market it liked and be analysed on it. This module is the
+ * other half: it builds the same market row the browser builds, from the server's own feeds, and
+ * the route overwrites the client's values with it before the prompt is built.
+ *
+ * SHARED FORMATTER, NOT A SECOND ONE. The thirteen fields are formatted by
+ * `arenaNumberFields()` - the same function the Arena page calls. This module only assembles the
+ * ROW it is given. `lib/arenaContextFields.ts`'s header explains why that matters: each field is a
+ * sentence with interpretive text baked in ("68.4 (Overbought)"), and a prompt that differs by one
+ * adjective produces a different answer with nothing failing.
+ *
+ * ── TWO KINDS OF MISSING, AND THEY ARE ANSWERED DIFFERENTLY ─────────────────────────────────────
+ *
+ * This is the whole design, so it is stated before the code.
+ *
+ * 1. THE FEED IS DOWN. `marketSnapshotData()` returns `ok: false`, or names `ticker` in its
+ *    `partial` list because the section came back empty for EVERY coin. Then the server has no
+ *    numbers at all, and falling back to the client's would hand an attacker the method: induce a
+ *    feed failure, or simply wait for one, and the fabricated numbers go through exactly as before.
+ *    **So this is refused** - `ok: false`, and the route answers 503 without spending quota or
+ *    making an xAI call. Same shape as the route's existing PLAN_UNKNOWN: a read we cannot do
+ *    safely is retried, never guessed at, and never billed.
+ *
+ * 2. THE COIN IS OUTSIDE THE SERVER'S COVERAGE. The ticker section is populated but holds nothing
+ *    for this coin. **FOUR coins are in that state, not one**, and this comment said "exactly one
+ *    coin: hype" until 2026-11-06, which cost a release-blocker investigation - PM/DevOps read it
+ *    and reasonably asked whether an AI read for PEPE now refuses. Measured on prod the same day:
+ *    the snapshot carries 46 of the 50 tracked coins, and `hype`, `pepe`, `bonk` and `xau` are
+ *    absent from both `ticker` and `klines`.
+ *
+ *    `hype` is excluded from `SYMS` by name (`lib/marketSnapshotData.ts`). The other three never
+ *    reach `SYMS` at all: `BINANCE_HOLD` keeps `pepe` and `bonk` out of `BINANCE_SYMS`, and `xau`
+ *    has no Binance symbol - so the Bybit single-shot that could serve all three is never asked
+ *    for them, because `missingCoins` is derived from `SYMS`.
+ *
+ *    **So all four keep the browser's numbers**, and `fields` comes back empty. The count is not
+ *    restated here on purpose: the branch below is keyed on the ticker having no entry for the
+ *    coin, so it covers whatever is missing, and a number in a comment is the part that rots.
+ *
+ * WHY 2 IS NOT REFUSED, SINCE IT IS THE WEAKER CHOICE AND SHOULD BE ARGUED FOR RATHER THAN
+ * ASSUMED. Refusing it would turn "the server cannot source HYPE" into "Pro users cannot get an AI
+ * read on HYPE", which is removing a paid feature to close a hole that is open for every coin
+ * today. Keeping the client's numbers for an uncovered coin is **exactly today's behaviour for
+ * that coin** and strictly better for the 46 that are covered.
+ *
+ * AND THE BRANCH IS DELIBERATELY A CLASS RATHER THAN A LIST. There is no `coin === 'hype'` here.
+ * It tests whether a POPULATED ticker holds an entry for this coin, so three coins joining the gap
+ * after it was written changed nothing about the behaviour - which is the whole value of having
+ * written it that way, and the reason the stale count above was a documentation bug rather than a
+ * regression.
+ *
+ * It is also a FOLLOW-UP rather than a resting place. `lib/marketRsi.ts` already sources HYPE from
+ * Bybit (`BY_TIMEFRAMES`), and `marketSnapshotData` already carries `bybitTickerToEntry` and
+ * `bybitKlineToBinanceShape`. Extending the snapshot to cover HYPE closes this properly, and it
+ * changes `/api/market/snapshot` for every client, so it is its own change with its own check.
+ *
+ * ── WHAT A PER-FIELD GAP MEANS ──────────────────────────────────────────────────────────────────
+ *
+ * Within a coin the server DOES cover, a field it could not read becomes `'-'` through
+ * `arenaNumberFields`'s own `!= null` guards - **not** the client's value for that field. A
+ * mixed row, half server-sourced and half client-sourced, would be the hole again at field
+ * granularity, and nothing in the prompt would say which half was which. `'-'` is what the browser
+ * itself sends for an absent field, so this introduces no new vocabulary.
+ *
+ * ── COST ────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * Both reads are cached (`cached()` in each module, on their original TTLs) and both are shared
+ * with the polling market routes, so an Arena read usually adds no upstream traffic at all. The
+ * RSI call asks for the SLOW group only: `rsiSnapshot(false)` covers 1h, 4h and 1d, and the Arena
+ * needs no 5m reading. The gather runs AFTER the route's auth, entitlement and coin-ladder gates,
+ * so an unauthenticated or refused request causes no upstream call - a bill with no user attached
+ * is the thing those gates are ordered that way to prevent.
+ */
+import { marketSnapshotData } from './marketSnapshotData.ts';
+import { rsiSnapshot } from './marketRsi.ts';
+import { accountRatioFor } from './accountRatioData.ts';
+import { arenaNumberFields, SERVER_SOURCED_FIELDS, type ServerSourcedField } from './arenaContextFields.ts';
+import type { CoinData } from './marketStore.ts';
+import type { GrokContext } from './grok.ts';
+
+/** The subset of the context the server overwrites. Empty when the coin is outside its coverage. */
+export type ServerNumberFields = Partial<Pick<GrokContext, ServerSourcedField>>;
+
+export type ArenaNumbersResult =
+  | {
+      ok: true;
+      /** Keys to spread over the client's context. Empty means "keep what the client sent". */
+      fields: ServerNumberFields;
+      /** Which fields were sourced here. `[]` for a coin outside coverage. */
+      sourced: readonly ServerSourcedField[];
+      /** Snapshot sections that came back empty, passed through for logging. */
+      partial: readonly string[];
+      /** True when the ticker is populated but holds nothing for this coin. Four coins are in
+          that state as of 2026-11-06 - hype, pepe, bonk, xau - but this is not keyed on a list;
+          see the header. */
+      coinOutsideCoverage: boolean;
+    }
+  | { ok: false; reason: unknown };
+
+/**
+ * Build the Arena's numeric context fields from the server's own feeds.
+ *
+ * @param coin lowercase tracked coin id, as `arenaContextCoinId()` returns it. The snapshot and the
+ *   RSI map are both keyed this way (`SYMS` comes from `BINANCE_SYMS`, whose keys are these ids),
+ *   so no case mapping is needed - and getting that wrong would miss every coin and look exactly
+ *   like a feed outage.
+ */
+export async function arenaServerNumbers(coin: string): Promise<ArenaNumbersResult> {
+  /* Independent feeds, so allSettled-style independence: an RSI failure must not cost the price.
+     marketSnapshotData already returns a result rather than throwing; rsiSnapshot does too. */
+  const [snap, rsi, acct] = await Promise.all([
+    marketSnapshotData(),
+    rsiSnapshot(false),
+    /* THE THIRTEENTH FIELD, from a third provider on purpose - see lib/accountRatioData.ts. The
+       formatter's sentence is written for Bybit's 1h ACCOUNT ratio, and the market snapshot's `lsr`
+       carries Binance's 5m GLOBAL ratio: the same slot holding a different quantity. Started
+       alongside the other two so it costs no extra latency. */
+    accountRatioFor(coin),
+  ]);
+
+  if (!snap.ok) return { ok: false, reason: snap.reason };
+
+  /* THE SECTION, NOT THE COIN. `partial` names a section that came back empty for everyone, which
+     is an outage; a coin absent from a populated section is a coverage gap. Only the first is
+     refused - see the header. */
+  if (snap.data.partial.includes('ticker')) {
+    return { ok: false, reason: new Error('market snapshot returned an empty ticker section') };
+  }
+
+  const t = snap.data.ticker[coin];
+  if (!t) {
+    return { ok: true, fields: {}, sourced: [], partial: snap.data.partial, coinOutsideCoverage: true };
+  }
+
+  const k = snap.data.klines[coin];
+  const r = rsi.ok ? rsi.rsi[coin] : undefined;
+
+  /* The same shape the market store holds, so the shared formatter cannot tell which caller built
+     it. Every field is optional and every expression in the formatter guards with `!= null`, so a
+     missing feed degrades per field rather than losing the row. */
+  const row: Partial<CoinData> = {
+    price:         t.price,
+    change:        t.change,
+    ma20:          k?.ma20,
+    volRatio:      k?.volRatio,
+    rsi14:         k?.rsi14,
+    vwap:          k?.vwap,
+    takerBuyRatio: k?.takerBuyRatio,
+    poc:           k?.poc,
+    vah:           k?.vah,
+    val:           k?.val,
+    rsi1h:         r?.rsi1h,
+    rsi4h:         r?.rsi4h,
+    rsiDaily:      r?.rsiDaily,
+    /* `entry` is null when the coin has no Bybit symbol, or the symbol was absent from the run -
+       not fetched, never "zero". That degrades this one field to '-' through the formatter's own
+       guard, which is what a per-field gap means here. It does not refuse the request: the price
+       and the candles came from a different provider entirely. */
+    longRatio:     acct.ok ? acct.entry?.longRatio  : undefined,
+    shortRatio:    acct.ok ? acct.entry?.shortRatio : undefined,
+  };
+
+  /* Driven by SERVER_SOURCED_FIELDS rather than by a literal list, which is why adding
+     `longShortRatio` to that constant was the whole wiring - this loop covered the thirteenth field
+     the moment the list did. */
+  const all = arenaNumberFields(row);
+  const fields: ServerNumberFields = {};
+  for (const key of SERVER_SOURCED_FIELDS) fields[key] = all[key];
+
+  return {
+    ok: true,
+    fields,
+    sourced: SERVER_SOURCED_FIELDS,
+    partial: snap.data.partial,
+    coinOutsideCoverage: false,
+  };
+}

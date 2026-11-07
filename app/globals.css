@@ -1,14 +1,14 @@
-/* LANDING HARD GATE - this file is one of four that trips it.
+/* LANDING HARD GATE - this file is one of the files that trips it.
 
    Changing this file requires that LANDING (`/`) IS RENDERED and confirmed
-   unchanged in FOUR CONTEXTS - current/terminal x dark/light - before the PR
-   merges. Not "the selectors cannot reach landing", not "the diff is
+   unchanged in every reachable context - docs/HANDOVER.md section 14 names how
+   many, and the number has drifted before - before the PR merges. Not "the selectors cannot reach landing", not "the diff is
    additive": rendered. The rule and its history live in docs/HANDOVER.md
    section 14 (search: "landing renders identically"); this is a signpost, not a
    second copy of it.
 
    WHY THIS FILE. The owner keeps the canvas-mirrored landing (#592) and it was
-   deliberately excluded from the 2026-09-03 revert. These four files are shared
+   deliberately excluded from the 2026-09-03 revert. These files are shared
    between landing and the reverted screens, so a change aimed at an app screen
    reaches landing too. AppShell.tsx is the one that bit us - it rendered
    PriceTickerStrip on `/` gated on design mode rather than pathname.
@@ -427,7 +427,22 @@ body::after {
 }
 .app-logo { font-size: var(--fs-card-title); font-weight: 700; color: var(--txt); white-space: nowrap; flex-shrink: 0; letter-spacing: -0.3px; }
 .app-logo span { color: var(--accent-2); }
-.app-content { max-width: 700px; margin: 0 auto; padding: calc(var(--appbar-h) + var(--strip-h) + 32px + var(--banner-h)) 1rem 2rem; }
+/* RESERVES THE HEIGHT THE DELETED SKELETON USED TO HOLD (#1961 regression, QA on #1974).
+   Deleting app/(main)/loading.tsx removed the Suspense fallback that occupied this box while a
+   route loaded, so the shell painted with an empty `main` and content arriving pushed the page
+   down: CLS 0.146 on /arena against a 0.1 budget, plus the state-matrix overflow and the
+   /dashboard fetch-timing change QA measured, all from that one cause.
+
+   `min-height`, NOT a loading.tsx. A `loading.tsx` is an implicit <Suspense>, and that boundary is
+   what made React stream the real content into a `display:none` div that only client JS moves -
+   42-50 rendered words to a JS-less client on every page in the group, which is the defect #1961
+   fixed. Reserving the space in CSS gets the height back WITHOUT the boundary, so the JS-off word
+   count stays where #1961 put it (~840 on /).
+
+   100vh with `box-sizing: border-box` (globals line 330), so the element's own top padding counts
+   inside the reservation rather than adding to it - no overflow and no scrollbar that would shift
+   the layout on its own. */
+.app-content { max-width: 700px; margin: 0 auto; min-height: 100vh; padding: calc(var(--appbar-h) + var(--strip-h) + 32px + var(--banner-h)) 1rem 2rem; }
 /* 84px = navbar(52) + ticker(22) + 10px gap - safe at all times, plus --banner-h
    on top when the announcement banner is showing (see components/AnnouncementBanner.tsx) */
 

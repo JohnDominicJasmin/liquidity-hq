@@ -956,7 +956,31 @@ question was asked directly.
 migration scan carries its own positive control: a key that genuinely appears in migrations, taken
 from the tree. **Without it the migration cell passes if the glob misses, if the reads come back
 empty, or if the needle is simply never present anywhere — three distinct ways to be green over
-nothing**, and none of them distinguishable from a real pass.
+
+#### A FOURTH DIRECTION: a BANNED-substring control has the same blind spot as a required one
+
+**Found while shipping the 404 page's empty-chart graphic (#1895), by the author's own pre-merge
+control.** Every direction above is about a check that must find something. This one is the same
+defect on a check that must find NOTHING, and the comment that defeats it is explaining the very
+constraint the control exists to enforce.
+
+The chart was required to be static — no `fetch`, no `<canvas>`, no `Math.random`, no `animate` —
+so the pre-merge control asserted those strings are **absent** from the file. `Math.random` was not
+absent. **It is in the comment explaining why the component does not call it**, the same sentence
+this section is paraphrasing. The control cannot tell "the code calls it" from "the comment says it
+does not" — the exact failure 9d opened with, arrived from the other side.
+
+> **A required-substring gate goes green on a comment that merely mentions the right word. A
+> banned-substring gate goes red on a comment that correctly explains why the word does not appear
+> in the code. Same blindness, opposite direction.**
+
+**The merge was confirmed by reading the line, not by the control** — `NotFoundContent.tsx` was
+opened and the call site checked by eye. The control still ran and still logged a false positive,
+which is the point: **a banned-substring check needs the AST exclusion as much as a required one
+does**, and skipping it because "it only ever needs to find zero" is how this one shipped unguarded.
+No fix was written here — the chart has no behaviour to regress and the file is small enough to
+read — but a banned-substring control on a larger surface inherits this blind spot exactly as
+written above for the required kind.
 
 ### 9e. THE RULE ALL OF §9 COLLAPSES TO
 
@@ -1280,7 +1304,7 @@ match proves the regex compiles - not that it is the right regex, and not that i
 right file. **Eight checks on one day were working instruments asking the wrong question**, and a
 control aimed at that same wrong question agrees with them.
 
-**Eight instances on 2026-10-31, in eight different checks, across two sessions** - six below, then
+**Nine instances on 2026-10-31, in nine different checks, across two sessions** - six below, then
 two more in the subsection at the end, which were found while correcting the first six. **In every
 one the artifact was right and the check was wrong.** None resembled a tooling fault at the time;
 each read as a finding.
@@ -1329,10 +1353,11 @@ its own maintenance note warns against prose that indexes that table by position
 different failure with the same consequence - **a confident wrong answer that looks like data** -
 so it gets its own heading and its own table, and nothing above it needs re-reading.
 
-#### TWO MORE FROM THE SAME DAY, AND THE ONE-LINE TEST THAT COVERS BOTH
+#### THREE MORE FROM THE SAME DAY, AND THE ONE-LINE TEST THAT COVERS THE FIRST TWO
 
-**Eight instances now, not six.** The two added here are the same failure wearing different
-clothes, and together they produce the test worth memorising.
+**Nine instances now, not six.** The first two added here are the same failure wearing different
+clothes, and together they produce the test worth memorising. The third is its own thing and is at
+the end.
 
 **A grep over one file answers "does this file contain X". It never answers "does this code path
 do X".**
@@ -1360,6 +1385,53 @@ it sat next to; in the assembled file it plainly dominated the assertion.
 **Ordering is the property a diff shows worst** - it shows what changed, not what surrounds it -
 and ordering is exactly what a guard depends on. So: **a review finding about sequence, scope or
 dominance is checked against the file, never against the patch.**
+
+**AND A THIRD: THE WORKING TREE IS NOT THE RECORD.**
+
+A script added an eight-line header to eight SQL files. It decided their line endings by reading
+the checked-out copy, which git serves as CRLF on this machine, and wrote that back. **The repo
+stores those files as LF.** So every line of every file changed: **7,501 insertions for 64 lines of
+intended change**, 4,758 of them in each of three translation files.
+
+**Caught by reading `git show --stat` after committing, not by the commit succeeding.** The commit
+was clean, the content was right, and the diff was unreviewable.
+
+**The fix is to take the original bytes from git rather than from disk:** `git show <ref>:<path>`,
+assert the ending you expect, prepend in **binary**. No text-mode round-trip, so nothing can be
+re-encoded on the way through. Verified by diffing the result against the ORIGINAL - **+8 lines, 0
+deletions per file** - rather than against the previous commit, whose diff is also whole-file
+because it is undoing one.
+
+**Why it belongs in 9h rather than beside it:** the check that spoke was the script's own line-ending
+detection, and it was confidently wrong about the artifact it was editing. It is the same sentence as
+the rest of this section with a different subject - **the thing in front of you is not the thing of
+record** - and it is the third form of that today, after a page sweep that could not see a cron route
+and a partial file listing that nearly struck a correct note.
+
+
+**AND THE REASON TWO CLEAN REVIEWS KEEP MEETING A RED BUILD:**
+
+> **A review reads the change. CI reads the change plus everything that was pointed at it.**
+
+Twice on 2026-10-31 a change was cleared field by field by a second reader and then failed CI, both
+times because a source-reading test elsewhere was anchored on a token the change had moved. **Neither
+reader could have seen it by reading the diff**, because the thing that broke was not in it:
+
+| the change | what broke | the anchor it used |
+|---|---|---|
+| an RSI data layer moved to `lib/` | `rsiWilderOracle:54` | the route's file PATH |
+| thirteen prompt fields moved into a shared module | `aiFeedsUnknownNotEmpty:38` | the `rsi14` token that happened to FOLLOW the field it wanted |
+
+**That is four source-pin breaks on provably-safe changes in one day** - also a rename and a
+declaration style - and every one fired on the safe case while being blind to the dangerous one. A
+pin on a neighbour cannot tell a move from a deletion, and stays green through a behaviour change
+that keeps the text.
+
+**What follows for a reviewer: clearing a diff is not clearing a change.** The question a reader
+cannot answer is *what else names this?* - so for a move or a rename, grep the OLD name across
+`__tests__` and `qa/` before claiming it is safe, or say plainly that you cleared the content and
+not the references.
+
 
 **What makes these 9h rather than 9j.** Each check SPOKE - it produced a confident finding that
 was wrong - where 9j's checks stayed silent. The shared remedy is unchanged and is 9i's step 4: a
@@ -1539,3 +1611,130 @@ before a commit and right after it, with no change in output format and no error
 suspect the check first* - a check that **speaks**. This is a check that **stays silent**, which is
 harder, because disagreement prompts investigation and agreement does not. The shared remedy is
 9i's step 4: **a positive control, because a self-written check has no independence to borrow.**
+
+### 9k. A PARTIAL CHECK THAT AGREES WITH YOU IS HOW A CORRECT RECORD GETS "CORRECTED"
+
+> **9h is a check that speaks and is wrong. 9j is a check that stays silent. This is a check that is
+> RIGHT about what it examined, and examined the wrong half of the answer.**
+
+**And it is worse than a wrong check, because it destroys information rather than producing noise.**
+A failed grep leaves the record standing and someone re-runs it. **A partial confirmation deletes
+the record**, and nothing afterwards says a deletion happened.
+
+#### The instance, 2026-10-31
+
+A note recorded that the 404 page is permanently dark - it renders outside both root layouts, so it
+never gets `RootDocument`'s `beforeInteractive` theme script and keeps its hardcoded
+`data-theme="dark"` whatever the user stored.
+
+Asked to add a graphic to that page, the obvious first step was to check whether the claim still
+held. `app/(main)/not-found.tsx` was found, read, and **is** correctly themed - it sits inside
+`app/(main)/layout.tsx`, which renders `RootDocument`. Conclusion drawn: the note is stale, strike
+it.
+
+**The note was about `app/global-not-found.tsx`, a second file that was never listed.** It serves
+URLs outside the route tree, carries no theme script, and is still dark-only. PM measured it on
+production while the correction was being written: the theme-init script occurs **0** times on
+`/page-does-not-exist` and **2** times on `/faq` as the control.
+
+**THIS PROJECT HAS TWO 404 FILES AND THEY DO NOT BEHAVE THE SAME.** That is the specific fact; the
+general one is below.
+
+#### The test
+
+**Before striking a record, establish that you enumerated everything it could be about.** Not "I
+found the thing it mentions and it is fine" - *"this is the complete set of files/routes/rows this
+claim could refer to, and I checked all of them."*
+
+1. **An `ls` of one guessed path is not an enumeration.** `app/not-found.tsx` and
+   `app/(main)/not-found.tsx` were listed; `app/global-not-found.tsx` was not, because nothing
+   prompted the third guess. Glob the pattern, do not list the candidates you thought of.
+2. **A record that names a file is a lead, not a boundary.** The note said "outside both root
+   layouts" - a description that matches a CLASS, and the class had a member nobody had seen.
+3. **Agreement is the dangerous outcome, not disagreement.** A check that contradicts a record
+   invites a second look. One that confirms your suspicion ends the enquiry, which is the same
+   asymmetry as 9h's *"none of them resembled a tooling fault at the time"*.
+
+**Why it belongs in this section rather than being a one-off.** Every other entry here is about a
+check producing a wrong ANSWER. This one produced a right answer to a question that was not the one
+being asked - and the cost lands on the record rather than on the work, which is the only failure
+mode in §9 that is silent, permanent and self-congratulatory at the same time.
+
+### 9l. A TOOL THAT NEVER RAN REPORTS THE SAME SILENCE AS A TOOL THAT PASSED
+
+> **This is NOT 9d's mechanism and filing it there sends the reader to the wrong fix.** 9d's four
+> instances are all *the check read the wrong text* - a real subject, and a matcher that cannot tell
+> code from prose. The remedy is to strip comments or read the AST. **This one is the check
+> reporting the wrong result of running at all**, and comment-stripping has nothing to do with it.
+
+**Both halves happened within twenty minutes on 2026-10-31, on the same change, to the same person.**
+
+**ONE: the gate failed and the wrapper said success.**
+
+```
+npx tsc --noEmit > out.txt 2>&1; echo "TSC_EXIT=$?"  &&  echo "--- errors ---"  &&  grep ...
+```
+
+`tsc` exited **2** with a real error. The harness summary for the whole command read **"exit code
+0"** - correctly, because the last `echo` in the `&&` chain succeeded. **The compiler's failure was
+true, recorded, and invisible to the line a reader would glance at.**
+
+**TWO: the gate never started and the counter found nothing.**
+
+```
+npx next lint --max-warnings 9999
+error: unknown option '--max-warnings'
+LINT_EXIT=1   ...   "0 error lines"
+```
+
+`--max-warnings` is not a valid flag for this project's lint entry point. **eslint never ran**, so
+the output held one usage error and no findings - and a filter counting `error` lines in that output
+reported **zero**. *"0 errors"* from a tool that did not execute is byte-identical to *"0 errors"*
+from a clean run.
+
+**WHY THE PAIR MATTERS MORE THAN EITHER.** The first is a wrapper masking a real exit code; the
+second is a counter measuring empty output. **They are opposite causes with the same symptom**, so
+"check the exit code" fixes only the first and "read the output" fixes only the second.
+
+**THE RULE: a tool's own exit code belongs in the text you read, and a count of findings is never
+evidence the tool ran.** Print `EXIT=$?` immediately after the tool, before any pipe, filter or
+`&&`, and read that line - not the harness summary, not a downstream count, not the absence of
+output.
+
+```bash
+npx tsc --noEmit > out.txt 2>&1; echo "TSC_EXIT=$?"   # the tool's own status, first
+grep -c "error TS" out.txt                            # the count, which is only meaningful after it
+```
+
+**Neither of these was caught by care.** Both were caught because the command happened to print
+`EXIT=$?` into its own output and that line was read. The habit is cheap and nobody in this project
+had it by default - QA hit the third instance the same day, with a `sed` edit that silently did not
+apply while the suite went on reporting **16/16**, which would have shipped a report of a fix that
+was never made.
+
+**What this shares with the rest of §9**, and why it is here rather than in a tooling note: the
+reported result was *consistent with success* and nothing about it looked like a tooling fault at
+the time - 9h's *"none of them resembled a tooling fault"*, arriving one layer further out. The
+subject was never measured, and the measurement said so in a place nobody reads.
+
+**FOUR MORE INSTANCES, ONE DAY LATER (2026-11-05), ACROSS BOTH PM/DevOps AND Dev - "NOT YET" READ
+AS "NOTHING."**
+
+| who | the field | "not yet" | misread as |
+|---|---|---|---|
+| PM/DevOps | `gh pr ... .conclusion` | `null` while the run is `IN_PROGRESS` | no failure |
+| Dev | `gh run list --branch` | empty, run created seconds earlier | no run exists |
+| Dev | a pre-written echo, `(empty = none, so the gap is theoretical)` | the probe hadn't been re-run against current code | the gap stayed theoretical |
+| QA | a single-file test count reported without the file list | file-scoped number, tree not yet re-run as a whole | a tree-scoped number |
+
+**Same mechanism as the pair above, one field over.** There, a wrapper's own exit code was never
+read. Here, a *second* field exists that distinguishes "the check has not run yet" from "the check
+ran and found nothing" - `.status` next to `.conclusion`, a retry next to an empty list, a fresh run
+next to a stale comment, a file list next to a count - and none of the four readers looked at it
+before reporting the first field's silence as an answer.
+
+**THE REMEDY, as a rule rather than four separate fixes: when a field can be null or empty for two
+different reasons, read the field that tells you which reason, before reporting the first one.**
+`gh pr checks` has one; a cumulative counter has its reset time ([[feedback_counters_need_their_window]]
+elsewhere); a scoped measurement has its scope. The fix in every row above was not more care - it
+was one more field, read before the claim was made.

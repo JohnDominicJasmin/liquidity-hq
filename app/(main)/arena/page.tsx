@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'rea
 import Link from 'next/link';
 import { useNow } from '@/lib/useNow';
 import { useSearchParams } from 'next/navigation';
-import { useMarket, classifyFunding, CoinId, CoinData, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
+import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
@@ -49,6 +49,7 @@ import { latestStructureSignal, describeStructureSignal, type PASignal } from '@
 import { usePerpSpot } from '@/lib/usePerpSpot';
 import { formatRsi } from '@/lib/rsi';
 import { priceDigits, priceText, signedUsd } from '@/lib/numberFormat';
+import { arenaNumberFields } from '@/lib/arenaContextFields';
 import { announcePageCoin } from '@/lib/pageCoin';
 import { ageText, utcStamp } from '@/lib/promptTime';
 import AiDisclaimer from '@/components/AiDisclaimer';
@@ -113,8 +114,31 @@ function ReasoningText({ text }: { text: string }) {
   );
 }
 
+/* TWO QUESTIONS THAT SHARE A SET TODAY AND ARE NOT THE SAME QUESTION.
+ *
+ * Both derive from `COINS`, so they are equal right now. They are kept apart on purpose: a
+ * convenient boolean used for two purposes is how a badge starts lying, and the day one of these
+ * changes without the other, a single flag would report the wrong one with no sign on screen.
+ *
+ * SIGNAL_COINS  - "do we have funding, open interest and RSI for this coin?" Everything outside
+ *                 it has price and 24h change and nothing else, because the rest comes from
+ *                 per-coin fan-outs and widening those to 463 is a ninefold cost nobody chose.
+ *                 Drives the `n/a` in the Status and Score columns - a squeeze score of 0 built
+ *                 from no funding is indistinguishable from a real neutral on screen.
+ *
+ * READABLE_COINS - "will /api/grok accept an AI read for this coin?" `parseArenaContext` checks
+ *                 membership of `COINS`, so an untracked coin is refused before any plan read,
+ *                 for every tier including Pro. Drives the selector's note and the error line.
+ *
+ * If these ever diverge, the comment above each is what says which badge was wrong. */
+const SIGNAL_COINS = new Set<string>(COINS);
+const READABLE_COINS = new Set<string>(COINS);
+
 const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', readonly CoinId[]> = {
-  all:    COINS,
+  /* Every instrument both venues trade, not the rendered 50 - this is the one surface the
+     owner asked to cover the whole market, and the search box and category tabs it already
+     has are what make 463 entries navigable without a new control. */
+  all:    UNIVERSE_COINS,
   majors: ['btc', 'eth', 'sol', 'xrp', 'bnb', 'ltc', 'bch', 'ada'],
   alts:   ['near', 'sui', 'avax', 'link', 'dot', 'atom', 'arb', 'op', 'apt', 'sei', 'inj', 'tia', 'trx', 'xlm', 'etc', 'fil', 'stx'],
   defi:   ['hype', 'aave', 'uni', 'ldo', 'rune', 'gmx', 'crv', 'jup', 'wld', 'render', 'tao', 'fet', 'ondo', 'pyth', 'ena', 'dydx', 'xau', 'spx'],
@@ -1003,29 +1027,15 @@ function ArenaContent() {
     const session = getSessionName(new Date());
 
     /* 15m technicals */
-    const rsi14 = coin?.rsi14 != null
-      ? coin.rsi14.toFixed(1) + (coin.rsi14 >= 70 ? ' (Overbought)' : coin.rsi14 <= 30 ? ' (Oversold)' : ' (Neutral)')
-      : '-';
-    const ma20 = coin?.ma20 != null ? priceText(coin.ma20) : '-';
-    const priceVsMA = coin?.price && coin?.ma20
-      ? coin.price > coin.ma20
-        ? 'ABOVE MA20 (+' + ((coin.price / coin.ma20 - 1) * 100).toFixed(2) + '% - bullish)'
-        : 'BELOW MA20 (' + ((coin.price / coin.ma20 - 1) * 100).toFixed(2) + '% - bearish)'
-      : '-';
-    const volRatio = coin?.volRatio != null
-      ? coin.volRatio.toFixed(2) + 'x' + (coin.volRatio >= 1.5 ? ' (spike)' : coin.volRatio <= 0.6 ? ' (dry)' : ' (normal)')
-      : '-';
-    const longShortRatio = coin?.longRatio != null && coin?.shortRatio != null
-      ? 'Long ' + (coin.longRatio * 100).toFixed(1) + '% / Short ' + (coin.shortRatio * 100).toFixed(1) + '%'
-        + (coin.longRatio > 0.6 ? ' (overleveraged longs)' : coin.shortRatio > 0.6 ? ' (overleveraged shorts)' : ' (balanced)')
-      : '-';
+    /* THE THIRTEEN FIELDS THE SERVER ALSO SOURCES, formatted by the shared function so the two
+       callers cannot drift (#1631 item 5). They were inline here; the expressions moved to
+       lib/arenaContextFields.ts unchanged, and this page's output is identical.
 
-    /* Multi-TF RSI */
-    const fmt = (v: number | null | undefined) => v != null
-      ? v.toFixed(0) + (v >= 70 ? ' (Overbought)' : v <= 30 ? ' (Oversold)' : ' (Neutral)')
-      : '-';
-    const rsi1h = fmt(coin?.rsi1h);
-    const rsi4h = fmt(coin?.rsi4h);
+       Shared rather than duplicated on purpose: each one is a sentence with interpretive text in
+       it, and a server-side copy differing by a space or a threshold would change the prompt - and
+       so the answer - with nothing failing. */
+    const numberFields = arenaNumberFields(coin);
+
 
     /* CVD */
     const cvd = coin?.cvd != null
@@ -1135,23 +1145,7 @@ function ArenaContent() {
     const sectorRotation = computeSectorRotation(store, selectedCoin).line;
 
     /* Volume Profile POC */
-    const pocLine = coin?.poc != null
-      ? priceText(coin.poc)
-        + (coin.vah != null ? ' | VAH ' + priceText(coin.vah) : '')
-        + (coin.val != null ? ' | VAL ' + priceText(coin.val) : '')
-        + (coin.price && coin.poc ? (coin.price > coin.poc ? ' - price ABOVE POC (bullish)' : ' - price BELOW POC (bearish)') : '')
-      : '-';
 
-    /* Taker Buy/Sell ratio */
-    const takerBuy = coin?.takerBuyRatio;
-    const takerRatio = takerBuy != null
-      ? `Buy ${Math.round(takerBuy * 100)}% / Sell ${Math.round((1 - takerBuy) * 100)}%`
-        + (takerBuy >= 0.65 ? ' - aggressive buyers hitting asks (BULLISH)'
-        :  takerBuy >= 0.55 ? ' - mild buy pressure'
-        :  takerBuy <= 0.35 ? ' - aggressive sellers hitting bids (BEARISH)'
-        :  takerBuy <= 0.45 ? ' - mild sell pressure'
-        :                     ' - balanced flow')
-      : '-';
 
     /* Coinbase Premium */
     const cbPremium = store.cbPremium != null && store.cbPremiumPct != null
@@ -1162,15 +1156,6 @@ function ArenaContent() {
         :                               ' - neutral')
       : '-';
 
-    /* VWAP */
-    const vwap = coin?.vwap != null
-      ? priceText(coin.vwap)
-        + (coin.price
-          ? (coin.price > coin.vwap
-              ? ' - price ABOVE VWAP (bullish, paying up)'
-              : ' - price BELOW VWAP (bearish, distributing)')
-          : '')
-      : '-';
 
     /* OI Trend vs Price */
     const OI_TREND_LABELS: Record<string, string> = {
@@ -1286,8 +1271,9 @@ function ArenaContent() {
     return {
       coin: selectedCoin.toUpperCase() + '/USDT',
       // #1631 B: toLocaleString() keeps at most 3 decimals, so a PEPE-sized price read "$0".
-      price: coin?.price ? priceText(coin.price) : '-',
-      change24h: coin?.change != null ? (coin.change >= 0 ? '+' : '') + coin.change.toFixed(2) + '%' : '-',
+      /* The thirteen server-sourced fields. Spread FIRST so a later key in this object would
+         visibly override one rather than doing it silently - see SERVER_SOURCED_FIELDS. */
+      ...numberFields,
       fundingRate: coin?.fundingRate != null ? classifyFunding(coin.fundingRate).label : '-',
       openInterest: coin?.oi != null ? '$' + (coin.oi / 1e9).toFixed(2) + 'B' : '-',
       fearGreed: store.fng != null ? store.fng + ' (' + store.fngLabel + ')' : '-',
@@ -1298,18 +1284,17 @@ function ArenaContent() {
         ? [...latestNews].sort((a, b) => b.ts - a.ts).slice(0, 15)
             .map(n => `- [${utcStamp(n.ts * 1000)}, ${ageText(now - n.ts * 1000)} | ${n.source || 'news feed'}] ${n.headline}`).join('\n')
         : alertsLoaded ? 'No recent alerts' : 'News feed unavailable (not loaded) - do not assume there is no news',
-      rsi14, ma20, priceVsMA, volRatio, longShortRatio,
       oilPrice, bonds10y, real10y, upcomingEvents: upcoming,
       etfFlows: etfDaysText(store.etfFlowDays), ethEtfFlows: etfDaysText(store.ethEtfFlowDays),
-      rsi1h, rsi4h, rsiDaily: fmt(coin?.rsiDaily), cvd, cvdDivergence, basis, fibNearest, orderWalls, squeezeScore,
+      cvd, cvdDivergence, basis, fibNearest, orderWalls, squeezeScore,
       pcRatio, maxPain, btcGex,
       exchangeNetFlow, stablecoinFlow, liqLevels, btcDomTrend, sectorRotation,
       // Placeholder: needs candles, which this synchronous builder has no
       // access to. Overridden at the call site once they are fetched, the same
       // way rsiDaily is - see the gatherContext() spread below.
       structureBreak: '-',
-      pocLine, dxyLine, spxLine, goldLine,
-      cbPremium, vwap, oiTrend, takerRatio, crossExchangeFunding,
+      dxyLine, spxLine, goldLine,
+      cbPremium, oiTrend, crossExchangeFunding,
       cascadeLine, whaleFlow,
       distribution: (() => {
         if (!coin?.price) return '-';
@@ -1661,6 +1646,15 @@ function ArenaContent() {
       }
       /* #1596: the server refuses Quick/Deep on a coin outside BTC/ETH/SOL for an account that has not paid (403 COIN_LOCKED). Reachable
          when the plan was unknown to the page at click time. Same labelled line and Upgrade link as the lock above the chart. */
+      /* #1263: the selector offers every instrument both venues trade and the AI read covers the
+         tracked list only. The server's own sentence is "Invalid request.", in English, which blames
+         the user for picking a row WE rendered - so this gets a translated line naming what is
+         readable. The `n/a` marks in the selector are the same fact, said before they click. */
+      if ((e as { code?: string }).code === 'COIN_NOT_TRACKED') {
+        setReadError(t('ARENA_READ_COIN_NOT_TRACKED', { coin: selectedCoin.toUpperCase() }));
+        setReadProLocked(false);
+        return;
+      }
       if ((e as { code?: string }).code === 'COIN_LOCKED') {
         setReadError(t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }));
         setReadProLocked(true);
@@ -1761,7 +1755,7 @@ function ArenaContent() {
 
   /* ── Squeeze scanner data - sorted by 24h volume descending (BTC → ETH → ...) ── */
   const btcChange = store.coins['btc']?.change ?? null;
-  const scannerRows = COINS
+  const scannerRows = UNIVERSE_COINS
     .filter(c => coinCat === 'all' || (CAT_FILTER_COINS[coinCat] as readonly CoinId[]).includes(c))
     .map(c => {
       const coin   = store.coins[c];
@@ -1776,6 +1770,10 @@ function ArenaContent() {
       if (vsBtc != null && vsBtc >= 2)  badges.push({ key: 'ARENA_SCANNER_BADGE_BEATS_BTC', tone: 'good' });
       if (vsBtc != null && vsBtc <= -2) badges.push({ key: 'ARENA_SCANNER_BADGE_LAGS_BTC', tone: 'bad' });
       return {
+        /* Carried per row rather than checked at render, so one place decides and the cells
+           cannot disagree. Two flags, not one - see the comment on the two sets. */
+        hasSignals: SIGNAL_COINS.has(c),
+        canRead: READABLE_COINS.has(c),
         c, badges, vsBtc,
         sq:     computeSqueezeScore(coin),
         price:  coin?.price  ?? null,
@@ -2031,9 +2029,12 @@ function ArenaContent() {
             <div style={{ maxHeight: 380, overflowY: 'auto' }}>
             {visibleScannerRows.length === 0 ? (
               <div style={{ padding: '12px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>{t('ARENA_SCANNER_NO_MATCH', { search: scannerSearch })}</div>
-            ) : visibleScannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges }) => {
+            ) : visibleScannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges, hasSignals, canRead }) => {
               const isSelected  = c === selectedCoin;
-              const isActive    = rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
+              /* A row with no funding and no OI can never be active - and must not read as a
+                 calm market either. `isActive` stays false and the two signal cells below print
+                 an explicit unknown instead of 0 and a neutral dot. */
+              const isActive    = hasSignals && rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
               const icon        = rowSq.dir === 'SHORT_SQ' ? '↑' : rowSq.dir === 'LONG_LIQ' ? '↓' : '';
               const statusLabel = rowSq.dir === 'SHORT_SQ' ? t('ARENA_SCANNER_STATUS_SQUEEZE') : rowSq.dir === 'LONG_LIQ' ? t('ARENA_SCANNER_STATUS_FLUSH') : t('ARENA_SCANNER_STATUS_NEUTRAL');
               const vsBtcColor  = vsBtc == null ? 'var(--txt3)' : vsBtc >= 2 ? 'var(--green-2)' : vsBtc <= -2 ? 'var(--red)' : 'var(--txt3)';
@@ -2083,7 +2084,12 @@ function ArenaContent() {
                           })}
                         </div>
                       ) : (
-                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1 }}>{t('ARENA_SCANNER_USDT_PERP')}</div>
+                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1 }}>
+                          {/* Said before the click, not after. A row with no AI read is still worth
+                              selecting - the chart and the price work - so this is a note, not a
+                              disabled control. */}
+                          {canRead ? t('ARENA_SCANNER_USDT_PERP') : t('ARENA_SCANNER_NO_AI_READ')}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -2111,12 +2117,20 @@ function ArenaContent() {
                         {icon} {statusLabel}
                       </span>
                     ) : (
-                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_SCANNER_NEUTRAL_DOT')}</span>
+                      <span
+                        style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}
+                        title={hasSignals ? undefined : t('ARENA_SCANNER_NO_SIGNALS_TITLE')}
+                      >
+                        {hasSignals ? t('ARENA_SCANNER_NEUTRAL_DOT') : t('ARENA_SCANNER_NO_SIGNALS')}
+                      </span>
                     )}
                   </div>
                   {/* Score */}
-                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isActive ? rowSq.color : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
-                    {rowSq.score}
+                  <span
+                    style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isActive ? rowSq.color : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}
+                    title={hasSignals ? undefined : t('ARENA_SCANNER_NO_SIGNALS_TITLE')}
+                  >
+                    {hasSignals ? rowSq.score : t('ARENA_SCANNER_NO_SIGNALS')}
                   </span>
                 </button>
               );

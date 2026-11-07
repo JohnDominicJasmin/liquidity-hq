@@ -102,7 +102,7 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
   });
   // #1665 (#1631 E): the browser sends the conversation as `messages` and the selection as DATA (`context.selection`); the server writes
   // the system prompt from it. The answer is { text, followUps, citations, _usage }.
-  await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
+  /* THE FENCE IS INSTALLED ONCE, ABOVE, AND A SECOND INSTALL USED TO SIT HERE - which is what broke the four cells in this file. `installPaidAiFence` is idempotent on its RECORD but not on its HANDLER: a second call registers a second handler, and Playwright matches the MOST RECENTLY registered one. So this install sat after the /api/grok stub and aborted the very POST the stub existed to fulfil - the request reached the network log, the stub never ran, and grokPosts stayed 0 while the error said "QUICK never reached the stubbed /api/grok". The helper says so on itself: "Install before any spec-specific page.route." */
   await page.route('**/api/grok-chat', route => {
     const body = route.request().postDataJSON() as { messages?: ChatTurn[]; context?: { selection?: string } };
     chatBodies.push({ turns: body?.messages ?? [], selection: body?.context?.selection ?? '' });

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
-import { gotoGuarded, marketDataUnavailable } from './_shared';
+import { gotoGuarded, marketDataUnavailable, entitlementsUnresolved } from './_shared';
+import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 
 /* Does the STALE-CALENDAR state reach the screen? (#298, dev's PR #307)
@@ -103,6 +104,15 @@ async function macroText(page: Page): Promise<string> {
   const down = await marketDataUnavailable(page.request);
   test.skip(down !== null, down ?? '');
 
+  /* THE THIRD BRANCH, which the Pro-gate control below cannot see. `arena/page.tsx:2707` renders
+     the couldn't-verify card when the entitlements read fails, and that card says NEITHER
+     "part of Pro" nor "Unlock with Pro" - so the control passes and the card assertion then
+     fails as "did not appear at all", which is a sentence about the product produced by a
+     database read. Must come BEFORE the Pro-gate control: of the two it is the one that would
+     otherwise be reported as something else. */
+  const unresolved = await entitlementsUnresolved(page);
+  test.skip(unresolved !== null, unresolved ?? '');
+
   expect(body, 'the Confluence card is Pro-gated and did not render - this run measured nothing')
     .not.toMatch(/part of Pro|Unlock with Pro/i);
 
@@ -129,6 +139,15 @@ test.describe('stale econ calendar reaches the screen', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE, AND RE-ARMED AFTER ANY unrouteAll.
+      These specs were safe in CI only by accident of the environment:
+      `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the SERVER, so a browser
+      request reaching a paid AI route cost nothing. Against a DEPLOYED service that stub does not
+      exist and the call is real and billed - the whole reason a targeted staging run needed this
+      first.
+      Before the spec's own routes because Playwright matches the most recently registered handler,
+      so installing it last would swallow the stubs instead (#1958). */
+      await installPaidAiFence(page);
     /* The load-bearing one. A build that renders the stale warning
        unconditionally satisfies every positive assertion below, and a permanent
        "cannot be checked" is worse than the bug it replaces - unfalsifiable, and
@@ -139,6 +158,12 @@ test.describe('stale econ calendar reaches the screen', () => {
 
     expect(text, 'a one-hour-old calendar was reported as out of date')
       .not.toMatch(STALE_TEXT);
+      /* THE FENCE ASSERTED, not just installed. The abort protects the bill on its own, but a
+         spec whose stub glob stops matching would then reach a paid route, be silently aborted,
+         and still pass - so an unasserted fence is a fence with a gate (this helper's own
+         header). Last statement in the try so a real assertion failure above surfaces first
+         rather than being masked by this one. */
+      assertNoUnstubbedPaidAi(page, 'econ-staleness');
     } finally { await ctx.close(); }
   });
 
@@ -146,6 +171,15 @@ test.describe('stale econ calendar reaches the screen', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE, AND RE-ARMED AFTER ANY unrouteAll.
+      These specs were safe in CI only by accident of the environment:
+      `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the SERVER, so a browser
+      request reaching a paid AI route cost nothing. Against a DEPLOYED service that stub does not
+      exist and the call is real and billed - the whole reason a targeted staging run needed this
+      first.
+      Before the spec's own routes because Playwright matches the most recently registered handler,
+      so installing it last would swallow the stubs instead (#1958). */
+      await installPaidAiFence(page);
     /* ONE hour, not three. At three the release sits outside computeMacroRisk's
        caution window, so the card legitimately says nothing about it - and the
        positive assertion below would then fail on correct behaviour. Matching
@@ -171,6 +205,12 @@ test.describe('stale econ calendar reaches the screen', () => {
       'neither the risk nor the staleness notice')
       .toMatch(/CPI|reduce size|volatility spike/i);
 
+      /* THE FENCE ASSERTED, not just installed. The abort protects the bill on its own, but a
+         spec whose stub glob stops matching would then reach a paid route, be silently aborted,
+         and still pass - so an unasserted fence is a fence with a gate (this helper's own
+         header). Last statement in the try so a real assertion failure above surfaces first
+         rather than being masked by this one. */
+      assertNoUnstubbedPaidAi(page, 'econ-staleness');
     } finally { await ctx.close(); }
   });
 
@@ -178,6 +218,15 @@ test.describe('stale econ calendar reaches the screen', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE, AND RE-ARMED AFTER ANY unrouteAll.
+      These specs were safe in CI only by accident of the environment:
+      `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the SERVER, so a browser
+      request reaching a paid AI route cost nothing. Against a DEPLOYED service that stub does not
+      exist and the call is real and billed - the whole reason a targeted staging run needed this
+      first.
+      Before the spec's own routes because Playwright matches the most recently registered handler,
+      so installing it last would swallow the stubs instead (#1958). */
+      await installPaidAiFence(page);
     /* 48h - past dev's 24h threshold. The events array is deliberately EMPTY,
        because that is the defect: an old set does not show expired rows, it is
        simply missing whatever was scheduled since the writer stopped. The search
@@ -187,6 +236,12 @@ test.describe('stale econ calendar reaches the screen', () => {
 
     expect(text, 'a 48h-old calendar rendered without saying it could not be checked')
       .toMatch(STALE_TEXT);
+      /* THE FENCE ASSERTED, not just installed. The abort protects the bill on its own, but a
+         spec whose stub glob stops matching would then reach a paid route, be silently aborted,
+         and still pass - so an unasserted fence is a fence with a gate (this helper's own
+         header). Last statement in the try so a real assertion failure above surfaces first
+         rather than being masked by this one. */
+      assertNoUnstubbedPaidAi(page, 'econ-staleness');
     } finally { await ctx.close(); }
   });
 
@@ -194,6 +249,15 @@ test.describe('stale econ calendar reaches the screen', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE, AND RE-ARMED AFTER ANY unrouteAll.
+      These specs were safe in CI only by accident of the environment:
+      `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the SERVER, so a browser
+      request reaching a paid AI route cost nothing. Against a DEPLOYED service that stub does not
+      exist and the call is real and billed - the whole reason a targeted staging run needed this
+      first.
+      Before the spec's own routes because Playwright matches the most recently registered handler,
+      so installing it last would swallow the stubs instead (#1958). */
+      await installPaidAiFence(page);
     /* THE MUTATION THE OTHER FOUR CANNOT CATCH, and dev named it on the PR.
      *
      * A guard that fires on `stale` REGARDLESS of what was found would replace
@@ -230,6 +294,12 @@ test.describe('stale econ calendar reaches the screen', () => {
       'neither the risk nor the staleness notice')
       .toMatch(/CPI|reduce size|volatility spike/i);
 
+      /* THE FENCE ASSERTED, not just installed. The abort protects the bill on its own, but a
+         spec whose stub glob stops matching would then reach a paid route, be silently aborted,
+         and still pass - so an unasserted fence is a fence with a gate (this helper's own
+         header). Last statement in the try so a real assertion failure above surfaces first
+         rather than being masked by this one. */
+      assertNoUnstubbedPaidAi(page, 'econ-staleness');
     } finally { await ctx.close(); }
   });
 
@@ -237,6 +307,15 @@ test.describe('stale econ calendar reaches the screen', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
+      /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE, AND RE-ARMED AFTER ANY unrouteAll.
+      These specs were safe in CI only by accident of the environment:
+      `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the SERVER, so a browser
+      request reaching a paid AI route cost nothing. Against a DEPLOYED service that stub does not
+      exist and the call is real and billed - the whole reason a targeted staging run needed this
+      first.
+      Before the spec's own routes because Playwright matches the most recently registered handler,
+      so installing it last would swallow the stubs instead (#1958). */
+      await installPaidAiFence(page);
     /* Dev's call, and the right one: we cannot show the set is complete, and
        claiming freshness we have not established is the failure being fixed. */
     await installSnapshot(page, { ageHours: null, events: [] });
@@ -244,6 +323,12 @@ test.describe('stale econ calendar reaches the screen', () => {
 
     expect(text, 'a snapshot with no updated_at was treated as fresh')
       .toMatch(STALE_TEXT);
+      /* THE FENCE ASSERTED, not just installed. The abort protects the bill on its own, but a
+         spec whose stub glob stops matching would then reach a paid route, be silently aborted,
+         and still pass - so an unasserted fence is a fence with a gate (this helper's own
+         header). Last statement in the try so a real assertion failure above surfaces first
+         rather than being masked by this one. */
+      assertNoUnstubbedPaidAi(page, 'econ-staleness');
     } finally { await ctx.close(); }
   });
 });

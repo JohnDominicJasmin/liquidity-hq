@@ -697,12 +697,49 @@ test('A8. the routes that RECORD an AI cost are exactly the routes behind the ca
   const app = filesUnder('app');
   const recorders = app.filter((f) => /\brecordAiCall\b/.test(read(f)));
   const gated = app.filter((f) => /\b(incrementUsageColumn|incrementToolUsage)\(/.test(read(f)));
-  assert.equal(gated.length, 14, 'the cap is said to cover all 14 AI routes');
+  /* A FLOOR, NOT A COUNT, and the change is deliberate. This read `=== 14` and went red the moment
+     Draw Structure became the 15th capped route (#1881) - a cell failing because the product grew
+     correctly. The real assertion is the set equality on the next line: every route that spends is
+     capped, and every capped route is logged. The number's only job is to catch a BROKEN
+     enumeration, which a floor does just as well while staying green as routes are added. */
+  assert.ok(gated.length >= 14, `only ${gated.length} capped AI routes found (14 on 2026-10-30), so the enumeration broke and the set comparison below would be vacuous`);
   assert.deepEqual([...recorders].sort(), [...gated].sort(), 'a route spends AI money without the cap, or is capped without being logged');
+  /* THIS ASSERTED A VARIABLE NAME, AND #1881 IS WHY IT NO LONGER DOES. It read
+     `/usageResult\.reason/`, which every route happened to satisfy because each one binds the cap
+     result to `usageResult` SOMEWHERE in the file - not necessarily at the call that words the
+     refusal. Draw Structure caps through `incrementToolUsage` and binds `usage`, so the cell went
+     red while the behaviour it is named for was present and correct.
+
+     Dev Team declined the one-character rename and was right to. It would have turned the cell
+     green while leaving it testing the same wrong thing: the next route that binds it differently
+     fails, and a route carrying `usageResult.reason` in a COMMENT passes while doing nothing. The
+     cell's name claims the reason is passed on, so that is what it should assert - and every capped
+     route words its refusal through `rateLimitMessage`, so the strong form is available.
+
+     Binding-agnostic on purpose: it matches `rateLimitMessage(reason, ...)` (the five routes that
+     throw through a custom error class) and `rateLimitMessage(usageResult.reason, ...)` (the nine
+     that return inline), and it will match whatever the sixteenth route calls its variable. */
+  const REASON_REACHES_MESSAGE = /rateLimitMessage\(\s*(?:[A-Za-z_$][\w$]*\s*\.\s*)*reason\b/;
+
+  /* CONTROL, on fixtures rather than on the tree, so it cannot pass by accident of what is
+     currently checked in - and so it still fires on the day every route is correct. */
+  assert.ok(REASON_REACHES_MESSAGE.test("super(rateLimitMessage(reason, limit, 'dry powder checks'));"),
+    'the pattern misses the bare-binding form, so the five class-based routes would fail for no reason');
+  assert.ok(REASON_REACHES_MESSAGE.test('{ error: rateLimitMessage(usageResult.reason, limit, label) }'),
+    'the pattern misses the property form, so the nine inline routes would fail for no reason');
+  assert.ok(REASON_REACHES_MESSAGE.test("super(rateLimitMessage(usage.reason, limit, 'Draw Structure'));"),
+    'the pattern is still keyed on the binding name, which is the defect this replaced');
+  assert.equal(REASON_REACHES_MESSAGE.test("rateLimitMessage(limit, 'thesis checks')"), false,
+    'the pattern passes a call that never mentions the reason, so it asserts nothing');
+  assert.equal(REASON_REACHES_MESSAGE.test('/* we pass usageResult.reason on */ return json(429, {})'), false,
+    'the pattern passes a mention in a comment - the exact weakness that made the old assertion vacuous');
+
   for (const f of gated) {
     const src = read(f);
-    assert.ok(/usageResult\.reason/.test(src), `${f} does not pass the block reason on`);
+    /* Certain assertion first: if rateLimitMessage is absent entirely, say that rather than
+       reporting the reason as missing from a call that is not there. */
     assert.ok(/rateLimitMessage\(/.test(src), `${f} does not word the refusal through rateLimitMessage`);
+    assert.ok(REASON_REACHES_MESSAGE.test(src), `${f} calls rateLimitMessage without passing the block reason into it, so the refusal cannot say WHY it refused`);
   }
 });
 

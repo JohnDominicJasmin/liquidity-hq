@@ -18,6 +18,7 @@ import test, { after } from 'node:test';
 import { register } from 'node:module';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { marketStandIn } from './_marketStandIn.mts';
 import { NextRequest } from 'next/server';
 import {
   signalPlanFor, signalsAllowedFor, coinLockedForUnpaid, normalizeCoinId, aiCoinAllowed, gateSignal,
@@ -134,12 +135,35 @@ const PERSONAS: Record<string, Persona> = {
   lapsed: { token: 'tok_lapsed', id: 'u-lapsed', row: { role: 'pro', trial_ends_at: null, current_period_end: new Date(Date.now() - 5 * DAY).toISOString() } },
   none:   { token: 'tok_none',   id: 'u-none',   row: null },
 };
+/* A MOVABLE CLOCK, because lib/apiCache.ts reads Date.now and marketSnapshotData caches the
+   ticker for TICKER_TTL (3 min). Without advancing it, a test that makes the ticker fail is
+   served the previous test's cached ticker and reads as "the route did not refuse". The same
+   pattern aiFeedsUnknownNotEmpty.test.mts uses, and safe here because the personas carry opaque
+   bearer strings rather than JWTs with an exp. */
+const realNow = Date.now.bind(Date);
+let clockOffset = 0;
+Date.now = () => realNow() + clockOffset;
+/** Move past every market TTL, so the next gather actually calls the stand-in. */
+const expireMarketCaches = () => { clockOffset += 10 * 60_000; };
+
 const db = {
   ai: [] as string[], reservations: 0, usageWrites: 0, ledgerInserts: 0, failSubsRead: false, banned: false,
+  /* The xAI request BODIES, for #1910 item 4: the overwrite is only observable in the prompt the
+     model is actually sent, and db.ai records pathnames only. */
+  prompts: [] as string[],
+  /* #1910 item 5: an empty TICKER SECTION is the outage the route refuses on - not an absent
+     coin, which is item 6's coverage gap. Set per test, answered in the stub below. */
+  emptyTicker: false,
+  /* How many times the empty-ticker answer was actually served. Zero while emptyTicker is set
+     means the mkt:ticker CACHE answered instead and the cell measured nothing. */
+  emptyTickerServed: 0,
   /* Paths the route asked for that the stand-in does not model. Collected rather than thrown (see the fall-through below) and asserted
      after every call, so a gap names itself instead of surfacing as a status mismatch several seconds later. */
   unknown: [] as string[],
-  reset() { this.ai = []; this.reservations = 0; this.usageWrites = 0; this.ledgerInserts = 0; this.failSubsRead = false; this.banned = false; this.unknown = []; },
+  /* Market feeds the gather reached. A cell can assert the gather HAPPENED rather than inferring
+     it from a 200 - see the market stand-in below. */
+  market: [] as string[],
+  reset() { this.prompts = []; this.emptyTicker = false; this.emptyTickerServed = 0; this.ai = []; this.reservations = 0; this.usageWrites = 0; this.ledgerInserts = 0; this.failSubsRead = false; this.banned = false; this.unknown = []; this.market = []; },
 };
 const T = (n: string) => (process.env.NEXT_PUBLIC_APP_ENV === 'dev' ? 'lhq_dev_' : 'lhq_') + n;
 const noRow = () => json(406, { code: 'PGRST116', details: 'The result contains 0 rows', message: 'JSON object requested, multiple (or no) rows returned' });
@@ -150,6 +174,8 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = new URL(req.url);
   if (url.host === 'api.x.ai') {
     db.ai.push(url.pathname);
+    /* Read off init rather than the Request, which the route may still hold. */
+    db.prompts.push(typeof init?.body === 'string' ? init.body : '');
     /* A COMPLETE answer - a signal AND a whole-number confidence. These tests are about the coin ladder, the quota and the endpoint, so
        the answer's text is scaffolding; it just has to be one the route accepts. Since #1651 item 3 (owner-approved) an answer carrying
        one and not the other is asked again and then refused with 502 BAD_ANSWER, rather than shown as "BULLISH 0%" - so a stub with no
@@ -158,6 +184,26 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (url.pathname.endsWith('/responses')) return json(200, { model: 'qa-stand-in', usage: {}, output: [{ type: 'message', content: [{ text: 'SIGNAL: BULLISH\nCONFIDENCE: 60' }] }] });
     return json(200, { model: 'qa-stand-in', usage: {}, choices: [{ message: { content: 'SIGNAL: BULLISH\nCONFIDENCE: 60' } }] });
   }
+  /* ── THE MARKET FEEDS, STUBBED SO THESE CELLS CAN REACH WHAT THEY TEST ────────────────────────
+   * Shared with `aiReadChecks.test.mts`, the only other file that invokes a route which gathers
+   * market data. Why it is shared rather than copied, what it is shaped for, and - importantly -
+   * what may NOT be asserted from it are all in `_marketStandIn.mts`. Must run BEFORE the
+   * stray-request throw below, or every market request reads as a stray. */
+  /* #1910 item 5: the TICKER SECTION empty for everyone. Answered here rather than in
+     __tests__/_marketStandIn.mts because that helper is shared with aiReadChecks and exists to make
+     the gather SUCCEED - teaching it to fail would put a test-only failure mode into a file another
+     spec depends on. marketSnapshotData reports 'ticker' in `partial` when the section comes back
+     empty, and that is what arenaServerNumbers refuses on. */
+  if (db.emptyTicker && url.pathname.endsWith('/ticker/24hr')) { db.emptyTickerServed++; return json(200, []); }
+
+  {
+    const answered = marketStandIn(req, url, {
+      seen: (hostAndPath) => db.market.push(hostAndPath),
+      gap: (what) => db.unknown.push(what),
+    });
+    if (answered) return answered;
+  }
+
   if (url.origin !== SUPABASE) throw new Error(`stray request ${req.method} ${req.url}`);
   const p = url.pathname; const q = url.searchParams;
   const single = (req.headers.get('accept') ?? '').includes('vnd.pgrst.object');
@@ -179,6 +225,16 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const owner = Object.values(PERSONAS).find((x) => x.id === eq('user_id'));
     return owner?.row ? (single ? json(200, owner.row) : json(200, [owner.row])) : (single ? noRow() : json(200, []));
   }
+  /* THE SNAPSHOT ROW, answered as ABSENT on purpose. `accountRatioFor` resolves the snapshot row
+     before the live fan-out (`feedFor` -> `resolveFeedSnapshot` -> `readSnapshot`), which is a
+     Supabase read, not an exchange call - so it belongs here and not in the market stand-in.
+     `noRow()` is the DOCUMENTED path: `readSnapshot` turns 406/PGRST116 into null, and
+     `resolveFeedSnapshot` then logs "no snapshot row yet - serving live" and falls through to the
+     fan-out. Answering absent therefore exercises BOTH halves of the resolution order in one run,
+     where seeding a row would exercise only the first and hide the second.
+     Found by Dev Team running #1912's control, which printed this path in `db.unknown` - neither of
+     us predicted it, and the gap report named it rather than letting it read as a route defect. */
+  if (table === T('market_snapshot') && req.method === 'GET') return single ? noRow() : json(200, []);
   if (table === T('grok_usage') && req.method === 'GET') return single ? noRow() : json(200, []);
   if (table === T('app_config') && req.method === 'GET') return single ? noRow() : json(200, []);
   if (table === T('ai_call_log') && req.method === 'POST') { db.ledgerInserts++; return json(201, null); }
@@ -427,4 +483,84 @@ test('S1. source: the coin check sits BEFORE the quota reservation and BEFORE an
   assert.ok(check > 0 && reserve > 0 && xai > 0, 'the coin check, the quota reservation and the AI call must all happen inside POST');
   assert.ok(check < reserve, 'the coin check must come before the quota reservation'); assert.ok(reserve < xai);
   assert.deepEqual([...src.matchAll(/export\s+(?:async\s+)?(?:function|const)\s+(\w+)/g)].map((m) => m[1]).sort(), ['GET', 'POST']);
+});
+
+
+/* ══ #1910 items 4, 5 and 6 ═══════════════════════════════════════════════════════════════════
+ *
+ * ITEMS 4 AND 6 SHARE ONE FABRICATED PRICE AND ASSERT OPPOSITE OUTCOMES, which is what keeps both
+ * non-vacuous. A covered coin must NOT carry it (the server overwrote it); `hype` MUST carry it
+ * (the server cannot source that coin, so the client's numbers stand). If the overwrite silently
+ * stopped happening, item 4 fails; if the `hype` carve-out silently widened to every coin, item 4
+ * fails too; if the carve-out vanished, item 6 fails. One string, both directions. */
+
+const FABRICATED = '$424242.4242';
+/** The client context with a price no feed could produce, so its presence or absence is attributable. */
+const lying = (coin: string) => ({ ...contextFor(coin), price: FABRICATED });
+
+test('4. the server overwrites the client\'s numbers: a fabricated price never reaches the model', async () => {
+  db.reset();
+  const r = await call('pro', { type: 'quick', coin: 'btc', override: { context: lying('BTC/USDT') } });
+  assert.equal(r.status, 200, `expected 200, got ${r.status}: ${JSON.stringify(r.body).slice(0, 180)}`);
+  assert.equal(db.prompts.length, 1, 'exactly one xAI request should carry the prompt under test');
+
+  const prompt = db.prompts[0];
+  assert.ok(prompt.length > 0, 'the xAI request body was empty, so nothing below is measuring a prompt');
+  assert.ok(!prompt.includes(FABRICATED),
+    `the fabricated client price ${FABRICATED} reached the model. This is the security property #1910 exists for: the route spreads its own fields LAST over the client context, so a value the client sent must not survive for a covered coin`);
+
+  /* NOT ONLY "the lie is gone" - the server's own value must be there, or an empty price would pass. */
+  const { arenaServerNumbers } = await import('../lib/arenaServerNumbers.ts');
+  const gathered = await arenaServerNumbers('btc');
+  assert.equal(gathered.ok, true, 'the gather failed inside this test, so there is no server price to compare against');
+  if (!gathered.ok) return;
+  const serverPrice = gathered.fields.price;
+  assert.ok(serverPrice && serverPrice !== '-',
+    `the server sourced no price (${JSON.stringify(serverPrice)}), so "the fabricated one is absent" would pass on an empty field`);
+  assert.ok(prompt.includes(serverPrice as string),
+    `the prompt carries neither the client's price nor the server's (${serverPrice}) - the field was dropped rather than overwritten`);
+});
+
+test('5. an empty ticker section refuses with MARKET_UNAVAILABLE and spends nothing', async () => {
+  db.reset();
+  db.emptyTicker = true;
+  expireMarketCaches();
+  const r = await call('pro', { type: 'quick', coin: 'btc' });
+
+  /* FIRST: did the outage actually reach the route? A warm mkt:ticker cache answers instead, and
+     then a 200 below would read as "the route refused to refuse" when nothing was ever asked. */
+  assert.ok(db.emptyTickerServed > 0,
+    'the empty-ticker stub never fired: the mkt:ticker cache answered, so this cell measured nothing about the refusal');
+
+  assert.equal(r.status, 503, `expected 503, got ${r.status}: ${JSON.stringify(r.body).slice(0, 180)}`);
+  assert.equal(r.body.code, 'MARKET_UNAVAILABLE',
+    `expected code MARKET_UNAVAILABLE, got ${JSON.stringify(r.body.code)} - the refusal must be the typed one the classifier and the client both read`);
+
+  /* THE ORDERING IS THE WHOLE POINT OF #1910 AND NOTHING ELSE ENFORCES IT: the gather runs BEFORE
+     the usage reservation, so a feed outage costs the user no quota and makes no AI call. */
+  nothingSpent('5. market outage');
+  assert.equal(db.usageWrites, 0, '5. market outage: a usage row was written for a request that never reached the model');
+});
+
+test('5b. CONTROL: the same request with the ticker present is served, so 5 is not passing on a broken stub', async () => {
+  db.reset();
+  expireMarketCaches();   // or this reads item 5's empty ticker out of the cache
+  const r = await call('pro', { type: 'quick', coin: 'btc' });
+  assert.equal(r.status, 200, `the covered path is broken independently of item 5: ${r.status} ${JSON.stringify(r.body).slice(0, 160)}`);
+  assert.equal(db.ai.length, 1, 'the control made no AI request, so item 5 proving "nothing spent" says nothing');
+  assert.equal(db.reservations, 1, 'the control reserved no quota, so item 5 proving "no reservation" says nothing');
+});
+
+test('6. a coin outside server coverage keeps the client numbers, and is served rather than refused', async () => {
+  db.reset();
+  const r = await call('pro', { type: 'quick', coin: 'hype', override: { context: lying('HYPE/USDT') } });
+
+  /* NOT 503. Refusing here would turn "the server cannot source HYPE" into "Pro users get no AI read
+     on HYPE" - removing a paid feature to close a hole that is open for every coin today. #1910's
+     body argues the choice; this cell is what makes it a decision rather than a drift. */
+  assert.equal(r.status, 200, `a coin outside coverage must still be served, got ${r.status}: ${JSON.stringify(r.body).slice(0, 180)}`);
+  assert.equal(db.prompts.length, 1, 'no prompt was captured, so nothing below is measuring one');
+
+  assert.ok(db.prompts[0].includes(FABRICATED),
+    `the client's price did not survive for hype. For a coin the server cannot source, fields is empty and the browser's numbers stand - if this fails, either the carve-out is gone or hype entered the snapshot. If hype ENTERED the snapshot, delete the carve-out rather than loosening this cell`);
 });

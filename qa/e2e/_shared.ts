@@ -839,7 +839,18 @@ export async function startFailOnceServer(opts: {
    *  finding a new one and hiding the leak. */
   port?: number;
 }): Promise<{ baseURL: string; logs: string[]; stop: () => Promise<void> }> {
-  const port = opts.port ?? 3101;
+  /* PER-WORKER PORT, because a fixed one collides as soon as the suite runs parallel.
+   *
+   * This was `3101` flat, and CI failed with `EADDRINUSE: address already in use :::3101` - the
+   * child logged `[fail-once] armed` and then died on bind, so it started fine and simply had
+   * nowhere to listen. The suite runs 2 workers ("Running 640 tests using 2 workers"), and both
+   * the mobile and desktop legs exercise this helper, so two servers wanted the same port.
+   *
+   * `TEST_PARALLEL_INDEX` is Playwright's own answer to this: 0..workers-1, stable for the life of
+   * a worker, and documented for exactly this purpose - allocating a per-worker resource. Using
+   * `workerIndex` instead would keep climbing across retries and walk into whatever else is
+   * listening higher up. */
+  const port = opts.port ?? 3101 + Number(process.env.TEST_PARALLEL_INDEX ?? 0);
   const status = opts.status ?? 504;
   const logs: string[] = [];
 
@@ -864,10 +875,21 @@ export async function startFailOnceServer(opts: {
   child.stdout?.on('data', d => logs.push(String(d)));
   child.stderr?.on('data', d => logs.push(String(d)));
 
+  /* A DEAD CHILD IS NOT A SLOW ONE, and the old loop could not tell them apart.
+   *
+   * The EADDRINUSE failure spent the full 30 seconds polling a process that had already exited,
+   * then reported "never answered within 30s" - which reads as a timeout and sent me looking at
+   * boot time and runner load. The cause was in the log tail all along, two lines above the
+   * message. So record the exit and stop waiting the moment it happens. */
+  let exited: string | null = null;
+  child.once('exit', (code, signal) => { exited = `exited with code ${code}${signal ? ` (${signal})` : ''}`; });
+  child.once('error', (e) => { exited = `failed to spawn: ${e.message}`; });
+
   const baseURL = `http://localhost:${port}`;
-  const deadline = Date.now() + 30_000;
+  const WAIT_MS = 30_000;
+  const deadline = Date.now() + WAIT_MS;
   let ready = false;
-  while (Date.now() < deadline) {
+  while (Date.now() < deadline && exited === null) {
     try {
       await fetch(baseURL, { signal: AbortSignal.timeout(1_000) });
       ready = true;
@@ -876,8 +898,15 @@ export async function startFailOnceServer(opts: {
     await new Promise(r => setTimeout(r, 300));
   }
   if (!ready) {
+    /* Says WHICH of the two happened, because the remedies are opposite: a dead child is a bug to
+       read in the log tail, a genuine timeout is a slow runner to wait longer for. */
     throw new Error(
-      `fail-once server on :${port} never answered within 30s. Log tail:\n${logs.join('').slice(-2000)}`,
+      exited !== null
+        ? `fail-once server on :${port} ${exited} before it could answer - it did not time out. `
+          + `Port collisions land here: the port is ${port} (3101 + TEST_PARALLEL_INDEX `
+          + `${process.env.TEST_PARALLEL_INDEX ?? '0'}). Log tail:\n${logs.join('').slice(-2000)}`
+        : `fail-once server on :${port} never answered within ${WAIT_MS / 1000}s, and the child was `
+          + `still running - a genuine timeout. Log tail:\n${logs.join('').slice(-2000)}`,
     );
   }
   if (!logs.some(l => l.includes('[fail-once] armed'))) {
@@ -903,18 +932,128 @@ export async function startFailOnceServer(opts: {
   };
 }
 
+/* "CAN THIS SPEC MEASURE THE PRODUCT?" - AND IT MUST NOT ASK THE APP'S ERROR CONTRACT TO ANSWER.
+ *
+ * THIS GUARD INVERTED ON RUN 41935796786 AND TOOK 15 CELLS WITH IT. It used to read
+ * `res.status()` and nothing else: 200 meant "data is available". On a GitHub runner, which
+ * cannot reach Binance at all, `/api/market/klines` answered **HTTP 200 with zero candles** - so
+ * the guard reported healthy, every spec below it ran against a priceless store, and
+ * `ConfluenceScore.tsx:43` (`if (!d?.price) return null`) rendered nothing. Eleven cells across
+ * econ-staleness, real-yield and score-perps-coupling failed as "the Confluence card did not
+ * appear at all", and `klines-route.spec.ts:122` independently reported the same 200-with-zero
+ * as the #228 violation it is.
+ *
+ * So the guard was keyed to the very thing it was guarding against - Dev's #1632 design point,
+ * one level up. It trusted the app to report its own data path as broken, and the app's failure
+ * to do that is what the guard existed to survive. The comment on the `test.skip` in
+ * econ-staleness even records this cause producing "~40 failures" once before; it kept happening
+ * because the instrument could not see it.
+ *
+ * SO READ THE PAYLOAD THE SPECS ACTUALLY DEPEND ON, not the status wrapping it. A 200 is not
+ * data. The two probes are the two different endpoints the product needs, because they fail
+ * independently:
+ *
+ *   klines   `/api/market/klines` - what the chart draws. #228 records Binance returning 418 for
+ *            this one endpoint while ticker kept working.
+ *   ticker   `/api/market/snapshot` -> `ticker.btc.price` - where the Confluence card's price
+ *            comes from. Keyed by COIN id (`buildTicker` writes `out[coin]`), NOT by symbol.
+ *
+ * Checking only klines is what let the card's own precondition go unmeasured: they are different
+ * Binance endpoints in different rate-limit buckets, and `lib/marketSnapshotData.ts` documents
+ * them diverging in both directions.
+ *
+ * THIS SKIP IS NOT A WAY TO GO GREEN, and the distinction is one I have gotten wrong before by
+ * turning 67 truthful reds into skips. The defect of a 200-on-refusal is still reported, by
+ * `klines-route.spec.ts`, which uses `getGuarded` and deliberately does NOT call this function.
+ * One cell owns the error contract; everything else skips when the data is simply not there. If
+ * this function ever starts gating that cell, the contract stops being tested by anyone. */
 export async function marketDataUnavailable(
-  request: { get: (url: string) => Promise<{ status(): number }> },
+  request: { get: (url: string) => Promise<{ status(): number; json(): Promise<unknown> }> },
   baseURL?: string,
 ): Promise<string | null> {
-  const url = `${baseURL ?? ''}/api/market/klines?source=binance&symbol=BTCUSDT&interval=1h&limit=3`;
+  const unreachable = (what: string, e: unknown) =>
+    `the app's ${what} could not be reached (${String(e).slice(0, 80)}) - nothing below ` +
+    `measures the product. Not a finding.`;
+
+  /* 1. KLINES - and an empty 200 counts as unavailable, which is the whole correction. */
+  const klinesUrl =
+    `${baseURL ?? ''}/api/market/klines?source=binance&symbol=BTCUSDT&interval=1h&limit=3`;
   try {
-    const res = await request.get(url);
-    if (res.status() === 200) return null;
-    return `the app's market-data route returned ${res.status()} - the upstream is refusing this ` +
-      `deployment, so nothing below measures the product. Not a finding.`;
+    const res = await request.get(klinesUrl);
+    if (res.status() !== 200) {
+      return `the app's market-data route returned ${res.status()} - the upstream is refusing ` +
+        `this deployment, so nothing below measures the product. Not a finding.`;
+    }
+    /* `source=binance` returns the rows as a bare array of arrays (the bybit shape is nested,
+       which is why this probe pins the source rather than taking whatever is cheapest). */
+    const body = await res.json();
+    if (!Array.isArray(body) || body.length === 0) {
+      return `the app's market-data route answered 200 with ${
+        Array.isArray(body) ? 'ZERO candles' : 'a body that is not an array of candles'
+      } - the upstream is refusing this deployment and the route is not saying so (#228). ` +
+        `Nothing below measures the product. Not a finding.`;
+    }
   } catch (e) {
-    return `the app's market-data route could not be reached (${String(e).slice(0, 80)}) - ` +
-      `nothing below measures the product. Not a finding.`;
+    return unreachable('market-data route', e);
   }
+
+  /* 2. TICKER - the price the Confluence card needs, which klines above does not establish. */
+  try {
+    const res = await request.get(`${baseURL ?? ''}/api/market/snapshot`);
+    if (res.status() !== 200) {
+      return `the app's market snapshot returned ${res.status()} - no price reaches the store, ` +
+        `so any card gated on one cannot render. Nothing below measures the product. Not a finding.`;
+    }
+    const snap = await res.json() as { ticker?: Record<string, { price?: unknown }> };
+    const price = snap?.ticker?.btc?.price;
+    if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0) {
+      const n = snap?.ticker ? Object.keys(snap.ticker).length : 0;
+      return `the app's market snapshot carries no usable btc price (${n} ticker entries, ` +
+        `btc.price=${JSON.stringify(price)}) - ConfluenceScore returns null without one, so a ` +
+        `missing card below would measure the upstream, not the product. Not a finding.`;
+    }
+  } catch (e) {
+    return unreachable('market snapshot', e);
+  }
+
+  return null;
+}
+
+/* THE THIRD BRANCH THE PRO-GATE CONTROL CANNOT SEE.
+ *
+ * `app/(main)/arena/page.tsx:2707` has THREE outcomes, and five copies of the positive control
+ * across four specs could only distinguish two of them:
+ *
+ *   entitled  -> <ConfluenceScore>            renders `.sms-card` containing "Confluence"
+ *   unknown   -> <EntitlementUnknownCard>     renders `locked-card-term-wrap`, NOT `.sms-card`
+ *   free      -> <LockedFeatureCard>          says "part of Pro" / "Unlock with Pro"
+ *
+ * `.not.toMatch(/part of Pro|Unlock with Pro/i)` passes on the middle one, because the
+ * couldn't-verify card says NEITHER of those things. So a failed entitlements read sails through
+ * the control and then fails the next assertion as "the Confluence card did not appear at all" -
+ * a sentence about the product, produced by a database read.
+ *
+ * AND THE TITLE MAKES IT WORSE, which is why the text filter cannot be widened instead:
+ * `ARENA_CONFLUENCE_GATE_TITLE` is the string **"Confluence Score"**, so the unknown card holds
+ * the very words the locator filters on and is excluded only by its class. Matching on text
+ * alone would silently start accepting the gate card AS the Confluence card.
+ *
+ * So key on the testid the component already exposes - `data-testid="entitlement-unknown"`,
+ * which `entitlement-unknown.spec.ts` is built on - rather than on copy that two branches share.
+ *
+ * SKIP, NOT FAIL, and the boundary is the same one `marketDataUnavailable` draws: a spec that
+ * could not resolve entitlements has not found a defect, it failed to measure. The behaviour
+ * itself is owned by `entitlement-unknown.spec.ts` and by
+ * `strategy-panel-entitlement-unknown.spec.ts`, neither of which calls this - so skipping here
+ * hides nothing. If this helper ever gates those, nobody tests the card. */
+export async function entitlementsUnresolved(
+  page: { locator: (selector: string) => { count: () => Promise<number> } },
+): Promise<string | null> {
+  const n = await page.locator('[data-testid="entitlement-unknown"]').count();
+  if (n === 0) return null;
+  return `the entitlements read failed, so Arena is showing the couldn't-verify card ` +
+    `(${n} on the page) instead of the Pro surface. Every assertion below is about content that ` +
+    `cannot render in this state, and the Pro-gate control does NOT catch it - that card says ` +
+    `neither "part of Pro" nor "Unlock with Pro". A failed DB read, not a product defect. ` +
+    `Not a finding.`;
 }

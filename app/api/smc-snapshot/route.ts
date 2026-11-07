@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { cached } from '@/lib/apiCache';
-import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
+import { incrementToolUsage, refundToolUsage, todayUtc, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { exchangeFetch } from '@/lib/exchangeGuard';
+import { BINANCE_SPOT_SYMS } from '@/lib/coins';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // Every visitor requesting the same asset+timeframe within this window gets
@@ -33,6 +34,29 @@ const SYMBOL_MAP: Record<string, string> = {
   OP: 'OPUSDT', ARB: 'ARBUSDT', SUI: 'SUIUSDT', TON: 'TONUSDT',
   PEPE: 'PEPEUSDT', WIF: 'WIFUSDT', BONK: 'BONKUSDT', FTM: 'FTMUSDT',
 };
+
+/* THE SYMBOLS THIS ROUTE MAY ASK BINANCE SPOT FOR, checked BEFORE any quota is reserved.
+ *
+ * `asset` is a charset check, not an allowlist - any `[A-Z0-9]{1,10}` became `<asset>USDT` and went
+ * straight to spot. That let a CALLER CHOOSE A GUARANTEED FAILURE, which matters because the
+ * failure path refunds: `FOO`, `SPX`, `MATIC` all 400 at Binance. Refusing here means the only
+ * refundable failures are ones the caller cannot pick.
+ *
+ * `BINANCE_SPOT_SYMS` PLUS PEPE AND BONK, and the two extras are the point. Both are real Binance
+ * spot pairs - measured against `api/v3/exchangeInfo` - but `BINANCE_HOLD` keeps them out of
+ * `BINANCE_SYMS` because Bybit and Binance disagree about 1000x quoting on FUTURES, and
+ * `BINANCE_SPOT_SYMS` inherits that futures-specific exclusion. A plain `BINANCE_SPOT_SYMS` check
+ * would have REJECTED two working assets; measured, 2 of the 5 `SYMBOL_MAP` entries it excludes
+ * work today. So `BINANCE_SPOT_SYMS` is "BINANCE_SYMS minus spot-unlisted", NOT "everything spot
+ * lists", and it is the wrong allowlist on its own.
+ *
+ * MATIC, TON and FTM are in `SYMBOL_MAP` and are NOT spot-listed today, so they are refused here.
+ * They already failed - with a 502 and a charge - so this is strictly better for them. */
+const SMC_CHARTABLE = new Set<string>([
+  ...Object.values(BINANCE_SPOT_SYMS),
+  'PEPEUSDT',
+  'BONKUSDT',
+]);
 
 function sb(token: string) {
   return userClient(token);
@@ -124,6 +148,38 @@ export async function POST(req: NextRequest) {
 
   const symbol = SYMBOL_MAP[asset] ?? `${asset}USDT`;
 
+  /* A FAILURE THAT PRODUCED NOTHING GIVES THE READ BACK. Same fix as #1965 on draw-structure, and
+   * this route needed it more, because one of its failures was CERTAIN rather than occasional.
+   *
+   * `asset` is a charset check, not an allowlist: any `[A-Z0-9]{1,10}` becomes `<asset>USDT` and
+   * goes straight to Binance SPOT. `fetchCandles` throws on a non-2xx, and it runs INSIDE
+   * `cached()` AFTER `incrementToolUsage` has reserved a read - so the request consumed one of the
+   * user's daily SMC snapshots and answered `502 Request failed`. Two ways in:
+   *
+   *   - `SPX`: `SPXUSDT` is listed on Binance FUTURES and not on spot, so it was every time.
+   *   - any typo inside the charset (`FOO`, `BTCC`): a 400 from Binance.
+   *
+   * A REFUND RATHER THAN AN ALLOWLIST, and the first draft of this fix got that wrong. Checking
+   * `symbol` against `BINANCE_SPOT_SYMS` before reserving looks tidier and **would have broken
+   * PEPE and BONK**: both are real Binance spot pairs, but `BINANCE_HOLD` keeps them out of
+   * `BINANCE_SYMS` because Bybit and Binance disagree about 1000x quoting on FUTURES - a
+   * futures-specific exclusion that `BINANCE_SPOT_SYMS` inherits. Measured: of 24 `SYMBOL_MAP`
+   * entries the allowlist would have rejected 5, and 2 of those 5 work today.
+   *
+   * So the refund is the honest shape here: it does not require this route to predict which
+   * symbols a venue lists, and it covers a genuine transient upstream failure as well as the two
+   * causes above. The box is a one-field object rather than a plain `let` for the reason #1965
+   * records - TS control-flow analysis does not follow an assignment made inside the nested async
+   * closure, and narrows a plain `if (reserved)` to `never`. */
+  if (!SMC_CHARTABLE.has(symbol)) {
+    return NextResponse.json(
+      { error: `'${asset}' is not an asset this app can chart on Binance spot` },
+      { status: 400 },
+    );
+  }
+
+  const reserved: { current: { userId: string; on: string } | null } = { current: null };
+
   try {
     const result = await cached(`smc-snapshot:${asset}:${tf}`, CACHE_TTL, async () => {
       // Only the cache-miss path spends on xAI, so only it needs the daily
@@ -133,6 +189,7 @@ export async function POST(req: NextRequest) {
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);
       }
+      reserved.current = { userId: authData.user.id, on: todayUtc() };
 
       const candles = await fetchCandles(symbol, tf, 50);
       if (candles.length < 20) throw new Error('Not enough candle data - try a different timeframe');
@@ -154,6 +211,19 @@ export async function POST(req: NextRequest) {
         throw new Error(err.error ?? 'AI error');
       }
 
+      /* THE REFUND WINDOW CLOSES HERE, AND THIS LINE IS THE WHOLE POINT.
+       *
+       * xAI answered 2xx, so the tokens are billed and the money is gone. Everything after this -
+       * `aiRes.json()` throwing on a malformed body, `recordAiCall` failing, an empty `choices`
+       * array - would otherwise reach the catch and hand the user their read back for a call we
+       * PAID FOR. That is a real cap defeat, not a theoretical one: the response body is upstream
+       * data we do not control, so a caller cannot force it, but a bad deploy or an xAI format
+       * change would quietly start giving reads away.
+       *
+       * Before this line a refund is correct - a network error or a non-2xx from xAI bills nothing
+       * and leaves the user with no answer. After it, the charge stands. */
+      reserved.current = null;
+
       const aiData = await aiRes.json();
       await recordAiCall({ userId: authData.user.id, callType: 'smc_snapshot', model: aiData.model ?? 'grok-4.3', usage: aiData.usage });
       const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
@@ -163,7 +233,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (e) {
     if (e instanceof RateLimitError) {
+      /* NO REFUND, AND THAT IS CORRECT RATHER THAN AN OMISSION. `incrementToolUsage` throws this
+       * when `usage.blocked`, which is BEFORE `reserved.current` is assigned - there is nothing to
+       * give back. The guard below would skip it anyway; saying so stops the next reader
+       * "fixing" it into a double credit. */
       return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });
+    }
+
+    /* `reserved.current` is null on a cache hit and on any refusal before the reservation, so this
+     * cannot credit a read nobody paid for. It carries the reservation DATE as well as the user id
+     * because refunding against today's date after a call crossed UTC midnight would credit a row
+     * that never paid. */
+    if (reserved.current) {
+      await refundToolUsage(reserved.current.userId, 'smcSnapshot', reserved.current.on);
     }
     return apiError('smc-snapshot', e, 502, 'Request failed');
   }

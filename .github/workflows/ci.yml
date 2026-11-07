@@ -913,7 +913,53 @@ jobs:
         # truncate the baseline and leave us with neither a pass nor a number -
         # which is the same "spent the minutes, got no result" outcome the cap is
         # meant to prevent. Revisit once mobile has one completed run on record.
-        run: npm run test:e2e -- --project=${{ matrix.project }} ${{ matrix.project == 'desktop' && '--max-failures=25' || '' }}
+        # ── THE CAP IS RAISED FOR RELEASE RUNS ONLY, because at 25 it could not reach the end ──
+        #
+        # WHAT HAPPENED. On run 41916597244 (the `staging` -> `main` PR for e27f4667) the desktop
+        # leg reported:
+        #
+        #     Testing stopped early after 25 maximum allowed failures.
+        #     25 failed · 1 interrupted · 456 did not run
+        #
+        # Playwright runs files alphabetically, so the run died inside the `e`s and NOTHING from
+        # `f` to `z` was executed. And 16 of those 25 were already failing on the previous release
+        # run (41207387047, 2026-10-31) - so the cap was being consumed by KNOWN reds before it
+        # could reach anything new. A release gate that halts two thirds of the way from the start
+        # measures the alphabet, not the candidate.
+        #
+        # WHY RAISE RATHER THAN QUARANTINE THE 16. Quarantining hides real defects: those cells are
+        # red because the product is wrong, not because they are flaky. PM/DevOps's call, and it is
+        # the right one - the 16 are now tracked work, not suppressed.
+        #
+        # WHY RAISE RATHER THAN REMOVE. The reason the cap exists is unchanged and real: an endpoint
+        # can die MID-RUN, and the documented shape is ~85 sign-in failures at ~70s each, doubled by
+        # `retries: 1`. 50 cannot be consumed by the 16 knowns plus plausible flake, and it still
+        # halts that collapse at well under half its cost.
+        #
+        # THE EXTRA WALL TIME IS MEASURED, NOT ESTIMATED. The mobile leg runs UNCAPPED and completed
+        # the full set on that same run in 75 minutes (21:38 -> 22:53), against desktop's 26 minutes
+        # for 181 of 637. Mobile is the slower half, so it is an upper bound: expect desktop to land
+        # around 60-75 minutes, roughly +35 to +50. `timeout-minutes: 120` on this job already
+        # accommodates that, demonstrated by mobile rather than argued.
+        #
+        # WHICH EVENTS ACTUALLY REACH THIS LINE, because the first version of this comment got it
+        # wrong and Dev Team caught it. The whole `e2e` job is gated at :636 on
+        # `base_ref == 'main' || (workflow_dispatch && inputs.e2e)`, so it NEVER runs on a `dev`
+        # push or a feature PR. "Every other event keeps 25, so CI minutes on dev pushes stay
+        # bounded" justified a cap for events this job cannot receive.
+        #
+        # There are exactly TWO reachable cases, and both now get 50:
+        #   * a PR into `main`  - the release gate, the case this was raised for
+        #   * `workflow_dispatch` with `inputs.e2e` - and this is the one the first version got
+        #     backwards. `base_ref` is EMPTY outside a pull request, so a manual run fell through
+        #     to 25: the investigation path, the run most likely to be looking at a suite already
+        #     failing in bulk, was the one capped lowest. A cap that bites hardest exactly when
+        #     someone is deliberately investigating is the opposite of what it is for.
+        #
+        # So the condition is "is this a run we actually care to see the end of", which both are.
+        # The 25 branch is now unreachable and kept only so a future event that does fall through
+        # inherits the bounded value rather than no cap at all.
+        run: npm run test:e2e -- --project=${{ matrix.project }} ${{ matrix.project == 'desktop' && ((github.base_ref == 'main' || github.event_name == 'workflow_dispatch') && '--max-failures=50' || '--max-failures=25') || '' }}
         # ── MOBILE IS NON-BLOCKING FOR ITS FIRST RUN. REVERT AFTER v2026.10.29c ──────
         #
         # ⚠️ TEMPORARY. Remove this line once the mobile leg has one completed run on

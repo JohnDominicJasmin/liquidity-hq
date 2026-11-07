@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
         `• Funding rate extremes (longs / shorts overcrowded)\n` +
         `• RSI overbought / oversold (1H)\n` +
         `• Whale trades, open interest spikes, rapid moves\n` +
-        `• Price level alerts & daily 7am (PHT) summary\n\n` +
+        `• Price level alerts & a daily 7am summary in your own timezone\n\n` +
         `<i>⏰ ${now} UTC</i>`,
     }),
     signal: AbortSignal.timeout(10_000),

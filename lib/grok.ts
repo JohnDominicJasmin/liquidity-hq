@@ -72,6 +72,13 @@ export async function callGrokViaProxy(
     if (err.code === 'STALE_CLIENT') {
       throw Object.assign(new Error('STALE_CLIENT'), { code: 'STALE_CLIENT', usage: err.usage });
     }
+    /* #1263: the coin selector offers every instrument both venues trade, and the AI read covers the
+       tracked list only. Passed on as a code so the page says which coins can be read, in the user's
+       language, instead of the server's "Invalid request." - a sentence that blames them for picking
+       an entry we rendered. */
+    if (err.code === 'COIN_NOT_TRACKED') {
+      throw Object.assign(new Error('COIN_NOT_TRACKED'), { code: 'COIN_NOT_TRACKED', usage: err.usage });
+    }
     const msg = err.code === 'RATE_LIMIT'
       ? `${err.error ?? 'Rate limit reached.'} Resets at ${nextResetLocalTime()}.`
       : err.error ?? 'Grok proxy error';
@@ -419,7 +426,14 @@ export function buildPrompt(ctx: GrokContext): string {
     ]),
     ...(isBtc ? [] : [`(BTC's options data, GEX and the Coinbase BTC premium are BTC's own market and are not given for ${ctx.coin}. Do not judge ${ctx.coin} by them.)`, '']),
     '=== ORDER BOOK LIQUIDITY ===',
-    ctx.orderWalls,
+    /* `|| '-'` RATHER THAN BARE, and the same reason for all three of these (#1631 step 2).
+       `parseArenaContext` requires every field to be a STRING but only checks `session` for
+       non-empty, so `orderWalls: ''` is a valid request. A bare insertion then leaves this header
+       with nothing under it, and an empty section below "ORDER BOOK LIQUIDITY" reads as "there is
+       no order book liquidity" - unknown drawn as zero, in the one place nothing is visible to
+       check afterwards. `'-'` is what the Arena page itself sends when the walls are absent
+       (app/(main)/arena/page.tsx:1051), so this adds no new vocabulary. */
+    ctx.orderWalls || '-',
     '',
     '=== MACRO ===',
     `US Oil (CL=F): ${ctx.oilPrice}`,
@@ -481,14 +495,24 @@ export function buildPrompt(ctx: GrokContext): string {
        The owner ruled the wording for the chart overlay on #766; it matters
        more here, because nothing in a prompt is visible to check afterwards. */
     `=== REALIZED LIQUIDATION CLUSTERS (${ctx.coin}, last 24h - where liquidations ALREADY happened, not predicted levels) ===`,
-    ctx.liqLevels,
+    /* `|| 'Not available'` - the exact string lib/liqClusters.ts:47 produces when there are no
+       clusters, so the model sees one vocabulary rather than two. This header asserts the
+       liquidations ALREADY happened, which makes an empty body the worst of the three: it reads as
+       a confirmed quiet 24h. Liquidations arrive over a WebSocket the browser owns, so the server
+       cannot source them - this fallback is the only thing standing between an empty field and a
+       false statement. */
+    ctx.liqLevels || 'Not available',
     '',
     '=== MACRO EVENTS - RELEASED (LAST 24H) + UPCOMING (48H) ===',
     '(CRITICAL: Any central bank decision - FOMC, BOJ, ECB, BOE - or tier-1 data released in the last 24h MUST anchor your macro bias. Do not let 1–2 weak technical signals override a confirmed Fed hold/hike or BOJ policy shift. For BOJ specifically: a rate hike = JPY strengthens = global carry trade unwind = risk-off across all assets including crypto. Use the Deep Research mode or the news feed to confirm current BOJ stance if not shown here.)',
     ctx.upcomingEvents || 'No events in window',
     '',
     '=== LIVE NEWS FEED (up to 15 alerts, newest first: UTC time, age and source on each line) ===',
-    ctx.news,
+    /* The page's own unloaded-feed wording, verbatim (app/(main)/arena/page.tsx:1263), which
+       __tests__/aiFeedsUnknownNotEmpty.test.mts U3 asserts says "unavailable" and tells the model
+       not to assume. An empty string here would bypass that cell entirely - it reads the page's
+       expression, not this insertion. */
+    ctx.news || 'News feed unavailable (not loaded) - do not assume there is no news',
     '',
     /* BACK SINCE #1631 A, with dates. Removed 2026-07-31 because SoSoValue answered from neither host and the line was permanently
        'AI will search live'. The authenticated API has answered since #175, and check 2 found Deep missing a +$526.7M day because the
