@@ -124,6 +124,26 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* v2026.11.08. WRITTEN BEFORE THE TAG IS CUT, which the entry above warns about - so the date
+       here is the one PM/DevOps is tagging with today, and whoever tags checks it against
+       `git tag --points-at main` rather than against the day they are working.
+
+       EVERY ITEM WAS CHECKED AGAINST A COMMIT IN `main..staging` (140 commits) rather than taken
+       from the release plan. The five below map to ed08d792 (footer overflow), 7fc30b61 (AI failure
+       charged a read), ecf8bd5b + 1db38c13 (build-time session badge, flat series read as
+       overbought), e4051c47 (playbook predictive claims) and d880f85f ("All sales are final"
+       against the Terms). An item nobody could point at a commit for was left out. */
+    date: '2026-11-08',
+    tag: 'v2026.11.08',
+    items: [
+      'Every page could be scrolled sideways on a laptop or tablet. The row of links in the footer refused to wrap, so it set the width of the whole page - it wraps now.',
+      'An AI analysis that failed still used up one of your reads for the day. It no longer does, and a database outage is no longer reported to you as a usage limit.',
+      'Two readings that were stale now say so: a completely flat price reads as unknown instead of maximally overbought, and the Best Hours badge waits for your browser rather than showing whichever session was current when the site was last built.',
+      'The playbook no longer states how often a setup works, how likely it is, or what it returns. Those figures were not ones we can stand behind.',
+      'The note at checkout said all sales are final, which contradicted the Terms. The two now agree.',
+    ],
+  },
+  {
     /* THE TAG IS CUT AND THIS ENTRY IS NAMED AFTER IT: v2026.11.07, pushed after the deploy and
        confirmed by `git tag --points-at` to cover the commit production is serving.
 
