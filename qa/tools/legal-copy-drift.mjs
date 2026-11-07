@@ -47,9 +47,37 @@
 import { AVAILABLE_LOCALES, SUPPORTED_LOCALES } from '../../lib/locales.ts';
 
 const BASE = (process.argv[2] ?? 'https://liquidity-hq.com').replace(/\/+$/, '');
-const PREFIX = /^(TERMS|PRIVACY|REFUND|DISCLAIMER)_/;
-const SHORT_FACTOR = 0.65;   // flag below this multiple of the locale's own median
-const MIN_EN_CHARS = 120;    // short labels have too much ratio noise to judge
+/* CONSENT_ was MISSING from this pattern until 2026-11-08 and the cookie-consent banner is legal
+   copy. Five keys were outside every scan: CONSENT_ACCEPT, CONSENT_ARIA_LABEL, CONSENT_BODY,
+   CONSENT_DECLINE, CONSENT_PRIVACY_LINK. All five turned out to be translated and within norm
+   (CONSENT_BODY en 163 -> ko 86 is rel 1.00 against ko's median), so the gap cost no finding - but
+   103 keys were reported as "every legal key" when the number was 108. A prefix list is a silent
+   scope limit: anything it does not match is absent from the output with no marker, which is the
+   same shape as the windowed-read failure. Re-derive it by prefix frequency rather than recalling
+   it, and keep this list in sync with the pages under app/(main) that carry legal copy. */
+const PREFIX = /^(TERMS|PRIVACY|REFUND|DISCLAIMER|CONSENT)_/;
+
+/* 0.70, RAISED FROM 0.65 ON MEASUREMENT, not on taste. A full ranked run on prod 2026-11-08 shows a
+   genuine cliff among substantive bodies (en >= 120 chars):
+
+     0.24 0.27 0.30 0.30 0.33 0.43 0.56 0.60 0.68   <- 3 distinct keys x 3 locales
+     ------------------------------- gap 0.08 ------------------------------
+     0.76 0.83 0.83 0.84 0.86 ...                   <- everything else
+
+   At 0.65 the line fell INSIDE one of those keys: PRIVACY_SECTION_INFO_COLLECTED_BODY flagged on
+   ko (0.60) and zh (0.56) but not ru (0.68), so the same defect was reported in two locales and
+   hidden in the third. 0.70 captures all nine pairs and still excludes the next-nearest key at
+   0.76. If a future run reports something between 0.70 and 0.76, read it as the cliff having moved
+   rather than as a new finding, and re-run the ranked view before trusting either. */
+const SHORT_FACTOR = 0.70;
+
+/* Short labels cannot be judged by ratio: "Changes" is 7 characters and its Korean is 2, which is
+   normal CJK brevity rather than lost content. VERIFIED THAT THIS CUTOFF IS NOT HIDING BODIES: of
+   the 22 locale-key pairs it excluded on 2026-11-08, every one was a TITLE, EYEBROW or button label
+   of 6-27 English characters. Zero bodies were excluded. The run prints the excluded count so the
+   cutoff is visible rather than silent - a filter nobody can see is indistinguishable from a
+   finding nobody found. */
+const MIN_EN_CHARS = 120;
 
 /* Keys the Terms page renders that are the current known absence. Named explicitly so a run reports
    whether they are STILL missing rather than leaving it to a reader to notice. */
@@ -143,20 +171,42 @@ async function main() {
   for (const k of zero) console.log(`  ${k}`);
 
   console.log('\n=== SHORTER THAN THE LOCALE\'S OWN NORM (candidate omitted content, NOT a verdict)');
-  let flagged = 0;
+  let flagged = 0, excludedShort = 0, nearMiss = 0;
+  const bodiesExcluded = [];
   for (const l of offered) {
     for (const k of [...translated[l]].sort()) {
       const e = String(en[k]), s = String(payloads[l][k]);
-      if (e.length < MIN_EN_CHARS) continue;
-      const r = s.length / e.length;
-      if (r < SHORT_FACTOR * med[l]) {
+      const rel = (s.length / e.length) / med[l];
+      if (e.length < MIN_EN_CHARS) {
+        /* Counted and surfaced, not silently dropped. A body landing here would mean the cutoff is
+           hiding something it was never meant to hide, so those are named individually. */
+        if (rel < SHORT_FACTOR) {
+          excludedShort++;
+          if (/_BODY$/.test(k)) bodiesExcluded.push(`${l} ${k} (en ${e.length}c, rel ${rel.toFixed(2)})`);
+        }
+        continue;
+      }
+      if (rel < SHORT_FACTOR) {
         flagged++;
         console.log(`  ${l}  ${k}`);
-        console.log(`      en ${e.length} -> ${s.length} chars   ratio ${r.toFixed(2)} vs ${l} median ${med[l].toFixed(2)}`);
+        console.log(`      en ${e.length} -> ${s.length} chars   rel ${rel.toFixed(2)} of ${l} median ${med[l].toFixed(2)}`);
+      } else if (rel < SHORT_FACTOR + 0.10) {
+        /* The band just above the line. On 2026-11-08 it held exactly ONE member - zh
+           DISCLAIMER_SECTION_BACKTESTS_BODY at 0.76, the nearest key above the cliff. So this
+           count is 1 in a healthy run, not 0; a value of 2 or more means something new has moved
+           into the gap and the ranked view should be re-read before trusting the flagged list. */
+        nearMiss++;
       }
     }
   }
   if (!flagged) console.log('  none');
+  console.log(`\n  below the line but under the ${MIN_EN_CHARS}-char floor (titles/labels, normal CJK brevity): ${excludedShort}`);
+  if (bodiesExcluded.length) {
+    console.log('  *** A _BODY KEY IS BEING EXCLUDED BY THE CHAR FLOOR - the floor was sized for titles: ***');
+    for (const b of bodiesExcluded) console.log(`      ${b}`);
+  }
+  console.log(`  in the ${SHORT_FACTOR}-${(SHORT_FACTOR + 0.10).toFixed(2)} band just above the line: ${nearMiss}` +
+    (nearMiss > 1 ? '  *** was 1 on 2026-11-08 - something new is in the gap, re-read the ranked view ***' : '  (1 is the known baseline: zh DISCLAIMER_SECTION_BACKTESTS_BODY at 0.76)'));
 
   console.log(`\nflagged-short: ${flagged}   english-everywhere: ${zero.length}   no-rows-at-all: ${absent.length}`);
   console.log('Length is a detector. Whether a short translation omits REQUIRED content is the owner\'s call.');
