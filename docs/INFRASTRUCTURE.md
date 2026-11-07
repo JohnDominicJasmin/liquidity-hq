@@ -632,6 +632,38 @@ From `.env.example` — the authoritative list of what needs a key. Whether each
 | Whop | `NEXT_PUBLIC_WHOP_CHECKOUT_MONTHLY` / `_ANNUAL` / `_FORTNIGHTLY`, `WHOP_WEBHOOK_SECRET`, `WHOP_COMPANY_ID`, `WHOP_PLAN_ID_*` | Payments, Whop only since 2026-10-17 (#1567). The monthly link alone decides whether Pro is on sale (`lib/checkout.ts`, `isProBuyable`); the webhook refuses everything without its secret (`lib/whop.ts`). | **None set on production** (PM read the names on Render, 2026-10-21 ~14:17 UTC): payments are off there. Go-live sets all of them together, then rebuilds; never the links alone |
 | `CRON_SECRET` | `CRON_SECRET` | Protects `telegram/alert`, `macro-alert`, `signals/track`, `telegram/setup-webhook`, `alert-outcomes/resolve` and the ingest routes from unauthenticated triggering. **Set on prod** (named in production's Render environment and reported by `/api/version` as `cronSecret: true`, 2026-10-21); this row said "unset" until then, long after §2 was corrected. | — |
 
+**WRITING AN ENVIRONMENT VARIABLE ON RENDER STARTS A DEPLOY. `autoDeploy: "no"` does not stop
+it.** Measured on `liquidity-hq-dev`, 2026-11-08: the write answered with
+`status: build_in_progress`, `trigger: "api"`, on the branch head. Both app services are
+`autoDeploy: "no"`, `autoDeployTrigger: "off"`, and §4's rule that merging ships nothing until
+someone deploys manually is about **git pushes** - it does not extend to configuration.
+
+Three sessions assumed the opposite on the same evening and planned an ordering around it, so it is
+written here rather than left as folklore:
+
+- **Set every variable a change needs in ONE write.** Two batches are two builds, and no ordering
+  avoids it. `liquidity-hq-dev` carries a ~500 build-hour/month cap that production does not.
+- **A variable someone else must set is a second build by construction.** A webhook signing secret
+  should not pass through a chat transcript, so the owner pastes it himself - which is correct, and
+  which means two builds. Plan for two rather than trying to merge them.
+- **Do not also trigger a deploy afterwards.** The build is already running; a manual trigger is a
+  third.
+- **Expect the intermediate build to go LIVE half-configured, and decide beforehand whether that is
+  safe to serve.** This is the practical teeth of the "never the links alone" rule in the Whop row
+  above: on 2026-11-08 the first build came up with `proBuyable: true` and `whopWebhook: false` - a
+  product that looked buyable on `/upgrade` and could not grant Pro, because `isProBuyable` keys off
+  the monthly link and never consults the plan mapping. Nobody paid, because the gate required all
+  four Whop flags on `/api/version` before anyone was told to click.
+- **Verify from the running service, never from the write.** `/api/version` reports `commit` plus
+  the `configured` flags; the write's own response only proves a build started.
+
+Dev's own Whop state as of 2026-11-08, since the row above reads as though Whop is configured
+nowhere: `liquidity-hq-dev` has the monthly link, `WHOP_PLAN_ID_MONTHLY` and
+`WHOP_TEST_PLAN_GRANTS_PRO` all pointing at the hidden $1 plan (#1567), for the owner's own
+end-to-end purchase. `WHOP_WEBHOOK_SECRET` is his to set. Production is unchanged and cannot grant
+on that plan - see `whopTestPlanIds()` in `lib/whopEntitlement.ts` for why the restrictive case is
+the default.
+
 **Coinglass is dead upstream (2026-07-30).** The row above previously claimed a
 free tier; that was wrong and it cost real debugging time. What is actually true:
 
