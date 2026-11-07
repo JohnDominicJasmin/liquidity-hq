@@ -37,6 +37,64 @@ mid-task. This one lives in the repo.
 blocked and why. A session that stops is more expensive than a session that picks
 the wrong item.
 
+---
+
+### AMENDED 2026-11-07: THIS RULE FAILED, AND IT FAILED BECAUSE IT IS ADDRESSED TO A SESSION THAT CANNOT HEAR IT
+
+**On 2026-11-07 the project sat still for about six hours with every session idle, and the
+OWNER was the one who noticed.** He had to say *"Why no one is working? Dev and QA."* and then
+*"You should ping the team."* That is precisely the bottleneck this file was created to remove,
+reappearing with the owner in the PM's old seat.
+
+**What actually happened, in order:**
+
+1. Dev finished #2024, messaged QA, and ended its turn. Correctly — it reported and handed off.
+2. QA had its own work, kept going, and did not look at whether anyone else had stopped.
+3. PM/DevOps went offline mid-release with the prod deploy and `20261031a` both on its lane.
+4. Three merge-ready PRs (#2021, #2025 and one parked) sat untouched. Nothing was blocked. Nothing moved.
+
+**WHY "NEVER END A TURN WITH NO WORK IN PROGRESS" DID NOT PREVENT IT.** These are interactive
+sessions, not autonomous loops. A session's turn ends when it replies; it cannot choose to keep
+itself running. So the rule is addressed to the one party structurally unable to act on it — the
+session that has already stopped. **An idle session is not refusing to read this file. It has no
+turn in which to read anything.**
+
+Writing the rule more firmly cannot fix that. The gap is that **nothing and nobody was watching
+for a stall**, so the first detector was the owner.
+
+### THE MECHANISM, NOT ANOTHER RULE
+
+**1. QA holds the stall watch.** Not because QA is senior, but because QA reviews every PR and
+therefore sees the merge flow — a stall is visible from that seat and from no other. So, every
+time QA finishes an item, before it ends its turn:
+
+- `gh pr list --state open` — is anything merge-ready and sitting?
+- `ListAgents` — is a peer idle, or offline with items on its lane?
+- If either, **ping that session with specific work before replying.** Not "are you busy" — the
+  next item, named, with its dependency stated.
+
+**2. A handoff names the receiver AND what happens if they are absent.** "Over to you" is not a
+handoff when the receiver is offline. It becomes: *"X is yours; if you are not back by the time Y
+lands, it falls to Z"* — or, when there is no Z because the item is owner-gated, say so in the
+same breath.
+
+**3. A QUEUE WHOSE NEXT STEP IS OWNER-GATED IS A STALLED PROJECT, AND MUST BE REPORTED AS ONE.**
+This is the part that was missing. On 2026-11-07 the owner had already approved the release and
+the migration; the remaining blockers were a permission layer and an offline session. Every
+session correctly reported "not mine" and then stopped, and "everyone is behaving correctly" added
+up to a dead project. **If the critical path's next step belongs to the owner, say that plainly
+and say what it is blocking — not only that the item is not yours.**
+
+**4. Do not confuse activity with progress when reporting.** Seven PRs merged that night and the
+live site did not change once. A status that leads with the merges is true and useless. **Lead
+with what the user can see; name what is parked and on whom.**
+
+**What this does not fix, stated so nobody assumes it is solved:** nothing here detects a stall
+while *every* session is idle, including QA. That needs a scheduled check, which costs money and
+is the owner's call — it is in `OWNER-BACKLOG.md` as a question, not queued as work.
+
+---
+
 **Filing issues: group them, don't scatter them.** This is the owner's instruction from
 2026-09-12, when open issues reached 52: *"if we have multiple small issues and they are
 related to each other or in similar page or problem just create one issue and put it all
@@ -172,20 +230,23 @@ controls** - to anything you touch.
 
 | # | Item | Notes |
 |---|---|---|
-| Q1 | **Release PR #1955** (staging `c28fcd40`) | Run 41935796786 finished: desktop 437 passed, 50 failed, 1 flaky, 72 skipped, 79 did not run. It hit the cap of 50 again, so the suite has still not reached the end. Triage is the current item. Mobile's green is `continue-on-error`. |
-| Q2 | **Review Dev's open PRs** | Standing. Dev's blockers first, then open PRs, then your own specs. |
-| Q3 | **Confluence guards** (#1263, #1651) | 11 cells share "the Confluence card did not appear at all". Two guards cannot tell a spec bug from an app one: the `econ-staleness:106` Pro-gate control passes on the couldn't-verify card, and `marketDataUnavailable` probes klines while the card needs the snapshot ticker. QA first; Dev only if the fixed guards still point at app code. |
-| Q4 | **Mobile reds and tap targets** (#1413) | 30 triaged, 25 remain after #1958 and #1960. #1814 stays held until the Confluence cluster clears. `a11y:51` went 113 -> 146 on a CI-built app, so measure deployed staging before hunting. |
-| Q5 | **Tests Dev's PRs name** | OKX/Hyperliquid cells: newest-first ordering, `confirm: 0` forming bar, the 300-row cap and paging, case-sensitive `bar`, errors on HTTP 200. |
-| Q6 | **#1413 per-pin conversions** | 17 structural + 8 CSS files dropped permanently with reasons; 21 files remain, paired with D7. |
-| Q7 | **`qa` and `staging` deploys** | Yours. Read `/api/version` after every one. |
-| Q8 | **Older items** | `TEST_GAPS.md` sections 1 and 6. |
+| Q1 | **STALL WATCH — before ending any turn** | Added 2026-11-07 after the six-hour stall. `gh pr list --state open` for merge-ready work sitting still, `ListAgents` for an idle or offline peer with items on its lane. Ping with a NAMED next item, not "are you busy". See the amendment under **The rule**. |
+| Q2 | **Release PR #1995** (staging `31ff76a1`) | **SIGNED OFF 2026-11-07** on run 42098346588: desktop 45 failed / 1 flaky / 92 skipped / 502 passed = 640, so it reached the end. Zero cells not in the 48-cell baseline from 42057776390. One new mobile cell (`arena-seed-effect-real-selection:71`), environmental — its sibling `strategy-panel-preload-race` flipped the other way in the same run. `/arena` CLS recovered from a failing 0.146 to passing under 0.1. **Mobile's green is `continue-on-error` and is not evidence.** Owner approved go-live; PM/DevOps executes. |
+| Q3 | **#2013 — ROUTES +5 pages, PARKED not forgotten** | Adds `/accessibility` `/changelog` `/help` `/security` `/status`; 20 specs were sweeping 30 of 35 routes. Needs ONE dispatched e2e run to produce six baselines (`pagesWithoutH1`, `pagesWithCanonical`, `contrast`, `tapTargetsUnder24`, `axeTargetSizeViolations`, `controlsWithoutName`). The dispatch is PM's and CI spend is the owner's call — **do not trigger it unasked.** |
+| Q4 | **Review Dev's open PRs** | Standing. Dev's blockers first, then open PRs, then your own specs. |
+| Q5 | **Confluence guards** (#1263, #1651) | 11 cells share "the Confluence card did not appear at all". Two guards cannot tell a spec bug from an app one: the `econ-staleness:106` Pro-gate control passes on the couldn't-verify card, and `marketDataUnavailable` probes klines while the card needs the snapshot ticker. QA first; Dev only if the fixed guards still point at app code. |
+| Q6 | **Mobile reds and tap targets** (#1413) | 30 triaged, 25 remain after #1958 and #1960. #1814 stays held until the Confluence cluster clears. `a11y:51` went 113 -> 146 on a CI-built app, so measure deployed staging before hunting. |
+| Q7 | **Tests Dev's PRs name** | OKX/Hyperliquid cells: newest-first ordering, `confirm: 0` forming bar, the 300-row cap and paging, case-sensitive `bar`, errors on HTTP 200. |
+| Q8 | **#1413 per-pin conversions** | 17 structural + 8 CSS files dropped permanently with reasons; 21 files remain, paired with D7. |
+| Q9 | **`qa` and `staging` deploys** | Yours. Read `/api/version` after every one. |
+| Q10 | **Older items** | `TEST_GAPS.md` sections 1 and 6. |
 
 ## PM/DevOps lane
 
 | # | Item | Notes |
 |---|---|---|
 | P1 | **Owner batch - one message, options + recommendation, when he engages** | Release #1955 approval; visual sign-off on #1939's empty-state string, #1915's 404 chart and the #1950 changelog text; 20 Draw Structure / Arena strings; ko/zh/ar/ru 404 subtitle; **Draw Structure decision** (apply prod migration `20261031a` with the release so it works on day one, hide it, or ship it visible-but-refusing); the dev-DB migration blocked by PM's permission layer; OWNER-RULES section 13 vs section 3 on who applies dev-DB migrations. **Never sent while he sleeps (OWNER-RULES section 15).** |
+| P5 | **BLOCKED ON THE OWNER DIRECTLY, 2026-11-07 — not queueable, and the critical path runs through all of it** | (a) **`20261031a` apply.** He APPROVED it; QA's attempt and PM's were both refused by Claude Code's permission layer as a production action. Needs his hand in the Supabase editor or a permission grant. Paste-ready prod-only extract at `../APPLY-ON-PROD-20261031a.sql`, verified additive and same-16-columns-plus-one against the LIVE prod function. **Draw Structure answers 503 on all four environments until it lands.** (b) **The prod deploy** — PM/DevOps is the executor and was offline; his go is recorded on #1995. (c) **Terms billing sections** have NO rows in any locale, so they render in English on `/ko /zh /ar /ru` while the rest of the page is translated — approved translations or a governing-language clause. **QA told him the legal pages were English-only, which is FALSE (58 of 78 legal keys are fully translated), so his "keep English only" answer was to a wrong question and must not be acted on.** (d) **Visual sign-off** on the five `#1810` pages, live and never approved. |
 | P2 | **After every production deploy** | `/api/version`, a 5-minute log watch, tag, `/changelog` entry exists, closing sweep, drift check. |
 | P3 | **`liquidity-hq-dev` deploys** | PM's, only when a deployed check is genuinely needed (~500 build-hour cap). |
 | P4 | **Keep this file and `docs/HANDOVER.md` current** | Same session an instruction or state change lands. |
