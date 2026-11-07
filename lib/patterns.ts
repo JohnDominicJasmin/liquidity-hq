@@ -22,11 +22,16 @@
  * already shipping exactly what the new one had been forbidden. Mirroring the two had to run in
  * this direction; the new layer adopting the old voice would have been the easy mistake.
  *
- * `patternBias()` IS DELETED. It returned 'bullish' | 'bearish' | 'neutral' from a list of these
+ * THE PATTERN-BIAS HELPER IS DELETED. It returned 'bullish' | 'bearish' | 'neutral' from a list of these
  * names - the most advice-shaped function in the codebase - and had ZERO callers across app/,
  * components/, lib/, qa/ and __tests__/. QA checked all five. Deleted rather than maintained: an
  * unused function that converts descriptions into a directional verdict is a loaded gun in a
  * drawer.
+ *
+ * ITS NAME IS DELIBERATELY NOT WRITTEN HERE. QA's review of this change made the point: a grep for
+ * a removed identifier that still hits the comment documenting its removal reports it as live, and
+ * #1263 already carries that trap from `useEMAStrategy.ts`. So the record stays and the token goes -
+ * `git log -S` finds the deletion, and a search for callers finds nothing, which is the truth.
  *
  * ── WHAT THIS FILE IS AND IS NOT, now that #1818 exists ─────────────────────────────────────────
  *
@@ -184,7 +189,6 @@ export function detectPatterns(candles: Candle[]): string[] {
   return rankPatterns(found);
 }
 
-/** Convenience: returns comma-separated string or empty string */
 /* The order `detectPatterns` returns, most consequential first.
  *
  * WHY THIS EXISTS (QA, #1263 defect 2). `found` was built in source-statement order - trend,
@@ -226,8 +230,8 @@ export function rankPatterns(names: readonly string[]): string[] {
   return [...names].sort((a, b) => at(a) - at(b));
 }
 
+/** Convenience: returns comma-separated string or empty string */
 export function detectPatternsStr(candles: Candle[]): string {
   return detectPatterns(candles).join('; ');
 }
 
-/** Pattern bias: 'bullish' | 'bearish' | 'neutral' | null */
