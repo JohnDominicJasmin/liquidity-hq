@@ -101,11 +101,15 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
          app/(intl)/[locale]/layout.tsx. So a change to one does NOT move the other, and a test that
          checks only one cannot detect them disagreeing. They agree today - `ko`/`zh` both ways, both
          lowercase - and keeping them in step is a manual obligation of editing either. If this map
-         ever grows a locale, SUPPORTED_LOCALES has to grow it too or the hreflang points at a 404. */
+         ever grows a locale, SUPPORTED_LOCALES has to grow it too or the hreflang points at a 404.
+         `ru` was added on 2026-11-08 and that is exactly what happened: FOUR lists had to move in
+         one commit - this map, the identical one in app/(main)/page.tsx, SUPPORTED_LOCALES and the
+         `dictionaries` map, plus the sitemap. Nothing enforces it; see the note there. */
       languages: {
         en: '/',
         ko: '/ko',
         zh: '/zh',
+        ru: '/ru',
         'x-default': '/',
       },
     },

@@ -22,7 +22,7 @@
  * array. Deleting the dictionary would have thrown away the only part that was
  * finished. See issue #138.
  */
-export const SUPPORTED_LOCALES = ['ko', 'zh'] as const;
+export const SUPPORTED_LOCALES = ['ko', 'zh', 'ru'] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number] | 'en';
 
 export function isSupportedLocale(v: string): v is (typeof SUPPORTED_LOCALES)[number] {
@@ -543,10 +543,11 @@ export const ru: LandingDict = {
    Both dictionaries are exported above and untouched.
      ar - withdrawn by owner decision #138: RTL is unimplemented, so Arabic text
           rendered in a left-to-right layout. Not a translation gap.
-     ru - drafted 2026-11-08 and awaiting PM/DevOps's review of all 107 strings
-          before it is switched on (#1740). A translation nobody can reach costs
-          nothing; a wrong one on a live page is worse than no page. */
-export const dictionaries: Record<Locale, LandingDict> = { en, ko, zh };
+     ru - SWITCHED ON 2026-11-08 after PM/DevOps reviewed all 107 strings and
+          returned nine edits (#1740). It is listed above and in the map below,
+          so /ru now renders. Four places had to move together - see the
+          hreflang comment in app/(main)/page.tsx. */
+export const dictionaries: Record<Locale, LandingDict> = { en, ko, zh, ru };
 
 export function getDictionary(locale: string): LandingDict {
   return isSupportedLocale(locale) ? dictionaries[locale] : dictionaries.en;

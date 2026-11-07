@@ -11,12 +11,17 @@ export const metadata: Metadata = {
     /* #1740: hreflang for the three landing locales that ACTUALLY EXIST. Reciprocal on all three, with
        x-default on the English one, so they stop competing with each other for the same queries.
 
-       `ar` and `ru` are NOT listed, and that is the point rather than an omission. They 404:
-       SUPPORTED_LOCALES in lib/i18n/dictionaries.ts is ['ko','zh'] and generateStaticParams with
-       dynamicParams=false rejects everything else before it renders. Prod lhq_labels holds 2,679 rows
-       each for ar and ru, but ZERO landing strings - the landing copy lives only in dictionaries.ts and
-       LandingContent takes it as a prop, not from the label table. So adding them is a translation job,
-       not a list change, and listing an hreflang that 404s is worse than omitting it.
+       `ru` IS listed as of 2026-11-08; `ar` still is not, and the difference is the point.
+       This comment used to say both 404 because the landing copy lives only in dictionaries.ts and
+       `LandingContent` takes it as a prop, not from the label table - so adding a locale was a
+       TRANSLATION job, not a list change. That is still true, and it is why `ar` stays out: Arabic
+       is withdrawn under owner decision #138 for unimplemented RTL, not for missing strings.
+       Russian got its 107 landing strings written and reviewed (#1740), so it became a list change.
+
+       FOUR LISTS HAD TO MOVE IN ONE COMMIT and nothing enforces that: this map, the identical one in
+       app/(intl)/[locale]/page.tsx, SUPPORTED_LOCALES, the `dictionaries` map, and the sitemap.
+       Listing an hreflang that 404s is worse than omitting it, so if a locale is ever added again,
+       grep for one of the existing codes rather than trusting this list to be the only one.
 
        ONLY THE LANDING CARRIES THIS. /about, /faq and the rest have no translations, so claiming
        alternates for them would point a crawler at pages that do not exist in that language. */
@@ -24,6 +29,7 @@ export const metadata: Metadata = {
       en: '/',
       ko: '/ko',
       zh: '/zh',
+      ru: '/ru',
       'x-default': '/',
     },
   },
