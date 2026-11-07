@@ -1,0 +1,202 @@
+# Daily health check (#1594, #1651).
+#
+# Reads production /api/health once a day and keeps ONE labelled issue in step with it. The shape is
+# release-signals.yml's drift job: find the open issue, update it, close it when the condition clears.
+#
+# ── WHAT THIS DOES NOT COVER, STATED FIRST BECAUSE IT IS THE THING PEOPLE WILL ASSUME ──────────────
+#
+# IT WOULD NOT HAVE CAUGHT DEEP RESEARCH. #1594 cites Deep failing for up to five weeks undetected as
+# the reason this check matters, and that is true of the GAP, not of this check: Deep is not in
+# /api/health, and /api/health was green throughout. This closes "a data source broke silently". It
+# does NOT close "a feature broke silently" - that is a separate item and needs a call that exercises
+# the feature. A green run here means the database answered and the venues we call were callable. It
+# does not mean the product works.
+#
+# ── THREE OUTCOMES, AND UNKNOWN IS NOT HEALTHY ────────────────────────────────────────────────────
+#
+#   OK       the issue is closed
+#   UNKNOWN  could not measure - the issue is opened or updated and NEVER closed on this
+#   FAIL     opened or updated with the reason and the raw body
+#
+# A failed fetch is not a pass. release-signals.yml:396 already applies that rule to an unreachable
+# /api/version, and the reasoning is the same: a measurement that did not happen is not evidence of
+# health, and treating it as one is how a check reports green for a site that is down.
+#
+# ── TWO THINGS DELIBERATELY NOT ALARMED ON ────────────────────────────────────────────────────────
+#
+# A DEGRADED VENUE DOES NOT FAIL ON ITS OWN. app/api/health/route.ts says why: "a check that goes red
+# during every cooldown gets ignored". The breaker opening is the guard WORKING. So a degraded venue
+# is recorded, and only fails if the SAME venue is still degraded on the next daily run - one day is
+# a cooldown, two is a venue that did not recover.
+#
+# db_age_ms IS RECORDED AND NEVER THRESHOLDED. Measured on production: db_ms is identical across
+# consecutive requests and db_age_ms counts up, because the database read is cached for 30 s
+# (CACHE_MS) and db_age_ms is that cache's age. It therefore tracks TRAFFIC, not health - on a quiet
+# site a high value is normal, and a threshold on it would manufacture exactly the false alarm that
+# gets a check ignored.
+#
+# ── THE EMPTY SET, WHICH THE ROUTE ITSELF WARNS ABOUT ─────────────────────────────────────────────
+#
+# From app/api/health/route.ts: "an exchange nobody has ever called reads degraded: false, because
+# the breaker has never opened". Production has okx and hyperliquid at attempted:false, so "0 of 4
+# degraded" counts two venues that were never called. Every venue test here is therefore qualified by
+# `attempted` - and the inverse is a real signal: if NEITHER binance NOR bybit was attempted, nothing
+# is calling an exchange at all, which today would read as perfect health.
+
+name: Daily health check
+
+on:
+  schedule:
+    # 06:00 UTC. Offset from release-signals' 00:00 so the two never contend and a failing run names
+    # one job rather than two.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Health endpoint to probe. Point it at a bad URL to prove UNKNOWN fires.'
+        required: false
+        default: 'https://liquidity-hq.com/api/health'
+      dry_run:
+        description: 'Classify and print, but do not touch the issue.'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: daily-health
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The previous run's degraded set, for the two-consecutive-days rule. A cache rather than an
+      # issue, so a one-day cooldown leaves no trace a human has to read and dismiss - the noise this
+      # check is specifically trying to avoid. Immutable per key, so the key rotates and restore-keys
+      # picks up the most recent.
+      - name: Restore previous state
+        uses: actions/cache@v4
+        with:
+          path: prev-state
+          key: health-state-${{ github.run_id }}
+          restore-keys: health-state-
+
+      - name: Probe and classify
+        id: probe
+        env:
+          URL: ${{ github.event.inputs.url || 'https://liquidity-hq.com/api/health' }}
+        run: |
+          set -uo pipefail
+
+          # A MISSING TOOL MUST NOT LOOK LIKE AN UNREACHABLE ENDPOINT. Running this logic on a box
+          # without jq classified EVERY fixture as UNKNOWN, including a known-healthy body - because
+          # `! jq -e .` fails identically whether the JSON is bad or jq is absent. jq is preinstalled
+          # on ubuntu-latest, but nothing in this repo depended on it before this workflow, so the
+          # assumption is checked rather than inherited. Failing the step is correct: "the runner is
+          # missing a tool" is our problem to fix, not a health signal to report.
+          command -v jq >/dev/null 2>&1 || { echo "::error::jq is not available on this runner - cannot classify"; exit 1; }
+
+          mkdir -p prev-state
+          PREV=$(cat prev-state/degraded 2>/dev/null || echo "")
+          echo "previous degraded set: '${PREV:-none}'"
+
+          CODE=$(curl -s -o /tmp/health.json -w '%{http_code}' --max-time 45 "$URL" || echo 000)
+          echo "HTTP $CODE from $URL"
+
+          STATE=OK; REASON=""
+          DEGRADED=""
+
+          if [ "$CODE" = "000" ] || ! jq -e . /tmp/health.json >/dev/null 2>&1; then
+            # Unreachable, timed out, or not JSON. NOT a failure and NOT a pass.
+            STATE=UNKNOWN
+            REASON="could not measure: HTTP ${CODE}, body did not parse as JSON"
+            echo "(body, first 300 bytes)"; head -c 300 /tmp/health.json 2>/dev/null || true; echo
+          else
+            OK=$(jq -r '.ok // false' /tmp/health.json)
+            RSN=$(jq -r '.reason // ""' /tmp/health.json)
+            # Only venues actually called can say anything about health.
+            ATTEMPTED=$(jq -r '[.exchanges // {} | to_entries[] | select(.value.attempted) | .key] | join(",")' /tmp/health.json)
+            DEGRADED=$(jq -r '[.exchanges // {} | to_entries[] | select(.value.attempted and .value.degraded) | .key] | sort | join(",")' /tmp/health.json)
+            echo "ok=$OK attempted='${ATTEMPTED:-none}' degraded='${DEGRADED:-none}'"
+
+            if [ "$OK" != "true" ]; then
+              STATE=FAIL
+              REASON="the database check failed: ok=false, reason='${RSN}', HTTP ${CODE}"
+            elif ! echo ",$ATTEMPTED," | grep -q -e ',binance,' -e ',bybit,'; then
+              # Neither primary venue was called. Reads as healthy and is not.
+              STATE=FAIL
+              REASON="no exchange was attempted (attempted='${ATTEMPTED:-none}') - nothing is calling a venue"
+            elif [ -n "$DEGRADED" ] && [ "$DEGRADED" = "$PREV" ]; then
+              STATE=FAIL
+              REASON="venue(s) degraded on two consecutive daily runs: ${DEGRADED}"
+            elif [ -n "$DEGRADED" ]; then
+              STATE=OK
+              REASON="venue(s) degraded today only (${DEGRADED}) - a cooldown, not yet a failure. Escalates if still degraded tomorrow."
+            fi
+          fi
+
+          # Carry today's degraded set forward. Written even on UNKNOWN - as empty, because we did not
+          # observe a degradation, and a stale set would fabricate a second consecutive day.
+          printf '%s' "$DEGRADED" > prev-state/degraded
+
+          echo "state=$STATE"   >> "$GITHUB_OUTPUT"
+          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+          echo "::notice::health check: $STATE ${REASON}"
+
+      - name: Open, update or close the issue
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          STATE: ${{ steps.probe.outputs.state }}
+          REASON: ${{ steps.probe.outputs.reason }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          OPEN=$(gh issue list --repo "$REPO" --label health-check --state open \
+                   --json number --jq '.[0].number // empty' 2>/dev/null || echo "")
+
+          if [ "$STATE" = "OK" ]; then
+            if [ -n "$OPEN" ]; then
+              gh issue close "$OPEN" --repo "$REPO" \
+                --comment "Production /api/health is healthy again. ${REASON:-} Closing automatically. ${RUN_URL}"
+            else
+              echo "healthy, nothing open - nothing to do"
+            fi
+            exit 0
+          fi
+
+          {
+            echo "**${STATE}** - $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo
+            echo "${REASON}"
+            echo
+            if [ "$STATE" = "UNKNOWN" ]; then
+              echo "> **Unknown is not healthy and this issue will not close on it.** A measurement that"
+              echo "> did not happen is not evidence of health. It closes on an actual healthy read."
+              echo
+            fi
+            echo "A green run here means the database answered and the venues we call were callable."
+            echo "It does **not** mean Deep Research, or any other feature, works - see the workflow header."
+            echo
+            echo '```json'
+            head -c 2000 /tmp/health.json 2>/dev/null || echo '(no body)'
+            echo
+            echo '```'
+            echo
+            echo "Run: ${RUN_URL}"
+          } > /tmp/body.md
+
+          if [ -n "$OPEN" ]; then
+            gh issue edit "$OPEN" --repo "$REPO" --body-file /tmp/body.md
+            gh issue comment "$OPEN" --repo "$REPO" --body "Still ${STATE} on $(date -u '+%Y-%m-%d'). ${REASON}"
+          else
+            gh issue create --repo "$REPO" --label health-check \
+              --title "Production health check: ${STATE}" \
+              --body-file /tmp/body.md
+          fi
