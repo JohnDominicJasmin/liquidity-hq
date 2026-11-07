@@ -632,30 +632,51 @@ From `.env.example` — the authoritative list of what needs a key. Whether each
 | Whop | `NEXT_PUBLIC_WHOP_CHECKOUT_MONTHLY` / `_ANNUAL` / `_FORTNIGHTLY`, `WHOP_WEBHOOK_SECRET`, `WHOP_COMPANY_ID`, `WHOP_PLAN_ID_*` | Payments, Whop only since 2026-10-17 (#1567). The monthly link alone decides whether Pro is on sale (`lib/checkout.ts`, `isProBuyable`); the webhook refuses everything without its secret (`lib/whop.ts`). | **None set on production** (PM read the names on Render, 2026-10-21 ~14:17 UTC): payments are off there. Go-live sets all of them together, then rebuilds; never the links alone |
 | `CRON_SECRET` | `CRON_SECRET` | Protects `telegram/alert`, `macro-alert`, `signals/track`, `telegram/setup-webhook`, `alert-outcomes/resolve` and the ingest routes from unauthenticated triggering. **Set on prod** (named in production's Render environment and reported by `/api/version` as `cronSecret: true`, 2026-10-21); this row said "unset" until then, long after §2 was corrected. | — |
 
-**WRITING AN ENVIRONMENT VARIABLE ON RENDER STARTS A DEPLOY. `autoDeploy: "no"` does not stop
-it.** Measured on `liquidity-hq-dev`, 2026-11-08: the write answered with
-`status: build_in_progress`, `trigger: "api"`, on the branch head. Both app services are
-`autoDeploy: "no"`, `autoDeployTrigger: "off"`, and §4's rule that merging ships nothing until
-someone deploys manually is about **git pushes** - it does not extend to configuration.
+**THE `update_environment_variables` MCP TOOL DEPLOYS. RENDER ITSELF DOES NOT DEPLOY ON AN ENV
+CHANGE.** Two different mechanisms, and the difference decides what the next person should expect.
 
-Three sessions assumed the opposite on the same evening and planned an ordering around it, so it is
-written here rather than left as folklore:
+Measured on `liquidity-hq-dev`, 2026-11-07/08. One `mcp__render__update_environment_variables` call
+and NO `trigger_deploy` call produced exactly one build - `dep-dbnm5qu7bikc73cuiqjg`, 17:42:03Z,
+live 17:44:59Z, on `de590642`. The tool's own response said so: *"Environment variables updated. A
+new deploy has been triggered to pick up the changes."*
 
-- **Set every variable a change needs in ONE write.** Two batches are two builds, and no ordering
-  avoids it. `liquidity-hq-dev` carries a ~500 build-hour/month cap that production does not.
-- **A variable someone else must set is a second build by construction.** A webhook signing secret
-  should not pass through a chat transcript, so the owner pastes it himself - which is correct, and
-  which means two builds. Plan for two rather than trying to merge them.
-- **Do not also trigger a deploy afterwards.** The build is already running; a manual trigger is a
-  third.
+**But Render's event record attributes it to the API caller, not to the env change.** The
+`build_started` event carries:
+
+    trigger: { envUpdated: false, manual: false, rollback: false,
+               deployedByRender: false, firstBuild: false, user: <the account> }
+
+`envUpdated: false` is the discriminator. `trigger: "api"` on the deploy record is NOT - every
+deploy this service has ever had carries it. So the platform did not auto-deploy; the MCP tool wrote
+the variables and then called the deploy endpoint itself.
+
+**What that means in practice:**
+
+- **Via the MCP tool, an env write IS a deploy.** Set every variable a change needs in ONE call,
+  and do NOT also call `trigger_deploy` - the build is already running. A variable someone else must
+  set (a secret that should not pass through a transcript) is therefore a second build by
+  construction; plan for two rather than trying to merge them.
+- **Via the Render dashboard or the raw API, this is UNMEASURED.** `envUpdated` exists as a flag, so
+  Render clearly can attribute a build to an env update in some path - but nobody here has observed
+  that path. Do not assume either way.
+- **It did not cost an extra build.** Only one build ran and that build was needed anyway, since
+  `autoDeploy: "no"` means the #2038 merge to `dev` shipped nothing on its own. An earlier draft of
+  this note claimed a wasted build hour on the ~500/month cap; that was wrong, and QA caught it by
+  reading the deploy list and finding one deploy where two were implied.
 - **Expect the intermediate build to go LIVE half-configured, and decide beforehand whether that is
   safe to serve.** This is the practical teeth of the "never the links alone" rule in the Whop row
-  above: on 2026-11-08 the first build came up with `proBuyable: true` and `whopWebhook: false` - a
-  product that looked buyable on `/upgrade` and could not grant Pro, because `isProBuyable` keys off
-  the monthly link and never consults the plan mapping. Nobody paid, because the gate required all
-  four Whop flags on `/api/version` before anyone was told to click.
+  above: on 2026-11-07 the build came up with `proBuyable: true` and `whopWebhook: false` - a product
+  that looked buyable on `/upgrade` and could not grant Pro, because `isProBuyable` keys off the
+  monthly link and never consults the plan mapping (`lib/checkout.ts:214`). Nobody paid, because the
+  gate required all four Whop flags on `/api/version` before anyone was told to click.
 - **Verify from the running service, never from the write.** `/api/version` reports `commit` plus
-  the `configured` flags; the write's own response only proves a build started.
+  the `configured` flags; a write's response only proves a build started.
+
+**Read `list_events`, not just `list_deploys`, when you need to know WHY a build ran.** The deploy
+record's `trigger` string does not discriminate between a manual trigger, a tool-initiated one and
+an env-initiated one on this service. The event's `trigger` OBJECT does. The first version of this
+note asserted a cause from the deploy record and a response message, and got the cause wrong while
+getting the observation right.
 
 Dev's own Whop state as of 2026-11-08, since the row above reads as though Whop is configured
 nowhere: `liquidity-hq-dev` has the monthly link, `WHOP_PLAN_ID_MONTHLY` and
