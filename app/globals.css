@@ -5676,7 +5676,20 @@ html[lang="ko"] .lp-hero-h1 { word-break: keep-all; }
 /* ── PLATFORM FOOTER ──────────────────────────────────────────────────── */
 .pf-footer {
   margin-top: 48px;
-  padding-bottom: 12px;
+  /* CLEAR THE FLOATING ASK AI BUTTON (#1185). `.gchat-fab` is `position: fixed` at the bottom right
+     and takes no space in the document, so when the page is scrolled to the end it sat ON TOP of the
+     last line of `.pf-footer-bottom-note` - which is the legal acknowledgement, and which is
+     `text-align: right`, so its final words ("...Terms of Use, and Privacy Policy") ended up directly
+     underneath it. Measured on /terms before the fix: the button overlapped the "Privacy Policy" link
+     by 61x16px at 1280 and at 390, and 17x16px at 768 - in BOTH themes, 6 of 6 cases.
+     88px is the button's own footprint: `bottom: 24px` plus `height: 64px`. The extra 8 is so the
+     text clears it rather than touching it. On phones the button moves to `bottom: 76px` to sit above
+     the tab bar, but `.app-content` already reserves a band down there, so one value covers every
+     breakpoint - verified by measuring all six cases rather than by adding the numbers up.
+     Padding on the FOOTER rather than a margin on the note, because the note is right-aligned inside
+     a `space-between` row: pushing it left would reflow the line, where lifting the whole footer
+     cannot. */
+  padding-bottom: 96px;
   position: relative;
 }
 .pf-footer::before {
