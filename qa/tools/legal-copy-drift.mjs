@@ -44,16 +44,79 @@
  * Korean cookies section carried required meaning. That is the owner's call or a lawyer's. This
  * script points; it does not rule.
  */
+import { readFile } from 'node:fs/promises';
 import { AVAILABLE_LOCALES, SUPPORTED_LOCALES } from '../../lib/locales.ts';
 
 const BASE = (process.argv[2] ?? 'https://liquidity-hq.com').replace(/\/+$/, '');
-const PREFIX = /^(TERMS|PRIVACY|REFUND|DISCLAIMER)_/;
-const SHORT_FACTOR = 0.65;   // flag below this multiple of the locale's own median
-const MIN_EN_CHARS = 120;    // short labels have too much ratio noise to judge
+/* ── THE KEY SET IS DERIVED FROM THE PAGES, NOT LISTED ────────────────────────────────────────────
+ *
+ * This was `/^(TERMS|PRIVACY|REFUND|DISCLAIMER)_/` and it was SHORT BY FIVE: `CONSENT_` was absent,
+ * so the cookie-consent banner - legal copy on every page - had never been measured. I "fixed" that
+ * by adding CONSENT to the list, which repaired five keys and left the failure mode untouched. The
+ * other QA session asked the right question: does it DERIVE the set, or can the list go short again?
+ *
+ * IT COULD. A scan that reports on "every legal key" while "legal" is defined by a hand-written
+ * pattern is asserting a completeness it cannot have, and the output looks identical either way -
+ * nothing marks the keys the pattern never considered. That all five CONSENT keys turned out fine
+ * was luck, not vindication.
+ *
+ * SO THE SET NOW COMES FROM THE FILES THAT RENDER THE COPY. A legal key is one referenced by a page
+ * whose job is legal text. That is the actual definition, and it is self-maintaining: a new section
+ * added to /terms is picked up with no edit here, and a whole new legal page fails loudly below
+ * rather than silently reducing the scope.
+ *
+ * THE SEED CANNOT BE ELIMINATED, ONLY MADE VISIBLE AND CHECKED. This is still a list - of files
+ * instead of prefixes - and pretending otherwise would repeat the original error one level up. What
+ * changes is that a missing FILE is conspicuous (five entries, each a page you can open) where a
+ * missing PREFIX was not, and that CONTROL 4 below cross-checks this derivation against an
+ * independent keyword sweep of the entire payload. Two derivations that disagree are the signal. */
+const LEGAL_SOURCES = [
+  'app/(main)/terms/page.tsx',
+  'app/(main)/privacy/page.tsx',
+  'app/(main)/refund/page.tsx',
+  'app/(main)/disclaimer/page.tsx',
+  'components/CookieConsent.tsx',
+];
+
+/* Independent of LEGAL_SOURCES on purpose: this sweeps EVERY key in the payload for a legal-ish
+   word and is used only to contradict the derivation, never to build it. If it finds a key the
+   pages do not reference, either a legal surface is missing from LEGAL_SOURCES or a stale key is
+   lying around - both worth knowing, and neither visible from the derivation alone. */
+/* MATCHED PER UNDERSCORE-DELIMITED TOKEN, not as a substring. The first version was a bare regex
+   over the whole key and it reported AUTH_TERMINAL_LIVE_TAG as legal-ish, because TERMINAL contains
+   TERM. One false positive in a 16-row control output is enough to make a reader discount the other
+   fifteen, and those fifteen were real. */
+const LEGALISH_TOKENS = new Set([
+  'TERM', 'TERMS', 'PRIVACY', 'REFUND', 'REFUNDS', 'DISCLAIMER', 'CONSENT', 'COOKIE', 'COOKIES',
+  'GDPR', 'LEGAL', 'LIABILITY', 'WARRANTY', 'INDEMNIFICATION', 'WITHDRAWAL',
+]);
+const isLegalish = (key) => key.split('_').some((t) => LEGALISH_TOKENS.has(t));
+
+/* 0.70, RAISED FROM 0.65 ON MEASUREMENT, not on taste. A full ranked run on prod 2026-11-08 shows a
+   genuine cliff among substantive bodies (en >= 120 chars):
+
+     0.24 0.27 0.30 0.30 0.33 0.43 0.56 0.60 0.68   <- 3 distinct keys x 3 locales
+     ------------------------------- gap 0.08 ------------------------------
+     0.76 0.83 0.83 0.84 0.86 ...                   <- everything else
+
+   At 0.65 the line fell INSIDE one of those keys: PRIVACY_SECTION_INFO_COLLECTED_BODY flagged on
+   ko (0.60) and zh (0.56) but not ru (0.68), so the same defect was reported in two locales and
+   hidden in the third. 0.70 captures all nine pairs and still excludes the next-nearest key at
+   0.76. If a future run reports something between 0.70 and 0.76, read it as the cliff having moved
+   rather than as a new finding, and re-run the ranked view before trusting either. */
+const SHORT_FACTOR = 0.70;
+
+/* Short labels cannot be judged by ratio: "Changes" is 7 characters and its Korean is 2, which is
+   normal CJK brevity rather than lost content. VERIFIED THAT THIS CUTOFF IS NOT HIDING BODIES: of
+   the 22 locale-key pairs it excluded on 2026-11-08, every one was a TITLE, EYEBROW or button label
+   of 6-27 English characters. Zero bodies were excluded. The run prints the excluded count so the
+   cutoff is visible rather than silent - a filter nobody can see is indistinguishable from a
+   finding nobody found. */
+const MIN_EN_CHARS = 120;
 
 /* Keys the Terms page renders that are the current known absence. Named explicitly so a run reports
    whether they are STILL missing rather than leaving it to a reader to notice. */
-const KNOWN_ABSENT = [
+const KNOWN_ABSENT_PIN = [
   'TERMS_SECTION_SUBSCRIPTIONS_TITLE', 'TERMS_SECTION_SUBSCRIPTIONS_BODY',
   'TERMS_SECTION_BILLING_TITLE', 'TERMS_SECTION_BILLING_BODY',
   'TERMS_SECTION_CANCELLATION_TITLE', 'TERMS_SECTION_CANCELLATION_BODY',
@@ -100,16 +163,57 @@ async function main() {
     console.log('  none of them are offered, so this is expected rather than a gap');
   }
 
-  const legalKeys = Object.keys(en).filter((k) => PREFIX.test(k)).sort();
-  console.log(`\nlegal keys in the served payload: ${legalKeys.length}`);
+  /* Derive the key set from the files that render legal copy. `defaults` is the full declared set,
+     so a key the pages reference but the DATABASE lacks still appears here - which is how the
+     no-rows-at-all case is FOUND rather than remembered. */
+  const defaults = JSON.parse(await readFile(new URL('../../lib/labelDefaults.en.json', import.meta.url), 'utf8'));
+  const referenced = new Set();
+  const perFile = [];
+  for (const rel of LEGAL_SOURCES) {
+    let src;
+    try {
+      src = await readFile(new URL(`../../${rel}`, import.meta.url), 'utf8');
+    } catch {
+      /* A legal page that moved or was renamed must STOP the run. Silently scanning four files
+         instead of five is the exact failure this derivation replaced. */
+      throw new Error(`LEGAL_SOURCES names ${rel}, which does not exist. A legal surface has moved - ` +
+        'fix the path rather than letting the scan quietly cover less.');
+    }
+    const found = [...new Set([...src.matchAll(/'([A-Z][A-Z0-9_]{3,})'/g)].map((m) => m[1]))]
+      .filter((k) => k in defaults);
+    for (const k of found) referenced.add(k);
+    perFile.push(`${rel.replace(/^.*\//, '')} ${found.length}`);
+  }
+  const legalKeys = [...referenced].sort();
+  console.log(`\nlegal keys DERIVED from ${LEGAL_SOURCES.length} source files: ${legalKeys.length}   (${perFile.join(', ')})`);
+
+  /* ── CONTROL 4: the independent keyword sweep must not find a legal-ish key the pages do not
+     reference. This is the control that the old hand-written prefix could never have, because the
+     prefix WAS the definition - nothing existed to disagree with it. */
+  const sweep = Object.keys(defaults).filter(isLegalish);
+  const unreferenced = sweep.filter((k) => !referenced.has(k));
+  console.log(`CONTROL  keyword sweep over all ${Object.keys(defaults).length} declared keys found ${sweep.length} legal-ish; ` +
+    `${unreferenced.length} are NOT referenced by any file in LEGAL_SOURCES`);
+  if (unreferenced.length) {
+    console.log('  Either a legal surface is missing from LEGAL_SOURCES, or these are stale keys:');
+    for (const k of unreferenced) console.log(`    ${k}`);
+  }
 
   /* ── CONTROL 3: THE ONE THAT FOUND THE REAL FINDING. Asserting that the keys under investigation
      are in my own key set reported 0 of 8 - they are in labelKeys.ts and labelDefaults.en.json but
      absent from the served payload, so the page falls back to bundled English. Without this the
      script would have reported "zero translations" for eight keys it had silently dropped from its
      own list: a true-looking answer reached by not looking. */
-  const absent = KNOWN_ABSENT.filter((k) => !(k in en));
-  console.log(`CONTROL  known-absent keys still missing from the payload: ${absent.length}/${KNOWN_ABSENT.length}`);
+  /* DERIVED, not recalled: a key the legal pages render that the served payload does not carry has
+     no database row in any locale, and falls back to the bundled English default. The pin below is
+     only a regression check that the eight known ones are still among them. */
+  const absent = legalKeys.filter((k) => !(k in en));
+  const pinStillAbsent = KNOWN_ABSENT_PIN.filter((k) => absent.includes(k));
+  console.log(`\nkeys the legal pages render with NO ROW IN ANY LOCALE: ${absent.length} (derived)`);
+  console.log(`CONTROL  of the 8 pinned on 2026-11-07, still absent: ${pinStillAbsent.length}/${KNOWN_ABSENT_PIN.length}`);
+  if (absent.length > KNOWN_ABSENT_PIN.length) {
+    console.log(`  *** ${absent.length - KNOWN_ABSENT_PIN.length} MORE than the pin - new keys shipped without rows. ***`);
+  }
   if (absent.length) {
     console.log('  NO DATABASE ROWS IN ANY LOCALE - rendered from lib/labelDefaults.en.json, so English');
     console.log('  on every offered locale. This needs an INSERT, not a translation:');
@@ -138,25 +242,55 @@ async function main() {
     console.log(`  ${l.padEnd(5)} ${String(translated[l].size).padStart(3)}/${legalKeys.length} translated   median ratio ${med[l].toFixed(2)}`);
   }
 
-  const zero = legalKeys.filter((k) => offered.every((l) => !translated[l].has(k)));
+  /* EXCLUDES the no-row keys, which are reported above and are a different defect. Without this the
+     two buckets overlap and the total double-counts: deriving the key set from the declared labels
+     pulled the 11 absent keys into scope, and because they are never translated either, this count
+     jumped 20 -> 31 and looked like eleven new translation gaps. They are the SAME eleven keys
+     already named as needing an INSERT. Two numbers that share members cannot be added, and a
+     reader adding them is the predictable outcome of printing them side by side. */
+  const absentSet = new Set(absent);
+  const zero = legalKeys.filter((k) => !absentSet.has(k) && offered.every((l) => !translated[l].has(k)));
   console.log(`\n=== ENGLISH ON EVERY OFFERED LOCALE (has an en row, no translations): ${zero.length}`);
+  console.log(`    (disjoint from the ${absent.length} no-row keys above - these two sets never overlap)`);
   for (const k of zero) console.log(`  ${k}`);
 
   console.log('\n=== SHORTER THAN THE LOCALE\'S OWN NORM (candidate omitted content, NOT a verdict)');
-  let flagged = 0;
+  let flagged = 0, excludedShort = 0, nearMiss = 0;
+  const bodiesExcluded = [];
   for (const l of offered) {
     for (const k of [...translated[l]].sort()) {
       const e = String(en[k]), s = String(payloads[l][k]);
-      if (e.length < MIN_EN_CHARS) continue;
-      const r = s.length / e.length;
-      if (r < SHORT_FACTOR * med[l]) {
+      const rel = (s.length / e.length) / med[l];
+      if (e.length < MIN_EN_CHARS) {
+        /* Counted and surfaced, not silently dropped. A body landing here would mean the cutoff is
+           hiding something it was never meant to hide, so those are named individually. */
+        if (rel < SHORT_FACTOR) {
+          excludedShort++;
+          if (/_BODY$/.test(k)) bodiesExcluded.push(`${l} ${k} (en ${e.length}c, rel ${rel.toFixed(2)})`);
+        }
+        continue;
+      }
+      if (rel < SHORT_FACTOR) {
         flagged++;
         console.log(`  ${l}  ${k}`);
-        console.log(`      en ${e.length} -> ${s.length} chars   ratio ${r.toFixed(2)} vs ${l} median ${med[l].toFixed(2)}`);
+        console.log(`      en ${e.length} -> ${s.length} chars   rel ${rel.toFixed(2)} of ${l} median ${med[l].toFixed(2)}`);
+      } else if (rel < SHORT_FACTOR + 0.10) {
+        /* The band just above the line. On 2026-11-08 it held exactly ONE member - zh
+           DISCLAIMER_SECTION_BACKTESTS_BODY at 0.76, the nearest key above the cliff. So this
+           count is 1 in a healthy run, not 0; a value of 2 or more means something new has moved
+           into the gap and the ranked view should be re-read before trusting the flagged list. */
+        nearMiss++;
       }
     }
   }
   if (!flagged) console.log('  none');
+  console.log(`\n  below the line but under the ${MIN_EN_CHARS}-char floor (titles/labels, normal CJK brevity): ${excludedShort}`);
+  if (bodiesExcluded.length) {
+    console.log('  *** A _BODY KEY IS BEING EXCLUDED BY THE CHAR FLOOR - the floor was sized for titles: ***');
+    for (const b of bodiesExcluded) console.log(`      ${b}`);
+  }
+  console.log(`  in the ${SHORT_FACTOR}-${(SHORT_FACTOR + 0.10).toFixed(2)} band just above the line: ${nearMiss}` +
+    (nearMiss > 1 ? '  *** was 1 on 2026-11-08 - something new is in the gap, re-read the ranked view ***' : '  (1 is the known baseline: zh DISCLAIMER_SECTION_BACKTESTS_BODY at 0.76)'));
 
   console.log(`\nflagged-short: ${flagged}   english-everywhere: ${zero.length}   no-rows-at-all: ${absent.length}`);
   console.log('Length is a detector. Whether a short translation omits REQUIRED content is the owner\'s call.');
