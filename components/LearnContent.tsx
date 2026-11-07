@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { GLOSSARY } from '@/lib/glossary';
+import { GLOSSARY, CATEGORY_TOOL } from '@/lib/glossary';
 import { useLabels } from '@/lib/labels';
 
 // Public glossary page (Tier 2 #14). Deliberately does NOT redirect signed-in
@@ -38,6 +38,16 @@ const CSS = `
 }
 .gl-jump a:hover, .gl-jump a:focus-visible { border-color: var(--accent); color: var(--txt); }
 .gl-count { font-size: var(--fs-caption); color: var(--txt3); margin-top: 8px; }
+/* The category to tool link (#1740). Same pill as .gl-jump a, so it reads as a link this page already
+   has rather than a new control, and white-space:nowrap keeps "Open the Liquidation Map" on one line
+   at 390. NOTE: this block is a template literal - a backtick in here terminates it. */
+.gl-tool { margin: 14px 0 0; }
+.gl-tool a {
+  white-space: nowrap; display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px;
+  border-radius: 999px; border: 0.5px solid var(--bdr2); color: var(--txt2); font-size: var(--fs-caption);
+  font-weight: 600; text-decoration: none;
+}
+.gl-tool a:hover, .gl-tool a:focus-visible { border-color: var(--accent); color: var(--txt); }
 .gl-cat { margin-top: 28px; scroll-margin-top: calc(var(--appbar-h) + var(--strip-h) + var(--banner-h) + 120px); }
 .gl-cat-title { font-size: var(--fs-label); font-weight: 700; color: var(--txt); margin: 0 0 4px; }
 .gl-dl { display: grid; grid-template-columns: 1fr; column-gap: 28px; margin: 0; }
@@ -138,6 +148,18 @@ export default function LearnContent() {
               </div>
             ))}
           </dl>
+          {/* #1740: ONE tool link per category, not per term - five links instead of roughly twenty, which
+              is most of the internal-linking value at a fifth of the noise (PM, 2026-11-08). The label
+              carries only the sentence; the tool's NAME comes from its existing nav key, so it is already
+              translated into ko, zh and ru. Reuses the .gl-jump pill rather than inventing a style, and
+              `white-space: nowrap` on it is why this cannot wrap mid-phrase at 390. */}
+          {CATEGORY_TOOL[cat.key] && (
+            <p className="gl-tool">
+              <Link href={CATEGORY_TOOL[cat.key].path}>
+                {t('LEARN_CONTENT_CATEGORY_TOOL_LINK', { tool: t(CATEGORY_TOOL[cat.key].labelKey) })}
+              </Link>
+            </p>
+          )}
         </section>
       ))}
 

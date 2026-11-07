@@ -223,9 +223,29 @@ export function latestStructureSignal(candles: PACandle[]): PASignal | null {
 /** One-line summary for AI prompts and alert bodies. */
 export function describeStructureSignal(s: PASignal | null): string {
   if (!s) return '-';
+  /* NAME THE EVENT, DO NOT INTERPRET IT (QA flagged the CHoCH half on #1263; the BOS half is the
+     same defect and they had not reached it).
+     
+     These four strings read to a user as what price will do next:
+     
+         'bullish reversal hint (CHoCH)'  ->  'change of character, up (CHoCH)'
+         'bearish reversal hint (CHoCH)'  ->  'change of character, down (CHoCH)'
+         'bullish continuation (BOS)'     ->  'break of structure, up (BOS)'
+         'bearish continuation (BOS)'     ->  'break of structure, down (BOS)'
+     
+     "reversal hint" and "continuation" are forecasts, and "continuation" is on the banned list
+     `lib/chartPatterns.ts` already applies to the new teaching copy - the same word, forbidden in
+     one layer and shipping in another, which is exactly the mirroring the owner asked for.
+     
+     THE DIRECTION STAYS AND THAT IS NOT AN INCONSISTENCY. A bullish CHoCH is a structurally
+     different event from a bearish one, so "up" and "down" say WHICH event was detected rather
+     than where price is going. What went is the clause that told the reader what it means for them.
+     
+     The replacements are also simply what the acronyms stand for, so a beginner meeting CHoCH for
+     the first time now gets its expansion instead of an interpretation of it. */
   const what = s.kind === 'CHOCH'
-    ? (s.dir === 'bull' ? 'bullish reversal hint (CHoCH)' : 'bearish reversal hint (CHoCH)')
-    : (s.dir === 'bull' ? 'bullish continuation (BOS)' : 'bearish continuation (BOS)');
+    ? (s.dir === 'bull' ? 'change of character, up (CHoCH)' : 'change of character, down (CHoCH)')
+    : (s.dir === 'bull' ? 'break of structure, up (BOS)' : 'break of structure, down (BOS)');
   const vol = s.volumeRatio == null ? ''
     : s.volumeBacked ? ` on ${s.volumeRatio.toFixed(1)}x volume`
     : ` on light ${s.volumeRatio.toFixed(1)}x volume`;
