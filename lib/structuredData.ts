@@ -137,10 +137,15 @@ export function playbookArticleGraph(description: string): JsonLdGraph {
  *
  *  BUILT FROM `GLOSSARY_FLAT`, NOT `ALL_GLOSSARY`, AND THAT IS THE WHOLE CORRECTNESS ARGUMENT.
  *  `lib/glossary.ts` filters entries out when `SHOW_PERFORMANCE_STATS` is off - the default, and
- *  production's state - so `ALL_GLOSSARY` currently holds terms the page does NOT render. Measured today:
- *  `GLOSSARY_FLAT` is 29 terms across 5 categories. Emitting the unfiltered list would describe two terms a
+ *  production's state - so `ALL_GLOSSARY` currently holds a term the page does NOT render. Measured:
+ *  `GLOSSARY_FLAT` is 29 terms across 5 categories, out of 30 entries, and `STATS_ENTRY_SLUGS` holds the one
+ *  that is filtered out (`alert-outcome-tracking`). Emitting the unfiltered list would describe a term a
  *  visitor cannot find, which is the mismatch this file's header calls worse than no structured data at all,
  *  and it would be invisible in review because it depends on a build-time flag rather than on the code.
+ *
+ *  AN EARLIER VERSION OF THIS COMMENT SAID "TWO TERMS", off a `grep -c 'slug:'` of 31 that had counted the
+ *  interface's own `slug: string` declaration as an entry. QA caught it. The count above comes from the
+ *  module at runtime instead, which is the only reading that cannot include a type declaration.
  *
  *  Reading the export rather than the raw constant also means the flag moves both together: turning
  *  `SHOW_PERFORMANCE_STATS` on restores the terms to the page and to this graph in the same build.
