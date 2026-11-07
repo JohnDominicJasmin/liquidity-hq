@@ -107,20 +107,41 @@ export type PatternType = (typeof PATTERN_TYPES)[number];
  * silently absent, because a vocabulary that lists what it cannot find is how a teaching panel ends
  * up rendering nothing for a shape it just drew.
  *
- * MEASURED, NOT ASSUMED. 1,200 generated shapes across a wide space of slopes, convergence rates,
- * amplitudes, periods and lengths produced 171 two-rail structures. ALL 171 had identical rail
- * slopes, and the only distinct `gapEnd / gapStart` ratio observed was exactly 1.0000.
+ * PROVEN, NOT SAMPLED - and the stronger argument is QA's, not mine. I measured it: 1,200 generated
+ * shapes produced 171 two-rail structures, all 171 with identical rail slopes and a single distinct
+ * `gapEnd / gapStart` ratio of exactly 1.0000. QA then read the source and showed it holds for ALL
+ * inputs rather than for 1,200 of them, because two-rail structures come from exactly two call
+ * sites and both are closed. Recorded in that order because a sample would have been the weaker
+ * claim had anyone later needed to lean on it.
  *
- * The reason is structural and is my own doing (#2023): a channel's second rail is DERIVED from the
- * anchor's slope, so the two rails are parallel by construction and the gap between them is
- * constant. A convergence test can therefore never fire. A range is the other two-rail case, and it
- * is matched earlier by both-rails-flat, so it never reaches the convergence check either.
+ * TWO PATHS, AND THEY ARE PARALLEL FOR TWO DIFFERENT REASONS. This distinction is QA's and it is
+ * the part worth carrying forward, because only one of the two reasons is structural:
+ *
+ *   `chartStructureDetect.ts:686` - THE CHANNEL. `[anchor.rail, derived]`, and `deriveParallelRail`
+ *   copies `slope: anchor.slope` verbatim. One slope m for both rails, so the gap is
+ *   (m*i + b_high) - (m*i + b_low) = b_high - b_low at EVERY index. The ratio is exactly 1 for all
+ *   inputs. Parallel BY CONSTRUCTION, and my own doing in #2023.
+ *
+ *   `chartStructureDetect.ts:653` - THE RANGE. Two INDEPENDENTLY admitted rails, so this is the one
+ *   path whose geometry could produce non-parallel rails. It cannot today only because it is gated
+ *   on `highRail.gate === 'horizontal' && lowRail.gate === 'horizontal'`, and two flat rails are
+ *   parallel. Parallel BY GATE, not by construction.
+ *
+ * SO THE RANGE GATE IS LOAD-BEARING FOR THIS EXCLUSION, which nothing about reading it suggests.
+ * Relaxing it to admit sloped rails would start producing non-parallel rails and make the
+ * convergence branch reachable again - a second trigger, independent of the independent-rails fork
+ * described below.
  *
  * SO THE CONVERGENCE BRANCH IS GONE TOO, not left in place against a future need. Keeping an
  * unreachable branch that reads as functional is the exact defect QA found in `lib/patterns.ts`
  * this week - `cr >= pr * 0.8`, arithmetically impossible to fail, which read as a tunable
  * threshold and sent the next reader looking elsewhere. Doing the same thing here knowingly, having
  * just removed that one, would be indefensible.
+ *
+ * WHERE THE ASSERTION LIVES: `__tests__/`, QA's. A `scripts/` prober shipped with this change
+ * first and was removed on QA's reasoning, which is better than mine was: `npm test` does not run
+ * anything in `scripts/`, so for a premise that stays true for months and then silently stops,
+ * "nobody ran it" and "it passed" are indistinguishable. A cell runs on every gate.
  *
  * WHAT IT WOULD TAKE TO BRING THEM BACK: two INDEPENDENTLY fitted rails, which #2023 removed
  * because the joint probability of both clearing R-squared and the excess-touch gate produced ZERO
