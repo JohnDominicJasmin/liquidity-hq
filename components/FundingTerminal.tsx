@@ -60,6 +60,13 @@ async function fetchBybitFR(sym: string): Promise<FRPoint[]> {
   } catch { return []; }
 }
 
+/* Both maps are built from the venues' FUTURES instrument lists (lib/coins.ts), so a
+   coin in either one has a perpetual market. An empty history for such a coin is a
+   failed or empty fetch - "Unavailable", never "No perp". */
+function hasPerp(id: CoinId): boolean {
+  return Boolean(BINANCE_SYMS[id] || BYBIT_SYMS[id]);
+}
+
 /* ── formatting ── */
 function frColor(r: number): string {
   if (r >= 0.0005) return 'var(--red)';
@@ -639,7 +646,7 @@ export default function FundingTerminal() {
                                   style={{ display: 'block', width: '100%', height: '36px' }}
                                   ref={el => { sparkRefs.current[id] = el ?? undefined; }}
                                 />
-                              : <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('FUNDING_NO_PERP_LABEL')}</span>
+                              : <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t(hasPerp(id) ? 'STATE_UNAVAILABLE' : 'FUNDING_NO_PERP_LABEL')}</span>
                             }
                           </td>
                         </tr>
@@ -695,7 +702,7 @@ export default function FundingTerminal() {
                 {(history[selected] ?? []).length >= 2
                   ? <canvas ref={fullChartRef} style={{ display: 'block', width: '100%', height: '190px' }} />
                   : <div style={{ height: 190, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>
-                      {t('FUNDING_NO_PERP_DATA', { coin: COIN_LABELS[selected] })}
+                      {hasPerp(selected) ? t('STATE_UNAVAILABLE') : t('FUNDING_NO_PERP_DATA', { coin: COIN_LABELS[selected] })}
                     </div>
                 }
                 <div className="frh-legend">

@@ -1,7 +1,5 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { CANDIDATES, candidateValues } from '@/qa/labelCandidates';
 import { LABEL_KEYS } from '@/lib/labelKeys';
 import { appRoutes } from './_appPath.mts';

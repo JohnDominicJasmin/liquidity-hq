@@ -19,6 +19,9 @@ export default function ScannerTerminal() {
         title={t('SCANNER_HINT_TITLE')}
         body={t('SCANNER_HINT_BODY')}
       />
+      {/* For screen readers and search engines only, same as /calc: the page needs a heading that names it,
+          and the hint collapses to a chip for returning visitors so it cannot be that heading. */}
+      <h1 className="sr-only">{t('SCANNER_HINT_TITLE')}</h1>
       <AccumulationTracker />
       <DistributionTracker />
       <CoinHeatmap />

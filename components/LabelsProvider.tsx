@@ -3,7 +3,10 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { htmlLangFor } from '@/lib/htmlLang';
 import { LabelsContext, Locale, loadLocalLocale, saveLocalLocale, interpolate } from '@/lib/labels';
+import { offeredLocaleFromPath } from '@/lib/locales';
 import type { LabelKey } from '@/lib/labelKeys';
+// Public by construction: this file ships in every visitor's JS. The admin console's `OPS_*` copy
+// is NOT in it - that is lib/labelDefaults.ops.en.json, imported only by server code (#1632 item 15).
 import DEFAULT_EN_LABELS from '@/lib/labelDefaults.en.json';
 
 // Not user-scoped (labels are public content, same for every visitor), so
@@ -44,7 +47,15 @@ function saveCachedMap(locale: Locale, map: Record<string, string>) {
   try { localStorage.setItem(MAP_CACHE_PREFIX + locale, JSON.stringify(map)); } catch { /* ignore */ }
 }
 
-export default function LabelsProvider({ children }: { children: React.ReactNode }) {
+export default function LabelsProvider({
+  children,
+  localeFromPath = false,
+}: {
+  children: React.ReactNode;
+  /* Set by app/global-not-found.tsx only. When the URL's first segment is an
+     offered locale (/ko/nope), use it instead of the saved preference. */
+  localeFromPath?: boolean;
+}) {
   const [locale, setLocaleState] = useState<Locale>('en');
   const [map, setMap] = useState<Record<string, string>>(DEFAULT_EN_LABELS);
   const [loading, setLoading] = useState(true);
@@ -103,7 +114,13 @@ export default function LabelsProvider({ children }: { children: React.ReactNode
   // `locale` state change, which used to fetch English first and then the
   // real locale a beat later (a wasted request, and a longer raw-key flash).
   useEffect(() => {
-    const real = loadLocalLocale();
+    /* The URL's locale is READ, never SAVED (no saveLocalLocale): following a
+       mistyped /ko link must not change the language the rest of the app opens
+       in. No locale segment, or one not offered, falls back to the saved
+       preference, which itself falls back to English. The lang effect below
+       then follows `locale`, so <html lang> matches the rendered copy. */
+    const fromPath = localeFromPath ? offeredLocaleFromPath(window.location.pathname) : null;
+    const real = fromPath ?? loadLocalLocale();
     setLocaleState(real);
     const cached = loadCachedMap(real);
     /* Merged over the defaults, not substituted for them - a cache written
@@ -112,7 +129,7 @@ export default function LabelsProvider({ children }: { children: React.ReactNode
        above. */
     if (cached) { setMap({ ...DEFAULT_EN_LABELS, ...cached }); setLoading(false); }
     fetchLabels(real);
-  }, [fetchLabels]);
+  }, [fetchLabels, localeFromPath]);
 
   /* <html lang> and dir, set from HERE because this is the component that owns
      the locale (#164).

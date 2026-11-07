@@ -8,7 +8,9 @@ import { useLabels } from '@/lib/labels';
 interface AthEntry {
   ath: number;
   athDate: string;
-  drawdownPct: number;
+  /** Absent when /api/ath is serving its persisted cold-cache fallback, which carries the ATH but
+   *  not a percentage computed against a price from hours ago - see that route's header. */
+  drawdownPct?: number;
 }
 
 function drawdownColor(pct: number): string {
@@ -54,12 +56,30 @@ export default function DrawdownChart() {
       .catch(e => setErr(String(e)));
   }, []);
 
+  /* DRAWDOWN FROM OUR OWN PRICE WHEN THE ROUTE DID NOT SEND ONE (#1651).
+   *
+   * `/api/ath` omits `drawdownPct` when it is serving the persisted fallback after a cold cache,
+   * because CoinGecko's percentage is computed against CoinGecko's price at ITS fetch time and a
+   * stale copy of it is wrong rather than old. The ATH itself is a running maximum and ages well,
+   * so the percentage is recomputed here from the live socket price. Verified against CoinGecko on
+   * 8 coins, 2026-11-06: this reproduces their `ath_change_percentage` to within 0.006pp.
+   *
+   * THE SUPERSEDED CHECK. A stale ATH can only ever be too LOW, so if the live price is above it
+   * the stored value is provably out of date - and the resulting "drawdown" would be POSITIVE,
+   * drawn as a coin sitting at its peak when the truth is that we do not know its peak. That coin
+   * is dropped (null, which the filter below already removes) rather than drawn, so the fallback
+   * detects its own staleness from the price without needing to reason about the row's age. */
   const rows = COINS
     .map(c => {
       const entry    = ath?.[c];
       const curPrice = store.coins[c]?.price ?? null;
-      const drawdown = entry?.drawdownPct ?? null;
-      return { c, curPrice, drawdown, ath: entry?.ath ?? null, athDate: entry?.athDate ?? null };
+      const athPrice = entry?.ath ?? null;
+      const drawdown = entry?.drawdownPct != null
+        ? entry.drawdownPct
+        : (athPrice != null && athPrice > 0 && curPrice != null && curPrice <= athPrice)
+          ? (curPrice - athPrice) / athPrice * 100
+          : null;
+      return { c, curPrice, drawdown, ath: athPrice, athDate: entry?.athDate ?? null };
     })
     .filter(r => r.drawdown != null)
     .sort((a, b) => (a.drawdown ?? 0) - (b.drawdown ?? 0)); // most drawdown first

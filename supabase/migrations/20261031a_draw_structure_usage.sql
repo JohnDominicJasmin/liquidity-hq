@@ -60,6 +60,86 @@
 --      a branch hashes differently in exactly the same way as one that added it, so an equality test
 --      at the ends cannot tell those two apart. Compare the sets of `p_column = '...'` values.
 --   3. dev body below (prefix-normalised) == prod body below
+--
+-- ============================================================================================
+-- RE-DERIVED 2026-11-07. THE THREE CHECKS WERE RUN. THE DIAGNOSIS ABOVE IS WRONG, AND THE REAL
+-- PROBLEM IS WORSE: THIS FILE IS STALE AGAINST BOTH PROJECTS, NOT AGAINST ONE.
+--
+-- The warning above says the hazard is that dev's body may differ from prod's by more than the
+-- prefix. Measured, it does not. The two projects have NOT drifted:
+--
+--   signature                 identical on both
+--   p_global_limit mentions   3 == 3
+--   tool_pool mentions        6 == 6        <- 20261106a's pool work is on BOTH
+--   p_column branch set       dev 16, prod 17, differing by EXACTLY draw_structure_count
+--   draw_structure mentions   dev 0, prod 8 <- and 8 is the count this file's own check expects
+--
+-- A FIRST LOOK SAID THE OPPOSITE AND IT WAS AN ARTEFACT OF FORMATTING. Hashing the definitions
+-- line by line gave 6 shared lines out of ~125 and ~143, which reads as two different functions.
+-- With whitespace collapsed the bodies differ by 1,294 characters, +5 `if`, +2 `elsif`, +1
+-- `return` - consistent with one added branch and nothing else. **A line-level hash of SQL
+-- compares formatting, not logic**, and `pg_get_functiondef` does not promise stable line breaks
+-- across servers. Normalise whitespace before concluding anything from a hash.
+--
+-- WHAT IS ACTUALLY WRONG: A HAND-COPIED BODY GOES STALE AND NOTHING SHOWS IT.
+--
+-- An earlier revision of this block claimed the dev section would REMOVE tool-pool handling dev
+-- already has, counting `tool_pool` 4 times here against 6 live. **That was wrong and QA measured
+-- it: both sections carry 6, matching both projects. Nothing would be removed.** The correction is
+-- kept rather than quietly deleted because the mistake has a reusable cause.
+--
+-- THIS FILE CANNOT BE VERIFIED BY GREPPING IT, which is the part worth knowing before anyone tries
+-- again. The dev section is commented-out SQL, and the prose explaining it is also comments - the
+-- two are the same token. Strip `--` to read the SQL and every sentence of prose becomes "code";
+-- leave it on and the SQL is invisible. Three attempts here produced three different counts (4, 9
+-- and 7 for the same marker) purely from where the section boundary and the comment stripping fell.
+-- `grep -c` compounds it by counting LINES THAT CONTAIN a match rather than occurrences.
+--
+-- So compare the LIVE functions to each other, never the file to a function. QA's figures, comments
+-- stripped identically on each side:
+--
+--   file prod section  tool_pool 6   p_pool_limit 3
+--   file dev section   tool_pool 6   p_pool_limit 3
+--   prod live          tool_pool 6   p_pool_limit 3   pool refund present
+--   dev  live          tool_pool 6   p_pool_limit 2   pool refund present
+--
+-- AND THE 3-VS-2 IS COMMENTS, NOT DRIFT. Prod's third `p_pool_limit` sits inside a comment that
+-- dev's body does not carry; the two CODE references are identical. Which exposes something THIS
+-- FILE ASSERTS AND IS NOW WRONG ABOUT: the header says comments "are gone before Postgres sees
+-- them" and that "zero of 14 functions in prod carry a --". Prod's `increment_ai_usage_impl` now
+-- does, because the owner pasted it through the Supabase SQL editor, which does not strip comments
+-- the way the previous apply path did. **The apply path changes the stored artefact.** A raw body
+-- comparison against the other 13 functions would now flag this one as different for a reason that
+-- is not a code change. The normalised-md5 method above still works, because it strips comments by
+-- design.
+--
+-- THE REAL HAZARD, then, is plainer than the one first written here: two later migrations have
+-- already touched `increment_ai_usage_impl`, a transcribed body records the function as it was on
+-- the day it was typed, and **nothing in the file or the diff tells a reader which day that was.**
+-- The copy is not wrong today; it has no way of staying right, and no way of announcing when it
+-- stops.
+--
+-- PRODUCTION IS INTACT AND QA RE-VERIFIED IT INDEPENDENTLY rather than accepting a reassurance:
+-- tool_pool 6, two p_pool_limit code references plus a comment, the v_pool refund present, 17
+-- distinct p_column branches, draw_structure 8. The owner's `create or replace` ran against a
+-- definition that already carried 20261106a, so nothing was lost.
+--
+-- SO THE DEV SECTION MUST NOT BE TRANSCRIBED - AND THAT IS THE DURABLE POINT. A copy taken today
+-- is stale the next time anything touches this function, and nothing warns you. Whoever applies
+-- the dev half should, inside the same session:
+--
+--   1. `select pg_get_functiondef(oid) from pg_proc join pg_namespace ... where proname =
+--      'increment_ai_usage_impl'` on wdtjhrilakoitfcezxpx - the DEV project's own live body;
+--   2. add the `draw_structure_count` branch to THAT, matching the shape of its sibling branches,
+--      keeping every `lhq_dev_` prefix exactly as the live body has it;
+--   3. re-run the two-part comparison above against the result: the p_column set gains exactly
+--      `draw_structure_count` and loses nothing, and `tool_pool` mentions stay at 6;
+--   4. `alter table lhq_dev_grok_usage add column if not exists draw_structure_count int not null
+--      default 0;` first - that half is safe, additive, and needs no derivation.
+--
+-- The commented block below is LEFT IN PLACE AS A SHAPE REFERENCE ONLY. It shows which branches
+-- the addition needs and where. It is NOT the statement to run, and running it would regress dev.
+-- ============================================================================================
 
 -- ===================== PROD (liquidity-hq, qdpwhnvmhqgzijuwopso) =====================
 
@@ -252,7 +332,10 @@ end;
 $$;
 
 -- ============ DEV (shared by dev/qa/staging, wdtjhrilakoitfcezxpx) ============
--- Commented out: applies only in the QA DDL window, and only after the re-derivation above.
+-- Commented out. SHAPE REFERENCE ONLY - do NOT run this block. It matches dev's live function
+-- today as far as anyone has measured; what it cannot do is stay matched, because two later
+-- migrations have already replaced this function and a transcription cannot announce when it has
+-- gone stale. Re-derive from dev's own pg_get_functiondef at apply time - see the block above.
 --
 -- alter table lhq_dev_grok_usage
 --   add column if not exists draw_structure_count int not null default 0;

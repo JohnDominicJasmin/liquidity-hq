@@ -62,6 +62,13 @@ const ARRIVING_WITH: Readonly<Record<string, string>> = {
    * returns it is loosen-able. A code the ROUTE returns that the classifier does not know is not,
    * because those are mutually exclusive states of the same list - which is why #1854 and the
    * classifier PR could not both be green at once and were sequenced instead. */
+
+  /* SECOND CUSTOMER'S ENTRY IS GONE TOO, AND THE EMPTY STATE IS AGAIN THE POINT.
+     It held UNAVAILABLE while #1994 was unmerged, and did its job: D5 stayed green on `dev`
+     while the classifier already knew a code the route did not yet return. #1994 landed, so
+     the entry would now be a lie about a change still in flight - and D5's `landed` assertion
+     is what demanded this removal rather than anyone remembering it. Second time that has
+     worked, which is the argument for keeping the assertion rather than the list. */
 };
 
 test('D1. a parseable verdict is the only exit 0, whatever the status says', () => {

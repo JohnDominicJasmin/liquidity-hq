@@ -68,6 +68,38 @@
 //   detail of using it rather than a feature. If it stays off, the entry stays as it is and the
 //   feature is announced in the release that turns it on.
 //
+//   UPDATE 2026-11-07: THE MIGRATION IS APPLIED ON PROD - the owner ran it himself after the
+//   permission layer refused both QA and PM/DevOps. `draw_structure_count` exists on
+//   `lhq_grok_usage` (23 columns, exactly one added), and the other gates check out free: the route
+//   has no feature flag, GROK_API_KEY provably works (50 of 77 usage rows carry real calls), and
+//   one entitled account exists.
+//
+//   THE LINE IS STILL OUT, because PM/DevOps's condition was "confirmed live on prod, with no
+//   NOT_ENABLED from a real request" and `draw_structure_count` is still 0 - nobody has called it,
+//   deliberately, since it is a metered xAI path that spends the owner's money. Applied is not
+//   confirmed, and that distinction is the whole reason the line was held in the first place.
+//
+//   IT IS NOW ONE ACTION AWAY AND THE PROOF IS SELF-RECORDING: one Quick call by the owner on his
+//   own account takes that counter to 1, and the evidence lands in the database rather than in a
+//   report anyone has to trust. The sentence below is ready for the release after that.
+//
+//   MEASURED ON 2026-11-06, AND IT WAS STILL OFF THEN, which is why it stayed out of this entry.
+//   Both databases, queried directly rather than inferred from the migrations folder:
+//
+//     prod (qdpwhnvmhqgzijuwopso)  draw_structure_count column: ABSENT   20261031a applied: NO
+//     dev  (wdtjhrilakoitfcezxpx)  draw_structure_count column: ABSENT   20261031a applied: NO
+//
+//   `qa` and `staging` both point at the dev database, so that is all four environments. The
+//   route's gate turns a `not_enabled` reason into `503 NOT_ENABLED` (route.ts:438-441), so a
+//   Pro user clicking Draw Structure today gets a 503 and nothing else.
+//
+//   PM/DevOps asked for the line on the grounds that Draw Structure is "the one thing a Pro user
+//   would want to hear about" in this release. That is true about the feature and is exactly why
+//   it must wait: the entry would be the first thing a Pro user reads and the thing they would
+//   immediately go and try. Announcing it is announcing a 503. Rule 2 and the owner's standing
+//   rule both land the same way, and the pre-drafted sentence above is ready for whichever
+//   release applies 20261031a.
+//
 //   The release tag's own summary agrees - 'What a user can see: #1804 only' - and the other
 //   27 commits are tests, QA tooling, CI corrections and documentation with no runtime effect.
 //
@@ -92,14 +124,66 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    /* THE TAG IS NOT CUT YET. PM/DevOps tags after deploying, because only the person who
-       deployed knows it reached live - so whoever tags must check this string matches. The date
-       is the release date rather than the day this was written; they are the same today. */
-    date: '2026-11-05',
-    tag: 'v2026.11.05',
+    /* v2026.11.08. WRITTEN BEFORE THE TAG IS CUT, which the entry above warns about - so the date
+       here is the one PM/DevOps is tagging with today, and whoever tags checks it against
+       `git tag --points-at main` rather than against the day they are working.
+
+       EVERY ITEM WAS CHECKED AGAINST A COMMIT IN `main..staging` (140 commits) rather than taken
+       from the release plan. The five below map to ed08d792 (footer overflow), 7fc30b61 (AI failure
+       charged a read), ecf8bd5b + 1db38c13 (build-time session badge, flat series read as
+       overbought), e4051c47 (playbook predictive claims) and d880f85f ("All sales are final"
+       against the Terms), 8e8a589e (the /learn category links - the release's only addition) and
+       f2006b25 (the journal's missing minus sign). An item nobody could point at a commit for was
+       left out, and both additions were checked with `git merge-base --is-ancestor <sha> staging`
+       rather than assumed to be in the release because they were recent.
+
+       WHAT IS DELIBERATELY ABSENT, so the next reader does not think it was missed. The
+       vendor-naming cleanups in this range are internal hygiene - they change which name appears in
+       OUR code and logs, not anything a user reads on a page - and rule 2 keeps the page to what a
+       user can see. Same reason nothing from #1818 is here: that work is on `dev` behind the
+       owner's hold and none of it is user-visible in this range.
+
+       THE BEST HOURS ITEM COVERS TWO COMMITS, NOT ONE, and the first draft of it named only the
+       badge: 58c437e7 fixed the clock, the date and the needle (#1996), ecf8bd5b fixed the session
+       badge (#1999). Four prerendered values, one sentence - understating it would have been the
+       easier mistake, because the second commit is the one that was in front of me. */
+    date: '2026-11-08',
+    tag: 'v2026.11.08',
     items: [
+      'The glossary now points somewhere. Each category on /learn carries a link to the tool that uses those terms - the scanner, the liquidation map, the economic calendar, the position-size calculator and the playbook.',
+      'Every page could be scrolled sideways on a laptop or tablet. The row of links in the footer refused to wrap, so it set the width of the whole page - it wraps now.',
+      'An AI analysis that failed still used up one of your reads for the day. It no longer does, and a database outage is no longer reported to you as a usage limit.',
+      'Readings that were stale now say so. A completely flat price reads as unknown instead of maximally overbought, and on Best Hours the clock, the date, the needle and the session badge all wait for your browser rather than showing whatever was true when the site was last built.',
+      'A losing trade in the journal showed its result without the minus sign.',
+      'The playbook no longer states how often a setup works, how likely it is, or what it returns. Those figures were not ones we can stand behind.',
+      'The note at checkout said all sales are final, which contradicted the Terms. The two now agree.',
+    ],
+  },
+  {
+    /* THE TAG IS CUT AND THIS ENTRY IS NAMED AFTER IT: v2026.11.07, pushed after the deploy and
+       confirmed by `git tag --points-at` to cover the commit production is serving.
+
+       IT MOVED TWICE AND BOTH MOVES ARE THE SAME LESSON. It was 2026-11-05 when written, then
+       2026-11-06 on PM/DevOps's call because the release was expected to ship on the 6th in both
+       UTC and PHT - and it shipped on the 7th. A date set from the plan is wrong whenever the plan
+       slips, which is most of the time. **The date follows the tag, and the tag follows the
+       deploy.** Whoever tags next should check this string against `git tag --points-at main`
+       rather than against the day they are working.
+
+       WHY THIS ENTRY GREW FROM TWO ITEMS TO SEVEN. The two it carried were written while the
+       release was still a plan, from the tag subject of the moment. What actually shipped is 245
+       commits off `staging`, and surveying them against rule 2 found five more things a user can
+       see. An entry assembled before the release is an entry assembled from intentions. */
+    date: '2026-11-07',
+    tag: 'v2026.11.07',
+    items: [
+      'AI Arena now lists every coin tradable here, not only the main list - price and 24h change for all of them. Where a coin is not one we analyse, the page says so: no AI read, and no squeeze reading rather than a calm-looking zero.',
+      'PEPE, BONK and gold had no price or chart at all on some pages. They do now.',
+      'Whale alerts for PEPE and BONK quoted a price a thousand times too high, and the figure often printed as "0". Both are fixed.',
       'A page that does not exist now says "Page not found", with a larger empty chart.',
       'When market data is unavailable, an AI read on AI Arena now says so instead of answering, and it does not use up one of your reads.',
+      'The economic calendar knows 2027 market holidays. Without them, every holiday from January would have shown as an ordinary trading day.',
+      'AI Arena no longer shifts under you as it loads.',
     ],
   },
   {

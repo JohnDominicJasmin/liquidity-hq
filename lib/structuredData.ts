@@ -1,4 +1,5 @@
 import labelDefaults from './labelDefaults.en.json';
+import { GLOSSARY_FLAT } from './glossary.ts';
 
 /* #1740 item 4: the JSON-LD graphs. Builders only - nothing here renders; components/StructuredData.tsx does that.
  *
@@ -97,6 +98,91 @@ export function faqGraph(): JsonLdGraph {
       '@type': 'Question',
       name: q,
       acceptedAnswer: { '@type': 'Answer', text: a },
+    })),
+  };
+}
+
+/** /playbook as an Article - the richest public page (~2,100 words) carried only the site-wide Organization.
+ *
+ *  ONLY WHAT THE PAGE ITSELF ESTABLISHES. `headline` is the page's <h1> label, `description` is the meta
+ *  description passed in by the layout (so the two cannot disagree), `publisher` is the Organization above.
+ *
+ *  NO author, datePublished, dateModified, image or rating, and each omission is deliberate: we have no true
+ *  value for any of them. The page has no byline and no publish date, and the only image on hand is the logo,
+ *  which does not depict the article. Google lists no required Article properties, so an Article without them
+ *  is incomplete; one with an invented date or author is wrong. Add a field when the page shows it. */
+export function playbookArticleGraph(description: string): JsonLdGraph {
+  const url = `${BASE_URL}/playbook`;
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: L.PLAYBOOK_PAGE_TITLE ?? 'Liquidity Playbook',
+    description,
+    url,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+    /* The server-rendered page is English: labels are seeded from the English defaults and the plays are
+       English text. A visitor's saved language swaps the labels only after load, never for a crawler. */
+    inLanguage: 'en',
+    publisher: {
+      '@type': 'Organization',
+      name: 'LiquidityHQ',
+      url: BASE_URL,
+      logo: { '@type': 'ImageObject', url: `${BASE_URL}/icons/icon-512.png` },
+    },
+  };
+}
+
+/** The /learn glossary as a `DefinedTermSet` (#1740). One set, one `DefinedTerm` per entry, each anchored
+ *  at the `#slug` the page already renders on its `<dt>` - so a result can deep-link to the term itself.
+ *
+ *  BUILT FROM `GLOSSARY_FLAT`, NOT `ALL_GLOSSARY`, AND THAT IS THE WHOLE CORRECTNESS ARGUMENT.
+ *  `lib/glossary.ts` filters entries out when `SHOW_PERFORMANCE_STATS` is off - the default, and
+ *  production's state - so `ALL_GLOSSARY` currently holds a term the page does NOT render. Measured:
+ *  `GLOSSARY_FLAT` is 29 terms across 5 categories, out of 30 entries, and `STATS_ENTRY_SLUGS` holds the one
+ *  that is filtered out (`alert-outcome-tracking`). Emitting the unfiltered list would describe a term a
+ *  visitor cannot find, which is the mismatch this file's header calls worse than no structured data at all,
+ *  and it would be invisible in review because it depends on a build-time flag rather than on the code.
+ *
+ *  AN EARLIER VERSION OF THIS COMMENT SAID "TWO TERMS", off a `grep -c 'slug:'` of 31 that had counted the
+ *  interface's own `slug: string` declaration as an entry. QA caught it. The count above comes from the
+ *  module at runtime instead, which is the only reading that cannot include a type declaration.
+ *
+ *  Reading the export rather than the raw constant also means the flag moves both together: turning
+ *  `SHOW_PERFORMANCE_STATS` on restores the terms to the page and to this graph in the same build.
+ *
+ *  NAME AND DESCRIPTION COME FROM THE LABELS THE PAGE ACTUALLY SHOWS - `LEARN_CONTENT_HEADING_MAIN` plus
+ *  `_ACCENT` are the two halves of the rendered `<h1>` (components/LearnContent.tsx), and `_HERO_SUB` is the
+ *  subtitle under it. Same source and same drift coupling as `playbookArticleGraph`: the authority is the
+ *  `lhq_labels` row and this reads the shipped defaults, so the two must change together.
+ *
+ *  `inLanguage: 'en'` for the reason the Article graph gives - the server-rendered page is English, and a
+ *  visitor's saved language swaps labels only after load, never for a crawler. The TERMS are not translated at
+ *  all: `LearnContent` renders `entry.term` and `entry.definition` straight from the module.
+ *
+ *  NO `termCode`, `author` or `dateModified`, each omitted because we have no true value - the glossary has no
+ *  per-term identifiers and no visible dates. An incomplete set is incomplete; an invented one is wrong. */
+export function glossaryGraph(): JsonLdGraph {
+  const url = `${BASE_URL}/learn`;
+  const heading = [L.LEARN_CONTENT_HEADING_MAIN, L.LEARN_CONTENT_HEADING_ACCENT]
+    .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+    .join(' ')
+    .trim();
+  const description = L.LEARN_CONTENT_HERO_SUB;
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'DefinedTermSet',
+    '@id': url,
+    name: heading || 'Crypto Trading Glossary',
+    ...(description ? { description } : {}),
+    url,
+    inLanguage: 'en',
+    hasDefinedTerm: GLOSSARY_FLAT.map((entry) => ({
+      '@type': 'DefinedTerm',
+      '@id': `${url}#${entry.slug}`,
+      name: entry.term,
+      description: entry.definition,
+      url: `${url}#${entry.slug}`,
+      inDefinedTermSet: url,
     })),
   };
 }

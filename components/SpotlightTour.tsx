@@ -145,7 +145,15 @@ function Step5Visual() {
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 7 }}>
       {/* Chart */}
-      <div style={{ background: BG0, border: `1px solid ${BDR}`, borderRadius: 10, padding: '8px 8px 4px' }}>
+      <div style={{ position: 'relative', background: BG0, border: `1px solid ${BDR}`, borderRadius: 10, padding: '8px 8px 4px' }}>
+        {/* Everything in this visual is fixed (BTC, 87, LONG_SQ, the alert)
+            and it sits beside copy saying the scanner is live, so it is marked
+            as an illustration. Overlaid on the chart's empty top-left corner -
+            the candles and EMA lines start well below it there - so it adds no
+            height to a panel sized to this step's content. */}
+        <span className="tag ta" style={{ position: 'absolute', top: 32, left: 10 }}>
+          {t('SPOTLIGHT_TOUR_EXAMPLE_TAG')}
+        </span>
         {/* Chart header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
           <span style={{ fontSize: 'var(--fs-caption)', color: TXT3, fontFamily: MONO, letterSpacing: '.08em' }}>BTCUSDT · 4H</span>

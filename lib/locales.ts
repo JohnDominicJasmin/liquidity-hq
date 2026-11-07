@@ -83,3 +83,19 @@ export function resolveOfferedLocale(v: string | null | undefined): Locale {
   if (!v) return 'en';
   return (AVAILABLE_LOCALES as string[]).includes(v) ? (v as Locale) : 'en';
 }
+
+/**
+ * The offered locale named by a URL's first path segment, or null when that
+ * segment is not one. Used by the global 404 so /ko/nope and /ru/nope render
+ * in the language the URL asks for.
+ *
+ * AVAILABLE_LOCALES, not SUPPORTED_LOCALES, for the same reason as
+ * resolveOfferedLocale above: /ar/nope must not render Arabic in a layout
+ * that is not mirrored (#138, #165). null rather than 'en' so the caller can
+ * tell "the URL names no language" from "the URL names English" and fall back
+ * to the visitor's saved preference.
+ */
+export function offeredLocaleFromPath(pathname: string | null | undefined): Locale | null {
+  const first = pathname?.split('/')[1] ?? '';
+  return (AVAILABLE_LOCALES as string[]).includes(first) ? (first as Locale) : null;
+}
