@@ -124,6 +124,42 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* v2026.11.08. WRITTEN BEFORE THE TAG IS CUT, which the entry above warns about - so the date
+       here is the one PM/DevOps is tagging with today, and whoever tags checks it against
+       `git tag --points-at main` rather than against the day they are working.
+
+       EVERY ITEM WAS CHECKED AGAINST A COMMIT IN `main..staging` (140 commits) rather than taken
+       from the release plan. The five below map to ed08d792 (footer overflow), 7fc30b61 (AI failure
+       charged a read), ecf8bd5b + 1db38c13 (build-time session badge, flat series read as
+       overbought), e4051c47 (playbook predictive claims) and d880f85f ("All sales are final"
+       against the Terms), 8e8a589e (the /learn category links - the release's only addition) and
+       f2006b25 (the journal's missing minus sign). An item nobody could point at a commit for was
+       left out, and both additions were checked with `git merge-base --is-ancestor <sha> staging`
+       rather than assumed to be in the release because they were recent.
+
+       WHAT IS DELIBERATELY ABSENT, so the next reader does not think it was missed. The
+       vendor-naming cleanups in this range are internal hygiene - they change which name appears in
+       OUR code and logs, not anything a user reads on a page - and rule 2 keeps the page to what a
+       user can see. Same reason nothing from #1818 is here: that work is on `dev` behind the
+       owner's hold and none of it is user-visible in this range.
+
+       THE BEST HOURS ITEM COVERS TWO COMMITS, NOT ONE, and the first draft of it named only the
+       badge: 58c437e7 fixed the clock, the date and the needle (#1996), ecf8bd5b fixed the session
+       badge (#1999). Four prerendered values, one sentence - understating it would have been the
+       easier mistake, because the second commit is the one that was in front of me. */
+    date: '2026-11-08',
+    tag: 'v2026.11.08',
+    items: [
+      'The glossary now points somewhere. Each category on /learn carries a link to the tool that uses those terms - the scanner, the liquidation map, the economic calendar, the position-size calculator and the playbook.',
+      'Every page could be scrolled sideways on a laptop or tablet. The row of links in the footer refused to wrap, so it set the width of the whole page - it wraps now.',
+      'An AI analysis that failed still used up one of your reads for the day. It no longer does, and a database outage is no longer reported to you as a usage limit.',
+      'Readings that were stale now say so. A completely flat price reads as unknown instead of maximally overbought, and on Best Hours the clock, the date, the needle and the session badge all wait for your browser rather than showing whatever was true when the site was last built.',
+      'A losing trade in the journal showed its result without the minus sign.',
+      'The playbook no longer states how often a setup works, how likely it is, or what it returns. Those figures were not ones we can stand behind.',
+      'The note at checkout said all sales are final, which contradicted the Terms. The two now agree.',
+    ],
+  },
+  {
     /* THE TAG IS CUT AND THIS ENTRY IS NAMED AFTER IT: v2026.11.07, pushed after the deploy and
        confirmed by `git tag --points-at` to cover the commit production is serving.
 
