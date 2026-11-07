@@ -9,7 +9,9 @@
  *        - Which plan = the Whop PLAN ID, by exact table read from WHOP_PLAN_ID_* (different per environment: the Whop sandbox on qa,
  *          the live account on prod). NOT the amount: a promo changes the amount and would send a real paying
  *          customer to review (BoomFi maps by amount; Whop does not).
- *        - The hidden $1 test plan is RECORD ONLY. It is not a Pro plan and never becomes one.
+ *        - The hidden $1 test plan is RECORD ONLY BY DEFAULT, in every environment. One environment can release it by naming its exact
+ *          id in WHOP_TEST_PLAN_GRANTS_PRO, which is how the owner's own $1 end-to-end purchase grants Pro on dev (his instruction of
+ *          2026-11-08). Production sets nothing and keeps the #1567 ruling. See whopTestPlanIds() for why the default is the safe one.
  *        - An unknown plan id is review, never rounded to the nearest plan.
  *        - Until when = computed here from the payment moment (extendedPeriodEnd). No Whop period field is read.
  *        - Membership events, a failed payment, a cancel, an expiry, a refund, a dispute: NOTHING IS REVOKED (owner rulings: all sales are
@@ -46,15 +48,46 @@ const PLAN_PERIODS: Record<WhopPlan, { months?: number; days?: number }> = {
   fortnightly: { days: 14 },
 };
 
-/** The hidden $1/month plan the owner made to record a real delivery (#1567). It is NOT a Pro plan and must never be a Pro plan id, in
- *  any environment: a payment on it is recorded and answered, and changes nothing. Another environment's record-only plan (the Whop
- *  sandbox's copy) is set with WHOP_TEST_PLAN_ID. */
+/** The hidden $1/month plan the owner made to record a real delivery (#1567). Record-only BY DEFAULT in every environment. */
 export const WHOP_TEST_PLAN_ID = 'plan_Lt14d8fRCCBIa';
 
-/** The plan ids that are record-only in this environment. */
+/** The plan ids that are record-only in this environment.
+ *
+ *  THE OWNER CHANGED THIS RULING ON 2026-11-08 AND THE OLD ONE IS LEFT VISIBLE RATHER THAN EDITED AWAY. The header above, and this
+ *  function, used to say the $1 plan "is NOT a Pro plan and never becomes one" - his #1567 ruling, correct as written. He has now asked
+ *  for the opposite on dev, in these words: *"$1 payment on dev. I will check out and I wanna see my account from free to pro. That's
+ *  it. That's what I'm asking you. Don't invent anything. Don't try to cut anything."* The later instruction wins, and it wins only
+ *  where he aimed it: dev. Production keeps the #1567 ruling.
+ *
+ *  WHY HE IS RIGHT TO WANT THE REAL THING: `lhq_whop_webhook_events` on prod has 0 rows, ever. So today "nobody has bought" and "the
+ *  webhook silently rejects every delivery and we are losing real payments" produce identical evidence. One real purchase separates
+ *  them, and nothing we could simulate does.
+ *
+ *  ── HOW THE RELEASE IS SHAPED, BECAUSE A WRONG ENV VALUE MUST NOT BE ABLE TO SELL $1 PRO ON PRODUCTION ──
+ *
+ *  The id is removed from the record-only set only by `WHOP_TEST_PLAN_GRANTS_PRO` NAMING IT EXACTLY. Three properties follow, and they
+ *  are the whole design:
+ *
+ *    1. A TRUTHY VALUE DOES NOTHING. `WHOP_TEST_PLAN_GRANTS_PRO=true` (or `1`, or `yes`) deletes nothing from the set, so the plan stays
+ *       record-only. The most likely wrong value is inert, which a boolean flag could not promise.
+ *    2. RELEASING IS NOT GRANTING. A released plan still has to appear in `whopPlanTable` (`WHOP_PLAN_ID_MONTHLY` etc.) to grant
+ *       anything; released and absent from the table is `unknown_plan` REVIEW. So two independent variables must agree.
+ *    3. PRODUCTION IS SAFE WITHOUT SETTING ANYTHING. Prod's `WHOP_PLAN_ID_MONTHLY` is its real monthly plan, not this one, so even if
+ *       this variable were copied to prod by mistake the $1 plan would not be in prod's table and could not grant.
+ *
+ *  QA ASKED FOR A DIFFERENT SHAPE - the record-only list read from env, with production setting it explicitly - AND I DID NOT BUILD IT.
+ *  Their requirement is right ("production cannot grant Pro on that plan by accident"); that shape achieves the opposite. A list that
+ *  comes only from env defaults to EMPTY, so the day someone forgets the variable on prod, or clears it, or restores the service from a
+ *  blueprint that omits it, prod starts selling Pro for a dollar. Safety has to come from the default, not from remembering. Here the
+ *  default is the restrictive case and env can only widen it, deliberately, by name.
+ *
+ *  `WHOP_TEST_PLAN_ID` still ADDS another environment's record-only plan (the Whop sandbox's copy). Both variables accept a
+ *  comma-separated list; the release is applied last, so it can release either. */
 export function whopTestPlanIds(env: Record<string, string | undefined> = process.env): string[] {
-  const extra = (env.WHOP_TEST_PLAN_ID ?? '').trim();
-  return extra ? [WHOP_TEST_PLAN_ID, extra] : [WHOP_TEST_PLAN_ID];
+  const list = (v: string | undefined) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const ids = new Set<string>([WHOP_TEST_PLAN_ID, ...list(env.WHOP_TEST_PLAN_ID)]);
+  for (const released of list(env.WHOP_TEST_PLAN_GRANTS_PRO)) ids.delete(released);
+  return [...ids];
 }
 
 /** The Pro plans for THIS environment, from server-side settings (the ids in each checkout link): WHOP_PLAN_ID_MONTHLY / _ANNUAL /
@@ -111,6 +144,35 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const obj = (v: unknown): Record<string, unknown> | null => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim().length > 0 ? v.trim() : null);
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const arr = (v: unknown): unknown[] | null => (Array.isArray(v) ? v : null);
+
+/** A Whop money field, read from the REAL body shape and the documented one.
+ *
+ *  THE REAL ONE IS A NESTED OBJECT WITH A STRING AMOUNT (measured, pay_AZuVMZJ9qXP89o, 2026-11-07):
+ *
+ *      "total": { "amount": "1.00", "currency": "usd", "decimals": 2, "display_decimals": 2 }
+ *
+ *  The documented one is a bare number, which is what this file read until that payment arrived.
+ *  Both are accepted; neither is guessed at.
+ *
+ *  `Number()` RATHER THAN `parseFloat`, deliberately. `parseFloat('1.00 USD')` is 1 and
+ *  `parseFloat('')` is NaN, so parseFloat silently accepts a string that is not purely a number -
+ *  and this value decides whether money arrived. `Number('1.00')` is 1, `Number('1.00 USD')` is
+ *  NaN, `Number('')` is 0 - so the empty-string case is excluded explicitly before converting.
+ *  Anything that does not read as a finite number is null, and a null where a rule needs a value is
+ *  review, never a default. */
+const money = (v: unknown): number | null => {
+  const direct = num(v);
+  if (direct !== null) return direct;
+  const o = obj(v);
+  if (!o) return null;
+  const raw = o.amount;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+  const t = str(raw);
+  if (t === null) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+};
 
 /** Whop event name to what it means for access. Unknown names are 'other' (recorded, not acted on). */
 function kindForType(type: string | null): WhopPayment['kind'] {
@@ -136,11 +198,36 @@ export function readWhopPayment(event: Record<string, unknown>): WhopPayment | n
     const company = obj(data?.company);
     const membership = obj(data?.membership);
 
-    // The amount: usd_total is documented as the total in USD, so it needs no currency question. Otherwise total counts only when the
-    // payment's own currency is usd. Dollars vs cents is not documented, and nothing here depends on it (only "above zero" is asked).
-    const usdTotal = num(data?.usd_total);
+    /* ── THE PLAN ID: `data.variant_id`, NOT `data.plan.id` ────────────────────────────────────
+     *
+     * THIS IS WHAT COST THE OWNER HIS FIRST DOLLAR. `data.plan` does not exist in a real
+     * `payment.succeeded` body - all 68 keys under `data` were listed and plan identity appears
+     * only as `variant_id` and inside `line_items`. So `planId` was null on every real payment,
+     * `decideWhopPayment` returned `review / payment_has_no_plan`, and NOTHING COULD EVER GRANT.
+     * It would have failed an identical way for every paying $49 customer.
+     *
+     * `plan.id` is kept as a fallback because it is what the published docs describe and what the
+     * Whop sandbox may still send; the real path wins.
+     *
+     * LINE ITEMS ARE THE LAST RESORT AND REFUSE TO GUESS. Both `data.variant_id` and
+     * `line_items[0].variant_id` carried the plan id on the one body we have, and QA's point stands
+     * that a single-item sample cannot say which is authoritative. So: payment-level `variant_id`
+     * first, because it is the payment's own field rather than a property of one of its parts. If
+     * it is absent, line items are used ONLY when every item agrees on one variant - two different
+     * variants in one order is ambiguous and returns null, which is review. Picking the first of
+     * several would be choosing which product someone bought. */
+    const items = arr(data?.line_items) ?? [];
+    const itemVariants = [...new Set(items.map((it) => str(obj(it)?.variant_id)).filter((v): v is string => v !== null))];
+    const planId = str(data?.variant_id) ?? str(plan?.id) ?? (itemVariants.length === 1 ? itemVariants[0] : null);
+
+    /* ── THE AMOUNT: a nested object with a STRING amount, not a number ───────────────────────
+     * `usd_total` is the total in USD so it needs no currency question; otherwise `total` counts
+     * only when the payment's own currency is usd. Both are `{amount:"1.00",...}` on a real body
+     * and a bare number in the docs - see `money()`. Dollars versus cents is still not documented
+     * and nothing here depends on it: only "above zero" is asked. */
+    const usdTotal = money(data?.usd_total);
     const currencyRaw = str(data?.currency);
-    const total = num(data?.total);
+    const total = money(data?.total);
     const amount = usdTotal !== null ? usdTotal : (currencyRaw && currencyRaw.toLowerCase() === 'usd' ? total : null);
     const currency = usdTotal !== null ? 'USD' : currencyRaw;
 
@@ -154,13 +241,38 @@ export function readWhopPayment(event: Record<string, unknown>): WhopPayment | n
       kind,
       eventName: type,
       paymentId: str(data?.id),
-      planId: str(plan?.id),
+      planId,
       amount,
       currency,
       paid,
-      payerEmail: str(user?.email),
-      companyId: str(company?.id) ?? str(event.account_id) ?? str(event.company_id),
-      membershipId: str(membership?.id),
+      /* `data.customer_email`, NOT `data.user.email`. The real `user` object carries id, name,
+         username and profile_picture and NO email at all - the docs' note that email needs the
+         `member:email:read` permission turns out to mean the field is simply not there. Documented
+         path kept as a fallback.
+         ── TRUST LEVEL OF THIS FIELD, because it is a payment identity and the next reader should
+         not have to infer it. `customer_email` is TYPED AT CHECKOUT by the payer, so it is
+         payer-controlled, not Whop-verified. Preferring it over `user.email` is a step DOWN in
+         assurance and is taken only because `user.email` does not exist in a real body: the
+         alternative is no grant for anybody, which is the defect this fixes.
+         WHAT BOUNDS IT TODAY: `lib/whopGrant.ts` grants only to an account whose CONFIRMED email
+         equals this value (`:306` match, `:308` confirmation), so a payer typing someone else's
+         address cannot TAKE access - at worst they pay for the real owner's Pro. There is no
+         escalation here; the residual is paying and then disputing, which the owner's never-revoke
+         ruling accepts deliberately and which does not depend on which email field is read.
+         THE RIGHT FIX IS NOT A BETTER EMAIL FIELD. `data.metadata` exists on the body and arrives
+         EMPTY because we never populate it. Putting our own user id in the checkout metadata and
+         joining on that removes a payer-controlled key from the identity path entirely and makes
+         email the fallback. QA proposed it and an automated review reached the same place from the
+         security side. Tracked on #1630; not done here, because whether the embedded checkout
+         surface carries metadata has to be measured on a real body and we have exactly one. */
+      payerEmail: str(data?.customer_email) ?? str(user?.email),
+      /* `data.account_id` added ahead of the envelope fallback: it is present on a real body
+         (`biz_...`) while `data.company` is absent. The envelope fallback is the only reason the
+         company check was not a fourth failure. */
+      companyId: str(company?.id) ?? str(data?.account_id) ?? str(event.account_id) ?? str(event.company_id),
+      /* `data.membership_id`, a flat string, not `data.membership.id`. Not used by any access
+         decision - it is the only id a later cancellation can be matched on. */
+      membershipId: str(data?.membership_id) ?? str(membership?.id),
     };
   } catch {
     return null;
