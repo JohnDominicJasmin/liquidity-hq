@@ -44,18 +44,53 @@
  * Korean cookies section carried required meaning. That is the owner's call or a lawyer's. This
  * script points; it does not rule.
  */
+import { readFile } from 'node:fs/promises';
 import { AVAILABLE_LOCALES, SUPPORTED_LOCALES } from '../../lib/locales.ts';
 
 const BASE = (process.argv[2] ?? 'https://liquidity-hq.com').replace(/\/+$/, '');
-/* CONSENT_ was MISSING from this pattern until 2026-11-08 and the cookie-consent banner is legal
-   copy. Five keys were outside every scan: CONSENT_ACCEPT, CONSENT_ARIA_LABEL, CONSENT_BODY,
-   CONSENT_DECLINE, CONSENT_PRIVACY_LINK. All five turned out to be translated and within norm
-   (CONSENT_BODY en 163 -> ko 86 is rel 1.00 against ko's median), so the gap cost no finding - but
-   103 keys were reported as "every legal key" when the number was 108. A prefix list is a silent
-   scope limit: anything it does not match is absent from the output with no marker, which is the
-   same shape as the windowed-read failure. Re-derive it by prefix frequency rather than recalling
-   it, and keep this list in sync with the pages under app/(main) that carry legal copy. */
-const PREFIX = /^(TERMS|PRIVACY|REFUND|DISCLAIMER|CONSENT)_/;
+/* ── THE KEY SET IS DERIVED FROM THE PAGES, NOT LISTED ────────────────────────────────────────────
+ *
+ * This was `/^(TERMS|PRIVACY|REFUND|DISCLAIMER)_/` and it was SHORT BY FIVE: `CONSENT_` was absent,
+ * so the cookie-consent banner - legal copy on every page - had never been measured. I "fixed" that
+ * by adding CONSENT to the list, which repaired five keys and left the failure mode untouched. The
+ * other QA session asked the right question: does it DERIVE the set, or can the list go short again?
+ *
+ * IT COULD. A scan that reports on "every legal key" while "legal" is defined by a hand-written
+ * pattern is asserting a completeness it cannot have, and the output looks identical either way -
+ * nothing marks the keys the pattern never considered. That all five CONSENT keys turned out fine
+ * was luck, not vindication.
+ *
+ * SO THE SET NOW COMES FROM THE FILES THAT RENDER THE COPY. A legal key is one referenced by a page
+ * whose job is legal text. That is the actual definition, and it is self-maintaining: a new section
+ * added to /terms is picked up with no edit here, and a whole new legal page fails loudly below
+ * rather than silently reducing the scope.
+ *
+ * THE SEED CANNOT BE ELIMINATED, ONLY MADE VISIBLE AND CHECKED. This is still a list - of files
+ * instead of prefixes - and pretending otherwise would repeat the original error one level up. What
+ * changes is that a missing FILE is conspicuous (five entries, each a page you can open) where a
+ * missing PREFIX was not, and that CONTROL 4 below cross-checks this derivation against an
+ * independent keyword sweep of the entire payload. Two derivations that disagree are the signal. */
+const LEGAL_SOURCES = [
+  'app/(main)/terms/page.tsx',
+  'app/(main)/privacy/page.tsx',
+  'app/(main)/refund/page.tsx',
+  'app/(main)/disclaimer/page.tsx',
+  'components/CookieConsent.tsx',
+];
+
+/* Independent of LEGAL_SOURCES on purpose: this sweeps EVERY key in the payload for a legal-ish
+   word and is used only to contradict the derivation, never to build it. If it finds a key the
+   pages do not reference, either a legal surface is missing from LEGAL_SOURCES or a stale key is
+   lying around - both worth knowing, and neither visible from the derivation alone. */
+/* MATCHED PER UNDERSCORE-DELIMITED TOKEN, not as a substring. The first version was a bare regex
+   over the whole key and it reported AUTH_TERMINAL_LIVE_TAG as legal-ish, because TERMINAL contains
+   TERM. One false positive in a 16-row control output is enough to make a reader discount the other
+   fifteen, and those fifteen were real. */
+const LEGALISH_TOKENS = new Set([
+  'TERM', 'TERMS', 'PRIVACY', 'REFUND', 'REFUNDS', 'DISCLAIMER', 'CONSENT', 'COOKIE', 'COOKIES',
+  'GDPR', 'LEGAL', 'LIABILITY', 'WARRANTY', 'INDEMNIFICATION', 'WITHDRAWAL',
+]);
+const isLegalish = (key) => key.split('_').some((t) => LEGALISH_TOKENS.has(t));
 
 /* 0.70, RAISED FROM 0.65 ON MEASUREMENT, not on taste. A full ranked run on prod 2026-11-08 shows a
    genuine cliff among substantive bodies (en >= 120 chars):
@@ -81,7 +116,7 @@ const MIN_EN_CHARS = 120;
 
 /* Keys the Terms page renders that are the current known absence. Named explicitly so a run reports
    whether they are STILL missing rather than leaving it to a reader to notice. */
-const KNOWN_ABSENT = [
+const KNOWN_ABSENT_PIN = [
   'TERMS_SECTION_SUBSCRIPTIONS_TITLE', 'TERMS_SECTION_SUBSCRIPTIONS_BODY',
   'TERMS_SECTION_BILLING_TITLE', 'TERMS_SECTION_BILLING_BODY',
   'TERMS_SECTION_CANCELLATION_TITLE', 'TERMS_SECTION_CANCELLATION_BODY',
@@ -128,16 +163,57 @@ async function main() {
     console.log('  none of them are offered, so this is expected rather than a gap');
   }
 
-  const legalKeys = Object.keys(en).filter((k) => PREFIX.test(k)).sort();
-  console.log(`\nlegal keys in the served payload: ${legalKeys.length}`);
+  /* Derive the key set from the files that render legal copy. `defaults` is the full declared set,
+     so a key the pages reference but the DATABASE lacks still appears here - which is how the
+     no-rows-at-all case is FOUND rather than remembered. */
+  const defaults = JSON.parse(await readFile(new URL('../../lib/labelDefaults.en.json', import.meta.url), 'utf8'));
+  const referenced = new Set();
+  const perFile = [];
+  for (const rel of LEGAL_SOURCES) {
+    let src;
+    try {
+      src = await readFile(new URL(`../../${rel}`, import.meta.url), 'utf8');
+    } catch {
+      /* A legal page that moved or was renamed must STOP the run. Silently scanning four files
+         instead of five is the exact failure this derivation replaced. */
+      throw new Error(`LEGAL_SOURCES names ${rel}, which does not exist. A legal surface has moved - ` +
+        'fix the path rather than letting the scan quietly cover less.');
+    }
+    const found = [...new Set([...src.matchAll(/'([A-Z][A-Z0-9_]{3,})'/g)].map((m) => m[1]))]
+      .filter((k) => k in defaults);
+    for (const k of found) referenced.add(k);
+    perFile.push(`${rel.replace(/^.*\//, '')} ${found.length}`);
+  }
+  const legalKeys = [...referenced].sort();
+  console.log(`\nlegal keys DERIVED from ${LEGAL_SOURCES.length} source files: ${legalKeys.length}   (${perFile.join(', ')})`);
+
+  /* ── CONTROL 4: the independent keyword sweep must not find a legal-ish key the pages do not
+     reference. This is the control that the old hand-written prefix could never have, because the
+     prefix WAS the definition - nothing existed to disagree with it. */
+  const sweep = Object.keys(defaults).filter(isLegalish);
+  const unreferenced = sweep.filter((k) => !referenced.has(k));
+  console.log(`CONTROL  keyword sweep over all ${Object.keys(defaults).length} declared keys found ${sweep.length} legal-ish; ` +
+    `${unreferenced.length} are NOT referenced by any file in LEGAL_SOURCES`);
+  if (unreferenced.length) {
+    console.log('  Either a legal surface is missing from LEGAL_SOURCES, or these are stale keys:');
+    for (const k of unreferenced) console.log(`    ${k}`);
+  }
 
   /* ── CONTROL 3: THE ONE THAT FOUND THE REAL FINDING. Asserting that the keys under investigation
      are in my own key set reported 0 of 8 - they are in labelKeys.ts and labelDefaults.en.json but
      absent from the served payload, so the page falls back to bundled English. Without this the
      script would have reported "zero translations" for eight keys it had silently dropped from its
      own list: a true-looking answer reached by not looking. */
-  const absent = KNOWN_ABSENT.filter((k) => !(k in en));
-  console.log(`CONTROL  known-absent keys still missing from the payload: ${absent.length}/${KNOWN_ABSENT.length}`);
+  /* DERIVED, not recalled: a key the legal pages render that the served payload does not carry has
+     no database row in any locale, and falls back to the bundled English default. The pin below is
+     only a regression check that the eight known ones are still among them. */
+  const absent = legalKeys.filter((k) => !(k in en));
+  const pinStillAbsent = KNOWN_ABSENT_PIN.filter((k) => absent.includes(k));
+  console.log(`\nkeys the legal pages render with NO ROW IN ANY LOCALE: ${absent.length} (derived)`);
+  console.log(`CONTROL  of the 8 pinned on 2026-11-07, still absent: ${pinStillAbsent.length}/${KNOWN_ABSENT_PIN.length}`);
+  if (absent.length > KNOWN_ABSENT_PIN.length) {
+    console.log(`  *** ${absent.length - KNOWN_ABSENT_PIN.length} MORE than the pin - new keys shipped without rows. ***`);
+  }
   if (absent.length) {
     console.log('  NO DATABASE ROWS IN ANY LOCALE - rendered from lib/labelDefaults.en.json, so English');
     console.log('  on every offered locale. This needs an INSERT, not a translation:');
