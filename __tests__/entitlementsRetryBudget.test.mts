@@ -68,7 +68,7 @@ test('retryWithBackoff overallBudgetMs (#1173)', async (t) => {
   await t.test('each attempt receives the ACTUAL remaining budget, decreasing by real elapsed backoff time - not a static value', { timeout: 5000 }, async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
     const seen: number[] = [];
-    const attempt = async (n: number, remaining: number) => { seen.push(remaining); return { failed: true } as Res; };
+    const attempt = async (_n: number, remaining: number) => { seen.push(remaining); return { failed: true } as Res; };
     const p = retryWithBackoff(attempt, { maxAttempts: 3, backoffMs: [1000, 500], overallBudgetMs: 5000 });
     await flushMicrotasks();
     assert.deepEqual(seen, [5000], 'attempt 1 sees the full budget, no time has elapsed yet');
