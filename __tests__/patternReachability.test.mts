@@ -125,7 +125,29 @@ test('R1. every two-rail structure has PARALLEL rails, whichever path produced i
     'which is why it is the more likely one.');
 });
 
-test('R2. no type declared undetectable is ever actually returned', () => {
+test('R2. no type declared undetectable is ever actually returned (green for TWO reasons - see below)', () => {
+  /* ── R2 IS NOT A SECOND READING OF R1, AND ITS GREEN IS CURRENTLY OVER-DETERMINED ───────────────
+   *
+   * Found by Dev reproducing my own range-gate mutation: under it, R1 goes RED and R2 stays GREEN.
+   * It has to. `classify` at `:311` now returns `null` for both convergence and divergence, so
+   * THERE IS NO CODE PATH THAT CAN RETURN A WEDGE OR A TRIANGLE - regardless of whether any rail
+   * pair is parallel. The relaxed gate really does produce non-parallel rails, R1 really does see
+   * it, and R2 still finds no undetectable type because none is reachable by construction.
+   *
+   * SO R1 CARRIES THE PREMISE ALONE AND R2 CANNOT SUBSTITUTE FOR IT:
+   *
+   *   R1  the PREMISE   - rails are parallel. Breaks on EITHER trigger. Load-bearing.
+   *   R2  the EXCLUSION - no wedge is returned. True today for a SECOND, independent reason:
+   *                       the branch that could return one is gone.
+   *
+   * WHY THIS NOTE MATTERS MORE THAN THE CELL. Two greens read as two independent confirmations, and
+   * here they are not. Anyone treating R2's pass as corroborating R1 would be double-counting a
+   * single piece of evidence - which is the same shape as every other thing this file exists to
+   * stop, and the same shape as the `>= 12` control that claimed to measure an import.
+   *
+   * R2 BECOMES A REAL CHECK AGAIN the moment someone restores the convergence branch, and that is
+   * exactly when it earns its place: a restored branch arriving without teaching copy is what it
+   * catches. Keep it, do not read it as a second opinion on R1. */
   const { twoRail, undetectableReturned } = sweep();
   assert.ok(twoRail > 0, 'no two-rail structures produced - see R1');
 
@@ -133,7 +155,8 @@ test('R2. no type declared undetectable is ever actually returned', () => {
     `classify returned ${[...new Set(undetectableReturned)].join(', ')}, which ` +
     'UNDETECTABLE_PATTERN_TYPES says cannot happen. The teaching panel has no copy for these, so ' +
     'the chart would name a shape the panel renders nothing for.\n' +
-    'This is the CONCLUSION; R1 asserts the PREMISE it rests on. If R1 is green and this is red, ' +
+    'This is the CONCLUSION; R1 asserts the PREMISE it rests on, and R1 is the one that breaks ' +
+    'when the parallelism does - this cell cannot see that. If R1 is green and this is red, ' +
     'the parallelism holds and something else changed in classify.');
 
   /* The declared-undetectable set must not overlap what the product offers, or the two halves of
