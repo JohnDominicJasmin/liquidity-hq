@@ -32,6 +32,13 @@
  *
  * Everything here refuses to write rather than write something wrong.
  *
+ * `OPS_*` KEYS NEVER GO INTO THIS FILE (#1632 item 15). LabelsProvider bundles it into every
+ * visitor's JS, so anything in it is public - and the admin console's copy names the AI model and
+ * spells out the margin formula. That copy lives in lib/labelDefaults.ops.en.json, which only
+ * server code imports. THIS SCRIPT NEVER TOUCHES THAT FILE: /api/labels filters `OPS_*` out, so
+ * there is nothing here to refresh it from. Edit it by hand. Any `OPS_*` key that does arrive (an
+ * older server, a filter removed) is dropped below rather than written into the public file.
+ *
  *   node scripts/regen-label-defaults.mjs            # against localhost:3000
  *   node scripts/regen-label-defaults.mjs --url ...  # against another origin
  */
@@ -79,6 +86,14 @@ try {
 
 if (fresh === null || typeof fresh !== 'object' || Array.isArray(fresh)) {
   die(`expected a JSON object of labels, got ${Array.isArray(fresh) ? 'an array' : typeof fresh}`);
+}
+
+// Admin console copy stays out of the public snapshot - see the header. Dropped before every
+// count and comparison below, so the shrink check and the diff describe what is actually written.
+const droppedOps = Object.keys(fresh).filter(k => k.startsWith('OPS_'));
+for (const k of droppedOps) delete fresh[k];
+if (droppedOps.length) {
+  console.warn(`  note: dropped ${droppedOps.length} OPS_* keys from the response - they belong in lib/labelDefaults.ops.en.json, never in the public file`);
 }
 
 const freshCount = Object.keys(fresh).length;

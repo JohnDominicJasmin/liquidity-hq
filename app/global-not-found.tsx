@@ -38,7 +38,14 @@ import NotFoundContent from '@/components/NotFoundContent';
  * useLabels(), and outside a provider LabelsContext falls back to `t: (key) => key` - the page would
  * render the literal strings NOT_FOUND_TITLE and NOT_FOUND_BODY. LabelsProvider seeds its map from
  * the static lib/labelDefaults.en.json on its first render, so the real English copy is in the
- * server HTML without waiting for /api/labels. */
+ * server HTML without waiting for /api/labels.
+ *
+ * `localeFromPath` MAKES /ko/nope KOREAN. Without it the provider used only the saved preference, so
+ * a visitor following a broken /ko, /zh or /ru link got the English 404 although those labels exist.
+ * On mount the provider reads the first path segment, loads that locale's labels and sets <html lang>
+ * to match. lang="en" below stays the server-rendered default, because this file cannot see the
+ * request path: it takes no props, and a headers() read here would be a request-time API on the 404.
+ * Not a locale segment, or Arabic (not offered, #138), falls back exactly as before. */
 
 const plexSans = localFont({
   src: [{ path: './fonts/plex-sans-latin-var.woff2', weight: '400 700', style: 'normal' }],
@@ -55,7 +62,7 @@ export default function GlobalNotFound() {
   return (
     <html lang="en" data-theme="dark" data-design="terminal" className={plexSans.variable}>
       <body>
-        <LabelsProvider>
+        <LabelsProvider localeFromPath>
           <NotFoundContent />
         </LabelsProvider>
       </body>

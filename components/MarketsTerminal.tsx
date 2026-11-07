@@ -126,6 +126,9 @@ export default function MarketsTerminal() {
       `}</style>
 
       <div style={{ maxWidth: 860, margin: '0 auto', padding: '0 12px 80px' }}>
+        {/* For screen readers and search engines only, same as /calc: the visible title below is a styled div,
+            so without this the page had no heading that names it. */}
+        <h1 className="sr-only">{t('MARKETS_PAGE_TITLE')}</h1>
 
         {/* Header */}
         <div style={{

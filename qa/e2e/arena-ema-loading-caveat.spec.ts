@@ -94,8 +94,21 @@ async function arrange(browser: import('@playwright/test').Browser) {
     if (route.request().method() !== 'POST') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ usage: null }) });
     }
-    const asked = route.request().postDataJSON() as { prompt?: string; tf?: string; session?: string };
-    prompts.push(asked.prompt ?? '');
+    /* READ `context.emaStrategy`, NOT `prompt` - THE APP STOPPED SENDING A PROMPT AT #1631.
+       /api/grok now receives a structured body and composes the prompt SERVER-side:
+       arena/page.tsx:1362 builds `emaStrategy` with the loading caveat in it, and
+       lib/grok.ts:350 renders `EMA Ribbon Strategy: ${ctx.emaStrategy}`.
+       So `asked.prompt ?? ''` was ALWAYS the empty string. Every read reported NO CAVEAT - which
+       is why the present-caveat cell failed, and why its sibling asserting the caveat is ABSENT
+       passed VACUOUSLY, on an empty string rather than on anything the app did. The failing half
+       was the honest one. Found by PM/DevOps's #1263 audit.
+       The one remaining `prompt:` in arena/page.tsx is line 1701, ARENA_CHAT_PROMPT_WITH_RESULT -
+       that is /api/grok-chat, a different route. Checked, because the bare grep hit looks like a
+       contradiction. */
+    const asked = route.request().postDataJSON() as {
+      context?: { emaStrategy?: string }; tf?: string; session?: string;
+    };
+    prompts.push(asked.context?.emaStrategy ?? '');
     return route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify({

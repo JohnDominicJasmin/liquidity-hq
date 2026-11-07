@@ -77,15 +77,43 @@ export function planForAmount(amount: number | null): { plan: BoomfiPlan; add: {
   return row ? { plan: row.plan, add: row.add } : null;
 }
 
-/** `from` plus whole months, clamped to the month's last day (Jan 31 + 1 month = Feb 28/29, not Mar 3), then plus days. UTC. */
+/**
+ * `from` plus whole months, then plus days. UTC.
+ *
+ * OVERFLOWS RATHER THAN CLAMPS - Jan 31 + 1 month is Mar 3, not Feb 28. **This is deliberate and
+ * it is the fix for paying users losing access early.**
+ *
+ * It used to clamp to the month's last day, and because `extendedPeriodEnd` chains the next period
+ * off the stored end, that clamp was PERMANENT: February reset the anchor to the 28th and it never
+ * recovered. Measured over five cycles from January:
+ *
+ *     start 31:  our end 01-31 -> 02-28 -> 03-28 -> 04-28 -> 05-28
+ *     biller:            01-31 -> 02-28 -> 03-31 -> 04-30 -> 05-31
+ *
+ * So a buyer on the 29th, 30th or 31st lost 1-2 days of paid access every cycle from the first
+ * March onwards - access ending BEFORE the renewal charge, which is the direction that costs trust
+ * and invites a chargeback. Roughly 10% of start dates.
+ *
+ * Overflowing errs the other way: that same buyer settles on the 3rd and gets up to three days
+ * more than they paid for, every cycle. PM/DevOps chose this on 2026-11-06 over an anchor column,
+ * for two reasons - there are no paying subscribers yet, so a column's backfill problem is moot and
+ * its benefit theoretical, and overflow can never lock a payer out early, which is the failure that
+ * actually costs money.
+ *
+ * WHEN TO REVISIT: once there are enough subscribers for ~3 free days a cycle on 10% of them to be
+ * worth a migration, add a `period_anchor_day` column, anchor each extension to the FIRST payment's
+ * day, and delete this paragraph. Until then the giveaway is cheaper than the engineering.
+ */
 export function addPeriod(from: Date, add: { months?: number; days?: number }): Date {
   const d = new Date(from.getTime());
   if (add.months) {
+    /* `setUTCDate` past the month's end rolls forward on its own - setting the 31st on a February
+       gives Mar 3. The month is set from the 1st first so a long source day cannot make
+       `setUTCMonth` skip a month before the day is applied. */
     const day = d.getUTCDate();
     d.setUTCDate(1);
     d.setUTCMonth(d.getUTCMonth() + add.months);
-    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-    d.setUTCDate(Math.min(day, last));
+    d.setUTCDate(day);
   }
   if (add.days) d.setUTCDate(d.getUTCDate() + add.days);
   return d;

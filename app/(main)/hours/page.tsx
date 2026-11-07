@@ -167,15 +167,21 @@ export default function BestHours() {
       <SessionCountdown />
 
       <div className="card" style={{ textAlign: 'center', marginBottom: 14 }}>
+        {/* Clock, zone and date are client-only, like the blocks gated on `mounted`
+            below. The prerendered HTML carries the BUILD time, and
+            suppressHydrationWarning keeps that server text on screen instead of
+            correcting it - so the build time showed until the first tick, and the
+            build DATE until the day changed. A dashed placeholder holds the same
+            line until mount. */}
         <div suppressHydrationWarning style={{ fontSize: '2.25rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--txt)', letterSpacing: -1 }}>
-          {pad(h12)}:{pad(m)}:{pad(s)}
+          {mounted ? <>{pad(h12)}:{pad(m)}:{pad(s)}</> : '--:--:--'}
           {/* The clock has always shown the VIEWER'S own time (getLocalNow() is
               just new Date()), but the label named a single fixed zone - so a trader in
               London read their own 9am under someone else's label. Show the real zone. */}
-          <span suppressHydrationWarning style={{ fontSize: 'var(--fs-body)', color: 'var(--txt3)', marginLeft: 8 }}>{ampm} {localZoneAbbr()}</span>
+          {mounted && <span suppressHydrationWarning style={{ fontSize: 'var(--fs-body)', color: 'var(--txt3)', marginLeft: 8 }}>{ampm} {localZoneAbbr()}</span>}
         </div>
         <div suppressHydrationWarning style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', marginTop: 4 }}>
-          {days[pht.getDay()]}, {months[pht.getMonth()]} {pht.getDate()} {pht.getFullYear()}
+          {mounted ? <>{days[pht.getDay()]}, {months[pht.getMonth()]} {pht.getDate()} {pht.getFullYear()}</> : ' '}
         </div>
 
         <div style={{ marginTop: 12 }}>
@@ -277,8 +283,10 @@ export default function BestHours() {
             })}
           </div>
 
-          {/* "You are here" needle - outside overflow:hidden so the arrow tip shows */}
-          {(() => {
+          {/* "You are here" needle - outside overflow:hidden so the arrow tip shows.
+              Client-only for the same reason as the clock: prerendered, it points
+              at the build time. Absolutely positioned, so its absence shifts nothing. */}
+          {mounted && (() => {
             const pct = ((h + m / 60) / 24) * 100;
             return (
               <>
@@ -331,7 +339,7 @@ export default function BestHours() {
 
         {/* Current position label */}
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>
-          {t('HOURS_NOW_PREFIX')}<span suppressHydrationWarning style={{ color: 'var(--txt2)', fontWeight: 600 }}>{pad(h12)}:{pad(m)} {ampm} {localZoneAbbr()}</span>
+          {t('HOURS_NOW_PREFIX')}<span suppressHydrationWarning style={{ color: 'var(--txt2)', fontWeight: 600 }}>{mounted ? <>{pad(h12)}:{pad(m)} {ampm} {localZoneAbbr()}</> : '--:--'}</span>
           {mounted && win && <span className="hours-now-win" style={{ marginLeft: 8, color: win.color, fontWeight: 600 }}>{t('HOURS_DOT_SEPARATOR')} {win.name}</span>}
           {mounted && dead && <span style={{ marginLeft: 8, color: 'var(--red)', fontWeight: 600 }}>{t('HOURS_DOT_DEAD_ZONE')}</span>}
         </div>

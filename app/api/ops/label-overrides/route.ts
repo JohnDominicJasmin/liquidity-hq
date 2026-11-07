@@ -3,9 +3,15 @@ import { withOwner } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { diffLabels, summarise } from '@/lib/labelOverrides';
-import defaults from '@/lib/labelDefaults.en.json';
+import publicDefaults from '@/lib/labelDefaults.en.json';
+import opsDefaults from '@/lib/labelDefaults.ops.en.json' with { type: 'json' };
 
 export const dynamic = 'force-dynamic';
+
+/* The shipped English set is TWO files since #1632 item 15: the public one, and the admin console's
+   `OPS_*` copy kept out of the client bundle. Compared against both, or every `OPS_*` row in the
+   database would read as an orphan - a key "no longer in code" that is in fact rendered on /ops. */
+const defaults: Record<string, string> = { ...publicDefaults, ...opsDefaults };
 
 /* GET /api/ops/label-overrides — which label keys the database is overriding.
  *
@@ -47,7 +53,7 @@ export const GET = withOwner(async () => {
     if (batch.length < PAGE_SIZE) break;
   }
 
-  const all = diffLabels(rows, defaults as Record<string, string>);
+  const all = diffLabels(rows, defaults);
   const counts = summarise(all);
 
   /* `defaultOnly` is the normal state for most keys and there are thousands of

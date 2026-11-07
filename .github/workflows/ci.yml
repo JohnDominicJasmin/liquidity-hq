@@ -484,6 +484,46 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # THE UNIT TESTS READ GIT TAGS, so a tagless checkout makes them lie.
+          #
+          # __tests__/changelogTracksReleases.test.mts C1/C2 compare the newest changelog entry
+          # against the newest RELEASE TAG. The default checkout is fetch-depth 1 with no tags, so
+          # on every PR into dev they failed with "only 0 release tags found" - the instrument
+          # missing its input, not the changelog being wrong. It is what made #2042's build red.
+          #
+          # NOT SKIPPED WHEN THERE ARE NO TAGS, deliberately. A skip exits 0, so the check would
+          # read green while comparing nothing - which is the exact failure this check exists to
+          # prevent, reintroduced one level up. The fix belongs in the instrument's input.
+          #
+          # fetch-depth 0 AND NOT fetch-tags, and the difference is the whole bug this replaces.
+          # `fetch-tags: true` was tried first and is SILENTLY IGNORED at depth 1. Measured on run
+          # 42411476802, same workflow, same push, the two checkouts issue:
+          #
+          #   classify  (fetch-depth: 0, fetch-tags: FALSE)
+          #     git fetch --prune --no-recurse-submodules origin
+          #         +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/* +<sha>:<pr>/merge
+          #     -> 47 `[new tag]` lines
+          #   build     (fetch-tags: TRUE, fetch-depth: 1)
+          #     git fetch --prune --no-recurse-submodules --depth=1 origin +<sha>:<pr>/merge
+          #     -> no refs/tags refspec at all, 0 `[new tag]` lines, C1 still "only 0 release tags"
+          #
+          # Note which way round that is. The job that got the tags had fetch-tags FALSE. The tags
+          # refspec comes from doing a full ref fetch, so fetch-tags is neither necessary nor
+          # sufficient here - DEPTH is the only variable - and at depth 1 the action has one ref to
+          # fetch and nothing to attach tags to, so the input is dropped without an error.
+          #
+          # WHY THE FIRST ATTEMPT PASSED REVIEW, since the cost of this is a second CI round-trip:
+          # the local reproduction was real but modelled the action as `git fetch --tags --depth 1`,
+          # which DOES add the tags refspec. Checkout's own command does not. A simulation of a tool
+          # is worth what the command it reproduces is worth, and the real command was sitting in
+          # the run log the whole time. Read the fetch line the action logs, not the docs - the docs
+          # present fetch-tags as sufficient and at this depth it is not.
+          #
+          # The cost is a full fetch on this job instead of a shallow one. Paid deliberately: it is
+          # the only thing measured to carry tags, and C1/C2 are the check that catches a release
+          # tagged with no changelog entry.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -1213,6 +1253,31 @@ jobs:
           # The real store URL belongs in Render's env for liquidity-hq-prod and
           # nowhere else.
           NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL: https://example.lemonsqueezy.com/checkout/buy/ci-fake-not-a-real-store
+
+          # ── WHOP FAKES, because their ABSENCE was being read as a product defect ──
+          #
+          # `isProBuyable()` is `isWhopCheckoutConfigured()` (lib/checkout.ts:214), i.e. "the Whop
+          # MONTHLY url is set". Unset, /upgrade's reveal button never renders - so
+          # `auth-gate-render.spec.ts:124` and `:200` failed on this env gap and were recorded
+          # against Dev as app defects. PM/DevOps's #1740 audit found it.
+          #
+          # https ON PURPOSE, NOT COSMETICALLY. lib/checkout.ts: "only an https URL counts as set".
+          # An http fake, or a bare hostname, leaves isProBuyable false and this whole block reads
+          # like a fix while changing nothing - the failure mode most likely to be copied from the
+          # LemonSqueezy line above without noticing why that one is https too.
+          #
+          # Never contacted: every checkout spec intercepts the navigation. The real store urls
+          # belong in Render's env for liquidity-hq-prod and nowhere else.
+          NEXT_PUBLIC_WHOP_CHECKOUT_MONTHLY: https://whop.example.com/checkout/ci-fake-monthly-not-a-real-store
+          NEXT_PUBLIC_WHOP_CHECKOUT_ANNUAL: https://whop.example.com/checkout/ci-fake-annual-not-a-real-store
+
+          # `NEXT_PUBLIC_WHOP_CHECKOUT_FORTNIGHTLY` IS DELIBERATELY NOT SET HERE, and that is a
+          # choice to look at rather than an omission. It leaves the E2E build in a state no real
+          # environment has - prod reports all three of checkout/checkoutAnnual/checkoutFortnightly
+          # true, measured on /api/version. Monthly is what `isProBuyable` reads and what the two
+          # failing cells need; annual is what the checkout specs exercise alongside it. Adding a
+          # third url nothing asserts would widen the surface for no measured reason.
+          # If a spec turns red naming fortnightly, that is the signal to add it - not a surprise.
 
           # ── THIS FILE USED TO SAY THE SERVICE-ROLE KEY "must never be" HERE ──
           #

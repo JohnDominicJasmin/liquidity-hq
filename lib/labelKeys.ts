@@ -256,8 +256,10 @@ export const LABEL_KEYS = [
   // #861 Phase 1: the payment-method step on /upgrade (crypto via BoomFi).
   'UPGRADE_METHOD_PANEL_TITLE', 'UPGRADE_METHOD_CRYPTO_CTA',
   'UPGRADE_METHOD_CRYPTO_NOTE', 'UPGRADE_METHOD_CRYPTO_WEEKLY_NOTE',
-  // Owner, 2026-10-08: honest crypto-payment copy - what to pay in (under the plan price), what happens at checkout (under the pay button).
-  'UPGRADE_CRYPTO_NETWORKS_NOTE', 'UPGRADE_CRYPTO_CHECKOUT_NOTE',
+  // Owner, 2026-10-08: honest crypto-payment copy - what to pay in (under the plan price).
+  // Its pair, the on-chain "pay through BoomFi" checkout note, was removed on 2026-11-05:
+  // BoomFi is paused, nothing rendered it, and it must not ship.
+  'UPGRADE_CRYPTO_NETWORKS_NOTE',
   // #1567 Phase 2: the Whop payment panel (replaces the crypto/BoomFi panel copy above, which stays defined but is no longer rendered).
   'UPGRADE_WHOP_FINAL_NOTE', 'UPGRADE_WHOP_EMBED_LOADING', 'UPGRADE_WHOP_EMBED_FALLBACK', 'UPGRADE_RETURN_PENDING', 'UPGRADE_RETURN_FAILED', 'UPGRADE_RETURN_CANCELED', 'UPGRADE_WHOP_EMAIL_SENTENCE', 'UPGRADE_WHOP_PANEL_TITLE', 'UPGRADE_WHOP_CTA', 'UPGRADE_WHOP_EMAIL_NOTE', 'UPGRADE_WHOP_CHECKOUT_NOTE',
   // #861: the X that closes the payment-method panel.
@@ -1037,6 +1039,9 @@ export const LABEL_KEYS = [
   'LEARN_CONTENT_NAV_GET_STARTED', 'LEARN_CONTENT_HEADING_MAIN', 'LEARN_CONTENT_HEADING_ACCENT',
   'LEARN_CONTENT_HERO_SUB', 'LEARN_CONTENT_SEARCH_PLACEHOLDER', 'LEARN_CONTENT_SEARCH_ARIA_LABEL',
   'LEARN_CONTENT_EMPTY_STATE', 'LEARN_CONTENT_CTA_HEADING', 'LEARN_CONTENT_CTA_BUTTON', 'LEARN_CONTENT_RESULTS_COUNT',
+  /* #1740: the category -> tool link row. `{tool}` is filled from the EXISTING nav label, so the
+     tool's name arrives already translated and only this sentence is new copy. */
+  'LEARN_CONTENT_CATEGORY_TOOL_LINK',
 
   // Wave 11: OnboardingFlow
   'ONBOARDING_FLOW_STEP_PROFILE', 'ONBOARDING_FLOW_STEP_EXPERIENCE', 'ONBOARDING_FLOW_STEP_STYLE',
@@ -1083,6 +1088,8 @@ export const LABEL_KEYS = [
   'SPOTLIGHT_TOUR_STEP4_BODY', 'SPOTLIGHT_TOUR_STEP5_TAG', 'SPOTLIGHT_TOUR_STEP5_TITLE',
   'SPOTLIGHT_TOUR_STEP5_BODY', 'SPOTLIGHT_TOUR_SKIP_ARIA', 'SPOTLIGHT_TOUR_BACK_BTN',
   'SPOTLIGHT_TOUR_NEXT_BTN', 'SPOTLIGHT_TOUR_OPEN_ARENA_BTN',
+  // The tag that marks the last step's chart, signal card and alert as an illustration, not live data.
+  'SPOTLIGHT_TOUR_EXAMPLE_TAG',
 
   // Wave 11: LiqFeed
   'LIQ_FEED_TITLE', 'LIQ_FEED_TOOLTIP',
@@ -1194,6 +1201,11 @@ export const LABEL_KEYS = [
   'TRADE_JOURNAL_STATS_EQUITY_CURVE_LABEL', 'TRADE_JOURNAL_STATS_PERFORMANCE_BY_COIN_LABEL',
   'TRADE_JOURNAL_STATS_PERFORMANCE_BY_SETUP_LABEL', 'TRADE_JOURNAL_STATS_TRADES_COUNT',
   'TRADE_JOURNAL_AUTH_TITLE', 'TRADE_JOURNAL_AUTH_DESC', 'TRADE_JOURNAL_LOADING_MESSAGE',
+
+  // EVERY `OPS_*` key below gets its English default from lib/labelDefaults.ops.en.json, NOT
+  // lib/labelDefaults.en.json (#1632 item 15). The second file ships in every visitor's JS; the
+  // admin console's copy must not. Registered here all the same, so t() still type-checks them.
+  // A new `OPS_*` key goes in the ops file by hand - scripts/regen-label-defaults.mjs never writes it.
 
   // Wave 12: ops layout + login + cards
   'OPS_LAYOUT_DENY_TITLE', 'OPS_LAYOUT_DENY_EMAIL_PREFIX', 'OPS_LAYOUT_DENY_EMAIL_SUFFIX',

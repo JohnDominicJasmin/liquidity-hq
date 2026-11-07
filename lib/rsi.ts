@@ -6,7 +6,8 @@
  * this one function, used by the browser and the server alike.
  *
  * THE FORMULA: the first average gain/loss is the simple mean of the first `period` changes; every later one is Wilder's smoothing,
- * avg = (avg * (period - 1) + current) / period; RSI = 100 - 100 / (1 + avgGain / avgLoss). No losses at all reads 100 (a flat series too).
+ * avg = (avg * (period - 1) + current) / period; RSI = 100 - 100 / (1 + avgGain / avgLoss). No losses at all reads 100; a series
+ * that did not move at all has NO RSI and reads NaN, which the callers turn into null (see the comment on `rsi` below).
  *
  * WHAT THE CALLER OWES IT:
  *   - CLOSED candles only. Drop the forming candle before calling (lib/candles.ts dropForming, or the exchange's own close time). A forming
@@ -31,7 +32,13 @@ export function wilderRsiSeries(closes: readonly number[], period: number = RSI_
   }
   let ag = gains.slice(0, period).reduce((s, v) => s + v, 0) / period;
   let al = losses.slice(0, period).reduce((s, v) => s + v, 0) / period;
-  const rsi = (g: number, l: number) => (l === 0 ? 100 : 100 - 100 / (1 + g / l));
+  /* A FLAT SERIES HAS NO RSI, AND MUST NOT READ 100. `l === 0` alone cannot tell "only up closes" (genuinely overbought) from
+     "no closes moved at all" (undefined - 0/0), and the second one is what a stuck or synthetic feed looks like. Returning 100 for it
+     makes a series that has not moved read as the most overbought value there is, which is the wrong direction to be wrong in: the
+     RSI-overbought Telegram rule compares `rsi >= loosestOb`, and a false 100 clears every threshold a user can set. NaN here becomes
+     `null` out of wilderRsi, `-` out of formatRsi, and a skip in every series consumer - all of which already guard non-finite values.
+     `g === 0` is checked INSIDE `l === 0`, so one up close with no down closes still reads 100, which is correct. */
+  const rsi = (g: number, l: number) => (l === 0 ? (g === 0 ? NaN : 100) : 100 - 100 / (1 + g / l));
   out[period] = rsi(ag, al);
   for (let i = period; i < n - 1; i++) {
     ag = (ag * (period - 1) + gains[i]) / period;

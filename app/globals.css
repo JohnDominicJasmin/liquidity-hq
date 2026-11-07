@@ -5693,7 +5693,52 @@ html[lang="ko"] .lp-hero-h1 { word-break: keep-all; }
 .pf-footer-brand { display: flex; flex-direction: column; gap: 5px; }
 .pf-footer-logo { font-size: var(--fs-caption); font-weight: 700; color: var(--txt); letter-spacing: -0.02em; }
 .pf-footer-tagline { font-size: var(--fs-caption); color: var(--txt3); line-height: 1.4; }
-.pf-footer-nav { display: flex; gap: 20px; align-items: center; flex-shrink: 0; }
+/* WRAPS AND SHRINKS AT EVERY WIDTH, not only below 640px (#1185).
+ *
+ * This read `flex-shrink: 0` with no `flex-wrap`, so the row's links at natural width - 1230px
+ * measured on /terms - became the floor for the document's layout width on EVERY route, because
+ * AppShell renders this footer everywhere. /terms and /arena both overflowed by exactly 77px at a
+ * 1280 viewport, which is what identified it: a legal page sharing none of /arena's content cannot
+ * overflow for an /arena reason.
+ *
+ * #557 ALREADY FOUND AND FIXED THIS, inside `@media (max-width: 640px)` below, because 390px was
+ * the width being measured that day. The same mechanism ran from 641px up to roughly 1357px -
+ * most laptops - and nothing was looking there because the fix "worked".
+ *
+ * IT TAKES BOTH DECLARATIONS AND `flex-wrap` ALONE DOES NOTHING. Measured in a 700px container:
+ *
+ *     as shipped            1230px wide, 671px past its parent
+ *     flex-wrap only        1230px wide, 671px past its parent   <- NO CHANGE AT ALL
+ *     flex-shrink only      1047px wide, 489px past its parent   <- partial, still does not fit
+ *     both                   546px wide,   0px past its parent   <- fits
+ *
+ * `flex-shrink: 0` means the box is never narrowed below its max-content width, so wrapping has
+ * nothing to break. Wrap acts on a constrained box; shrink is what constrains it. `min-width: 0`
+ * is NOT needed - it measured identically at 546px - because wrapping already brings each line
+ * under the content width.
+ *
+ * The fix measured at five container widths, `px past its parent`, shipped rule versus this one:
+ *
+ *               1400    1280    1024     900     700
+ *     shipped      0      91     347     471     671
+ *     this         0       0       0       0       0
+ *
+ * The nav becomes TWO ROWS at 1280 (42px tall to 92px). That is the visible consequence and it is
+ * the owner's call, not ours.
+ *
+ * `flex-shrink: 1` IS STATED EXPLICITLY RATHER THAN LEFT TO THE DEFAULT, for a reason worth
+ * keeping: the first attempt to verify this injected a stylesheet that simply omitted
+ * `flex-shrink`, expecting the default - but a later rule cannot UNSET a property, so the original
+ * `0` survived, the nav did not move, and the measurement said the fix did nothing. The explicit
+ * value is also what stops a future edit reintroducing `0` without anyone noticing which
+ * declaration mattered.
+ *
+ * WHY #557's VERSION WORKED ANYWAY: that media query also sets `.pf-footer-top { flex-direction:
+ * column; }`, and in a column container this nav is stretched to the container's width on the cross
+ * axis, so the box is constrained without `flex-shrink` mattering. Measured: parent as column plus
+ * wrap gives 700px and two rows. So the 640px fix depends on the column switch, and lifting only
+ * its `flex-wrap` up here would have carried none of that - which is why this changes both. */
+.pf-footer-nav { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; row-gap: 8px; flex-shrink: 1; }
 /* #526 C35: "FAQ" measured 23px wide with only vertical padding - the
    shortest link in the row, and the only one under the 24px WCAG 2.5.8
    minimum. Horizontal padding added so every link in .pf-footer-nav clears
@@ -5761,8 +5806,15 @@ html[lang="ko"] .lp-hero-h1 { word-break: keep-all; }
      behind .app-bar/.nav-drawer also measuring 466 (position:fixed;left:0;
      right:0 resolves against that inflated layout width, not the visual
      viewport). Confirmed by bisection: hiding only this element restores
-     app-bar to exactly 390px, with .nav-drawer untouched. */
-  .pf-footer-nav { flex-wrap: wrap; row-gap: 8px; }
+     app-bar to exactly 390px, with .nav-drawer untouched.
+
+     THE DECLARATION THIS COMMENT DESCRIBED NOW LIVES IN THE BASE RULE, because the same mechanism
+     ran from 641px to roughly 1357px and this media query hid it (#1185). The history stays here
+     rather than moving with it: #557's bisection is why anyone believes the cause, and
+     `.pf-footer-top { flex-direction: column }` above is still what made the 390px case fit
+     WITHOUT `flex-shrink` being touched - a column container stretches this nav to the container
+     width on the cross axis. That is exactly why lifting the old one-liner up on its own would not
+     have fixed desktop. */
   .pf-footer-grid { grid-template-columns: 1fr; gap: 16px; }
   .pf-footer-bottom { flex-direction: column; align-items: flex-start; }
 }

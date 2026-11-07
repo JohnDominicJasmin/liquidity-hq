@@ -20,7 +20,20 @@ const WHALE_USD_THRESHOLD = 500_000; // $500k single trade = whale
    costs Binance request weight 80, so 5s was 960 weight/min per tab against a
    6000/min per-IP budget, indefinitely. 30s holds it at 160. */
 const REST_FALLBACK_MS = 30_000;
-const WS_RETRY_MS      = 60_000;
+/* THE CAP ON THE RECONNECT BACKOFF, not a fixed interval any more.
+ *
+ * This was `WS_RETRY_MS = 60_000`, used as a `setInterval` that only started AFTER the five quick
+ * retries had been spent. The arithmetic left a dead window: the quick sequence (2+4+6+8+10s)
+ * exhausts at 30s, the interval's first tick is 60s later, so NOTHING tried to open a socket
+ * between 30s and 90s. A visitor whose network returned at 35s stayed on the 30-second REST backup
+ * until 90s - up to a minute of stale prices after the connection was already fine, which is what
+ * reconnect-cdp saw as "2 of 3 sockets never return within 90s".
+ *
+ * Now the delay is continuous and capped: 2, 4, 6, 8, 10, 12 ... 30, 30, 30, for as long as it
+ * takes. 30s matches REST_FALLBACK_MS - a socket attempt costs no request weight, unlike the REST
+ * poll whose budget the comment below is about, so the cap is about not hammering a dead endpoint
+ * rather than about a ban. */
+const WS_BACKOFF_CAP_MS = 30_000;
 
 /* ── CVD Divergence Telegram alert ── */
 function sendCVDAlert(
@@ -137,7 +150,7 @@ export default function MarketProvider(
   const restTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   /* Retries the socket while the REST fallback is running, so falling back is
      temporary rather than permanent. See ws.onclose. */
-  const wsRetryRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wsRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /* CVD divergence: 5-snapshot sliding window per coin */
   const cvdSnapsRef = useRef<Partial<Record<CoinId, Array<{ price: number; cvd: number }>>>>({});
   /* Whale dedup: track last seen aggTrade id per symbol */
@@ -236,7 +249,7 @@ export default function MarketProvider(
     ws.onopen = () => {
       retriesRef.current = 0; urlIdxRef.current = 0;
       if (restTimerRef.current) { clearInterval(restTimerRef.current); restTimerRef.current = null; }
-      if (wsRetryRef.current)  { clearInterval(wsRetryRef.current);  wsRetryRef.current = null; }
+      if (wsRetryRef.current)  { clearTimeout(wsRetryRef.current);   wsRetryRef.current = null; }
       setStore(s => ({ ...s, wsStatus: 'Live' }));
     };
 
@@ -258,10 +271,21 @@ export default function MarketProvider(
     ws.onclose = () => {
       retriesRef.current++;
       urlIdxRef.current++;
-      if (retriesRef.current <= 5) {
-        setTimeout(() => startWSRef.current(), 2000 * retriesRef.current);
-        return;
-      }
+
+      /* ALWAYS SCHEDULE THE NEXT ATTEMPT. One chain, capped, no end condition - `ws.onopen` resets
+         the counter and clears this, which is the only thing that stops it. The five-attempt
+         branch that used to live here is gone: it was the start of the 60-second dead window
+         described at WS_BACKOFF_CAP_MS, and "gave up on the socket" was never the intent. */
+      const delay = Math.min(2000 * retriesRef.current, WS_BACKOFF_CAP_MS);
+      if (wsRetryRef.current) clearTimeout(wsRetryRef.current);
+      wsRetryRef.current = setTimeout(() => {
+        wsRetryRef.current = null;
+        startWSRef.current();
+      }, delay);
+
+      /* The REST backup still waits for the quick attempts to be spent, deliberately: a two-second
+         blip should not spin up a 45-symbol poll. */
+      if (retriesRef.current <= 5) return;
 
       /* ── REST fallback ──
          This used to poll every 5 seconds, forever, and never retry the
@@ -277,22 +301,16 @@ export default function MarketProvider(
          30s holds the same fallback at 160 weight/minute. Prices come from the
          socket whenever it is up; this path exists only while it is down, and
          a slightly staler backup beats a banned IP. */
+      /* ONCE, not on every close past the fifth - and this guard is new rather than cosmetic.
+         The old code re-ran `restPoll()` and re-armed the interval on EVERY close beyond the
+         threshold. That was tolerable while the socket only retried once a minute; with the capped
+         30s backoff above it would fire an extra weight-80 poll every 30s on top of the 30s
+         interval, doubling the fallback's request weight during a long outage for no benefit.
+         `restTimerRef` already being set means the backup is running, so there is nothing to do. */
+      if (restTimerRef.current) return;
       setStore(s => ({ ...s, wsStatus: 'Live · backup feed' }));
-      if (restTimerRef.current) clearInterval(restTimerRef.current);
       restPoll();
       restTimerRef.current = setInterval(restPoll, REST_FALLBACK_MS);
-
-      /* Falling back was permanent: after five failed reconnects nothing ever
-         opened a socket again, so a visitor who hit one bad minute stayed on
-         the REST feed for the life of the tab. Keep trying in the background;
-         ws.onopen tears both timers down when one succeeds. */
-      if (!wsRetryRef.current) {
-        wsRetryRef.current = setInterval(() => {
-          retriesRef.current = 0;
-          urlIdxRef.current  = 0;
-          startWSRef.current();
-        }, WS_RETRY_MS);
-      }
     };
   }, [restPoll, updateCoin]);
 
@@ -1659,7 +1677,7 @@ export default function MarketProvider(
          that needed it. */
       if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
       if (restTimerRef.current) clearInterval(restTimerRef.current);
-      if (wsRetryRef.current)  clearInterval(wsRetryRef.current);
+      if (wsRetryRef.current)  clearTimeout(wsRetryRef.current);
     };
   }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 

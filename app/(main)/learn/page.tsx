@@ -3,7 +3,9 @@ import LearnContent from '@/components/LearnContent';
 import { OG_IMAGES } from '@/lib/seo';
 
 export const metadata: Metadata = {
-  title: 'Crypto Trading Glossary - RSI, Funding Rate, Squeeze Score & More',
+  /* The root template appends ' - LiquidityHQ', so this renders as 59 characters. The old title rendered as 79 and was
+     cut off in search results. Keep this part at 45 or fewer. */
+  title: 'Crypto Trading Glossary - RSI, Funding & More',
   description: 'Plain-English definitions for the momentum, order-flow, sentiment, and risk-management terms crypto traders use every day - RSI, funding rate, open interest, CVD, liquidation, squeeze score, and more.',
   /* #1740: a SELF-REFERENCING canonical. Deliberately not set on the root layout, where it would be
      INHERITED by every page that does not define its own - so each of those would declare itself to
