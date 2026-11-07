@@ -20,7 +20,10 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { detectPatterns, detectPatternsStr, patternBias, type Candle } from '../lib/patterns.ts';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { ROOT } from './_appPath.mts';
+import { detectPatterns, detectPatternsStr, rankPatterns, type Candle } from '../lib/patterns.ts';
 
 /* A filler candle that triggers NOTHING, which every positive case needs as its background.
  * Alternating so highs and lows are both non-monotonic (otherwise the trend check fires), and wide
@@ -53,24 +56,35 @@ test('N0. CONTROL: the background fires nothing, so every positive below is caus
   assert.deepEqual(detectPatterns(fiveEndingInADoji), [], 'under 6 candles must return nothing');
   /* The other half of that control: the same candle IS detected once the array is long enough.
      Without this, the line above passes for whatever reason and proves nothing about the floor. */
-  assert.ok(detectPatterns([...bg(6), { o: 100, h: 101, l: 99, c: 100.05 }]).includes('Doji (indecision)'),
+  assert.ok(detectPatterns([...bg(6), { o: 100, h: 101, l: 99, c: 100.05 }]).includes('Doji'),
     'the control candle must be detectable at 7 candles, or the floor assertion is vacuous');
 });
 
-test('B1. BUG PINNED, NOT ENDORSED: a perfectly FLAT market reports an UPTREND', () => {
-  /* `allHH` tests `h >= prev` and `allHL` tests `l >= prev`, so EQUAL highs and lows satisfy both
-     and ten identical candles report "Higher highs + higher lows (uptrend)".
-     This is the same shape of defect as the RSI flat-series bug fixed in #2015 the same week: a
-     degenerate input reading as a strong directional signal rather than as nothing. A stuck or
-     thinly-traded feed is what produces it.
-     PINNED SO IT CANNOT CHANGE SILENTLY. If this cell goes red, someone has fixed it - which is
-     welcome, and should be a deliberate commit rather than a side effect. */
+test('B1. GUARD: a perfectly FLAT market must NOT report a trend', () => {
+  /* THIS CELL USED TO PIN THE BUG AND NOW GUARDS THE FIX. Until 08a2bb16, `allHH` tested
+     `h >= prev` and `allHL` tested `l >= prev`, so EQUAL highs and lows satisfied both and ten
+     identical candles reported "Higher highs + higher lows (uptrend)" - a degenerate input reading
+     as a strong directional signal, the same shape as the RSI flat-series bug fixed in #2015 the
+     same week. Worse at the seam, because it sorted first and the Telegram alert shows one name.
+
+     IT HAD ALREADY FIRED ON REAL DATA, which is the anchor worth carrying here rather than in a
+     commit message nobody re-reads. Sweeping 95,648 live windows (49 coins, 1000 candles each, a
+     25-candle window slid one bar at a time) found trend names firing 244 times across 36 of 49
+     coins, and one genuine flat-market case: TRX 5m, every high 0.3194 and every low 0.3193 across
+     the whole 10-bar window. It concentrates on coarse-tick coins - trx alone was 90 of the 244 -
+     because at a price of 0.319 ten bars sharing a high is plausible in a way it is not for BTC.
+
+     So the guard is not hypothetical. If it goes red, a flat feed is being reported as a trend to
+     real users again, on the cheap low-priced coins first. */
   const flat: Candle[] = Array.from({ length: 12 }, () => ({ o: 100, h: 100, l: 100, c: 100 }));
   const got = detectPatterns(flat);
-  assert.ok(got.includes('Higher highs + higher lows (uptrend)'),
-    'the flat-market uptrend bug has changed behaviour - update this cell deliberately');
-  /* And it is worse at the seam: this is the FIRST element, so it is the one the alert shows. */
-  assert.equal(got[0], 'Higher highs + higher lows (uptrend)');
+  assert.ok(!got.includes('Higher highs + higher lows (uptrend)'),
+    'a flat market is reporting an UPTREND again - the 08a2bb16 fix has regressed. ' +
+    'Observed on real data before the fix: TRX 5m, every high 0.3194, every low 0.3193.');
+  assert.ok(!got.includes('Lower highs + lower lows (downtrend)'), 'and it must not be a downtrend either');
+  /* What it DOES say, pinned so the fix cannot drift into saying nothing at all - a flat chart is
+     genuinely tight consolidation, and that is the honest name for it. */
+  assert.deepEqual(got, ['Tight consolidation'], 'a flat window should read as consolidation and nothing else');
 });
 
 test('T1. trend structure: rising, falling, and the negative that breaks monotonicity', () => {
@@ -90,9 +104,9 @@ test('T1. trend structure: rising, falling, and the negative that breaks monoton
   assert.ok(!got.includes('Lower highs + lower lows (downtrend)'), 'and it is not a downtrend either');
 });
 
-test('E1. engulfing: both directions, plus the 0.8-body negative', () => {
+test('E1. engulfing: both directions, plus the range negative', () => {
   /* Bearish: prior green, current red, current opens at/above prior close, closes at/below prior
-     open, and its body is >= 80% of the prior body. */
+     open. There is no longer a body-ratio condition - see the note below. */
   const bear = [...bg(8), { o: 100, h: 101, l: 99, c: 101 }, { o: 101.5, h: 102, l: 99, c: 99.5 }];
   assert.ok(detectPatterns(bear).includes('Bearish engulfing'), 'bearish engulfing not detected');
 
@@ -104,28 +118,33 @@ test('E1. engulfing: both directions, plus the 0.8-body negative', () => {
   assert.ok(!detectPatterns(notEngulfing).includes('Bearish engulfing'),
     'opening below the prior close is not engulfing');
 
-  /* `cr >= pr * 0.8` IS DEAD CODE, AND A MUTATION RUN IS HOW I FOUND OUT. I wrote a negative case
-     for it, the cell passed, and changing 0.8 to 0.4 in the source did not turn anything red. The
-     reason is arithmetic: the two preceding conditions are `c.o >= p.c` and `c.c <= p.o`, so
-     `cr = c.o - c.c >= p.c - p.o = pr`. The current body ALWAYS at least equals the prior one by
-     the time the ratio is consulted, so `cr >= pr * 0.8` cannot fail for any input.
-     Asserted as the property it is, rather than left as a threshold nobody can exercise - and if
-     the range conditions are ever loosened, the ratio starts to matter and this cell is where the
-     note lives. */
-  const pr = Math.abs(101 - 100), cr = Math.abs(99.5 - 101.5);
-  assert.ok(cr >= pr, 'the range-engulf conditions already force the body comparison');
+  /* `cr >= pr * 0.8` WAS DEAD CODE AND 08a2bb16 REMOVED IT, along with the `pr` and `cr` locals
+     that then had no consumer. A mutation run is how it surfaced: I wrote a negative case for the
+     ratio, the cell passed, and changing 0.8 to 0.4 in the source turned nothing red. The reason is
+     arithmetic - the two preceding conditions are `c.o >= p.c` and `c.c <= p.o`, so
+     `cr = c.o - c.c >= p.c - p.o = pr`, and the current body always at least equals the prior one
+     by the time the ratio is consulted. Dev confirmed it independently over 200,000 generated
+     inputs that passed the geometric guards: the ratio failed on zero of them.
+
+     WHAT IS ASSERTED NOW IS THE PROPERTY THAT MADE IT DEAD, not the removed line. If the range
+     conditions are ever loosened, this stops holding and a body-ratio check starts to matter again
+     - so this is the note that tells whoever loosens them. */
+  const priorBody = Math.abs(101 - 100), currentBody = Math.abs(99.5 - 101.5);
+  assert.ok(currentBody >= priorBody,
+    'the range-engulf conditions force the current body to at least equal the prior one; if this ' +
+    'ever fails, the removed 0.8 ratio was load-bearing after all and needs reinstating');
 });
 
 test('D1. doji: body under 10% of range, and the 10% negative', () => {
   /* body 0.05 on a range of 2 = 2.5%, well under 10%. */
-  assert.ok(detectPatterns(withLast({ o: 100, h: 101, l: 99, c: 100.05 })).includes('Doji (indecision)'));
+  assert.ok(detectPatterns(withLast({ o: 100, h: 101, l: 99, c: 100.05 })).includes('Doji'));
 
   /* NEGATIVE: body 0.5 on a range of 2 = 25%. */
-  assert.ok(!detectPatterns(withLast({ o: 100, h: 101, l: 99, c: 100.5 })).includes('Doji (indecision)'),
+  assert.ok(!detectPatterns(withLast({ o: 100, h: 101, l: 99, c: 100.5 })).includes('Doji'),
     'a 25% body is not a doji');
 
   /* And a zero-range candle must not divide by zero into a pattern. */
-  assert.ok(!detectPatterns(withLast({ o: 100, h: 100, l: 100, c: 100 })).includes('Doji (indecision)'),
+  assert.ok(!detectPatterns(withLast({ o: 100, h: 100, l: 100, c: 100 })).includes('Doji'),
     'a zero-range candle has no doji ratio to compute');
 });
 
@@ -133,14 +152,14 @@ test('H1. hammer family: all four names are reachable and named by direction', (
   /* Long LOWER wick, small upper. Green close -> Hammer, red close -> Hanging man.
      body 1, lower 2 (>= body*2), upper 0.2 (< body*0.5 = 0.5). */
   const hammer = detectPatterns(withLast({ o: 100, h: 101.2, l: 98, c: 101 }));
-  assert.ok(hammer.includes('Hammer (bullish reversal)'), `expected Hammer, got ${hammer.join(', ')}`);
+  assert.ok(hammer.includes('Hammer'), `expected Hammer, got ${hammer.join(', ')}`);
 
   const hanging = detectPatterns(withLast({ o: 101, h: 101.2, l: 98, c: 100 }));
   assert.ok(hanging.includes('Hanging man'), `expected Hanging man, got ${hanging.join(', ')}`);
 
   /* Long UPPER wick. Red close -> Shooting star, green close -> Inverted hammer. */
   const star = detectPatterns(withLast({ o: 101, h: 104, l: 100.8, c: 100 }));
-  assert.ok(star.includes('Shooting star (bearish reversal)'), `expected Shooting star, got ${star.join(', ')}`);
+  assert.ok(star.includes('Shooting star'), `expected Shooting star, got ${star.join(', ')}`);
 
   const inverted = detectPatterns(withLast({ o: 100, h: 104, l: 99.8, c: 101 }));
   assert.ok(inverted.includes('Inverted hammer'), `expected Inverted hammer, got ${inverted.join(', ')}`);
@@ -190,7 +209,7 @@ test('C1. consolidation and flags: all three outcomes, plus the tightness negati
     { o: 101.2, h: 101.6, l: 100.9, c: 101.5 },
   ];
   const plain = detectPatterns([...bg(2), ...flatPole, ...tight()]);
-  assert.ok(plain.includes('Tight consolidation (compression - breakout pending)'), `got ${plain.join(', ')}`);
+  assert.ok(plain.includes('Tight consolidation'), `got ${plain.join(', ')}`);
   assert.ok(!plain.some(p => /flag/i.test(p)), 'no pole means no flag');
 
   /* NEGATIVE on tightness: a 3% range is not consolidation at all. */
@@ -205,18 +224,18 @@ test('W1. double top and double bottom, plus both negatives', () => {
   const dt = base();
   dt[4] = { o: 100, h: 110, l: 99.5, c: 100 };
   dt[14] = { o: 100, h: 110.2, l: 99.5, c: 100 };     // 0.18% apart
-  assert.ok(detectPatterns(dt).includes('Double top (bearish reversal setup)'), 'double top not detected');
+  assert.ok(detectPatterns(dt).includes('Double top'), 'double top not detected');
 
   const db = base();
   db[4] = { o: 100, h: 100.5, l: 90, c: 100 };
   db[14] = { o: 100, h: 100.5, l: 90.1, c: 100 };     // 0.11% apart
-  assert.ok(detectPatterns(db).includes('Double bottom (bullish reversal setup)'), 'double bottom not detected');
+  assert.ok(detectPatterns(db).includes('Double bottom'), 'double bottom not detected');
 
   /* NEGATIVE 1: the two highs are 5% apart, so they are not a pair. */
   const apart = base();
   apart[4] = { o: 100, h: 110, l: 99.5, c: 100 };
   apart[14] = { o: 100, h: 115, l: 99.5, c: 100 };
-  assert.ok(!detectPatterns(apart).includes('Double top (bearish reversal setup)'),
+  assert.ok(!detectPatterns(apart).includes('Double top'),
     'highs 5% apart are not a double top');
 
   /* NEGATIVE 2: equal highs only 2 bars apart - the >= 3 separation rule. Two adjacent candles at
@@ -224,11 +243,11 @@ test('W1. double top and double bottom, plus both negatives', () => {
   const adjacent = base();
   adjacent[10] = { o: 100, h: 110, l: 99.5, c: 100 };
   adjacent[11] = { o: 100, h: 110, l: 99.5, c: 100 };
-  assert.ok(!detectPatterns(adjacent).includes('Double top (bearish reversal setup)'),
+  assert.ok(!detectPatterns(adjacent).includes('Double top'),
     'two adjacent peaks are one peak - the separation rule is >= 3 bars');
 
   /* And under 20 candles the whole check is skipped. */
-  assert.ok(!detectPatterns(dt.slice(-19)).includes('Double top (bearish reversal setup)'),
+  assert.ok(!detectPatterns(dt.slice(-19)).includes('Double top'),
     'under 20 candles there is no double-top check');
 });
 
@@ -256,50 +275,76 @@ test('S1. the SEAM: the alert route interpolates the raw name, so a new name can
   assert.equal(detectPatternsStr(bg(12)), '');
 });
 
-test('S2. BUG PINNED: the alert shows pats[0], which is CHECK ORDER, not significance', () => {
-  /* The route shows only the FIRST pattern. `found` is built in source order: trend, engulfing,
-     doji, hammer, consolidation, THEN double top/bottom last.
-     So when a chart has both a trend and a reversal, the user is told the trend. A double top -
-     the most consequential reversal here - is appended last and is therefore the LEAST likely name
-     to be shown.
-     The fixture below has a clean uptrend AND a double top. The alert would say "uptrend". */
+test('S2. GUARD: the alert shows the RANKED first name, not whichever check ran first', () => {
+  /* ALSO FLIPPED FROM PINNING A BUG TO GUARDING ITS FIX. The alert renders only `pats[0]`, and
+     before 08a2bb16 `found` was built in source order - trend, engulfing, doji, hammer,
+     consolidation, THEN double top/bottom last - so the single name a user saw was decided by where
+     the `if` blocks happened to sit. A double top, the most consequential reversal in the
+     vocabulary, was appended last and was therefore the name least likely to be shown.
+
+     MEASURED BEFORE THE FIX, over the same 95,648 live windows: 34.99% of windows contained a
+     double top or bottom, and 25.84% had one present but NOT first - so roughly one in four alerts
+     that could have named a reversal named a compression instead, usually "Tight consolidation",
+     which was checked one step earlier. That is why this ranked second in severity behind nothing.
+
+     `rankPatterns` now sorts by a written-down judgement instead. */
   const both: Candle[] = Array.from({ length: 20 }, (_, i) => ({ o: 100 + i, h: 101 + i, l: 99 + i, c: 100.5 + i }));
   both[16] = { ...both[16], h: 130 };
   both[19] = { ...both[19], h: 130.2 };
   const got = detectPatterns(both);
 
-  assert.ok(got.includes('Double top (bearish reversal setup)'), 'fixture should contain a double top');
-  assert.ok(got.length >= 2, 'fixture should produce more than one pattern');
-  assert.notEqual(got[0], 'Double top (bearish reversal setup)',
-    'pats[0] is no longer check-order - if this is red, someone has prioritised by significance. ' +
-    'That is an improvement; make it a deliberate commit and update this cell.');
-  assert.equal(got.indexOf('Double top (bearish reversal setup)'), got.length - 1,
-    'the double top is appended last, so the alert never shows it when anything else is present');
+  assert.ok(got.includes('Double top'), 'fixture should contain a double top');
+  assert.ok(got.length >= 2, `fixture should produce more than one pattern, got ${got.join(' | ')}`);
+  assert.equal(got[0], 'Double top',
+    'the double top is no longer shown first. The alert renders only pats[0], so a reversal is ' +
+    'being suppressed behind a less consequential name - measured at 25.84% of windows before the fix.');
+
+  /* The ranking must beat the specific name that used to mask it, not just "something". */
+  assert.ok(!got.includes('Tight consolidation') || got.indexOf('Double top') < got.indexOf('Tight consolidation'),
+    'Tight consolidation is outranking Double top again - that exact pair was the 25.84% case');
 });
 
-test('P1. patternBias maps every emittable name, and never returns null for a non-empty list', () => {
-  assert.equal(patternBias([]), null, 'no patterns means no bias');
+test('P1. CONTROL: every name the detector can emit has a RANK position', () => {
+  /* REPLACES A CELL FOR A FUNCTION THAT NO LONGER EXISTS. This tested `patternBias`, which 08a2bb16
+     deleted. Worth recording that the deletion was clean: `patternBias` had NO production callers -
+     this test file was the only thing in the tree importing it - so nothing regressed, and the only
+     casualty was my own assertion.
 
-  const BULLISH = ['Higher highs + higher lows (uptrend)', 'Bullish engulfing', 'Hammer (bullish reversal)',
-    'Inverted hammer', 'Bull flag (sharp rally + tight consolidation)', 'Double bottom (bullish reversal setup)'];
-  const BEARISH = ['Lower highs + lower lows (downtrend)', 'Bearish engulfing', 'Hanging man',
-    'Shooting star (bearish reversal)', 'Bear flag (sharp drop + tight consolidation)',
-    'Double top (bearish reversal setup)'];
-  const NEITHER = ['Doji (indecision)', 'Tight consolidation (compression - breakout pending)'];
+     WHAT MATTERS NOW IS RANK COVERAGE, because `rankPatterns` sorts an unknown name to the END
+     (`RANK.indexOf` returns -1 and the comparator maps that to `RANK.length`). That is the right
+     default - a new name is shown last rather than dropped - but it is SILENT. A thirteenth pattern
+     added to the detector without a rank entry would quietly become the least important thing on
+     every chart it appears on, and the alert shows only the first name.
 
-  for (const p of BULLISH) assert.equal(patternBias([p]), 'bullish', `${p} should read bullish`);
-  for (const p of BEARISH) assert.equal(patternBias([p]), 'bearish', `${p} should read bearish`);
-  for (const p of NEITHER) assert.equal(patternBias([p]), 'neutral', `${p} should read neutral`);
+     THE EMITTABLE SET IS DERIVED FROM THE SOURCE, NEVER TYPED OUT HERE. A hardcoded list of names
+     stops tracking the detector the moment someone adds one - which is exactly the failure this
+     cell exists to catch, so writing it that way would be self-defeating. */
+  const src = readFileSync(path.join(ROOT, 'lib/patterns.ts'), 'utf8');
+  const pushed = [...src.matchAll(/found\.push\('([^']+)'\)/g)].map((m) => m[1]);
+  const ternary = [...src.matchAll(/\?\s*'([^']+)'\s*:\s*'([^']+)'/g)].flatMap((m) => [m[1], m[2]]);
+  const emittable = [...new Set([...pushed, ...ternary])];
 
-  /* EVERY NAME THE DETECTOR CAN EMIT IS IN ONE OF THOSE THREE LISTS. Without this, a new pattern
-     name could be added to the detector and silently fall through to 'neutral' with nobody
-     noticing - the bias would quietly stop describing the chart. */
-  assert.equal(BULLISH.length + BEARISH.length + NEITHER.length, 14,
-    'the detector can emit 14 names; this cell covers that many. Add the new one to a list.');
+  /* Positive control on the derivation itself: if the regexes stop matching, `emittable` goes
+     empty or short and every assertion below passes vacuously. 12 is what 08a2bb16 ships. */
+  assert.ok(emittable.length >= 12,
+    `only ${emittable.length} emittable names derived from lib/patterns.ts (${emittable.join(', ') || 'none'}). ` +
+    'The scan is broken, so the rank check below would be a false pass.');
+  assert.ok(emittable.includes('Double top') && emittable.includes('Hanging man'),
+    'the derivation must find both a push() name and a ternary name, or it is only reading half the source');
 
-  /* Conflicting signals collapse to neutral - the same answer as no directional signal at all. A
-     caller cannot tell "bullish and bearish both present" from "nothing directional". Pinned
-     because the two are genuinely different situations to show a user. */
-  assert.equal(patternBias(['Bullish engulfing', 'Bearish engulfing']), 'neutral');
-  assert.equal(patternBias(['Doji (indecision)']), 'neutral');
+  /* 'Tight consolidation' is deliberately LAST in RANK, so anything unranked sorts AFTER it.
+     That makes it the probe: a ranked name must come before it, an unranked one after. */
+  const LAST_RANKED = 'Tight consolidation';
+  const unranked = emittable.filter((name) => {
+    if (name === LAST_RANKED) return false;
+    return rankPatterns([LAST_RANKED, name])[0] !== name;
+  });
+  assert.deepEqual(unranked, [],
+    `${unranked.join(', ')} can be emitted by detectPatterns but has no entry in RANK, so it sorts ` +
+    'to the end and becomes the least important name on any chart it appears on - silently. The ' +
+    'alert shows only the first name. Add it to RANK at the position it deserves.');
+
+  /* And the ordering the fix exists for, asserted directly rather than only through a fixture. */
+  assert.deepEqual(rankPatterns(['Tight consolidation', 'Double top']), ['Double top', 'Tight consolidation']);
+  assert.deepEqual(rankPatterns([]), [], 'an empty list ranks to an empty list');
 });
