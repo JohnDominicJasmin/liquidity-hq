@@ -79,6 +79,22 @@ if (!/^[a-z][a-z0-9_]*_count$/.test(column)) {
   die(`--column must look like a usage column (lower_snake_case ending _count); got ${column}`);
 }
 
+/* REFUSE RATHER THAN BLOCK ON AN INTERACTIVE STDIN (QA, on #2032). With `--column` but no `--def`
+   this read stdin and waited - and at apply time a hang reads as a slow operation rather than as a
+   mistake, which is the one failure shape worse than an error. Every other refusal here exits 1 at
+   once; this one took 120 seconds and a kill.
+   A positional path is refused explicitly too, because silently ignoring an argument someone typed
+   is how they conclude the tool read it. */
+const positional = args.filter((a, i) => !a.startsWith('--') && !String(args[i - 1] ?? '').startsWith('--'));
+if (!defPath && positional.length) {
+  die(`unexpected argument "${positional[0]}" - pass it as --def ${positional[0]}, or pipe the ` +
+      'definition on stdin. It was NOT read.');
+}
+if (!defPath && process.stdin.isTTY) {
+  die('no definition given. Pass --def <file>, or pipe the pg_get_functiondef output on stdin. ' +
+      'Refusing to wait on an interactive terminal - see the usage header.');
+}
+
 const def = (defPath ? readFileSync(defPath, 'utf8') : readFileSync(0, 'utf8')).replace(/\r\n/g, '\n');
 if (!def.includes('increment_ai_usage_impl')) {
   die('that does not look like increment_ai_usage_impl - pass the pg_get_functiondef output');
