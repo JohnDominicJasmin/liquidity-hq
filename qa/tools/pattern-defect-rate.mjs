@@ -33,6 +33,25 @@
 import { detectPatterns } from '../../lib/patterns.ts';
 import { BYBIT_SYMS, BINANCE_SYMS, COINS } from '../../lib/coins.ts';
 
+/* ── THIS IS THE SNAPSHOT. FOR A RATE OVER TIME, USE pattern-defect-sweep.mjs ────────────────────
+ *
+ * One 25-candle window per coin-interval, right now: 196 samples at ONE MOMENT. That bounds how
+ * COMMON a pattern is across the market at an instant, and it is the right instrument for a
+ * condition that is true of many coins at once.
+ *
+ * IT IS THE WRONG INSTRUMENT FOR A RARE EVENT IN TIME, AND I LEARNED THAT BY GETTING IT WRONG. I
+ * ran this, saw 0 trend names in 196 windows, and wrote that the trend names are "effectively dead
+ * in production" and that "nobody has ever seen either". A 10-bar monotonic run is a PER-MOMENT
+ * event with thousands of windows per coin per week, of which this inspects one each - and "nobody
+ * has ever seen it" is a claim about history inferred from the present. The sweep then found 244
+ * trend names in 95,648 windows across 36 coins, and one genuine flat-market firing. Both claims
+ * were wrong.
+ *
+ * THE CONTRAST IS THE REUSABLE PART: this same run estimated defect 2 at 26.0% against the sweep's
+ * 25.84% - accurate - while missing defect 1 completely. Defect 2 is a common per-moment condition;
+ * defect 1 is rare in time. The sampling has to match the SHAPE of the thing measured, and "196
+ * samples" sounded sufficient for both. Same failure as the one this file's own mutation run found:
+ * the instrument answered a slightly different question from the one being asked. */
 const INTERVALS = ['5', '15', '60', '240'];
 const LIMIT = 25;
 const NEAR_FLAT_PCT = 0.0005;
