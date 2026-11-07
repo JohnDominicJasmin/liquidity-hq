@@ -18,7 +18,16 @@
  *          final, paid time runs to its end, then lib/paidPeriod.ts demotes). A refund or dispute is reported for a person, never acted on.
  *        - $0 / 100% promo / hand-added members get no Pro (owner ruling): review.
  *
- *   2. readWhopPayment() - the FIELD PATHS. Written from Whop's OFFICIAL documentation (owner go-ahead 2026-10-20), NOT from a recorded
+ *   2. readWhopPayment() - the FIELD PATHS. READS TWO SERIALIZATIONS, because we receive two.
+ *      Measured 2026-11-07 on ONE payment (pay_AZuVMZJ9qXP89o) delivered to two endpoints 0.23s apart:
+ *        PROD endpoint  api_version v1, api_version_date NULL  -> data.plan.id, total as a NUMBER,
+ *                       data.user.email, data.company.id, data.membership.id        (65 keys)
+ *        DEV endpoint   api_version v1, api_version_date 2026-11-07 -> data.variant_id, total as
+ *                       {amount:"1.00"}, data.customer_email, data.account_id, data.membership_id  (68 keys)
+ *      BOTH SAY v1. The serialization tracks `api_version_date`, which is set when the webhook is
+ *      created - so an older endpoint keeps an older shape indefinitely. Prod's reader worked only
+ *      because prod's webhook is pinned; recreating it (rotating the secret, re-adding the endpoint)
+ *      would hand prod the newer shape. That is why both are read rather than migrating to one. Written from Whop's OFFICIAL documentation (owner go-ahead 2026-10-20), NOT from a recorded
  *      body, because none existed when this was written. The last time this project acted on an inferred payload shape a successful
  *      payment revoked Pro (#1422), so the reader is DEFENSIVE: every field is type-checked, a missing or oddly typed field is null,
  *      and a null where a rule needs a value is REVIEW, never a default and never a crash. The documented sources:
@@ -200,14 +209,15 @@ export function readWhopPayment(event: Record<string, unknown>): WhopPayment | n
 
     /* ── THE PLAN ID: `data.variant_id`, NOT `data.plan.id` ────────────────────────────────────
      *
-     * THIS IS WHAT COST THE OWNER HIS FIRST DOLLAR. `data.plan` does not exist in a real
-     * `payment.succeeded` body - all 68 keys under `data` were listed and plan identity appears
-     * only as `variant_id` and inside `line_items`. So `planId` was null on every real payment,
-     * `decideWhopPayment` returned `review / payment_has_no_plan`, and NOTHING COULD EVER GRANT.
-     * It would have failed an identical way for every paying $49 customer.
+     * `data.plan` does not exist in the body the DEV endpoint receives - all 68 keys under `data`
+     * were listed and plan identity appears only as `variant_id` and inside `line_items`. So on that
+     * endpoint `planId` was null, `decideWhopPayment` returned `review / payment_has_no_plan`, and
+     * nothing could grant.
      *
-     * `plan.id` is kept as a fallback because it is what the published docs describe and what the
-     * Whop sandbox may still send; the real path wins.
+     * `plan.id` IS NOT A LEGACY FALLBACK - IT IS WHAT PRODUCTION ACTUALLY RECEIVES TODAY. An earlier
+     * version of this comment called the new path "what Whop actually sends", which was measured on
+     * one endpoint and wrong about the other: prod's body carries `plan.id` and `main` reads it
+     * correctly. Both paths are live, on different endpoints, at the same `api_version`.
      *
      * LINE ITEMS ARE THE LAST RESORT AND REFUSE TO GUESS. Both `data.variant_id` and
      * `line_items[0].variant_id` carried the plan id on the one body we have, and QA's point stands
@@ -245,10 +255,10 @@ export function readWhopPayment(event: Record<string, unknown>): WhopPayment | n
       amount,
       currency,
       paid,
-      /* `data.customer_email`, NOT `data.user.email`. The real `user` object carries id, name,
-         username and profile_picture and NO email at all - the docs' note that email needs the
-         `member:email:read` permission turns out to mean the field is simply not there. Documented
-         path kept as a fallback.
+      /* `data.customer_email` on the DEV endpoint, `data.user.email` on PROD - both live, neither
+         legacy. On the dev endpoint's body `user` carries id, name, username and profile_picture and
+         no email at all; on prod's body `user.email` is present. So the docs' note about
+         `member:email:read` describes prod's shape, not a missing permission.
          ── TRUST LEVEL OF THIS FIELD, because it is a payment identity and the next reader should
          not have to infer it. `customer_email` is TYPED AT CHECKOUT by the payer, so it is
          payer-controlled, not Whop-verified. Preferring it over `user.email` is a step DOWN in
@@ -266,12 +276,12 @@ export function readWhopPayment(event: Record<string, unknown>): WhopPayment | n
          security side. Tracked on #1630; not done here, because whether the embedded checkout
          surface carries metadata has to be measured on a real body and we have exactly one. */
       payerEmail: str(data?.customer_email) ?? str(user?.email),
-      /* `data.account_id` added ahead of the envelope fallback: it is present on a real body
-         (`biz_...`) while `data.company` is absent. The envelope fallback is the only reason the
-         company check was not a fourth failure. */
+      /* `data.account_id` added ahead of the envelope fallback: it is present on the dev endpoint's
+         body (`biz_...`) where `data.company` is absent. Prod's body HAS `data.company.id`, so that
+         first path is not dead code. The envelope fallback covers neither being present. */
       companyId: str(company?.id) ?? str(data?.account_id) ?? str(event.account_id) ?? str(event.company_id),
-      /* `data.membership_id`, a flat string, not `data.membership.id`. Not used by any access
-         decision - it is the only id a later cancellation can be matched on. */
+      /* `data.membership_id` (flat, dev endpoint) or `data.membership.id` (object, prod endpoint).
+         Not used by any access decision - it is the only id a later cancellation can be matched on. */
       membershipId: str(data?.membership_id) ?? str(membership?.id),
     };
   } catch {
