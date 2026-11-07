@@ -169,7 +169,10 @@ test('C1. consolidation and flags: all three outcomes, plus the tightness negati
   const bull = detectPatterns([...bg(2), ...rally, ...tight()]);
   assert.ok(bull.includes('Bull flag (sharp rally + tight consolidation)'), `got ${bull.join(', ')}`);
 
-  const drop: Candle[] = rally.map((c, i, a) => {
+  /* The rally reversed into a drop: walk the array backwards and swap open/close on each candle,
+     so the pole falls as sharply as the original rose. The element itself is unused - only its
+     index matters - which `noUnusedLocals` flags, so it is omitted rather than named and ignored. */
+  const drop: Candle[] = rally.map((_unused, i, a) => {
     const m = a[a.length - 1 - i];
     return { o: m.c, h: m.h, l: m.l, c: m.o };
   });
