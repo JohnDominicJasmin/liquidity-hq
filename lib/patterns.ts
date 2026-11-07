@@ -102,14 +102,16 @@ export function detectPatterns(candles: Candle[]): string[] {
   // ── 2. Engulfing (last 2 candles) ──
   if (candles.length >= 2) {
     const [p, c] = candles.slice(-2);
-    const pr = Math.abs(p.c - p.o);
-    const cr = Math.abs(c.c - c.o);
     /* THE `cr >= pr * 0.8` RATIO IS GONE BECAUSE IT COULD NEVER FAIL (QA, #1263 defect 3).
      *
      * In the bearish case `pr = p.c - p.o` and `cr = c.o - c.c`, and the guards in front of it -
      * `c.o >= p.c` and `c.c <= p.o` - force `c.o - c.c >= p.c - p.o`, so `cr >= pr` holds
      * arithmetically and a 0.8 multiple of it cannot bind. The bullish branch is symmetric.
      * Measured: 200,000 generated inputs that passed the geometric guards, the ratio failed on 0.
+     *
+     * `pr` and `cr` went with it: with no ratio to compute they had no consumer either, and QA
+     * confirmed neither tsconfig (no noUnusedLocals) nor eslint (no unused-vars rule configured)
+     * would have told anyone. A dead variable is as invisible here as the dead branch was.
      *
      * Harmless, but it READ as a tunable threshold and was not one - anyone loosening 0.8 to widen
      * engulfing detection would have changed nothing and gone looking elsewhere for the reason.
