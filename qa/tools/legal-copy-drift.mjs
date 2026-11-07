@@ -242,8 +242,16 @@ async function main() {
     console.log(`  ${l.padEnd(5)} ${String(translated[l].size).padStart(3)}/${legalKeys.length} translated   median ratio ${med[l].toFixed(2)}`);
   }
 
-  const zero = legalKeys.filter((k) => offered.every((l) => !translated[l].has(k)));
+  /* EXCLUDES the no-row keys, which are reported above and are a different defect. Without this the
+     two buckets overlap and the total double-counts: deriving the key set from the declared labels
+     pulled the 11 absent keys into scope, and because they are never translated either, this count
+     jumped 20 -> 31 and looked like eleven new translation gaps. They are the SAME eleven keys
+     already named as needing an INSERT. Two numbers that share members cannot be added, and a
+     reader adding them is the predictable outcome of printing them side by side. */
+  const absentSet = new Set(absent);
+  const zero = legalKeys.filter((k) => !absentSet.has(k) && offered.every((l) => !translated[l].has(k)));
   console.log(`\n=== ENGLISH ON EVERY OFFERED LOCALE (has an en row, no translations): ${zero.length}`);
+  console.log(`    (disjoint from the ${absent.length} no-row keys above - these two sets never overlap)`);
   for (const k of zero) console.log(`  ${k}`);
 
   console.log('\n=== SHORTER THAN THE LOCALE\'S OWN NORM (candidate omitted content, NOT a verdict)');
