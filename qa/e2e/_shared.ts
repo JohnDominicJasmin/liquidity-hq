@@ -1,5 +1,6 @@
 import type { Page, APIRequestContext, APIResponse } from '@playwright/test';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
+import { awaitLogLine } from './awaitLogLine';
 import DEFAULT_EN_LABELS from '../../lib/labelDefaults.en.json';
 
 /** Every route the suite sweeps. Public + app routes, signed out. */
@@ -909,10 +910,24 @@ export async function startFailOnceServer(opts: {
           + `still running - a genuine timeout. Log tail:\n${logs.join('').slice(-2000)}`,
     );
   }
-  if (!logs.some(l => l.includes('[fail-once] armed'))) {
+  /* THE ARMING LINE IS NOT LATE - THE COLLECTOR IS. This used to check `logs` once, synchronously,
+     right here. `logs` is filled by async 'data' events, so the readiness fetch above can beat the
+     child's first stdout chunk into the array, and a correctly armed child then throws. Desktop run
+     42436245702 died this way in 723ms with an empty log tail, and the old message blamed
+     NODE_OPTIONS, which sent a release investigation at OnboardingProvider instead of at me.
+     awaitLogLine's `captured` flag now splits the two causes, because their remedies are opposite. */
+  const arming = await awaitLogLine(logs, '[fail-once] armed', { timeoutMs: 10_000 });
+  if (!arming.armed) {
     throw new Error(
-      `qa/fail-once.cjs did not log its own arming message - NODE_OPTIONS may not have reached the ` +
-      `child process. Log tail:\n${logs.join('').slice(-2000)}`,
+      `qa/fail-once.cjs did not log '[fail-once] armed' within ${arming.waitedMs}ms of the server `
+      + `answering on :${port}. `
+      + (arming.captured
+        ? `Output WAS captured but contains no arming line, so this DOES point at NODE_OPTIONS or `
+          + `the --require path.`
+        : `NOTHING was captured on stdout or stderr at all. Suspect log capture or a silent child `
+          + `BEFORE suspecting NODE_OPTIONS: next start prints its own banner even when the `
+          + `--require is missing, so an empty buffer is not evidence about the require.`)
+      + `\nLog tail:\n${logs.join('').slice(-2000)}`,
     );
   }
 
