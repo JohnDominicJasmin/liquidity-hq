@@ -1665,6 +1665,32 @@ function ArenaContent() {
         setReadProLocked(true);
         return;
       }
+      /* #1263: the read reached the model, was paid for, and came back with no verdict we can read -
+         `/api/grok` answers 502 BAD_ANSWER for an empty answer, an unreadable verdict after one
+         retry, and a strict-read refusal. Until now this fell through to the generic branch and the
+         customer got the SERVER'S ENGLISH SENTENCE: untranslated, and silent on the one fact that
+         matters to someone who just spent a Deep read. So it gets its own labelled line.
+
+         THE USAGE MUST BE APPLIED HERE, and this branch is the only early return where that is true.
+         The refusals above (PRO_REQUIRED, STALE_CLIENT, COIN_NOT_TRACKED, COIN_LOCKED) are all
+         refused BEFORE anything is spent, so the counter has not moved and the generic branch's
+         `setGrokUsage` below is not needed. BAD_ANSWER is the opposite: the route reserved the read,
+         failed, and REFUNDED it (`refundUsageColumn`), returning the corrected usage in the error
+         body. Returning early without applying it would leave the chip showing the read as spent
+         while this line says it was not counted - the copy and the number contradicting each other
+         on the same screen, which is worse than either alone.
+
+         The "not counted" claim is load-bearing and measured rather than assumed: `refund_ai_usage`
+         exists on production, so 20261023a is applied and the refund lands. If it ever does not,
+         `refundUsageColumn` returns null, the route reports the reserved number, and the route logs
+         it - so the contradiction would be diagnosable rather than silent. */
+      if ((e as { code?: string }).code === 'BAD_ANSWER') {
+        setReadError(t('ARENA_READ_BAD_ANSWER'));
+        setReadProLocked(false);
+        const refunded = (e as { usage?: GrokUsageInfo }).usage;
+        if (refunded) setGrokUsage(refunded);
+        return;
+      }
       const msg = e instanceof Error ? e.message : t('ARENA_ERROR_UNKNOWN');
       setReadError(msg);
       // If rate limit error, update usage display so the chip reflects the limit
