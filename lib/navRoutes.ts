@@ -126,7 +126,13 @@ export const OWN_NAV_ROUTES = ['/'] as const;
  * asserts this array still equals that module's SUPPORTED_LOCALES, so adding a
  * locale landing without updating this fails the suite rather than silently
  * shipping a marketing page with the app nav on it. */
-export const LANDING_LOCALES = ['ko', 'zh'] as const;
+/* `ru` added 2026-11-08 (#1740). The comment above is not decoration: this array was the ONE list of
+   the set that did not move when /ru was switched on, and `__tests__/navOwnNavRoutes.test.mts` failed
+   exactly as it promised to - `/ru renders LandingContent` false !== true, and LANDING_LOCALES
+   ['ko','zh'] against SUPPORTED_LOCALES ['ko','ru','zh']. Without it /ru would have shipped the
+   marketing page with the app nav on top of it. The guard earned its keep; recorded because the next
+   locale will be added by someone reading this. */
+export const LANDING_LOCALES = ['ko', 'zh', 'ru'] as const;
 
 export function rendersOwnNav(pathname: string): boolean {
   /* Trailing slash normalised rather than assumed away: Next's default

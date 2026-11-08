@@ -370,6 +370,18 @@ function ArenaContent() {
   /* #1596: a viewer who is KNOWN not to have paid (Free or free trial) on a coin outside BTC/ETH/SOL. Drives the one line above the chart and
      locks Quick and Deep. False while the plan is loading or unknown: nothing is locked on a guess, and the server enforces the same rule. */
   const coinLocked = coinLockedForUnpaid(signalPlan, selectedCoin);
+  /* #1613: a value that has not arrived yet must read as LOADING, never as a final word. The AI-read card can render from a cached result before the
+     market feed has delivered this coin's funding rate; that used to read "n/a" and then "neutral" a moment later. Funding is `loading…` for a short
+     grace period after the page (or the coin) is opened, and `unavailable` after it if it still has not come.
+     #1651 moved this above the useEMAStrategy call below - the same reason `strategySelection` moved up: a hook call reading it has to come after its
+     declaration. The hook takes the flag rather than running its own 15s timer, so the Funding Rate row and the market-snapshot row can never disagree
+     about whether the feed has landed. */
+  const [feedGraceOver, setFeedGraceOver] = useState(false);
+  useEffect(() => {
+    setFeedGraceOver(false);
+    const id = window.setTimeout(() => setFeedGraceOver(true), 15_000);
+    return () => window.clearTimeout(id);
+  }, [selectedCoin]);
   const rawEmaSignal = useEMAStrategy(
     selectedCoin,
     readTf,
@@ -377,17 +389,10 @@ function ArenaContent() {
     oi1h.pct,
     filterParams,
     strategySelection,
+    feedGraceOver,
   );
   const emaSignal = useMemo(() => gateSignal(rawEmaSignal, signalPlan, selectedCoin), [rawEmaSignal, signalPlan, selectedCoin]);
-  /* #1613: a value that has not arrived yet must read as LOADING, never as a final word. The AI-read card can render from a cached result before the
-     market feed has delivered this coin's funding rate; that used to read "n/a" and then "neutral" a moment later. Funding is `loading…` for a short
-     grace period after the page (or the coin) is opened, and `unavailable` after it if it still has not come. */
-  const [feedGraceOver, setFeedGraceOver] = useState(false);
-  useEffect(() => {
-    setFeedGraceOver(false);
-    const id = window.setTimeout(() => setFeedGraceOver(true), 15_000);
-    return () => window.clearTimeout(id);
-  }, [selectedCoin]);
+  /* #1613's feedGraceOver moved above the useEMAStrategy call (#1651) - a hook call reading it has to come after its declaration. */
   const [readLoading, setReadLoading] = useState(false);
   // #1309 item 24: state, not a ref, updates asynchronously - two clicks
   // landing within the same tick (measured live: ~200ms apart, well within

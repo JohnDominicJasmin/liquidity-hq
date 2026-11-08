@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, type ChartData, type GrokContext } from '@/lib/grok';
+import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, VERDICT_RESTATED_CHECK, type ChartData, type GrokContext } from '@/lib/grok';
 import { arenaContextCoinId, COIN_NOT_TRACKED, parseArenaChart, parseArenaContext, parseSelection } from '@/lib/arenaContext';
 import { arenaServerNumbers } from '@/lib/arenaServerNumbers';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
@@ -539,7 +539,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
   }
   const result = applyResultChecks({ ...parsed, citations }, prompt);
-  if (restated) (result.checks ??= []).push('verdict restated by a second pass: the answer did not state SIGNAL and CONFIDENCE in the required form');
+  // The string is VERDICT_RESTATED_CHECK in lib/grok.ts rather than a literal here: the Deep canary
+  // keys its DEGRADED state off this entry, and the response carries no `restated` flag for it to read
+  // instead. One definition, so rewording it cannot silently stop the canary noticing.
+  if (restated) (result.checks ??= []).push(VERDICT_RESTATED_CHECK);
 
   return NextResponse.json({ result, usage });
 }

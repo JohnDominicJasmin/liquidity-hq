@@ -1,0 +1,257 @@
+# Deep canary (#1631). Calls Deep for real, once a day, and keeps ONE labelled issue in step with it.
+#
+# Same issue-management shape as daily-health.yml and release-signals.yml's drift job: find the open
+# issue, update it, close it only on a genuinely healthy read.
+#
+# ── WHY THIS EXISTS WHEN THE HEALTH CHECK ALREADY RUNS ────────────────────────────────────────────
+#
+# daily-health.yml says in its own header that it would NOT have caught Deep Research. That is the
+# honest limit of it: /api/health reports whether the database answered and whether the venues we call
+# were callable, and it was green for the whole five weeks Deep was broken. The only thing that can
+# tell you Deep works is calling Deep. This closes "a feature broke silently"; the health check closes
+# "a data source broke silently". Neither substitutes for the other.
+#
+# ── IT COSTS REAL MONEY, SO THE SCHEDULE IS OFF UNTIL THE OWNER TURNS IT ON ───────────────────────
+#
+# Measured from production's own ledger on 2026-11-08 (lhq_ai_call_log, 17 real Deep calls, every one
+# costed by xAI's reported figure rather than estimated):
+#
+#     min $0.0128   avg $0.0225   max $0.0747   per Deep call
+#
+# So a daily run is roughly $0.68/month, about $8/year, worst observed case about $27/year. Small, but
+# it is recurring spend on the owner's xAI account and that is explicitly his call, not ours.
+#
+# THEREFORE: `workflow_dispatch` runs immediately and on demand, and the SCHEDULE is gated on the repo
+# variable DEEP_CANARY_ENABLED being '1'. It is unset, so the scheduled job skips.
+#
+# To turn it on: set the repo variable DEEP_CANARY_ENABLED to 1. To turn it off: unset or delete it.
+# RELEASE_PR_PAUSED is the cautionary precedent here - it was set for a correct reason on 2026-08-09,
+# nothing was watching the date, and it silently suppressed release PRs for a month. So this gate is
+# named for what it ENABLES rather than what it pauses, and a skipped scheduled run says so in the log
+# instead of looking like a run that found nothing.
+#
+# ── IT CANNOT WATCH PRODUCTION YET, AND THAT IS A DECISION, NOT AN OVERSIGHT ──────────────────────
+#
+# Deep is auth-gated on purpose ("prevents unauthenticated API burn") and billed per call, so it needs
+# a real signed-in account. Measured 2026-11-08:
+#
+#   - the DEV database has two Pro fixtures; this canary is pinned to the one with no end date
+#   - PRODUCTION has exactly ONE Pro account, and it is the owner's own
+#
+# Running this against production would therefore spend the owner's money under his name and consume
+# his 10/day Deep quota every morning. Until there is a prod test account - which only he can create -
+# the target is staging, which shares the dev database and so accepts the dev fixture. A green run here
+# means Deep works on the staging build, which is the same code, not that production is serving it.
+#
+# ── FOUR OUTCOMES, AND ONLY ONE OF THEM CLOSES THE ISSUE ──────────────────────────────────────────
+#
+#   OK        the issue is closed - a clean, first-time parse
+#   DEGRADED  opened or updated, and NEVER closed on this. The read WORKED, but only after the route
+#             ran a second, separately billed repair call because the model did not answer in the
+#             required form. Twice the money, and nothing on screen says so.
+#   FAIL      opened or updated - Deep answered unusably, or our own request was refused
+#   UNKNOWN   opened or updated, and NEVER closed on this
+#
+# DEGRADED exists because QA found the hole in the first version: a repaired read returns a valid 200
+# with a real verdict, so the canary reported OK while the contract was rotting underneath it.
+#
+# The UNKNOWN set is load-bearing. Exhausted fixture quota, a sleeping service, a stale credential and
+# a failed plan read all look like failures and are not, and a canary that cries wolf at them gets
+# muted - at which point it reads as coverage while measuring nothing. See the script for the split.
+
+name: Deep canary
+
+on:
+  schedule:
+    # 07:00 UTC - an hour after daily-health, so a bad morning names one job rather than two.
+    - cron: '0 7 * * *'
+  # The contract selfcheck on PRs that touch the request contract. Free - no secrets, no Deep call, no
+  # money - and it is the gate that keeps this canary honest: `scripts/` is .mjs and tsconfig only
+  # includes .ts/.tsx/.mts, so NOTHING typechecks this script. Without this job, adding context field
+  # 62 would leave the canary silently 400ing every morning and reporting Deep as broken. With it, the
+  # PR that adds the field goes red naming the field.
+  pull_request:
+    paths:
+      - 'lib/arenaContext.ts'
+      - 'lib/grok.ts'
+      - 'lib/coins.ts'
+      - 'lib/limits.ts'
+      - 'lib/strategyRegistry.ts'
+      - 'scripts/deep-canary.mjs'
+      - '.github/workflows/deep-canary.yml'
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Base URL to probe. Defaults to staging - see the header before pointing this at production.'
+        required: false
+        default: 'https://liquidity-hq-staging.onrender.com'
+      selfcheck_only:
+        description: 'Validate the request contract and stop. Spends no money and says nothing about whether Deep works.'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Classify and print, but do not touch the issue.'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: deep-canary
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  # Free, and the only job that runs on a pull request. It builds the canary's request body from
+  # ARENA_CONTEXT_KEYS and hands it to the route's OWN three parsers. No network, no credential, no
+  # Deep call - so it can run on every relevant PR without spending anything.
+  selfcheck:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      # THE VERSION PIN IS LOAD-BEARING, DO NOT LOWER IT (QA, review of #2063). The script imports
+      # lib/*.ts directly and is run by plain `node`, not tsx, so it depends on Node's UNFLAGGED native
+      # type stripping - which landed in 23.6. Below that the canary fails at import, before it can
+      # reach any assertion, which surfaces as a dead job rather than as a reported state.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: The canary still speaks the current request contract
+        run: node scripts/deep-canary.mjs --selfcheck
+
+  canary:
+    # The spend gate. A manual dispatch always runs; the cron only runs once the owner has enabled it.
+    # Never on a pull request - a PR must not be able to spend money.
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.DEEP_CANARY_ENABLED == '1') }}
+    runs-on: ubuntu-latest
+    # Generous, because the budgets inside the script are 90s to wake a sleeping free-plan service plus
+    # up to 180s for the Deep read itself. The job timeout must not be the thing that fires first, or
+    # every slow read is reported as a cancelled job rather than as a measured timeout.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # NO `npm ci`, AND THAT CONSTRAINS WHAT THE SCRIPT MAY IMPORT. It imports lib/*.ts relatively and
+      # Node strips the types itself; nothing in its graph may reach node_modules, because there is no
+      # install here. Installing would add a minute and a cache to go stale, which is worth avoiding -
+      # but it means ANY NEW IMPORT IN THE CANARY MUST BE node_modules-FREE, TRANSITIVELY.
+      #
+      # This is not hypothetical: the first version of the DEGRADED change imported a value from
+      # lib/grok.ts, which imports lib/supabase.ts, which imports @supabase/supabase-js. The canary died
+      # at import with ERR_MODULE_NOT_FOUND. It passed locally, because a dev machine has node_modules -
+      # the selfcheck job below is what caught it. The constant now lives in lib/verdictChecks.ts, which
+      # is import-free for exactly this reason and says so.
+      #
+      # THE VERSION PIN IS ALSO LOAD-BEARING - do not lower it. Unflagged native type stripping landed in
+      # Node 23.6; below that this fails at import rather than at a visible assertion, so the job dies
+      # without reporting a state. The issue step treats an empty state as UNKNOWN, so neither failure is
+      # a false pass - but both read as "could not measure" rather than naming the real cause.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Probe Deep and classify
+        id: probe
+        env:
+          CANARY_BASE_URL:           ${{ github.event.inputs.url || 'https://liquidity-hq-staging.onrender.com' }}
+          CANARY_SUPABASE_URL:       ${{ secrets.CANARY_SUPABASE_URL }}
+          CANARY_SUPABASE_ANON_KEY:  ${{ secrets.CANARY_SUPABASE_ANON_KEY }}
+          CANARY_FIXTURE_EMAIL:      ${{ secrets.CANARY_FIXTURE_EMAIL }}
+          CANARY_FIXTURE_PASSWORD:   ${{ secrets.CANARY_FIXTURE_PASSWORD }}
+          CANARY_FIXTURE_USER_ID:    ${{ vars.CANARY_FIXTURE_USER_ID }}
+          CANARY_LOG_FILE:           /tmp/canary.log
+        # `|| true`: FAIL exits non-zero so a human running this locally sees a red exit, but the issue
+        # step below must still run - it is what reports the failure. The state is read from the output,
+        # never from the exit code. A pipeline that reads a gate from an exit code is how a red run
+        # becomes silence in this repo's history.
+        run: |
+          node scripts/deep-canary.mjs ${{ github.event.inputs.selfcheck_only == 'true' && '--selfcheck' || '' }} || true
+
+      - name: Open, update or close the issue
+        if: ${{ github.event.inputs.dry_run != 'true' && github.event.inputs.selfcheck_only != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO:     ${{ github.repository }}
+          STATE:    ${{ steps.probe.outputs.state }}
+          REASON:   ${{ steps.probe.outputs.reason }}
+          TARGET:   ${{ github.event.inputs.url || 'https://liquidity-hq-staging.onrender.com' }}
+          RUN_URL:  ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+
+          # A missing state means the script died before writing its output - which is not a Deep
+          # failure and must not be reported as one, nor as a pass.
+          if [ -z "${STATE:-}" ]; then
+            echo "::error::the canary wrote no state - treating as UNKNOWN"
+            STATE=UNKNOWN
+            REASON="the canary produced no verdict at all; see the run log"
+          fi
+
+          # Created here rather than by hand so the first real run cannot fail on a missing label, and
+          # so nobody has to remember it if the repo is forked or restored. Idempotent.
+          gh label create deep-canary --repo "$REPO" --color 5319E7 \
+            --description "A real Deep read failed, or could not be measured" 2>/dev/null \
+            || echo "label deep-canary already present"
+
+          OPEN=$(gh issue list --repo "$REPO" --label deep-canary --state open \
+                   --json number --jq '.[0].number // empty' 2>/dev/null || echo "")
+
+          # ONLY a clean first-time parse closes this. DEGRADED is a read that worked, so it is not a
+          # FAIL - but closing on it would retire the issue while the contract is still rotting and
+          # the customer is still being billed twice, which is the hole QA found in the first version.
+          if [ "$STATE" = "OK" ]; then
+            if [ -n "$OPEN" ]; then
+              gh issue close "$OPEN" --repo "$REPO" \
+                --comment "A real Deep read succeeded against ${TARGET}, first-time parse with no restate pass. ${REASON} Closing automatically. ${RUN_URL}"
+            else
+              echo "Deep is healthy and nothing is open - nothing to do"
+            fi
+            exit 0
+          fi
+
+          {
+            echo "**${STATE}** - $(date -u '+%Y-%m-%d %H:%M UTC') - \`${TARGET}\`"
+            echo
+            echo "${REASON}"
+            echo
+            if [ "$STATE" = "UNKNOWN" ]; then
+              echo "> **Unknown is not healthy and this issue will not close on it.** A Deep read that was"
+              echo "> never made is not evidence that Deep works. It closes on an actual successful read."
+              echo
+            fi
+            if [ "$STATE" = "DEGRADED" ]; then
+              echo "> **This is not a failure - the read worked and the customer got a verdict.** It is also"
+              echo "> not health: the model did not answer in the required form, so the route ran a second,"
+              echo "> separately billed repair call to recover the verdict. **The read cost twice as much and"
+              echo "> nothing on screen says so.** This issue will not close on a degraded read - only on a"
+              echo "> clean first-time parse."
+              echo
+            fi
+            echo "This canary asserts the **contract** - HTTP 200, a signal from the five, a 0-100"
+            echo "confidence - and never the content. A bearish verdict on a rising day is not a defect."
+            echo
+            echo "<details><summary>Run log</summary>"
+            echo
+            echo '```'
+            head -c 4000 /tmp/canary.log 2>/dev/null || echo '(no log)'
+            echo
+            echo '```'
+            echo
+            echo "</details>"
+            echo
+            echo "Run: ${RUN_URL}"
+          } > /tmp/body.md
+
+          if [ -n "$OPEN" ]; then
+            gh issue edit "$OPEN" --repo "$REPO" --body-file /tmp/body.md
+            gh issue comment "$OPEN" --repo "$REPO" --body "Still ${STATE} on $(date -u '+%Y-%m-%d') against ${TARGET}. ${REASON}"
+          else
+            gh issue create --repo "$REPO" --label deep-canary \
+              --title "Deep canary: ${STATE}" \
+              --body-file /tmp/body.md
+          fi
