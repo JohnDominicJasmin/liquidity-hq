@@ -487,6 +487,13 @@ export async function POST(req: NextRequest) {
   /* The refused response must report the count the user actually has left, not the one that was reserved and given back - otherwise
      the counter on screen says they spent a read they did not. `refunded` is null when the refund did not land (migration 20261023a
      not applied yet), and then the honest number is the reserved one. */
+  /* `refunded` IS SENT TO THE CLIENT because the page's wording depends on it and the page cannot
+     work it out. `refundUsageColumn` returns null when the refund did not land, and QA's review of
+     #2065 established that is NOT only the migration-missing case - lib/aiUsage.ts returns null on a
+     catch and on any non-PGRST202 error too. So a page that says "this read was not counted"
+     unconditionally is telling the customer something about their money that the server knows to be
+     false whenever a refund errors. One boolean makes the sentence true by construction instead of
+     true by deployment state. */
   const usageAfterRefund = (refunded: number | null) =>
     refunded === null ? usage : { ...usage, [type === 'deep' ? 'deep_used' : 'quick_used']: refunded };
 
@@ -506,7 +513,7 @@ export async function POST(req: NextRequest) {
          report. Without a line here the eventual FIX is also unverifiable on prod: we would ship it and have no way to know. */
       console.error(`[grok] BAD_ANSWER empty-text type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=false`);
       const refunded = await refundUsageColumn(userId, column, reservedOn);
-      return NextResponse.json({ error: GROK_EMPTY_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
+      return NextResponse.json({ error: GROK_EMPTY_ANSWER_MESSAGE, code: 'BAD_ANSWER', refunded: refunded !== null, usage: usageAfterRefund(refunded) }, { status: 502 });
     }
     const v = await restateVerdict(text, userId);
     if (!v) {
@@ -514,7 +521,7 @@ export async function POST(req: NextRequest) {
          empty, and the distinction is the first thing anyone debugging this will want. */
       console.error(`[grok] BAD_ANSWER unreadable-verdict type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=true chars=${text.trim().length} head=${JSON.stringify(logHead(text.trim()))}`);
       const refunded = await refundUsageColumn(userId, column, reservedOn);
-      return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
+      return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', refunded: refunded !== null, usage: usageAfterRefund(refunded) }, { status: 502 });
     }
     text = `SIGNAL: ${v.signal}\nCONFIDENCE: ${v.confidence}\n${text}`;
     restated = true;
@@ -536,7 +543,7 @@ export async function POST(req: NextRequest) {
        answer through that this one rejected, which should be impossible and is the first thing worth knowing. */
     console.error(`[grok] BAD_ANSWER strict-read-refused type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=${restated} chars=${text.trim().length} head=${JSON.stringify(logHead(text.trim()))}`);
     const refunded = await refundUsageColumn(userId, column, reservedOn);
-    return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', usage: usageAfterRefund(refunded) }, { status: 502 });
+    return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', refunded: refunded !== null, usage: usageAfterRefund(refunded) }, { status: 502 });
   }
   const result = applyResultChecks({ ...parsed, citations }, prompt);
   // The string is VERDICT_RESTATED_CHECK in lib/grok.ts rather than a literal here: the Deep canary

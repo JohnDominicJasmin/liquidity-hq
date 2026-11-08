@@ -1680,6 +1680,44 @@ function ArenaContent() {
         setReadProLocked(true);
         return;
       }
+      /* #1263: the read reached the model, was paid for, and came back with no verdict we can read -
+         `/api/grok` answers 502 BAD_ANSWER for an empty answer, an unreadable verdict after one
+         retry, and a strict-read refusal. Until now this fell through to the generic branch and the
+         customer got the SERVER'S ENGLISH SENTENCE: untranslated, and silent on the one fact that
+         matters to someone who just spent a Deep read. So it gets its own labelled line.
+
+         THE USAGE MUST BE APPLIED HERE, and this branch is the only early return where that is true.
+         The refusals above (PRO_REQUIRED, STALE_CLIENT, COIN_NOT_TRACKED, COIN_LOCKED) are all
+         refused BEFORE anything is spent, so the counter has not moved and the generic branch's
+         `setGrokUsage` below is not needed. BAD_ANSWER is the opposite: the route reserved the read,
+         failed, and REFUNDED it (`refundUsageColumn`), returning the corrected usage in the error
+         body. Returning early without applying it would leave the chip showing the read as spent
+         while this line says it was not counted - the copy and the number contradicting each other
+         on the same screen, which is worse than either alone.
+
+         WHICH SENTENCE WE SHOW IS KEYED ON THE SERVER'S ANSWER, NOT ON THE DEPLOYMENT WE EXPECT.
+         An earlier version of this branch showed "this read was not counted" unconditionally, and
+         justified it here by measuring that `refund_ai_usage` exists on production - which it does.
+         That was the wrong thing to measure. QA's review of #2065 found that `refundUsageColumn`
+         (lib/aiUsage.ts) returns null from its `catch` and from ANY non-PGRST202 error, not only
+         from the missing-function case: a timeout, a connection drop or a constraint failure all
+         land there. So the copy was conditional on the refund SUCCEEDING while the evidence behind
+         it only established the refund being POSSIBLE, and the gap between those two is a sentence
+         about a customer's money that we would have shipped knowing it can be false.
+
+         So the route now sends `refunded` with the 502 and this reads it. ABSENT means counted,
+         deliberately: the only other BAD_ANSWER thrower is lib/grok.ts's own malformed-200 guard,
+         where no refund was ever attempted, and a dropped field should understate what we gave back
+         rather than promise a refund that did not happen. */
+      if ((e as { code?: string }).code === 'BAD_ANSWER') {
+        setReadError(t((e as { refunded?: boolean }).refunded === true
+          ? 'ARENA_READ_BAD_ANSWER'
+          : 'ARENA_READ_BAD_ANSWER_COUNTED'));
+        setReadProLocked(false);
+        const corrected = (e as { usage?: GrokUsageInfo }).usage;
+        if (corrected) setGrokUsage(corrected);
+        return;
+      }
       const msg = e instanceof Error ? e.message : t('ARENA_ERROR_UNKNOWN');
       setReadError(msg);
       // If rate limit error, update usage display so the chip reflects the limit
