@@ -467,8 +467,18 @@ he was sleeping and already asked once if anything was needed before he went.
 > *"you're not here to allow everything. You're here to make decision. Sometimes disagree to me, to
 > the team, and choose what's best."* — the owner, 2026-11-05
 
-**What happened.** In two days the team merged 59 PRs and closed zero real issues, because nothing
-went live. Every fix produced another measurement, another venue, another PR, and the PM approved all
+**What happened.** In two days the team merged **95** PRs and closed zero real issues, because
+nothing went live. Measured from the GitHub API rather than estimated, because a rules file that
+gets its own numbers wrong invites the whole section being doubted: **43 merged on 2026-11-04 and
+52 on 2026-11-05**, nothing on 11-02 or 11-03, and all 95 based on `dev` - so there is no narrower
+reading that gives a smaller figure. That is **13.6 PRs merged per issue closed.**
+
+**"Closed zero real issues" is the literal truth, and the breakdown is recorded here so nobody
+later "corrects" it to seven.** Seven issues did close in those two days. **Four were opened and
+closed by our own automation** - "Ready for QA: N PR(s) on `qa` awaiting promotion" (#1945, #1953,
+#1972, #1993, from `ready-for-qa.yml`) - and three were trackers (#1752, #1592, #1688). **Zero were
+a customer-facing bug or feature.** Nearly half the closures were the team's own machinery reporting
+on itself. Every fix produced another measurement, another venue, another PR, and the PM approved all
 of it. His one-line question about Hyperliquid became a multi-PR programme. **The work was real, and
 none of it counted.**
 
