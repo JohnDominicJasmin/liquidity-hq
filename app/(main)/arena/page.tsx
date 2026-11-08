@@ -1818,6 +1818,19 @@ function ArenaContent() {
         {(['all', 'majors', 'alts', 'defi', 'meme'] as const).map(c => (
           <button
             key={c}
+            type="button"
+            /* #1263 (WCAG 4.1.2): these five signalled the selected category with COLOUR ALONE - the
+               `.on` class changes background, text and border and nothing else. Every one of them
+               announced identically, so a screen-reader user could not tell which category was
+               active, and neither could anyone who cannot separate the purple from the grey.
+
+               `aria-pressed` is the right control rather than `aria-current` or a radio group: these
+               are toggle buttons that filter a list in place, which is exactly what the pressed state
+               describes. It also costs nothing visually, so the approved design is untouched.
+
+               The strategy chips already do this (components/StrategyPanel.tsx:373); this group was
+               missed because it is in the page rather than in that component. */
+            aria-pressed={coinCat === c}
             className={`gsc-tf-btn${coinCat === c ? ' on' : ''}`}
             style={{ padding: '3px 9px', fontSize: 'var(--fs-caption)', textTransform: 'capitalize' }}
             onClick={() => setCoinCat(c)}
