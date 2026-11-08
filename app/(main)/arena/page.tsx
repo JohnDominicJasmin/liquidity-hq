@@ -1680,15 +1680,27 @@ function ArenaContent() {
          while this line says it was not counted - the copy and the number contradicting each other
          on the same screen, which is worse than either alone.
 
-         The "not counted" claim is load-bearing and measured rather than assumed: `refund_ai_usage`
-         exists on production, so 20261023a is applied and the refund lands. If it ever does not,
-         `refundUsageColumn` returns null, the route reports the reserved number, and the route logs
-         it - so the contradiction would be diagnosable rather than silent. */
+         WHICH SENTENCE WE SHOW IS KEYED ON THE SERVER'S ANSWER, NOT ON THE DEPLOYMENT WE EXPECT.
+         An earlier version of this branch showed "this read was not counted" unconditionally, and
+         justified it here by measuring that `refund_ai_usage` exists on production - which it does.
+         That was the wrong thing to measure. QA's review of #2065 found that `refundUsageColumn`
+         (lib/aiUsage.ts) returns null from its `catch` and from ANY non-PGRST202 error, not only
+         from the missing-function case: a timeout, a connection drop or a constraint failure all
+         land there. So the copy was conditional on the refund SUCCEEDING while the evidence behind
+         it only established the refund being POSSIBLE, and the gap between those two is a sentence
+         about a customer's money that we would have shipped knowing it can be false.
+
+         So the route now sends `refunded` with the 502 and this reads it. ABSENT means counted,
+         deliberately: the only other BAD_ANSWER thrower is lib/grok.ts's own malformed-200 guard,
+         where no refund was ever attempted, and a dropped field should understate what we gave back
+         rather than promise a refund that did not happen. */
       if ((e as { code?: string }).code === 'BAD_ANSWER') {
-        setReadError(t('ARENA_READ_BAD_ANSWER'));
+        setReadError(t((e as { refunded?: boolean }).refunded === true
+          ? 'ARENA_READ_BAD_ANSWER'
+          : 'ARENA_READ_BAD_ANSWER_COUNTED'));
         setReadProLocked(false);
-        const refunded = (e as { usage?: GrokUsageInfo }).usage;
-        if (refunded) setGrokUsage(refunded);
+        const corrected = (e as { usage?: GrokUsageInfo }).usage;
+        if (corrected) setGrokUsage(corrected);
         return;
       }
       const msg = e instanceof Error ? e.message : t('ARENA_ERROR_UNKNOWN');
