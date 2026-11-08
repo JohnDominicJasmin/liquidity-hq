@@ -1,5 +1,6 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useSettings } from '@/lib/settings';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from './AuthProvider';
 import { T } from '@/lib/tables';
@@ -49,6 +50,10 @@ const DB_COL: Record<OnboardingKey, string> = {
 
 export default function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
+  /* The Telegram tick is DERIVED, not stored - see `telegram` in the context value below. Safe to
+     call here: AppShell's only OnboardingProvider sits inside SettingsProvider (AppShell.tsx:151
+     wraps :154), and `useSettings()` falls back to a defined context default anywhere else. */
+  const { settings, settingsLoadStatus } = useSettings();
   const [state, setState] = useState<OnboardingState>({
     tourSeen: false, profileComplete: false, telegram: false, priceAlert: false, grok: false, coins: false,
   });
@@ -116,13 +121,42 @@ export default function OnboardingProvider({ children }: { children: React.React
     return () => window.removeEventListener('onboarding:done', h);
   }, [markDone]);
 
-  const allDone = state.telegram && state.priceAlert && state.grok && state.coins;
+  /* ── THE TELEGRAM TICK IS DERIVED FROM THE LINK, NOT FROM A STORED FLAG (#1113) ──────────────
+   *
+   * It read `checklist_telegram`, which is written in exactly ONE place: `sendTest()` succeeding on
+   * /alerts. Connecting Telegram does not write it and cannot - the link is finished by the bot
+   * webhook while the user is in Telegram, with no browser of ours to tell. So the item said
+   * "Connect Telegram alerts" and measured "pressed Send test message", and a user who connected
+   * perfectly stayed unticked forever. Measured on dev: 0 of 11 rows ticked, while `grok` and
+   * `coins` - both marked by the action they name - sat at 5.
+   *
+   * Deriving it from `telegram_chat_id` makes the item mean what it says, removes a write that can
+   * fail silently, and fixes the existing rows with no backfill. Disconnecting un-ticks it, which is
+   * honest: the step is genuinely no longer done. PM/DevOps chose this over marking it in the
+   * webhook or relabelling the step (2026-11-08).
+   *
+   * AN UNREADABLE SETTINGS ROW MUST NOT READ AS "NOT DONE". `settingsLoadStatus` is 'ready' only
+   * once the authoritative row has actually landed; while it is 'loading' or 'error' this falls back
+   * to the stored column rather than deriving `false` from a `telegram_chat_id` nobody has read yet.
+   * An unknown shown as a confident negative is the same defect as a flat price reading as
+   * maximally overbought.
+   *
+   * THE STORED COLUMN IS LEFT IN PLACE AND STILL WRITTEN by `sendTest()`. It is no longer the
+   * source of truth, but it is a meaningful fallback for the unreadable case above: someone who got
+   * as far as a successful test message demonstrably had a working link at that moment. */
+  const telegramLinked = (settings.telegram_chat_id ?? '').trim().length > 0;
+  const derivedState: OnboardingState = {
+    ...state,
+    telegram: settingsLoadStatus === 'ready' ? telegramLinked : state.telegram,
+  };
+
+  const allDone = derivedState.telegram && derivedState.priceAlert && derivedState.grok && derivedState.coins;
 
   const requestTour      = useCallback(() => setTourPending(true), []);
   const clearTourPending = useCallback(() => setTourPending(false), []);
 
   return (
-    <CTX.Provider value={{ state, loaded, loadError, markDone, allDone, tourPending, requestTour, clearTourPending }}>
+    <CTX.Provider value={{ state: derivedState, loaded, loadError, markDone, allDone, tourPending, requestTour, clearTourPending }}>
       {children}
     </CTX.Provider>
   );

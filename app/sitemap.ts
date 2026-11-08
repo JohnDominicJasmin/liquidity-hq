@@ -12,6 +12,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
        are already on the pages themselves (app/(main)/page.tsx and app/(intl)/[locale]/page.tsx). */
     { url: `${BASE}/ko`, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${BASE}/zh`, changeFrequency: 'weekly', priority: 0.8 },
+    /* #1740: /ru joined on 2026-11-08. One of the four lists that have to move together when a
+       landing locale is added - see the hreflang comment in app/(main)/page.tsx. */
+    { url: `${BASE}/ru`, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${BASE}/learn`, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${BASE}/about`, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${BASE}/contact`, changeFrequency: 'monthly', priority: 0.5 },

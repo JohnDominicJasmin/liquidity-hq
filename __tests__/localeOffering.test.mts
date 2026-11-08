@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SUPPORTED_LOCALES, isSupportedLocale, dirForLocale, getDictionary } from '../lib/i18n/dictionaries.ts';
+import { SUPPORTED_LOCALES, isSupportedLocale, dirForLocale, getDictionary, dictionaries } from '../lib/i18n/dictionaries.ts';
+import { LANDING_LOCALES } from '../lib/navRoutes.ts';
 import { appPath } from './_appPath.mts';
 
 /* #138. Arabic shipped in the picker with RTL unimplemented: /ar served
@@ -25,7 +26,23 @@ const read = (p: string) =>
 test('Arabic is not offered', async (t) => {
   await t.test('it is not a supported locale', () => {
     assert.equal(isSupportedLocale('ar'), false);
-    assert.deepEqual([...SUPPORTED_LOCALES], ['ko', 'zh']);
+    /* ar's ABSENCE, not the exact membership of the list.
+     *
+     * This was `assert.deepEqual([...SUPPORTED_LOCALES], ['ko', 'zh'])`, and that broke when `ru`
+     * was switched on (#2061) - under the name "Arabic is not offered", which read as though ru had
+     * broken Arabic handling. It had not: the line above still passed throughout, and so did both
+     * picker cells. The test's INTENT was intact and only its mechanism failed.
+     *
+     * An exact-set pin fails on ANY new locale, which is normal work rather than a defect, so it
+     * reports noise under a name that implies something else. Asserting what the test is named for
+     * survives the next locale and still fails the thing it exists to catch - ar coming back. */
+    assert.ok(
+      !(SUPPORTED_LOCALES as readonly string[]).includes('ar'),
+      `Arabic is a landing locale again: SUPPORTED_LOCALES is ${JSON.stringify([...SUPPORTED_LOCALES])}. ` +
+      'It is withdrawn under owner decision #138 for unimplemented RTL, not for missing strings - ' +
+      'prod lhq_labels holds 2,679 ar rows, so the translations exist and that is exactly why this ' +
+      'guard matters: nothing stops someone adding it back on the grounds that the strings are there.',
+    );
   });
 
   /* The picker is the only place a user can choose one, so this is the
@@ -263,5 +280,68 @@ test('a preference for a withdrawn language resolves to English', async (t) => {
       'loadLocalLocale no longer clamps - a stored withdrawn locale comes back');
     assert.match(read('components/LanguageSync.tsx'), /resolveOfferedLocale\(settings\.language\)/,
       'LanguageSync no longer clamps - the server-side preference reinstates it');
+  });
+});
+
+/* ── THE LISTS THAT HAVE TO MOVE TOGETHER ────────────────────────────────────────────────────────
+ *
+ * WHY THIS EXISTS: #2061 switched `ru` on, moved SUPPORTED_LOCALES, and did NOT move
+ * LANDING_LOCALES in lib/navRoutes.ts - which `rendersOwnNav()` reads. `/ru` returned 200 and
+ * rendered the marketing page WITH THE APP NAV ON TOP OF IT, on the owner's own SEO issue.
+ *
+ * `navOwnNavRoutes.test.mts` caught it, so this is not the only guard. It is here because the
+ * review did not: QA verified the five lists the PR's comment ENUMERATED and never searched for the
+ * lists that EXIST, so a list the comment did not mention was outside the check entirely. Taking a
+ * change's own account of what it needs to touch as the complete account is the mistake, and the
+ * fix is an assertion over the real set rather than a better reading of the prose.
+ *
+ * WHAT IS DELIBERATELY *NOT* ASSERTED HERE, because over-specification is what broke the cell
+ * above: `AVAILABLE_LOCALES` is NOT required to equal the landing set. It is the label offer; a
+ * locale could legitimately have translated labels and no marketing page. Pinning them together
+ * would create exactly the false tripwire this file just removed.
+ *
+ * NOTE THE NAME COLLISION, which is the structural reason this class of bug recurs: there are TWO
+ * exports called SUPPORTED_LOCALES with different contents - lib/i18n/dictionaries.ts is the
+ * landing set (`ko zh ru`), lib/locales.ts is label VALIDATION (ten codes, including withdrawn
+ * ones). This cell is about the first. QA has already been wrong once by reading one as the other.
+ */
+test('the locale lists that must agree, do', async (t) => {
+  const landing = [...(SUPPORTED_LOCALES as readonly string[])].sort();
+
+  await t.test('LANDING_LOCALES matches the landing SUPPORTED_LOCALES - the #2061 defect', () => {
+    assert.deepEqual(
+      [...(LANDING_LOCALES as readonly string[])].sort(), landing,
+      'lib/navRoutes.ts LANDING_LOCALES and lib/i18n/dictionaries.ts SUPPORTED_LOCALES disagree. ' +
+      'rendersOwnNav() reads LANDING_LOCALES, so a locale with a landing page missing from it gets ' +
+      'the APP NAV rendered on top of the marketing page - visible, and shipped once on #2061.',
+    );
+  });
+
+  /* A landing page nothing links to is an SEO defect rather than a broken page, which is why it is
+     a separate cell: it can fail without the nav bug being present. */
+  await t.test('every landing locale is in both hreflang maps and the sitemap', () => {
+    const main = read('app/(main)/page.tsx');
+    const intl = read('app/(intl)/[locale]/page.tsx');
+    const sitemap = read('app/sitemap.ts');
+    for (const loc of landing) {
+      assert.match(main, new RegExp(`\\b${loc}:\\s*'/${loc}'`),
+        `app/(main)/page.tsx hreflang is missing ${loc}`);
+      assert.match(intl, new RegExp(`\\b${loc}:\\s*'/${loc}'`),
+        `app/(intl)/[locale]/page.tsx hreflang is missing ${loc}`);
+      /* The sitemap writes a TEMPLATE LITERAL, `${BASE}/ru`, not a quoted string. Dev's grep for
+         `'ru'` could not see it and nearly reported a missing sitemap entry as an SEO gap - so this
+         matches the path, not the quoting. */
+      assert.ok(sitemap.includes(`/${loc}\``) || sitemap.includes(`/${loc}'`) || sitemap.includes(`/${loc}"`),
+        `app/sitemap.ts has no entry for /${loc}`);
+    }
+  });
+
+  /* The dictionaries map is typed Record<Locale, LandingDict>, so tsc already enforces this and a
+     missing entry is a compile error. Asserted anyway because the type only holds while the Locale
+     union is derived from SUPPORTED_LOCALES - if anyone widens it to `string`, this is what notices. */
+  await t.test('every landing locale has a dictionary, and English does too', () => {
+    const keys = Object.keys(dictionaries).sort();
+    assert.deepEqual(keys, ['en', ...landing].sort(),
+      `the dictionaries map is ${JSON.stringify(keys)} but the landing locales are ${JSON.stringify(['en', ...landing])}`);
   });
 });
