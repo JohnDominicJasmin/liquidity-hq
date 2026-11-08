@@ -565,7 +565,22 @@ function ArenaContent() {
       const token = await getAuthToken();
       if (!token || cancelled) return;
       const res = await fetch('/api/price-alerts', { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok || cancelled) return;
+      /* #1347 item 11 / #1263: these were one condition, and they mean opposite things.
+         `cancelled` is the effect being torn down - the coin changed or the page unmounted - and
+         returning in silence is exactly right, because writing state afterwards would put another
+         coin's lines on this chart.
+         `!res.ok` is the request FAILING. Keeping the last known lines is deliberate and stays
+         (the comment above says why: no flicker on a token refresh, and a different coin's lines
+         were already cleared before the fetch). What was wrong is that it left NO TRACE - a chart
+         showing alert lines that silently stopped refreshing looks identical to one that is up to
+         date, and a user acts on the stale line. So the failure is now recorded; the behaviour the
+         user sees is unchanged.
+         Checked in this order because `cancelled` is not a failure and must not be logged as one. */
+      if (cancelled) return;
+      if (!res.ok) {
+        console.error(`[arena] chart alerts refresh failed: HTTP ${res.status} for ${selectedCoin} - showing the last known lines, which may now be stale`);
+        return;
+      }
       const { alerts } = await res.json() as { alerts: Array<{ id: string; coin: string; target_price: number; direction: 'above' | 'below'; label?: string }> };
       if (!cancelled) { chartAlertsCoinRef.current = selectedCoin; setChartAlerts(alerts.filter(a => a.coin === selectedCoin)); }
     }
@@ -1856,6 +1871,19 @@ function ArenaContent() {
         {(['all', 'majors', 'alts', 'defi', 'meme'] as const).map(c => (
           <button
             key={c}
+            type="button"
+            /* #1263 (WCAG 4.1.2): these five signalled the selected category with COLOUR ALONE - the
+               `.on` class changes background, text and border and nothing else. Every one of them
+               announced identically, so a screen-reader user could not tell which category was
+               active, and neither could anyone who cannot separate the purple from the grey.
+
+               `aria-pressed` is the right control rather than `aria-current` or a radio group: these
+               are toggle buttons that filter a list in place, which is exactly what the pressed state
+               describes. It also costs nothing visually, so the approved design is untouched.
+
+               The strategy chips already do this (components/StrategyPanel.tsx:373); this group was
+               missed because it is in the page rather than in that component. */
+            aria-pressed={coinCat === c}
             className={`gsc-tf-btn${coinCat === c ? ' on' : ''}`}
             style={{ padding: '3px 9px', fontSize: 'var(--fs-caption)', textTransform: 'capitalize' }}
             onClick={() => setCoinCat(c)}
