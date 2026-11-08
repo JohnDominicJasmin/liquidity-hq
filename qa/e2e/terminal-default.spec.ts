@@ -36,9 +36,19 @@ import { test, expect } from '@playwright/test';
 
 const APP_ROUTES = ['/dashboard', '/arena', '/liq', '/scanner'];
 
-/** The attribute the terminal stylesheet keys off, or null when absent. */
+/** The attribute the terminal stylesheet keys off, or null when absent.
+ *
+ * A LOCATOR READ, NOT page.evaluate. The `evaluate` version threw
+ * `Execution context was destroyed, most likely because of a navigation`
+ * and flaked :196 on mobile in run 42436245702 - several callers below read
+ * this attribute immediately after crossing between `/` and an app route, and
+ * `evaluate` resolves against one execution context, so a navigation still in
+ * flight destroys it mid-call. A locator auto-waits and retries, so it rides
+ * the navigation out instead of racing it. `getAttribute` returns null for a
+ * missing attribute, which is the same contract the `toBeNull()` callers rely
+ * on. */
 async function designAttr(page: import('@playwright/test').Page): Promise<string | null> {
-  return page.evaluate(() => document.documentElement.getAttribute('data-design'));
+  return page.locator('html').getAttribute('data-design');
 }
 
 test.describe('#748 terminal is the default on every route', () => {
