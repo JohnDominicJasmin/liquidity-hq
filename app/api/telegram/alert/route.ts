@@ -14,6 +14,7 @@ import { checkCronAuth } from '@/lib/cronAuth';
 import { readFng, type FNGData } from '@/lib/fng';
 import { selectAllRows } from '@/lib/selectAllRows';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
+import { paceBybit, resetAlertPacer, alertPacerStats } from '@/lib/alertPacer';
 import { onCooldown, markSent, exportCooldownState, importCooldownState } from '@/lib/alertCooldown';
 import { evaluatePriceAlert, type Candle1m } from '@/lib/priceAlertEval';
 import {
@@ -717,10 +718,10 @@ async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipie
       let closes: number[];
       const target = bybitSpotOrLinear(coin);
       if (target) {
-        closes = await fetchBybitKlines(target.symbol, '60', 300, skipCounts, target.category);
+        closes = await paceBybit(() => fetchBybitKlines(target.symbol, '60', 300, skipCounts, target.category));
         if (closes.length === 0) return;
       } else if (BYBIT_KLINE_SYMS[coin]) {
-        closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], '60', 300, skipCounts);
+        closes = await paceBybit(() => fetchBybitKlines(BYBIT_KLINE_SYMS[coin], '60', 300, skipCounts));
         if (closes.length === 0) return;
       } else {
         return;
@@ -777,14 +778,14 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[], skipCounts: S
           // Bybit-only branch below.
           const target = bybitSpotOrLinear(coin);
           if (target) {
-            const ohlc = await fetchBybitCandles(target.symbol, bybitInterval, 25, skipCounts, target.category);
+            const ohlc = await paceBybit(() => fetchBybitCandles(target.symbol, bybitInterval, 25, skipCounts, target.category));
             if (ohlc.length < 2) return;
             prevClose = ohlc[ohlc.length - 2].c;
             currClose = ohlc[ohlc.length - 1].c;
             const pats = detectPatterns(ohlc);
             if (pats.length > 0) patternStr = pats[0]; // show first pattern
           } else if (BYBIT_KLINE_SYMS[coin]) {
-            const closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], bybitInterval, 25, skipCounts);
+            const closes = await paceBybit(() => fetchBybitKlines(BYBIT_KLINE_SYMS[coin], bybitInterval, 25, skipCounts));
             if (closes.length < 2) return;
             prevClose = closes[closes.length - 2];
             currClose = closes[closes.length - 1];
@@ -1879,7 +1880,7 @@ async function checkEMASignal(
     try {
       // Closed candles only (owner decision 2026-10-22): the newest kline is still forming, and an alert sent on it cannot be taken back if
       // it closes back across EMA50. See closedCandles in lib/ribbonCandles.ts. The chart keeps its live marker.
-      const candles = closedCandles(await fetchRibbonCandles(coin, tf), tf);
+      const candles = closedCandles(await paceBybit(() => fetchRibbonCandles(coin, tf)), tf);
       if (candles.length < 55) return; // same minimum runway the chart's own hook requires
 
       for (const mode of MODES) {
@@ -2117,7 +2118,7 @@ async function checkStructureSignal(
     try {
       // Closed candles only, like the EMA alert (owner, 2026-10-22: "alert only on finished candles"). The message says "price closed
       // above the prior swing high"; on the forming candle that close has not happened yet. See closedCandles in lib/ribbonCandles.ts.
-      const candles = closedCandles(await fetchRibbonCandles(coin, tf), tf);
+      const candles = closedCandles(await paceBybit(() => fetchRibbonCandles(coin, tf)), tf);
       if (candles.length < 30) return;
 
       const signals = detectStructureSignals(
@@ -2443,6 +2444,9 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // check below that talks to Binance directly - see its own declaration for
   // why a shared object rather than each function returning its own count.
   const skipCounts: SkipCounts = {};
+  /* #1651: one pass's pacing queue must not delay the next, and the counters reported below
+     describe THIS pass rather than the lifetime of the process. */
+  resetAlertPacer();
 
   // Fetch shared data once (+ per-user muted alert groups + threshold settings)
   const [frMap, prices, lsMap, mutedByUser, thresholdsByUser] = await Promise.all([
@@ -2630,6 +2634,11 @@ async function runAlerts(token: string): Promise<NextResponse> {
   //
   // Read it as: eligible=0 with fired>0 is correct filtering, nothing is wrong.
   // eligible>0 with sent=0 is a real bug. Before this, both looked identical.
+  /* #1651: the pacing is reported so the before/after is readable from the logs rather than
+     inferred. `maxConcurrent` is the number that matters - spacing alone still lets slow requests
+     pile up, and a stall turning into a burst is the shape that trips a per-IP limiter. */
+  const pacing = alertPacerStats();
+  console.log(`[alert] paced bybit=${pacing.paced} maxConcurrent=${pacing.maxConcurrent} atPerSecond=${pacing.perSecond}`);
   console.log(formatAlertTally({
     fired,
     queued:     signalQueue.length,
