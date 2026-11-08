@@ -98,6 +98,21 @@ export default function UpgradePage() {
      /upgrade?status=succeeded, typed or crafted by anyone, shows nothing. It is still only a line: Pro comes from the webhook, never from this. */
   const [returnHasPaymentId, setReturnHasPaymentId] = useState(false);
   const returnStatus = returnStatusRaw === 'succeeded' && !returnHasPaymentId ? null : returnStatusRaw;
+  /* #1630: Whop's HOSTED checkout sends the buyer to /upgrade with NO params at all, so none of the
+     #1606/#1614 machinery above fires and nobody is told the purchase worked. Signed out they see the
+     bare pricing page; a Pro account gets the silent bounce to /arena below. `?purchase=whop` is the
+     marker PM sets on that redirect so the page at least knows the visitor came from a checkout.
+
+     IT IS DISPLAY-ONLY AND MUST NEVER CLAIM A PAYMENT. Unlike `status=succeeded`, which #1614 pairs
+     with a `pay_...` id precisely so a crafted URL says nothing, this carries NO evidence - anyone can
+     type it. So it never grants anything (Pro comes from the webhook, as before) and its copy is
+     conditional on what we can actually verify: the entitlement. QA's control is the rule here - a
+     visit without paying must produce no false claim - which is why the strings below say "if you've
+     just completed a purchase" rather than "payment received". The one line that does state a fact,
+     "You're on Pro", is gated on `isPro`, which comes from the entitlement read and not from the URL. */
+  const [arrivedFromPurchase, setArrivedFromPurchase] = useState(false);
+  /** A visitor who came back from a checkout, by either route. Suppresses the silent bounce. */
+  const fromCheckout = arrivedFromPurchase || returnStatus !== null;
   const planChoiceStyle = (plan: CheckoutPlan): React.CSSProperties => (selectedPlan === plan ? PLAN_BUTTON_SELECTED : PLAN_BUTTON_OUTLINED);
   /** The plan button that opened the panel, so closing it can return focus there. */
   const panelOpener = useRef<HTMLElement | null>(null);
@@ -117,14 +132,23 @@ export default function UpgradePage() {
     // login is only required at the actual "Get Pro" click, in
     // handleCheckout below - a pricing page that bounces anonymous
     // visitors before they've seen a price is pure conversion friction.
-    if (isPro) { router.replace('/arena'); return; }
+    /* #1630: NOT when the visitor just came back from a checkout. This redirect doubles as the
+       success signal for the embedded flow - the poll below re-reads the plan and the moment it says
+       Pro, this fires - and that is exactly the defect QA found: the buyer is dumped into Arena with
+       nothing having confirmed the purchase worked. A Pro account that arrived from a checkout gets
+       the confirmation below and a button; it chooses when to leave. A Pro account that merely
+       navigated to /upgrade still goes straight on, because for them this page sells nothing. */
+    if (isPro && !fromCheckout) { router.replace('/arena'); return; }
     // `loading` has to be here, not just read. The effect bails out while auth
     // is still resolving, and without loading in the list it never re-runs when
     // that resolves - it only re-runs if isPro itself changes. A Pro user whose
     // role landed before the loading flag cleared would hit the early return
     // once and then never be redirected, sitting on a pricing page for a plan
     // they already pay for.
-  }, [isPro, loading, router]);
+    // fromCheckout (#1630): it resolves from the URL in an effect, so it is false on the very first
+    // run. Without it here the effect would not re-run when it flips true, and a Pro buyer would be
+    // bounced to /arena a tick before the marker was read - the exact bug this guard exists to stop.
+  }, [isPro, loading, router, fromCheckout]);
 
   /* Coming BACK from the payment page. The browser can restore this page from
      its back/forward cache with its state intact, which would leave
@@ -176,16 +200,22 @@ export default function UpgradePage() {
     const s = new URLSearchParams(window.location.search).get('status');
     if (s === 'succeeded' || s === 'failed' || s === 'canceled') setReturnStatus(s);
     setReturnHasPaymentId(/^pay_[A-Za-z0-9]+$/.test(new URLSearchParams(window.location.search).get('payment') ?? ''));
+    setArrivedFromPurchase(new URLSearchParams(window.location.search).get('purchase') === 'whop');
   }, []);
   /* After a payment that went through, the webhook unlocks Pro a moment later. Ask for the plan again every few seconds for about two minutes; the
      existing effect above sends the account to /arena the moment it reads Pro. Nothing is claimed in the meantime. */
+  /* #1630: the hosted-checkout marker polls too. A buyer who arrives via `?purchase=whop` is in the
+     same position as one returning from the embedded flow - the webhook is about to land - so they
+     get the same re-read rather than being told to refresh by hand. `isPro` ends it: once the plan
+     reads Pro the confirmation below switches to "You're on Pro" and there is nothing left to poll. */
   useEffect(() => {
-    if (returnStatus !== 'succeeded' || !user) return;
+    if (!user || isPro) return;
+    if (returnStatus !== 'succeeded' && !arrivedFromPurchase) return;
     let n = 0;
     const id = window.setInterval(() => { if (++n > 20) { window.clearInterval(id); return; } retryEntitlements(); }, 6000);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [returnStatus, user?.id]);
+  }, [returnStatus, arrivedFromPurchase, isPro, user?.id]);
 
   /* Step 2. The link is read for the plan that was picked, never another one. */
   /* #1606: the signed-in account's email goes to Whop filled and locked, so the payment is matched to THIS account. Signed out: no email, the plain link. */
@@ -421,6 +451,36 @@ export default function UpgradePage() {
         {returnStatus && (
           <div role="status" data-testid="upgrade-return-banner" data-status={returnStatus} style={{ maxWidth: 520, margin: '0 auto 28px', padding: '14px 18px', borderRadius: 12, border: `1px solid ${returnStatus === 'succeeded' ? 'var(--accent)' : 'var(--bdr3)'}`, background: returnStatus === 'succeeded' ? 'var(--accent-bg)' : 'var(--bg1)', color: 'var(--txt)', fontSize: 'var(--fs-label)', lineHeight: 1.5, textAlign: 'center' }}>
             {returnStatus === 'succeeded' ? t('UPGRADE_RETURN_PENDING') : returnStatus === 'failed' ? t('UPGRADE_RETURN_FAILED') : t('UPGRADE_RETURN_CANCELED')}
+          </div>
+        )}
+        {/* #1630: the hosted checkout's own confirmation. Three states, and which one shows is decided
+            by the ENTITLEMENT, never by the URL - the marker only says "this visitor came from a
+            checkout", which anyone can fake by typing it.
+
+            So: the only sentence that states a fact ("You're on Pro") is behind `isPro`, read from the
+            entitlement. The other two are conditional - "if you've just completed a purchase" - and
+            are true sentences to read even for someone who typed the URL and paid nothing, which is
+            QA's control for this box.
+
+            It is suppressed while the entitlement is still loading, because the pending line would
+            otherwise flash at a Pro buyer for the moment before their plan resolves - telling them to
+            wait a few minutes for something they already have. `returnStatus` takes precedence: a
+            buyer with a real payment id gets the stronger banner above and does not need this. */}
+        {arrivedFromPurchase && !returnStatus && purchaseReady && (
+          <div
+            role="status"
+            data-testid="upgrade-purchase-banner"
+            data-state={isPro ? 'pro' : user ? 'pending' : 'signed-out'}
+            style={{ maxWidth: 520, margin: '0 auto 28px', padding: '14px 18px', borderRadius: 12, border: `1px solid ${isPro ? 'var(--accent)' : 'var(--bdr3)'}`, background: isPro ? 'var(--accent-bg)' : 'var(--bg1)', color: 'var(--txt)', fontSize: 'var(--fs-label)', lineHeight: 1.5, textAlign: 'center' }}
+          >
+            {isPro ? t('UPGRADE_PURCHASE_PRO') : user ? t('UPGRADE_PURCHASE_PENDING') : t('UPGRADE_PURCHASE_SIGNED_OUT')}
+            {isPro && (
+              <div style={{ marginTop: 12 }}>
+                <Link href="/arena" className="btn-primary" data-testid="upgrade-purchase-cta">
+                  {t('UPGRADE_PURCHASE_PRO_CTA')}
+                </Link>
+              </div>
+            )}
           </div>
         )}
 
