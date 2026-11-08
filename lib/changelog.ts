@@ -124,6 +124,45 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* v2026.11.08b. The `b` suffix is a second release on the same date, which TAG_SHAPE in
+       __tests__/changelogTracksReleases.test.mts already allows (`[a-z]?`). Written before the tag
+       is cut, so whoever tags checks this against `git tag --points-at main`, not against the day
+       they are working.
+
+       EVERY ITEM IS TIED TO A COMMIT IN `main..qa` (27 non-merge commits), found in the range rather
+       than taken from PM's release note. Mapping, in the order below:
+         481eeb6a  the Ask AI button covering the footer legal line
+         0915c4d1  the Telegram tick following the link instead of a test message
+         340d7188  the funding row reading "loading…" before the grace ends
+         9dab63a9 + 4263c010 + e15771c4 + 618afaf3  the Russian landing page
+
+       THE RUSSIAN ITEM COVERS FOUR COMMITS, NOT ONE, and this is the mistake the entry above
+       records making with Best Hours: 9dab63a9 drafted the dictionary held out of SUPPORTED_LOCALES,
+       4263c010 applied PM's nine edits, e15771c4 switched it on, and 618afaf3 added `ru` to
+       LANDING_LOCALES - without which /ru rendered the marketing page with the app nav over it, so
+       the page a reader would visit from this line would have been visibly wrong. One sentence,
+       four commits; naming only the switch-on would have been the easier mistake again.
+
+       PM's note cited #2053, #2056, #2062 and #2061, which are the PULL REQUESTS. The commits cite
+       the underlying issues - #1185, #1113, #1263/#1651 and #1740 - and those are what a reader
+       chasing this release should follow.
+
+       WHAT IS DELIBERATELY ABSENT. The daily health check (a16ffbf6, 17d91baf) and the Deep canary
+       (cb32a63b and its four follow-ups) are the largest part of this range by commit count and
+       NEITHER IS USER-VISIBLE: both are workflows that watch production and open issues for us.
+       Rule 2 keeps this page to what a user can see on a page. Recorded so the next reader does not
+       read their absence as an oversight - and the canary's schedule is still gated off, so even its
+       operational effect has not started. Same for the test commits in the range. */
+    date: '2026-11-08',
+    tag: 'v2026.11.08b',
+    items: [
+      'The Ask AI button no longer covers the end of the legal line at the bottom of the page.',
+      'The onboarding checklist ticks "Connect Telegram alerts" as soon as Telegram is connected, instead of waiting for a test message.',
+      'The Arena\'s funding check says "loading…" while the rate is still arriving, instead of calling it unavailable.',
+      'LiquidityHQ is now available in Russian, at liquidity-hq.com/ru.',
+    ],
+  },
+  {
     /* v2026.11.08. WRITTEN BEFORE THE TAG IS CUT, which the entry above warns about - so the date
        here is the one PM/DevOps is tagging with today, and whoever tags checks it against
        `git tag --points-at main` rather than against the day they are working.
