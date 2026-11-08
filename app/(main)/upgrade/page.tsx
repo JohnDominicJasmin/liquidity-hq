@@ -1,6 +1,6 @@
 'use client';
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getWhopCheckoutUrl, getWhopEmbed, isProBuyable, isWhopCheckoutConfiguredAnnual, isWhopCheckoutConfiguredFortnightly, type CheckoutPlan } from '@/lib/checkout';
@@ -76,7 +76,26 @@ export default function UpgradePage() {
      `useSearchParams` is SSR-safe and gives the right value on the FIRST render, so no effect can lose
      the race. The same race applied to `status`/`payment`, so those move too rather than leaving one
      half fixed. */
-  const searchParams = useSearchParams();
+  /* READ ONCE DURING THE FIRST RENDER, not with useSearchParams and not in an effect.
+   *
+   * `useSearchParams()` was the obvious tool and it BREAKS THE BUILD: it opts a client component out
+   * of static prerendering unless the whole thing sits inside <Suspense>, and `next build` fails with
+   * "useSearchParams() should be wrapped in a suspense boundary at page /upgrade". tsc and `next dev`
+   * both pass - only the production prerender catches it. Wrapping a 722-line page in Suspense would
+   * make its entire prerendered HTML a fallback, and `force-dynamic` would give up this page's static
+   * render and be the first in app/(main) to do so. Neither cost is worth paying for three query
+   * params.
+   *
+   * A lazy useState initializer runs during the FIRST render on the client, which is all the race
+   * needed - the redirect effect can no longer run before the marker is known. On the server it
+   * returns the empty string, so the prerender is unchanged.
+   *
+   * ON HYDRATION, which is the thing to check before copying this: nothing these three values affect
+   * is rendered during hydration. The banner is gated on `purchaseReady`, which requires auth and the
+   * entitlement read to have settled, and neither has on the first client render. The redirect guard
+   * is not rendered output at all. So the server's HTML and the client's first render agree. */
+  const [rawQuery] = useState(() => (typeof window === 'undefined' ? '' : window.location.search));
+  const searchParams = useMemo(() => new URLSearchParams(rawQuery), [rawQuery]);
   const rawStatus = searchParams.get('status');
   const returnStatusRaw: null | 'succeeded' | 'failed' | 'canceled' =
     rawStatus === 'succeeded' || rawStatus === 'failed' || rawStatus === 'canceled' ? rawStatus : null;
