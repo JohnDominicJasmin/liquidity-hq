@@ -476,8 +476,31 @@ export default function UpgradePage() {
             {isPro ? t('UPGRADE_PURCHASE_PRO') : user ? t('UPGRADE_PURCHASE_PENDING') : t('UPGRADE_PURCHASE_SIGNED_OUT')}
             {isPro && (
               <div style={{ marginTop: 12 }}>
-                <Link href="/arena" className="btn-primary" data-testid="upgrade-purchase-cta">
+                <Link href="/arena" className="lp-btn-primary" data-testid="upgrade-purchase-cta">
                   {t('UPGRADE_PURCHASE_PRO_CTA')}
+                </Link>
+              </div>
+            )}
+            {/* PM's review of #2068: the line told them to sign in and gave them nowhere to click.
+                `next` carries the MARKER back, not a bare /upgrade, so after signing in they land on
+                this same banner in whichever state their plan then puts them - Pro, or pending with
+                the poll running - rather than on a pricing page with no mention of their purchase.
+
+                ENCODED, because `next` here carries a query string of its own and `?purchase=whop`
+                unencoded would terminate the outer one - the sign-in would succeed and silently drop
+                them on /upgrade with no marker, which is the bug this button exists to fix. The
+                existing `?next=/upgrade` call sites get away with it only because they have nothing
+                after the path. `safeNextPath` (lib/safeNext.ts) allows query strings deliberately -
+                "only the authority is the dangerous part" - and rejects the //evil.com and
+                backslash forms, so carrying one through is supported rather than a loophole. */}
+            {!isPro && !user && (
+              <div style={{ marginTop: 12 }}>
+                <Link
+                  href={`/login?next=${encodeURIComponent('/upgrade?purchase=whop')}`}
+                  className="lp-btn-primary"
+                  data-testid="upgrade-purchase-signin"
+                >
+                  {t('UPGRADE_PURCHASE_SIGN_IN_CTA')}
                 </Link>
               </div>
             )}

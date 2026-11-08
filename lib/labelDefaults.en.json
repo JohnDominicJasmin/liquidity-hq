@@ -2381,6 +2381,7 @@
   "UPGRADE_PURCHASE_PRO_CTA": "Open the app",
   "UPGRADE_PURCHASE_PENDING": "If you've just completed a purchase, Pro usually activates within a few minutes. Refresh this page, or contact support@liquidity-hq.com if it doesn't.",
   "UPGRADE_PURCHASE_SIGNED_OUT": "If you've just completed a purchase, sign in with the email you paid with to use Pro.",
+  "UPGRADE_PURCHASE_SIGN_IN_CTA": "Sign in",
   "UPGRADE_RETURN_FAILED": "That payment did not go through. Pick a plan to try again.",
   "UPGRADE_RETURN_CANCELED": "Checkout was canceled. Pick a plan to try again.",
   "UPGRADE_WHOP_EMAIL_SENTENCE": "You'll pay as {email}: Pro unlocks automatically, and Whop uses this email for receipts and to manage or cancel your plan.",
