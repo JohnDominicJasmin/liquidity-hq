@@ -35,9 +35,21 @@ const BASE = process.env.E2E_BASE_URL ?? '';
 const MARKER = '?purchase=whop';
 const BANNER = '[data-testid="upgrade-return-banner"]';
 
-/* Wording that asserts a completed payment as FACT. Conditional phrasings are fine - the point is
-   that the page must not tell someone their money arrived when all it saw was a query string. */
-const ASSERTS_PAYMENT = /payment received|thanks for your (payment|purchase)|purchase complete|you (have |'ve )?paid|within a minute/i;
+/* ASSERTED POSITIVELY, AFTER A BLACKLIST GOT THIS WRONG ON THE FIRST RUN.
+ *
+ * My first version matched a list of payment-asserting phrasings, including `you (have |'ve )?paid`.
+ * That fires on UPGRADE_PURCHASE_SIGNED_OUT - "sign in with the email YOU PAID WITH to use Pro" -
+ * which asserts nothing and is the correct copy. It reported right copy as a defect at both widths.
+ * I have made this exact mistake before, on this exact string.
+ *
+ * So the invariant is stated the other way round, and it is sharper: there is exactly ONE definite
+ * claim on this page - "You're on Pro", gated on the verified entitlement rather than the URL
+ * (page.tsx:151) - and it must appear ONLY for a Pro account. Each state asserts its own label is
+ * present and that the Pro claim is absent. A blacklist guesses at wordings; this reads the label
+ * the page is supposed to show. */
+const SAYS_ON_PRO = /you'?re on pro/i;
+const SIGNED_OUT_COPY = /if you'?ve just completed a purchase, sign in with the email/i;
+const PENDING_COPY = /if you'?ve just completed a purchase, pro usually activates/i;
 
 /* React's hydration complaints, across the shapes it uses. The minified error codes are included
    because a production build reports those rather than the prose. */
@@ -68,8 +80,22 @@ const readFlash = (page: import('@playwright/test').Page) =>
 test.describe('#2068 /upgrade post-purchase states, and a82342a1\'s hydration seam', () => {
   test.skip(!BASE, 'E2E_BASE_URL required');
 
-  test('H1. signed out with ?status=succeeded: no React hydration error, and the banner does not flash out', async ({ browser }) => {
+  /* H1 IS EXPECTED TO FAIL, against the second open defect this file found - #1630's comment of
+   * 2026-11-08. a82342a1 keeps the /upgrade prerender static, so the server HTML has no banner and
+   * the first client render does: React reports a TEXT hydration mismatch, `Minified React error
+   * #418` (`args[]=text`). Scoped by two controls - bare `/upgrade` and `/arena` both produce zero -
+   * and it needs no sign-in, so any visitor following a return URL hits it.
+   *
+   * The FLASH half of this cell passes: the banner is added once and never removed. So the defect is
+   * the mismatch itself rather than visible flicker, which is worth separating - a mismatch makes
+   * React discard and re-render that subtree, which is a correctness and a performance cost rather
+   * than something a user necessarily sees.
+   *
+   * test.fail() for the same reason as S3: a standing red trains people to skim, and this goes RED
+   * the moment it is fixed, which is the prompt to delete the annotation. */
+  test('H1. signed out with a return status: no React hydration error, and the banner does not flash out', async ({ browser }) => {
     test.setTimeout(150_000);
+    test.fail(true, 'open defect: URL-driven render on a static prerender gives React #418 - see #1630 (2026-11-08)');
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const page = await ctx.newPage();
     try {
@@ -79,7 +105,12 @@ test.describe('#2068 /upgrade post-purchase states, and a82342a1\'s hydration se
       page.on('pageerror', (e) => errors.push(String(e.message)));
       await armFlashRecorder(page);
 
-      await page.goto(`${BASE}/upgrade?status=succeeded`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+      /* `canceled` RATHER THAN `succeeded`, and that is not arbitrary. `returnStatus` nulls a
+         `succeeded` that has no `payment=pay_...` id (page.tsx:138) - good design, and it means
+         `?status=succeeded` alone renders NO banner, which is why my first version of this cell
+         failed with "the banner never rendered". `canceled` needs no payment id, so it exercises the
+         same URL-driven render without me fabricating a payment reference. */
+      await page.goto(`${BASE}/upgrade?status=canceled`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
       await expect(page.locator(BANNER), 'the return banner never rendered, so this cell cannot see the seam').toBeVisible({ timeout: 60_000 });
       await page.waitForTimeout(3000);
 
@@ -109,7 +140,8 @@ test.describe('#2068 /upgrade post-purchase states, and a82342a1\'s hydration se
         const text = (await main.innerText()).replace(/\s+/g, ' ').trim();
 
         expect(text.length, 'nothing rendered').toBeGreaterThan(200);
-        expect(ASSERTS_PAYMENT.test(text), `the page asserts a completed payment with nothing behind it but a query string (signed out, ${width}). Text: ${text.slice(0, 300)}`).toBe(false);
+        expect(SIGNED_OUT_COPY.test(text), `the signed-out purchase copy is missing, so the cell below cannot mean anything (${width}). Text: ${text.slice(0, 300)}`).toBe(true);
+        expect(SAYS_ON_PRO.test(text), `the page claims "You're on Pro" to a SIGNED-OUT visitor on the strength of a query string (${width})`).toBe(false);
         /* Sideways scroll measured against the REQUESTED width, not innerWidth - a resize that did
            not take would otherwise compare a number against itself. */
         const sw = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -138,19 +170,39 @@ test.describe('#2068 /upgrade post-purchase states, and a82342a1\'s hydration se
     } finally { await ctx.close(); }
   });
 
-  test('S3. a Pro account WITH the marker stays on /upgrade and is not left on "Redirecting"', async ({ browser }) => {
+  /* EXPECTED TO FAIL, AGAINST AN OPEN DEFECT THIS CELL FOUND - see #1630's comment of 2026-11-08.
+   *
+   * `page.tsx:449` returns a full-page "Redirecting…" gated on `isPro` ALONE, never checking
+   * `fromCheckout`, while the redirect effect at `:179` deliberately does NOT fire when the marker is
+   * present. So the page shows a placeholder for a redirect that never happens. Measured on qa
+   * `76064af` over 24 seconds: path stays /upgrade, "Redirecting…" persists, "You're on Pro" never
+   * appears. The no-marker control (S2) redirects correctly, so this is stuck rather than slow.
+   *
+   * `test.fail()` rather than a plain failing cell, deliberately. A standing red teaches everyone to
+   * skim the failure list - I spent today removing three of those from terminal-default. This states
+   * the defect as the current expectation and goes RED THE MOMENT IT IS FIXED, which is the prompt to
+   * delete this annotation. It is not a way of ignoring it: #1630 carries the finding. */
+  test('S3. a Pro account WITH the marker sees the confirmation, not a redirect placeholder', async ({ browser }) => {
     test.setTimeout(180_000);
     test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+    test.fail(true, 'open defect: /upgrade:449 gates the full-page "Redirecting…" on isPro alone - see #1630 (2026-11-08)');
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
       await installPaidAiFence(page);
       await page.goto(`${BASE}/upgrade${MARKER}`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
-      await page.waitForTimeout(6000);
-      expect(await page.evaluate(() => location.pathname), 'a Pro account was bounced off /upgrade despite the marker, so the confirmation is unreadable - this is #1630').toBe('/upgrade');
+      await page.waitForTimeout(8000);
+
+      /* This half already PASSES and is the part #2073 fixed - keep it, because if the redirect ever
+         comes back the message below would blame the wrong thing. */
+      expect(await page.evaluate(() => location.pathname), 'a Pro account was bounced off /upgrade despite the marker - #2073 regressed').toBe('/upgrade');
+
       const text = (await page.locator('main').first().innerText()).replace(/\s+/g, ' ').trim();
-      expect(/redirecting/i.test(text), `the page is stuck on a redirect message. Text: ${text.slice(0, 300)}`).toBe(false);
-      expect(text.length, 'nothing rendered for a Pro account').toBeGreaterThan(200);
+      expect(/redirecting/i.test(text), `stuck on a redirect placeholder for a redirect that never fires (page.tsx:449). Text: ${text.slice(0, 200)}`).toBe(false);
+      /* The one definite claim the page is allowed to make, and the buyer's whole reason for being
+         here. Unreachable today. */
+      expect(SAYS_ON_PRO.test(text), `the Pro confirmation is not shown to a Pro account returning from checkout. Text: ${text.slice(0, 200)}`).toBe(true);
+
       assertNoUnstubbedPaidAi(page, 'upgrade-purchase-marker');
     } finally { await ctx.close(); }
   });
@@ -169,7 +221,8 @@ test.describe('#2068 /upgrade post-purchase states, and a82342a1\'s hydration se
       await page.waitForTimeout(6000);
       const text = (await page.locator('main').first().innerText()).replace(/\s+/g, ' ').trim();
       expect(text.length, 'nothing rendered').toBeGreaterThan(200);
-      expect(ASSERTS_PAYMENT.test(text), `the page tells a signed-in NON-PAYING account that a payment was received. Text: ${text.slice(0, 300)}`).toBe(false);
+      expect(PENDING_COPY.test(text), `the pending purchase copy is missing, so the Pro-claim check below cannot mean anything. Text: ${text.slice(0, 300)}`).toBe(true);
+      expect(SAYS_ON_PRO.test(text), 'the page claims "You\'re on Pro" to a signed-in account that is NOT Pro - the marker is URL-keyed, so anyone can reach this').toBe(false);
       assertNoUnstubbedPaidAi(page, 'upgrade-purchase-marker');
     } finally { await ctx.close(); }
   });
