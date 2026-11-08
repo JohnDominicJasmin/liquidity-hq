@@ -565,7 +565,22 @@ function ArenaContent() {
       const token = await getAuthToken();
       if (!token || cancelled) return;
       const res = await fetch('/api/price-alerts', { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok || cancelled) return;
+      /* #1347 item 11 / #1263: these were one condition, and they mean opposite things.
+         `cancelled` is the effect being torn down - the coin changed or the page unmounted - and
+         returning in silence is exactly right, because writing state afterwards would put another
+         coin's lines on this chart.
+         `!res.ok` is the request FAILING. Keeping the last known lines is deliberate and stays
+         (the comment above says why: no flicker on a token refresh, and a different coin's lines
+         were already cleared before the fetch). What was wrong is that it left NO TRACE - a chart
+         showing alert lines that silently stopped refreshing looks identical to one that is up to
+         date, and a user acts on the stale line. So the failure is now recorded; the behaviour the
+         user sees is unchanged.
+         Checked in this order because `cancelled` is not a failure and must not be logged as one. */
+      if (cancelled) return;
+      if (!res.ok) {
+        console.error(`[arena] chart alerts refresh failed: HTTP ${res.status} for ${selectedCoin} - showing the last known lines, which may now be stale`);
+        return;
+      }
       const { alerts } = await res.json() as { alerts: Array<{ id: string; coin: string; target_price: number; direction: 'above' | 'below'; label?: string }> };
       if (!cancelled) { chartAlertsCoinRef.current = selectedCoin; setChartAlerts(alerts.filter(a => a.coin === selectedCoin)); }
     }
