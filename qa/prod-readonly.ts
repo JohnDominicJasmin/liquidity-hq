@@ -100,6 +100,11 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'arena-structure', needs: 'none' },
   { spec: 'cache-effective', needs: 'none', note: 'repeats data-route calls: spends upstream quota' },
   { spec: 'cache-policy', needs: 'none', note: 'repeats data-route calls: spends upstream quota' },
+  /* Signed out, and the only click is a coin-category chip, whose `coinCat` is client-only state -
+     nothing in arena/page.tsx persists it, so there is no write even in principle. Same shape as
+     arena-panel-overlap above. Being signed out also keeps it off the paid mount effects: both
+     GlobalMacroContext and DryPowder return early on `!user`. */
+  { spec: 'category-chips-aria-pressed', needs: 'none' },
   { spec: 'chart-backfill', needs: 'none' },
   { spec: 'checkout-config-agrees', needs: 'none', note: 'asserts /api/version flags: production differs from dev, expect a triage pass' },
   { spec: 'clock', needs: 'none' },
