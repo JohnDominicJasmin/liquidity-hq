@@ -182,7 +182,49 @@ export const MIN_EXTRA_TOUCHES = 5;
 
 /** Default touch band. A percentage rather than an absolute, matching the 0.3% clustering
  *  `computeSRLevels` already uses, so a trendline and the chart's own S/R agree about what "near"
- *  means. A volatility-aware caller passes `{ abs: 0.5 * atr }` instead. */
+ *  means. A volatility-aware caller passes `{ abs: 0.5 * atr }` instead.
+ *
+ *  ── THIS DEFAULT IS NOT ASSET-NEUTRAL, AND THE OBVIOUS FIX IS MEASURABLY WORSE ──────────────
+ *
+ *  QA found the asymmetry; measured here on 499 closed Bybit bars per symbol, 2026-11-07. What a
+ *  0.3% band MEANS varies by two orders of magnitude depending on the unit you ask in:
+ *
+ *      band in TICKS      ADA 6      DOGE 22    SOL 27     ETH 673    BTC 2,276      380x spread
+ *      band in ATR, 15m   XRP 0.60   ADA 0.82   ETH 1.72   BTC 2.75                  4.6x spread
+ *      band in ATR, 4h    ADA 0.10   XRP 0.13   ETH 0.16   BTC 0.24                  2.3x spread
+ *
+ *  So on a coarse-tick coin the band spans six distinct price levels and many bars share a high,
+ *  which piles up touches; on BTC it spans 2,276 levels and is a far finer test. ATR normalises
+ *  that from 380x to about 4x.
+ *
+ *  THE SYSTEMATIC PART IS THE TIMEFRAME, NOT THE COIN. The band averages ~1.7 ATR on 15m and
+ *  ~0.15 ATR on 4h - a tenfold difference in what "near the line" means. That is why the slow
+ *  rungs find nothing: the band becomes a vanishing fraction of a bar's own range, so pivots stop
+ *  registering as touches and the excess gate starves. **Demonstrated by intervention rather than
+ *  inferred**: switching to an ATR-scaled band takes 1d from 0 of 8 to 3 of 8 and 1w from 0 to 1,
+ *  which no R-squared-only explanation predicts.
+ *
+ *  AND IT IS STILL NOT WORTH DOING, which is the part that stops the next person repeating the
+ *  experiment. The same switch takes the false-positive rate on 300 seeded random walks from 5.0%
+ *  to 24.0%. A joint sweep over tolerance x R-squared x excess found NO cell that produces any
+ *  slow-timeframe structure without at least doubling the noise while keeping both positive
+ *  controls:
+ *
+ *      tolerance        R2      excess   noise    1d+1w of 16   controls
+ *      pct 0.3%         0.990      5      5.0%         0        both pass   <- current
+ *      0.50 x ATR       0.999      5     10.3%         1        both pass
+ *      0.50 x ATR       0.995      5     18.3%         3        both pass
+ *      0.50 x ATR       0.990      5     24.0%         4        both pass
+ *      0.25 x ATR       0.990     10      5.0%         1        CHANNEL FAILS
+ *
+ *  Raising the excess count to pay for a wider band breaks channel detection at every tolerance,
+ *  so the two cannot be traded off against each other. One extra daily structure costs roughly
+ *  double the false-positive rate, and a false WEEKLY structure is a larger claim than a false
+ *  15-minute one, not a smaller one.
+ *
+ *  SO THE DAILY CHART DRAWING NOTHING IS A TRADEOFF, NOT AN OVERSIGHT, and the decision is the
+ *  owner's rather than a tuning job: accept silence on 1d/1w, or accept a detector that fires on
+ *  a fifth of random walks. Recorded here with the numbers so the choice can be made once. */
 export const DEFAULT_TOLERANCE: TouchTolerance = { pct: 0.003 };
 
 /** A range's rails have to be flat. Measured as price-per-candle slope relative to the rail's own
