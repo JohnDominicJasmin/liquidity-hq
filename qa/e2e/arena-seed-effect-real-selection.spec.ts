@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1263 (tracker) / #1308 (fix, merged 2026-09-16, dev@61fd0429): Arena's
  * one-shot coin/TF/strategy seed effect used to latch on its FIRST run,
@@ -71,6 +72,7 @@ test.describe('Arena seed effect restores a REAL saved strategy selection after 
   test('a real, non-empty saved selection comes back pressed once settings load - not just "not loading"', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       // Reset via a plain page (no /arena mount yet) - #1308's
       // `hadCoinParamAtMount` is a one-time snapshot taken at THIS mount,
@@ -124,6 +126,7 @@ test.describe('Arena seed effect restores a REAL saved strategy selection after 
   test('a real, non-empty saved TWO-item selection both come back pressed once settings load - the exact shape #1263 was originally reported in', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/about');
       await resetStrategySelection(page, ['EMA_RIBBON', 'SMA']);

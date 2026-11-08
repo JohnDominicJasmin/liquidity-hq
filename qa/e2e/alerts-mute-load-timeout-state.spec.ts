@@ -1,6 +1,7 @@
 import { test, expect, type Browser } from '@playwright/test';
 import { SUPABASE_URL, AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 import { servedLabels } from './_shared';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1167 (tracker #1173), the RENDERED half - and the behavioural proof of it.
  * __tests__/alertsMuteLoadTimeout.test.mts proves getAuthToken() returns nothing on
@@ -51,6 +52,7 @@ async function openAlertsClientSide(browser: Browser, hideToken: boolean) {
     };
   }, AUTH_KEY());
   const page = await ctx.newPage();
+  await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
   const prefRequests: string[] = [];
   page.on('request', r => { if (r.url().includes('/api/alert-prefs')) prefRequests.push(`${r.method()} ${r.url()}`); });
 

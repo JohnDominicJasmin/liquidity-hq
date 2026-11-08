@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* PM/DevOps's own audit target on the #1347 fix, automated: a failed
  * BACKGROUND settings refresh must not demote an already-'ready' status
@@ -58,6 +59,7 @@ test.describe('A failed background settings refresh must not demote an already-r
   test('Arena reaches ready with a real selection, a failed background refresh (via the Alerts Telegram-link poll) does not knock it into the error state', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/about');
       await resetStrategySelection(page, ['SMA']);
