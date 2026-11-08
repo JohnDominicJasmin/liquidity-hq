@@ -22,7 +22,7 @@
  * array. Deleting the dictionary would have thrown away the only part that was
  * finished. See issue #138.
  */
-export const SUPPORTED_LOCALES = ['ko', 'zh'] as const;
+export const SUPPORTED_LOCALES = ['ko', 'zh', 'ru'] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number] | 'en';
 
 export function isSupportedLocale(v: string): v is (typeof SUPPORTED_LOCALES)[number] {
@@ -430,11 +430,124 @@ export const ar: LandingDict = {
   },
 };
 
-/* `ar` is deliberately absent, and the type is what enforces that: this is
-   keyed by `Locale`, so re-adding the translation here without also adding
-   'ar' back to SUPPORTED_LOCALES is a compile error rather than a half-restored
-   language. The dictionary itself is exported above and untouched - see #138. */
-export const dictionaries: Record<Locale, LandingDict> = { en, ko, zh };
+/* RUSSIAN, TRANSLATED FROM THE ENGLISH ABOVE AND NOT YET SWITCHED ON (#1740).
+ *
+ * Held out of `SUPPORTED_LOCALES` and out of the `dictionaries` map below, exactly the way `ar` is, so
+ * `/ru` still 404s until someone deliberately turns it on. The type is what enforces that: the map is
+ * keyed by `Locale`, so adding `ru` here without also adding it to `SUPPORTED_LOCALES` is a compile
+ * error rather than a half-released language.
+ *
+ * WHY IT IS DRAFTED AT ALL. Russian already works throughout the APP - 2,416 `lhq_labels` rows live
+ * since 2026-08-03 - and only the landing page is missing, because the landing is a separate
+ * build-time-static system that does not read the label table. So this is the one piece standing
+ * between a working Russian product and a Russian entry point.
+ *
+ * TRANSLATED WORD FOR WORD IN MEANING, WITH NO NEW CLAIMS. Every number, product name and limit is
+ * the English one: 50 markets, 7 coins, 12+ sources, ~1 min lag, 4h cooldown, $49/mo. The
+ * `{quick}` `{deep}` `{chat}` `{search}` `{tools}` placeholders are untouched - they interpolate from
+ * `lib/limits.ts` at render, so a hand-typed number here would be the per-locale drift #1152 removed.
+ *
+ * NOT REVIEWED BY A RUSSIAN SPEAKER. PM/DevOps holds translation sign-off (owner delegated, 2026-11-05)
+ * and reviews all 107 strings before this is switched on. Until then it ships as dead code that
+ * nothing imports, which is the safe state: wrong copy nobody can reach costs nothing, wrong copy on a
+ * live page is worse than no page.
+ *
+ * Latin left as-is where Russian traders use it that way and the Korean dictionary does the same:
+ * LiquidityHQ, AI, Telegram, Binance, Bybit, BTC, DXY, S&P 500, ETF, GEX, CVD, RSI, EMA, FR, L/S. */
+export const ru: LandingDict = {
+  nav: { signIn: 'Войти', getStarted: 'Начать бесплатно' },
+  hero: {
+    badge: '50 рынков · Сигналы + оповещения',
+    h1Line1: 'Читайте карту.',
+    h1Line2: 'Смотрите, где сосредоточена ликвидность.',
+    sub: 'Профессиональная крипто-аналитика для частных трейдеров. Оценки сквиза, оповещения о китах, AI-анализ и макрособытия - всё в одной панели.',
+    ctaPrimary: 'Начать бесплатно →',
+    ctaGhost: 'Посмотреть брифинг',
+    stats: { coins: 'Отслеживаемых рынков', ai: 'AI-анализ', telegram: 'Оповещения в Telegram' },
+  },
+  features: {
+    label: 'Что вы получаете',
+    h2: 'Всё, что нужно серьёзному трейдеру',
+    sub: 'Сигналы, оповещения и анализ в реальном времени - каждый инструмент отвечает на один конкретный вопрос.',
+    openLabel: 'Открыть',
+    cards: [
+      { title: 'AI Арена', desc: 'Движок схождения сигналов с живым графиком и AI-анализом. Ставка финансирования, CVD, тренд открытого интереса, оценка сквиза, поток китов, GEX - всё в одном окне.', pills: ['AI', 'Мультисигнал', '50 рынков'] },
+      { title: 'Оповещения в Telegram', desc: 'Автоматические оповещения о сетапах сквиза, сделках китов, экстремумах RSI, пересечениях EMA, резких движениях цены, всплесках открытого интереса и срочных новостях.', pills: ['Оповещения о сквизе', 'Сделки китов', 'Срочные новости'] },
+      { title: 'Утренний брифинг', desc: 'Ежедневный макроснимок: доминирование BTC, DXY, корреляция с S&P, потоки ETF, экономический календарь и горячие сетапы. Знайте фон до открытия сессии.', pills: ['Макрособытия', 'Потоки ETF', 'Горячие сетапы'] },
+      { title: 'Лента новостей', desc: 'BBC, Al Jazeera, Fox News, Politico, CoinDesk, CoinTelegraph и другие - всё классифицировано и оценено. Срочные геополитические новости, которые двигают крипторынок.', pills: ['12+ источников', 'Автоклассификация', 'Задержка ~1 мин'] },
+      { title: 'Трекер китов', desc: 'Живая лента крупных сделок на Binance и Bybit (7 монет) плюс оповещения в Telegram по таймеру. Пороги фиксированные, пользователь их не настраивает.', pills: ['Binance + Bybit', '7 монет онлайн', 'Оповещения в Telegram'] },
+      { title: 'Сканер сквиза', desc: 'Оценка сквиза по 3 сигналам одновременно на всех 50 рынках. Ставка финансирования + соотношение L/S + давление тейкеров - когда все три сходятся, отмечается сетап сквиза с высокой уверенностью.', pills: ['Оценка 0–100', 'Все монеты', 'Пауза 4ч'] },
+    ],
+  },
+  howItWorks: {
+    label: 'Как это работает',
+    h2: 'От сырых данных к ясной картине',
+    steps: [
+      { title: 'Подключите Telegram', desc: 'Привяжите Telegram в настройках. Оповещения срабатывают автоматически - сетапы сквиза, сделки китов, экстремумы фандинга, срочные новости.' },
+      { title: 'Выберите монеты', desc: 'Выберите из 50 рынков: мейджоры, альты, мемкоины, золото и S&P 500. Сканер сквиза следит за всеми ними в реальном времени, 24/7.' },
+      { title: 'Запустите AI-анализ', desc: 'Откройте AI Арену, выберите монету, нажмите Quick или Deep. AI читает десятки живых сигналов и даёт понятную картину того, куда склоняется рынок.' },
+    ],
+  },
+  pricing: {
+    label: 'Тарифы',
+    h2: 'Начните бесплатно. Перейдите на Pro, когда будете готовы.',
+    free: {
+      name: 'Бесплатный', sub: 'Всегда бесплатно, без банковской карты',
+      features: {
+        dashboard: 'Панель + обзор рынка',
+        briefing: 'Утренний брифинг',
+        news: 'Лента новостей',
+        scanner: 'Сканер сквиза по каждой отслеживаемой монете',
+        charts: 'Графики + сигналы на таймфреймах от 30 минут и выше',
+        aiAnalyses: '{quick} Quick + {deep} Deep AI-анализов в день',
+        aiChat: '{chat} сообщений AI-чата в день',
+        telegram: 'Оповещения в Telegram',
+        priceAlerts: 'Оповещения о цене',
+      },
+      cta: 'Начать бесплатно',
+    },
+    pro: {
+      badge: 'Рекомендуем', name: 'Pro', sub: 'Все функции открыты, щедрые дневные лимиты',
+      features: {
+        everythingFree: 'Всё, что входит в бесплатный тариф',
+        fastTimeframes: 'Сигналы на графиках 1, 5 и 15 минут',
+        confluence: 'Оценка схождения, Order Flow и детектор абсорбции',
+        onchainMacro: 'AI-анализ ончейн-данных и глобального макро',
+        telegram: 'Оповещения в Telegram - все типы сигналов',
+        unlimitedAlerts: 'Неограниченные оповещения о цене',
+        aiAnalyses: '{quick} Quick + {deep} Deep AI-анализов в день',
+        aiChatSearch: '{chat} сообщений AI-чата + {search} веб-поисков в день',
+        toolPool: '{tools} запусков AI-инструментов в день, общий лимит на все инструменты анализа',
+      },
+      cta: 'Получить Pro - $49/мес',
+    },
+  },
+  finalCta: { h2: 'Готовы читать карту?', sub: 'Бесплатно, без банковской карты.', cta: 'Создать бесплатный аккаунт →' },
+  footer: {
+    brandDesc: 'Живая крипто-аналитика для частных трейдеров - оценки сквиза, оповещения о китах, AI-анализ и макрособытия в одной панели.',
+    columns: { product: 'Продукт', analysis: 'Анализ', tools: 'Инструменты', account: 'Аккаунт' },
+    links: {
+      dashboard: 'Панель', arena: 'AI Арена', briefing: 'Брифинг', news: 'Новости',
+      scanner: 'Сканер сетапов', liq: 'Карта ликвидаций', funding: 'История фандинга', correlation: 'Корреляция',
+      journal: 'Дневник сделок', calc: 'Расчёт позиции', alerts: 'Оповещения', hours: 'Лучшие часы',
+      signIn: 'Войти', createAccount: 'Создать аккаунт', pricing: 'Тарифы', about: 'О нас', disclaimer: 'Отказ от ответственности',
+    },
+    copyright: '© 2026 LiquidityHQ · Только образовательный контент, не финансовая рекомендация ·',
+    fullDisclaimer: 'Полный отказ от ответственности',
+  },
+};
+
+/* `ar` AND `ru` are deliberately absent, and the type is what enforces that: this
+   is keyed by `Locale`, so adding either translation here without also adding it
+   to SUPPORTED_LOCALES is a compile error rather than a half-released language.
+   Both dictionaries are exported above and untouched.
+     ar - withdrawn by owner decision #138: RTL is unimplemented, so Arabic text
+          rendered in a left-to-right layout. Not a translation gap.
+     ru - SWITCHED ON 2026-11-08 after PM/DevOps reviewed all 107 strings and
+          returned nine edits (#1740). It is listed above and in the map below,
+          so /ru now renders. Four places had to move together - see the
+          hreflang comment in app/(main)/page.tsx. */
+export const dictionaries: Record<Locale, LandingDict> = { en, ko, zh, ru };
 
 export function getDictionary(locale: string): LandingDict {
   return isSupportedLocale(locale) ? dictionaries[locale] : dictionaries.en;

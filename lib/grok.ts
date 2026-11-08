@@ -115,6 +115,11 @@ export const GROK_EMPTY_ANSWER_MESSAGE = 'The AI read came back empty. Try again
 /** #1651 item 3: shown when the answer named no verdict we can read, even after one retry. Never replaced by a default FLAT ("Wait"). */
 export const GROK_UNREADABLE_ANSWER_MESSAGE = 'The AI answer did not give a clear verdict, so it is not shown. Try again in a moment.';
 
+/* Re-exported from lib/verdictChecks.ts, which must stay import-free: the Deep canary runs with no
+ * `npm ci`, and importing a VALUE from this file drags in lib/supabase.ts and @supabase/supabase-js.
+ * That broke the canary's selfcheck job in CI while passing locally. Importers here are unaffected. */
+export { VERDICT_RESTATED_CHECK } from './verdictChecks.ts';
+
 /** The SIGNAL and CONFIDENCE lines, shared by parseVerdict and parseCombinedResponse so the two can never read an answer differently.
  *  `\*{0,2}` after the colon: "**SIGNAL:** BEARISH" (bold label, value outside it) left "**" between the colon and the value after the
  *  line-edge strip, missed the match and was read as FLAT at 0% (#1651 item 3, found by its probe). */

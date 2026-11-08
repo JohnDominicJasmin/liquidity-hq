@@ -236,9 +236,36 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
 
   push:
-    # `qa` is deliberately ABSENT. CONTRIBUTING section 6 makes every promotion
-    # fast-forward only, so the commit landing on it is bit-identical to one
-    # already tested on dev.
+    # `qa` IS IN THIS LIST AS OF 2026-11-08, and the paragraph below used to say
+    # it was "deliberately ABSENT". That argument was correct about the commits
+    # and wrong about the tree, so it is corrected rather than deleted.
+    #
+    # It said: every promotion is fast-forward only, so the commit landing on
+    # `qa` is bit-identical to one already tested on `dev`. True - and it stopped
+    # being sufficient on 2026-10-30, when `dev` left this list on the owner's
+    # order (36 of 129 runs in two days were per-merge rechecks). From that day
+    # the commit on `qa` was bit-identical to one that NOTHING had built: each
+    # PR was gated as it merged, but the merged result was not.
+    #
+    # docs/WORK-QUEUE.md:331 covered the gap with a manual step - "you create the
+    # run instead of looking for one", `gh workflow run ci.yml --ref dev` before
+    # each promotion. THAT CONTROL FAILED ON ITS FIRST BUSY NIGHT. On 2026-11-07
+    # dev promoted to `qa` four times and dispatched it zero times; the newest
+    # integrated build was 557e8bd0 while `qa` had moved to cfbd5401, two
+    # promotions later, unbuilt until someone audited the box that describes
+    # this and dispatched 42439808517 by hand. The dispatch passed - so nothing
+    # was broken, which is exactly why nobody would have noticed.
+    #
+    # `qa` RATHER THAN BACK TO `dev`, and the difference is the whole point.
+    # `qa` is fast-forward only, so a push to it is exactly ONE event per
+    # promotion - the same minutes the manual guardrail costs, with no memory
+    # dependency. Restoring `dev` would bring back the per-merge recheck the
+    # owner removed. This buys the integration gate without re-buying the waste.
+    #
+    # E2E IS UNAFFECTED AND STAYS GATED. The e2e job's `if:` is
+    # `github.base_ref == 'main' || (workflow_dispatch && inputs.e2e)`, and
+    # `base_ref` is empty on a `push` event - so a promotion to `qa` runs
+    # lint/typecheck/test/build and cannot start the 38-minute browser suite.
     #
     # `staging` WAS absent for the same reason, and was added 2026-08-10 because
     # the reason turned out not to cover the browser suite. See the e2e job's
@@ -257,7 +284,7 @@ on:
     # Guardrail 3 stops being a good habit and becomes the only thing standing
     # between a broken merge and `qa`. That is the owner's choice, made with the
     # cost in front of him.
-    branches: [staging, main]
+    branches: [qa, staging, main]
     # Docs-only pushes do not need a build. Every path here is either not
     # compiled or not shipped, so a run over them proves nothing that the
     # PR-side run had not already proved.
@@ -484,6 +511,46 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # THE UNIT TESTS READ GIT TAGS, so a tagless checkout makes them lie.
+          #
+          # __tests__/changelogTracksReleases.test.mts C1/C2 compare the newest changelog entry
+          # against the newest RELEASE TAG. The default checkout is fetch-depth 1 with no tags, so
+          # on every PR into dev they failed with "only 0 release tags found" - the instrument
+          # missing its input, not the changelog being wrong. It is what made #2042's build red.
+          #
+          # NOT SKIPPED WHEN THERE ARE NO TAGS, deliberately. A skip exits 0, so the check would
+          # read green while comparing nothing - which is the exact failure this check exists to
+          # prevent, reintroduced one level up. The fix belongs in the instrument's input.
+          #
+          # fetch-depth 0 AND NOT fetch-tags, and the difference is the whole bug this replaces.
+          # `fetch-tags: true` was tried first and is SILENTLY IGNORED at depth 1. Measured on run
+          # 42411476802, same workflow, same push, the two checkouts issue:
+          #
+          #   classify  (fetch-depth: 0, fetch-tags: FALSE)
+          #     git fetch --prune --no-recurse-submodules origin
+          #         +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/* +<sha>:<pr>/merge
+          #     -> 47 `[new tag]` lines
+          #   build     (fetch-tags: TRUE, fetch-depth: 1)
+          #     git fetch --prune --no-recurse-submodules --depth=1 origin +<sha>:<pr>/merge
+          #     -> no refs/tags refspec at all, 0 `[new tag]` lines, C1 still "only 0 release tags"
+          #
+          # Note which way round that is. The job that got the tags had fetch-tags FALSE. The tags
+          # refspec comes from doing a full ref fetch, so fetch-tags is neither necessary nor
+          # sufficient here - DEPTH is the only variable - and at depth 1 the action has one ref to
+          # fetch and nothing to attach tags to, so the input is dropped without an error.
+          #
+          # WHY THE FIRST ATTEMPT PASSED REVIEW, since the cost of this is a second CI round-trip:
+          # the local reproduction was real but modelled the action as `git fetch --tags --depth 1`,
+          # which DOES add the tags refspec. Checkout's own command does not. A simulation of a tool
+          # is worth what the command it reproduces is worth, and the real command was sitting in
+          # the run log the whole time. Read the fetch line the action logs, not the docs - the docs
+          # present fetch-tags as sufficient and at this depth it is not.
+          #
+          # The cost is a full fetch on this job instead of a shallow one. Paid deliberately: it is
+          # the only thing measured to carry tags, and C1/C2 are the check that catches a release
+          # tagged with no changelog entry.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:

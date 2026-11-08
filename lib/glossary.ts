@@ -5,6 +5,9 @@
 // (/learn/[slug]) is a data change, not a rewrite.
 
 import { SHOW_PERFORMANCE_STATS } from './flags.ts';
+// Type-only, so this module stays runtime-dependency-free: it keeps `t()`'s guarantee that a
+// label key which does not exist is a build error rather than a raw key on screen.
+import type { LabelKey } from './labelKeys.ts';
 
 export interface GlossaryEntry {
   slug: string;
@@ -215,5 +218,28 @@ const STATS_ENTRY_SLUGS = new Set(['alert-outcome-tracking']);
 export const GLOSSARY: GlossaryCategory[] = SHOW_PERFORMANCE_STATS
   ? ALL_GLOSSARY
   : ALL_GLOSSARY.map(c => ({ ...c, entries: c.entries.filter(e => !STATS_ENTRY_SLUGS.has(e.slug)) }));
+
+/** One tool page per glossary category (#1740, the internal-linking half).
+ *
+ *  WHY PER CATEGORY RATHER THAN PER TERM. Five links instead of roughly twenty, which is most of the
+ *  internal-linking value at a fifth of the visual noise - and category-to-tool is a defensible mapping
+ *  where term-to-tool would be a judgement call 29 times over. PM's decision, 2026-11-08.
+ *
+ *  EVERY TARGET IS INDEXABLE AND THAT WAS CHECKED, NOT ASSUMED. Linking a public page to a `noindex`
+ *  one passes no ranking value, so this would have been decoration. Measured on production: all five
+ *  return 200 with no robots tag. And checked against `lib/seo.ts` rather than the tracker, because
+ *  #1789's `noindex` work is merged on `dev` and not yet released - the nine pages it covers are
+ *  alerts, arena, backtest, briefing, dashboard, journal, live-tracking, research and settings, and
+ *  none of these five is among them.
+ *
+ *  `labelKey` is an EXISTING nav label, so the tool's name arrives already translated into ko, zh and
+ *  ru. Only the sentence around it is new copy. */
+export const CATEGORY_TOOL: Record<string, { path: string; labelKey: LabelKey }> = {
+  momentum:     { path: '/scanner',       labelKey: 'NAV_SETUP_SCANNER' },
+  'order-flow': { path: '/liq',           labelKey: 'NAV_LIQUIDATION_MAP' },
+  sentiment:    { path: '/econ-calendar', labelKey: 'NAV_ECON_CALENDAR' },
+  risk:         { path: '/calc',          labelKey: 'NAV_CALCULATORS' },
+  lhq:          { path: '/playbook',      labelKey: 'NAV_PLAYBOOK' },
+};
 
 export const GLOSSARY_FLAT: GlossaryEntry[] = GLOSSARY.flatMap(c => c.entries);
