@@ -4,6 +4,7 @@ import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
 import { OKX_SYMS } from './coins.ts';
 import { okxBarForBinanceInterval } from './okx.ts';
 import { bybitSymbolPriceFactor } from './coins.ts';
+import { fundingDetail } from './fundingDetail.ts';
 import {
   emaArr, smaArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
   choppinessIndexArr, chopRegimeFor, ChopRegime,
@@ -299,6 +300,17 @@ export function useEMAStrategy(
   // required turns a future accidental omission into a compile error
   // instead of a silent wrong default.
   selection: readonly string[],
+  /* #1613's grace period, owned by the caller rather than re-timed here (#1651).
+     A funding rate that has not arrived yet must read as LOADING, never as a
+     final word - and #1613 gave that rule to eight files while missing this
+     one, which is how the Funding Rate row came to print "Funding unavailable"
+     for a value that was merely still in flight. The flag is passed in rather
+     than computed from a second 15s timer inside this hook, because two timers
+     for one question is how the page and the panel come to disagree about
+     whether the feed has landed. Required, not defaulted, for the same reason
+     `selection` is: `= false` would read as "still loading" forever on a
+     caller that forgot it, which is the failure this is fixing. */
+  feedGraceOver: boolean,
 ): StrategySignal {
   const { spreadMinPct, atrMult, persistBoost } = filterParams;
   const [sig, setSig] = useState<StrategySignal>(STRATEGY_LOADING);
@@ -313,10 +325,12 @@ export function useEMAStrategy(
   const oiRef        = useRef(oiPct);
   const paramsRef    = useRef(filterParams);
   const selectionRef = useRef(selection);
+  const graceRef     = useRef(feedGraceOver);
   frRef.current        = fundingRate;
   oiRef.current         = oiPct;
   paramsRef.current     = filterParams;
   selectionRef.current  = selection;
+  graceRef.current      = feedGraceOver;
 
   const candlesRef = useRef<{ coin: CoinId; tf: string; cRibbon: OHLCV[]; c1d: OHLCV[] } | null>(null);
 
@@ -331,6 +345,7 @@ export function useEMAStrategy(
     const oiPct        = oiRef.current;
     const filterParams = paramsRef.current;
     const selection    = selectionRef.current;
+    const feedGraceOver = graceRef.current;
     const { spreadMinPct, atrMult } = filterParams;
     try {
         const cl4  = cRibbon.map(c => c.close);
@@ -631,9 +646,14 @@ export function useEMAStrategy(
           {
             label: 'Funding Rate',
             pass:  fundingOK,
-            detail: fundingRate == null
-              ? 'Funding unavailable'
-              : `${(fundingRate * 100).toFixed(4)}% - ${fundingOK ? 'safe, proceed' : 'excessive, skip entry (bleed/squeeze risk)'}`,
+            /* #1651: three states, not two - see lib/fundingDetail.ts. `pass` was
+               already correct (null for unknown); it was this TEXT that asserted
+               "unavailable" the moment the value was null, which on 49 of our 50
+               coins means "has not arrived yet". The rule lives in its own module
+               so it can be unit-tested without rendering this hook - `conditions`
+               is empty until candles are cached, so a test that renders the hook
+               without stubbing the fetch would assert on nothing. */
+            detail: fundingDetail(coin, fundingRate, fundingOK, feedGraceOver),
           },
           {
             label: 'Open Interest Confirming',
@@ -956,7 +976,11 @@ export function useEMAStrategy(
      cached candles - no refetch, no LOADING flash, chart markers stay put. */
   useEffect(() => {
     computeRef.current();
-  }, [fundingRate, oiPct, spreadMinPct, atrMult, persistBoost, selection]);
+     // feedGraceOver (#1651): the grace expiring changes the Funding Rate row's
+     // text from "loading…" to "unavailable" with no new data arriving, so it has
+     // to re-derive on the flag alone - otherwise the row stays on "loading…"
+     // until the next funding tick, which for a dead feed never comes.
+  }, [fundingRate, oiPct, spreadMinPct, atrMult, persistBoost, selection, feedGraceOver]);
 
   return sig;
 }
