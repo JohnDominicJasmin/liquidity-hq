@@ -78,8 +78,9 @@ first.** The routing differs; the rule about his attention does not.
 - **Never ask him to approve something he has not seen.** Paired before/after screenshots first.
 
 **Five things need his word, and the first three are from `CLAUDE.md`:** merging to
-`main`, **production deploys**, **writes to the production database**, his money,
-and visual sign-off. Everything else, decide it.
+`main`, **production deploys**, **writes to the production database**, and his
+money. Everything else, decide it. **Visual sign-off was a fifth gate until he
+waived it on 2026-11-06 — it is PM's now (see §16).**
 
 **The production database write is the one with no recovery** - prod Supabase is on
 the free plan and has no backups. Dev-side migrations are PM's to sequence (his
@@ -228,7 +229,7 @@ would have been worth nothing.** The owner chose the automated option over eyeba
 
 An issue — or a checkbox — closes only when **all five** hold:
 
-1. QA tested it. 2. QA audited it. 3. It passed manual testing. 4. **PM audited it.** 5. **If it is visual, the OWNER approved it.**
+1. QA tested it. 2. QA audited it. 3. It passed manual testing. 4. **PM audited it.** 5. **If it is VISUAL, PM verifies at 390/768/1280, light/dark, states, on a deployed URL (owner waiver 2026-11-06).** It was the OWNER's approval until that date; see §16 for the waiver and its one limit.
 
 **Closing on a report is not auditing a report.** If you cannot name what was measured, where, and by whom, it does not close.
 
@@ -353,7 +354,7 @@ one-line recap is still a recap. **If PM or QA could act on it, they receive it 
 |---|---|
 | status, progress, what merged | the four gates below |
 | findings, measurements, negative results | a decision only he can make, **with options and a recommendation** |
-| blockers, and what you need to unblock | a visual he has to approve (condition 5) |
+| blockers, and what you need to unblock | ~~a visual he has to approve~~ — waived 2026-11-06, condition 5 is PM's |
 | corrections and retractions | nothing else |
 
 **HE ALWAYS GETS A DIRECT ANSWER TO A DIRECT QUESTION. This rule governs what a seat
@@ -373,7 +374,7 @@ union of them, not as either one.**
 | merging to `main` | both lists |
 | production deploys | both lists |
 | his money | `CLAUDE.md:28` |
-| visual sign-off (condition 5) | `CLAUDE.md:28` |
+| ~~visual sign-off (condition 5)~~ — **waived 2026-11-06, now PM's** | was `CLAUDE.md:28`; see §16 |
 | **writes to the shared database** | **`CLAUDE.md:303` — and absent from line 28** |
 
 **This section said "four" and omitted the database write. Dev Team held the PR over it and was
@@ -442,8 +443,9 @@ he was sleeping and already asked once if anything was needed before he went.
 
 - **A step that needs his hand and a step that is blocked are different things. Only the second
   one is allowed to slow anything down.** If something genuinely requires his hand (irreversible,
-  his money, a `main` merge, a production deploy, a visual he has not seen, a write to the shared
-  database — the five gates elsewhere in this file), queue it and keep moving everything else. Do
+  his money, a `main` merge, a production deploy, a write to the shared database — the four gates
+  elsewhere in this file, visual sign-off having been waived on 2026-11-06), queue it and keep
+  moving everything else. Do
   **not** pause the rest of the work waiting for that one piece.
 - **"I can't do X" is a dead end only if nothing else was tried.** The actual fix that night was
   not asking him — it was finding a path that needed no dashboard click at all (merge the branch
@@ -506,6 +508,12 @@ none of it counted.**
 > marketing and distribution... We have to make money before end of the year."*
 
 PM verifies visual changes on a deployed URL and ships them. Nobody asks him about a visual again.
+
+**THE ONE LIMIT, and it is not a hedge on the waiver.** PM's sign-off covers changes to existing
+screens and new ones. It does **NOT** cover replacing an owner-approved design wholesale. The Arena
+precedent is why: it was built three times and rejected three times, because sessions decided for
+themselves what he would accept. **A redesign is new scope, so the default answer to it is no** (see
+the scope rule above) — which keeps it out of his inbox without quietly re-delegating his taste.
 **The priority is getting users and revenue before the end of 2026.** Rank work by acquisition,
 then conversion, then retention. Anything else waits.
 
