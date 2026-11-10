@@ -1661,6 +1661,33 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .s-text  { font-size: var(--fs-label); color: var(--txt2); line-height: 1.55; }
 .cat-badge { font-size: var(--fs-caption); font-weight: 700; padding: 1px 5px; border-radius: 4px; letter-spacing: .03em; }
 .s-num-right { margin-left: auto; display: flex; align-items: center; gap: 5px; }
+
+/* KEEP THE FAVOURITE STAR OUT FROM UNDER THE ASK AI BUTTON (#1185).
+ *
+ * `.pb-star` sits at the right edge of `.s-num` (via `.s-num-right`'s `margin-left: auto`), and
+ * `.gchat-fab` is `position: fixed; bottom: 24px; right: 20px` at 64x64 - so it owns the rightmost
+ * 84px of the viewport. Because the button is fixed and the list scrolls under it, WHICHEVER row is
+ * at the bottom of the viewport has its star covered. Measured on deployed qa, resting state (no
+ * consent banner): 84% covered at 641px, 81% at 767px, and that does not change at any button
+ * position - 64/68/72/76/92px lifts were all tried and the star rows repeat every ~124px, so no
+ * fixed vertical position avoids them. Moving the button cannot fix this; the row has to stop
+ * reaching into the button's column.
+ *
+ * 56px IS DERIVED, NOT PICKED. Measured right-edge insets of the star from the viewport edge:
+ * 31px at 641, 65px at 768, 193px at 1024, 35px at 1100. The button needs 84px clear, so the
+ * shortfalls are 53, 19, none and 49. One value has to cover the worst of them: 31+56 = 87,
+ * 65+56 = 121, 35+56 = 91, all >= 84. Anything under 53 leaves 641px still covered.
+ *
+ * ON `.secret` RATHER THAN A PAGE CONTAINER, on PM's scoping call: a container gutter would move
+ * every page at these widths, which is a far larger visual surface to verify. This moves the badge,
+ * the star and the text column of the playbook list only.
+ *
+ * WHAT THIS DELIBERATELY DOES NOT COVER: 1101px and up. The star's inset is 35px at 1280 and
+ * 1357 too, so it is 36% covered there on the same arithmetic. PM scoped this change to 641-1100,
+ * so those widths stay open on #1185 rather than being quietly widened into here. */
+@media (min-width: 641px) and (max-width: 1100px) {
+  .secret { padding-right: 70px; }   /* 14px base + the 56px derived above */
+}
 .cat-hunt  { background: var(--purple-bg); color: var(--purple); }
 .cat-time  { background: var(--green-bg);  color: var(--green); }
 .cat-trap  { background: var(--red-bg);    color: var(--red); }
