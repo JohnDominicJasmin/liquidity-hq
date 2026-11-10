@@ -564,7 +564,23 @@ key, replaced in Render's `GROK_API_KEY`. Making the repo private again does not
 nor does rewriting history (forks and caches keep it). Code, signal logic, issues and these notes are
 all world-readable now: **never put a secret, a customer's data or a private address in an issue,
 a PR or a file.** The only other key-shaped string in history is the Standard Webhooks spec test
-vector in `lib/whop.ts`, which is harmless.
+vector in `lib/whop.ts`, which is harmless. GitHub secret scanning and push protection were switched
+on the same hour, so a key pushed from now on is refused before it lands.
+
+**THE RULE STANDS EVEN THOUGH CI IS NOW FREE.** A public repo pays nothing for standard runners, so
+the $22 reason no longer produces a bill. The rule is not up for re-deciding on cost grounds: the
+owner's reasons were also time and focus (*"a waste of time, waste of resources"*), and he gave it as
+an instruction, not as a budget fix. Changing it goes to him.
+
+**What this rule leaves as the only path to any automated test:** someone opening the release PR by
+hand (`RELEASE_PR_PAUSED` is still `1`). **Zero workflow runs between releases is the rule working,
+not an outage.** That mis-diagnosis has been made twice here.
+
+**The mobile browser leg cannot fail the gate.** `continue-on-error` is set for `mobile`, and
+`gate` only asserts `e2e == success`, so a red mobile leg still passes. Kept on purpose, because the
+375px leg has never once completed in CI (#1814). With one run per release, **QA reads the desktop
+and mobile legs separately in the release verdict** and reports mobile failures, rather than trusting
+the run's overall conclusion.
 
 ## 18. BEFORE ANY ISSUE: REREAD THE DOCS FIRST
 

@@ -161,7 +161,7 @@ jobs:
         # never from the exit code. A pipeline that reads a gate from an exit code is how a red run
         # becomes silence in this repo's history.
         run: |
-          node scripts/deep-canary.mjs ${{ github.event.inputs.selfcheck_only == 'true' && '--selfcheck' || '' }} || true
+          node scripts/deep-canary.mjs || true
 
       - name: Open, update or close the issue
         if: ${{ github.event.inputs.dry_run != 'true' && github.event.inputs.selfcheck_only != 'true' }}
