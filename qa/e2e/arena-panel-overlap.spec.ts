@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { settle } from './_shared';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /**
  * Owner instruction, 2026-09-08, verbatim: "we need to close this and dont
@@ -176,6 +177,7 @@ test.describe('Arena terminal — no two main-column siblings visually overlap',
     test(`at ${width}px`, async ({ browser }) => {
       const ctx = await browser.newContext({ viewport: { width, height: 900 } });
       const page = await ctx.newPage();
+      await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
       await settle(page, '/arena?design=terminal');
       test.skip(await terminalArenaAbsent(page), TERMINAL_ARENA_REVERTED);
       // klinecharts renders asynchronously after mount - give it room to
@@ -195,6 +197,7 @@ test.describe('Arena terminal — no two main-column siblings visually overlap',
 test('Arena terminal mobile 390 — no two top-level children visually overlap', async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await ctx.newPage();
+  await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
   await settle(page, '/arena?design=terminal');
   test.skip(await terminalArenaAbsent(page), TERMINAL_ARENA_REVERTED);
   await page.waitForTimeout(2000);

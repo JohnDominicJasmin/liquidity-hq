@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* Regression coverage for #1176 (#1168 slice): `saveArenaAlert()`'s success UI
  * used to fire UNCONDITIONALLY, even on a failed `/api/price-alerts` save - a
@@ -67,6 +68,7 @@ test.describe('arena price-alert save resilience (#1176, #1168)', () => {
   test('CONTROL: a successful save shows "Alert set" and closes the form', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       const fixture = await installPriceAlertsSave(page, { ok: true });
       await gotoSignedIn(page, '/arena');
@@ -95,6 +97,7 @@ test.describe('arena price-alert save resilience (#1176, #1168)', () => {
   test('#1176: a failed save shows the error, not "Alert set", and does not close', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       const fixture = await installPriceAlertsSave(page, {
         ok: false,

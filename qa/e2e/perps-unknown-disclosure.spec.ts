@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 import { entitlementsUnresolved } from './_shared';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* When perps vs spot CANNOT be measured, does Arena SAY so? (#340)
  *
@@ -48,6 +49,7 @@ test.describe('an unmeasurable perps reading is disclosed, not absorbed', () => 
   test('Arena says the perps input could not be checked', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       const perp = perpOnly();
       await page.route(KLINES, async route => {
@@ -106,6 +108,7 @@ test.describe('an unmeasurable perps reading is disclosed, not absorbed', () => 
      * matching something else and proves nothing. */
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       const f = Math.floor(Date.now() / HOUR) * HOUR;
       const spot: unknown[][] = [], perp: unknown[][] = [];

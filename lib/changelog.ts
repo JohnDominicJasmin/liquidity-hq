@@ -56,11 +56,24 @@
 // recorded here because rule 3's "absent rather than invented" cuts the other way too: a
 // forgotten item and a withheld one look identical on the page.
 //
-//   It ships SWITCHED OFF. `supabase/migrations/20261031a_draw_structure_usage.sql` is
-//   unapplied, so the route answers 503 NOT_ENABLED on every environment, and its empty-state
-//   message ("Nothing proposed on this window.") is unreachable with it. Rule 2 drops a feature
-//   that shipped dormant, and the owner's standing rule is that copy says only what the product
-//   does today.
+//   STALE AS OF 2026-11-10 - CORRECTED BELOW RATHER THAN DELETED, because it is the premise the
+//   whole hold rests on and a reader needs to see which part moved. It said:
+//
+//     "It ships SWITCHED OFF. `supabase/migrations/20261031a_draw_structure_usage.sql` is
+//      unapplied, so the route answers 503 NOT_ENABLED on every environment, and its empty-state
+//      message ("Nothing proposed on this window.") is unreachable with it."
+//
+//   THAT IS NO LONGER TRUE ON ANY ENVIRONMENT. Prod was applied by the owner on 2026-11-07 (see
+//   the UPDATE below), and the DEV project - which serves dev, qa AND staging - was applied on
+//   2026-11-08 via `20261108b_draw_structure_dev_function_half.sql` (#2082). Measured from both
+//   databases after that apply: `increment_ai_usage_impl` carries 17 distinct `p_column` values,
+//   each exactly twice, and dev and prod normalise to the same body hash
+//   (0d71a2b421899b10091e653a6c7df47b). So "503 NOT_ENABLED on every environment" describes a
+//   state that ended on 2026-11-08.
+//
+//   Rule 2 and the owner's "copy says only what the product does today" still govern - they are
+//   just no longer satisfied by silence, which is why the line below is now a live question rather
+//   than a settled one.
 //
 //   SO IT NEEDS TWO LINES, NOT ONE DECISION. If the owner enables it in this release, the entry
 //   gains: 'On AI Arena, a 4-hour or daily chart can propose trend lines, channels and other
@@ -83,7 +96,20 @@
 //   own account takes that counter to 1, and the evidence lands in the database rather than in a
 //   report anyone has to trust. The sentence below is ready for the release after that.
 //
-//   MEASURED ON 2026-11-06, AND IT WAS STILL OFF THEN, which is why it stayed out of this entry.
+//   STILL HELD ON 2026-11-10, AND NOT FOR THE ORIGINAL REASON. PM/DevOps asked for the line to go
+//   into this release on the grounds that Draw Structure "has been live on prod since the 11-07
+//   release (column present, route enabled)". The column and the route are indeed live - that much
+//   is measured above. But PM/DevOps's OWN condition, recorded eight lines up, was "confirmed live
+//   on prod, with no NOT_ENABLED from a real request", and the evidence for that is
+//   `draw_structure_count > 0`.
+//
+//   I COULD NOT MEASURE IT: the Supabase connector was down when this was written, so the counter
+//   is unknown to me rather than zero. An unknown is not a confirmation, and announcing a paid
+//   feature to every reader of /changelog on "applied, therefore working" is exactly the inference
+//   this block was created to refuse. The sentence is drafted and ready; it needs one person to
+//   read the counter.
+//
+//   MEASURED ON 2026-11-06, AND IT WAS STILL OFF THEN, which is why it stayed out of that entry.
 //   Both databases, queried directly rather than inferred from the migrations folder:
 //
 //     prod (qdpwhnvmhqgzijuwopso)  draw_structure_count column: ABSENT   20261031a applied: NO
@@ -123,6 +149,118 @@ export interface ChangelogEntry {
 
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    /* v2026.11.10. Written before the tag is cut, so whoever tags checks this against
+       `git tag --points-at main` rather than against the day they are working.
+
+       EVERY ITEM IS TIED TO A COMMIT IN `main..qa` (22 non-merge commits), found by reading that
+       range rather than by taking PM's release note. Mapping, in the order below:
+         b0e2c517 + 59d269ac + 103a7900 + a82342a1 + 5caabc6f   the post-purchase screen
+         4d396e41  the coin category chips signalling selection by colour alone
+         1b3d055c + a472e9ce  the failure state for a paid read that came back unreadable
+
+       A THIRD LINE WAS CUT - the chart-alerts one - AND THAT MAKES THIS THE ENTRY'S DEFAULT RATHER
+       THAN ITS EXCEPTION. It read "a chart-alerts refresh that fails now says it failed, rather than
+       looking like you cancelled it", mapped to 7250b91c. That commit's failure branch is a
+       `console.error` and a `return`: no `setChartSyncIssues`, no `setChartAlerts`, no toast, and it
+       does not join the "Couldn't draw:" path. **The commit body says so itself** - "The behaviour a
+       user sees is UNCHANGED and that is deliberate." Nothing is written to the page, and nothing in
+       app/, components/ or lib/ reassigns console.error to surface it.
+
+       THE WORDING WAS WRONG A SECOND WAY, which is worth keeping separate from the first: "rather
+       than looking like you cancelled it" tells a reader they appeared to cancel something. They
+       cancelled nothing - `cancelled` is the effect-teardown flag for a coin change or unmount. The
+       line handed a reader an internal variable name as their own action, so it was untrue even for
+       someone reading the console.
+
+       FOUR OF THE FIVE DRAFTED LINES FAILED THE SAME TEST, which is the number that matters: the
+       pulled Telegram line, the "in your language" clause, this one, and the chips line below. Not
+       four slips - one missing step.
+
+       THE CHIPS LINE IS THE SUBTLEST OF THE FOUR AND THE MOST WORTH STUDYING, because it was half
+       true and the true half carried the false one. It read "marked for screen readers AND no longer
+       shown by colour alone". The first clause is exactly right - 4d396e41 adds `aria-pressed`. The
+       second announces a visual fix that did not happen: that commit's body says "No visual change",
+       it adds no class, colour or style, and a sighted reader who could not distinguish the states
+       before still cannot. Pairing a verified clause with an unverified one is how the unverified one
+       gets through - the line reads as checked because half of it was. Every one of them described what a change makes POSSIBLE or what it writes
+       SOMEWHERE, rather than what a reader can observe. And this one survived two rounds of review
+       sitting four lines below the comment diagnosing the habit, which is the strongest argument
+       that noticing the habit does not substitute for the check.
+
+       THE MISSING STEP, now stated so it is inherited rather than re-derived: before an entry ships,
+       make one pass over `items` and ask of each line WHO RECEIVES IT. An operator health row, a
+       console line and an untranslated key all fail that question, and all three looked fine while
+       being read as a list. The three lines that remain were each put through it - the /upgrade
+       confirmation is a screen (QA verified 6/6 on qa), the chips item is a rendered
+       `aria-pressed` attribute, and the bad-read item is label copy a reader sees.
+
+              "IN YOUR LANGUAGE" WAS CUT FROM THE THIRD LINE, and this is the SECOND false claim this entry
+       had on review. Both are recorded because the cause is one habit, not two slips.
+
+       The line said the unreadable-read message is now shown "in your language". It is not.
+       `ARENA_READ_BAD_ANSWER` has **no row in any locale** - checked against every migration, with
+       `ARENA_COIN_LOCK_LINE` as a positive control (11 hits, so the search does find translated
+       keys). QA measured the same thing from the deployed build with /api/labels: the key is absent
+       at en, ru, ko and zh, so `LabelsProvider`'s `{ ...DEFAULT_EN_LABELS, ...data }` leaves the
+       English default standing for everyone. The 114-key gap between the en and non-en responses is
+       what makes that a finding rather than a guess - the translation mechanism is live and in use,
+       this key just is not in it.
+
+       WHAT #2065 ACTUALLY DELIVERED is one step short of what the line claimed: the message used to
+       be GROK_UNREADABLE_ANSWER_MESSAGE, a hardcoded English server string that never reached the
+       label table, and it is now a label key. So it went from UNTRANSLATABLE to TRANSLATABLE. That
+       is a real improvement and it is not the same as translated.
+
+       THE HABIT BEHIND BOTH ERRORS: describing what the change makes POSSIBLE rather than what a
+       reader can observe today. Line 5 announced an operator health row as if a user saw it; line 3
+       announced a translation mechanism as if it had been used. The owner's rule is that copy says
+       only what the product does today, and "translatable" fails it in the same way "degraded row
+       exists" did. Neither was caught by a test; both were caught by someone asking who receives it.
+
+       A FIFTH LINE WAS DRAFTED AND PULLED, and it is recorded because the mistake is instructive
+       rather than clerical. It read "Telegram alerts now say when a pass ran on incomplete market
+       data, instead of going quiet", mapped to f00d5326. **No user is told anything by that commit.**
+       Its "alerts degraded: ..." string goes to `reportHealth`, which writes an internal health row
+       for /ops; no Telegram message text changes. Caught by PM/DevOps on review.
+
+       The error was reading a commit's most quotable new string as user-facing without checking who
+       receives it - the same shape as announcing the /hours wording below while database rows still
+       serve the old copy. A changelog line's test is not "did something change", it is "would a user
+       notice", and an operator-facing row fails it.
+
+       WHAT THIS RELEASE DOES DO FOR ALERTS IS REAL BUT NOT YET HERE: f00d5326's closed-candle cache
+       plus #2080's pacing make the alert pass call exchanges less often and evenly spaced, which is
+       what stops the breaker tripping and alerts stopping for 10-20 minutes. #2080 is NOT in this
+       range, so the line is held rather than written against a commit that is not shipping. If #2080
+       lands before the tag, add: 'Telegram alerts make fewer, evenly spaced requests to exchanges, so
+       they are less likely to stop during busy markets.' mapped to f00d5326 + #2080's commit.
+
+       THE POST-PURCHASE ITEM COVERS FIVE COMMITS, NOT ONE, and that is the Russian-item lesson in
+       the entry below being applied rather than re-learned: b0e2c517 built the confirmation,
+       59d269ac gave the signed-out buyer a Sign in button that keeps the marker, 103a7900 fixed the
+       marker losing a race with the redirect, a82342a1 fixed the prerender it broke, and 5caabc6f
+       fixed a Pro buyer being stuck on "Redirecting..." forever with the confirmation unreachable.
+       Naming only b0e2c517 would have pointed a reader at a screen that, until 5caabc6f, they could
+       not actually reach.
+
+       WHAT IS DELIBERATELY NOT HERE. Thirteen of the 22 commits are tests, docs, a CI build fix and
+       the dev half of a migration - rule 2, nothing a user can see. And `20261108a` (the /hours
+       wording) is NOT announced even though it merged: all five HOURS_WIN_%_DESC keys have an `en`
+       row in `lhq_labels`, rows beat shipped defaults, so /hours still serves the old copy until the
+       owner applies that migration. Announcing it would describe a page nobody is being shown.
+
+       DRAW STRUCTURE IS STILL OUT, and the block below says why in full - the short version is that
+       its route is live on every environment now, but the condition for announcing it was a
+       confirmed real call and that counter could not be read when this was written. */
+    date: '2026-11-10',
+    tag: 'v2026.11.10',
+    items: [
+      'If you have just bought Pro, the upgrade page now confirms the purchase and offers a link onward, instead of sending you away without a word.',
+      'On AI Arena, screen readers now announce which coin category is selected.',
+      'When an AI read comes back without a clear verdict, AI Arena now says so plainly, and tells you whether the read was counted.',
+    ],
+  },
   {
     /* v2026.11.08b. The `b` suffix is a second release on the same date, which TAG_SHAPE in
        __tests__/changelogTracksReleases.test.mts already allows (`[a-z]?`). Written before the tag

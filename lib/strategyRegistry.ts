@@ -407,6 +407,26 @@ export function describeSelection(ids: readonly string[]): string | null {
   const names = ids
     .map(id => findIndicator(id))
     .filter((e): e is IndicatorEntry => Boolean(e))
+    /* #1263: an indicator that cannot draw must not be NAMED TO THE MODEL either. This is the one
+       path by which a dead id still reached the AI: the chip has refused the click since 3a46aae2
+       (PM/DevOps's #967 ruling), but a `strategy_selection` row written BEFORE that is read straight
+       out of the account and described here, so the prompt would say "the trader has chosen to weigh
+       ADX" with no ADX value anywhere in the context. The model is then invited to reason from a
+       number it was never given - an absent input presented as a deliberate choice.
+
+       Latent rather than live: 0 production rows carry any of the twelve, measured 2026-11-08. Filtered
+       anyway, because the cost is one line and the alternative is that it stays true until someone
+       writes such a row by hand. A selection of ONLY dead ids returns null, so the carrier sentence is
+       omitted rather than emitted empty. */
+    .filter(canRender)
+    /* THE `basis` BRANCH IS UNREACHABLE AS OF THIS FILTER, and is kept rather than deleted. Both
+       entries that carry a basis - ADX (DMI) and STOCH (KDJ) - are `source: 'new'`, so canRender
+       excludes them and no surviving entry has one. Keeping it means the label is already right the
+       day either is implemented; deleting it would quietly drop the distinction and whoever ships ADX
+       would have to rediscover that its displayed name is not what is computed. Recorded because an
+       unreachable branch that reads as live is the thing this file's own comments keep warning about
+       - see __tests__/strategyRegistry, whose derived-entry cell uses ADX and therefore now has no
+       real fixture. */
     .map(e => (e.basis ? `${e.label} (from ${e.basis})` : e.label));
   if (!names.length) return null;
   return names.join(', ');
@@ -427,7 +447,20 @@ export function describeSelection(ids: readonly string[]): string | null {
  *
  *  Derived from `source` rather than stored as its own flag: a flag can disagree
  *  with reality, and __tests__/strategyRegistry pins the source split against
- *  the names klinecharts actually ships. */
+ *  the names klinecharts actually ships.
+ *
+ *  TOTAL OVER `Source` RATHER THAN `!== 'new'` (#1263). A negated comparison silently answers `true`
+ *  for a source nobody has considered: add a fourth kind and every caller treats it as renderable
+ *  without a word from the compiler. A Record over the union makes the omission a build error
+ *  instead, which is the same reason the pattern maps were made total. The values are the whole
+ *  decision and they are one line each, so the next person adding a source has to answer the
+ *  question rather than inherit an answer. */
+const SOURCE_RENDERS: Record<Source, boolean> = {
+  builtin: true,   // handed to klinecharts' createIndicator
+  overlay: true,   // already drawn from its own prop
+  new: false,      // no calculation exists yet
+};
+
 export function canRender(entry: IndicatorEntry): boolean {
-  return entry.source !== 'new';
+  return SOURCE_RENDERS[entry.source];
 }

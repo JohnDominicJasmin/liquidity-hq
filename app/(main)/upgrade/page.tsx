@@ -1,5 +1,5 @@
 'use client';
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
@@ -67,6 +67,74 @@ const BILLING_CHOICES_COLUMN: React.CSSProperties = { display: 'flex', flexDirec
 export default function UpgradePage() {
   const { user, loading, isPro, entitlementsLoading, entitlementStatus, retryEntitlements } = useAuth();
   const router = useRouter();
+  /* READ IN A MOUNT EFFECT, GUARDED - superseding the two headings below, which say the opposite and
+     are kept because the race they describe is real and the guard exists to answer it. The sequence was:
+     read in an effect (lost the race), read during render (fixed the race, broke hydration), and now
+     read in an effect with the redirect refusing to decide until it has landed. Only the third gets
+     both. Heading text left in place rather than rewritten, so the next person sees why "just read it
+     during render" was tried and what it cost.
+
+     ORIGINAL NOTE (#1630, QA's finding). These three used to be set by the
+     `useEffect` further down, and React runs effects in DECLARATION order - so on any mount where auth
+     was already resolved, the redirect effect above fired with `arrivedFromPurchase` still false and
+     bounced a Pro buyer to /arena before the marker had ever been read. It presented as width-specific
+     and was not: it depends on whether the session is resolved at first commit, which varies with cache
+     and timing, not with viewport.
+     `useSearchParams` is SSR-safe and gives the right value on the FIRST render, so no effect can lose
+     the race. The same race applied to `status`/`payment`, so those move too rather than leaving one
+     half fixed. */
+  /* SUPERSEDED HEADING, accurate only about `useSearchParams`: "READ ONCE DURING THE FIRST RENDER,
+   * not with useSearchParams and not in an effect." The useSearchParams half still holds and is the
+   * reason this is not the obvious one-liner. The "not in an effect" half is what caused #1630
+   * defect 2 and is corrected below.
+   *
+   * `useSearchParams()` was the obvious tool and it BREAKS THE BUILD: it opts a client component out
+   * of static prerendering unless the whole thing sits inside <Suspense>, and `next build` fails with
+   * "useSearchParams() should be wrapped in a suspense boundary at page /upgrade". tsc and `next dev`
+   * both pass - only the production prerender catches it. Wrapping a 722-line page in Suspense would
+   * make its entire prerendered HTML a fallback, and `force-dynamic` would give up this page's static
+   * render and be the first in app/(main) to do so. Neither cost is worth paying for three query
+   * params.
+   *
+   * A lazy useState initializer runs during the FIRST render on the client, which is all the race
+   * needed - the redirect effect can no longer run before the marker is known. On the server it
+   * returns the empty string, so the prerender is unchanged.
+   *
+   * ON HYDRATION, which is the thing to check before copying this: nothing these three values affect
+   * is rendered during hydration. The banner is gated on `purchaseReady`, which requires auth and the
+   * entitlement read to have settled, and neither has on the first client render. The redirect guard
+   * is not rendered output at all. So the server's HTML and the client's first render agree. */
+  /* CORRECTION TO THE PARAGRAPH ABOVE, WHICH WAS WRONG ABOUT HYDRATION (#1630 defect 2). It said
+     "the server's HTML and the client's first render agree". They do not. A lazy initializer runs
+     during the first CLIENT render, so that render saw `?status=canceled` while the server's HTML was
+     built without it - React #418, a text mismatch, reported on /upgrade?status=canceled. The reasoning
+     that failed is worth keeping: it checked that nothing these values GATE is rendered during
+     hydration (true - the banner needs `purchaseReady`), and concluded the renders agree. But
+     `returnStatus` also feeds COPY further down, and "nothing I thought of renders it" is not the same
+     measurement as "the two renders are identical".
+
+     So the first client render is now identical to the server's by construction: '' on both, with the
+     URL read in a mount effect. `queryRead` is what keeps #2073's race fixed - see the redirect effect. */
+  const [rawQuery, setRawQuery] = useState('');
+  const [queryRead, setQueryRead] = useState(false);
+  useEffect(() => {
+    /* Declared BEFORE the redirect effect, but that is not what makes this safe: state set in an
+       effect is not visible to ANY effect in the same commit, so the redirect effect below cannot see
+       `rawQuery` on this pass regardless of order. `queryRead` is the guard that does the work. */
+    setRawQuery(window.location.search);
+    setQueryRead(true);
+  }, []);
+  const searchParams = useMemo(() => new URLSearchParams(rawQuery), [rawQuery]);
+  const rawStatus = searchParams.get('status');
+  const returnStatusRaw: null | 'succeeded' | 'failed' | 'canceled' =
+    rawStatus === 'succeeded' || rawStatus === 'failed' || rawStatus === 'canceled' ? rawStatus : null;
+  const returnHasPaymentId = /^pay_[A-Za-z0-9]+$/.test(searchParams.get('payment') ?? '');
+  const arrivedFromPurchase = searchParams.get('purchase') === 'whop';
+  /* The query is now the source of truth, so a banner cannot be cleared by setting state to null the
+     way `choosePlan` used to. Picking a new plan still dismisses whatever the previous visit's return
+     said - a stale "that payment did not go through" above a fresh checkout panel is worse than no
+     line at all - so the dismissal is its own flag rather than a mutation of the parsed query. */
+  const [bannersDismissed, setBannersDismissed] = useState(false);
   /* WHICH plan is redirecting, not just whether one is (#1423). A single boolean
      drove every button's label, so clicking one plan made all three read
      "Redirecting to checkout…". Holding the plan lets only the clicked button
@@ -93,11 +161,25 @@ export default function UpgradePage() {
   }, []);
   /* #1606: where Whop sent the buyer back from the embedded checkout. `status` is read BEFORE anything is said (a declined or abandoned off-site step
      lands here too). Pro is granted by the webhook only, so even 'succeeded' says only that the payment arrived. */
-  const [returnStatusRaw, setReturnStatus] = useState<null | 'succeeded' | 'failed' | 'canceled'>(null);
   /* #1614: "Payment received" is the one line that claims something good, so it also needs the payment id Whop adds to the return (pay_...). A bare
      /upgrade?status=succeeded, typed or crafted by anyone, shows nothing. It is still only a line: Pro comes from the webhook, never from this. */
-  const [returnHasPaymentId, setReturnHasPaymentId] = useState(false);
-  const returnStatus = returnStatusRaw === 'succeeded' && !returnHasPaymentId ? null : returnStatusRaw;
+  const returnStatus = bannersDismissed ? null
+    : returnStatusRaw === 'succeeded' && !returnHasPaymentId ? null
+    : returnStatusRaw;
+  /* #1630: Whop's HOSTED checkout sends the buyer to /upgrade with NO params at all, so none of the
+     #1606/#1614 machinery above fires and nobody is told the purchase worked. Signed out they see the
+     bare pricing page; a Pro account gets the silent bounce to /arena below. `?purchase=whop` is the
+     marker PM sets on that redirect so the page at least knows the visitor came from a checkout.
+
+     IT IS DISPLAY-ONLY AND MUST NEVER CLAIM A PAYMENT. Unlike `status=succeeded`, which #1614 pairs
+     with a `pay_...` id precisely so a crafted URL says nothing, this carries NO evidence - anyone can
+     type it. So it never grants anything (Pro comes from the webhook, as before) and its copy is
+     conditional on what we can actually verify: the entitlement. QA's control is the rule here - a
+     visit without paying must produce no false claim - which is why the strings below say "if you've
+     just completed a purchase" rather than "payment received". The one line that does state a fact,
+     "You're on Pro", is gated on `isPro`, which comes from the entitlement read and not from the URL. */
+  /** A visitor who came back from a checkout, by either route. Suppresses the silent bounce. */
+  const fromCheckout = arrivedFromPurchase || returnStatus !== null;
   const planChoiceStyle = (plan: CheckoutPlan): React.CSSProperties => (selectedPlan === plan ? PLAN_BUTTON_SELECTED : PLAN_BUTTON_OUTLINED);
   /** The plan button that opened the panel, so closing it can return focus there. */
   const panelOpener = useRef<HTMLElement | null>(null);
@@ -117,14 +199,28 @@ export default function UpgradePage() {
     // login is only required at the actual "Get Pro" click, in
     // handleCheckout below - a pricing page that bounces anonymous
     // visitors before they've seen a price is pure conversion friction.
-    if (isPro) { router.replace('/arena'); return; }
+    /* #1630: NOT when the visitor just came back from a checkout. This redirect doubles as the
+       success signal for the embedded flow - the poll below re-reads the plan and the moment it says
+       Pro, this fires - and that is exactly the defect QA found: the buyer is dumped into Arena with
+       nothing having confirmed the purchase worked. A Pro account that arrived from a checkout gets
+       the confirmation below and a button; it chooses when to leave. A Pro account that merely
+       navigated to /upgrade still goes straight on, because for them this page sells nothing. */
+    /* #2073's race, re-guarded after #1630 moved the URL read into an effect. `fromCheckout` is
+       false until that effect lands, so without this a Pro buyer would be bounced to /arena one
+       commit before the marker was read - which is the bug the `!fromCheckout` guard exists to stop.
+       Deciding nothing until the URL is known is the only correct order here. */
+    if (!queryRead) return;
+    if (isPro && !fromCheckout) { router.replace('/arena'); return; }
     // `loading` has to be here, not just read. The effect bails out while auth
     // is still resolving, and without loading in the list it never re-runs when
     // that resolves - it only re-runs if isPro itself changes. A Pro user whose
     // role landed before the loading flag cleared would hit the early return
     // once and then never be redirected, sitting on a pricing page for a plan
     // they already pay for.
-  }, [isPro, loading, router]);
+    // fromCheckout (#1630): it resolves from the URL in an effect, so it is false on the very first
+    // run. Without it here the effect would not re-run when it flips true, and a Pro buyer would be
+    // bounced to /arena a tick before the marker was read - the exact bug this guard exists to stop.
+  }, [isPro, loading, router, fromCheckout, queryRead]);
 
   /* Coming BACK from the payment page. The browser can restore this page from
      its back/forward cache with its state intact, which would leave
@@ -144,7 +240,7 @@ export default function UpgradePage() {
     if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
     if (document.activeElement instanceof HTMLElement) panelOpener.current = document.activeElement;
     setEmbedFailed(false);
-    setReturnStatus(null);
+    setBannersDismissed(true);
     setSelectedPlan(plan);
   }
 
@@ -172,20 +268,20 @@ export default function UpgradePage() {
   /* Coming back from the embedded checkout (#1606): Whop adds `payment` and `status` to the return URL. Anything other than the three documented values is
      ignored. The query is deliberately NOT stripped afterwards: history.replaceState here makes Next's router re-render the route and this state is lost
      (measured: the banner vanished), so a reload shows the line again, which is harmless (a Pro account is sent on to /arena anyway). */
-  useEffect(() => {
-    const s = new URLSearchParams(window.location.search).get('status');
-    if (s === 'succeeded' || s === 'failed' || s === 'canceled') setReturnStatus(s);
-    setReturnHasPaymentId(/^pay_[A-Za-z0-9]+$/.test(new URLSearchParams(window.location.search).get('payment') ?? ''));
-  }, []);
   /* After a payment that went through, the webhook unlocks Pro a moment later. Ask for the plan again every few seconds for about two minutes; the
      existing effect above sends the account to /arena the moment it reads Pro. Nothing is claimed in the meantime. */
+  /* #1630: the hosted-checkout marker polls too. A buyer who arrives via `?purchase=whop` is in the
+     same position as one returning from the embedded flow - the webhook is about to land - so they
+     get the same re-read rather than being told to refresh by hand. `isPro` ends it: once the plan
+     reads Pro the confirmation below switches to "You're on Pro" and there is nothing left to poll. */
   useEffect(() => {
-    if (returnStatus !== 'succeeded' || !user) return;
+    if (!user || isPro) return;
+    if (returnStatus !== 'succeeded' && !arrivedFromPurchase) return;
     let n = 0;
     const id = window.setInterval(() => { if (++n > 20) { window.clearInterval(id); return; } retryEntitlements(); }, 6000);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [returnStatus, user?.id]);
+  }, [returnStatus, arrivedFromPurchase, isPro, user?.id]);
 
   /* Step 2. The link is read for the plan that was picked, never another one. */
   /* #1606: the signed-in account's email goes to Whop filled and locked, so the payment is matched to THIS account. Signed out: no email, the plain link. */
@@ -384,8 +480,16 @@ export default function UpgradePage() {
   /* Only `isPro` still replaces the whole page: a subscriber is being sent elsewhere, so there is nothing
      here for them. `loading` and `entitlementsLoading` now suppress the CONTROLS (see purchaseReady above)
      rather than the page, which is what puts the copy in the server HTML. */
-  if (isPro) {
-    return <LoadingState message={isPro ? t('UPGRADE_LOADING_REDIRECTING') : t('UPGRADE_LOADING')} fullPage />;
+  /* `!fromCheckout` IS LOAD-BEARING (#1630 defect 1). This said `if (isPro)`, which promised a
+     redirect that the effect above deliberately does not perform when the visitor arrived from a
+     checkout - so a Pro account on /upgrade?purchase=whop sat on "Redirecting..." forever (QA sampled
+     24s), and UPGRADE_PURCHASE_PRO below was unreachable: the one screen that confirms a purchase
+     worked could never be seen by the person who had just paid.
+     The two conditions have to agree, because this copy is a PROMISE about what the effect will do.
+     The `isPro ? ... : ...` here was also dead - it is inside `if (isPro)` - so it always read
+     REDIRECTING; collapsed to the one message it actually showed. */
+  if (isPro && !fromCheckout) {
+    return <LoadingState message={t('UPGRADE_LOADING_REDIRECTING')} fullPage />;
   }
   if (user && entitlementStatus === 'unknown') {
     return (
@@ -421,6 +525,59 @@ export default function UpgradePage() {
         {returnStatus && (
           <div role="status" data-testid="upgrade-return-banner" data-status={returnStatus} style={{ maxWidth: 520, margin: '0 auto 28px', padding: '14px 18px', borderRadius: 12, border: `1px solid ${returnStatus === 'succeeded' ? 'var(--accent)' : 'var(--bdr3)'}`, background: returnStatus === 'succeeded' ? 'var(--accent-bg)' : 'var(--bg1)', color: 'var(--txt)', fontSize: 'var(--fs-label)', lineHeight: 1.5, textAlign: 'center' }}>
             {returnStatus === 'succeeded' ? t('UPGRADE_RETURN_PENDING') : returnStatus === 'failed' ? t('UPGRADE_RETURN_FAILED') : t('UPGRADE_RETURN_CANCELED')}
+          </div>
+        )}
+        {/* #1630: the hosted checkout's own confirmation. Three states, and which one shows is decided
+            by the ENTITLEMENT, never by the URL - the marker only says "this visitor came from a
+            checkout", which anyone can fake by typing it.
+
+            So: the only sentence that states a fact ("You're on Pro") is behind `isPro`, read from the
+            entitlement. The other two are conditional - "if you've just completed a purchase" - and
+            are true sentences to read even for someone who typed the URL and paid nothing, which is
+            QA's control for this box.
+
+            It is suppressed while the entitlement is still loading, because the pending line would
+            otherwise flash at a Pro buyer for the moment before their plan resolves - telling them to
+            wait a few minutes for something they already have. `returnStatus` takes precedence: a
+            buyer with a real payment id gets the stronger banner above and does not need this. */}
+        {arrivedFromPurchase && !bannersDismissed && !returnStatus && purchaseReady && (
+          <div
+            role="status"
+            data-testid="upgrade-purchase-banner"
+            data-state={isPro ? 'pro' : user ? 'pending' : 'signed-out'}
+            style={{ maxWidth: 520, margin: '0 auto 28px', padding: '14px 18px', borderRadius: 12, border: `1px solid ${isPro ? 'var(--accent)' : 'var(--bdr3)'}`, background: isPro ? 'var(--accent-bg)' : 'var(--bg1)', color: 'var(--txt)', fontSize: 'var(--fs-label)', lineHeight: 1.5, textAlign: 'center' }}
+          >
+            {isPro ? t('UPGRADE_PURCHASE_PRO') : user ? t('UPGRADE_PURCHASE_PENDING') : t('UPGRADE_PURCHASE_SIGNED_OUT')}
+            {isPro && (
+              <div style={{ marginTop: 12 }}>
+                <Link href="/arena" className="lp-btn-primary" data-testid="upgrade-purchase-cta">
+                  {t('UPGRADE_PURCHASE_PRO_CTA')}
+                </Link>
+              </div>
+            )}
+            {/* PM's review of #2068: the line told them to sign in and gave them nowhere to click.
+                `next` carries the MARKER back, not a bare /upgrade, so after signing in they land on
+                this same banner in whichever state their plan then puts them - Pro, or pending with
+                the poll running - rather than on a pricing page with no mention of their purchase.
+
+                ENCODED, because `next` here carries a query string of its own and `?purchase=whop`
+                unencoded would terminate the outer one - the sign-in would succeed and silently drop
+                them on /upgrade with no marker, which is the bug this button exists to fix. The
+                existing `?next=/upgrade` call sites get away with it only because they have nothing
+                after the path. `safeNextPath` (lib/safeNext.ts) allows query strings deliberately -
+                "only the authority is the dangerous part" - and rejects the //evil.com and
+                backslash forms, so carrying one through is supported rather than a loophole. */}
+            {!isPro && !user && (
+              <div style={{ marginTop: 12 }}>
+                <Link
+                  href={`/login?next=${encodeURIComponent('/upgrade?purchase=whop')}`}
+                  className="lp-btn-primary"
+                  data-testid="upgrade-purchase-signin"
+                >
+                  {t('UPGRADE_PURCHASE_SIGN_IN_CTA')}
+                </Link>
+              </div>
+            )}
           </div>
         )}
 
