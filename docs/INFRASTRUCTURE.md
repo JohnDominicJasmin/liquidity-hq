@@ -1600,11 +1600,20 @@ them**, so `prosrc` comes back comment-free for everything:
 | Check | Result |
 |---|---|
 | Functions in prod `public` carrying a `--` in `prosrc` | **0 of 14** |
+| ^ re-measured 2026-11-08 (#2082) | **1 of 16** — `increment_ai_usage_impl` |
 | `--` lines in the repo source of `lhq_grant_signup_trial` | 21 |
 | `--` lines in the repo source of `lhq_record_api_health` | 3 |
 | Normalised md5, prod live body vs repo body | **identical**, 7646 chars each side |
 | Functions carrying a `/* ... */` block comment | **0 of 14** (QA) |
 | Functions whose `prosrc` still contains newlines | **14 of 14** (QA) |
+
+**CORRECTED 2026-11-08 (#2082): THE ZERO ABOVE NO LONGER HOLDS, AND THE REASON IS THE POINT.** The
+owner later pasted `increment_ai_usage_impl` through the Supabase SQL editor, which does **not** strip
+comments the way the apply path measured here does. So prod now has 1 function of 16 carrying a `--`.
+**The stripping is a property of the apply path, not of Postgres** — which this section read as a
+property of the database, and that reading is what expired. The newline control re-measured at 16 of
+16, so `prosrc` is still the body; only the comment row moved. A raw body comparison would now flag
+that one function as modified for a reason that is not a code change, and #2082 hit exactly that.
 
 **THE NEWLINE ROW IS THE CONTROL AND IT IS NOT DECORATION.** Without it, "0 of 14 carry a
 comment" is equally consistent with *`prosrc` is not the body you think it is* - a path that

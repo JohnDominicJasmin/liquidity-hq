@@ -115,8 +115,19 @@ test('S1. source: nothing is unlocked from the browser (no onComplete), the elem
 
 test('S2. source: the return reads only succeeded, failed and canceled from ?status, says nothing about Pro being on, and does not call history.replaceState', () => {
   const page = stripTsComments(read(appPath('app/upgrade/page.tsx')));
-  const m = page.match(/get\('status'\);\s*if\s*\(([^)]*)\)\s*setReturnStatus/); assert.ok(m, 'the status reader moved: re-derive this pin');
-  assert.deepEqual([...m![1].matchAll(/'(\w+)'/g)].map((x) => x[1]).sort(), ['canceled', 'failed', 'succeeded']);
+  /* Derive the variable the ?status read lands in instead of hardcoding the statement shape. The
+     first version of this pin matched `get('status'); if (...) setReturnStatus`, and #2073 broke it
+     by moving the read out of an effect and into render - a true refactor that changed no behaviour.
+     The invariant is WHICH THREE VALUES are accepted, so pin that and let the plumbing move. Same
+     lesson as the ADX fixture in strategyRegistry.test.mts: assert the invariant, not the
+     arrangement. Comparisons only - the `: null | 'succeeded' | ...` type annotation gates nothing
+     at runtime, so matching it would pass on a page that accepts anything. */
+  const reader = page.match(/(\w+)\s*=\s*\w+\.get\('status'\)/);
+  assert.ok(reader, 'nothing reads ?status at all - the return path is gone, not moved');
+  const held = reader![1];
+  const literals = [...page.matchAll(new RegExp(`${held}\\s*===\\s*'(\\w+)'`, 'g'))].map((x) => x[1]);
+  assert.ok(literals.length > 0, `${held} is never compared against a status literal (a Set, an includes, a lookup?): re-derive this pin`);
+  assert.deepEqual([...new Set(literals)].sort(), ['canceled', 'failed', 'succeeded']);
   assert.ok(!/history\.replaceState/.test(page), 'history.replaceState resets the page state and loses the banner');
   assert.ok(/UPGRADE_RETURN_PENDING/.test(page));
 });

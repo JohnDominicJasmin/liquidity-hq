@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1347 item 6 (#1362, fix by Dev Team) - the Strategy Panel's `entitled`
  * boolean (`entitlementStatus === 'entitled'`) fed the indicator limit, the
@@ -65,6 +66,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
     const ctx = await signedInContext(browser, 'a');
     await ctx.addInitScript(forceEntitlementsFail);
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
       const panel = page.locator(PANEL);
@@ -95,6 +97,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
     const ctx = await signedInContext(browser, 'a');
     await ctx.addInitScript(forceEntitlementsFail);
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
       const panel = page.locator(PANEL);
@@ -129,6 +132,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
   test('CONTROL: a confirmed-FREE account (B) still sees the ordinary chip grid, not the unknown card', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'b');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
       const panel = page.locator(PANEL);
@@ -144,6 +148,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
   test('CONTROL: a confirmed-PRO account (A) is unaffected', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
       const panel = page.locator(PANEL);
@@ -180,6 +185,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
   test('MEASUREMENT: what a Pro account\'s panel shows while the entitlements read is still in flight', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     const held: Array<import('@playwright/test').Route> = [];
     try {
       // Held, never answered - the read neither resolves nor rejects, so the

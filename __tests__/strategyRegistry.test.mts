@@ -127,12 +127,52 @@ test('describeSelection names the chosen indicators, and says nothing for none',
   assert.equal(describeSelection(['EMA_RIBBON', 'LIQ_CLUSTERS']), 'EMA ribbon, Liq clusters');
 });
 
-test('describeSelection names the basis for a derived entry', () => {
-  /* ADX renders klinecharts' DMI with a custom figure list. A prompt that says
-     "ADX" without that is telling the model something slightly untrue about
-     what the user is looking at. */
-  assert.equal(describeSelection(['ADX']), 'ADX (from DMI)');
-  assert.equal(describeSelection(['STOCH']), 'Stoch (from KDJ)');
+test('the basis branch is UNREACHABLE today, and this is the tripwire for the day it is not', () => {
+  /* THIS CELL USED TO ASSERT THE FORMATTING, AND IT COULD NOT SURVIVE #2069.
+   *
+   * It read `describeSelection(['ADX']) === 'ADX (from DMI)'`. Then `describeSelection` began
+   * filtering through `canRender`, and BOTH entries carrying a `basis` - ADX (DMI) and STOCH (KDJ) -
+   * are `source: 'new'`, so every basis entry is now filtered out and the branch that formats them
+   * is unreachable. The old expectation had no real fixture left: not wrong about the format, just
+   * about a path nothing can take.
+   *
+   * WHY NOT A SYNTHETIC ENTRY instead, which would keep the formatting covered. `describeSelection`
+   * takes IDS and resolves them against the registry, so covering the format in isolation needs a
+   * seam in `lib/` - an exported formatter or an injectable registry - and the thing it would cover
+   * is ONE inline template literal, `e.basis ? \`${e.label} (from ${e.basis})\` : e.label`. That is
+   * not worth a source change to someone else's file, and a cell asserting it would then pass
+   * forever while saying nothing about whether the branch is live.
+   *
+   * SO THIS ASSERTS THE INVARIANT THAT MAKES THE BRANCH DEAD, over the whole registry rather than
+   * over ADX. Pinning it to ADX would repeat the exact fault being fixed here - and in
+   * `localeOffering.test.mts:28` before it: a cell tied to a concrete member that the production set
+   * later stops containing. `describeSelection(['ADX'])` returning null would ALSO pass if ADX were
+   * deleted from the registry entirely, silently, because an unknown id is dropped the same way.
+   *
+   * ── WHEN THIS GOES RED, IT IS NOT A DEFECT ──────────────────────────────────────────────────────
+   *
+   * It fails the day someone implements ADX or STOCH, which is the point. The correct response is
+   * NOT to re-exclude the indicator to get green - it is to restore a formatting assertion, because
+   * the branch is now reachable and the displayed name genuinely differs from what is computed.
+   * Written out because the cheap fix and the right fix point in opposite directions here. */
+  const renderable = INDICATORS.filter(canRender);
+  const withBasis = renderable.filter(e => e.basis);
+  assert.deepEqual(
+    withBasis.map(e => `${e.id} (basis ${e.basis})`), [],
+    'a RENDERABLE indicator now carries a `basis`, so describeSelection\'s basis branch is live again. ' +
+    'Do not silence this by making the indicator unrenderable: add back an assertion that ' +
+    `describeSelection names it as "<label> (from <basis>)", which is the honesty this field exists for.`,
+  );
+
+  /* The current public behaviour, recorded as behaviour rather than inferred from the invariant: a
+     selection of only unimplemented ids produces no sentence at all, not an empty one. */
+  assert.equal(describeSelection(['ADX']), null, 'ADX is unimplemented, so it must not be named to the model');
+  assert.equal(describeSelection(['ADX', 'STOCH']), null, 'a selection of only unimplemented ids must omit the carrier sentence entirely');
+
+  /* CONTROL: the filter is not simply dropping everything. Without this, the two nulls above are
+     satisfied by a describeSelection that returns null for any input. */
+  assert.equal(describeSelection(['RSI']), 'RSI', 'an implemented indicator is still named - the filter is selective, not total');
+  assert.ok(renderable.length > 0, 'nothing is renderable at all, so the invariant above is vacuous');
 });
 
 test('CONTROL: an unknown id is dropped rather than named', () => {

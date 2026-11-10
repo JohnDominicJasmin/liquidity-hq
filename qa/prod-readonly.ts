@@ -100,6 +100,11 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'arena-structure', needs: 'none' },
   { spec: 'cache-effective', needs: 'none', note: 'repeats data-route calls: spends upstream quota' },
   { spec: 'cache-policy', needs: 'none', note: 'repeats data-route calls: spends upstream quota' },
+  /* Signed out, and the only click is a coin-category chip, whose `coinCat` is client-only state -
+     nothing in arena/page.tsx persists it, so there is no write even in principle. Same shape as
+     arena-panel-overlap above. Being signed out also keeps it off the paid mount effects: both
+     GlobalMacroContext and DryPowder return early on `!user`. */
+  { spec: 'category-chips-aria-pressed', needs: 'none' },
   { spec: 'chart-backfill', needs: 'none' },
   { spec: 'checkout-config-agrees', needs: 'none', note: 'asserts /api/version flags: production differs from dev, expect a triage pass' },
   { spec: 'clock', needs: 'none' },
@@ -169,6 +174,7 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'arena-alert-resilience': 'clicks Save on a price alert on purpose; safe only while a route stub matches, and a missed match would create a real alert',
   'checkout': 'clicks the checkout CTA on purpose; safe only while a route stub matches, and a missed match would create a real checkout session',
   'draw-structure-labels-render': 'CLICKS the Draw Structure control, which calls a CAPPED AI route - safe only while the route stub matches, and a missed match is a billed xAI call on a production account. Same reason as checkout and arena-alert-resilience. It also signs in with a DEV-project fixture, which is not a production account at all.',
+  'arena-bad-answer-copy': 'CLICKS the Quick read button, which calls /api/grok - a billed xAI route - so it is safe only while the route stub matches, and a missed match is a real billed call on a production account. Exactly the reason draw-structure-labels-render, checkout and arena-alert-resilience are excluded. It also signs in with a DEV-project fixture, which is not a production account, and the thing it asserts is which of two labels renders for a server flag it fabricates - a 502 that production would never send. It writes nothing and classifies clean; the exclusion is about what the click leads to.',
   'lemonsqueezy-real-purchase': 'a real purchase',
   'arena-quick-deep-stale-selection': 'real AI credits (billed), and PATCHes settings',
   'chart-indicator-draw-failure': 'depends on a QA seam that is dead on a production build; also PATCHes settings',
