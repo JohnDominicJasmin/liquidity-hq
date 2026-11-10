@@ -2640,6 +2640,32 @@ async function runAlerts(token: string): Promise<NextResponse> {
     skipped:    skipCounts,
   }));
 
+  /* #1651: A PASS THAT SKIPPED IS NOT A QUIET MARKET, AND UNTIL NOW THEY LOOKED THE SAME.
+   *
+   * On 2026-11-08 the Bybit breaker opened twice on production and three consecutive passes
+   * reported `fired=0`. That is indistinguishable from "nothing met a threshold" to everyone
+   * except someone reading this file's log line - so a paying user's alerts were off for about
+   * 25 minutes and no surface said so. The breaker did its job; the silence was the defect.
+   *
+   * Reported as a health row rather than only logged, so /ops and /api/health can see it and the
+   * daily health check has something to find. `ok: false` ONLY when a venue was actually skipped:
+   * a clean pass must keep reporting healthy or this becomes the alarm nobody reads.
+   *
+   * `items` is the skip count, so a trend is visible - one skipped call is a blip, 299 is the whole
+   * pass. The detail names the venues, because which one is open decides whether anything could
+   * have fired at all. */
+  const skippedVenues = Object.entries(skipCounts).filter(([, n]) => n > 0);
+  const skippedTotal = skippedVenues.reduce((sum, [, n]) => sum + n, 0);
+  reportHealth(
+    'alert:pass',
+    'market',
+    skippedVenues.length === 0,
+    skippedVenues.length === 0
+      ? `${fired} fired, no venue skipped`
+      : `alerts degraded: ${skippedVenues.map(([v, n]) => `${v} skipped ${n}`).join(', ')} - fired=${fired}, so a quiet result here is not evidence the market was quiet`,
+    skippedTotal,
+  );
+
   return NextResponse.json({
     ok: true, fired,
     recipients: recipients.length,
