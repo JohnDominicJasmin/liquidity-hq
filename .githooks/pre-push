@@ -204,4 +204,4 @@ fi
 printf '[pre-push] typecheck\n'
 npx tsc --noEmit
 
-printf '[pre-push] typecheck passed. LINT, UNIT TESTS AND BUILD NOT RUN HERE - lint and the tests run in CI on the pull request, the build is `npm run verify` by hand.\n'
+printf '[pre-push] typecheck passed. LINT, UNIT TESTS AND BUILD NOT RUN HERE - run `npm run verify` locally before the PR merges (OWNER-RULES §17: CI runs only on the release PR).\n'
