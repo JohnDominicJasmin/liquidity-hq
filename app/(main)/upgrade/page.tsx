@@ -67,7 +67,14 @@ const BILLING_CHOICES_COLUMN: React.CSSProperties = { display: 'flex', flexDirec
 export default function UpgradePage() {
   const { user, loading, isPro, entitlementsLoading, entitlementStatus, retryEntitlements } = useAuth();
   const router = useRouter();
-  /* READ DURING RENDER, NOT IN AN EFFECT (#1630, QA's finding). These three used to be set by the
+  /* READ IN A MOUNT EFFECT, GUARDED - superseding the two headings below, which say the opposite and
+     are kept because the race they describe is real and the guard exists to answer it. The sequence was:
+     read in an effect (lost the race), read during render (fixed the race, broke hydration), and now
+     read in an effect with the redirect refusing to decide until it has landed. Only the third gets
+     both. Heading text left in place rather than rewritten, so the next person sees why "just read it
+     during render" was tried and what it cost.
+
+     ORIGINAL NOTE (#1630, QA's finding). These three used to be set by the
      `useEffect` further down, and React runs effects in DECLARATION order - so on any mount where auth
      was already resolved, the redirect effect above fired with `arrivedFromPurchase` still false and
      bounced a Pro buyer to /arena before the marker had ever been read. It presented as width-specific
@@ -76,7 +83,10 @@ export default function UpgradePage() {
      `useSearchParams` is SSR-safe and gives the right value on the FIRST render, so no effect can lose
      the race. The same race applied to `status`/`payment`, so those move too rather than leaving one
      half fixed. */
-  /* READ ONCE DURING THE FIRST RENDER, not with useSearchParams and not in an effect.
+  /* SUPERSEDED HEADING, accurate only about `useSearchParams`: "READ ONCE DURING THE FIRST RENDER,
+   * not with useSearchParams and not in an effect." The useSearchParams half still holds and is the
+   * reason this is not the obvious one-liner. The "not in an effect" half is what caused #1630
+   * defect 2 and is corrected below.
    *
    * `useSearchParams()` was the obvious tool and it BREAKS THE BUILD: it opts a client component out
    * of static prerendering unless the whole thing sits inside <Suspense>, and `next build` fails with
@@ -94,7 +104,26 @@ export default function UpgradePage() {
    * is rendered during hydration. The banner is gated on `purchaseReady`, which requires auth and the
    * entitlement read to have settled, and neither has on the first client render. The redirect guard
    * is not rendered output at all. So the server's HTML and the client's first render agree. */
-  const [rawQuery] = useState(() => (typeof window === 'undefined' ? '' : window.location.search));
+  /* CORRECTION TO THE PARAGRAPH ABOVE, WHICH WAS WRONG ABOUT HYDRATION (#1630 defect 2). It said
+     "the server's HTML and the client's first render agree". They do not. A lazy initializer runs
+     during the first CLIENT render, so that render saw `?status=canceled` while the server's HTML was
+     built without it - React #418, a text mismatch, reported on /upgrade?status=canceled. The reasoning
+     that failed is worth keeping: it checked that nothing these values GATE is rendered during
+     hydration (true - the banner needs `purchaseReady`), and concluded the renders agree. But
+     `returnStatus` also feeds COPY further down, and "nothing I thought of renders it" is not the same
+     measurement as "the two renders are identical".
+
+     So the first client render is now identical to the server's by construction: '' on both, with the
+     URL read in a mount effect. `queryRead` is what keeps #2073's race fixed - see the redirect effect. */
+  const [rawQuery, setRawQuery] = useState('');
+  const [queryRead, setQueryRead] = useState(false);
+  useEffect(() => {
+    /* Declared BEFORE the redirect effect, but that is not what makes this safe: state set in an
+       effect is not visible to ANY effect in the same commit, so the redirect effect below cannot see
+       `rawQuery` on this pass regardless of order. `queryRead` is the guard that does the work. */
+    setRawQuery(window.location.search);
+    setQueryRead(true);
+  }, []);
   const searchParams = useMemo(() => new URLSearchParams(rawQuery), [rawQuery]);
   const rawStatus = searchParams.get('status');
   const returnStatusRaw: null | 'succeeded' | 'failed' | 'canceled' =
@@ -176,6 +205,11 @@ export default function UpgradePage() {
        nothing having confirmed the purchase worked. A Pro account that arrived from a checkout gets
        the confirmation below and a button; it chooses when to leave. A Pro account that merely
        navigated to /upgrade still goes straight on, because for them this page sells nothing. */
+    /* #2073's race, re-guarded after #1630 moved the URL read into an effect. `fromCheckout` is
+       false until that effect lands, so without this a Pro buyer would be bounced to /arena one
+       commit before the marker was read - which is the bug the `!fromCheckout` guard exists to stop.
+       Deciding nothing until the URL is known is the only correct order here. */
+    if (!queryRead) return;
     if (isPro && !fromCheckout) { router.replace('/arena'); return; }
     // `loading` has to be here, not just read. The effect bails out while auth
     // is still resolving, and without loading in the list it never re-runs when
@@ -186,7 +220,7 @@ export default function UpgradePage() {
     // fromCheckout (#1630): it resolves from the URL in an effect, so it is false on the very first
     // run. Without it here the effect would not re-run when it flips true, and a Pro buyer would be
     // bounced to /arena a tick before the marker was read - the exact bug this guard exists to stop.
-  }, [isPro, loading, router, fromCheckout]);
+  }, [isPro, loading, router, fromCheckout, queryRead]);
 
   /* Coming BACK from the payment page. The browser can restore this page from
      its back/forward cache with its state intact, which would leave
@@ -446,8 +480,16 @@ export default function UpgradePage() {
   /* Only `isPro` still replaces the whole page: a subscriber is being sent elsewhere, so there is nothing
      here for them. `loading` and `entitlementsLoading` now suppress the CONTROLS (see purchaseReady above)
      rather than the page, which is what puts the copy in the server HTML. */
-  if (isPro) {
-    return <LoadingState message={isPro ? t('UPGRADE_LOADING_REDIRECTING') : t('UPGRADE_LOADING')} fullPage />;
+  /* `!fromCheckout` IS LOAD-BEARING (#1630 defect 1). This said `if (isPro)`, which promised a
+     redirect that the effect above deliberately does not perform when the visitor arrived from a
+     checkout - so a Pro account on /upgrade?purchase=whop sat on "Redirecting..." forever (QA sampled
+     24s), and UPGRADE_PURCHASE_PRO below was unreachable: the one screen that confirms a purchase
+     worked could never be seen by the person who had just paid.
+     The two conditions have to agree, because this copy is a PROMISE about what the effect will do.
+     The `isPro ? ... : ...` here was also dead - it is inside `if (isPro)` - so it always read
+     REDIRECTING; collapsed to the one message it actually showed. */
+  if (isPro && !fromCheckout) {
+    return <LoadingState message={t('UPGRADE_LOADING_REDIRECTING')} fullPage />;
   }
   if (user && entitlementStatus === 'unknown') {
     return (
