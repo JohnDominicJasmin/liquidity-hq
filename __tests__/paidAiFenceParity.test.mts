@@ -349,3 +349,57 @@ test('P4. no spec installs the paid-AI fence AFTER one of its own page.route cal
     + 'never arrived, while the trace shows it was made. Move the install above the first page.route for that page. '
     + 'One install per newPage() is fine; an install that follows a route on the same page never is.');
 });
+
+/* ─────────────────────────────────────────────────────────────────────────────────────────────────
+ * P6/P7: THE MATCHER ITSELF, which nothing above tests.
+ *
+ * P1/P1b pin the segment LIST against the routes, P3 pins the GET exception, P2/P4/P5 pin
+ * installation discipline. All six can pass while the fence matches NOTHING - one bad escape in the
+ * `new RegExp(...)` construction is enough - and the result is every paid route passing through,
+ * billed, with a green suite. The list being correct is not the fence working.
+ *
+ * So these import the fence's OWN predicate rather than rebuilding the pattern: a test that
+ * reconstructs the regex is testing its own transcription, which is how a guard and its test agree
+ * with each other and both disagree with production.
+ *
+ * P7 IS NOT OPTIONAL. A predicate hardcoded to `true` passes P6 perfectly and fences the entire app,
+ * so the negative control is what distinguishes a working matcher from a stuck one.
+ * ───────────────────────────────────────────────────────────────────────────────────────────────── */
+
+const { isPaidAiPath, PAID_AI_SEGMENTS: FENCE_SEGMENTS, FREE_GET_PATHS_FOR_TEST } =
+  await import('../qa/e2e/_no-paid-ai.ts');
+
+test('P6. the fence MATCHES every segment it declares - bare, with a query, and with a subpath', () => {
+  assert.ok(FENCE_SEGMENTS.length > 10, `only ${FENCE_SEGMENTS.length} segments declared - the import is wrong, so P6/P7 prove nothing`);
+  const missed: string[] = [];
+  for (const seg of FENCE_SEGMENTS) {
+    for (const candidate of [`/api/${seg}`, `/api/${seg}?coin=btc&tf=4h`, `/api/${seg}/sub`, `/api/${seg}#frag`]) {
+      if (!isPaidAiPath(candidate)) missed.push(candidate);
+    }
+  }
+  assert.deepEqual(missed, [], `the fence does NOT match these paid paths, so a spec reaching them is billed and still passes:\n  ${missed.join('\n  ')}`);
+});
+
+test('P6b. the vendor-named catch-alls fire too, so a route nobody has written yet fails closed', () => {
+  /* The point of these is a path that does not exist today. If the alternation for them broke, the
+     fence would still cover every CURRENT route and this file would still be green. */
+  const missed = ['/api/ai', '/api/ai-chat', '/api/assistant', '/api/llm', '/api/research', '/api/analysis']
+    .filter((p) => !isPaidAiPath(p));
+  assert.deepEqual(missed, [], `the fail-closed catch-alls do not match: ${missed.join(', ')}`);
+});
+
+test('P7. NEGATIVE CONTROL: the fence does NOT match free paths - a matcher stuck on true would pass P6', () => {
+  const FREE = ['/api/version', '/api/health', '/api/labels', '/api/settings', '/api/alerts', '/', '/arena', '/api/draw-structure-extra'];
+  const wrongly = FREE.filter((p) => isPaidAiPath(p));
+  assert.deepEqual(wrongly, [],
+    `the fence matches these FREE paths, which would abort requests the product needs and read as a product defect: ${wrongly.join(', ')}`);
+});
+
+test('P7b. the GET exception is exactly two paths, and both are still matched by the fence itself', () => {
+  /* The exception is a hole, so its size matters. Both must still MATCH the fence - the GET carve-out
+     happens inside the handler, so a path that stopped matching would lose the POST protection too. */
+  assert.deepEqual([...FREE_GET_PATHS_FOR_TEST].sort(), ['/api/grok', '/api/grok-chat']);
+  for (const p of FREE_GET_PATHS_FOR_TEST) {
+    assert.ok(isPaidAiPath(p), `${p} is a GET exception but is no longer matched by the fence at all, so its POST is unprotected`);
+  }
+});

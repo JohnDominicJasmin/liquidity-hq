@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { gotoSignedIn, signedInContext, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
 import { killTransitions, snapshotCanvases, quietSnapshot, chartChanged } from './_chart';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /**
  * Pins #1008's fix (Pro subscribers edit indicator parameters and the chart
@@ -44,6 +45,7 @@ test.describe('indicator parameter edits reach the chart (#1008)', () => {
       try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
     });
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena?coin=btc&tf=1h');
 
