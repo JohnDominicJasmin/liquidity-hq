@@ -80,22 +80,23 @@ const readFlash = (page: import('@playwright/test').Page) =>
 test.describe('#2068 /upgrade post-purchase states, and a82342a1\'s hydration seam', () => {
   test.skip(!BASE, 'E2E_BASE_URL required');
 
-  /* H1 IS EXPECTED TO FAIL, against the second open defect this file found - #1630's comment of
-   * 2026-11-08. a82342a1 keeps the /upgrade prerender static, so the server HTML has no banner and
-   * the first client render does: React reports a TEXT hydration mismatch, `Minified React error
-   * #418` (`args[]=text`). Scoped by two controls - bare `/upgrade` and `/arena` both produce zero -
-   * and it needs no sign-in, so any visitor following a return URL hits it.
+  /* THIS CELL FOUND A DEFECT, WHICH #2090 FIXED. It carried `test.fail()` from 2026-11-08 until the
+   * fix landed on qa, and the annotation came off here because the cell went green - that transition
+   * is the evidence, which is the whole reason it was annotated rather than left as a standing red.
    *
-   * The FLASH half of this cell passes: the banner is added once and never removed. So the defect is
-   * the mismatch itself rather than visible flicker, which is worth separating - a mismatch makes
-   * React discard and re-render that subtree, which is a correctness and a performance cost rather
-   * than something a user necessarily sees.
+   * The defect: a82342a1 kept the /upgrade prerender static while a lazy `useState` initializer read
+   * the params during the first CLIENT render, so the two renders differed and React reported a TEXT
+   * hydration mismatch - `Minified React error #418` (`args[]=text`). Scoped by two controls, bare
+   * `/upgrade` and `/arena` both producing zero, and it needed no sign-in, so any visitor following a
+   * return URL hit it. #2090 moved the read into a mount effect with `rawQuery` starting `''`, which
+   * makes the first client render identical to the server's by construction.
    *
-   * test.fail() for the same reason as S3: a standing red trains people to skim, and this goes RED
-   * the moment it is fixed, which is the prompt to delete the annotation. */
+   * THE FLASH HALF ALWAYS PASSED, and keeping the two separate is the point of this cell: the banner
+   * was added once and never removed even while the mismatch was live. A hydration mismatch makes
+   * React discard and re-render that subtree - a correctness and a performance cost - which is not
+   * the same thing as a user seeing a flicker, and conflating them would have overstated the defect. */
   test('H1. signed out with a return status: no React hydration error, and the banner does not flash out', async ({ browser }) => {
     test.setTimeout(150_000);
-    test.fail(true, 'open defect: URL-driven render on a static prerender gives React #418 - see #1630 (2026-11-08)');
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const page = await ctx.newPage();
     try {
@@ -178,14 +179,14 @@ test.describe('#2068 /upgrade post-purchase states, and a82342a1\'s hydration se
    * `76064af` over 24 seconds: path stays /upgrade, "Redirecting…" persists, "You're on Pro" never
    * appears. The no-marker control (S2) redirects correctly, so this is stuck rather than slow.
    *
-   * `test.fail()` rather than a plain failing cell, deliberately. A standing red teaches everyone to
-   * skim the failure list - I spent today removing three of those from terminal-default. This states
-   * the defect as the current expectation and goes RED THE MOMENT IT IS FIXED, which is the prompt to
-   * delete this annotation. It is not a way of ignoring it: #1630 carries the finding. */
+   * FIXED BY #2090, which made the render gate `isPro && !fromCheckout` so it agrees with the effect.
+   * This cell carried `test.fail()` from 2026-11-08 until that landed on qa; the annotation came off
+   * because the cell went green, and that transition is the evidence the fix works. Annotating rather
+   * than leaving a standing red is what made the transition legible - a permanently failing cell would
+   * have told nobody anything on the day it started passing. #1630 carries the finding either way. */
   test('S3. a Pro account WITH the marker sees the confirmation, not a redirect placeholder', async ({ browser }) => {
     test.setTimeout(180_000);
     test.skip(!AUTH_READY, AUTH_SKIP_REASON);
-    test.fail(true, 'open defect: /upgrade:449 gates the full-page "Redirecting…" on isPro alone - see #1630 (2026-11-08)');
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
