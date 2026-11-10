@@ -231,113 +231,17 @@ on:
   # here - CI that only runs after a merge runs at the one moment it cannot
   # help. `types` is explicit so a label or a title edit can never spend 34
   # minutes; `synchronize` is the one that fires on each push to an open PR.
+  # OWNER RULE, 2026-11-10: CI RUNS ONCE, ON THE RELEASE PR (staging -> main), AND NOWHERE ELSE.
+  # November hit the Actions budget on day 10: 3,565 job-minutes, 1,808 of them the build job on
+  # pull_requests into dev/qa/staging and 988 the browser suite. His words: "run one time testing CI,
+  # one time only" - changes park on staging and the release PR is where resources are spent.
+  # Feature PRs, dev, qa and staging pushes run nothing here; QA tests on the deployed qa site.
+  # The `push:` trigger (qa, staging, main) was removed for the same reason; drift on main is
+  # release-signals.yml's job, not this file's. Re-adding a branch here re-adds that bill.
   pull_request:
-    branches: [dev, qa, staging, main]
+    branches: [main]
     types: [opened, reopened, synchronize, ready_for_review]
 
-  push:
-    # `qa` IS IN THIS LIST AS OF 2026-11-08, and the paragraph below used to say
-    # it was "deliberately ABSENT". That argument was correct about the commits
-    # and wrong about the tree, so it is corrected rather than deleted.
-    #
-    # It said: every promotion is fast-forward only, so the commit landing on
-    # `qa` is bit-identical to one already tested on `dev`. True - and it stopped
-    # being sufficient on 2026-10-30, when `dev` left this list on the owner's
-    # order (36 of 129 runs in two days were per-merge rechecks). From that day
-    # the commit on `qa` was bit-identical to one that NOTHING had built: each
-    # PR was gated as it merged, but the merged result was not.
-    #
-    # docs/WORK-QUEUE.md:331 covered the gap with a manual step - "you create the
-    # run instead of looking for one", `gh workflow run ci.yml --ref dev` before
-    # each promotion. THAT CONTROL FAILED ON ITS FIRST BUSY NIGHT. On 2026-11-07
-    # dev promoted to `qa` four times and dispatched it zero times; the newest
-    # integrated build was 557e8bd0 while `qa` had moved to cfbd5401, two
-    # promotions later, unbuilt until someone audited the box that describes
-    # this and dispatched 42439808517 by hand. The dispatch passed - so nothing
-    # was broken, which is exactly why nobody would have noticed.
-    #
-    # `qa` RATHER THAN BACK TO `dev`, and the difference is the whole point.
-    # `qa` is fast-forward only, so a push to it is exactly ONE event per
-    # promotion - the same minutes the manual guardrail costs, with no memory
-    # dependency. Restoring `dev` would bring back the per-merge recheck the
-    # owner removed. This buys the integration gate without re-buying the waste.
-    #
-    # E2E IS UNAFFECTED AND STAYS GATED. The e2e job's `if:` is
-    # `github.base_ref == 'main' || (workflow_dispatch && inputs.e2e)`, and
-    # `base_ref` is empty on a `push` event - so a promotion to `qa` runs
-    # lint/typecheck/test/build and cannot start the 38-minute browser suite.
-    #
-    # `staging` WAS absent for the same reason, and was added 2026-08-10 because
-    # the reason turned out not to cover the browser suite. See the e2e job's
-    # `if:` below - the argument was about the 2-minute job, and the 38-minute
-    # one was reaching `staging` through a release PR that has since stopped
-    # being opened. Issue #207.
-    # `dev` LEFT THIS LIST on the owner's order, 2026-10-30. The recheck after
-    # every merge is what 36 of 129 runs in two days were. The merged head is
-    # instead built ONCE before each promotion, through the build-only
-    # `workflow_dispatch` above - leave `e2e` unchecked - and guardrail 3 in
-    # docs/WORK-QUEUE.md is the control that it happened.
-    #
-    # WHAT THIS GIVES UP, stated rather than discovered later: between merges,
-    # `dev` is unchecked. `.githooks/pre-push` runs `tsc` and nothing else, so
-    # lint, unit tests and build are unverified there until someone dispatches.
-    # Guardrail 3 stops being a good habit and becomes the only thing standing
-    # between a broken merge and `qa`. That is the owner's choice, made with the
-    # cost in front of him.
-    branches: [qa, staging, main]
-    # Docs-only pushes do not need a build. Every path here is either not
-    # compiled or not shipped, so a run over them proves nothing that the
-    # PR-side run had not already proved.
-    #
-    # DELIBERATELY ON `push` ONLY, not on `pull_request`, and the reason matters
-    # more than the saving:
-    #
-    #   - `main` is the only branch with a required status check (`CI Gate`).
-    #     Required checks are evaluated on the PULL REQUEST. A required check
-    #     that never runs never reports, and GitHub treats "never reported" as
-    #     pending forever - so a docs-only release PR would be unmergeable with
-    #     no way to force it short of an admin override. That is a worse failure
-    #     than the minutes are worth.
-    #   - The alternative - keep the workflow running and skip the expensive
-    #     jobs with an `if:` - is worse still. The `gate` job below rests on
-    #     "build carries no `if:`, so anything other than success is real".
-    #     Teaching it to accept `skipped` reopens the hole it was hardened to
-    #     close after release PR #38, where a skipped job read as a green
-    #     required check.
-    #
-    # So: pushes skip, pull requests always run. Issue #114 sibling item.
-    #
-    # ── WHAT IS DELIBERATELY *NOT* ON THIS LIST ────────────────────────────
-    # QA's wording from the duplicate PR #115, kept because it is the better
-    # argument and because this is the line someone will be tempted to edit:
-    #
-    #   `qa/**` and `.github/**` are deliberately NOT in the ignore list. Test
-    #   code and workflow definitions are exactly the things that need CI to
-    #   run; excluding them is how a broken spec or a broken workflow ships
-    #   without anyone noticing.
-    #
-    # Adding them roughly TRIPLES the saving, which is precisely why it looks
-    # attractive - and it removes the gate from the QA suite while doing it.
-    # The two `.github/` entries below are individual files that cannot affect a
-    # build; the directory as a whole stays covered.
-    #
-    # Sized honestly so nobody re-litigates it expecting more: only **1 of 31**
-    # recent commits touches documentation alone, so this saves ~60 min/month.
-    # QA's first count was 7 of 21 and included `.github/` and `qa/` changes;
-    # filtering to true documentation left one in thirty-one. It is worth doing
-    # because it is correct and free, not because it moves the number. The item
-    # that moves the number is `workers` - issue #114. (At 2 since 2026-08-09;
-    # above 2 is blocked on a per-IP egress measurement, not on theory.)
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'pendings/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/pull_request_template.md'
-      - 'LICENSE'
-
-  # For running the browser suite on demand: re-checking after a flake, or
-  # proving a fix without opening a release PR first.
   workflow_dispatch:
     inputs:
       # `e2e` RESTORED 2026-10-29, on the owner's authorisation relayed by

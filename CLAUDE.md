@@ -54,8 +54,14 @@ broken most often, in short — the full text and the rest are in that file:
 - **One tracker per area. Stop creating issues.** A finding on a page or feature
   that already has a tracker becomes a **checkbox on that tracker**. The measure
   of progress is issues **closed**, not PRs merged.
-- **Nothing heavy runs on his laptop.** Suites, builds, `npm ci`, browser runs,
-  gates — all of it in the cloud runners. Screenshots come from a deployed URL.
+- **CI runs ONCE, on the release PR (`staging` → `main`), and nowhere else.**
+  Owner, 2026-11-10, after the GitHub Actions budget ran out on day 10 of November
+  (3,565 job-minutes, $22, with no users): *"Park it in staging... run one time
+  testing CI, one time only."* Feature PRs and `dev`/`qa`/`staging` pushes run
+  **no** CI. Dev and QA test **locally or on the deployed `qa` site** (*"It should
+  be running locally"*), one session at a time, and batch changes so a release
+  carries many. Re-adding a CI trigger re-adds the bill. Full text: OWNER-RULES §17.
+  Screenshots still come from a deployed URL.
 - **The product UI never names the AI vendor or model.** It says "AI". Only the
   three legal strings name the processor, because privacy law expects it.
 - **Short messages to him.** Under 80 words, bullets or a table, answer first.

@@ -517,6 +517,37 @@ the scope rule above) — which keeps it out of his inbox without quietly re-del
 **The priority is getting users and revenue before the end of 2026.** Rank work by acquisition,
 then conversion, then retention. Anything else waits.
 
+## 17. CI RUNS ONCE, ON THE RELEASE. NOT ON EVERY CHANGE.
+
+Owner, 2026-11-10, furious, after the GitHub Actions budget stopped every run on day 10 of November:
+
+> *"We have 200 changes, maybe coming from 200 branches... put it on dev. Dev going to QA. Once in QA,
+> QA will do the testing... Test manually in my laptop. Use a live browser or the test suite. And then
+> once it succeeds, it goes to staging. Park it there... then we will talk about the items on staging
+> going to prod. This is where you run the CI. This is where you consume the resources."*
+> *"Why is it here? It should be running locally."*
+> *"I have to pay $22 at the end of the month... We don't even have users yet."*
+
+**What it cost, measured from the jobs API for November 1-10:** 3,565 job-minutes, about $22.13 gross
+against $12.13 included. Of that, the build job was 1,993 minutes across 292 runs, 1,808 of them on
+pull requests into `dev`/`qa`/`staging`. The browser suite was 988 minutes. Three jobs that take
+seconds but bill a full minute each added 584. **Rule 12 (2026-10-30) already said "run once before
+release". It was written down and never put into the workflow file, so it changed nothing.** A rule
+that is not in the config is a wish.
+
+**The rule, enforced in `.github/workflows/ci.yml` rather than remembered:**
+
+- **CI runs on one event only: a pull request into `main`**, which is the release PR. Plus
+  `workflow_dispatch` when PM/DevOps chooses to run it by hand.
+- **No CI on feature PRs, on `dev`, `qa` or `staging` pushes, or on merges.** The `push:` trigger is
+  gone. `deep-canary.yml` lost its pull-request trigger too.
+- **Dev and QA test locally or against the deployed `qa` site.** One session at a time, never two
+  heavy runs at once on the laptop.
+- **Batch.** Many changes, one release, one CI run. Do not promote `qa` → `staging` while a release PR
+  is open, because every push to its head re-runs the whole suite.
+- **Re-adding any CI trigger re-adds the bill. That is the owner's money**, so it goes to him, not to
+  a session's judgement.
+
 ## Keeping this file true
 
 **RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**
