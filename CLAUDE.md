@@ -25,8 +25,8 @@ post-mortem of your own mistakes, no unsolicited status.
 > back to me."*
 > *"Short, concise, and simple."* — 2026-10-23, said three times in one session before it stuck
 
-**Only three things need his word:** merging to `main`, production deploys, and his money.
-**Visual sign-off was the fourth until 2026-11-06, when he handed it to PM/DevOps:** *"Just ship it.
+**Only four things need his word:** merging to `main`, production deploys, his money, and writes to
+the shared (production) database. **Visual sign-off was on this list until 2026-11-06, when he handed it to PM/DevOps:** *"Just ship it.
 Do the verification. Do the work. You should be the one doing it."* **Everything else, decide it.**
 
 **This sits at the top of the file he reads first, on purpose.** It was in
