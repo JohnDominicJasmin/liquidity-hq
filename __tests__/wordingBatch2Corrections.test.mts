@@ -170,16 +170,50 @@ function stripSqlComments(sql: string): string {
   return sql.replace(/--[^\n]*/g, '');
 }
 
-/** Parses `insert into lhq_labels (key, locale, value) values (...)` tuples
- *  for locale 'en' out of a migration file's raw SQL text, unescaping SQL's
- *  '' (a literal single quote inside a quoted string). */
+/** Parses locale-'en' label rows out of a migration's raw SQL, in BOTH forms this repo uses,
+ *  unescaping SQL's `''` (a literal single quote inside a quoted string).
+ *
+ *  IT USED TO READ ONLY THE INSERT FORM, AND THAT MADE IT LIE RATHER THAN FAIL (#2075).
+ *  A migration that CORRECTS existing copy is written as `update lhq_labels set value = ...`, not as
+ *  an insert. The old regex found none of those, so "the latest migration's en value" silently
+ *  resolved to whatever the last INSERT had said - for the /hours keys, the September text. The
+ *  assertion then compared `labelDefaults.en.json` (correctly updated) against months-old SQL and
+ *  reported a COPY defect. Measured on #2075's branch: three audit keys - HOURS_WIN_GOD_DESC,
+ *  HOURS_WIN_PRIME_DESC, HOURS_WIN_MON_EVE_DESC - each resolved to its old text while the file's 25
+ *  UPDATE statements were invisible. The dangerous part is that the row count never dropped: it
+ *  returned a full map of stale values, so nothing looked broken.
+ *
+ *  THE SET VALUE, NEVER THE `where value =` GUARD. Several of these carry
+ *  `and value = '<old text>'` as a concurrency guard, so the statement contains BOTH the new and the
+ *  old string. Capturing the guard would compare the old text against itself and the assertion would
+ *  pass on a migration that changed nothing - an inverted check that looks greener than a correct
+ *  one. Hence the capture-group order below is deliberately value-then-key, the reverse of the
+ *  INSERT form, and the only place in this file where those two are not in the same order.
+ *
+ *  POSITIONAL ORDER WITHIN A FILE. Rows from both forms are collected with their match offset and
+ *  applied in that order, so a file that inserts a key and then updates it ends on the update - the
+ *  same way the database would. Across files, `loadAuditKeyRows` already relies on filename order. */
 function parseEnLabelRows(sql: string): Map<string, string> {
-  const out = new Map<string, string>();
+  const unescape = (s: string) => s.replace(/''/g, "'");
+  const found: Array<{ at: number; key: string; value: string }> = [];
+
+  /* insert into lhq_labels (key, locale, value) values ('KEY', 'en', 'VALUE') */
   const tupleRe = /\(\s*'((?:[^']|'')*)'\s*,\s*'en'\s*,\s*'((?:[^']|'')*)'\s*\)/g;
   let m: RegExpExecArray | null;
-  while ((m = tupleRe.exec(sql))) {
-    out.set(m[1].replace(/''/g, "'"), m[2].replace(/''/g, "'"));
-  }
+  while ((m = tupleRe.exec(sql))) found.push({ at: m.index, key: m[1], value: m[2] });
+
+  /* update lhq_labels set value = 'NEW' [, updated_at = now()] where key = 'KEY' and locale = 'en'
+     [and value = 'OLD'].
+     The value is matched FIRST with the quote-aware pattern, which consumes any `;` inside the copy
+     itself - so the `[^;]*?` spans that follow only ever traverse unquoted SQL and cannot run past
+     the end of the statement. */
+  const updateRe =
+    /update\s+lhq_labels\s+set\s+value\s*=\s*'((?:[^']|'')*)'[^;]*?\bkey\s*=\s*'((?:[^']|'')*)'[^;]*?\blocale\s*=\s*'en'/gi;
+  while ((m = updateRe.exec(sql))) found.push({ at: m.index, key: m[2], value: m[1] });
+
+  found.sort((a, b) => a.at - b.at);
+  const out = new Map<string, string>();
+  for (const row of found) out.set(unescape(row.key), unescape(row.value));
   return out;
 }
 
@@ -244,3 +278,67 @@ test('wording batch 2 (#1309 PR A, items 36-44/54/57): migration matches labelDe
       }
     });
   });
+
+/* ─────────────────────────────────────────────────────────────────────────────────────────────────
+ * The PARSER's own cells (#2075). Fixture-driven on purpose: the corpus changes under this file every
+ * time anyone adds a migration, so a cell that depends on it tests the corpus rather than the parser.
+ *
+ * WHY THESE EXIST AND WHAT THE OBVIOUS CONTROL WOULD NOT HAVE CAUGHT. The defect was that the parser
+ * read only the INSERT form, so an UPDATE-style correction was invisible and each key resolved to its
+ * last INSERT - months-old text. The natural guard, "the discovered files yielded more than 0 rows",
+ * would NOT have fired: the broken parser returned a FULL map of 41 keys, every value stale. The row
+ * count never dropped. A count check is still worth having for a total parse failure, which is what
+ * P4 below is for, but it is not the guard for this bug and should not be mistaken for one.
+ * ───────────────────────────────────────────────────────────────────────────────────────────────── */
+
+test('P1. the parser reads the INSERT form', () => {
+  const rows = parseEnLabelRows(
+    "insert into lhq_labels (key, locale, value) values ('A_KEY', 'en', 'inserted text');",
+  );
+  assert.equal(rows.get('A_KEY'), 'inserted text');
+});
+
+test('P2. the parser reads the UPDATE form, and takes the SET value NEVER the `where value =` guard', () => {
+  /* The inversion hazard, and the reason this cell is the important one: the statement contains BOTH
+     strings. Capturing the guard would compare the old text against itself, so the assertion in this
+     file would PASS on a migration that changed nothing - greener than a correct check. */
+  const rows = parseEnLabelRows(
+    "update lhq_labels set value = 'the new text', updated_at = now() "
+    + "where key = 'A_KEY' and locale = 'en' and value = 'the old text';",
+  );
+  assert.equal(rows.get('A_KEY'), 'the new text');
+  assert.notEqual(rows.get('A_KEY'), 'the old text');
+});
+
+test('P3. within one file the LAST statement to touch a key wins, whichever form it is', () => {
+  /* Positional, not form-ordered: an insert followed by an update must end on the update, the way the
+     database would, and an update followed by a re-insert must end on the insert. */
+  const insertThenUpdate = parseEnLabelRows(
+    "insert into lhq_labels (key, locale, value) values ('A_KEY', 'en', 'first');\n"
+    + "update lhq_labels set value = 'second' where key = 'A_KEY' and locale = 'en';",
+  );
+  assert.equal(insertThenUpdate.get('A_KEY'), 'second');
+
+  const updateThenInsert = parseEnLabelRows(
+    "update lhq_labels set value = 'first' where key = 'A_KEY' and locale = 'en';\n"
+    + "insert into lhq_labels (key, locale, value) values ('A_KEY', 'en', 'second');",
+  );
+  assert.equal(updateThenInsert.get('A_KEY'), 'second');
+});
+
+test('P4. CONTROL: a non-en locale is ignored, and the real corpus yields rows at all', () => {
+  /* Locale discrimination: without it, a ko/zh/ar/ru UPDATE in the same migration would overwrite the
+     en value with translated copy and every comparison below would fail for the wrong reason. */
+  const other = parseEnLabelRows(
+    "update lhq_labels set value = 'translated' where key = 'A_KEY' and locale = 'ko';",
+  );
+  assert.equal(other.has('A_KEY'), false, 'a ko row was read as en');
+
+  /* The count check PM/DevOps asked for. It catches a TOTAL parse failure - a renamed table, a
+     changed quoting convention - not the stale-value bug above, for the reason in the heading. */
+  assert.ok(
+    auditRows.size > 0,
+    `the migration corpus yielded 0 rows for ${AUDIT_KEYS.length} audit keys, so every comparison in `
+    + 'this file is vacuous - the parser or the migration convention has changed',
+  );
+});
