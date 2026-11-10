@@ -97,33 +97,85 @@ export const FIXTURES = {
  * only symptom was `20 skipped` scrolling past.
  *
  * A skip that does not name its cause is a silent gap with extra steps. */
-const REQUIRED_FIXTURES: ReadonlyArray<readonly [name: string, value: string]> = [
+/* ── SPLIT INTO WHAT SIGNING IN NEEDS AND WHAT ONE SPEC NEEDS. 2026-11-10 ────────────────────
+ *
+ * This list used to carry all ten values, and the note above already argued against exactly that
+ * for the T/ADMIN accounts - "AUTH_READY gates ~20 specs that only need A and B; adding these would
+ * make all of them skip on an environment that has what they actually need". The four row ids were
+ * in it anyway, so the file broke its own rule.
+ *
+ * MEASURED before changing it: **46 specs gate on `AUTH_READY`, and the four row ids are used by
+ * exactly ONE of them - `bola.spec.ts`.** So 46 specs were gated on four values that 45 of them
+ * never touch. Dev Team hit this: `E2E_B_PRICE_ALERT_ID` absent from their clone skipped
+ * `entitlement-unknown` - a spec with no row ids in it - and the run exited 0.
+ *
+ * So: this list is now only what SIGNING IN AS A OR B requires. A value used by one spec is that
+ * spec's precondition and belongs beside it, which is the shape the T/ADMIN accounts already use. */
+const SIGN_IN_FIXTURES: ReadonlyArray<readonly [name: string, value: string]> = [
   ['NEXT_PUBLIC_SUPABASE_URL', SUPABASE_URL],
   ['NEXT_PUBLIC_SUPABASE_ANON_KEY', SUPABASE_ANON],
   ['E2E_USER_A_EMAIL', FIXTURES.aEmail],
   ['E2E_USER_A_PASSWORD', FIXTURES.aPassword],
   ['E2E_USER_B_EMAIL', FIXTURES.bEmail],
   ['E2E_USER_B_PASSWORD', FIXTURES.bPassword],
+];
+
+const MISSING_FIXTURES = SIGN_IN_FIXTURES.filter(([, v]) => !v).map(([n]) => n);
+
+export const AUTH_READY = MISSING_FIXTURES.length === 0;
+
+export const AUTH_SKIP_REASON =
+  `sign-in fixtures absent - MISSING: ${MISSING_FIXTURES.join(', ')}. ` +
+  'Set them in `.env.e2e.local` (gitignored) or as env vars.\n\n' +
+  'Skipping rather than passing: an authenticated test that runs without a session proves ' +
+  'nothing. But a skip is NOT a pass either - if you are seeing this, the authenticated surface ' +
+  'is being verified by nothing at all in this run.';
+
+/* The row ids `bola.spec.ts` needs, and nothing else in the suite uses. Exported so that spec can
+ * state its own precondition; deliberately NOT part of AUTH_READY.
+ *
+ * CI supplies these two price-alert ids as GitHub VARIABLES rather than secrets - they are row ids
+ * in the dev database, not credentials - so they are easy to miss when copying a local file from
+ * the secret list. That is what cost the time on 2026-08-10 and again in Dev's clone today. */
+const ROW_ID_FIXTURES: ReadonlyArray<readonly [name: string, value: string]> = [
   ['E2E_A_TRADE_ID', FIXTURES.tradeId],
   ['E2E_A_HYPOTHESIS_ID', FIXTURES.hypothesisId],
   ['E2E_A_PRICE_ALERT_ID', FIXTURES.priceAlertId],
   ['E2E_B_PRICE_ALERT_ID', FIXTURES.bPriceAlertId],
 ];
 
-const MISSING_FIXTURES = REQUIRED_FIXTURES.filter(([, v]) => !v).map(([n]) => n);
+const MISSING_ROW_IDS = ROW_ID_FIXTURES.filter(([, v]) => !v).map(([n]) => n);
 
-export const AUTH_READY = MISSING_FIXTURES.length === 0;
+export const ROW_IDS_READY = MISSING_ROW_IDS.length === 0;
 
-export const AUTH_SKIP_REASON =
-  `authenticated fixtures absent - MISSING: ${MISSING_FIXTURES.join(', ')}. ` +
-  'Set them in `.env.e2e.local` (gitignored) or as env vars. Note that CI supplies ' +
-  'E2E_A_PRICE_ALERT_ID and E2E_B_PRICE_ALERT_ID as GitHub VARIABLES rather than secrets - ' +
-  'they are row ids in the dev database, not credentials - so they are easy to miss when ' +
-  'copying a local file from the secret list. See the issue "QA unblocked: two seeded test ' +
-  'accounts".\n\n' +
-  'Skipping rather than passing: a BOLA test that runs without fixtures proves nothing. ' +
-  'But a skip is NOT a pass either - if you are seeing this, the authenticated surface ' +
-  'is being verified by nothing at all in this run.';
+export const ROW_IDS_SKIP_REASON =
+  `seeded row ids absent - MISSING: ${MISSING_ROW_IDS.join(', ')}. ` +
+  'These are row ids in the dev database, not credentials, and CI supplies them as GitHub ' +
+  'VARIABLES. See the issue "QA unblocked: two seeded test accounts".\n\n' +
+  'A BOLA/IDOR test that runs without them proves nothing - but a skip is not a pass, and ' +
+  'the object-level authorisation surface is then verified by nothing in this run.';
+
+/* ── A DELIBERATE DEPLOYED-SITE RUN MUST NOT SKIP SILENTLY. 2026-11-10, PM/DevOps's call ─────
+ *
+ * `test.skip()` exits 0. With the old blanket gate, one absent row id turned 46 specs into
+ * `46 skipped`, exit 0, and `AUTH_SKIP_REASON` visible only to someone reading the output - so any
+ * wrapper, dispatch or gate reading the exit code saw green from a run that asserted nothing. That
+ * is the third shape of the same failure found on 2026-11-10 alone, after #2080's `cancelled` steps
+ * and the mobile leg's `continue-on-error`: the reporting layer cannot see an absence.
+ *
+ * `E2E_BASE_URL` being set means someone pointed the suite at a deployed site ON PURPOSE. Silence
+ * is the wrong answer to that, so this throws at import and the run ends non-zero with the reason
+ * on stdout. Every spec importing this module fails to load, which cannot be read as a pass.
+ *
+ * Gated on the SIGN-IN values only. Throwing for a row id would re-create the coupling this change
+ * removes - one spec's missing precondition taking down 45 others. `bola.spec.ts` makes the same
+ * fail-not-skip decision locally, for itself. */
+if (process.env.E2E_BASE_URL && !AUTH_READY) {
+  throw new Error(
+    'E2E_BASE_URL is set, so this run was pointed at a deployed site deliberately - '
+    + 'refusing to skip silently and exit 0.\n\n' + AUTH_SKIP_REASON,
+  );
+}
 
 /* #1348/#1347 item 1: a spec that fires real, billed xAI calls (QUICK/DEEP
  * against /api/grok) must not run as part of the ordinary suite - CI's
