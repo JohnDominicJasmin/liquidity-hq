@@ -169,7 +169,25 @@ export const ROW_IDS_SKIP_REASON =
  *
  * Gated on the SIGN-IN values only. Throwing for a row id would re-create the coupling this change
  * removes - one spec's missing precondition taking down 45 others. `bola.spec.ts` makes the same
- * fail-not-skip decision locally, for itself. */
+ * fail-not-skip decision locally, for itself.
+ *
+ * ── YES, IT ABORTS THE WHOLE RUN, AND THAT IS THE INTENT. Dev Team asked; here is the cost ──
+ *
+ * This throws at IMPORT, so every spec importing this module fails to load - including one that
+ * imports it for an unrelated export. A deployed run with no sign-in fixtures is a
+ * misconfiguration, not a reduced-coverage run, and stopping everything is the only way the exit
+ * code can say so: a per-file gate would let `test.skip()` swallow it and exit 0 again, which is
+ * the whole failure being removed. The guard has to fire BEFORE any skip can.
+ *
+ * MEASURED blast radius rather than asserted: of the 52 specs importing this module, **50 need a
+ * session and 2 do not** - `news-feed-fixture.spec.ts` and `payments-write-path.spec.ts`, which
+ * import `SUPABASE_URL` alone. And `SUPABASE_URL` is itself one of the six values whose absence
+ * fires this, so when it is the missing one those two could not have worked either way. They are
+ * genuine collateral only when the missing value is one of the four A/B credentials - two specs,
+ * in one configuration, against 46 specs that used to report green having asserted nothing.
+ *
+ * If you hit that case and want those two anyway: supply the four A/B values, or run them without
+ * `E2E_BASE_URL` (the local path is unchanged and still skips rather than throwing). */
 if (process.env.E2E_BASE_URL && !AUTH_READY) {
   throw new Error(
     'E2E_BASE_URL is set, so this run was pointed at a deployed site deliberately - '
