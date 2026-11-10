@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1347/#1348 item 19 (#1355, fix by Dev Team) - components/TimezoneSync.tsx
  * gated its automatic settings write on `loading`, which flips false as
@@ -80,6 +81,7 @@ test.describe('TimezoneSync must not write before settings are ready, and must s
   test('a genuinely failed settings read fires zero timezone PATCHes', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       const tracker = trackTimezonePatches(page);
       await page.route(`${SUPABASE_URL}/rest/v1/**`, route => {
@@ -103,6 +105,7 @@ test.describe('TimezoneSync must not write before settings are ready, and must s
   test('a successful read with a real mismatch fires exactly one correcting PATCH', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       // Seed an obviously-wrong saved timezone so any real browser locale
       // counts as a mismatch, deterministically.
@@ -127,6 +130,7 @@ test.describe('TimezoneSync must not write before settings are ready, and must s
   test('a successful read where the timezone already matches fires zero redundant PATCHes', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       // First load lets the real sync correct the account to the browser's
       // actual timezone (whatever it legitimately is in this environment).
@@ -148,6 +152,7 @@ test.describe('TimezoneSync must not write before settings are ready, and must s
   test('sticky-ready: a failed background refresh does not stop a real mismatch from correcting afterward', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       // Reach 'ready' first with a real mismatch already seeded, so the
       // FIRST load's own correction is expected and not part of what this

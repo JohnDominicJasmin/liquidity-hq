@@ -74,6 +74,21 @@ const PAID = new RegExp(
  * than the fence quietly allowing a billed call. */
 const FREE_GET_PATHS = new Set(['/api/grok', '/api/grok-chat']);
 
+/** THE FENCE'S OWN MATCHER, EXPORTED SO A TEST CAN PROVE IT FIRES.
+ *
+ * The parity test already pins the SEGMENT LIST against the routes (P1/P1b), the GET exception (P3)
+ * and installation discipline (P2/P4/P5). None of that touches `PAID` itself, so a matcher that
+ * matched NOTHING - one bad escape in the construction above is enough - would let every paid route
+ * through while all six of those cells stayed green. The list being right is not the fence working.
+ *
+ * Exported as the predicate the route callback actually calls, not as a copy of the regex: a test
+ * that rebuilds the pattern is testing its own transcription. */
+export const isPaidAiPath = (pathAndSearch: string): boolean => PAID.test(pathAndSearch);
+
+/** Exported for the same reason: the GET exception is a hole in the fence, so a test should be able
+ *  to see its exact shape rather than infer it. */
+export const FREE_GET_PATHS_FOR_TEST: ReadonlySet<string> = FREE_GET_PATHS;
+
 const violations = new WeakMap<Page, string[]>();
 
 /** Install before any spec-specific `page.route`. Returns the array it records into, for a spec that wants to inspect it directly. */
@@ -91,7 +106,7 @@ export async function installPaidAiFence(page: Page): Promise<string[]> {
      A spec that says nothing gets the fence; a run that has declared it wants to pay does not. */
   if (BILLED_CALLS_READY) return seen;
 
-  await page.route((url) => PAID.test(url.pathname + url.search), async (route: Route, request: PWRequest) => {
+  await page.route((url) => isPaidAiPath(url.pathname + url.search), async (route: Route, request: PWRequest) => {
     const { pathname } = new URL(request.url());
     /* The usage counters are free and polled by any page showing the rings - see FREE_GET_PATHS. */
     if (request.method() === 'GET' && FREE_GET_PATHS.has(pathname)) return route.fallback();

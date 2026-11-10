@@ -209,6 +209,36 @@ if (ENABLED) {
 
     /* count mode never stubs - it only observes. A measurement that alters the
      * thing being measured would answer a different question than #114 asks. */
+    /* FAIL CLOSED FOR PAID AI, AHEAD OF THE MODE CHECK AND AHEAD OF `STUBBED`.
+     *
+     * This host is NOT in `STUBBED` on purpose, because `STUBBED` serves an empty-shaped SUCCESS and
+     * that is the wrong answer for an AI call: a spec asserting "no verdict was shown" would pass on
+     * a fabricated empty success, for the wrong reason. An error is the honest shape - the route's own
+     * failure handling is what should run.
+     *
+     * AND IT APPLIES IN `count` MODE TOO, which is the one deliberate exception to that mode's rule
+     * that it "never stubs - it only observes". Observing costs money here: every sample is a billed
+     * xAI call. A measurement that bills per sample is not worth the fidelity, so this host is blocked
+     * in both modes and the log says which host and why.
+     *
+     * WHAT THIS IS NOT. It is not the protection that makes CI safe today - that is the absence of
+     * `GROK_API_KEY` in `ci.yml`, which makes `/api/macro-context` and `/api/dry-powder` return 50x at
+     * their `!GROK_KEY` guard before they reserve or spend (measured 2026-11-08). This is the second
+     * layer, so that adding an AI key to CI stops being a one-line change that silently starts
+     * billing. Before this, the only thing between a CI key and a bill was 16 specs that happen not to
+     * install the browser fence. */
+    /* Matched on the DOMAIN, not one hostname, so a regional or versioned endpoint under x.ai is
+       covered too. Only x.ai - this project's vendor - and no hosts added on a guess. */
+    if (/(^|\.)x\.ai$/.test(host ?? '')) {
+      served++;
+      byHost.set(host, (byHost.get(host) ?? 0) + 1);
+      log(`[intercept] FAIL-CLOSED ${host} - paid AI, blocked in ${MODE} mode (see the comment in this file)`);
+      return new Response(JSON.stringify({ error: 'blocked by qa/server-intercept.mjs: paid AI egress is not allowed in tests' }), {
+        status: 502,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+
     if (MODE === 'count' || !host || !STUBBED.includes(host)) {
       passed++;
       return realFetch(input, init);

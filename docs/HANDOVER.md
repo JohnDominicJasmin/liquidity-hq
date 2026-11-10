@@ -203,7 +203,7 @@ the claim was already stale when written up as audit §7.2.
 
 | Layer | What | Where |
 |---|---|---|
-| CI | GitHub Actions. Job `build` (lint → typecheck → test → build, ~2 min) on every push and PR. Job `e2e` (Playwright, ~34 min) **only on a PR into `main`** — see `CONTRIBUTING.md` §4b. Job `CI Gate` is the one required status check | `.github/workflows/ci.yml` |
+| CI | GitHub Actions. **Since 2026-11-10 (OWNER-RULES §17) CI runs ONLY on a PR into `main` (the release) and on manual dispatch** - before that, job `build` ran on every push and PR, which used November's whole Actions budget by day 10. Feature PRs are verified locally with `npm run verify`. Job `e2e` (Playwright, ~34 min) **only on a PR into `main`** — see `CONTRIBUTING.md` §4b. Job `CI Gate` is the one required status check | `.github/workflows/ci.yml` |
 | Unit | `node --test`, 6 files, 75 assertions | `__tests__/*.test.mts` |
 | E2E | Playwright, 187 passing + 47 skipped × desktop 1440×900 + iPhone 13, against a **production** build on port 3100 | `qa/e2e/*.spec.ts`, `playwright.config.ts` |
 | Lint | ESLint via CLI — `next lint` no longer exists in Next 16, and `next build` stopped linting | `eslint.config.mjs` |

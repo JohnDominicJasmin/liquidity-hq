@@ -748,7 +748,7 @@ shared a file with the release PR.
 ### How to run the suite
 
 ```bash
-E2E_BASE_URL=https://liquidity-hq-qa.onrender.com   npx playwright test qa/e2e/<spec>.spec.ts --project=desktop --workers=1
+E2E_BASE_URL=https://liquidity-hq-qa.onrender.com   npx playwright test qa/e2e/<spec>.spec.ts --project=desktop --workers=1 --max-failures=3
 ```
 
 **Use `--workers=1` against `qa` or `staging`.** Signed-in specs each boot the
@@ -758,6 +758,38 @@ exactly like findings.
 
 Prefer one targeted spec over a full sweep — a 40-minute suite also wakes the
 free-plan services.
+
+**ALWAYS `--max-failures=3` ON A LOCAL RUN. Added 2026-11-10, after a run that
+proved why.** `qa/e2e/_auth.ts` latches on the second consecutive environment
+outage and from then on every spec needing a session fails instantly or skips.
+Without a failure cap, that latch does not stop the run — it converts the rest of
+the suite into noise and keeps going for the full wall clock.
+
+Measured, release #2097, the full suite against `staging` at the config default
+`workers: 2` rather than the `--workers=1` this section already told me to use:
+
+```
+  16 passed      174 failed      1,095 skipped      of 1,290 planned
+```
+
+**173 of the 174 failures took `0ms`**, so they never executed; exactly one took
+real time. The 16 passes are all real durations and include six signed-in cases,
+so auth was working when it started and the run degraded into the latch. One
+candidate defect, an hour of wall clock, and no way to tell them apart from the
+summary alone.
+
+**And the error bodies were lost.** The `list` reporter prints them AFTER the run.
+That run was killed before the end — the laptop ran out of memory — so the one
+real failure has no message anywhere, and the HTML report holds only its shell
+(`qa/e2e-report/data/` empty; a control grep finds `playwright` 4 times in
+`index.html` and `Timeout`, `net::`, `latched` zero times, so the absence is real
+rather than a mis-pointed probe). `--max-failures=3` ends the run at the latch,
+in minutes, **with the message printed**.
+
+Two separate lessons, and the second is the one that cost the time: a cap keeps a
+latched run short, and a reporter that only prints at the end means an
+interrupted run tells you nothing. Cap it, and read the failure while the run is
+still yours.
 
 **Production is guarded, and refuses by default (#1364).** With `E2E_BASE_URL` set to
 the production host the config will not load unless you also set
