@@ -159,7 +159,24 @@ export const CHANGELOG: ChangelogEntry[] = [
          4d396e41  the coin category chips signalling selection by colour alone
          1b3d055c + a472e9ce  the failure state for a paid read that came back unreadable
          7250b91c  a failed chart-alerts refresh reading as a cancelled one
-         f00d5326  alerts saying when a pass ran on incomplete data
+
+       A FIFTH LINE WAS DRAFTED AND PULLED, and it is recorded because the mistake is instructive
+       rather than clerical. It read "Telegram alerts now say when a pass ran on incomplete market
+       data, instead of going quiet", mapped to f00d5326. **No user is told anything by that commit.**
+       Its "alerts degraded: ..." string goes to `reportHealth`, which writes an internal health row
+       for /ops; no Telegram message text changes. Caught by PM/DevOps on review.
+
+       The error was reading a commit's most quotable new string as user-facing without checking who
+       receives it - the same shape as announcing the /hours wording below while database rows still
+       serve the old copy. A changelog line's test is not "did something change", it is "would a user
+       notice", and an operator-facing row fails it.
+
+       WHAT THIS RELEASE DOES DO FOR ALERTS IS REAL BUT NOT YET HERE: f00d5326's closed-candle cache
+       plus #2080's pacing make the alert pass call exchanges less often and evenly spaced, which is
+       what stops the breaker tripping and alerts stopping for 10-20 minutes. #2080 is NOT in this
+       range, so the line is held rather than written against a commit that is not shipping. If #2080
+       lands before the tag, add: 'Telegram alerts make fewer, evenly spaced requests to exchanges, so
+       they are less likely to stop during busy markets.' mapped to f00d5326 + #2080's commit.
 
        THE POST-PURCHASE ITEM COVERS FIVE COMMITS, NOT ONE, and that is the Russian-item lesson in
        the entry below being applied rather than re-learned: b0e2c517 built the confirmation,
@@ -185,7 +202,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       'On AI Arena, the selected coin category is now marked for screen readers and no longer shown by colour alone.',
       'When an AI read comes back without a clear verdict, AI Arena now says so in your language, and tells you whether the read was counted.',
       'On AI Arena, a chart-alerts refresh that fails now says it failed, rather than looking like you cancelled it.',
-      'Telegram alerts now say when a pass ran on incomplete market data, instead of going quiet.',
     ],
   },
   {
