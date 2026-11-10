@@ -158,9 +158,44 @@ export const CHANGELOG: ChangelogEntry[] = [
          b0e2c517 + 59d269ac + 103a7900 + a82342a1 + 5caabc6f   the post-purchase screen
          4d396e41  the coin category chips signalling selection by colour alone
          1b3d055c + a472e9ce  the failure state for a paid read that came back unreadable
-         7250b91c  a failed chart-alerts refresh reading as a cancelled one
 
-       "IN YOUR LANGUAGE" WAS CUT FROM THE THIRD LINE, and this is the SECOND false claim this entry
+       A THIRD LINE WAS CUT - the chart-alerts one - AND THAT MAKES THIS THE ENTRY'S DEFAULT RATHER
+       THAN ITS EXCEPTION. It read "a chart-alerts refresh that fails now says it failed, rather than
+       looking like you cancelled it", mapped to 7250b91c. That commit's failure branch is a
+       `console.error` and a `return`: no `setChartSyncIssues`, no `setChartAlerts`, no toast, and it
+       does not join the "Couldn't draw:" path. **The commit body says so itself** - "The behaviour a
+       user sees is UNCHANGED and that is deliberate." Nothing is written to the page, and nothing in
+       app/, components/ or lib/ reassigns console.error to surface it.
+
+       THE WORDING WAS WRONG A SECOND WAY, which is worth keeping separate from the first: "rather
+       than looking like you cancelled it" tells a reader they appeared to cancel something. They
+       cancelled nothing - `cancelled` is the effect-teardown flag for a coin change or unmount. The
+       line handed a reader an internal variable name as their own action, so it was untrue even for
+       someone reading the console.
+
+       FOUR OF THE FIVE DRAFTED LINES FAILED THE SAME TEST, which is the number that matters: the
+       pulled Telegram line, the "in your language" clause, this one, and the chips line below. Not
+       four slips - one missing step.
+
+       THE CHIPS LINE IS THE SUBTLEST OF THE FOUR AND THE MOST WORTH STUDYING, because it was half
+       true and the true half carried the false one. It read "marked for screen readers AND no longer
+       shown by colour alone". The first clause is exactly right - 4d396e41 adds `aria-pressed`. The
+       second announces a visual fix that did not happen: that commit's body says "No visual change",
+       it adds no class, colour or style, and a sighted reader who could not distinguish the states
+       before still cannot. Pairing a verified clause with an unverified one is how the unverified one
+       gets through - the line reads as checked because half of it was. Every one of them described what a change makes POSSIBLE or what it writes
+       SOMEWHERE, rather than what a reader can observe. And this one survived two rounds of review
+       sitting four lines below the comment diagnosing the habit, which is the strongest argument
+       that noticing the habit does not substitute for the check.
+
+       THE MISSING STEP, now stated so it is inherited rather than re-derived: before an entry ships,
+       make one pass over `items` and ask of each line WHO RECEIVES IT. An operator health row, a
+       console line and an untranslated key all fail that question, and all three looked fine while
+       being read as a list. The three lines that remain were each put through it - the /upgrade
+       confirmation is a screen (QA verified 6/6 on qa), the chips item is a rendered
+       `aria-pressed` attribute, and the bad-read item is label copy a reader sees.
+
+              "IN YOUR LANGUAGE" WAS CUT FROM THE THIRD LINE, and this is the SECOND false claim this entry
        had on review. Both are recorded because the cause is one habit, not two slips.
 
        The line said the unreadable-read message is now shown "in your language". It is not.
@@ -222,9 +257,8 @@ export const CHANGELOG: ChangelogEntry[] = [
     tag: 'v2026.11.10',
     items: [
       'If you have just bought Pro, the upgrade page now confirms the purchase and offers a link onward, instead of sending you away without a word.',
-      'On AI Arena, the selected coin category is now marked for screen readers and no longer shown by colour alone.',
+      'On AI Arena, screen readers now announce which coin category is selected.',
       'When an AI read comes back without a clear verdict, AI Arena now says so plainly, and tells you whether the read was counted.',
-      'On AI Arena, a chart-alerts refresh that fails now says it failed, rather than looking like you cancelled it.',
     ],
   },
   {
