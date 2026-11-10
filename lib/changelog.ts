@@ -223,7 +223,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       'If you have just bought Pro, the upgrade page now confirms the purchase and offers a link onward, instead of sending you away without a word.',
       'On AI Arena, the selected coin category is now marked for screen readers and no longer shown by colour alone.',
-      'When an AI read comes back without a clear verdict, AI Arena now explains what happened and tells you whether the read was counted.',
+      'When an AI read comes back without a clear verdict, AI Arena now says so plainly, and tells you whether the read was counted.',
       'On AI Arena, a chart-alerts refresh that fails now says it failed, rather than looking like you cancelled it.',
     ],
   },
