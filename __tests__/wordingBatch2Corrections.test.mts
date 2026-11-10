@@ -2,6 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
+/* The parser is QA-owned and importable on purpose: Dev Team's first independent check of it
+   reimplemented the old version and dropped the insert branch, reporting 6 phantom rows. A probe
+   must be able to run the SAME function this test runs. See qa/sqlLabelRows.ts. */
+import { stripSqlComments, parseEnLabelRows } from '../qa/sqlLabelRows.ts';
 
 /* Antislop audit 001 (#1309) batch 2, PR A ("factual corrections" - items
  * 36, 37, 38, 39, 40, 41, 42, 43, 44, 54, 57). Contracts, independent of
@@ -159,80 +163,35 @@ function findAllMigrationFiles(): string[] {
     .map(f => path.join(MIGRATIONS_DIR, f));
 }
 
-/** Strips SQL `-- ...` line comments before parsing, so a commented-out
- *  dev-section duplicate (`-- insert into lhq_dev_labels ...`, per this
- *  repo's 20260912b convention of keeping the prod insert live and the
- *  dev one commented out) never gets counted as a real row. Not a full
- *  SQL parser - a literal "--" inside a quoted value would also get cut
- *  here, but the audit this file enforces is itself removing "--"-style
- *  em dashes from label text, so that case shouldn't occur in practice. */
-function stripSqlComments(sql: string): string {
+/* ── THE OLD IMPLEMENTATIONS, KEPT AS THE REFERENCE FOR THE CORPUS CELL ONLY ──────────────────
+ *
+ * These are the pre-2026-11-10 versions, verbatim. They are NOT used to parse anything the
+ * assertions depend on - C9 runs them beside the real parser across every migration file and
+ * requires the two to AGREE. That is Dev Team's corpus control, promoted from a number in a comment
+ * to an assertion, so a future migration that starts tripping the old bug fails this cell instead
+ * of contradicting a sentence nobody re-measures.
+ *
+ * `legacyStrip` is the bug: a blind regex that cuts a "--" inside a quoted value, taking the
+ * closing quote with it. `legacyParse` is the bug's partner: it trusted its caller to have stripped,
+ * and its tail alternation is only quote-safe while quotes balance. */
+function legacyStrip(sql: string): string {
   return sql.replace(/--[^\n]*/g, '');
 }
 
-/** Parses locale-'en' label rows out of a migration's raw SQL, in BOTH forms this repo uses,
- *  unescaping SQL's `''` (a literal single quote inside a quoted string).
- *
- *  IT USED TO READ ONLY THE INSERT FORM, AND THAT MADE IT LIE RATHER THAN FAIL (#2075).
- *  A migration that CORRECTS existing copy is written as `update lhq_labels set value = ...`, not as
- *  an insert. The old regex found none of those, so "the latest migration's en value" silently
- *  resolved to whatever the last INSERT had said - for the /hours keys, the September text. The
- *  assertion then compared `labelDefaults.en.json` (correctly updated) against months-old SQL and
- *  reported a COPY defect. Measured on #2075's branch: three audit keys - HOURS_WIN_GOD_DESC,
- *  HOURS_WIN_PRIME_DESC, HOURS_WIN_MON_EVE_DESC - each resolved to its old text while the file's 25
- *  UPDATE statements were invisible. The dangerous part is that the row count never dropped: it
- *  returned a full map of stale values, so nothing looked broken.
- *
- *  THE SET VALUE, NEVER THE `where value =` GUARD. Several of these carry
- *  `and value = '<old text>'` as a concurrency guard, so the statement contains BOTH the new and the
- *  old string. Capturing the guard would compare the old text against itself and the assertion would
- *  pass on a migration that changed nothing - an inverted check that looks greener than a correct
- *  one. Hence the capture-group order below is deliberately value-then-key, the reverse of the
- *  INSERT form, and the only place in this file where those two are not in the same order.
- *
- *  POSITIONAL ORDER WITHIN A FILE. Rows from both forms are collected with their match offset and
- *  applied in that order, so a file that inserts a key and then updates it ends on the update - the
- *  same way the database would. Across files, `loadAuditKeyRows` already relies on filename order. */
-function parseEnLabelRows(sql: string): Map<string, string> {
+function legacyParse(sql: string): Map<string, string> {
   const unescape = (s: string) => s.replace(/''/g, "'");
   const found: Array<{ at: number; key: string; value: string }> = [];
-
-  /* insert into lhq_labels (key, locale, value) values ('KEY', 'en', 'VALUE') */
   const tupleRe = /\(\s*'((?:[^']|'')*)'\s*,\s*'en'\s*,\s*'((?:[^']|'')*)'\s*\)/g;
   let m: RegExpExecArray | null;
   while ((m = tupleRe.exec(sql))) found.push({ at: m.index, key: m[1], value: m[2] });
-
-  /* update lhq_labels set value = 'NEW' [, updated_at = now()] where key = 'KEY' and locale = 'en'
-     [and value = 'OLD'].
-     MATCHED IN TWO STEPS RATHER THAN ONE PATTERN, and both reasons are failures the one-pattern
-     version had (Dev Team's review of #2091):
-
-     1. ORDER-INDEPENDENT. The first version required `key` to appear before `locale`, so
-        `where locale = 'en' and key = 'K'` was SILENTLY SKIPPED - the same shape of invisible miss
-        this whole function exists to remove, just one level up. No migration writes that order today,
-        which is exactly why it would have sat here unnoticed until one did.
-     2. SEMICOLON-SAFE, in a NARROWER way than it first appears - a mutation corrected this note. A
-        `[^;]*` span treats the first `;` as the statement end. That is already harmless for a `;` in
-        the NEW value (the quote-aware value pattern consumes the whole literal before the tail
-        starts) and for one in a TRAILING `and value = '<old>'` guard (`key` and `locale` are already
-        behind us). It breaks only when a quoted `;` comes BEFORE the key - which needs the guard
-        written first, so it is the same statement that needs point 1 as well. The tail pattern below
-        consumes either a non-quote-non-semicolon character OR a whole quoted string, so a quoted `;`
-        is swallowed and only an unquoted one ends the statement. Narrow, but free, and the
-        alternative is a tail that is correct only while nobody reorders a WHERE clause.
-
-     The value still comes from `set`, never from the `where value =` guard - see the heading above. */
   const updateRe = /update\s+lhq_labels\s+set\s+value\s*=\s*'((?:[^']|'')*)'((?:[^';]|'(?:[^']|'')*')*)/gi;
   while ((m = updateRe.exec(sql))) {
     const tail = m[2];
-    /* `\bkey\s*=` and not a bare `key`, so `and value = ...` and column names ending in "key" cannot
-       be mistaken for it. Both reads are scoped to this statement's own tail. */
     const keyMatch = tail.match(/\bkey\s*=\s*'((?:[^']|'')*)'/i);
     if (keyMatch && /\blocale\s*=\s*'en'/i.test(tail)) {
       found.push({ at: m.index, key: keyMatch[1], value: m[1] });
     }
   }
-
   found.sort((a, b) => a.at - b.at);
   const out = new Map<string, string>();
   for (const row of found) out.set(unescape(row.key), unescape(row.value));
@@ -419,4 +378,107 @@ test('P6. a quoted semicolon BEFORE the key does not end the statement early', (
   assert.equal(twoStatements.get('KEY_ONE'), 'first');
   assert.equal(twoStatements.get('KEY_TWO'), 'second');
   assert.equal(twoStatements.size, 2, 'the two statements bled into each other');
+});
+
+
+/* ── C7-C9: THE QUOTE-BALANCE BUG DEV TEAM FOUND BY MUTATION (#2091 follow-up) ───────────────
+ *
+ * The old parser trusted its caller to have stripped comments, and its statement-tail alternation
+ * is only quote-aware WHILE QUOTES BALANCE. A '--' comment containing an apostrophe makes them odd, every
+ * later quote pairs one position off, and the tail then swallows the statement's real semicolon
+ * inside what it takes for a string literal - so the NEXT statement's row vanishes. No error, no
+ * row-count change. A false FAIL is recoverable; a row that silently disappears is not.
+ *
+ * The fix was NOT to strip comments harder. parseEnLabelRows now strips them ITSELF, with a scan
+ * that knows when it is inside a literal, so the balance the tail depends on is established rather
+ * than assumed. C8c is the half that a blind stripper gets wrong in the other direction.
+ *
+ * Each cell runs the OLD implementation beside the new one, because 'the new parser is right' is
+ * worth little without showing the old one was wrong on the same input. */
+test('C7. an apostrophe in a -- comment must not swallow the next statement', () => {
+  const sql = [
+    "update lhq_labels set value = 'x' -- don't",
+    "where key = 'K1' and locale = 'en';",
+    "update lhq_labels set value = 'y' where key = 'K2' and locale = 'en';",
+  ].join('\n');
+
+  const rows = parseEnLabelRows(sql);
+  assert.equal(rows.get('K1'), 'x', 'K1 should parse');
+  assert.equal(rows.get('K2'), 'y', 'K2 is the row the unbalanced quote used to swallow');
+
+  // The old parser on the same input, so this cell cannot pass vacuously.
+  const legacy = legacyParse(sql);
+  assert.equal(legacy.get('K2'), undefined,
+    'CONTROL FAILED: the old parser did NOT drop K2 here, so this cell is not reproducing the bug');
+});
+
+test('C8. the same comment in a KEYLESS statement must not hand the next row the wrong value', () => {
+  const sql = [
+    "update lhq_labels set value = 'x' -- don't stop",
+    "where locale = 'en';",
+    "update lhq_labels set value = 'y' where key = 'FOREIGN' and locale = 'en';",
+  ].join('\n');
+
+  assert.equal(parseEnLabelRows(sql).get('FOREIGN'), 'y',
+    "FOREIGN's value comes from its OWN statement, not from the keyless one above it");
+  assert.equal(legacyParse(sql).get('FOREIGN'), 'x',
+    'CONTROL FAILED: the old parser did not mis-assign here, so this cell proves nothing');
+});
+
+test('C8b. CONTROL: the same two statements with no apostrophe in the comment were always fine', () => {
+  const sql = [
+    "update lhq_labels set value = 'x' -- do not",
+    "where key = 'K1' and locale = 'en';",
+    "update lhq_labels set value = 'y' where key = 'K2' and locale = 'en';",
+  ].join('\n');
+
+  // Both parsers agree here. This is what ties C7 to the APOSTROPHE rather than to the comment.
+  for (const [label, parse] of [['new', parseEnLabelRows], ['old', legacyParse]] as const) {
+    const rows = parse(sql);
+    assert.equal(rows.get('K1'), 'x', label + ' lost K1 on the apostrophe-free control');
+    assert.equal(rows.get('K2'), 'y', label + ' lost K2 on the apostrophe-free control');
+  }
+});
+
+test('C8c. a -- inside a quoted value is TEXT, and must survive comment stripping', () => {
+  const sql = "update lhq_labels set value = 'before -- after' where key = 'K' and locale = 'en';";
+
+  assert.equal(parseEnLabelRows(sql).get('K'), 'before -- after',
+    'a literal -- inside the value must not be cut as a comment');
+
+  /* The old stripper cut from -- to end of line regardless, taking the value's closing quote with
+     it. That is the OTHER door onto the same unbalanced-quote bug, and the one my earlier attempts
+     to measure with a regex got wrong twice - a predicate for this needs in-string tracking, which
+     is exactly what the fix adds. */
+  assert.notEqual(legacyStrip(sql).trim().slice(-1), ';',
+    'CONTROL FAILED: the old stripper left this statement intact, so it is not the case being pinned');
+});
+
+test('C9. CORPUS: across every migration file, old and new parsers must agree', () => {
+  /* Dev Team's control, promoted from a number in a prose comment to an assertion. It measured 138
+     files / 2829 rows / 0 diffs, which is what makes C7-C8c latent-trap removal rather than a live
+     fix - without it, the mutants alone would license the conclusion that migrations are currently
+     being misread. As an assertion it also does a second job a comment cannot: the day a migration
+     DOES start tripping the old bug, this cell fails and names the file, instead of a sentence
+     nobody re-measures quietly going out of date. */
+  const files = findAllMigrationFiles();
+  assert.ok(files.length > 100, 'expected the full migration corpus, got ' + files.length + ' files');
+
+  const diffs: string[] = [];
+  let totalRows = 0;
+  for (const f of files) {
+    const raw = readFileSync(f, 'utf8');
+    const fresh = parseEnLabelRows(raw);
+    const old = legacyParse(legacyStrip(raw));
+    totalRows += fresh.size;
+    const keys = new Set([...fresh.keys(), ...old.keys()]);
+    for (const k of keys) {
+      if (fresh.get(k) !== old.get(k)) diffs.push(path.basename(f) + ' :: ' + k);
+    }
+  }
+
+  assert.ok(totalRows > 1000, 'the corpus parsed only ' + totalRows + ' rows, so this cell is not reading it');
+  assert.deepEqual(diffs, [],
+    'a migration now parses differently under the two implementations, so the old bug has gone live: '
+    + diffs.slice(0, 8).join(' | '));
 });
