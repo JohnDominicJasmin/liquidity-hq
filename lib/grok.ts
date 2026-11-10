@@ -55,7 +55,7 @@ export async function callGrokViaProxy(
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { error?: string; code?: string; usage?: GrokUsageInfo };
+    const err = await res.json().catch(() => ({})) as { error?: string; code?: string; refunded?: boolean; usage?: GrokUsageInfo };
     // The Pro gate (#1263) answers 403 { error: 'PRO_REQUIRED', message } with the code in
     // `error`, not `code`. Passed on as a code so the caller can show its own labelled locked
     // state - used as the message it reached Arena's banner as the raw text "PRO_REQUIRED".
@@ -82,7 +82,7 @@ export async function callGrokViaProxy(
     const msg = err.code === 'RATE_LIMIT'
       ? `${err.error ?? 'Rate limit reached.'} Resets at ${nextResetLocalTime()}.`
       : err.error ?? 'Grok proxy error';
-    throw Object.assign(new Error(msg), { code: err.code, usage: err.usage });
+    throw Object.assign(new Error(msg), { code: err.code, refunded: err.refunded, usage: err.usage });
   }
 
   /* The answer is checked here, once, because every reader downstream (the page's raid alert, the result card, the history, the saved
@@ -94,6 +94,10 @@ export async function callGrokViaProxy(
   try { body = await res.json(); } catch { body = null; }
   const b = (typeof body === 'object' && body !== null ? body : {}) as { result?: unknown; usage?: unknown };
   const result = normalizeCombinedResult(b.result, chart.tf, ctx.session);
+  /* No `refunded` flag, DELIBERATELY. This is a 200 the route believed it answered, so it reserved the read and never called
+     refundUsageColumn - the read really is counted. The page treats an absent flag as counted for exactly this reason, which also
+     makes the absent case the safe default everywhere else: a transport that drops the field understates our generosity rather
+     than telling a customer their money came back when it did not. */
   if (!result) throw Object.assign(new Error(GROK_EMPTY_ANSWER_MESSAGE), { code: 'BAD_ANSWER' });
   return { result, usage: normalizeGrokUsage(b.usage) };
 }

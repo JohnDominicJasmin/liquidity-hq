@@ -31,6 +31,24 @@
 -- (7646 chars both sides), with a positive control: a one-character code change flips the hash,
 -- removing a comment does not. See docs/INFRASTRUCTURE.md section 9j.
 --
+-- CORRECTED 2026-11-08 (#2082), AT THE CLAIM RATHER THAN ONLY FURTHER DOWN THIS FILE. Two of the
+-- sentences above are no longer true of production, and a reader who stops at this header would act
+-- on them:
+--
+--   * "the comments are gone before Postgres sees them" / "Zero of 14 functions in prod carry a
+--     `--`". Measured today: prod `public` has 16 functions, and **1 carries `--`** -
+--     `increment_ai_usage_impl`, because the owner pasted it through the Supabase SQL editor, which
+--     does not strip comments the way the previous apply path did. **The apply path changes the
+--     stored artefact.** The newline control still holds (16 of 16), so `prosrc` is still the body.
+--   * "The first md5 above was confirmed to match the LIVE prod `increment_ai_usage_impl` exactly".
+--     It did when written. **Live prod now normalises to 0d71a2b421899b10091e653a6c7df47b**, not the
+--     `1ac55e21...` recorded above, because 20261106a touched the function afterwards.
+--
+-- Neither breaks the method - the normalised md5 strips comments by design, which is why it survived
+-- an apply-path change that would have broken a raw comparison. What they break is using the hashes
+-- ABOVE as current. The longer version of the first point is ~75 lines below; it was there before
+-- this correction, and that was the defect: the header is what gets read.
+--
 -- A COROLLARY OF THAT STRIPPING, CHECKED HERE: a comment stripper cannot tell `--` in code from `--`
 -- inside a string literal, so a `--` in an error message would be truncated silently and the function
 -- would still be created. The two new branches contain no string literals at all; checked
