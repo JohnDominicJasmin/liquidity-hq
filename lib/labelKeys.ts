@@ -1439,7 +1439,8 @@ export const LABEL_KEYS = [
      a measurement would be claiming something we do not have. The hint says what accepting
      DOES rather than how good the line is, because what accepting does is the honest part:
      the line becomes the trader's own drawing. */
-  'DRAW_STRUCTURE_BUTTON',
+  'DRAW_STRUCTURE_BUTTON', 'DRAW_STRUCTURE_PRO_TAG', 'DRAW_STRUCTURE_LOCKED_ARIA',
+  'ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL', 'DRAW_STRUCTURE_LOWER_TF_NOTE',
   'DRAW_STRUCTURE_LOADING',
   'DRAW_STRUCTURE_PANEL_TITLE',
   'DRAW_STRUCTURE_HINT',

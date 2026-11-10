@@ -134,16 +134,31 @@ export function toDrawable(
  *
  * From the owner's own answers on 28 blind charts, not from a guess about what traders like:
  *
- *     15m    0 of 4 structure      never offered - a product decision, not a setting
- *     1h     0.63                  ambivalent; round 2's 1h cells were four "maybe" answers
+ *     15m    0 of 4 structure      NOT offered - awaiting a blind retest (see below)
+ *     30m    untested              NOT offered - same retest
+ *     1h     0.63                  offered since 2026-11-10, on the owner's decision
+ *     2h     untested              offered since 2026-11-10, on the owner's decision
  *     4h     0.94                  ship
  *     1d     2 of 3                ship
  *
- * **15m is absent rather than configurable.** He said no to all four, and a setting would invite
- * someone to turn it on. 1h is excluded for now and is the open edge: it is a later question with
- * real usage behind it, not a number to pick today.
+ * **1h AND 2h WERE ADDED ON THE OWNER'S WORD, NOT ON NEW EVIDENCE, and that is recorded rather
+ * than smoothed over.** He used the feature on 4h and said *"it's working, I can see the lines"*,
+ * then asked for 1h and 2h on 2026-11-10. The numbers above did not change: 1h is still the 0.63
+ * that this comment previously called "the open edge", and 2h is still untested - he never saw a
+ * 2-hour chart, since his 28 answers covered 15m, 1h, 4h and 1d. So these two ship on a product
+ * decision, and the honest reading of the table is that 1h is weaker than 4h and 1d. The lower
+ * timeframes carry a plain note in the UI saying the lines are less reliable
+ * (`DRAW_STRUCTURE_LOWER_TF_NOTE`), which is the compromise rather than silence.
+ *
+ * **15m and 30m are still absent, and this is a hold rather than a no.** PM is putting ~10 fresh
+ * 15m/30m charts in front of the owner blind, with the current prompt, and they ship only if they
+ * pass. Do not add them on the grounds that 1h and 2h went in.
  */
-export const DRAW_STRUCTURE_TFS = ['4h', '1d'] as const;
+export const DRAW_STRUCTURE_TFS = ['1h', '2h', '4h', '1d'] as const;
+
+/* The timeframes that get the "more noise" note. Derived from the list above rather than written
+   out twice, so adding a timeframe cannot forget the note. */
+export const DRAW_STRUCTURE_NOISY_TFS: readonly string[] = ['1h', '2h'];
 
 /* TIED TO THE CHART'S OWN TIMEFRAME TYPE, the same assertion `lib/limits.ts` uses.
  *
@@ -158,9 +173,10 @@ void _drawTfsAreReal;
 /**
  * Whether the button appears at all for a timeframe.
  *
- * **`2h` is absent and that is not an oversight.** "4h and above" reads as if it included it, but
- * the owner never saw a 2-hour chart - his 28 answers covered 15m, 1h, 4h and 1d. 2h is untested
- * in exactly the way 1h is, so it is excluded by the same rule rather than included by rounding.
+ * **`2h` IS now included, on the owner's decision of 2026-11-10 rather than on evidence** - he
+ * never saw a 2-hour chart, so it remains untested. This paragraph used to argue for excluding it
+ * by the same rule that excluded 1h; both were added together, so the argument no longer applies
+ * and is replaced rather than deleted. The evidence table above carries the numbers.
  */
 export function drawStructureAvailable(tf: string): boolean {
   return (DRAW_STRUCTURE_TFS as readonly string[]).includes(tf);
