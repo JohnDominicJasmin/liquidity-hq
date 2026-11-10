@@ -252,9 +252,16 @@ test.describe('perps reading and the Confluence Score', () => {
     const page = await ctx.newPage();
     try {
       /* FENCE AT newPage(), AHEAD OF EVERY OTHER ROUTE, AND RE-ARMED AFTER ANY unrouteAll.
-      These specs were safe in CI only by accident of the environment:
-      `NODE_OPTIONS=--import ./qa/server-intercept.mjs` stubs api.x.ai at the SERVER, so a browser
-      request reaching a paid AI route cost nothing. Against a DEPLOYED service that stub does not
+      These specs were safe in CI only by accident of the environment, and NOT for the reason this
+      comment used to give. It said `qa/server-intercept.mjs` stubs api.x.ai at the SERVER. It did
+      NOT: that module's STUBBED list was ten market-data hosts and it passed everything else
+      through, with no xAI branch anywhere in it. Measured 2026-11-08 and corrected in the same
+      change that finally gave that module a fail-closed branch for api.x.ai - so the claim is true
+      from now on, and was false for every run before it, in 11 places across 3 spec files.
+      THE REAL ACCIDENT WAS THINNER: `ci.yml` sets no GROK_API_KEY, so the paid routes return 50x at
+      their `!GROK_KEY` guard before they reserve or spend. One absent env var was the whole
+      protection, and the browser fence below is what does not depend on it.
+      Against a DEPLOYED service that stub does not
       exist and the call is real and billed - the whole reason a targeted staging run needed this
       first.
       Before the spec's own routes because Playwright matches the most recently registered handler,
