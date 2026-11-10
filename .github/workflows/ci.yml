@@ -1379,6 +1379,13 @@ jobs:
   # ───────────────────────────────────────────────────────────────────────────
   # THE ONLY REQUIRED STATUS CHECK. Do not require `build` or `e2e` directly.
   #
+  # CORRECTION, 2026-11-10 (QA, measured): NOTHING IS REQUIRED TODAY. Branch protection and rulesets
+  # return 403 "Upgrade to GitHub Pro or make this repository public" - a private repo on the free
+  # plan cannot require a check. #2097 showed `mergeable: MERGEABLE`, `UNSTABLE` with this gate at
+  # FAILURE. So the release gate is a convention: PM reads this result before merging to `main`.
+  # Enforcing it costs GitHub Pro - the owner's money, the owner's call. The advice below holds IF
+  # it is ever made required.
+  #
   # GitHub's behaviour here is unintuitive and both halves are traps:
   #
   #   * A job skipped by its own `if:` reports SUCCESS to branch protection. So
