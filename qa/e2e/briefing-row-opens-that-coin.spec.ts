@@ -149,10 +149,15 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
    * `?coin=btc&tf=15m` - arena's own initializer defaults - after exactly 1 `user_settings` read,
    * while the SAME stub on a warm client-side navigation (C1) is honoured, `tf=4h`. 2/2 both ways.
    *
-   * WHAT WAS RULED OUT. The first stub returned only the two fields under test, and a row with no
+   * WHAT WAS RULED OUT, in two steps, because reproducible is not the same as attributable. First:
+   * the stub originally returned only the two fields under test, and a row with no
    * `user_id`/`updated_at` is one the provider's concurrency machinery could legitimately refuse on
    * a first read. Re-run with the full row - `user_id`, `default_coin`, `default_tf`, `updated_at` -
-   * and the result is byte-identical, 2/2. So the asymmetry is not the stub's shape.
+   * byte-identical result, 2/2. Second, and decisive: `tf=15m` is NEITHER the stub's `4h` NOR
+   * `DEFAULT_SETTINGS`' `1h`, and a third distinct value is the signature of a read that never
+   * completed rather than one that completed and was ignored - so C3 below removes the stub
+   * altogether and only OBSERVES the real read. It fails identically. The stub was never the
+   * variable, and C2 and C3 agree by two independent routes.
    *
    * WHAT IS NOT CONFIRMED, and it is app code so it is dev's to confirm: the likely mechanism is
    * `SettingsProvider`'s `lhq_settings_v1` localStorage cache. On the warm path /briefing's mount has
@@ -231,6 +236,78 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
       expect(stable, `the query string never stopped changing in 25s (last: '${search}'), so nothing below is a read of a settled state`).toBe(true);
       expect(tf, `WITNESS: tf must be the stubbed ${STUB_TF} - if it is '15m' the seed effect never ran in this load and the coin result below proves nothing`).toBe(STUB_TF);
       expect(coin, `the row promised coin=${target} and the saved default was ${STUB_COIN}`).toBe(target);
+      await assertNoUnstubbedPaidAi(page);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  /* ── C3: THE SAME COLD LOAD WITH NO STUB AT ALL, which is what makes C2 attributable ────────
+   *
+   * C2 ends on `tf=15m`. That value is NEITHER the stub (`4h`) NOR `DEFAULT_SETTINGS` (`1h`) - it is
+   * only Arena's own initializer default, which means the settings read did not complete in that
+   * load rather than that it completed and was ignored. Dev Team's cold SIGNED-OUT run returned
+   * `tf=1h`, i.e. the seed ran and applied DEFAULT_SETTINGS there. So "signed in, cold" behaving
+   * differently from "signed out, cold" is either the defect or my stub breaking the read - and a
+   * third distinct value is exactly the shape of an instrument fault, not of a latch.
+   *
+   * So this cell removes the stub entirely and OBSERVES the real read instead: `page.on('response')`
+   * rather than `page.route`, so nothing is intercepted and there is no chance of perturbing the
+   * thing being measured. It reads the fixture's real saved row and compares the settled URL against
+   * it, whatever it happens to be - no expected value is written into this test.
+   *
+   * MEASURED, AND IT SETTLES IT: the stub was never the variable.
+   *
+   *     fixture's REAL saved row, observed    default_coin 'eth'   default_tf '1h'
+   *     settled url on a cold /arena load     coin 'btc'           tf '15m'
+   *
+   * So a cold load ignores the account's real saved settings with nothing intercepted. C2 and C3
+   * now agree by two different routes - one stubbed, one untouched - which is the independence the
+   * two earlier attempts at this never had, and the reason this is reported as a defect rather than
+   * as another inconsistent result.
+   *
+   * Note the fixture's real `default_coin` happens to be `eth`, the same value C2 stubs. Harmless:
+   * C3 compares against the row it OBSERVED rather than against any constant, and C1 excludes rows
+   * whose coin equals the stub, so no cell passes by that coincidence.
+   *
+   * ANNOTATED like C2, for the same reason: green suite, pinned defect, red the day it is fixed.
+   *
+   * No write to the shared database: this only READS. */
+  test('C3: a cold /arena load honours the account\'s REAL saved settings - no stub involved', async ({ browser }) => {
+    test.fail();
+    const ctx = await signedInContext(browser, 'a');
+    const page = await ctx.newPage();
+    await installPaidAiFence(page);
+    const saved: Array<{ default_coin?: string; default_tf?: string }> = [];
+    page.on('response', async (res) => {
+      if (!/user_settings/.test(res.url())) return;
+      try {
+        const body = await res.json();
+        const row = Array.isArray(body) ? body[0] : body;
+        if (row && typeof row === 'object') saved.push(row);
+      } catch { /* a non-JSON body is not worth failing the observation over */ }
+    });
+    try {
+      await gotoSignedIn(page, '/arena');
+      const { coin, tf, stable, search } = await settledCoinAndTf(page);
+
+      expect(stable, `the query string never stopped changing in 25s (last: '${search}')`).toBe(true);
+      /* The observation has to have happened, or this cell compares against nothing and would pass
+         for the wrong reason - the same vacuity C2 exists to rule out, one layer along. */
+      expect(saved.length, 'no user_settings response was observed, so there is no saved row to compare the URL against').toBeGreaterThan(0);
+
+      const row = saved[saved.length - 1];
+      const expectedCoin = row.default_coin ?? null;
+      const expectedTf = row.default_tf ?? null;
+      expect(expectedCoin, 'the observed saved row carried no default_coin, so this cell cannot discriminate').not.toBeNull();
+
+      expect(
+        { coin, tf },
+        `settled query was '${search}', and the account's REAL saved row says `
+        + `default_coin='${expectedCoin}' default_tf='${expectedTf}'. `
+        + `btc/15m here means a cold load ignores saved settings with NO stub in the picture, `
+        + `which would make C2 above a real defect rather than an artefact of my stub`,
+      ).toEqual({ coin: expectedCoin, tf: expectedTf });
       await assertNoUnstubbedPaidAi(page);
     } finally {
       await ctx.close();
