@@ -6,11 +6,11 @@ import { chartDisplaySymbol } from '@/lib/coins';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
-import { Warn } from '@/components/icons';
+import { Lock, Warn } from '@/components/icons';
 import { useLabels } from '@/lib/labels';
 import { useAuth } from '@/components/AuthProvider';
 import { getAuthToken } from '@/lib/supabase';
-import { drawStructureAvailable, type DrawableStructure } from '@/lib/drawStructure';
+import { drawStructureAvailable, DRAW_STRUCTURE_NOISY_TFS, type DrawableStructure } from '@/lib/drawStructure';
 import Tip from '@/components/Tip';
 import { barsAfter } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
@@ -359,6 +359,13 @@ interface Props {
   onShowSRChange:  (next: boolean) => void;
   showLiq:       boolean;
   onShowLiqChange: (next: boolean) => void;
+  /* Called when a confirmed-Free visitor taps the locked Draw Structure button. The PAGE owns the
+     upsell, the same way it owns the fast-timeframe gate - this chart has no router and no opinion
+     about what an upgrade prompt looks like, and `onUnlock` is already the established prop name for
+     "the visitor tapped something locked" (arena/page.tsx passes one to the Confluence card). Left
+     optional so every other embedder of this chart keeps compiling and simply renders nothing
+     clickable there. */
+  onUnlock?:     () => void;
   /* Per-indicator edited parameter values for `indicators` (#1008), keyed by
      indicator id then param key. An indicator with no entry here uses
      strategyRegistry's defaultParams - see the sync effect below and
@@ -615,7 +622,7 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, onUnlock }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -2796,39 +2803,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       setDsLoading(false);
     }
   }, [tf, tl, dsLoading, clearProposals]);
-
-  const dropProposal = (i: number) => {
-    const chart = chartRef.current;
-    const id = proposalIds.current[i];
-    if (chart && id) chart.removeOverlay({ id });
-    proposalIds.current = proposalIds.current.filter((_, n) => n !== i);
-    setProposals(prev => prev.filter((_, n) => n !== i));
-  };
-
-  /* ACCEPT IS A PROMOTION, NOT A FLAG. The proposal overlay is removed and the same two
-     points are re-created in DRAWING_GROUP with no `lock`, which hands it to the existing
-     user-drawing machinery: drag handles, per-coin persistence, the same Clear-all button.
-     Nothing marks it as model-suggested afterwards, on purpose - the trader accepted it, so
-     it is their line. */
-  const acceptProposal = (i: number) => {
-    const chart = chartRef.current;
-    const s = proposals[i];
-    if (!chart || !s) return;
-    const id = chart.createOverlay({
-      name: 'segment',
-      groupId: DRAWING_GROUP,
-      points: [
-        { timestamp: s.from.timestamp, value: s.from.price },
-        { timestamp: s.to.timestamp, value: s.to.price },
-      ],
-      onDrawEnd: () => saveDrawings(chart, coinRef.current),
-      onRemoved: () => saveDrawings(chart, coinRef.current),
-      onPressedMoveEnd: () => saveDrawings(chart, coinRef.current),
-    } as OverlayCreate);
-    if (typeof id === 'string') userDrawOverlayIds.current.push(id);
-    saveDrawings(chart, coinRef.current);
-    dropProposal(i);
-  };
+  /* NO acceptProposal / dropProposal ANY MORE (owner, 2026-11-10). Keep/Discard is gone, so the
+     promotion that moved a proposal into DRAWING_GROUP is gone with it - which means nothing the
+     model draws can reach the user's persisted drawing store at all now, rather than merely not
+     reaching it until they chose. clearProposals() below removes the whole group. */
 
   const structureTypeLabel = (type: DrawableStructure['type']) =>
     tl(`DRAW_STRUCTURE_TYPE_${type.toUpperCase()}` as Parameters<typeof tl>[0]);
@@ -2941,13 +2919,48 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             blind charts, not a guess about what traders like. 15m was 0 of 4 and is absent
             rather than configurable, because a setting invites someone to turn it on.
 
-            HIDDEN ONLY ON A CONFIRMED FREE ACCOUNT. `entitlementStatus` is 'unknown' when
-            every entitlement retry failed, and the conscious decision for that case (which
-            AuthProvider requires each call site to make) is to SHOW the button: hiding a paid
-            feature from a paying customer because OUR read failed is the worse error, and the
-            route refuses a genuine free account server-side regardless. Reuses the Draw
+            A CONFIRMED FREE ACCOUNT NOW SEES IT LOCKED, NOT ABSENT (owner, 2026-11-10). It used
+            to be hidden outright, so a Free visitor had no idea the feature existed and nothing
+            invited them to upgrade. The locked branch is below.
+
+            `entitlementStatus` is 'unknown' when every entitlement retry failed, and the conscious
+            decision for that case (which AuthProvider requires each call site to make) is to show
+            the WORKING button: hiding a paid feature from a paying customer because OUR read failed
+            is the worse error, and the route refuses a genuine free account server-side regardless.
+            So 'unknown' keeps today's behaviour and only 'not_entitled' locks. Reuses the Draw
             menu's classes so this adds no CSS - globals.css is a landing-gated file and this
             needs none of it. */}
+        {drawStructureAvailable(tf) && entitlementStatus === 'not_entitled' && onUnlock && (
+          <div className="klc-draw-wrap">
+            {/* NEVER `requestStructures` ON THIS BRANCH. The server already refuses a Free
+                account, but a call that is certain to be refused is a wasted round trip and, on
+                the AI path, a wasted quota check - so this button only opens the upsell.
+
+                `aria-label` IS SET EXPLICITLY, and that is #959's lesson rather than belt and
+                braces: the visible content here is an icon plus two separate text nodes, which a
+                screen reader would otherwise announce as "Draw Structure Pro" with no indication
+                that it is locked or what tapping does. The Lock icon itself carries aria-hidden,
+                so it contributes nothing - the name has to come from the label. */}
+            <button
+              className="klc-tool-btn klc-draw-btn"
+              onClick={onUnlock}
+              aria-label={tl('DRAW_STRUCTURE_LOCKED_ARIA')}
+              title={tl('DRAW_STRUCTURE_LOCKED_ARIA')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+            >
+              <Lock size={11} />
+              {tl('DRAW_STRUCTURE_BUTTON')}
+              {/* Inline rather than a new class, for the same reason the rest of this block
+                  reuses the Draw menu's classes: globals.css is landing-gated and this needs
+                  none of it. Tokens only, so it follows the theme. */}
+              <span style={{
+                fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em',
+                textTransform: 'uppercase', color: 'var(--accent-2)',
+              }}>{tl('DRAW_STRUCTURE_PRO_TAG')}</span>
+            </button>
+          </div>
+        )}
+
         {drawStructureAvailable(tf) && entitlementStatus !== 'not_entitled' && (
           <div className="klc-draw-wrap">
             <button
@@ -2968,18 +2981,29 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                      the coin/timeframe effect. Same single-line shape as the error branch
                      rather than a new one, so this adds no CSS: globals.css is landing-gated. */
                   ? <div className="klc-draw-item">{tl('DRAW_STRUCTURE_NONE')}</div>
+                  /* NO PER-LINE KEEP/DISCARD. Owner, 2026-11-10: "I don't think this is a good
+                     idea where we ask user about this." The lines are already drawn by the time
+                     this panel opens - dashed, locked, and in PROPOSAL_GROUP, which `saveDrawings`
+                     does not persist - so the trader reads the chart instead of answering a
+                     question per line. One Clear removes them all.
+
+                     WHAT WAS DELIBERATELY KEPT, because it is what stops an AI line quietly
+                     becoming the trader's own: proposals stay in their own unpersisted group with
+                     `lock: true` and a dashed style. Accepting one used to MOVE it into
+                     DRAWING_GROUP, where it became an ordinary saved drawing - that promotion is
+                     gone with the question that justified it, so nothing the model drew can end up
+                     in the user's drawing store at all now.
+
+                     The type list stays: with the Keep/Discard buttons gone it is the only thing
+                     naming what was drawn. */
                   : (<>
                       <div className="klc-draw-item">{tl('DRAW_STRUCTURE_PANEL_TITLE')}</div>
-                      <div className="klc-draw-item">{tl('DRAW_STRUCTURE_HINT')}</div>
-                      {proposals.map((s, i) => (
+                      {DRAW_STRUCTURE_NOISY_TFS.includes(tf) && (
+                        <div className="klc-draw-item">{tl('DRAW_STRUCTURE_LOWER_TF_NOTE')}</div>
+                      )}
+                      {proposals.map(s => (
                         <div key={`${s.type}-${s.from.timestamp}-${s.to.timestamp}`} className="klc-draw-item">
                           {structureTypeLabel(s.type)}
-                          <button className="klc-draw-item" onClick={() => acceptProposal(i)}>
-                            {tl('DRAW_STRUCTURE_ACCEPT')}
-                          </button>
-                          <button className="klc-draw-item" onClick={() => dropProposal(i)}>
-                            {tl('DRAW_STRUCTURE_REJECT')}
-                          </button>
                         </div>
                       ))}
                       <button className="klc-draw-item klc-draw-clear" onClick={clearProposals}>
