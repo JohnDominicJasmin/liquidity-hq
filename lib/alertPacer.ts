@@ -29,17 +29,51 @@
  * behaviour and are deferred.
  */
 
+/* TWO LIMITS, AND WHICH ONE BINDS DEPENDS ON LATENCY - that is the whole of QA's #2080 finding and
+ * the reason the old header's "comfortably inside the 5-minute cadence" was only true when Bybit was
+ * fast. Throughput is min(BYBIT_PER_SECOND, BYBIT_MAX_CONCURRENT / latency). The rate cap binds while
+ * Bybit is quick; the concurrency cap takes over once a call takes longer than
+ * MAX_CONCURRENT / PER_SECOND seconds, and from there the pass gets slower in proportion to latency.
+ *
+ * A pass that runs past the 5-minute cadence OVERLAPS THE NEXT ONE, which puts two passes' calls on
+ * the wire at once and undoes the pacing this file exists to provide. So the number that matters is
+ * the latency at which a 299-call pass reaches 300 seconds:
+ *
+ *     concurrency 4  ->  binds above 0.8s  ->  overruns past  4.01s   (was shipped)
+ *     concurrency 8  ->  binds above 1.6s  ->  overruns past  8.03s   (now)
+ *
+ * MEASURED, NOT ASSERTED - 299 * latency / concurrency, against the timeouts actually used by the
+ * paced call sites: 7s for the tickers and most of app/api/telegram/alert, 9s for the klines in
+ * lib/ribbonCandles, 10s at alert/route.ts:446.
+ *
+ * SO STATE THE RESIDUAL PLAINLY RATHER THAN CLAIMING THE FIX IS TOTAL: 8 puts the break-even above
+ * the 7s timeout, which is most of the call sites, but 8.03s is BELOW the 9s and 10s ones. A pass
+ * whose calls sit at the 9s ceiling still takes ~336s and still overlaps. It is a large improvement
+ * (the overrun threshold doubles) and it is not a guarantee.
+ *
+ * RAISING CONCURRENCY DOES NOT SPEND THE IP BUDGET, which is the thing worth understanding before
+ * touching either number. MIN_GAP_MS enforces the per-second rate no matter how many calls are in
+ * flight, so the 600-per-5s-per-IP headroom is protected by BYBIT_PER_SECOND alone. MAX_CONCURRENT
+ * only bounds how many sockets are open and stops a stall from becoming a burst when they all return
+ * at once. Going further - 12 would cover even the 10s timeout, at 249s - costs nothing in request
+ * rate; it is left at 8 because that is what was reviewed, not because 12 would be unsafe. */
+
 /** Requests per second the alert pass allows itself to Bybit.
  *
- *  SIZED FOR THE HEADROOM, NOT THE LIMIT. At 5/s a 299-call pass takes about 60 seconds, comfortably
- *  inside the 5-minute cadence, and leaves the IP's documented 600-per-5s budget almost entirely free
- *  for visitor traffic. Raising this trades that headroom for a shorter pass; the incident says the
- *  headroom is what was missing. */
+ *  SIZED FOR THE HEADROOM, NOT THE LIMIT. At 5/s a 299-call pass takes about 60 seconds and leaves
+ *  the IP's documented 600-per-5s budget almost entirely free for visitor traffic. Raising this
+ *  trades that headroom for a shorter pass; the incident says the headroom is what was missing.
+ *  This is the cap that protects the shared IP budget - see the note above. */
 const BYBIT_PER_SECOND = 5;
 
 /** In-flight ceiling. Spacing alone still lets slow requests pile up, and a stall should not turn
- *  into a burst when they all return. */
-const BYBIT_MAX_CONCURRENT = 4;
+ *  into a burst when they all return.
+ *
+ *  RAISED 4 -> 8 FOR #2080. At 4 this bound throughput to 4/latency, so it took over above 0.8s and
+ *  a 4-second average pushed the pass to the full 5-minute cadence - where it overlaps the next pass
+ *  and the pacing stops meaning anything. Bybit calls here time out at 7-10s, so 4 seconds was well
+ *  inside reach. See the note above for what 8 does and does not cover. */
+const BYBIT_MAX_CONCURRENT = 8;
 
 const MIN_GAP_MS = Math.ceil(1000 / BYBIT_PER_SECOND);
 
