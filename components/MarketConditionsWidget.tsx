@@ -68,7 +68,17 @@ function useFngHistory(): number[] {
       const raw = localStorage.getItem(HISTORY_CACHE_KEY);
       if (raw) {
         const { ts, data } = JSON.parse(raw) as { ts: number; data: number[] };
-        if (Date.now() - ts < HISTORY_CACHE_TTL && data.length) { setPoints(data); return; }
+        /* `> 1`, NOT `data.length` (#1309 item 25 follow-up). The render below needs
+           `history.length > 1` - a Sparkline of one point is an empty <div>, no <svg>. So a cached
+           ONE-element array is a value this widget can never draw, and accepting it here used to
+           `return` before the fetch that would replace it: no sparkline for the whole 6h TTL.
+           Measured on deployed qa, signed out, by seeding the cache: 30 points renders a polyline,
+           one point renders none and suppresses the `limit=30` request entirely.
+           A one-element response is exactly what the pre-fix `&?limit=30` typo produced, since
+           alternative.me then returned today's reading only - so every browser that loaded the
+           dashboard during that window cached an undrawable history. The acceptance test now
+           matches what the renderer actually requires, rather than "not empty". */
+        if (Date.now() - ts < HISTORY_CACHE_TTL && data.length > 1) { setPoints(data); return; }
       }
     } catch {}
     let cancelled = false;
