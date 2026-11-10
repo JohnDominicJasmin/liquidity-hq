@@ -60,8 +60,15 @@ broken most often, in short — the full text and the rest are in that file:
   testing CI, one time only."* Feature PRs and `dev`/`qa`/`staging` pushes run
   **no** CI. Dev and QA test **locally or on the deployed `qa` site** (*"It should
   be running locally"*), one session at a time, and batch changes so a release
-  carries many. Re-adding a CI trigger re-adds the bill. Full text: OWNER-RULES §17.
-  Screenshots still come from a deployed URL.
+  carries many. Re-adding a CI trigger re-adds the bill. **A code PR's author runs
+  `npm run verify` locally before it merges into `dev`.** Anything that spends his
+  money gets its cost put to him first. Full text: OWNER-RULES §17. Screenshots
+  still come from a deployed URL.
+- **The repo is PUBLIC since 2026-11-10** (owner, for free CI). Never put a secret,
+  customer data or a private address in a file, an issue or a PR.
+- **Before starting ANY issue: reread `CLAUDE.md`, `docs/OWNER-RULES.md` and the
+  parts of `CONTRIBUTING.md` the work touches.** Owner, 2026-11-10: *"Before we
+  start any type of issue, make sure to reread, review your documentation."* §18.
 - **The product UI never names the AI vendor or model.** It says "AI". Only the
   three legal strings name the processor, because privacy law expects it.
 - **Short messages to him.** Under 80 words, bullets or a table, answer first.

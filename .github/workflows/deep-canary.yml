@@ -97,7 +97,9 @@ jobs:
   # ARENA_CONTEXT_KEYS and hands it to the route's OWN three parsers. No network, no credential, no
   # Deep call - so it can run on every relevant PR without spending anything.
   selfcheck:
-    if: ${{ github.event_name == 'pull_request' }}
+    # Dispatch-only since the pull_request trigger was removed (OWNER-RULES §17). Dev's review of #2098
+    # caught that leaving `event_name == 'pull_request'` here made this job dead on every event.
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.selfcheck_only == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -115,7 +117,8 @@ jobs:
   canary:
     # The spend gate. A manual dispatch always runs; the cron only runs once the owner has enabled it.
     # Never on a pull request - a PR must not be able to spend money.
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.DEEP_CANARY_ENABLED == '1') }}
+    # selfcheck_only=true goes to the `selfcheck` job above, which fails red; this job would swallow it.
+    if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.selfcheck_only != 'true') || (github.event_name == 'schedule' && vars.DEEP_CANARY_ENABLED == '1') }}
     runs-on: ubuntu-latest
     # Generous, because the budgets inside the script are 90s to wake a sleeping free-plan service plus
     # up to 180s for the Deep read itself. The job timeout must not be the thing that fires first, or

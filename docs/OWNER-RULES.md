@@ -97,6 +97,8 @@ ruling, 2026-10-23); production never is.
 
 **All execution runs in the cloud runners. Nothing heavy runs on his laptop. Ever.**
 
+> **NARROWED 2026-11-10 by §17.** CI cost money and ran on every change, so the owner reversed this for testing: *"Test manually in my laptop. Use a live browser or the test suite."* *"You have access in my laptop 24/7. Why don't you do it here?"* Tests and `npm run verify` now run **locally, one heavy run at a time**, and CI runs once, on the release PR. Dev servers and parallel suites across sessions are still out.
+
 That means test suites, builds, `npm ci`, browser runs, dev servers, page sweeps, gates. Screenshots come from a **deployed URL** with `E2E_BASE_URL`, never a local build.
 
 Known cloud limits, so nobody is surprised: Bybit and Binance geo-block cloud IPs (app-served data is fine, direct venue reads are not); CoinGecko rate-limits the egress; signed-in work needs secrets he provisions directly.
@@ -547,6 +549,33 @@ that is not in the config is a wish.
   is open, because every push to its head re-runs the whole suite.
 - **Re-adding any CI trigger re-adds the bill. That is the owner's money**, so it goes to him, not to
   a session's judgement.
+- **Before a code PR merges into `dev`, its author runs `npm run verify` locally** (lint, typecheck,
+  unit tests, build) and pastes the result line into the PR. Nothing else runs them now.
+- **Nothing is enforced by GitHub.** Branch protection needs GitHub Pro, which was measured as 403 on
+  2026-11-10, so the release gate is PM reading the release PR's result before merging to `main`.
+- **Anything that spends his money gets its cost put to him BEFORE it becomes a habit**: CI minutes,
+  Render builds, AI calls, paid services. He asked *"who approved this?"* and the answer was nobody.
+
+**The repository was made PUBLIC by the owner on 2026-11-10**, reversing the 2026-10-29 "stays
+private" decision, so that Actions is free. A test run passed the same hour. **Consequence that is
+not optional:** the xAI key hardcoded in May-June 2026 (commits `2ca30032` to `5528239f`, ending
+`YNCO`) is now in public history. It must be revoked in the xAI console, and if it is still the live
+key, replaced in Render's `GROK_API_KEY`. Making the repo private again does not un-publish it, and
+nor does rewriting history (forks and caches keep it). Code, signal logic, issues and these notes are
+all world-readable now: **never put a secret, a customer's data or a private address in an issue,
+a PR or a file.** The only other key-shaped string in history is the Standard Webhooks spec test
+vector in `lib/whop.ts`, which is harmless.
+
+## 18. BEFORE ANY ISSUE: REREAD THE DOCS FIRST
+
+Owner, 2026-11-10: *"Before we start any type of issue, make sure to reread, review your
+documentation."*
+
+**Every session (PM/DevOps, Dev, QA), before starting work on any issue or PR, rereads
+`CLAUDE.md`, this file and the parts of `CONTRIBUTING.md` that the work touches**, then checks the
+plan against them. That is a reread, not "I read it last session". §12 said "run once before
+release" on 2026-10-30 and three sessions worked past it for eleven days, which is how a rule that
+existed still cost $22. A rule nobody rereads is the same as no rule.
 
 ## Keeping this file true
 
