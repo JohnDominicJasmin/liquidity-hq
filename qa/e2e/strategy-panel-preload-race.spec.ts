@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1253 (#1246): a chip clicked on the Strategy Panel before the settings
  * DB read lands must not write an empty/narrowed selection over a real
@@ -51,6 +52,7 @@ test.describe('Strategy Panel pre-load write race (#1253)', () => {
   test('skeleton shows during load, a click during that window no-ops and sends no PATCH, then it works once loaded', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena?coin=btc&tf=1h');
       await resetStrategySelection(page, []);

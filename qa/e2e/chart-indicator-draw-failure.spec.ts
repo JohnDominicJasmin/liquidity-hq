@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1347 item 11, chart half (#1369, fix by Dev Team) - the strategy-indicator
  * sync effect in KLineProChart had silent failure paths, so the chart could
@@ -84,6 +85,7 @@ async function openArena(browser: import('@playwright/test').Browser, flagAtLoad
     await ctx.addInitScript(([k, v]) => { (window as unknown as Record<string, unknown>)[k as string] = v; }, [FLAG, flagAtLoad] as [string, unknown]);
   }
   const page = await ctx.newPage();
+  await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
   await gotoSignedIn(page, '/about');
   await resetStrategySelection(page, []);
   await page.goto('/arena');

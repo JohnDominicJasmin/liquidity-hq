@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1119: a failed/exhausted entitlements read must resolve to a distinct
  * 'unknown' state - never a silent downgrade to a confirmed-free assertion,
@@ -47,6 +48,7 @@ test.describe('#1119 entitlement retry-exhaustion (#1184 hook)', () => {
       (window as unknown as { __LHQ_QA_FORCE_ENTITLEMENTS_FAIL__?: boolean }).__LHQ_QA_FORCE_ENTITLEMENTS_FAIL__ = true;
     });
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
 
@@ -79,6 +81,7 @@ test.describe('#1119 entitlement retry-exhaustion (#1184 hook)', () => {
       (window as unknown as { __LHQ_QA_FORCE_ENTITLEMENTS_FAIL__?: boolean }).__LHQ_QA_FORCE_ENTITLEMENTS_FAIL__ = true;
     });
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
       await expect(page.locator(UNKNOWN_CARD).first()).toBeVisible({ timeout: 15_000 });

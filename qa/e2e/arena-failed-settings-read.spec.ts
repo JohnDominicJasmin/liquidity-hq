@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1348 item 2 (from #1347's audit) - a FAILED settings read used to be
  * presented as a confirmed empty selection, then could overwrite the real
@@ -59,6 +60,7 @@ test.describe('A failed settings read must not present or persist an empty selec
   test('a genuinely failed read shows the error state with no chip grid, persists no write, and Retry recovers the real saved selection', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/about');
       await resetStrategySelection(page, ['SMA']);

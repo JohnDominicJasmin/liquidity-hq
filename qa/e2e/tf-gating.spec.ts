@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { gotoGuarded, marketDataUnavailable } from './_shared';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* Are the gated timeframes hidden from FREE accounts and visible to PRO? (#310)
  *
@@ -150,6 +151,9 @@ test.describe('gated timeframes', () => {
     test.skip(!AUTH_READY, AUTH_SKIP_REASON);
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    /* Only the PRO cell needs this: the two free-visitor cells above are signed OUT, and both
+       paid mount effects (GlobalMacroContext, DryPowder) return early on `!user`. */
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     await page.addInitScript(() => {
       try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
     });

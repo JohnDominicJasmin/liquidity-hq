@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Browser } from '@playwright/test';
 import { gotoSignedIn, signedInContext, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /**
  * The Grok chat header's quota meta must never wrap into the header row or
@@ -62,6 +63,7 @@ async function openArenaChat(
   });
 
   const page = await ctx.newPage();
+  await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
   await gotoSignedIn(page, '/arena');
 
   /* WITHOUT THIS, EVERY ASSERTION BELOW IS A COIN FLIP.
