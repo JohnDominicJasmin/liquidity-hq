@@ -99,7 +99,67 @@ async function fetchFromBybit(bySym: string, tf: EMASignalTF, healthSource: stri
   }
 }
 
-export async function fetchRibbonCandles(coin: string, tf: EMASignalTF): Promise<OHLCV[]> {
+/* ── CLOSED-CANDLE CACHE (#1651) ───────────────────────────────────────────────────────────────
+ *
+ * WHY: the Telegram alert pass runs every 5 minutes and made 299 exchange calls each time -
+ * measured on production 2026-11-08, where it tripped Bybit's rate limiter twice and the breaker
+ * took every Bybit call out for 10 then 20 minutes. Three consecutive passes reported `fired=0`,
+ * so a paying user's alerts were silently off for ~25 minutes with nothing but a log line saying so.
+ *
+ * Most of those calls could not have returned anything new. A 1h candle closes twelve times slower
+ * than the pass runs, so eleven of every twelve fetches re-ask for a series that cannot have changed.
+ *
+ * THE KEY IS THE CANDLE BOUNDARY, NOT A TTL. `bucket` is the open time of the candle currently
+ * forming, so the entry is valid for exactly as long as the closed series behind it is: when a new
+ * candle closes the bucket changes and the key misses. No clock skew, no stale window to tune, and
+ * `closedCandles()` filters the same way it always did.
+ *
+ * ONLY SAFE BECAUSE EVERY CALLER READS CLOSED CANDLES. All three - the alert route's EMA-signal and
+ * structure scans and /api/alerts/preview - wrap this in `closedCandles(...)`. The alert route's
+ * OTHER two exchange paths deliberately do NOT come through here and must not: the frame scan reads
+ * `ohlc[ohlc.length - 1]`, the forming candle, to evaluate its %-move threshold, and the RSI scan
+ * takes `price` from the live candle one line below its closed `rsi` read. Caching either would
+ * change when alerts fire or quote a stale price as current. If a future caller needs the forming
+ * candle, it must not use this function.
+ *
+ * A FAILED FETCH IS NEVER CACHED. `fetchRibbonCandles` returns [] for a refused or empty response,
+ * and storing that would turn one upstream blip into a whole candle period of silence - the outage
+ * this change exists to shorten, made longer and harder to see. Only a non-empty result is kept. */
+const CANDLE_CACHE = new Map<string, OHLCV[]>();
+
+/** The open time of the candle currently forming: everything before it is closed and immutable. */
+function bucketOf(tf: EMASignalTF, nowMs: number): number {
+  return Math.floor(nowMs / TF_MS[tf]) * TF_MS[tf];
+}
+
+export async function fetchRibbonCandles(coin: string, tf: EMASignalTF, nowMs = Date.now()): Promise<OHLCV[]> {
+  const key = `${coin}|${tf}|${bucketOf(tf, nowMs)}`;
+  const hit = CANDLE_CACHE.get(key);
+  if (hit) return hit;
+
+  const fresh = await fetchRibbonCandlesUncached(coin, tf);
+  if (fresh.length > 0) {
+    /* Evict this coin+tf's older buckets rather than growing without bound. Scoped to the series
+       being replaced, so one coin's eviction never drops another's still-valid entry. */
+    const prefix = `${coin}|${tf}|`;
+    for (const k of CANDLE_CACHE.keys()) if (k !== key && k.startsWith(prefix)) CANDLE_CACHE.delete(k);
+    CANDLE_CACHE.set(key, fresh);
+  }
+  return fresh;
+}
+
+/** Test seam: how many series are held right now. Exported so a cell can assert eviction rather
+ *  than infer it from call counts. */
+export function candleCacheSize(): number {
+  return CANDLE_CACHE.size;
+}
+
+/** Test seam: drop everything, so one cell cannot leak state into the next. */
+export function clearCandleCache(): void {
+  CANDLE_CACHE.clear();
+}
+
+async function fetchRibbonCandlesUncached(coin: string, tf: EMASignalTF): Promise<OHLCV[]> {
   const bnSym = BINANCE_SYMS[coin];
   if (bnSym) {
     try {

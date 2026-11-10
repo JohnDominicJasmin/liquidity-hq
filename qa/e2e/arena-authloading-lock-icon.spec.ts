@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
 import { servedLabels } from './_shared';
+import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1347 item 11, the lock-icon half (#1370, fix by Dev Team) - #1338 made the
  * Arena QUICK and DEEP buttons `disabled` while `authLoading` is true, so a
@@ -73,6 +74,7 @@ test.describe('QUICK/DEEP lock icon and tooltip do not claim "signed out" while 
 
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     const held: Array<import('@playwright/test').Route> = [];
     try {
       const { key, value } = expiredSession(new URL(SUPABASE_URL).hostname.split('.')[0]);
@@ -122,6 +124,7 @@ test.describe('QUICK/DEEP lock icon and tooltip do not claim "signed out" while 
     const labels = await servedLabels(request);
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
       const quick = page.locator('button.arena-quick-btn');
