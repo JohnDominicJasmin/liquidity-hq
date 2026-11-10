@@ -204,12 +204,34 @@ function parseEnLabelRows(sql: string): Map<string, string> {
 
   /* update lhq_labels set value = 'NEW' [, updated_at = now()] where key = 'KEY' and locale = 'en'
      [and value = 'OLD'].
-     The value is matched FIRST with the quote-aware pattern, which consumes any `;` inside the copy
-     itself - so the `[^;]*?` spans that follow only ever traverse unquoted SQL and cannot run past
-     the end of the statement. */
-  const updateRe =
-    /update\s+lhq_labels\s+set\s+value\s*=\s*'((?:[^']|'')*)'[^;]*?\bkey\s*=\s*'((?:[^']|'')*)'[^;]*?\blocale\s*=\s*'en'/gi;
-  while ((m = updateRe.exec(sql))) found.push({ at: m.index, key: m[2], value: m[1] });
+     MATCHED IN TWO STEPS RATHER THAN ONE PATTERN, and both reasons are failures the one-pattern
+     version had (Dev Team's review of #2091):
+
+     1. ORDER-INDEPENDENT. The first version required `key` to appear before `locale`, so
+        `where locale = 'en' and key = 'K'` was SILENTLY SKIPPED - the same shape of invisible miss
+        this whole function exists to remove, just one level up. No migration writes that order today,
+        which is exactly why it would have sat here unnoticed until one did.
+     2. SEMICOLON-SAFE, in a NARROWER way than it first appears - a mutation corrected this note. A
+        `[^;]*` span treats the first `;` as the statement end. That is already harmless for a `;` in
+        the NEW value (the quote-aware value pattern consumes the whole literal before the tail
+        starts) and for one in a TRAILING `and value = '<old>'` guard (`key` and `locale` are already
+        behind us). It breaks only when a quoted `;` comes BEFORE the key - which needs the guard
+        written first, so it is the same statement that needs point 1 as well. The tail pattern below
+        consumes either a non-quote-non-semicolon character OR a whole quoted string, so a quoted `;`
+        is swallowed and only an unquoted one ends the statement. Narrow, but free, and the
+        alternative is a tail that is correct only while nobody reorders a WHERE clause.
+
+     The value still comes from `set`, never from the `where value =` guard - see the heading above. */
+  const updateRe = /update\s+lhq_labels\s+set\s+value\s*=\s*'((?:[^']|'')*)'((?:[^';]|'(?:[^']|'')*')*)/gi;
+  while ((m = updateRe.exec(sql))) {
+    const tail = m[2];
+    /* `\bkey\s*=` and not a bare `key`, so `and value = ...` and column names ending in "key" cannot
+       be mistaken for it. Both reads are scoped to this statement's own tail. */
+    const keyMatch = tail.match(/\bkey\s*=\s*'((?:[^']|'')*)'/i);
+    if (keyMatch && /\blocale\s*=\s*'en'/i.test(tail)) {
+      found.push({ at: m.index, key: keyMatch[1], value: m[1] });
+    }
+  }
 
   found.sort((a, b) => a.at - b.at);
   const out = new Map<string, string>();
@@ -341,4 +363,60 @@ test('P4. CONTROL: a non-en locale is ignored, and the real corpus yields rows a
     `the migration corpus yielded 0 rows for ${AUDIT_KEYS.length} audit keys, so every comparison in `
     + 'this file is vacuous - the parser or the migration convention has changed',
   );
+});
+
+/* P5 and P6 pin the two silent-skip shapes Dev Team found in #2091's first version. Both are cases
+ * where the parser returned a row-free, error-free "nothing to see here" - the failure mode this
+ * whole function exists to remove, reintroduced one level up in the pattern that removes it. Neither
+ * occurs in any migration today, which is precisely why they needed cells rather than a comment: a
+ * latent miss that nothing exercises is one someone discovers the hard way. */
+
+test('P5. the WHERE clause order does not matter - locale before key must still be read', () => {
+  /* The original pattern required key before locale, so this exact statement was skipped silently. */
+  const rows = parseEnLabelRows(
+    "update lhq_labels set value = 'reordered' where locale = 'en' and key = 'A_KEY';",
+  );
+  assert.equal(rows.get('A_KEY'), 'reordered', 'a `locale` before `key` WHERE clause was skipped');
+
+  /* And the conventional order still works, so this is an addition rather than a swap. */
+  const conventional = parseEnLabelRows(
+    "update lhq_labels set value = 'conventional' where key = 'A_KEY' and locale = 'en';",
+  );
+  assert.equal(conventional.get('A_KEY'), 'conventional');
+});
+
+test('P6. a quoted semicolon BEFORE the key does not end the statement early', () => {
+  /* NARROWER THAN I FIRST WROTE, and a mutation is what corrected me. My first version of this cell
+     put the semicolon in the new value and in a trailing guard, and claimed a `[^;]*` tail broke on
+     both. It does not:
+       - in the NEW VALUE it is already safe, because the quote-aware value pattern consumes the
+         whole literal including any `;` before the tail begins;
+       - in a TRAILING guard it is also safe, because `key` and `locale` both appear before it.
+     Restoring the naive tail left those two passing, so the cell was decoration. The shape that
+     genuinely breaks is a quoted semicolon that comes BEFORE the key - which needs the guard written
+     first, and therefore exercises order-independence and semicolon-safety together. That is the
+     realistic worst case rather than the one that was easy to write. */
+  const guardFirst = parseEnLabelRows(
+    "update lhq_labels set value = 'clean new text' "
+    + "where value = 'old; text with a semicolon' and key = 'A_KEY' and locale = 'en';",
+  );
+  assert.equal(guardFirst.get('A_KEY'), 'clean new text', 'a quoted semicolon before the key truncated the statement');
+
+  /* The two shapes that were already safe, kept so a future narrowing of the tail cannot quietly
+     reintroduce them. */
+  const inNewValue = parseEnLabelRows(
+    "update lhq_labels set value = 'first part; second part' where key = 'A_KEY' and locale = 'en';",
+  );
+  assert.equal(inNewValue.get('A_KEY'), 'first part; second part');
+
+  /* CONTROL: an UNQUOTED semicolon still ends the statement, so the tail cannot run into the next
+     one and pick up a foreign key. Without this, P6 would pass on a pattern that ignores `;`
+     entirely - which would be a worse bug than the one it fixes. */
+  const twoStatements = parseEnLabelRows(
+    "update lhq_labels set value = 'first' where key = 'KEY_ONE' and locale = 'en';\n"
+    + "update lhq_labels set value = 'second' where key = 'KEY_TWO' and locale = 'en';",
+  );
+  assert.equal(twoStatements.get('KEY_ONE'), 'first');
+  assert.equal(twoStatements.get('KEY_TWO'), 'second');
+  assert.equal(twoStatements.size, 2, 'the two statements bled into each other');
 });
