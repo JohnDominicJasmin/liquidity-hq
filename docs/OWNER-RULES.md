@@ -78,8 +78,9 @@ first.** The routing differs; the rule about his attention does not.
 - **Never ask him to approve something he has not seen.** Paired before/after screenshots first.
 
 **Five things need his word, and the first three are from `CLAUDE.md`:** merging to
-`main`, **production deploys**, **writes to the production database**, his money,
-and visual sign-off. Everything else, decide it.
+`main`, **production deploys**, **writes to the production database**, and his
+money. Everything else, decide it. **Visual sign-off was a fifth gate until he
+waived it on 2026-11-06 — it is PM's now (see §16).**
 
 **The production database write is the one with no recovery** - prod Supabase is on
 the free plan and has no backups. Dev-side migrations are PM's to sequence (his
@@ -95,6 +96,8 @@ ruling, 2026-10-23); production never is.
 > *"My laptop is unusable... I can't use it on my day-to-day basis."* — 2026-10-23
 
 **All execution runs in the cloud runners. Nothing heavy runs on his laptop. Ever.**
+
+> **NARROWED 2026-11-10 by §17.** CI cost money and ran on every change, so the owner reversed this for testing: *"Test manually in my laptop. Use a live browser or the test suite."* *"You have access in my laptop 24/7. Why don't you do it here?"* Tests and `npm run verify` now run **locally, one heavy run at a time**, and CI runs once, on the release PR. Dev servers and parallel suites across sessions are still out.
 
 That means test suites, builds, `npm ci`, browser runs, dev servers, page sweeps, gates. Screenshots come from a **deployed URL** with `E2E_BASE_URL`, never a local build.
 
@@ -228,7 +231,7 @@ would have been worth nothing.** The owner chose the automated option over eyeba
 
 An issue — or a checkbox — closes only when **all five** hold:
 
-1. QA tested it. 2. QA audited it. 3. It passed manual testing. 4. **PM audited it.** 5. **If it is visual, the OWNER approved it.**
+1. QA tested it. 2. QA audited it. 3. It passed manual testing. 4. **PM audited it.** 5. **If it is VISUAL, PM verifies at 390/768/1280, light/dark, states, on a deployed URL (owner waiver 2026-11-06).** It was the OWNER's approval until that date; see §16 for the waiver and its one limit.
 
 **Closing on a report is not auditing a report.** If you cannot name what was measured, where, and by whom, it does not close.
 
@@ -353,7 +356,7 @@ one-line recap is still a recap. **If PM or QA could act on it, they receive it 
 |---|---|
 | status, progress, what merged | the four gates below |
 | findings, measurements, negative results | a decision only he can make, **with options and a recommendation** |
-| blockers, and what you need to unblock | a visual he has to approve (condition 5) |
+| blockers, and what you need to unblock | ~~a visual he has to approve~~ — waived 2026-11-06, condition 5 is PM's |
 | corrections and retractions | nothing else |
 
 **HE ALWAYS GETS A DIRECT ANSWER TO A DIRECT QUESTION. This rule governs what a seat
@@ -373,7 +376,7 @@ union of them, not as either one.**
 | merging to `main` | both lists |
 | production deploys | both lists |
 | his money | `CLAUDE.md:28` |
-| visual sign-off (condition 5) | `CLAUDE.md:28` |
+| ~~visual sign-off (condition 5)~~ — **waived 2026-11-06, now PM's** | was `CLAUDE.md:28`; see §16 |
 | **writes to the shared database** | **`CLAUDE.md:303` — and absent from line 28** |
 
 **This section said "four" and omitted the database write. Dev Team held the PR over it and was
@@ -442,8 +445,9 @@ he was sleeping and already asked once if anything was needed before he went.
 
 - **A step that needs his hand and a step that is blocked are different things. Only the second
   one is allowed to slow anything down.** If something genuinely requires his hand (irreversible,
-  his money, a `main` merge, a production deploy, a visual he has not seen, a write to the shared
-  database — the five gates elsewhere in this file), queue it and keep moving everything else. Do
+  his money, a `main` merge, a production deploy, a write to the shared database — the four gates
+  elsewhere in this file, visual sign-off having been waived on 2026-11-06), queue it and keep
+  moving everything else. Do
   **not** pause the rest of the work waiting for that one piece.
 - **"I can't do X" is a dead end only if nothing else was tried.** The actual fix that night was
   not asking him — it was finding a path that needed no dashboard click at all (merge the branch
@@ -458,6 +462,136 @@ he was sleeping and already asked once if anything was needed before he went.
   that general form did not make obviously safe: a step that looked gated on him, but was not,
   because a different path existed.** Read a blocker as "find another way" before reading it as
   "ask him."
+
+## 16. FINISH AND SHIP, DON'T OPTIMIZE. THE PM DECIDES AND SAYS NO.
+
+> *"We don't have users yet. We're not making money. We are busy building feature that no one is
+> using. We are too busy focusing on this fucking optimization that no one is using... Finish all of
+> this mess. Make sure everything is tested. PRs, issues, pending backlogs."*
+> *"you're not here to allow everything. You're here to make decision. Sometimes disagree to me, to
+> the team, and choose what's best."* — the owner, 2026-11-05
+
+**What happened.** In two days the team merged **95** PRs and closed zero real issues, because
+nothing went live. Measured from the GitHub API rather than estimated, because a rules file that
+gets its own numbers wrong invites the whole section being doubted: **43 merged on 2026-11-04 and
+52 on 2026-11-05**, nothing on 11-02 or 11-03, and all 95 based on `dev` - so there is no narrower
+reading that gives a smaller figure. That is **13.6 PRs merged per issue closed.**
+
+**"Closed zero real issues" is the literal truth, and the breakdown is recorded here so nobody
+later "corrects" it to seven.** Seven issues did close in those two days. **Four were opened and
+closed by our own automation** - "Ready for QA: N PR(s) on `qa` awaiting promotion" (#1945, #1953,
+#1972, #1993, from `ready-for-qa.yml`) - and three were trackers (#1752, #1592, #1688). **Zero were
+a customer-facing bug or feature.** Nearly half the closures were the team's own machinery reporting
+on itself. Every fix produced another measurement, another venue, another PR, and the PM approved all
+of it. His one-line question about Hyperliquid became a multi-PR programme. **The work was real, and
+none of it counted.**
+
+**The rule, for every seat:**
+
+- **Progress = items CLOSED.** That means an issue verified live and closed, or a PR merged or closed.
+  Merged but not live counts for nothing. Open PRs growing is a warning sign.
+- **Default answer to new scope is NO.** It goes ahead only if it fixes a bug a customer would hit, or
+  is needed to launch, sell or get users. "It would be better", "worth measuring" or "while we're here"
+  are not reasons. Optimization is endless, and there are no users yet.
+- **The PM decides and disagrees** with the team and with the owner, and does it before the work
+  starts. When a Dev or QA report ends with "worth doing next", the PM decides whether it is, and
+  usually it isn't.
+- **Ship small and often.** An issue only closes when its fix is live, so a release held for
+  perfection closes nothing. A regression gets the smallest fix-forward, never a new feature on top.
+- **No shortcuts on closing either.** He rejected closing items as "won't do" to lower the count.
+  Finish them properly, and say plainly when something genuinely cannot be done.
+- **Short messages.** He called the long reports "AI slop". A decision and one reason.
+
+**VISUAL SIGN-OFF IS NO LONGER HIS. Waived 2026-11-06, and this supersedes condition 5 and every
+"visual needs the owner" line elsewhere in this file and in `CLAUDE.md`:**
+
+> *"This small stuff, visual stuff... Just ship it. I don't give a shit about this visual stuff. Do the
+> verification. Do the work. You should be the one doing it. And ship it. Our focus right now is
+> marketing and distribution... We have to make money before end of the year."*
+
+PM verifies visual changes on a deployed URL and ships them. Nobody asks him about a visual again.
+
+**THE ONE LIMIT, and it is not a hedge on the waiver.** PM's sign-off covers changes to existing
+screens and new ones. It does **NOT** cover replacing an owner-approved design wholesale. The Arena
+precedent is why: it was built three times and rejected three times, because sessions decided for
+themselves what he would accept. **A redesign is new scope, so the default answer to it is no** (see
+the scope rule above) — which keeps it out of his inbox without quietly re-delegating his taste.
+**The priority is getting users and revenue before the end of 2026.** Rank work by acquisition,
+then conversion, then retention. Anything else waits.
+
+## 17. CI RUNS ONCE, ON THE RELEASE. NOT ON EVERY CHANGE.
+
+Owner, 2026-11-10, furious, after the GitHub Actions budget stopped every run on day 10 of November:
+
+> *"We have 200 changes, maybe coming from 200 branches... put it on dev. Dev going to QA. Once in QA,
+> QA will do the testing... Test manually in my laptop. Use a live browser or the test suite. And then
+> once it succeeds, it goes to staging. Park it there... then we will talk about the items on staging
+> going to prod. This is where you run the CI. This is where you consume the resources."*
+> *"Why is it here? It should be running locally."*
+> *"I have to pay $22 at the end of the month... We don't even have users yet."*
+
+**What it cost, measured from the jobs API for November 1-10:** 3,565 job-minutes, about $22.13 gross
+against $12.13 included. Of that, the build job was 1,993 minutes across 292 runs, 1,808 of them on
+pull requests into `dev`/`qa`/`staging`. The browser suite was 988 minutes. Three jobs that take
+seconds but bill a full minute each added 584. **Rule 12 (2026-10-30) already said "run once before
+release". It was written down and never put into the workflow file, so it changed nothing.** A rule
+that is not in the config is a wish.
+
+**The rule, enforced in `.github/workflows/ci.yml` rather than remembered:**
+
+- **CI runs on one event only: a pull request into `main`**, which is the release PR. Plus
+  `workflow_dispatch` when PM/DevOps chooses to run it by hand.
+- **No CI on feature PRs, on `dev`, `qa` or `staging` pushes, or on merges.** The `push:` trigger is
+  gone. `deep-canary.yml` lost its pull-request trigger too.
+- **Dev and QA test locally or against the deployed `qa` site.** One session at a time, never two
+  heavy runs at once on the laptop.
+- **Batch.** Many changes, one release, one CI run. Do not promote `qa` → `staging` while a release PR
+  is open, because every push to its head re-runs the whole suite.
+- **Re-adding any CI trigger re-adds the bill. That is the owner's money**, so it goes to him, not to
+  a session's judgement.
+- **Before a code PR merges into `dev`, its author runs `npm run verify` locally** (lint, typecheck,
+  unit tests, build) and pastes the result line into the PR. Nothing else runs them now.
+- **Nothing is enforced by GitHub.** Branch protection needs GitHub Pro, which was measured as 403 on
+  2026-11-10, so the release gate is PM reading the release PR's result before merging to `main`.
+- **Anything that spends his money gets its cost put to him BEFORE it becomes a habit**: CI minutes,
+  Render builds, AI calls, paid services. He asked *"who approved this?"* and the answer was nobody.
+
+**The repository was made PUBLIC by the owner on 2026-11-10**, reversing the 2026-10-29 "stays
+private" decision, so that Actions is free. A test run passed the same hour. **Consequence that is
+not optional:** the xAI key hardcoded in May-June 2026 (commits `2ca30032` to `5528239f`, ending
+`YNCO`) is now in public history. It must be revoked in the xAI console, and if it is still the live
+key, replaced in Render's `GROK_API_KEY`. Making the repo private again does not un-publish it, and
+nor does rewriting history (forks and caches keep it). Code, signal logic, issues and these notes are
+all world-readable now: **never put a secret, a customer's data or a private address in an issue,
+a PR or a file.** The only other key-shaped string in history is the Standard Webhooks spec test
+vector in `lib/whop.ts`, which is harmless. GitHub secret scanning and push protection were switched
+on the same hour, so a key pushed from now on is refused before it lands.
+
+**THE RULE STANDS EVEN THOUGH CI IS NOW FREE.** A public repo pays nothing for standard runners, so
+the $22 reason no longer produces a bill. The rule is not up for re-deciding on cost grounds: the
+owner's reasons were also time and focus (*"a waste of time, waste of resources"*), and he gave it as
+an instruction, not as a budget fix. Changing it goes to him.
+
+**What this rule leaves as the only path to any automated test:** someone opening the release PR by
+hand (`RELEASE_PR_PAUSED` is still `1`). **Zero workflow runs between releases is the rule working,
+not an outage.** That mis-diagnosis has been made twice here.
+
+**The mobile browser leg cannot fail the gate.** `continue-on-error` is set for `mobile`, and
+`gate` only asserts `e2e == success`, so a red mobile leg still passes. Kept on purpose, because the
+375px leg has never once completed in CI (#1814). With one run per release, **QA reads the desktop
+and mobile legs separately in the release verdict** and reports mobile failures, rather than trusting
+the run's overall conclusion.
+
+## 18. BEFORE ANY ISSUE: REREAD THE DOCS FIRST
+
+Owner, 2026-11-10: *"Before we start any type of issue, make sure to reread, review your
+documentation."*
+
+**Every session (PM/DevOps, Dev, QA), before starting work on any issue or PR, rereads
+`CLAUDE.md`, this file and the parts of `CONTRIBUTING.md` that the work touches**, then checks the
+plan against them. That is a reread, not "I read it last session". §12 said "run once before
+release" on 2026-10-30 and three sessions worked past it for eleven days, which is how a rule that
+existed still cost $22. A rule nobody rereads is the same as no rule.
 
 ## Keeping this file true
 

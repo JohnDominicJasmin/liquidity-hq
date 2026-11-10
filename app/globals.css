@@ -6329,6 +6329,65 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   .edge-card { display: flex; flex-direction: column; }
   .edge-card-label { min-width: 0; }
 }
+
+/* THE FAB'S NAV CLEARANCE AND THE NAV ITSELF HAD DIFFERENT BREAKPOINTS (#1185).
+ *
+ * `.gchat-fab { bottom: 76px }` above lifts the button over the fixed bottom nav, and it lives in
+ * `@media (max-width: 640px)`. The nav it is clearing is `.tnav-tabs`, which renders at
+ * `max-width: 767px` (globals.css:7338 - the boundary #616 set). So 641-767px got the 60px fixed
+ * bar WITHOUT the clearance, and the button sat on it.
+ *
+ * MEASURED, on the deployed qa site at 641px, consent answered: the FAB at `bottom: 24` occupies
+ * the band 24-88px from the viewport bottom; `.tnav-tabs` occupies 0-60px. The 36px of overlap put
+ * the button over the "BOOK" tab, covering 30% of it - AT EVERY SCROLL POSITION, because both are
+ * `position: fixed`. Every other overlap on this issue clears when the page is scrolled; this one
+ * never did, which is what made it the worst of the set despite the smallest percentage.
+ *
+ * ONE PIXEL IS WHY IT WAS INVISIBLE. 640 and 767 differ by a band no common device width lands in,
+ * so a phone (390) and a laptop (1280) both looked correct and a tablet did not.
+ *
+ * 64, NOT THE PHONE RULE'S 76, AND THE 12px MATTERS. Lift sweeps at 64/68/72/76/92 across 16 scroll
+ * offsets: every one of them takes the BOOK tab to 0%, because all it has to do is clear a 60px bar.
+ * What differs is what the button lands on INSTEAD - near the top of /dashboard it grazes the corner
+ * of a `.scc-card` link, and that graze grows with the lift: 5% at 64, 6% at 68 and 72, 7% at 76,
+ * 9% at 92 (at 641px; 2% and 1% at 700 and 767). So the smallest lift that does the job is the one
+ * that disturbs the least, and "match the phone value" would have cost 2 points of card corner for
+ * nothing. PM accepted the 5% against a nav tab that is permanently 30% covered.
+ *
+ * NO PANEL RULE HERE, deliberately - the phone block sets one and this does not need to. The panel's
+ * base `bottom: 86px` already clears a 60px bar, and `.gchat-fab-open` hides the button while the
+ * panel is up, so the two cannot be seen overlapping. Adding a value would be a declaration whose
+ * removal nothing would detect. The expanded `.ob-checklist` (bottom: 140) clears the bar too.
+ *
+ * `!important` MIRRORS THE PHONE RULE RATHER THAN ADDING ANYTHING: `body.consent-open .gchat-fab`
+ * is also `!important` and carries higher specificity, so the consent-bar lift still wins here
+ * exactly as it does below 641. Verified by measuring both states, not by reading the cascade.
+ *
+ * WHAT THIS DOES NOT FIX, and it was asked for: the `.pb-star` overlap on /playbook, and a `Ⓘ`
+ * control on /dashboard.
+ *
+ * `.pb-star` CANNOT be solved by moving this button, and the sweep is what proved it rather than
+ * the arithmetic. Measured 100% covered at 641 and 700 and 81% at 767 at EVERY lift including 92px.
+ * The star rows repeat every ~124px down the full column, so whatever fixed vertical position the
+ * button takes, some scroll offset puts a row under it; and there is no horizontal escape either -
+ * the column's right edge sits 31px from the viewport edge at 641 and 65px at 768, while a 64px
+ * button at `right: 20` needs an 84px clear strip. It needs a reserved gutter on the list rows, or
+ * the star moved. Tracked on #1185, not attempted here.
+ *
+ * The `Ⓘ` on /dashboard at 641 is covered 100% ALREADY, at today's `bottom: 24px` - it is not
+ * something this change causes, and this change does not clear it either. At 700 the lift happens to
+ * improve it from 75% to 46%. Recorded so the next reader does not read it as a regression from this
+ * rule; also on #1185.
+ *
+ * MEASURE THIS OVER MORE THAN ONE SCROLL OFFSET IF YOU CHANGE IT. Two of my own runs gave confident
+ * wrong answers from a single position: one read `.pb-star` as fixed (it was measured at scroll 0,
+ * where a row happens to straddle the button's band), and one read the `.scc-card` graze as absent
+ * (it only sampled offsets past 1200, and the graze is near the top). Both elements here are
+ * `position: fixed`; what they collide with depends entirely on where the page is. */
+@media (min-width: 641px) and (max-width: 767px) {
+  .gchat-fab { bottom: 64px !important; }
+}
+
 /* ── Monochrome Terminal design tokens (#413) ─────────────────────────────
    The redesign's palette, scoped to [data-design="terminal"] so NOTHING in the
    running app changes until a screen opts in. The redesign lands screen by
