@@ -160,6 +160,29 @@ export const CHANGELOG: ChangelogEntry[] = [
          1b3d055c + a472e9ce  the failure state for a paid read that came back unreadable
          7250b91c  a failed chart-alerts refresh reading as a cancelled one
 
+       "IN YOUR LANGUAGE" WAS CUT FROM THE THIRD LINE, and this is the SECOND false claim this entry
+       had on review. Both are recorded because the cause is one habit, not two slips.
+
+       The line said the unreadable-read message is now shown "in your language". It is not.
+       `ARENA_READ_BAD_ANSWER` has **no row in any locale** - checked against every migration, with
+       `ARENA_COIN_LOCK_LINE` as a positive control (11 hits, so the search does find translated
+       keys). QA measured the same thing from the deployed build with /api/labels: the key is absent
+       at en, ru, ko and zh, so `LabelsProvider`'s `{ ...DEFAULT_EN_LABELS, ...data }` leaves the
+       English default standing for everyone. The 114-key gap between the en and non-en responses is
+       what makes that a finding rather than a guess - the translation mechanism is live and in use,
+       this key just is not in it.
+
+       WHAT #2065 ACTUALLY DELIVERED is one step short of what the line claimed: the message used to
+       be GROK_UNREADABLE_ANSWER_MESSAGE, a hardcoded English server string that never reached the
+       label table, and it is now a label key. So it went from UNTRANSLATABLE to TRANSLATABLE. That
+       is a real improvement and it is not the same as translated.
+
+       THE HABIT BEHIND BOTH ERRORS: describing what the change makes POSSIBLE rather than what a
+       reader can observe today. Line 5 announced an operator health row as if a user saw it; line 3
+       announced a translation mechanism as if it had been used. The owner's rule is that copy says
+       only what the product does today, and "translatable" fails it in the same way "degraded row
+       exists" did. Neither was caught by a test; both were caught by someone asking who receives it.
+
        A FIFTH LINE WAS DRAFTED AND PULLED, and it is recorded because the mistake is instructive
        rather than clerical. It read "Telegram alerts now say when a pass ran on incomplete market
        data, instead of going quiet", mapped to f00d5326. **No user is told anything by that commit.**
@@ -200,7 +223,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       'If you have just bought Pro, the upgrade page now confirms the purchase and offers a link onward, instead of sending you away without a word.',
       'On AI Arena, the selected coin category is now marked for screen readers and no longer shown by colour alone.',
-      'When an AI read comes back without a clear verdict, AI Arena now says so in your language, and tells you whether the read was counted.',
+      'When an AI read comes back without a clear verdict, AI Arena now says so plainly, and tells you whether the read was counted.',
       'On AI Arena, a chart-alerts refresh that fails now says it failed, rather than looking like you cancelled it.',
     ],
   },
