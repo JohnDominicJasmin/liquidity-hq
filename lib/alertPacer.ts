@@ -39,24 +39,31 @@
  * the wire at once and undoes the pacing this file exists to provide. So the number that matters is
  * the latency at which a 299-call pass reaches 300 seconds:
  *
- *     concurrency 4  ->  binds above 0.8s  ->  overruns past  4.01s   (was shipped)
- *     concurrency 8  ->  binds above 1.6s  ->  overruns past  8.03s   (now)
+ *     concurrency  4  ->  binds above 0.8s  ->  overruns past   4.01s   (was shipped)
+ *     concurrency  8  ->  binds above 1.6s  ->  overruns past   8.03s   (reviewed, superseded)
+ *     concurrency 12  ->  binds above 2.4s  ->  overruns past  12.04s   (now)
  *
  * MEASURED, NOT ASSERTED - 299 * latency / concurrency, against the timeouts actually used by the
  * paced call sites: 7s for the tickers and most of app/api/telegram/alert, 9s for the klines in
  * lib/ribbonCandles, 10s at alert/route.ts:446.
  *
- * SO STATE THE RESIDUAL PLAINLY RATHER THAN CLAIMING THE FIX IS TOTAL: 8 puts the break-even above
- * the 7s timeout, which is most of the call sites, but 8.03s is BELOW the 9s and 10s ones. A pass
- * whose calls sit at the 9s ceiling still takes ~336s and still overlaps. It is a large improvement
- * (the overrun threshold doubles) and it is not a guarantee.
+ * 12 CLEARS EVERY TIMEOUT ON THESE CALL SITES, which 8 did not. 8 was reviewed first and put the
+ * break-even at 8.03s - above the 7s timeout, but BELOW the 9s klines and the 10s at
+ * alert/route.ts:446, so a pass sitting at the 9s ceiling still took ~336s and still overlapped. 12
+ * moves it to 12.04s, past all three: the worst case any of these timeouts can produce is 249s at a
+ * flat 10s, inside the 300s cadence.
  *
- * RAISING CONCURRENCY DOES NOT SPEND THE IP BUDGET, which is the thing worth understanding before
- * touching either number. MIN_GAP_MS enforces the per-second rate no matter how many calls are in
- * flight, so the 600-per-5s-per-IP headroom is protected by BYBIT_PER_SECOND alone. MAX_CONCURRENT
+ * WHAT THAT DOES AND DOES NOT PROMISE. It bounds the pass by the only latency the timeouts allow, so
+ * timeout-driven overlap is gone. It does NOT make overlap impossible - a pass delayed before pacing
+ * starts, more than 299 calls, or a shorter cadence would each reopen it. The claim is "no latency
+ * these timeouts permit can overrun the cadence", not "this pass can never overlap".
+ *
+ * RAISING CONCURRENCY DOES NOT SPEND THE IP BUDGET, and that is why 12 is affordable. MIN_GAP_MS
+ * enforces the per-second rate no matter how many calls are in flight, so the 600-per-5s-per-IP
+ * headroom is protected by BYBIT_PER_SECOND alone - 12 in flight still leaves at 5/s. MAX_CONCURRENT
  * only bounds how many sockets are open and stops a stall from becoming a burst when they all return
- * at once. Going further - 12 would cover even the 10s timeout, at 249s - costs nothing in request
- * rate; it is left at 8 because that is what was reviewed, not because 12 would be unsafe. */
+ * at once. So the two numbers answer different risks: PER_SECOND protects the shared IP, and
+ * MAX_CONCURRENT protects the cadence. Confusing them is how 4 came to look like the safe choice. */
 
 /** Requests per second the alert pass allows itself to Bybit.
  *
@@ -69,11 +76,11 @@ const BYBIT_PER_SECOND = 5;
 /** In-flight ceiling. Spacing alone still lets slow requests pile up, and a stall should not turn
  *  into a burst when they all return.
  *
- *  RAISED 4 -> 8 FOR #2080. At 4 this bound throughput to 4/latency, so it took over above 0.8s and
+ *  RAISED 4 -> 12 FOR #2080 (8 first, then 12 once the timeouts were measured). At 4 this bound throughput to 4/latency, so it took over above 0.8s and
  *  a 4-second average pushed the pass to the full 5-minute cadence - where it overlaps the next pass
  *  and the pacing stops meaning anything. Bybit calls here time out at 7-10s, so 4 seconds was well
- *  inside reach. See the note above for what 8 does and does not cover. */
-const BYBIT_MAX_CONCURRENT = 8;
+ *  inside reach. See the note above for what 12 does and does not cover. */
+const BYBIT_MAX_CONCURRENT = 12;
 
 const MIN_GAP_MS = Math.ceil(1000 / BYBIT_PER_SECOND);
 
