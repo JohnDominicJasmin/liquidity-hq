@@ -43,20 +43,27 @@
  *     concurrency  8  ->  binds above 1.6s  ->  overruns past   8.03s   (reviewed, superseded)
  *     concurrency 12  ->  binds above 2.4s  ->  overruns past  12.04s   (now)
  *
- * MEASURED, NOT ASSERTED - 299 * latency / concurrency, against the timeouts actually used by the
- * paced call sites: 7s for the tickers and most of app/api/telegram/alert, 9s for the klines in
- * lib/ribbonCandles, 10s at alert/route.ts:446.
+ * MEASURED, NOT ASSERTED - 299 * latency / concurrency, against the timeouts of the calls paceBybit
+ * ACTUALLY WRAPS, which is a shorter list than "timeouts in the alert route":
  *
- * 12 CLEARS EVERY TIMEOUT ON THESE CALL SITES, which 8 did not. 8 was reviewed first and put the
- * break-even at 8.03s - above the 7s timeout, but BELOW the 9s klines and the 10s at
- * alert/route.ts:446, so a pass sitting at the 9s ceiling still took ~336s and still overlapped. 12
- * moves it to 12.04s, past all three: the worst case any of these timeouts can produce is 249s at a
- * flat 10s, inside the 300s cadence.
+ *     fetchBybitCandles (and fetchBybitKlines, which delegates to it)   7s
+ *     fetchRibbonCandles (lib/ribbonCandles.ts:70, :108)                9s   <- the ceiling
  *
- * WHAT THAT DOES AND DOES NOT PROMISE. It bounds the pass by the only latency the timeouts allow, so
- * timeout-driven overlap is gone. It does NOT make overlap impossible - a pass delayed before pacing
- * starts, more than 299 calls, or a shorter cadence would each reopen it. The claim is "no latency
- * these timeouts permit can overrun the cadence", not "this pass can never overlap".
+ * An earlier version of this note also listed 10s at alert/route.ts:446. THAT IS THE TELEGRAM
+ * sendMessage, and it is not paced - it is not wrapped in paceBybit and it is not a Bybit call at
+ * all. Caught by QA. Worth recording because the mistake was to census the file's timeouts rather
+ * than the paced call sites', which inflated the ceiling and would have made every figure here
+ * pessimistic in a way that looked careful.
+ *
+ * 12 CLEARS THE 9s CEILING WITH ROOM, which 8 did not. 8 put the break-even at 8.03s - above the 7s
+ * timeout but BELOW the 9s one - so a pass whose klines all sat at their timeout still took ~336s and
+ * still overlapped. At 12 that same worst case is 299 * 9 / 12 = 224s against a 300s cadence, about
+ * 25% margin, and the break-even moves to 12.04s.
+ *
+ * WHAT THAT DOES AND DOES NOT PROMISE. It bounds the pass by the slowest latency the paced calls can
+ * reach, so timeout-driven overlap is gone. It does NOT make overlap impossible - a pass delayed
+ * before pacing starts, more than 299 calls, or a shorter cadence would each reopen it. The claim is
+ * "no latency these timeouts permit can overrun the cadence", not "this pass can never overlap".
  *
  * RAISING CONCURRENCY DOES NOT SPEND THE IP BUDGET, and that is why 12 is affordable. MIN_GAP_MS
  * enforces the per-second rate no matter how many calls are in flight, so the 600-per-5s-per-IP
@@ -78,8 +85,8 @@ const BYBIT_PER_SECOND = 5;
  *
  *  RAISED 4 -> 12 FOR #2080 (8 first, then 12 once the timeouts were measured). At 4 this bound throughput to 4/latency, so it took over above 0.8s and
  *  a 4-second average pushed the pass to the full 5-minute cadence - where it overlaps the next pass
- *  and the pacing stops meaning anything. Bybit calls here time out at 7-10s, so 4 seconds was well
- *  inside reach. See the note above for what 12 does and does not cover. */
+ *  and the pacing stops meaning anything. The paced calls time out at 7s and 9s, so 4 seconds was
+ *  well inside reach. See the note above for what 12 does and does not cover. */
 const BYBIT_MAX_CONCURRENT = 12;
 
 const MIN_GAP_MS = Math.ceil(1000 / BYBIT_PER_SECOND);
