@@ -150,6 +150,69 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* v2026.11.12. Written before the tag is cut, so whoever tags checks this against
+       `git tag --points-at main` rather than against the day they are working. C1 permits exactly
+       one untagged entry in flight, and this is it.
+
+       EVERY ITEM IS TIED TO COMMITS IN `main..dev` (63 non-merge commits), found by reading that
+       range and the commit BODIES rather than the subjects. Mapping, in the order below:
+         f54947fd + 8e712904 + e41fcbe9   coins outside the default list now work in Arena
+         3e78d6cb                         older candles on scroll-back
+         95419f56                         1h open interest for every perp
+         afa9f259 + e526e6af + ed80f87f   the open-interest card: right coin, named absence
+         04c2617c                         VWAP is the VWAP
+         cecc3be4                         the plain-English opening line
+         51b18648 + d2db2ad7              internal names out of the AI text
+         7b6c4acb + b700b5a2 + b2498283   Draw Structure: 1h/2h, Free lock, labelled lines
+         40c06fb1 + 99410529              the EMA signal's age, and an old signal dropped
+         4c7c80b4                         "couldn't load" instead of an endless skeleton
+         ef455e5b                         a missing reading shown as a dash, not a number
+         286bd8b0                         the Strategy panel lists only wired indicators
+         f82681f1 + 42e15994              the Ask AI button's tablet overlaps
+         52278a7b                         the Fear & Greed 30-day trend drawing blank
+
+       WHO RECEIVES IT was applied to every line, which is this entry's own rule after four of five
+       lines failed it last release. Each surviving line names a surface a reader looks at and a
+       difference they can observe on it.
+
+       ONE LINE WAS CUT BY THAT TEST, AND IT IS THE REASON THE TEST EXISTS: the onboarding tour's
+       "scanning the major coins in real time" claim (71dce059). It reads like an honesty fix and it
+       is one - but its own body says "Production never showed this": prod's label row already
+       carried honest wording, and a row beats the shipped default. The claim only ever appeared on
+       qa and staging. A line here would have told users we fixed something they never saw, which is
+       the same shape as last release's chips line - a true change, falsely addressed.
+
+       ALSO CUT, each for a stated reason rather than by category:
+         7cbee7e2  only http/https links from AI text are clickable. Real hardening, but nothing a
+                   reader observes unless the model emitted a javascript: URL, which it did not.
+         95419f56's `oiUsd` half  the field has no consumers anywhere, so no one ever saw it.
+         2cefd201 + 4f88b89b + eec45195 + 1db834f4  the denomination-helper rename. Internal.
+         every test(), docs() and chore() commit in the range  internal by definition.
+
+       THE DRAW STRUCTURE LINE CARRIES THREE CHANGES and stays one line because they are one thing
+       to a reader: the feature is offered on more timeframes, each line it draws is now labelled,
+       and a Free account can see it exists. Splitting them would describe our PRs rather than their
+       experience. */
+    date: '2026-11-12',
+    tag: 'v2026.11.12',
+    items: [
+      'AI Arena now works for every coin it offers, not just the main list: pick something like XMR, CYBER or XAUT and the chart draws candles, the scanner shows a signal and a score, and open interest shows a figure - where before the chart sat on "Loading" and the signal columns read "n/a".',
+      'The Arena chart loads older candles as you scroll left, instead of stopping at the batch it opened with.',
+      'The 1-hour open interest figure now appears for every coin with a perpetual market. Most coins used to say "Unavailable" there.',
+      'The 1-hour open interest card now shows the coin you are looking at rather than briefly keeping the last one, and says whether it is still collecting or could not reach the exchange.',
+      'The VWAP figure on the dashboard, in Arena and on the landing page is now the VWAP. It was showing the current price under a VWAP heading. Where a coin has no VWAP it shows a dash and says so, instead of a loading bar that never finished.',
+      'An AI read now opens with one plain sentence - the direction, the price that would confirm it and the price that would cancel it - above the technical detail.',
+      'AI reads no longer print internal names like TRENDING_SHORT or BOS_CONFIRMED. They say "trending down" and "break of structure".',
+      'Draw Structure is now offered on the 1-hour and 2-hour charts as well as 4-hour and daily, each proposed line is labelled with its kind and how many touches support it, and a Free account can see the feature with a padlock instead of not seeing it at all.',
+      'The EMA signal says how many bars ago it fired and marks itself old past 50 bars, and an old signal no longer counts as agreement in the AI read.',
+      'When a price or news feed fails, the setup scanner, the accumulation and distribution panels and the News tab say they could not load, instead of showing a loading bar for as long as the feed stays down.',
+      'A reading that has not arrived is shown as a dash rather than a number. The landing page printed "Setup 0" next to its own "No data" note, and the Confluence Score counted the EMA ribbon as a neutral vote while it was still loading, pulling the score toward zero.',
+      'The Strategy panel lists only indicators that are actually calculated. More than half its entries drew nothing.',
+      'On tablets, the floating Ask AI button no longer sits on top of the bottom navigation bar or the playbook favourite star.',
+      'The 30-day Fear & Greed trend no longer shows a blank space when a short cached history is in play.',
+    ],
+  },
+  {
     /* v2026.11.10. Written before the tag is cut, so whoever tags checks this against
        `git tag --points-at main` rather than against the day they are working.
 
