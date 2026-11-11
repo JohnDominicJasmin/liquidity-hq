@@ -843,11 +843,16 @@ function ArenaContent() {
        The clear covers `loading` too, deliberately: `useOI1h` flips to loading the moment the coin
        changes, so this is the earliest point the stale value can be dropped. A read fired during
        that window is told '-' rather than the old coin's move. */
-    if (oi1h.loading || oi1h.pct == null) { oi1hDataRef.current = { coin: selectedCoin, pct: null, signal: '-' }; return; }
+    if (oi1h.loading || oi1h.pct == null) { oi1hDataRef.current = { coin: oi1h.coin, pct: null, signal: '-' }; return; }
     // #1613: the AI read is told the 1h OI change with a trend text from the SAME hour (not the store's oiTrend, another window).
     const { txt } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
-    oi1hDataRef.current = { coin: selectedCoin, pct: oi1h.pct, signal: txt };
-  }, [oi1h.pct, oi1h.pricePct, oi1h.loading, selectedCoin]);
+    oi1hDataRef.current = { coin: oi1h.coin, pct: oi1h.pct, signal: txt };
+    /* `selectedCoin` IS GONE FROM THE DEPS ON PURPOSE, and legitimately: this effect no longer
+       reads it. The stamp comes from `oi1h.coin`, which the hook sets from the coin it fetched, so
+       the ref can only ever describe the snapshot it was written from (#1651, QA). Stamping the
+       component's current coin was the bug this replaces - on an ETH to BTC switch that wrote
+       { coin: BTC, pct: ETH's } and the guard let it through. */
+  }, [oi1h.coin, oi1h.pct, oi1h.pricePct, oi1h.loading]);
 
   /* ── Sync EMA strategy → ref (used by Grok context builder) ── */
   useEffect(() => {
