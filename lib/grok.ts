@@ -1196,11 +1196,53 @@ const PLAIN_WORDS: ReadonlyArray<readonly [token: string, plain: string]> = [
 ];
 
 /** Rewrites internal names in every field a reader can see. Returns the tokens it replaced. */
+/* UNDERSCORE RUNS, matched whole. QA's finding on the first version of this function, and it was a
+ * real hole: **`_` is a word character**, so `\bBOS\b` cannot match inside `BOS_CONFIRMED` - there
+ * is no boundary between `S` and `_`. So `BOS_CONFIRMED` and `TRENDING_SHORT_RIBBON` went to the
+ * reader untouched, and those compounds are the model's natural habit with these names.
+ *
+ * My own `BOSS` control passed and gave me false confidence: it proved `\b` stops a token bleeding
+ * into a longer WORD, which is a different question from a token joined by an UNDERSCORE.
+ *
+ * So the run is matched as one unit and consumed whole. A lookaround that matched `BOS` inside
+ * `BOS_CONFIRMED` would leave `_CONFIRMED` behind, which is worse than leaving it alone. */
+const TOKEN_RUN = /[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+/g;
+
+/** Plain words for one underscore run, by longest known prefix. Returns null when nothing is known. */
+function plainRun(run: string): string | null {
+  const exact = PLAIN_WORDS.find(([t]) => t === run);
+  if (exact) return exact[1];
+  /* LONGEST KNOWN PREFIX, so a known token keeps its real phrase and only the tail is lowercased:
+     `TRENDING_SHORT_RIBBON` -> "trending down ribbon", `BOS_CONFIRMED` -> "break of structure
+     confirmed". Segment-wise rather than character-wise, so a prefix can only end on an underscore
+     and `TRENDING_SHORTISH` can never be read as `TRENDING_SHORT` + "ish". */
+  const parts = run.split('_');
+  for (let take = parts.length - 1; take >= 1; take--) {
+    const prefix = parts.slice(0, take).join('_');
+    const known = PLAIN_WORDS.find(([t]) => t === prefix);
+    if (known) return [known[1], ...parts.slice(take).map(p => p.toLowerCase())].join(' ');
+  }
+  return null;
+}
+
 export function applyPlainWords(r: CombinedResult): string[] {
   const hit = new Set<string>();
   const fix = (s: string): string => {
-    let out = s;
+    /* RUNS FIRST. `TRENDING_SHORT` is both an entry in PLAIN_WORDS and an underscore run; handling
+       runs first means the compound forms are caught by the same pass, and the single-token loop
+       below then has nothing left to do for them. */
+    let out = s.replace(TOKEN_RUN, (run) => {
+      const plain = plainRun(run);
+      hit.add(run);
+      /* AN UNKNOWN RUN IS STILL REWRITTEN, and still recorded. Lowercasing it reads better than
+         shouting an internal name at the reader, and the `checks` entry is what makes a token we
+         have never seen NOISY rather than silent - which is the point QA asked for. The cost is
+         that a legitimate upper-case compound in prose would be lowercased too; it would appear in
+         `checks`, which is where someone would notice. */
+      return plain ?? run.split('_').map(p => p.toLowerCase()).join(' ');
+    });
     for (const [token, plain] of PLAIN_WORDS) {
+      if (token.includes('_')) continue;          // already handled by the run pass above
       const re = new RegExp(`\\b${token}\\b`, 'g');   // case-SENSITIVE on purpose - see above
       if (re.test(out)) { hit.add(token); out = out.replace(re, plain); }
     }
