@@ -473,9 +473,53 @@ export function binancePriceFactor(coin: string): number {
 }
 
 /** Same conversion when only the symbol is in hand, not the coin id. */
+
+/* THE VENUE SYMBOLS FOR ANY COIN THE APP OFFERS, editorial or universe (#1263, owner report).
+ *
+ * `BYBIT_SYMS`/`BINANCE_SYMS` are built from `RENDERED_IDS` on purpose and 17 files read them, so
+ * they stay the editorial list. But Arena's selector and scanner offer all 463 `UNIVERSE_COINS`,
+ * and its chart resolved symbols from those editorial maps - so for a non-core coin both came back
+ * `undefined`, every fetch branch was skipped, and NO REQUEST WAS EVER MADE. Widening the kline
+ * route's allowlist (#2127) could not help, because nothing was calling it.
+ *
+ * Use this ONLY on a surface that deliberately offers the universe. A surface that renders the
+ * editorial list should keep reading the maps, so that a coin appearing where it should not is a
+ * missing symbol rather than a silently working one.
+ *
+ * BINANCE_HOLD IS RESPECTED, and deliberately not re-derived. It holds `pepe` and `bonk` out of
+ * the Binance map because `binancePriceFactor` has zero call sites, and the last time symbols were
+ * added before the factor was applied it put those two coins' alert outcomes at +/-100,000% and
+ * dragged the Track Record average to -126%. That is a measured incident with a hand-written list
+ * naming its own exit condition; this resolver is not the place to overturn it. Such a coin still
+ * charts, from Bybit. */
+export function venueSymbols(coin: string): { bybit: string | null; binance: string | null } {
+  const row = BY_ID.get(coin);
+  if (!row) return { bybit: null, binance: null };
+  return {
+    bybit:   row.bybit ?? null,
+    binance: BINANCE_HOLD.has(coin) ? null : (row.binance ?? null),
+  };
+}
+
 export function bybitSymbolPriceFactor(symbol: string): number {
+  /* A LEADING DIGIT IS NOT ALWAYS A MULTIPLIER, and this read `1 / Number(m[1])` for any leading
+     digits at all. Three universe tickers START with a digit - `0GUSDT`, `2ZUSDT`, `4USDT` - and
+     they produced `1/0 = Infinity`, `0.5` and `0.25`. Harmless only while those coins were
+     unreachable: nothing called this with them, because the editorial maps had no entry. Making
+     the client resolve universe symbols (#1263) reaches them, and the failure would have been
+     entry, stop-loss and take-profit wrong by 2x, 4x or NaN on a live signal - silent, and
+     plausible-looking, which is the exact hazard the comment in useEMAStrategy warns about.
+
+     So the prefix only counts as a denomination when it is a power of ten of at least 1000, which
+     is what an exchange's 1000x listing convention actually is: `1000PEPE`, `10000SATS`,
+     `1000000MOG`. Verified against every row in the generated universe - with this guard the
+     factor equals the row's own `bybitMult`/`binanceMult` for all 463, and without it three
+     disagree. */
   const m = /^(\d+)/.exec(symbol);
-  return m ? 1 / Number(m[1]) : 1;
+  if (!m) return 1;
+  const n = Number(m[1]);
+  const isDenomination = n >= 1000 && Number.isInteger(Math.log10(n));
+  return isDenomination ? 1 / n : 1;
 }
 
 /* The symbol the CHART shows, which is not always the symbol we fetch.

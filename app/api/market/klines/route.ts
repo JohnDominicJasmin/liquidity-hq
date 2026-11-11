@@ -119,6 +119,13 @@ const SYMBOLS: Record<Source, Set<string>> = {
      showed, from the universe ticker pass, which is what made it look like a partial outage rather
      than a coin the data layer had never heard of.
 
+     CORRECTION, and it was wrong in this comment first: that pass carries PRICE AND 24H CHANGE
+     ONLY (see its own header). It does NOT carry VWAP. The "VWAP" the owner saw on CYBER is the
+     live price rendered under a VWAP heading - a separate mislabelling defect QA traced to three
+     sites, affecting every coin including the core 50. Left here because this sentence was the
+     only written explanation for a VWAP on a non-core coin, and it would have stopped the next
+     person looking.
+
      STILL A REAL ALLOWLIST. Derived from the generated universe, so an arbitrary or delisted symbol
      is rejected exactly as before - the set is bigger, not absent. `bybitPriceFactor()` already
      reads every universe row, so the multipliers these coins need are in place.
