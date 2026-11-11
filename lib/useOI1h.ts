@@ -1,16 +1,30 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { CoinId } from './marketStore.ts';
+import { COIN_UNIVERSE } from './coinUniverse.generated.ts';
 import { oiHistChange } from './oiTrend1h.ts';
 
-/* ── Endpoints ── */
-const BINANCE_OI: Partial<Record<CoinId, string>> = {
-  btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
-  xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
-};
-const BYBIT_OI: Partial<Record<CoinId, string>> = {
-  hype: 'HYPEUSDT',
-};
+/* ── Endpoints ──
+ *
+ * EVERY COIN WITH A PERP, not the eight that used to be listed here (owner report, 2026-11-11).
+ * These two maps held 7 Binance ids and 1 Bybit id, so the 1h open-interest card read "Unavailable"
+ * for about 42 of the 50 RENDERED coins, never mind the universe - and "Unavailable" on a healthy
+ * venue reads as broken rather than as unmapped.
+ *
+ * Measured on production before widening: `/api/proxy?type=oi-hist&symbol=CYBERUSDT` returns real
+ * `sumOpenInterest` AND `sumOpenInterestValue`, and the Bybit equivalent answers `retCode: 0` for
+ * the same coin. The proxy never gated these by symbol - only this file did.
+ *
+ * BINANCE FIRST, BYBIT FOR WHAT BINANCE DOES NOT LIST, which is the order the fetch below already
+ * used for the hand-written maps. Only Binance carries `sumOpenInterestValue`, so a Bybit-only coin
+ * gets a percentage change and no USD notional - see the `oiUsd` note in that branch. */
+
+const BINANCE_OI: Partial<Record<CoinId, string>> = Object.fromEntries(
+  COIN_UNIVERSE.filter(r => r.binance).map(r => [r.id, r.binance as string]),
+);
+const BYBIT_OI: Partial<Record<CoinId, string>> = Object.fromEntries(
+  COIN_UNIVERSE.filter(r => r.bybit).map(r => [r.id, r.bybit as string]),
+);
 
 export interface OI1hData {
   /**
@@ -116,7 +130,15 @@ export function useOI1h(coin: CoinId): OI1hData {
             if (list.length >= 2) {
               const newest = parseFloat(list[0].openInterest);
               const oldest = parseFloat(list[list.length - 1].openInterest);
-              result = { coin, oiUsd: newest, pct: oldest > 0 ? (newest - oldest) / oldest * 100 : null, pricePct: null, reason: oldest > 0 ? 'ok' : 'short-window' };
+              /* NO USD NOTIONAL FROM BYBIT, so `oiUsd` is null rather than a contract count wearing
+                 a dollar sign. This branch used to pass `newest` straight through - which is
+                 `openInterest`, a quantity of contracts - into a field the card renders as USD, so
+                 HYPE's figure was never the dollar value it looked like. The Binance branch above
+                 already states the rule (#1238): Bybit's endpoint has no USD field, fabricating one
+                 was rejected, and absent beats a wrong number. Widening these maps spread the
+                 inconsistency to every Bybit-only coin, so it is fixed rather than carried. */
+
+              result = { coin, oiUsd: null, pct: oldest > 0 ? (newest - oldest) / oldest * 100 : null, pricePct: null, reason: oldest > 0 ? 'ok' : 'short-window' };
             }
           }
         }
