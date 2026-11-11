@@ -100,7 +100,10 @@ async function fetchBybitKlinesRange(sym: string, interval: string, startTime: n
     if (!list.length) break;
     // #1059: 1000PEPEUSDT/1000BONKUSDT are quoted per 1000 tokens - without
     // this, a backtest on either coin simulated trades at 1000x the real
-    // price. See bybitPriceFactor in lib/coins.ts.
+    // price. See symbolDenominationFactor in lib/coins.ts - NOT the venue-keyed bybitPriceFactor,
+    // which this comment used to name. The symbol's own denomination is the right reading here
+    // because sats, tag, toshi and turbo are denominated differently by the two venues, so a
+    // venue-keyed factor would be wrong for exactly the coins that need one.
     const pf = bybitSymbolPriceFactor(sym);
     const batch = list.map(k => ({ time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5] }));
     out.push(...batch);

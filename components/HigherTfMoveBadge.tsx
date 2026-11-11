@@ -41,9 +41,16 @@ export default function HigherTfMoveBadge({ coin, tf, signalDir }: Props) {
         const { binance: bn, bybit: by } = venueSymbols(coin);
         let closes: number[] = [];
         // #1059: Bybit primary, Binance fallback. This only ever compares two
-        // closes as a ratio, so bybitSymbolPriceFactor is a no-op here (both
-        // sides scale identically) - applied anyway per the coins.ts rule that
-        // any new code reading a price off BYBIT_SYMS applies the factor.
+        // closes as a RATIO, so a constant denomination factor cancels - which
+        // is the only reason the Binance branch below can map raw closes
+        // without applying one. The Bybit branch applies it anyway, per the
+        // coins.ts rule that any new code reading a price off a Bybit symbol
+        // applies the factor.
+        //
+        // SO: nothing here may start using these closes as absolute prices.
+        // The moment one does, the Binance path is wrong by the symbol's
+        // denomination for every 1000x coin - silently, and in the direction
+        // that looks plausible.
         if (by) {
           // #1080: retry shared with every other Bybit-klines caller (see
           // lib/bybitKlines.ts). Exhaustion is unchanged - `d === null` falls
