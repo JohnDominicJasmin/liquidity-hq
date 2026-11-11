@@ -6,7 +6,7 @@ import { detectPatterns } from '@/lib/patterns';
 import { T } from '@/lib/tables';
 import { formatAlertTally } from '@/lib/alertTally';
 import { isOutcomeTracked, persistAlertFires } from '@/lib/alertOutcomes';
-import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, COIN_LABELS, COINS, bybitSymbolPriceFactor } from '@/lib/coins';
+import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, COIN_LABELS, COINS, symbolDenominationFactor } from '@/lib/coins';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
 import { bootstrapReadings, trendBetween } from '@/lib/oiTrendWindow';
 import { isFeatureEnabled } from '@/lib/featureFlags';
@@ -630,8 +630,8 @@ async function fetchSpotPrices(skipCounts: SkipCounts): Promise<Record<string, n
       const d = await linRes.json() as { result?: { list?: Array<{ symbol: string; lastPrice: string }> } };
       for (const item of d.result?.list ?? []) {
         const coin = byLinSym.get(item.symbol);
-        // 1000PEPE / 1000BONK quote per 1000 tokens: bring them to a per-token price like every other surface (lib/coins.ts bybitSymbolPriceFactor).
-        if (coin && item.lastPrice) out[coin] = parseFloat(item.lastPrice) * bybitSymbolPriceFactor(item.symbol);
+        // 1000PEPE / 1000BONK quote per 1000 tokens: bring them to a per-token price like every other surface (lib/coins.ts symbolDenominationFactor).
+        if (coin && item.lastPrice) out[coin] = parseFloat(item.lastPrice) * symbolDenominationFactor(item.symbol);
       }
     }
   } catch { /* whatever parsed before the throw is still returned below */ }
@@ -663,7 +663,7 @@ async function fetchBybitCandles(
   try {
     const data = await res.json() as { result?: { list?: string[][] } };
     const list = data.result?.list ?? [];
-    const pf = bybitSymbolPriceFactor(symbol);
+    const pf = symbolDenominationFactor(symbol);
     // Bybit returns newest-first - reverse so index 0 = oldest
     return list.map(row => ({
       t: Number(row[0]), o: parseFloat(row[1]) * pf, h: parseFloat(row[2]) * pf,
@@ -880,7 +880,7 @@ async function checkWhales(stamp: string, queue: SignalEntry[], skipCounts: Skip
          * units and `price * size` is already correct USD - measured live, not assumed.
          * Applying the factor there too would divide every whale threshold by 1000 and
          * alert on $0.05 trades. */
-        const pf = bybitSymbolPriceFactor(sym);
+        const pf = symbolDenominationFactor(sym);
         for (const t of trades) {
           const usd = parseFloat(t.price) * parseFloat(t.size);
           if (usd < threshold) continue;

@@ -547,7 +547,7 @@ export const bybitSymbolPriceFactor = symbolDenominationFactor;
  * Nothing leaks out of the chart at this scale: its two internal consumers of the last close
  * are a pixel conversion and a percentage distance to S/R, both scale-invariant. Revisit if
  * klinecharts fixes small-value axes - the fix is to delete this and re-apply
- * bybitSymbolPriceFactor in the chart's fetches. */
+ * symbolDenominationFactor in the chart's fetches. */
 export function chartDisplaySymbol(coin: string): string {
   const prefix = BYBIT_SYMS[coin]?.startsWith('1000') ? '1000' : '';
   return `${prefix}${coin.toUpperCase()}/USDT`;

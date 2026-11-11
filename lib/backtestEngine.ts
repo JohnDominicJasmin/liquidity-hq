@@ -3,7 +3,7 @@
 // so backtest results can never silently diverge from what fires on the live chart.
 
 import { CoinId } from './marketStore.ts';
-import { bybitSymbolPriceFactor, venueSymbols } from './coins.ts';
+import { symbolDenominationFactor, venueSymbols } from './coins.ts';
 import { fetchBybitKlinesRetry } from './bybitKlines.ts';
 import { firstVenueThatAnswers } from './venueFallback.ts';
 import {
@@ -58,7 +58,7 @@ async function fetchBinanceFuturesKlinesRange(sym: string, interval: string, sta
     if (!r.ok) throw new Error(`Binance futures klines ${r.status}`);
     const raw = await r.json() as (string | number)[][];
     if (!raw.length) break;
-    /* #1263: the same 1000x correction the Bybit range path applies. `bybitSymbolPriceFactor` reads the
+    /* #1263: the same 1000x correction the Bybit range path applies. `symbolDenominationFactor` reads the
        SYMBOL STRING, not the venue, so it is right for a Binance `1000PEPEUSDT` too.
        
        REACHABLE SINCE #1263, and this comment said "unreachable today" until then. The symbol now
@@ -67,7 +67,7 @@ async function fetchBinanceFuturesKlinesRange(sym: string, interval: string, sta
        x1000000. Only bonk and pepe are still held out of the Binance map by hand. So the guard
        below is load-bearing rather than defensive, and the comment that called it unnecessary was
        the only thing suggesting otherwise. */
-    const pf = bybitSymbolPriceFactor(sym);
+    const pf = symbolDenominationFactor(sym);
     const batch = raw.map(k => ({ time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5] }));
     out.push(...batch);
     const lastTime = batch[batch.length - 1].time;
@@ -104,7 +104,7 @@ async function fetchBybitKlinesRange(sym: string, interval: string, startTime: n
     // which this comment used to name. The symbol's own denomination is the right reading here
     // because sats, tag, toshi and turbo are denominated differently by the two venues, so a
     // venue-keyed factor would be wrong for exactly the coins that need one.
-    const pf = bybitSymbolPriceFactor(sym);
+    const pf = symbolDenominationFactor(sym);
     const batch = list.map(k => ({ time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5] }));
     out.push(...batch);
     const lastTime = batch[batch.length - 1].time;
