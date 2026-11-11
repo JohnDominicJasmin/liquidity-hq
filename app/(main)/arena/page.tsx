@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useNow } from '@/lib/useNow';
+import { isSafeHttpUrl } from '@/lib/safeUrl';
 import { useSearchParams } from 'next/navigation';
 import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
@@ -102,6 +103,16 @@ function ReasoningText({ text }: { text: string }) {
         const link = seg.match(/^\[(\[?[^\]]*\]?)\]\(([^)]+)\)$/);
         if (link) {
           const label = link[1].replace(/^\[/, '').replace(/\]$/, '') || t('ARENA_REASONING_LINK_FALLBACK');
+          /* THE URL COMES FROM MODEL-WRITTEN TEXT, so it is checked before it becomes an href
+             (#1631, found by PM 2026-11-10). This used to render `href={link[2]}` with no check,
+             so a `javascript:` URL in the AI's prose became a clickable link - and because Deep
+             mode searches the web, a crafted page could seed that text, and the read is stored in
+             history, so it persisted. Live since 2026-05-29.
+
+             AN UNSAFE URL RENDERS THE LABEL AS PLAIN TEXT rather than dropping the segment: the
+             sentence the model wrote still reads correctly, it simply is not clickable. Dropping it
+             would silently edit the answer. */
+          if (!isSafeHttpUrl(link[2])) return <span key={i}>{label}</span>;
           return (
             <a key={i} href={link[2]} target="_blank" rel="noopener noreferrer" className="reasoning-link">
               {label}

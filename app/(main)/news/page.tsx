@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useNews } from '@/components/NewsProvider';
 import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline } from '@/lib/classify';
+import { isSafeHttpUrl } from '@/lib/safeUrl';
 import { withAlpha } from '@/lib/color';
 import LoadingState from '@/components/LoadingState';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -300,7 +301,7 @@ function HeroCard({ a }: { a: AlertItem }) {
           300px block after first paint, shifting the whole feed under the
           largest card on the page. */}
       <div className="ncard-grid-img-wrap">
-        {a.image && (
+        {a.image && isSafeHttpUrl(a.image) && (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={a.image} alt="" className="ncard-grid-img"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -357,7 +358,7 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
           icon - the same generic image repeated down a feed reads as broken,
           where an empty tile reads as designed. */}
       <div className="ncard-grid-img-wrap">
-        {hasImg && (
+        {hasImg && isSafeHttpUrl(a.image) && (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={a.image} alt="" className="ncard-grid-img"
             onError={e => {
