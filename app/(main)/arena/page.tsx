@@ -2153,6 +2153,14 @@ function ArenaContent() {
               return (
                 <button
                   key={c}
+                  /* A STABLE HANDLE PER ROW, the companion to `scanner-trigger` on the wrapper
+                     above (#1775). The trigger got one because its `aria-expanded` is shared with
+                     four other components and its accessible name contains the SELECTED coin; the
+                     rows have the matching problem for the opposite reason - their accessible name
+                     is the concatenation of all six grid cells (label, score, change, RSI, funding,
+                     caret), so `getByRole("button", /^BTC/)` matches by luck and breaks when a cell
+                     changes. Keyed by the coin ID, which is what the search box filters on. */
+                  data-testid={`scanner-row-${c}`}
                   className="scanner-flyout-grid"
                   onClick={() => {
                     coinTouchedRef.current = true;
