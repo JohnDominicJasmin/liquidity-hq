@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { CoinId, BINANCE_SYMS, BYBIT_SYMS, computeFibLevels, useMarket } from '@/lib/marketStore';
+import { CoinId, BINANCE_SYMS, BYBIT_SYMS, venueSymbols, computeFibLevels, useMarket } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
@@ -201,7 +201,14 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
     setLoading(true); setErr('');
     try {
       const binSym = BINANCE_SYMS[coin] as string | undefined;
-      const bytSym = BYBIT_SYMS[coin]   as string | undefined;
+      /* BYBIT FROM THE UNIVERSE, BINANCE LEFT ON THE EDITORIAL MAP, and the asymmetry is the point
+         (#1263). Bybit is the primary here and `venueSymbols` covers all 462, so a non-core coin now
+         gets data. The Binance call below is `source=binance` - SPOT - and the universe has no
+         spot-verified column: `venueSymbols().binance` is a FUTURES symbol, which the spot allowlist
+         refuses by design (#2127). Passing it would manufacture a request that can never succeed and
+         call it a fallback, which is the `SPXUSDT` defect the klines route documents. So a non-core
+         coin is served by Bybit and simply has no spot fallback, exactly as `fet` has none today. */
+      const bytSym = venueSymbols(coin).bybit as string | undefined;
       let c15: Candle[], c1h: Candle[];
 
       if (binSym) {
