@@ -3082,11 +3082,31 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                       {DRAW_STRUCTURE_NOISY_TFS.includes(tf) && (
                         <div className="klc-draw-item">{tl('DRAW_STRUCTURE_LOWER_TF_NOTE')}</div>
                       )}
-                      {proposals.map(s => (
-                        <div key={`${s.type}-${s.from.timestamp}-${s.to.timestamp}`} className="klc-draw-item">
-                          {structureTypeLabel(s.type)}
-                        </div>
-                      ))}
+                      {proposals.map(s => {
+                        /* KIND PLUS EVIDENCE, not kind alone (owner, 2026-11-10). A row that said
+                           only "Trend line" asked the reader to accept or discard a line without
+                           telling them what it was drawn through, and the touch count is the one
+                           piece of evidence this model actually hands over - `touchTimestamps` is
+                           kept for exactly this, per its own comment in lib/drawStructure.ts.
+
+                           NO CONFIDENCE NUMBER, deliberately: `DrawableStructure` has no such
+                           field, and its comment says the absence is the point - a component
+                           cannot render a number it was never given.
+
+                           A zero count shows the kind alone rather than "0 touches". A zero here
+                           would be a line the model drew through nothing it would name, and
+                           printing it as evidence would dress an absence up as a measurement. */
+                        const touches = s.touchTimestamps.length;
+                        const row = touches === 0
+                          ? structureTypeLabel(s.type)
+                          : tl(touches === 1 ? 'DRAW_STRUCTURE_ITEM_ONE' : 'DRAW_STRUCTURE_ITEM',
+                               { kind: structureTypeLabel(s.type), count: String(touches) });
+                        return (
+                          <div key={`${s.type}-${s.from.timestamp}-${s.to.timestamp}`} className="klc-draw-item">
+                            {row}
+                          </div>
+                        );
+                      })}
                       <button className="klc-draw-item klc-draw-clear" onClick={clearProposals}>
                         {tl('DRAW_STRUCTURE_CLEAR')}
                       </button>
