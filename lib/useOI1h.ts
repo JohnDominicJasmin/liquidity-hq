@@ -80,6 +80,11 @@ export function useOI1h(coin: CoinId): OI1hData {
         let result: Omit<OI1hData, 'loading'> = { coin, oiUsd: null, pct: null, pricePct: null, reason: 'failed' };
 
         if (binSym) {
+          /* ITS OWN TRY, so a THROWN request reaches the Bybit fallback below rather than the
+             outer catch. A DNS failure, an abort and a connection reset are the same fact as a
+             429 - we did not get an answer from this venue - and only the status code was
+             falling through before. */
+          try {
           const r = await fetch(
             `/api/proxy?type=oi-hist&symbol=${binSym}&period=5m&limit=13`,
             { cache: 'no-store' }
@@ -118,7 +123,19 @@ export function useOI1h(coin: CoinId): OI1hData {
               };
             }
           }
-        } else if (bbtSym) {
+          } catch { /* leaves result.reason === "failed", which the fallback below reads */ }
+        }
+
+        /* VENUE FALLBACK (#1651). This was `else if`, so a coin WITH a Binance symbol could never
+           reach Bybit: a 429 from Binance ended as `reason: "failed"` and the card said we could
+           not reach the exchange, while Bybit on the same host was answering 200. Measured on qa.
+
+           Gated on `failed` rather than on the status, so it covers every way of getting no answer:
+           a non-OK status, an unparseable body, and now a thrown request. A Binance answer that was
+           merely SHORT ("short-window") does NOT fall through - the venue answered, and that is a
+           different fact from being unreachable. PM scoped this to no-answer, and widening it to
+           short windows would be a second decision rather than this one. */
+        if (result.reason === 'failed' && bbtSym) {
           const r = await fetch(
             `/api/proxy?type=open-interest-1&symbol=${bbtSym}&intervalTime=5min&limit=13`,
             { cache: 'no-store' }
