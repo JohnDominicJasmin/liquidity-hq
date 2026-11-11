@@ -32,7 +32,7 @@ import LiqFeed, { type Bucket } from '@/components/LiqFeed';
 import { topClustersForCoin, acceptClusterEmission, formatClustersForPrompt } from '@/lib/liqClusters';
 import UsageMeter from '@/components/UsageMeter';
 import { FreeUpgradePill } from '@/components/UpgradePill';
-import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
+import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, SIGNAL_OLD_BARS } from '@/lib/useEMAStrategy';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
@@ -2475,10 +2475,33 @@ function ArenaContent() {
         // page was contradicting itself, when really it's one input the AI weighed against
         // the others and still called LONG anyway.
         const verdictDir = result.signal.includes('BULLISH') ? 'long' : result.signal.includes('BEARISH') ? 'short' : null;
-        const ribbonRel = !verdictDir || !emaSignal.signalDir ? 'neutral'
+        /* AN OLD SIGNAL IS NOT AGREEMENT (PM, 2026-11-11, once #2122 gave the signal its age).
+           A cross from 50+ bars back is history, not a second opinion on today's read, so it reads
+           'neutral' here rather than 'agrees' or 'opposes' - dropped from the comparison the same
+           way a neutral directional factor is dropped from the Confluence denominator (#2119), and
+           for the same reason: a vote nobody cast today should not look like one.
+
+           Under the threshold nothing changes, and this row is DISPLAY ONLY - `factors` is built
+           here and consumed only by the render below, so no score or confidence moves. */
+        const ribbonStale = emaSignal.signalBarsAgo != null && emaSignal.signalBarsAgo >= SIGNAL_OLD_BARS;
+        /* FOUR STATES, NOT THREE, and this is QA's design point rather than a flourish. My first
+           version collapsed a stale signal into 'neutral' - the same token as "there is no signal
+           at all" - which is precisely the unknown-drawn-as-neutral conflation removed from the
+           multi-timeframe badge earlier today (#2119). "We dropped an old vote" and "there was
+           never a vote" are different facts and the row has to say which.
+
+           So 'stale' is its own state, reported as "no recent signal" rather than a neutral tick.
+           It carries the same neutral colour, because the point is that it adds nothing to today's
+           read, and the same `•` arrow, because it points nowhere. */
+        const ribbonRel: 'agrees' | 'opposes' | 'stale' | 'neutral' =
+            !verdictDir || !emaSignal.signalDir ? 'neutral'
+          : ribbonStale ? 'stale'
           : emaSignal.signalDir === verdictDir ? 'agrees' : 'opposes';
         const factors = [
-          { k: 'Ribbon',    v: ribbonRel === 'agrees' ? 'agrees' : ribbonRel === 'opposes' ? 'opposes' : 'neutral', c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '↑' : ribbonRel === 'opposes' ? '↓' : '•' },
+          /* 'stale' prints its own words. Falling through to 'neutral' here was the bug in the first
+             cut of this change: the state existed in the type and died at the render, so a dropped
+             old vote looked exactly like a coin with no signal at all. */
+          { k: 'Ribbon',    v: ribbonRel === 'agrees' ? 'agrees' : ribbonRel === 'opposes' ? 'opposes' : ribbonRel === 'stale' ? 'no recent signal' : 'neutral', c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '↑' : ribbonRel === 'opposes' ? '↓' : '•' },
           { k: 'Squeeze',   v: sqzCount > 0 ? 'building' : flushCount > 0 ? 'flush risk' : 'quiet', c: sqzCount > 0 ? GC : flushCount > 0 ? RC : NC, a: sqzCount > 0 ? '↑' : flushCount > 0 ? '↓' : '•' },
           { k: 'Funding',   v: frPct == null ? (feedGraceOver ? 'unavailable' : 'loading…') : frPct >= 0.03 ? 'long-heavy' : frPct <= -0.02 ? 'short-heavy' : 'neutral', c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' },
           { k: 'Multi-TF',  v: tfBull >= 2 ? `${tfBull}/3 up` : tfBear >= 2 ? `${tfBear}/3 down` : (tfBull > 0 && tfBear > 0) ? 'conflicting' : 'mixed', c: tfBull >= 2 ? GC : tfBear >= 2 ? RC : NC, a: tfBull >= 2 ? '↑' : tfBear >= 2 ? '↓' : '•' },
