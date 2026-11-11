@@ -96,7 +96,18 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
               {!oi1h.loading && oi1h.pct != null ? oi1hPctStr : '-'}
             </div>
             <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
-              {oi1h.loading ? <SkeletonBar width={90} height={11} radius={4} /> : oi1h.pct != null ? t('COIN_MARKET_SNAPSHOT_OI_1H_TREND_SUFFIX', { txt: oi1hTxt }) : t('GLOBAL_MACRO_CONTEXT_ROW_UNAVAILABLE')}
+              {/* THREE ABSENCES, THREE STRINGS (#1651, QA's finding). Loading was already its own
+                  state - the skeleton - but "the venue did not answer" and "there is not enough
+                  history yet" both printed "Unavailable", which sends a reader looking for an
+                  outage that is not there. A newly listed coin, or the first minutes after a cache
+                  flush, is the second case and is entirely normal. */}
+              {oi1h.loading
+                ? <SkeletonBar width={90} height={11} radius={4} />
+                : oi1h.pct != null
+                ? t('COIN_MARKET_SNAPSHOT_OI_1H_TREND_SUFFIX', { txt: oi1hTxt })
+                : oi1h.reason === 'short-window'
+                ? t('COIN_MARKET_SNAPSHOT_OI_1H_SHORT_WINDOW')
+                : t('GLOBAL_MACRO_CONTEXT_ROW_UNAVAILABLE')}
             </div>
           </>
         )}

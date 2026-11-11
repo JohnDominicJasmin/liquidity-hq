@@ -828,7 +828,16 @@ function ArenaContent() {
 
   /* ── Sync OI 1h hook data → ref (used by Grok context builder) ── */
   useEffect(() => {
-    if (oi1h.loading || oi1h.pct == null) return;
+    /* CLEARED, NOT LEFT ALONE, when there is no usable value (#1651). This used to `return` early,
+       and `selectedCoin` is in the deps - so switching to a coin with no OI history left the ref
+       holding the PREVIOUS coin's number, and the context builder below then sent it to the model
+       as this coin's 1h open-interest change. A wrong number attributed to the wrong coin is worse
+       than no number, and the model has no way to notice.
+
+       The clear covers `loading` too, deliberately: `useOI1h` flips to loading the moment the coin
+       changes, so this is the earliest point the stale value can be dropped. A read fired during
+       that window is told '-' rather than the old coin's move. */
+    if (oi1h.loading || oi1h.pct == null) { oi1hDataRef.current = { pct: null, signal: '-' }; return; }
     // #1613: the AI read is told the 1h OI change with a trend text from the SAME hour (not the store's oiTrend, another window).
     const { txt } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
     oi1hDataRef.current = { pct: oi1h.pct, signal: txt };

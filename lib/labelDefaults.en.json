@@ -1953,6 +1953,7 @@
   "COIN_MARKET_SNAPSHOT_OI_WEAK_DOWN_SUB": "OI + price down · no panic",
   "COIN_MARKET_SNAPSHOT_OI_1H_PCT_SUFFIX": " · {pct} 1h",
   "COIN_MARKET_SNAPSHOT_OI_FLAT": "Flat",
+  "COIN_MARKET_SNAPSHOT_OI_1H_SHORT_WINDOW": "Not enough history yet",
   "COIN_MARKET_SNAPSHOT_OI_1H_TREND_SUFFIX": "{txt} · 1h",
   "COIN_MARKET_SNAPSHOT_OI_NO_SIGNAL": "No strong signal",
   "COIN_MARKET_SNAPSHOT_FUNDING_TOOLTIP": "The fee longs pay shorts every 8 hours to keep perpetual futures positions open. Strongly positive means too many people are leveraged long, raising the risk of a long-liquidation cascade if price drops.",
