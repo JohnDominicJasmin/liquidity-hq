@@ -36,6 +36,7 @@
  *   - the endpoints are clamped to the window, so nothing is drawn off the edge of the data.
  */
 import { fitLine, lineValueAt, type StructureCandle } from './chartStructures.ts';
+import { TF_MS } from './candles.ts';
 
 /** The structure types the model may propose. A value outside this set is dropped rather than
  *  passed through, so an unknown type cannot reach the chart and render as something else. */
@@ -156,9 +157,19 @@ export function toDrawable(
  */
 export const DRAW_STRUCTURE_TFS = ['1h', '2h', '4h', '1d'] as const;
 
-/* The timeframes that get the "more noise" note. Derived from the list above rather than written
-   out twice, so adding a timeframe cannot forget the note. */
-export const DRAW_STRUCTURE_NOISY_TFS: readonly string[] = ['1h', '2h'];
+/* The timeframes that get the "more noise" note: the offered ones shorter than 4h, which is the
+ * lowest timeframe the owner's blind test actually endorsed (0.94).
+ *
+ * A REAL DERIVATION, and this is the second version. The first wrote `['1h', '2h']` as its own
+ * literal under a comment claiming it was "derived from the list above… so adding a timeframe
+ * cannot forget the note" - a comment describing a protection the code did not implement, caught by
+ * PM reviewing #2108. Adding `'30m'` to `DRAW_STRUCTURE_TFS` would have silently shipped it with no
+ * note. Now it cannot: the filter below is where the set comes from.
+ *
+ * `TF_MS` is reused rather than a local minutes table, so there is one ordering of timeframes in
+ * the codebase instead of two that can disagree. */
+export const DRAW_STRUCTURE_NOISY_TFS: readonly string[] =
+  DRAW_STRUCTURE_TFS.filter(tf => TF_MS[tf] < TF_MS['4h']);
 
 /* TIED TO THE CHART'S OWN TIMEFRAME TYPE, the same assertion `lib/limits.ts` uses.
  *
