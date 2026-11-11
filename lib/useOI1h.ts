@@ -19,17 +19,34 @@ export interface OI1hData {
    *  fallback, Bybit-only coins): unknown, never "flat". Lets the card's label and its number describe one window (#1613, lib/oiTrend1h.ts). */
   pricePct: number | null;
   loading: boolean;
+  /**
+   * WHY `pct` IS ABSENT, when it is. Three different things used to arrive as the same `pct: null`
+   * and the card printed one word for all of them (#1651, QA's finding):
+   *
+   *   - `'ok'`            - `pct` is a real number.
+   *   - `'short-window'`  - the exchange answered, but with fewer than two samples an hour apart,
+   *                         or a pair we cannot divide (an older sample of zero). **Nothing is
+   *                         wrong**; there is not enough history yet, which is normal for a newly
+   *                         listed coin and for the first minutes after a cache flush.
+   *   - `'failed'`        - we could not get an answer: the request errored, the venue returned a
+   *                         non-OK status, or this coin has no open-interest symbol mapped.
+   *
+   * The distinction is the whole point: "we are still collecting" and "we could not reach the
+   * exchange" are different facts about the market, and a reader who is told the second when the
+   * first is true will go looking for an outage that is not there.
+   */
+  reason: 'ok' | 'short-window' | 'failed';
 }
 
 export function useOI1h(coin: CoinId): OI1hData {
-  const [data, setData]   = useState<OI1hData>({ oiUsd: null, pct: null, pricePct: null, loading: true });
+  const [data, setData]   = useState<OI1hData>({ oiUsd: null, pct: null, pricePct: null, loading: true, reason: 'failed' });
   const mountedRef        = useRef(true);
   const fetchingRef       = useRef(false);
 
   useEffect(() => {
     mountedRef.current  = true;
     fetchingRef.current = false;
-    setData({ oiUsd: null, pct: null, pricePct: null, loading: true });
+    setData({ oiUsd: null, pct: null, pricePct: null, loading: true, reason: 'failed' });
 
     const load = async () => {
       if (fetchingRef.current) return;
@@ -37,7 +54,7 @@ export function useOI1h(coin: CoinId): OI1hData {
       try {
         const binSym = BINANCE_OI[coin];
         const bbtSym = BYBIT_OI[coin];
-        let result: Omit<OI1hData, 'loading'> = { oiUsd: null, pct: null, pricePct: null };
+        let result: Omit<OI1hData, 'loading'> = { oiUsd: null, pct: null, pricePct: null, reason: 'failed' };
 
         if (binSym) {
           const r = await fetch(
@@ -46,6 +63,11 @@ export function useOI1h(coin: CoinId): OI1hData {
           );
           if (r.ok) {
             const d = await r.json() as Array<{ sumOpenInterest: string; sumOpenInterestValue?: string; timestamp?: number }>;
+            /* THE VENUE ANSWERED, so from here on an absent `pct` is a WINDOW problem rather than a
+               reachability one - too few samples, or samples that do not span the hour. Set before
+               the length check so the `< 2` case is covered by it too; the branches below only
+               narrow it to 'ok'. */
+            result = { ...result, reason: 'short-window' };
             if (d.length >= 2) {
               /* #1696: the 13 samples must SPAN the hour they claim, not merely number 13 - Binance can skip points, and the card would
                  then label a three-hour move "1h" (QA's LOW finding). One poll of tolerance (5 minutes) either way. */
@@ -66,6 +88,9 @@ export function useOI1h(coin: CoinId): OI1hData {
                 // Same two samples, so the same hour: price = USD value / contracts at each end (#1613). The Telegram Distribution alert reads
                 // its OI trend through the same helper (#1651).
                 pricePct: change?.pricePct ?? null,
+                /* `oiHistChange` returns null when the 13 samples do not SPAN the hour (#1696), which
+                   is the gapped-window case QA asked to name - still 'short-window', not a failure. */
+                reason: change?.oiPct == null ? 'short-window' : 'ok',
               };
             }
           }
@@ -77,10 +102,11 @@ export function useOI1h(coin: CoinId): OI1hData {
           if (r.ok) {
             const d = await r.json() as { result?: { list?: Array<{ openInterest: string }> } };
             const list = d.result?.list ?? [];
+            result = { ...result, reason: 'short-window' };   // same reasoning as the Binance branch above
             if (list.length >= 2) {
               const newest = parseFloat(list[0].openInterest);
               const oldest = parseFloat(list[list.length - 1].openInterest);
-              result = { oiUsd: newest, pct: oldest > 0 ? (newest - oldest) / oldest * 100 : null, pricePct: null };
+              result = { oiUsd: newest, pct: oldest > 0 ? (newest - oldest) / oldest * 100 : null, pricePct: null, reason: oldest > 0 ? 'ok' : 'short-window' };
             }
           }
         }
