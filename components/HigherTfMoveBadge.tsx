@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { CoinId } from '@/lib/marketStore';
-import { bybitSymbolPriceFactor, venueSymbols } from '@/lib/coins';
+import { symbolDenominationFactor, venueSymbols } from '@/lib/coins';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import Tip from './Tip';
 import { Warn } from './icons';
@@ -68,7 +68,7 @@ export default function HigherTfMoveBadge({ coin, tf, signalDir }: Props) {
           if (d === null) {
             console.warn(`HigherTfMoveBadge: Bybit klines retry exhausted for ${by}/${coin}`);
           }
-          const pf = bybitSymbolPriceFactor(by);
+          const pf = symbolDenominationFactor(by);
           closes = [...(d?.result?.list ?? [])].reverse().map(k => +k[4] * pf);
         } else if (bn) {
           const r = await fetch(`/api/market/klines?source=binance-futures&symbol=${bn}&interval=4h&limit=${LOOKBACK_BARS + 1}`);

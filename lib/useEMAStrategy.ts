@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { CoinId, venueSymbols } from './marketStore.ts';
 import { OKX_SYMS } from './coins.ts';
 import { okxBarForBinanceInterval } from './okx.ts';
-import { bybitSymbolPriceFactor } from './coins.ts';
+import { symbolDenominationFactor } from './coins.ts';
 import { fundingDetail } from './fundingDetail.ts';
 import {
   emaArr, smaArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
@@ -122,7 +122,7 @@ async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: n
   if (!r.ok) throw new Error(`Binance futures klines ${r.status}`);
   const raw = await r.json() as (string | number)[][];
   /* THE SAME 1000x CORRECTION THE BYBIT PATH APPLIES, and it was missing here (#1263).
-     `bybitSymbolPriceFactor` reads the SYMBOL STRING, not the venue - `startsWith('1000')` - so it is
+     `symbolDenominationFactor` reads the SYMBOL STRING, not the venue - `startsWith('1000')` - so it is
      correct for a Binance `1000PEPEUSDT` too, and only its name says otherwise.
 
      REACHABLE SINCE #1263, and this comment said "unreachable today" until then. The symbol now
@@ -131,7 +131,7 @@ async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: n
      x1000000. Only bonk and pepe are still held out of the Binance map by hand. So the guard
      below is load-bearing rather than defensive, and the comment that called it unnecessary was
      the only thing suggesting otherwise. */
-  const pf = bybitSymbolPriceFactor(sym);
+  const pf = symbolDenominationFactor(sym);
   return raw.map(k => ({
     time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5],
   }));
@@ -140,7 +140,7 @@ async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: n
 /* OKX, THE THIRD VENUE (#1651). Same bare oldest-first array `source=binance-futures` returns, so
    this is the Binance fetcher with two differences, both deliberate:
 
-   NO PRICE FACTOR. `bybitSymbolPriceFactor` reads the symbol string for a `1000` prefix, and OKX
+   NO PRICE FACTOR. `symbolDenominationFactor` reads the symbol string for a `1000` prefix, and OKX
    has no such instrument - it quotes every one of these per token, measured against both other
    venues at ratios of 1.000. Applying it would be harmless today (an OKX instId never starts with
    `1000`) and misleading tomorrow, because it would imply the guarantee comes from the symbol
@@ -183,7 +183,7 @@ async function fetchBybitKlines(sym: string, interval: string, limit: number): P
   // dollar prices next to a ticker quoting per-token - so without this those
   // three numbers were 1000x on exactly two coins. Volume left alone: it is
   // only ever compared against its own moving average.
-  const pf = bybitSymbolPriceFactor(sym);
+  const pf = symbolDenominationFactor(sym);
   return list.map(k => ({
     time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5],
   }));
@@ -197,7 +197,7 @@ async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval: strin
      418) while Bybit answers normally from the same IP, for BTC/ETH/SOL/DOGE/
      XRP/HYPE and both 1000x meme coins Binance doesn't even list. Bybit's
      public limit (600 req/5s per IP) is orders of magnitude above what this
-     hook needs. fetchBybitKlines already applies bybitSymbolPriceFactor.
+     hook needs. fetchBybitKlines already applies symbolDenominationFactor.
 
      #1263: AND UNTIL NOW THE FALLBACK DID NOT EXIST. This read:
 

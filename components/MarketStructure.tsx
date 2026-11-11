@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS, venueSymbols } from '@/lib/marketStore';
-import { bybitSymbolPriceFactor } from '@/lib/coins';
+import { symbolDenominationFactor } from '@/lib/coins';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
@@ -161,7 +161,7 @@ export default function MarketStructure({ coin, onData }: Props) {
         // Per-1000 quoting on 1000PEPEUSDT / 1000BONKUSDT. This card prints the
         // broken level and both swing levels as dollar prices, so without the
         // factor they read 1000x against the ticker right above them.
-        const pf = bybitSymbolPriceFactor(bytSym);
+        const pf = symbolDenominationFactor(bytSym);
         candles = [...(d.result?.list ?? [])].reverse().map(k => ({
           t: +k[0], o: +k[1] * pf, h: +k[2] * pf, l: +k[3] * pf, c: +k[4] * pf, v: +k[5],
         }));
