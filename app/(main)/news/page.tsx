@@ -637,11 +637,21 @@ export default function NewsPage() {
                 <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_GEO_EMPTY')}</div>
               ) : tab === 'crypto' ? (
                 <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_CRYPTO_EMPTY')}</div>
-              ) : (
+              ) : !alertsLoaded ? (
+                /* STILL LOADING - the skeleton is honest here and only here. */
                 <>
                   <SkeletonBar width={210} height={15} style={{ margin: '0 auto' }} />
                   <span className="sr-only">{t('NEWS_ALL_LOADING_SR')}</span>
                 </>
+              ) : (
+                /* LOADED AND EMPTY (#1185). This branch did not exist: the All tab showed the
+                   loading skeleton whenever it had nothing, so a feed that had finished and come
+                   back empty - or failed - looked identical to one still arriving, for as long as
+                   the reader stared at it. The Geo and Crypto tabs beside it already say so
+                   plainly, and the For You tab above already gates on `alertsLoaded` (`:549`/`:553`);
+                   this is the same pattern, which is why it reuses `NEWS_CRYPTO_EMPTY` rather than
+                   inventing a fourth string for the same fact. */
+                <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_CRYPTO_EMPTY')}</div>
               )}
             </div>
           )}
