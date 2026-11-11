@@ -501,26 +501,41 @@ export function venueSymbols(coin: string): { bybit: string | null; binance: str
   };
 }
 
-export function bybitSymbolPriceFactor(symbol: string): number {
-  /* A LEADING DIGIT IS NOT ALWAYS A MULTIPLIER, and this read `1 / Number(m[1])` for any leading
-     digits at all. Three universe tickers START with a digit - `0GUSDT`, `2ZUSDT`, `4USDT` - and
-     they produced `1/0 = Infinity`, `0.5` and `0.25`. Harmless only while those coins were
-     unreachable: nothing called this with them, because the editorial maps had no entry. Making
-     the client resolve universe symbols (#1263) reaches them, and the failure would have been
-     entry, stop-loss and take-profit wrong by 2x, 4x or NaN on a live signal - silent, and
-     plausible-looking, which is the exact hazard the comment in useEMAStrategy warns about.
-
-     So the prefix only counts as a denomination when it is a power of ten of at least 1000, which
-     is what an exchange's 1000x listing convention actually is: `1000PEPE`, `10000SATS`,
-     `1000000MOG`. Verified against every row in the generated universe - with this guard the
-     factor equals the row's own `bybitMult`/`binanceMult` for all 463, and without it three
-     disagree. */
+/** The denomination a SYMBOL declares, from its own leading multiplier: `1000PEPEUSDT` -> 0.001,
+ *  `10000SATSUSDT` -> 0.0001, `1000000MOGUSDT` -> 0.000001, anything else -> 1.
+ *
+ * VENUE-NEUTRAL BY NAME NOW, and the old name was a trap rather than merely untidy. It read
+ * `bybitSymbolPriceFactor`, while three Arena surfaces correctly pass it a BINANCE symbol - which
+ * is right, because it reads the symbol's own declared denomination and that is the only thing
+ * correct for `sats`, `tag`, `toshi` and `turbo`, where the two venues denominate the SAME coin
+ * differently (bybit 10000SATS vs binance 1000SATS). A name saying "bybit" invites the next reader
+ * to "correct" those call sites to the venue-keyed `bybitPriceFactor`, which would silently price
+ * those four coins out by 10x to 1000x. QA raised it; the old name stays as a deprecated alias so
+ * nothing breaks while the call sites migrate.
+ *
+ * NOT TO BE CONFUSED WITH `bybitPriceFactor` / `binancePriceFactor`, which are genuinely
+ * venue-specific: they look the coin up and read that venue's `mult` from the generated row. Use
+ * those when you have a COIN ID and know the venue; use this when all you have is a symbol string
+ * off a feed.
+ *
+ * A LEADING DIGIT IS NOT ALWAYS A MULTIPLIER (#1263). Three universe tickers begin with one -
+ * `0GUSDT`, `2ZUSDT`, `4USDT` - and dividing by it gave `Infinity`, `0.5` and `0.25`. So the
+ * prefix counts only as a denomination when it is a power of ten of at least 1000, which is the
+ * exchanges' actual convention. Verified against all 463 generated rows: the result equals each
+ * row's own `bybitMult`/`binanceMult`, where three disagreed before. */
+export function symbolDenominationFactor(symbol: string): number {
   const m = /^(\d+)/.exec(symbol);
   if (!m) return 1;
   const n = Number(m[1]);
   const isDenomination = n >= 1000 && Number.isInteger(Math.log10(n));
   return isDenomination ? 1 / n : 1;
 }
+
+/** @deprecated Use `symbolDenominationFactor`. The name says "bybit" but the function reads the
+ *  SYMBOL's denomination, not the venue's - see there. Kept so the migration can run in steps:
+ *  nothing breaks while call sites move across, and deleting this alias is what proves the
+ *  migration finished. */
+export const bybitSymbolPriceFactor = symbolDenominationFactor;
 
 /* The symbol the CHART shows, which is not always the symbol we fetch.
  *
