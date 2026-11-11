@@ -35,6 +35,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor, binancePriceFactor, symbolDenominationFactor, chartDisplaySymbol } from '../lib/coins.ts';
@@ -179,6 +180,50 @@ test('M9. a leading digit that is NOT a denomination does not scale the price', 
   assert.equal(symbolDenominationFactor('1000000MOGUSDT'), 0.000001);
 });
 
+test('M10. the renamed-away identifier appears nowhere in current source', () => {
+  /* THE ARTIFACT THAT PROVES THE RENAME FINISHED (#2135 steps 1-4).
+   *
+   * While the deprecated alias was exported, a completed migration and one that had stalled with
+   * call sites still on the old name were indistinguishable - everything compiled and everything
+   * passed either way. The alias's deletion separated them, and this cell is what keeps them
+   * separated: it fails if the alias is reintroduced, if a new call site adopts the old name, or if
+   * someone restores the export for convenience.
+   *
+   * THE NEEDLE IS SPLIT SO THIS FILE CAN SCAN ITSELF. A cell that forbids a string has to contain
+   * that string to search for it, and would then find itself. Excluding this file would have been
+   * the easy fix and the wrong one: it is the file where the old name lived longest, so it is the
+   * likeliest place for a leftover and the last place that should be exempt. */
+  const OLD = 'bybitSymbol' + 'PriceFactor';
+
+  /* GUARD ON THE TRICK ITSELF, composed a second way. A typo in the concatenation yields a needle
+     that matches nothing and passes - and a search for the wrong string returns zero exactly like a
+     finished migration does, which is the failure this whole cell exists to catch. */
+  assert.equal(OLD.length, 22, `the split literal is the wrong length (${OLD.length}) - it has been mistyped`);
+  assert.ok(OLD.startsWith('bybit') && OLD.endsWith('PriceFactor') && OLD.includes('Symbol'),
+    `the split literal does not compose the expected identifier: got '${OLD}'`);
+
+  /* `supabase/migrations` is EXCLUDED AS A CLASS, not as an exception: those files have already run
+     against dev and prod, so they are applied history rather than current source. One of them
+     mentions the old name in a comment describing what the code did at that commit, and editing it
+     would make the record wrong to make this check clean. Noted on #1263 so nobody re-derives it. */
+  const tracked = execFileSync('git', ['grep', '-l', '--', OLD], { cwd: ROOT, encoding: 'utf8' })
+    .split('\n').map(s => s.trim()).filter(Boolean)
+    .filter(p => !p.startsWith('supabase/migrations/'));
+
+  /* POSITIVE CONTROL: the same command, same scope, for the name that replaced it. A zero from a
+     `git grep` that cannot see this identifier at all looks exactly like a zero from a finished
+     migration, and only this line tells them apart. */
+  const current = execFileSync('git', ['grep', '-l', '--', 'symbolDenominationFactor'], { cwd: ROOT, encoding: 'utf8' })
+    .split('\n').map(s => s.trim()).filter(Boolean);
+  assert.ok(current.length >= 5,
+    `control: the replacement name was found in only ${current.length} files - git grep is not seeing `
+    + 'identifiers here, so the empty result below would prove nothing');
+
+  assert.deepEqual(tracked, [],
+    `the renamed-away identifier still appears in current source: ${tracked.join(', ')}. Either a call `
+    + 'site was missed, or the deprecated alias has been reintroduced - the rename is not finished.');
+});
+
 test('M4. the chart label carries the 1000 prefix exactly when the series does', () => {
   /* The label is the ONLY thing telling a user the chart is per-thousand. The chart is deliberately
      drawn on the exchange's scaled series - klinecharts collapses at very small values - so a
@@ -205,18 +250,19 @@ const PRICE_FIELD = /\b(lastPrice|markPrice|indexPrice|prevPrice24h|highPrice24h
 const BYBIT_SOURCE = /\bBYBIT_SYMS\b|api\.bybit\.com|bybitFanout|type=bybit/;
 /** The conversion, by any entry point.
  *
- * INCLUDES THE DEPRECATED ALIAS FOR THE LENGTH OF THE MIGRATION (#2135, step 2 of four).
+ * TIGHTENED TO THE CURRENT NAMES (#2135's rename, step 4b of four — the alias is gone).
  *
- * This is a pattern matched against OTHER FILES' source, not a reference to the function — so it has
- * to describe what the app code actually contains, and the app still calls `bybitSymbolPriceFactor`
- * until step 3 migrates those call sites. **Renaming it along with the imports is what broke this
- * cell in the first draft of step 2**: a blanket identifier replace treats a scan pattern as if it
- * were a call, and it is data about other files instead.
+ * This is a pattern matched against OTHER FILES' source, not a reference to the function, so it has
+ * to describe what the app code actually contains. For three steps of the rename that meant
+ * accepting the old venue-named identifier as well, because the app still called it — and renaming
+ * this pattern along with the imports is what broke this cell in the first draft of step 2: a
+ * blanket identifier replace treats a scan pattern as if it were a call, when it is data about other
+ * files. It did not fail cleanly either; it reported a missing conversion that was in fact present.
  *
- * STEP 4 DROPS THE ALIAS ALTERNATIVE, and deleting the export is what makes that safe. Dropping it
- * while any app file still used the old name would make this cell report a missing conversion that
- * is in fact present — a false finding pointing at the wrong file. */
-const APPLIES_FACTOR = /\bbybitPriceFactor\b|\bsymbolDenominationFactor\b|\bbybitSymbolPriceFactor\b/;
+ * The alternative is dropped here rather than earlier because the export's deletion is what makes it
+ * safe: removing it while any app file still used the old name would bring that false finding back.
+ * M10 below now asserts the old name appears nowhere, which is what keeps this pattern honest. */
+const APPLIES_FACTOR = /\bbybitPriceFactor\b|\bsymbolDenominationFactor\b/;
 
 /**
  * Files that read a Bybit price and deliberately do NOT convert, with the reason each is safe.

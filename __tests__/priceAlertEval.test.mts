@@ -111,9 +111,8 @@ test('S1. source (cron route): the Bybit-only coins are added to the price map, 
   assert.ok(/const WICK_LOOKBACK_MIN = 15;/.test(src), 'the wick lookback is not 15');
   assert.ok(/fetchBybitCandles\(m\.symbol, '1', WICK_LOOKBACK_MIN/.test(src), 'the kline read is not 1-minute over the lookback');
   assert.ok(/evaluatePriceAlert\(alert, price \?\? null, candlesByCoin\.get\(alert\.coin\) \?\? \[\]\)/.test(src), 'the rule is not what decides');
-  /* Either name, for the length of the #2135 rename: this matches the CRON ROUTE's source, which
-     still calls the deprecated alias until step 3. A scan pattern has to describe the file being
-     scanned, not the name this test file imports. Step 4 drops the alias alternative once the
-     export is gone. */
-  assert.ok(/(?:symbolDenominationFactor|bybitSymbolPriceFactor)\(item\.symbol\)/.test(src), '1000-token quotes are not brought to a per-token price');
+  /* Single name again (#2135 step 4b — the alias is deleted). This matches the CRON ROUTE's source,
+     so it describes that file rather than the name this test imports; it accepted both names while
+     the route still called the old one, and the export's deletion is what made tightening it safe. */
+  assert.ok(/symbolDenominationFactor\(item\.symbol\)/.test(src), '1000-token quotes are not brought to a per-token price');
 });
