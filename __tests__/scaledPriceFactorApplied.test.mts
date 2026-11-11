@@ -38,6 +38,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor, bybitSymbolPriceFactor, chartDisplaySymbol } from '../lib/coins.ts';
+import { COIN_UNIVERSE } from '../lib/coinUniverse.generated.ts';
 /* The whole module, for a function that exists on some trees and not others - a named import of
    `binancePriceFactor` would fail to COMPILE where the generated universe has not landed. */
 import * as COINS_MOD from '../lib/coins.ts';
@@ -84,6 +85,63 @@ test('M3. the symbol-only and coin-only conversions agree, for every coin', () =
       `${sym}: bybitSymbolPriceFactor=${bybitSymbolPriceFactor(sym)} but bybitPriceFactor('${coin}')=${bybitPriceFactor(coin)}`,
     );
   }
+});
+
+/* ── 1b. THE SAME PARITY, OVER THE WHOLE UNIVERSE ─────────────────────────────────────────────────
+ *
+ * M3 is the right check with the wrong domain, and that gap shipped a real defect (#2129).
+ *
+ * It iterates `Object.entries(BYBIT_SYMS)` - the editorial 50 - so the ~413 universe coins were
+ * never compared. `bybitSymbolPriceFactor` read `1 / Number(m[1])` for ANY leading digits, which
+ * made `0GUSDT` return `Infinity`, `2ZUSDT` 0.5 and `4USDT` 0.25. Harmless only while nothing
+ * resolved those symbols; #1263's client resolver reached them, and the consequence would have been
+ * a signal's entry, stop and target wrong by 2x or 4x, or NaN - silently, and plausibly.
+ *
+ * THE COMMENT ON `UNIT_PREFIXES` ABOVE ALREADY NAMED THIS EXACT TRAP - "a leading digit in a token
+ * NAME - 0G, 2Z, 1INCH, 4 - is a ticker, not a quantity, and conflating the two is its own defect".
+ * The knowledge was in the file and the coverage was not, because the loop below it could not see
+ * those coins. These cells close that, and the generated universe is the right domain for a parser
+ * that takes a bare symbol from a feed: the feed is not limited to the coins we render.
+ */
+
+test('M8. the symbol parser agrees with the generator row, for every coin in the UNIVERSE', () => {
+  const withBybit = COIN_UNIVERSE.filter(r => r.bybit);
+
+  /* CONTROLS, both needed. The first: an empty or truncated universe makes every assertion below
+     hold vacuously. The second: the three leading-digit tickers must actually be IN the set being
+     checked - they are the regression this cell exists for, and a domain that excluded them would
+     be M3's bug again under a new name. */
+  assert.ok(withBybit.length > 400, `only ${withBybit.length} universe rows carry a Bybit symbol - the import is wrong or the file is truncated`);
+  for (const id of ['0g', '2z', '4']) {
+    assert.ok(withBybit.some(r => r.id === id), `'${id}' is missing from the checked set - without it this cell cannot see the defect it was written for`);
+  }
+
+  for (const row of withBybit) {
+    assert.equal(
+      bybitSymbolPriceFactor(row.bybit as string), row.bybitMult,
+      `${row.id} (${row.bybit}): parser says ${bybitSymbolPriceFactor(row.bybit as string)}, the generated row says ${row.bybitMult}`,
+    );
+    /* And the coin-id form, which reads the row directly - so this pins all three answers together
+       rather than letting two of them agree while the third drifts. */
+    assert.equal(bybitPriceFactor(row.id), row.bybitMult, `bybitPriceFactor('${row.id}') disagrees with its own row`);
+  }
+});
+
+test('M9. a leading digit that is NOT a denomination does not scale the price', () => {
+  /* Named individually rather than looped, because these three are the whole point: a ticker that
+     happens to start with a digit. `1inch` is the fourth of the kind named in the comment above and
+     is included for the same reason. */
+  for (const id of ['0g', '2z', '4', '1inch']) {
+    const row = COIN_UNIVERSE.find(r => r.id === id);
+    assert.ok(row?.bybit, `control: '${id}' must exist with a Bybit symbol for this cell to mean anything`);
+    assert.equal(bybitSymbolPriceFactor(row!.bybit as string), 1,
+      `${row!.bybit} is a token name beginning with a digit, not a 1000x listing - scaling it puts a live signal's entry, stop and target out by that factor`);
+  }
+
+  /* The real denominations must still scale, or "nothing scales" would pass this file. */
+  assert.equal(bybitSymbolPriceFactor('1000PEPEUSDT'), 0.001);
+  assert.equal(bybitSymbolPriceFactor('10000SATSUSDT'), 0.0001);
+  assert.equal(bybitSymbolPriceFactor('1000000MOGUSDT'), 0.000001);
 });
 
 test('M4. the chart label carries the 1000 prefix exactly when the series does', () => {
