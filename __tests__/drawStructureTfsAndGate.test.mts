@@ -68,18 +68,20 @@ test('D2. the button is offered on those four and on nothing else - 15m and 30m 
 });
 
 test('D3. every noisy timeframe is one of the offered ones, and the held pair is in neither list', () => {
-  /* THE COMMENT ON THIS CONSTANT CLAIMS A PROPERTY THE CODE DOES NOT HAVE.
-     `lib/drawStructure.ts:159` says the noisy list is "Derived from the list above rather than
-     written out twice, so adding a timeframe cannot forget the note" - and line 161 writes it out
-     twice as its own literal. So the protection the comment promises does not exist: adding '30m'
-     to DRAW_STRUCTURE_TFS would not add it here.
-     Reported to Dev as a finding, and BE PRECISE ABOUT WHAT THIS CELL REPLACES, because it is not
-     the whole of it. These assertions fail when the noisy list contains an unoffered timeframe, and
-     when either list gains 15m or 30m. Together with D1's length check that covers every change to
-     the offered list made today. What no assertion here can do is decide whether a FUTURE
-     timeframe - say '6h' - ought to carry the note: only a real derivation knows that. So this
-     cell is a tripwire that forces a human to come and look, not a substitute for deriving the
-     list, and the finding stands on that basis. */
+  /* THE NOISY LIST IS NOW A REAL DERIVATION, and this comment is the second version.
+     `lib/drawStructure.ts` computes it as `DRAW_STRUCTURE_TFS.filter(tf => TF_MS[tf] < TF_MS['4h'])`
+     since #2112.
+     WHAT THIS CELL WAS WRITTEN AGAINST, kept because the history is the point: the constant used to
+     be the literal `['1h', '2h']` under a comment claiming it was "Derived from the list above…so
+     adding a timeframe cannot forget the note". It was written out twice, so the protection the
+     comment promised did not exist - adding '30m' to the offered list would have shipped it with no
+     note and nothing to say so. I reported that while writing this cell and #2112 derived it for
+     real; proven by mutation on that branch, where adding '30m' to the offered list alone made the
+     noisy list become ["30m","1h","2h"] on its own.
+     SO WHAT IS THIS CELL FOR NOW? The derivation makes the subset relation true by construction, so
+     the first assertion can no longer fail by drift - it is a guard against the derivation being
+     replaced by a literal again, which is exactly what happened once. The 15m/30m assertions still
+     do independent work: they pin the deliberate HOLD on that pair, which no derivation encodes. */
   for (const tf of DRAW_STRUCTURE_NOISY_TFS) {
     assert.ok((DRAW_STRUCTURE_TFS as readonly string[]).includes(tf),
       `'${tf}' carries the more-noise note but is not an offered timeframe - the two lists have drifted, `
