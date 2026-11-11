@@ -57,6 +57,10 @@ export interface StrategySignal {
   signalTimestamp:   number | null;
   signalAnchorPrice: number | null;
   signalDir:         'long' | 'short' | null;
+  /** HOW MANY BARS BACK the latest signal fired, on THIS timeframe. The verdict follows the ribbon's
+   *  side however old that signal is, so without this a five-week-old short reads as current - both
+   *  in the AI context and in Arena's ribbon-agreement check (#1583/#1541). null when none. */
+  signalBarsAgo:     number | null;
   /* Markers are on the ARM candle (the EMA9/20 cross) again, and a signal still holding its hold is drawn hollow with
      `pending` set (owner, 2026-10-07, after trying fill-candle placement on qa: "massive delay, selling at the bottom").
      `pendingSetup` is the same signal as text under the chart. */
@@ -241,7 +245,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   ema9_4h: null, ema20_4h: null, ema50_4h: null, sma200_1d: null,
   volMA20: null, lastVol: null, priceInValueZone: false,
   sl: null, tp: null, loading: true, error: null,
-  signalTimestamp: null, signalAnchorPrice: null, signalDir: null,
+  signalTimestamp: null, signalAnchorPrice: null, signalDir: null, signalBarsAgo: null,
   signalLongs: [], signalShorts: [], pendingSetup: null, lockedMarkers: [], signalLock: null, counterTrend: false,
   atrLast: null, ema50Slope: null,
   chopIndex: null, chopRegime: null,
@@ -747,6 +751,7 @@ export function useEMAStrategy(
         let signalTimestamp: number | null = null;
         let signalAnchorPrice: number | null = null;
         let signalDir: 'long' | 'short' | null = null;
+        let signalBarsAgo: number | null = null;
 
         // Anti-chop filters applied to all signal scans:
         //   ATR buffer:    close must clear EMA50 by ≥ 35% of ATR(14) - rejects marginal grazes
@@ -785,6 +790,7 @@ export function useEMAStrategy(
               signalTimestamp   = cRibbon[i].time;
               signalAnchorPrice = cRibbon[i].low;
               signalDir         = 'long';
+              signalBarsAgo     = cRibbon.length - 1 - i;   // bars, not wall time: the unit the chart and the spec are in
               break;
             }
           }
@@ -798,6 +804,7 @@ export function useEMAStrategy(
               signalTimestamp   = cRibbon[i].time;
               signalAnchorPrice = cRibbon[i].high;
               signalDir         = 'short';
+              signalBarsAgo     = cRibbon.length - 1 - i;
               break;
             }
           }
@@ -851,7 +858,7 @@ export function useEMAStrategy(
           ema9_4h: ema9, ema20_4h: ema20, ema50_4h: ema50, sma200_1d: sma200,
           volMA20: volma20, lastVol, priceInValueZone: inValueZone,
           sl, tp, loading: false, error: null,
-          signalTimestamp, signalAnchorPrice, signalDir,
+          signalTimestamp, signalAnchorPrice, signalDir, signalBarsAgo,
           signalLongs, signalShorts, pendingSetup, lockedMarkers, counterTrend,
           chopIndex, chopRegime,
           reversalWarnings,
@@ -920,7 +927,7 @@ export function useEMAStrategy(
           /* A stable sentinel, not display text (#1024) - EMASignal.tsx maps
              this to a translated label, the same shape OnChainScore already
              uses for its own known-error codes. */
-          setSig({ ...STRATEGY_LOADING, loading: false, error: 'INSUFFICIENT_DATA', signalTimestamp: null, signalAnchorPrice: null, signalDir: null });
+          setSig({ ...STRATEGY_LOADING, loading: false, error: 'INSUFFICIENT_DATA', signalTimestamp: null, signalAnchorPrice: null, signalDir: null, signalBarsAgo: null });
           return false;
         }
         klineCache.set(cacheKey, { cRibbon, c1d, fetchedAt: Date.now() });
@@ -986,6 +993,14 @@ export function useEMAStrategy(
 }
 
 /* ── Grok context summary line ───────────────────────────────────────────── */
+/** Past this many bars on its own timeframe, the latest signal is OLD rather than current.
+ *
+ * PM's ruling, 2026-11-11, under the standing rule that every figure carries its age: the verdict
+ * follows the ribbon's side however far back the signal fired, so a stale one used to read as
+ * current to both the model and the ribbon-agreement check. 50 is a product decision, not a
+ * measured threshold, and is stated as such rather than dressed up. */
+export const SIGNAL_OLD_BARS = 50;
+
 export function strategyToGrokLine(sig: StrategySignal, tf = '4h'): string {
   if (sig.loading || sig.verdict === 'LOADING') return 'Loading…';
   // A locked coin gives the AI no buy or sell read either: nothing here can leak what the page is not showing.
@@ -1000,5 +1015,12 @@ export function strategyToGrokLine(sig: StrategySignal, tf = '4h'): string {
     : '';
   // judgeRibbon already ends the phase with the flag; this covers a phase that a selected indicator rewrote.
   const counter = sig.counterTrend && !sig.phase.includes('counter-trend') ? ' · COUNTER-TREND vs the daily 200 SMA' : '';
-  return `[${tf.toUpperCase()} ribbon + 1D SMA200 filter] ${sig.verdict} · ${sig.phase}${counter} · ${condStr}${sltp}`;
+  /* THE AGE TRAVELS WITH THE SIGNAL (#1583/#1541). The verdict describes the ribbon's side, which
+     holds for as long as the ribbon does - so a signal from 32 bars back produced a line the model
+     read as a fresh call. Bars, not a date: the model is reasoning on this timeframe's candles. */
+  const age = sig.signalBarsAgo == null ? ''
+    : sig.signalBarsAgo >= SIGNAL_OLD_BARS
+    ? ` · last ${sig.signalDir ?? ''} signal ${sig.signalBarsAgo} bars ago - OLD, treat as context not a current call`
+    : ` · last ${sig.signalDir ?? ''} signal ${sig.signalBarsAgo} bars ago`;
+  return `[${tf.toUpperCase()} ribbon + 1D SMA200 filter] ${sig.verdict} · ${sig.phase}${counter} · ${condStr}${sltp}${age}`;
 }
