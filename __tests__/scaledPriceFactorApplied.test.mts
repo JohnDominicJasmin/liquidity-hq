@@ -37,7 +37,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor, bybitSymbolPriceFactor, chartDisplaySymbol } from '../lib/coins.ts';
+import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor, binancePriceFactor, symbolDenominationFactor, chartDisplaySymbol } from '../lib/coins.ts';
 import { COIN_UNIVERSE } from '../lib/coinUniverse.generated.ts';
 /* The whole module, for a function that exists on some trees and not others - a named import of
    `binancePriceFactor` would fail to COMPILE where the generated universe has not landed. */
@@ -81,8 +81,8 @@ test('M3. the symbol-only and coin-only conversions agree, for every coin', () =
      exactly the pair that can drift apart without anything noticing. */
   for (const [coin, sym] of Object.entries(BYBIT_SYMS)) {
     assert.equal(
-      bybitSymbolPriceFactor(sym), bybitPriceFactor(coin),
-      `${sym}: bybitSymbolPriceFactor=${bybitSymbolPriceFactor(sym)} but bybitPriceFactor('${coin}')=${bybitPriceFactor(coin)}`,
+      symbolDenominationFactor(sym), bybitPriceFactor(coin),
+      `${sym}: symbolDenominationFactor=${symbolDenominationFactor(sym)} but bybitPriceFactor('${coin}')=${bybitPriceFactor(coin)}`,
     );
   }
 });
@@ -92,7 +92,7 @@ test('M3. the symbol-only and coin-only conversions agree, for every coin', () =
  * M3 is the right check with the wrong domain, and that gap shipped a real defect (#2129).
  *
  * It iterates `Object.entries(BYBIT_SYMS)` - the editorial 50 - so the ~413 universe coins were
- * never compared. `bybitSymbolPriceFactor` read `1 / Number(m[1])` for ANY leading digits, which
+ * never compared. `symbolDenominationFactor` read `1 / Number(m[1])` for ANY leading digits, which
  * made `0GUSDT` return `Infinity`, `2ZUSDT` 0.5 and `4USDT` 0.25. Harmless only while nothing
  * resolved those symbols; #1263's client resolver reached them, and the consequence would have been
  * a signal's entry, stop and target wrong by 2x or 4x, or NaN - silently, and plausibly.
@@ -118,12 +118,47 @@ test('M8. the symbol parser agrees with the generator row, for every coin in the
 
   for (const row of withBybit) {
     assert.equal(
-      bybitSymbolPriceFactor(row.bybit as string), row.bybitMult,
-      `${row.id} (${row.bybit}): parser says ${bybitSymbolPriceFactor(row.bybit as string)}, the generated row says ${row.bybitMult}`,
+      symbolDenominationFactor(row.bybit as string), row.bybitMult,
+      `BYBIT column: ${row.id} (${row.bybit}): parser says ${symbolDenominationFactor(row.bybit as string)}, the generated row says ${row.bybitMult}`,
     );
     /* And the coin-id form, which reads the row directly - so this pins all three answers together
        rather than letting two of them agree while the third drifts. */
     assert.equal(bybitPriceFactor(row.id), row.bybitMult, `bybitPriceFactor('${row.id}') disagrees with its own row`);
+  }
+
+  /* THE BINANCE COLUMN, which #2133 made a live path for this function and this cell did not cover.
+   *
+   * Three call sites now hand it a BINANCE symbol - `useEMAStrategy`, `backtestEngine` and the
+   * higher-timeframe badge - because the function reads the symbol string rather than the venue. So
+   * the bybit loop above was the same shape of gap M3 had, one column over: the right assertion over
+   * an incomplete domain.
+   *
+   * FOUR COINS ARE THE WHOLE REASON THIS IS NOT REDUNDANT. The venues denominate these differently,
+   * so a column-blind check passes while a venue-keyed implementation would be wrong:
+   *
+   *   sats   10000SATSUSDT  0.0001  |  1000SATSUSDT  0.001
+   *   tag    1000TAGUSDT    0.001   |  TAGUSDT       1
+   *   toshi  1000TOSHIUSDT  0.001   |  TOSHIUSDT     1
+   *   turbo  1000TURBOUSDT  0.001   |  TURBOUSDT     1
+   */
+  const withBinance = COIN_UNIVERSE.filter(r => r.binance);
+  assert.ok(withBinance.length > 400, `only ${withBinance.length} universe rows carry a Binance symbol - the import is wrong or the file is truncated`);
+
+  /* CONTROL: the four coins whose venues DISAGREE must be in this set, and must actually disagree in
+     the generated data. If they ever stop disagreeing, this loop still passes but has stopped testing
+     anything that the bybit loop above does not already cover - so the cell says so rather than
+     quietly becoming a duplicate. */
+  const disagree = withBinance.filter(r => r.bybit && r.bybitMult !== r.binanceMult).map(r => r.id);
+  assert.deepEqual(disagree.sort(), ['sats', 'tag', 'toshi', 'turbo'],
+    `expected exactly sats/tag/toshi/turbo to denominate differently per venue, got [${disagree.join(', ')}] - `
+    + 'if the universe changed, re-derive which coins make this cell worth having');
+
+  for (const row of withBinance) {
+    assert.equal(
+      symbolDenominationFactor(row.binance as string), row.binanceMult,
+      `BINANCE column: ${row.id} (${row.binance}): parser says ${symbolDenominationFactor(row.binance as string)}, the generated row says ${row.binanceMult}`,
+    );
+    assert.equal(binancePriceFactor(row.id), row.binanceMult, `binancePriceFactor('${row.id}') disagrees with its own row`);
   }
 });
 
@@ -134,14 +169,14 @@ test('M9. a leading digit that is NOT a denomination does not scale the price', 
   for (const id of ['0g', '2z', '4', '1inch']) {
     const row = COIN_UNIVERSE.find(r => r.id === id);
     assert.ok(row?.bybit, `control: '${id}' must exist with a Bybit symbol for this cell to mean anything`);
-    assert.equal(bybitSymbolPriceFactor(row!.bybit as string), 1,
+    assert.equal(symbolDenominationFactor(row!.bybit as string), 1,
       `${row!.bybit} is a token name beginning with a digit, not a 1000x listing - scaling it puts a live signal's entry, stop and target out by that factor`);
   }
 
   /* The real denominations must still scale, or "nothing scales" would pass this file. */
-  assert.equal(bybitSymbolPriceFactor('1000PEPEUSDT'), 0.001);
-  assert.equal(bybitSymbolPriceFactor('10000SATSUSDT'), 0.0001);
-  assert.equal(bybitSymbolPriceFactor('1000000MOGUSDT'), 0.000001);
+  assert.equal(symbolDenominationFactor('1000PEPEUSDT'), 0.001);
+  assert.equal(symbolDenominationFactor('10000SATSUSDT'), 0.0001);
+  assert.equal(symbolDenominationFactor('1000000MOGUSDT'), 0.000001);
 });
 
 test('M4. the chart label carries the 1000 prefix exactly when the series does', () => {
@@ -168,8 +203,20 @@ const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(
 const PRICE_FIELD = /\b(lastPrice|markPrice|indexPrice|prevPrice24h|highPrice24h|lowPrice24h)\b/;
 /** Something that makes the value come FROM Bybit rather than being a parameter called price. */
 const BYBIT_SOURCE = /\bBYBIT_SYMS\b|api\.bybit\.com|bybitFanout|type=bybit/;
-/** The conversion, by either entry point. */
-const APPLIES_FACTOR = /\bbybitPriceFactor\b|\bbybitSymbolPriceFactor\b/;
+/** The conversion, by any entry point.
+ *
+ * INCLUDES THE DEPRECATED ALIAS FOR THE LENGTH OF THE MIGRATION (#2135, step 2 of four).
+ *
+ * This is a pattern matched against OTHER FILES' source, not a reference to the function — so it has
+ * to describe what the app code actually contains, and the app still calls `bybitSymbolPriceFactor`
+ * until step 3 migrates those call sites. **Renaming it along with the imports is what broke this
+ * cell in the first draft of step 2**: a blanket identifier replace treats a scan pattern as if it
+ * were a call, and it is data about other files instead.
+ *
+ * STEP 4 DROPS THE ALIAS ALTERNATIVE, and deleting the export is what makes that safe. Dropping it
+ * while any app file still used the old name would make this cell report a missing conversion that
+ * is in fact present — a false finding pointing at the wrong file. */
+const APPLIES_FACTOR = /\bbybitPriceFactor\b|\bsymbolDenominationFactor\b|\bbybitSymbolPriceFactor\b/;
 
 /**
  * Files that read a Bybit price and deliberately do NOT convert, with the reason each is safe.
@@ -217,7 +264,7 @@ test('M5. every file that reads a Bybit price applies the conversion, or says wh
   assert.deepEqual(
     unconverted, [],
     'these files read a Bybit price and never mention the conversion:\n  ' + unconverted.join('\n  ') +
-    '\n\nEither apply bybitPriceFactor/bybitSymbolPriceFactor, or add the file to FORWARDS_RAW with ' +
+    '\n\nEither apply bybitPriceFactor/symbolDenominationFactor, or add the file to FORWARDS_RAW with ' +
     'the reason it is safe. A scaled symbol read raw is a price out by 1,000 to 1,000,000.' +
     `\n(files currently in the Bybit price path: ${inPricePath.join(', ')})`,
   );
