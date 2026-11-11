@@ -175,6 +175,10 @@ export default function MarketProvider(
     setStore(s => ({
       ...s,
       coins: { ...s.coins, [id]: { ...s.coins[id], ...patch } as MarketStore['coins'][CoinId] },
+      /* CLEARED AT THE FUNNEL, not in each caller: every price passes through here whichever
+         source produced it, so the WebSocket, the REST fallback and the universe pass all heal the
+         display without any of them knowing the flag exists. */
+      pricesFailed: Number.isFinite(patch?.price) ? false : s.pricesFailed,
     }));
   }, []);
 
@@ -188,7 +192,8 @@ export default function MarketProvider(
       for (const id of ids) {
         coins[id as CoinId] = { ...coins[id as CoinId], ...patches[id] } as MarketStore['coins'][CoinId];
       }
-      return { ...s, coins };
+      const anyPrice = ids.some(id => Number.isFinite(patches[id]?.price));
+      return { ...s, coins, pricesFailed: anyPrice ? false : s.pricesFailed };
     });
   }, []);
 
@@ -211,7 +216,10 @@ export default function MarketProvider(
       const batch = encodeURIComponent(JSON.stringify(syms));
       const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`);
       const data = await res.json();
-      if (!Array.isArray(data)) return;
+      /* BOTH EXITS OF THIS POLL WERE SILENT - a thrown error and a body we cannot parse - and the
+         panels downstream read the resulting absence as "still loading". An unparseable shape is a
+         failed read, not a slow one. */
+      if (!Array.isArray(data)) { setStore(s => ({ ...s, pricesFailed: true })); return; }
       data.forEach((d: Record<string, string>) => {
         const id = SYM_MAP[d.symbol];
         if (!id) return;
@@ -223,7 +231,7 @@ export default function MarketProvider(
         });
       });
       setStore(s => ({ ...s, wsStatus: 'Live · backup feed' }));
-    } catch { /* ignore */ }
+    } catch { setStore(s => ({ ...s, pricesFailed: true })); }
   }, [updateCoin]);
 
   /* ── Binance WebSocket ── */

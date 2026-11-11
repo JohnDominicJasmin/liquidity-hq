@@ -1750,6 +1750,8 @@
   "GEX_TABLE_STRONGEST_MAGNET_DESC": "- the price level BTC tends to get pulled toward",
   "MARKET_STRUCTURE_LOADING_SR": "Loading…",
   "MARKET_STRUCTURE_TITLE": "Market Structure · 4-hour chart",
+  "MARKET_FEED_FAILED": "Couldn't load prices - try again",
+  "NEWS_FEED_FAILED": "Couldn't load the news feed - try again",
   "MARKET_STRUCTURE_FAILED": "Couldn't load - try again",
   "MARKET_STRUCTURE_FLIP_TAG": "FLIP",
   "MARKET_STRUCTURE_SWING_HIGH_LABEL": "Swing High",
