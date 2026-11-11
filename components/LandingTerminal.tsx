@@ -118,7 +118,16 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
     { label: 'Funding', value: fr != null ? (fr * 100 >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : null, note: frInfo ? frInfo.label : '', col: frCol },
     { label: 'CB prem', value: null, note: '', col: 'var(--txt2)' /* no source wired - see LABELS in spec, always em dash */ },
     { label: 'OI 1h',   value: oi1h.loading ? null : (oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : null), note: oi1h.loading ? '' : oi1hTxt, col: oi1hCol },
-    { label: 'Setup',   value: String(sq.score), note: sq.label, col: sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)' },
+    /* `null` WHEN THERE IS NO COIN DATA, not the score (#1185). `computeSqueezeScore` returns
+       `{ score: 0, dir: 'NEUTRAL', label: 'No data' }` for a missing coin, so this row printed a
+       confident "0" next to its own "No data" note - on the PUBLIC landing hero, which is the first
+       thing an ad visitor sees. The other five rows in this array already use `null` for absent and
+       render the em dash; this one did not.
+
+       KEYED ON DATA PRESENCE, NOT ON `dir`: a real NEUTRAL reading with data behind it is a
+       legitimate score and must still show. The big score and its bar below are already guarded by
+       `hasConfidence`, so they were never part of this. */
+    { label: 'Setup',   value: d ? String(sq.score) : null, note: sq.label, col: sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)' },
   ];
 
   return (

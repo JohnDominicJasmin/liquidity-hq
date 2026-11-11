@@ -13,6 +13,15 @@ const BYBIT_OI: Partial<Record<CoinId, string>> = {
 };
 
 export interface OI1hData {
+  /**
+   * THE COIN THIS SNAPSHOT IS FOR, set inside this hook from the coin it actually fetched.
+   *
+   * A consumer cannot derive this for itself. For one render after a coin change the component
+   * already holds the NEW coin while this hook still returns the OLD snapshot, so a consumer that
+   * stamps its own `selectedCoin` writes `{ coin: new, pct: old }` — which is worse than no stamp,
+   * because it looks like a checked value and passes a coin guard (#1651, QA on #2120).
+   */
+  coin:    CoinId;
   oiUsd:   number | null;
   pct:     number | null;
   /** The price change over the SAME hour as `pct`, implied by the samples (USD value / contracts). null where the source has no USD value (the Bybit
@@ -39,14 +48,14 @@ export interface OI1hData {
 }
 
 export function useOI1h(coin: CoinId): OI1hData {
-  const [data, setData]   = useState<OI1hData>({ oiUsd: null, pct: null, pricePct: null, loading: true, reason: 'failed' });
+  const [data, setData]   = useState<OI1hData>({ coin, oiUsd: null, pct: null, pricePct: null, loading: true, reason: 'failed' });
   const mountedRef        = useRef(true);
   const fetchingRef       = useRef(false);
 
   useEffect(() => {
     mountedRef.current  = true;
     fetchingRef.current = false;
-    setData({ oiUsd: null, pct: null, pricePct: null, loading: true, reason: 'failed' });
+    setData({ coin, oiUsd: null, pct: null, pricePct: null, loading: true, reason: 'failed' });
 
     const load = async () => {
       if (fetchingRef.current) return;
@@ -54,7 +63,7 @@ export function useOI1h(coin: CoinId): OI1hData {
       try {
         const binSym = BINANCE_OI[coin];
         const bbtSym = BYBIT_OI[coin];
-        let result: Omit<OI1hData, 'loading'> = { oiUsd: null, pct: null, pricePct: null, reason: 'failed' };
+        let result: Omit<OI1hData, 'loading'> = { coin, oiUsd: null, pct: null, pricePct: null, reason: 'failed' };
 
         if (binSym) {
           const r = await fetch(
@@ -83,6 +92,7 @@ export function useOI1h(coin: CoinId): OI1hData {
               // rendering as the literal string "NaN" in the UI.
               const rawUsd = parseFloat(d[d.length - 1].sumOpenInterestValue ?? '');
               result = {
+                coin,
                 oiUsd: Number.isFinite(rawUsd) ? rawUsd : null,
                 pct:   change?.oiPct ?? null,
                 // Same two samples, so the same hour: price = USD value / contracts at each end (#1613). The Telegram Distribution alert reads
@@ -106,7 +116,7 @@ export function useOI1h(coin: CoinId): OI1hData {
             if (list.length >= 2) {
               const newest = parseFloat(list[0].openInterest);
               const oldest = parseFloat(list[list.length - 1].openInterest);
-              result = { oiUsd: newest, pct: oldest > 0 ? (newest - oldest) / oldest * 100 : null, pricePct: null, reason: oldest > 0 ? 'ok' : 'short-window' };
+              result = { coin, oiUsd: newest, pct: oldest > 0 ? (newest - oldest) / oldest * 100 : null, pricePct: null, reason: oldest > 0 ? 'ok' : 'short-window' };
             }
           }
         }

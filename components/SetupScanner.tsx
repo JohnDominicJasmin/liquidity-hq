@@ -1,6 +1,7 @@
 'use client';
 import { useMemo, useRef, useState } from 'react';
 import { useMarket, COINS, CoinId, CoinData, computeSqueezeScore, classifyFunding } from '@/lib/marketStore';
+import { SkeletonBar } from './Skeleton';
 import { Warn } from '@/components/icons';
 import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
@@ -309,7 +310,12 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
       </div>
 
       {/* Cards */}
-      {searchDisplayed.length === 0 && (
+      {/* Only once data has arrived (#1185): an empty scan on a cold store used to read as
+          "no setups match". The failed-vs-cold half needs marketStore error flag (PM tracker). */}
+      {searchDisplayed.length === 0 && !COINS.some(id => store.coins[id]?.price != null) && (
+        <div className="empty-state"><SkeletonBar width={180} height={13} style={{ margin: '0 auto' }} /></div>
+      )}
+      {searchDisplayed.length === 0 && COINS.some(id => store.coins[id]?.price != null) && (
         <div style={{ textAlign: 'center', color: 'var(--txt3)', padding: '3rem 0', fontSize: 'var(--fs-label)' }}>
           {search.trim()
             ? t('SETUP_SCANNER_NO_MATCH_SEARCH', { search: search.trim() })
