@@ -189,6 +189,14 @@ export const CHANGELOG: ChangelogEntry[] = [
          2cefd201 + 4f88b89b + eec45195 + 1db834f4  the denomination-helper rename. Internal.
          every test(), docs() and chore() commit in the range  internal by definition.
 
+       LINE 1 NAMES THREE SURFACES RATHER THAN SAYING "works", and the narrowing is QA's catch on
+       review. "AI Arena now works for every coin it offers" overclaimed: the liquidation feed is
+       still core-only by our own decision (#2133 left the liquidation feed alone - widening its subscription
+       list from 50 to 462 streams is a load decision, parked on #1263), so it stays empty on XMR
+       or CYBER. The first draft of this line contradicted the same PR that documented the
+       exclusion. Chart, scanner and open interest are what actually changed; keep it to those
+       three unless the feed is widened too.
+
        THE DRAW STRUCTURE LINE CARRIES THREE CHANGES and stays one line because they are one thing
        to a reader: the feature is offered on more timeframes, each line it draws is now labelled,
        and a Free account can see it exists. Splitting them would describe our PRs rather than their
@@ -196,7 +204,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-11-12',
     tag: 'v2026.11.12',
     items: [
-      'AI Arena now works for every coin it offers, not just the main list: pick something like XMR, CYBER or XAUT and the chart draws candles, the scanner shows a signal and a score, and open interest shows a figure - where before the chart sat on "Loading" and the signal columns read "n/a".',
+      'The chart, the scanner and open interest in AI Arena now work for every coin it offers, not just the main list: pick something like XMR, CYBER or XAUT and the chart draws candles, the scanner shows a signal and a score, and open interest shows a figure - where before the chart sat on "Loading" and the signal columns read "n/a".',
       'The Arena chart loads older candles as you scroll left, instead of stopping at the batch it opened with.',
       'The 1-hour open interest figure now appears for every coin with a perpetual market. Most coins used to say "Unavailable" there.',
       'The 1-hour open interest card now shows the coin you are looking at rather than briefly keeping the last one, and says whether it is still collecting or could not reach the exchange.',
