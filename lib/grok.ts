@@ -665,6 +665,18 @@ export function buildPrompt(ctx: GrokContext): string {
     '  4. Confidence only, never the tier or the direction: perps vs spot, session, WaveTrend, FREEZE -15.',
     'If your count meets a tier and you output a lower one, say which rule above held it back.',
     '',
+    /* #1631, owner's screenshot 2026-11-10: the read came back saying "clear bearish technical
+       structure with TRENDING_SHORT ribbon". The tokens above are the vocabulary the RULES are
+       written in - they have to be, since that is how the caps and the regime filter are stated -
+       so the model is taught them deliberately and then has no instruction against printing them.
+       This is that instruction. `applyPlainWords` in this file is the backstop for when it is
+       ignored; neither replaces the other. */
+    'WRITING STYLE - the names above are INTERNAL. Words like TRENDING_SHORT, LONG_SETUP, FREEZE,',
+    'BOS, CHOCH, LONG_SQ and SHORT_SQ are how these rules are written, NOT words a reader knows.',
+    'Reason with them; never print them. Say what they mean in plain words - "trending down",',
+    '"a long setup", "no clear trend", "a break of structure" - and never quote a field name or a',
+    'field value back to the reader.',
+    '',
     /* #340, Option B, chosen by the owner from worked examples: a signal at
        8/10 confidence that is futures-led becomes 6/10. On this 0-100 scale
        that is -20. The spot-led mirror is half, +10.
@@ -1140,7 +1152,73 @@ export function applyResultChecks(result: CombinedResult, prompt: string): Combi
     r.reasoning = `${r.reasoning}${r.reasoning ? ' ' : ''}The perps-vs-spot check was unavailable for this coin, so confidence was not adjusted for it.`;
   }
 
+  /* INTERNAL NAMES MUST NOT REACH A READER (#1631, owner's screenshot 2026-11-10: "clear bearish
+     technical structure with TRENDING_SHORT ribbon" and "4 bearish signals (ribbon TRENDING_SHORT,
+     BOS breakdown...)").
+
+     WHY A BACKSTOP AND NOT JUST THE PROMPT: the model is TAUGHT this vocabulary on purpose. The
+     scoring rules in this file name the tokens, because that is how the rules are expressed - see
+     "TRENDING_SHORT -> one bearish signal (+10)" above - and the context line hands it
+     `sig.verdict` raw so those rules can be applied. So the tokens have to stay in the INPUT, and
+     the only reliable place to stop them reaching the OUTPUT is here, after the fact. A prompt
+     instruction alone is a request; this is the part that holds. */
+  const replaced = applyPlainWords(r);
+  if (replaced.length) r.checks.push(`internal names rewritten in plain words: ${replaced.join(', ')}`);
+
   return r;
+}
+
+/* The tokens a reader must never see, and what they say instead.
+ *
+ * MATCHED CASE-SENSITIVELY ON THE UPPERCASE FORM, with word boundaries, and that is the whole
+ * safety argument:
+ *   - `FREEZE` is a leak; "freeze" in a sentence is ordinary English and is left alone.
+ *   - `\b` stops a token inside another word, the same mistake as "ban" inside "bank" that the news
+ *     matcher already had to fix.
+ *   - `NEUTRAL` is DELIBERATELY ABSENT. It is an ordinary English word and also a declared value of
+ *     `bias`, which the UI renders itself - mapping it here would rewrite correct prose.
+ *
+ * `BOS` IS MAPPED THOUGH IT IS A REAL TRADING TERM, because the owner's screenshot flagged it. A
+ * trader knows "break of structure"; someone who has just arrived does not know "BOS", and the
+ * plain-words rule is written for the second reader. */
+const PLAIN_WORDS: ReadonlyArray<readonly [token: string, plain: string]> = [
+  ['LONG_SETUP', 'long setup'],
+  ['SHORT_SETUP', 'short setup'],
+  ['TRENDING_LONG', 'trending up'],
+  ['TRENDING_SHORT', 'trending down'],
+  ['STRONG_BULL', 'strongly bullish'],
+  ['LONG_SQ', 'long squeeze'],
+  ['SHORT_SQ', 'short squeeze'],
+  ['CHOCH', 'change of character'],
+  ['BOS', 'break of structure'],
+  ['FREEZE', 'no clear trend'],
+  ['LOADING', 'still loading'],
+];
+
+/** Rewrites internal names in every field a reader can see. Returns the tokens it replaced. */
+export function applyPlainWords(r: CombinedResult): string[] {
+  const hit = new Set<string>();
+  const fix = (s: string): string => {
+    let out = s;
+    for (const [token, plain] of PLAIN_WORDS) {
+      const re = new RegExp(`\\b${token}\\b`, 'g');   // case-SENSITIVE on purpose - see above
+      if (re.test(out)) { hit.add(token); out = out.replace(re, plain); }
+    }
+    return out;
+  };
+  /* Every prose field, not just `reasoning`. The screenshot showed it in the long-form read, but
+     the same text is generated for all of these and a sweep that covers one is a sweep that moves
+     the leak rather than closing it. `signal`, `bias` and `raidSetup` are NOT here: they are enums
+     the UI renders through its own labels, never printed raw. */
+  r.chartAnalysis = fix(r.chartAnalysis);
+  r.reasoning     = fix(r.reasoning);
+  r.patterns      = r.patterns.map(fix);
+  r.catalysts     = r.catalysts.map(fix);
+  if (r.waitFor)     r.waitFor     = fix(r.waitFor);
+  if (r.raidTarget)  r.raidTarget  = fix(r.raidTarget);
+  if (r.raidTrigger) r.raidTrigger = fix(r.raidTrigger);
+  r.levels = r.levels.map(l => ({ ...l, label: fix(l.label) }));
+  return [...hit];
 }
 
 /* ── Quick prompt - strips the LIVE SEARCH TASK block (no web search needed) ── */
