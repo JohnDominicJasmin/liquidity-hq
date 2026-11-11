@@ -87,6 +87,31 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const verdictCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt2)';
   const verdictText = sq.dir === 'SHORT_SQ' ? 'BULLISH' : sq.dir === 'LONG_LIQ' ? 'BEARISH' : 'NO READ';
   const hasConfidence = sq.dir !== 'NEUTRAL';
+  /* THE SCORE IS A READING ONLY ONCE ONE OF ITS DIRECTION INPUTS HAS ARRIVED (#2119 follow-up).
+     #2119 gated this row on `d`, which was not enough: `d` is delivered by the universe ticker
+     pass, which carries price and the 24h change, while every squeeze input arrives later. In that
+     window `computeSqueezeScore` sees no signals, so it returns `score: 0` and - because the
+     Flush/Squeeze gate needs two signals - the label "Balanced". The public hero therefore read
+     "Setup 0 - Balanced" for about a second on a cold load, which is a confident answer we did not
+     have. Driven through the real function, the cold-load sequence was:
+
+         no coin yet              row=null  note="No data"
+         d arrived, inputs empty  row="0"   note="Balanced"      <- the defect
+         two real signals         row="80"  note="Long liquidation risk"
+
+     `volRatio` IS DELIBERATELY NOT IN THIS LIST, and that is the part worth not getting wrong: it
+     is a bonus multiplier rather than a direction signal, and the function only applies it once a
+     direction already scores above 10. Measured - with `volRatio` alone the row is still "0" and
+     "Balanced", so counting it as readiness would have left the defect in place while looking fixed.
+
+     One input below every band is NOT this defect: funding present and neutral really is a score of
+     0 and really is balanced. The difference is between a measured zero and an unknown one.
+
+     THE SHAPE OF THE RISK HERE: this predicate restates the inputs the function reads, so a fourth
+     signal added there would not reach this list. Coverage ask in the PR. */
+  const sqReady = d != null && (
+    d.fundingRate != null || (d.longRatio != null && d.shortRatio != null) || d.takerBuyRatio != null
+  );
 
   const price = d?.price ?? null;
   const vwap  = d?.vwap ?? null;
@@ -131,7 +156,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
        KEYED ON DATA PRESENCE, NOT ON `dir`: a real NEUTRAL reading with data behind it is a
        legitimate score and must still show. The big score and its bar below are already guarded by
        `hasConfidence`, so they were never part of this. */
-    { label: 'Setup',   value: d ? String(sq.score) : null, note: sq.label, col: sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)' },
+    { label: 'Setup',   value: sqReady ? String(sq.score) : null, note: sqReady ? sq.label : '', col: sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)' },
   ];
 
   return (
