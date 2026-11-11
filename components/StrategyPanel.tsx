@@ -356,7 +356,22 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
           <div key={id} className="strat-grp">
             <div className="strat-gname">{GROUP_LABEL[id]}</div>
             <div className="strat-chips">
-              {entries.map(entry => {
+              {/* UNWIRED INDICATORS ARE HIDDEN, NOT DIMMED (owner, 2026-11-10). This supersedes
+                  #967's "show them dimmed" ruling: 13 of the 24 registry entries are
+                  `source: 'new'`, so more than half the panel advertised things that draw nothing,
+                  and the note underneath had to apologise for them. A chip comes back when it works.
+
+                  `canRender(entry)` ONLY, deliberately NOT the wider `usable` computed below.
+                  `usable` is also false when a real overlay is simply not drawn on THIS coin's
+                  chart (`ovState === 'none'`), and that one is wired, working and coin-dependent -
+                  hiding it would make a working feature vanish depending on which coin is
+                  selected. That case keeps its dimming and its own "Not drawn on this coin's
+                  chart" tooltip.
+
+                  The strategy logic is untouched: the registry still carries these entries,
+                  `canRender` still answers for them, and nothing about selection or limits
+                  changed. Only the panel stops showing what does not exist yet. */}
+              {entries.filter(canRender).map(entry => {
                 const isOverlay = entry.source === 'overlay';
                 const ovState: OverlayState | null = isOverlay ? ((overlays as Record<string, OverlayState> | undefined)?.[entry.id] ?? 'always') : null;
                 const pos = isOverlay ? -1 : selected.indexOf(entry.id);
@@ -460,11 +475,11 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
             EMA ribbon, S/R, Liq clusters and GEX are chart layers, not indicators, so they don&apos;t use a slot: the ribbon and GEX are always on, and S/R and Liq follow the chart toolbar. The RSI and volume panes are always shown too.
           </div>
         )}
-        {loaded && (
-          <div className="strat-notyet-note">
-            Dimmed indicators aren&apos;t wired up to the chart yet - same on every plan.
-          </div>
-        )}
+        {/* THE "DIMMED INDICATORS AREN'T WIRED UP" NOTE IS GONE (owner, 2026-11-10), and it had to
+            go with the chips rather than after them: the unwired entries are no longer rendered, so
+            the note described nothing. Worse, it would have been actively WRONG for the dimming
+            that remains - an overlay that is simply not drawn on this coin's chart IS wired up, and
+            that case has its own "Not drawn on this coin's chart" tooltip and accessible name. */}
 
         {atLimit && (
           <div id={limitNoteId} className="strat-limit" role="status">
