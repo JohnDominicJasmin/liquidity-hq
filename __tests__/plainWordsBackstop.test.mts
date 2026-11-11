@@ -99,38 +99,24 @@ test('P6. tokens are caught in punctuation and mid-sentence', () => {
   assert.match(r.chartAnalysis, /change of character/);
 });
 
-/* ── P7 and P8 are PINNED FAILURES, not broken cells ──────────────────────────────────────────
+/* P7 and P8 WERE PINNED `test.todo` CELLS until #2115 landed the underscore-run fix; the markers
+ * are stripped and the cells kept, which is what their original note asked for.
  *
- * `\b` does not bound these tokens, because JS counts `_` as a WORD character: in `BOS_CONFIRMED`
- * there is no boundary between `BOS` and `_`, so the token reaches the reader untouched. Found
- * while reviewing #2111 by running the exported function rather than reading the regex.
+ * Why they existed: `` does not bound these tokens, because JS counts `_` as a WORD character -
+ * in `BOS_CONFIRMED` there is no boundary between `BOS` and `_`, so the token reached the reader
+ * untouched. Not hypothetical: every token the prompt teaches contains an underscore, so
+ * underscore-joining is the model native habit with them.
  *
- * NOT HYPOTHETICAL FOR THIS FEATURE. The tokens the prompt teaches contain underscores, so
- * underscore-joining is the model's native habit with them - and the owner's own screenshot was the
- * model concatenating a token into a phrase ("ribbon TRENDING_SHORT"). One underscore further along
- * is the same behaviour.
- *
- * FOLLOW-UP, agreed with PM and assigned to Dev: treat any `[A-Z][A-Z0-9]*(_[A-Z0-9]+)+` run as an
- * internal name - map the known ones, and RECORD unknown ones in `checks` rather than passing them
- * through. The map can never be complete, so the failure worth having is a noisy one.
- *
- * ANNOTATED WITH `test.todo`, AND THE API MATTERS - I got it wrong first. `test.fail()` is
- * PLAYWRIGHT's idiom for an expected failure and **node:test has no such function**: it does not
- * throw at import, it throws `TypeError: test.fail is not a function` INSIDE the cell, so the
- * assertion never runs and the cell fails for a reason that has nothing to do with the defect.
- * Verified against the runner rather than assumed: `test.todo` with a throwing body is counted as
- * `todo`, leaves `fail 0`, and exits 0.
- *
- * Its one weakness, stated rather than left for someone to discover: a passing todo reports
- * `✔ ... # TODO` rather than turning red, so the flip is visible but not loud. Whoever lands the
- * follow-up should strip the annotation and this comment - do not delete the cells. */
-test.todo('P7. PINNED (#2111 follow-up): an underscore-suffixed token still leaks', () => {
+ * They are the regression guard for that fix now. The run matcher consumes a whole
+ * `[A-Z][A-Z0-9]*(_[A-Z0-9]+)+` run and records unknown runs in `checks`, so a name nobody has
+ * mapped is noisy rather than silent - which is what these two assert from the outside. */
+test('P7. an underscore-suffixed token is rewritten, not leaked', () => {
   const { r } = sweep('ribbon BOS_CONFIRMED on the 4h');
   assert.doesNotMatch(r.chartAnalysis, /BOS_CONFIRMED/,
     'BOS_CONFIRMED reaches the reader: \\b does not bound a token followed by an underscore');
 });
 
-test.todo('P8. PINNED (#2111 follow-up): an underscore-extended token still leaks', () => {
+test('P8. an underscore-extended token is rewritten, not leaked', () => {
   const { r } = sweep('ribbon TRENDING_SHORT_RIBBON agrees');
   assert.doesNotMatch(r.chartAnalysis, /TRENDING_SHORT_RIBBON/,
     'TRENDING_SHORT_RIBBON reaches the reader for the same reason as P7');
