@@ -125,12 +125,12 @@ async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: n
      `bybitSymbolPriceFactor` reads the SYMBOL STRING, not the venue - `startsWith('1000')` - so it is
      correct for a Binance `1000PEPEUSDT` too, and only its name says otherwise.
 
-     Not reachable today: BINANCE_SYMS has no pepe or bonk entry (lib/coins.ts keeps them Bybit-only
-     precisely to avoid the 1000x denomination), so no symbol reaching this function starts with 1000.
-     It is here because the fallback below now actually runs, and the day someone adds a 1000x symbol
-     to BINANCE_SYMS the failure is entry, stop-loss and take-profit wrong by 1000x on a live signal -
-     silent, plausible-looking numbers. Guarding the rule costs one line; relying on a list staying
-     short is how #1059's own comment says this broke the first time. */
+     REACHABLE SINCE #1263, and this comment said "unreachable today" until then. The symbol now
+     comes from `venueSymbols()`, which reads the generated universe, so SEVEN 1000x-denominated
+     coins arrive here on Binance: cat, floki, lunc, rats, sats, xec at x1000 and mog at
+     x1000000. Only bonk and pepe are still held out of the Binance map by hand. So the guard
+     below is load-bearing rather than defensive, and the comment that called it unnecessary was
+     the only thing suggesting otherwise. */
   const pf = bybitSymbolPriceFactor(sym);
   return raw.map(k => ({
     time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5],

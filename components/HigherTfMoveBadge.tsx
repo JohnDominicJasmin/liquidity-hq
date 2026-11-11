@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { CoinId } from '@/lib/marketStore';
-import { BINANCE_SYMS, BYBIT_SYMS, bybitSymbolPriceFactor } from '@/lib/coins';
+import { bybitSymbolPriceFactor, venueSymbols } from '@/lib/coins';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import Tip from './Tip';
 import { Warn } from './icons';
@@ -35,8 +35,10 @@ export default function HigherTfMoveBadge({ coin, tf, signalDir }: Props) {
 
     async function load() {
       try {
-        const bn = BINANCE_SYMS[coin];
-        const by = BYBIT_SYMS[coin];
+        /* BOTH VENUES FROM THE UNIVERSE (#1263). Safe here because the Binance call is
+           `source=binance-futures`, and the universe's `binance` column IS the futures symbol - unlike
+           the spot callers, where widening would send a futures symbol to the spot allowlist. */
+        const { binance: bn, bybit: by } = venueSymbols(coin);
         let closes: number[] = [];
         // #1059: Bybit primary, Binance fallback. This only ever compares two
         // closes as a ratio, so bybitSymbolPriceFactor is a no-op here (both

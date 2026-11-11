@@ -5,7 +5,7 @@ import { useNow } from '@/lib/useNow';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
 import { plainSummary } from '@/lib/plainSummary';
 import { useSearchParams } from 'next/navigation';
-import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
+import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, venueSymbols, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
@@ -1473,7 +1473,14 @@ function ArenaContent() {
     if (readInFlightRef.current) return;
     readInFlightRef.current = true;
     const binanceSym = BINANCE_SYMS[selectedCoin] as string | undefined;
-    const bybitSym   = BYBIT_SYMS[selectedCoin]   as string | undefined;
+      /* BYBIT FROM THE UNIVERSE, BINANCE LEFT ON THE EDITORIAL MAP, and the asymmetry is the point
+         (#1263). Bybit is the primary here and `venueSymbols` covers all 462, so a non-core coin now
+         gets data. The Binance call below is `source=binance` - SPOT - and the universe has no
+         spot-verified column: `venueSymbols().binance` is a FUTURES symbol, which the spot allowlist
+         refuses by design (#2127). Passing it would manufacture a request that can never succeed and
+         call it a fallback, which is the `SPXUSDT` defect the klines route documents. So a non-core
+         coin is served by Bybit and simply has no spot fallback, exactly as `fet` has none today. */
+    const bybitSym   = venueSymbols(selectedCoin).bybit as string | undefined;
     if (!binanceSym && !bybitSym) {
       setReadError(t('ARENA_ERROR_NO_DATA_SOURCE', { coin: selectedCoin.toUpperCase() })); setReadProLocked(false);
       readInFlightRef.current = false;
