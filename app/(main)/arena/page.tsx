@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'rea
 import Link from 'next/link';
 import { useNow } from '@/lib/useNow';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
+import { plainSummary } from '@/lib/plainSummary';
 import { useSearchParams } from 'next/navigation';
 import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
@@ -2666,6 +2667,30 @@ function ArenaContent() {
                 : t('ARENA_STALE_SELECTION_CLEARED')}
             </div>
           )}
+          {/* ONE PLAIN-ENGLISH LINE FIRST, for a reader who does not know the vocabulary (owner,
+              2026-11-10). Built from the read's own fields by `plainSummary` - no second AI call,
+              because a summary that asks the model to summarise itself can disagree with the read
+              printed directly underneath it, and the reader has no way to tell which is wrong.
+
+              The technical paragraph, the patterns and the chips all stay, below it. */}
+          {(() => {
+            const s = plainSummary(result.signal, result.levels);
+            if (!s) return null;
+            const watch  = s.watch  ? t(s.watch.key,  { price: s.watch.price })  : null;
+            /* THE CANCEL CLAUSE ONLY APPEARS ALONGSIDE THE WATCH CLAUSE. On its own it would need
+               its first word capitalised, and capitalising a translated string is the kind of
+               English-shaped assumption that breaks in other locales. A read that names an
+               invalidation level but no confirmation level is also the rarer half of a pair, so
+               dropping it costs little - and `plainSummary` omits rather than invents either way. */
+            const cancel = watch && s.cancel ? t(s.cancel.key, { price: s.cancel.price }) : null;
+            return (
+              <div className="arena-reasoning" style={{ margin: '10px 0' }}>
+                <div className="arena-reasoning-text" data-testid="arena-plain-summary">
+                  {t(s.verdictKey)}{watch ? ` ${watch}${cancel ? `; ${cancel}` : ''}.` : ''}
+                </div>
+              </div>
+            );
+          })()}
           {result.chartAnalysis && (
             <div className="arena-reasoning" style={{ margin: '10px 0' }}>
               <div className="arena-reasoning-title">{t('ARENA_REASONING_CHART_TITLE')}</div>
