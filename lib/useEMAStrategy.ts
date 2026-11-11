@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
+import { CoinId, venueSymbols } from './marketStore.ts';
 import { OKX_SYMS } from './coins.ts';
 import { okxBarForBinanceInterval } from './okx.ts';
 import { bybitSymbolPriceFactor } from './coins.ts';
@@ -190,8 +190,8 @@ async function fetchBybitKlines(sym: string, interval: string, limit: number): P
 }
 
 async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval: string, limit: number): Promise<OHLCV[]> {
-  const bnSym = BINANCE_SYMS[coin];
-  const bySym = BYBIT_SYMS[coin];
+  /* venueSymbols, not the editorial maps: the Arena scanner scores the whole universe (#1263). */
+  const { binance: bnSym, bybit: bySym } = venueSymbols(coin);
   /* #1059: Bybit primary, Binance fallback - reversed from Binance-primary.
      Binance futures is rate-limiting/blocking this server's egress IP (502,
      418) while Bybit answers normally from the same IP, for BTC/ETH/SOL/DOGE/

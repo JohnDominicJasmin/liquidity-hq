@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
-import { BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, CoinId, useMarket, computeSqueezeScore } from '@/lib/marketStore';
+import { COIN_DEC, CoinId, useMarket, computeSqueezeScore, venueSymbols } from '@/lib/marketStore';
 import { chartDisplaySymbol } from '@/lib/coins';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
@@ -1548,8 +1548,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           const myGen = loadGenRef.current;
           const stale = () => myGen !== loadGenRef.current;
           const c   = coinRef.current;
-          const bnSym    = BINANCE_SYMS[c] as string | undefined;
-          const bybitSym = BYBIT_SYMS[c]   as string | undefined;
+          /* venueSymbols, not the editorial maps: Arena offers the whole universe (#1263). */
+          const { binance: bnSym, bybit: bybitSym } = venueSymbols(c);
           const applyBars = (bars: { timestamp: number; open: number; high: number; low: number; close: number; volume: number }[]) => {
             if (bars.length) {
               lastCloseRef.current = bars[bars.length - 1].close;
@@ -1716,8 +1716,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
         subscribeBar: ({ period, callback }) => {
           const c        = coinRef.current;
-          const bnSym    = BINANCE_SYMS[c] as string | undefined;
-          const bybitSym = BYBIT_SYMS[c]   as string | undefined;
+          /* venueSymbols, not the editorial maps: Arena offers the whole universe (#1263). */
+          const { binance: bnSym, bybit: bybitSym } = venueSymbols(c);
           wsRef.current?.close();
           /* #1572: lastBarTsRef is only ever written by live frames, so a new subscription (another timeframe or coin) inherited the
              previous one's last-bar time, and a reconnect before the first frame would backfill from the WRONG point. 0 means "nothing
@@ -2214,8 +2214,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     historyRetryRef.current = 0;
     if (coinChanged) {
       loadGenRef.current += 1; loadBumpedAtRef.current = Date.now();
-      const bnSym    = BINANCE_SYMS[coin] as string | undefined;
-      const bybitSym = BYBIT_SYMS[coin]   as string | undefined;
+      /* venueSymbols, not the editorial maps: Arena offers the whole universe (#1263). */
+      const { binance: bnSym, bybit: bybitSym } = venueSymbols(coin);
       const baseSym  = bnSym ?? bybitSym ?? 'BTCUSDT';
       chart.setSymbol({ ticker: chartDisplaySymbol(coin), shortName: chartDisplaySymbol(coin), pricePrecision: COIN_DEC[coin] ?? 2 });
     }
@@ -3392,8 +3392,8 @@ function fmtLiqUsd(n: number): string {
 
 // ── Helper ────────────────────────────────────────────────────────────────
 function setChartSymbolPeriod(chart: KChart, coin: CoinId, tf: string) {
-  const bnSym    = BINANCE_SYMS[coin] as string | undefined;
-  const bybitSym = BYBIT_SYMS[coin]   as string | undefined;
+  /* venueSymbols, not the editorial maps: Arena offers the whole universe (#1263). */
+  const { binance: bnSym, bybit: bybitSym } = venueSymbols(coin);
   chart.setSymbol({ ticker: chartDisplaySymbol(coin), shortName: chartDisplaySymbol(coin), pricePrecision: COIN_DEC[coin] ?? 2 });
   chart.setPeriod(TF_TO_PERIOD[tf] ?? TF_TO_PERIOD['15m']);
 }
