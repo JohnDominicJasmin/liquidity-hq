@@ -339,6 +339,10 @@ function TEdgeSignals() {
   const vwapAbove = vwap != null && price != null ? price > vwap : null;
   const vwapPct   = vwap && price ? ((price - vwap) / vwap) * 100 : null;
   const vwapCol   = vwapAbove === null ? 'var(--txt3)' : vwapAbove ? 'var(--green)' : 'var(--red)';
+  /* THE VWAP, not the price - the same defect as CoinMarketSnapshot, and the same reasoning (#1263).
+   * The sub-line that used to print the VWAP underneath is gone with it: the value IS the VWAP now,
+   * so keeping it would say the same number twice. The relation to price stays below. */
+  const vwapStr = vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[coin]) : '-';
 
   const oiMeta = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
 
@@ -376,17 +380,10 @@ function TEdgeSignals() {
             <Tip text={t('DASH_EDGE_VWAP_TIP')}>{t('DASH_EDGE_VWAP_LABEL', { coin: coin.toUpperCase() })}</Tip>
           </div>
           <div className="edge-card-value" style={{ color: vwapCol }}>
-            {price != null ? '$' + fmtPrice(price, COIN_DEC[coin]) : '-'}
+            {vwapStr}
           </div>
-          {vwap != null && (
-            <div className="edge-card-sub">
-              <span style={{ color: 'var(--txt3)' }}>{t('DASH_EDGE_VWAP_SUB_PREFIX')} </span>
-              <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>${vwap.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-              {vwapPct != null && <span style={{ color: vwapCol }}> ({vwapPct >= 0 ? '+' : ''}{vwapPct.toFixed(2)}%)</span>}
-            </div>
-          )}
           <div className="edge-card-signal" style={{ color: vwapCol }}>
-            {vwapAbove === null ? <SkeletonBar width={100} height={11} radius={4} /> : vwapAbove ? t('DASH_EDGE_VWAP_SIG_ABOVE') : t('DASH_EDGE_VWAP_SIG_BELOW')}
+            {vwapAbove === null ? t('STATE_UNAVAILABLE') : vwapAbove ? t('DASH_EDGE_VWAP_SIG_ABOVE') : t('DASH_EDGE_VWAP_SIG_BELOW')}
           </div>
         </div>
 

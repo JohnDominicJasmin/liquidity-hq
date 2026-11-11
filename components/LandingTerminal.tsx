@@ -113,7 +113,11 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const oi1hCol = oi1h.pct == null ? 'var(--txt2)' : oi1hColRaw;
 
   const evidence: { label: string; value: string | null; note: string; col: string }[] = [
-    { label: 'VWAP',    value: price != null ? '$' + fmtPrice(price, COIN_DEC[LIVE_READ_COIN]) : null, note: vwapAbove == null ? '' : vwapAbove ? 'Above' : 'Below', col: vwapCol },
+    /* THE VWAP, not the price (#1263). This row printed `price` under a "VWAP" label on the PUBLIC
+       hero - a signed-out visitor's first impression of the product - for every coin. Measured: all
+       49 coins in the snapshot carry a real vwap, so this shows a number rather than a dash; the
+       'Unavailable' note is reachable only if that feed fails or the coin is outside it. */
+    { label: 'VWAP',    value: vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[LIVE_READ_COIN]) : null, note: vwap == null ? 'Unavailable' : vwapAbove == null ? '' : vwapAbove ? 'Above' : 'Below', col: vwapCol },
     { label: 'OI trend', value: oiRow ? oiRow.txt : null, note: '', col: oiRow ? oiRow.col : 'var(--txt2)' },
     { label: 'Funding', value: fr != null ? (fr * 100 >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : null, note: frInfo ? frInfo.label : '', col: frCol },
     { label: 'CB prem', value: null, note: '', col: 'var(--txt2)' /* no source wired - see LABELS in spec, always em dash */ },
