@@ -1092,6 +1092,33 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       if (!emaSignalOverlayRegistered) {
         emaSignalOverlayRegistered = true;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        /* THE LINE'S OWN LABEL, so a chart with four dashed lines says which is which (owner,
+           2026-11-10). Registered rather than using the built-in `simpleAnnotation`, which draws a
+           50px stalk and an arrowhead per annotation - that is a pointer, not a label, and four of
+           them crowd the window it is trying to explain.
+
+           NO COLOUR AND NO STYLES, deliberately, for the same reason the segment itself sets none:
+           the chart's line ink differs per theme and a hardcoded colour here is how the last two
+           colour fixes regressed the other theme. A figure with no styles takes the chart's own
+           themed defaults, so this follows the theme by construction rather than by a pair of
+           values someone has to keep measured. */
+        (kc as any).registerOverlay({
+          name: 'structureLabel',
+          totalStep: 1,
+          needDefaultPointFigure: false,
+          needDefaultXAxisFigure: false,
+          needDefaultYAxisFigure: false,
+          createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
+            const text = typeof overlay.extendData === 'string' ? overlay.extendData : '';
+            if (!text || !coordinates.length) return [];
+            /* Above and to the right of the line's start, so it does not sit on the line itself.
+               `baseline: 'bottom'` keeps it clear of the first candle the line touches. */
+            return [{
+              type: 'text',
+              attrs: { x: coordinates[0].x + 4, y: coordinates[0].y - 4, text, align: 'left', baseline: 'bottom' },
+            }];
+          },
+        });
         (kc as any).registerOverlay({
           name: 'emaSignal',
           totalStep: 1,
@@ -2819,6 +2846,34 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
      never fitted to. */
   useEffect(() => { clearProposals(); }, [coin, tf, clearProposals]);
 
+  const structureTypeLabel = useCallback(
+    (type: DrawableStructure['type']) => tl(`DRAW_STRUCTURE_TYPE_${type.toUpperCase()}` as Parameters<typeof tl>[0]),
+    [tl],
+  );
+
+  /* ONE TEXT, TWO SURFACES: the menu row and the on-chart label beside the line. Shared so they
+     cannot drift - the owner's need is telling WHICH line on the chart is which, and a label that
+     disagreed with its row would defeat that.
+
+     BOTH ARE useCallback AND DECLARED ABOVE `requestStructures`, which is not tidiness. That
+     callback creates the on-chart labels, so it needs this in its dependency list; a plain function
+     would be a new identity every render, and a dependency array referencing a `const` declared
+     further down the component throws at render time rather than warning. Captured stale, the
+     on-chart label would keep the FIRST render's labels - default copy - while the menu row
+     re-rendered with the ones from the database. That is exactly the drift the sharing prevents.
+
+     A zero count shows the kind alone rather than "0 touches": a zero there is a line drawn through
+     nothing the model would name, and printing it as evidence dresses an absence up as a
+     measurement. No confidence number, because `DrawableStructure` has none - its comment says the
+     absence is the point. */
+  const structureRowText = useCallback((s: DrawableStructure) => {
+    const touches = s.touchTimestamps.length;
+    return touches === 0
+      ? structureTypeLabel(s.type)
+      : tl(touches === 1 ? 'DRAW_STRUCTURE_ITEM_ONE' : 'DRAW_STRUCTURE_ITEM',
+           { kind: structureTypeLabel(s.type), count: String(touches) });
+  }, [tl, structureTypeLabel]);
+
   const requestStructures = useCallback(async () => {
     const chart = chartRef.current;
     if (!chart || dsLoading) return;
@@ -2871,6 +2926,17 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           styles: { line: { style: 'dashed', size: 1 } },
         } as OverlayCreate);
         if (typeof id === 'string') ids.push(id);
+        /* The label rides in the SAME group, so `clearProposals`'s `removeOverlay({ groupId })`
+           takes the line and its label together. A label left behind would name a line that is no
+           longer there, which is worse than no label at all. */
+        const labelId = chart.createOverlay({
+          name: 'structureLabel',
+          groupId: PROPOSAL_GROUP,
+          lock: true,
+          points: [{ timestamp: s.from.timestamp, value: s.from.price }],
+          extendData: structureRowText(s),
+        } as OverlayCreate);
+        if (typeof labelId === 'string') ids.push(labelId);
       }
       proposalIds.current = ids;
       setProposals(list);
@@ -2883,14 +2949,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     } finally {
       setDsLoading(false);
     }
-  }, [tf, tl, dsLoading, clearProposals]);
+  }, [tf, tl, dsLoading, clearProposals, structureRowText]);
   /* NO acceptProposal / dropProposal ANY MORE (owner, 2026-11-10). Keep/Discard is gone, so the
      promotion that moved a proposal into DRAWING_GROUP is gone with it - which means nothing the
      model draws can reach the user's persisted drawing store at all now, rather than merely not
      reaching it until they chose. clearProposals() below removes the whole group. */
 
-  const structureTypeLabel = (type: DrawableStructure['type']) =>
-    tl(`DRAW_STRUCTURE_TYPE_${type.toUpperCase()}` as Parameters<typeof tl>[0]);
+
 
   // ── Drawing toolbar ──────────────────────────────────────────────────
   const handleTool = (toolId: string) => {
@@ -3083,24 +3148,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                         <div className="klc-draw-item">{tl('DRAW_STRUCTURE_LOWER_TF_NOTE')}</div>
                       )}
                       {proposals.map(s => {
-                        /* KIND PLUS EVIDENCE, not kind alone (owner, 2026-11-10). A row that said
-                           only "Trend line" asked the reader to accept or discard a line without
-                           telling them what it was drawn through, and the touch count is the one
-                           piece of evidence this model actually hands over - `touchTimestamps` is
-                           kept for exactly this, per its own comment in lib/drawStructure.ts.
-
-                           NO CONFIDENCE NUMBER, deliberately: `DrawableStructure` has no such
-                           field, and its comment says the absence is the point - a component
-                           cannot render a number it was never given.
-
-                           A zero count shows the kind alone rather than "0 touches". A zero here
-                           would be a line the model drew through nothing it would name, and
-                           printing it as evidence would dress an absence up as a measurement. */
-                        const touches = s.touchTimestamps.length;
-                        const row = touches === 0
-                          ? structureTypeLabel(s.type)
-                          : tl(touches === 1 ? 'DRAW_STRUCTURE_ITEM_ONE' : 'DRAW_STRUCTURE_ITEM',
-                               { kind: structureTypeLabel(s.type), count: String(touches) });
+                        /* Same text as the on-chart label beside the line - see structureRowText,
+                           which carries the reasoning for the count, the plural and the zero case. */
+                        const row = structureRowText(s);
                         return (
                           <div key={`${s.type}-${s.from.timestamp}-${s.to.timestamp}`} className="klc-draw-item">
                             {row}
