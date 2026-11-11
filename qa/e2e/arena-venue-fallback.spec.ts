@@ -39,7 +39,7 @@ import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
  * The honest footnote is that there is no live 1000x risk to catch EITHER WAY: `BINANCE_SYMS` has no `pepe`
  * or `bonk` entry (lib/coins.ts - "Binance uses 1000x denomination - kept Bybit-only to avoid display
  * confusion"), so for the only two 1000x coins there is no second attempt for a wrong factor to apply to.
- * `bybitSymbolPriceFactor` therefore stays unexercised by this spec BY DESIGN. That makes case 3 a
+ * `symbolDenominationFactor` therefore stays unexercised by this spec BY DESIGN. That makes case 3 a
  * regression guard for whoever adds `pepe: '1000PEPEUSDT'` to the Binance map - a useful thing to be, and a
  * different claim from the one it used to make.
  *
