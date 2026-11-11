@@ -40,6 +40,21 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
   const vwapAbove = vwap != null && price != null ? price > vwap : null;
   const vwapPct   = vwap && price ? ((price - vwap) / vwap) * 100 : null;
   const vwapCol   = vwapAbove === null ? 'var(--txt3)' : vwapAbove ? 'var(--green)' : 'var(--red)';
+  /* THE CARD SHOWS THE VWAP, under a heading that says VWAP (#1263, owner report).
+   *
+   * `edge-card-value` printed `price`, so the card showed the live PRICE under a "VWAP" label whose
+   * tooltip defines VWAP as "the average price across the day, weighted by how much was traded at
+   * each level". That was true for EVERY coin, the core 50 included - which is why it went
+   * unnoticed for so long: price and VWAP are normally close enough that the number looks right.
+   * The owner spotted it on CYBER, where $0.2637 under VWAP was simply the live price.
+   *
+   * The real VWAP survived only as the direction and percentage underneath, which is where the
+   * design intent plainly was. Now the value is the VWAP and that line is its relation to price.
+   *
+   * A DASH AND A WORD, NEVER AN ENDLESS SKELETON. `vwap` is written only by the core-50 snapshot
+   * pass, so on a universe coin the skeleton below spun for ever and the card settled into reading
+   * as a finished value - the same unknown-shown-as-pending defect as #2119 and #2125. */
+  const vwapStr = vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[coin]) : '-';
 
   /* #1613: the label and the number beside it come from the SAME hour. `store.oiTrend` is a different window (~3h at first load, ~25 min once the
      poll has filled its history) and made the label contradict the 1h figure and flip as its source changed, so this card no longer reads it.
@@ -70,11 +85,11 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
       <div className="edge-card">
         <div className="edge-card-label"><Tip text={t('COIN_MARKET_SNAPSHOT_VWAP_TOOLTIP')}>{t('COIN_MARKET_SNAPSHOT_VWAP_LABEL')}</Tip></div>
         <div className="edge-card-value" style={{ color: vwapCol }}>
-          {price != null ? '$' + fmtPrice(price, COIN_DEC[coin]) : '-'}
+          {vwapStr}
         </div>
         <div className="edge-card-signal" style={{ color: vwapCol }}>
           {vwapAbove === null
-            ? <SkeletonBar width={100} height={11} radius={4} />
+            ? t('STATE_UNAVAILABLE')
             : t('COIN_MARKET_SNAPSHOT_VWAP_SIGNAL', { arrow: vwapAbove ? '▲' : '▼', pct: vwapPct != null ? (vwapPct >= 0 ? '+' : '') + vwapPct.toFixed(2) + '%' : '' })}
         </div>
       </div>
