@@ -87,31 +87,39 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const verdictCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt2)';
   const verdictText = sq.dir === 'SHORT_SQ' ? 'BULLISH' : sq.dir === 'LONG_LIQ' ? 'BEARISH' : 'NO READ';
   const hasConfidence = sq.dir !== 'NEUTRAL';
-  /* THE SCORE IS A READING ONLY ONCE ONE OF ITS DIRECTION INPUTS HAS ARRIVED (#2119 follow-up).
-     #2119 gated this row on `d`, which was not enough: `d` is delivered by the universe ticker
-     pass, which carries price and the 24h change, while every squeeze input arrives later. In that
-     window `computeSqueezeScore` sees no signals, so it returns `score: 0` and - because the
-     Flush/Squeeze gate needs two signals - the label "Balanced". The public hero therefore read
-     "Setup 0 - Balanced" for about a second on a cold load, which is a confident answer we did not
-     have. Driven through the real function, the cold-load sequence was:
+  /* THE SCORE IS A READING ONLY ONCE EVERY DIRECTION INPUT HAS ARRIVED (#2119, #2142, #2143 follow-up).
 
-         no coin yet              row=null  note="No data"
-         d arrived, inputs empty  row="0"   note="Balanced"      <- the defect
-         two real signals         row="80"  note="Long liquidation risk"
+     #2119 gated on `d`. #2142 gated on ANY ONE input, and argued that funding present and sitting
+     between the bands was a measured zero. **That was wrong, and QA caught it: 8 of 15 cold loads
+     still showed "Setup 0 - Balanced".** The score is a SUM over three independent signals, so one
+     input is not the reading - it is a partial sum presented as final. Driven through the real
+     function with funding arriving first, which is the order QA reports:
 
-     `volRatio` IS DELIBERATELY NOT IN THIS LIST, and that is the part worth not getting wrong: it
-     is a bonus multiplier rather than a direction signal, and the function only applies it once a
-     direction already scores above 10. Measured - with `volRatio` alone the row is still "0" and
-     "Balanced", so counting it as readiness would have left the defect in place while looking fixed.
+         d only                     -> hidden
+         + funding, between bands    -> "0"  "Balanced"      <- #2142 showed this; it was never the score
+         + the long/short pair       -> "40" "Balanced"
 
-     One input below every band is NOT this defect: funding present and neutral really is a score of
-     0 and really is balanced. The difference is between a measured zero and an unknown one.
+     The 0 and the 40 are the same quantity measured over different input sets. A reader cannot tell
+     which they are looking at, so neither may be shown until the set is complete.
 
-     THE SHAPE OF THE RISK HERE: this predicate restates the inputs the function reads, so a fourth
-     signal added there would not reach this list. Coverage ask in the PR. */
-  const sqReady = d != null && (
-    d.fundingRate != null || (d.longRatio != null && d.shortRatio != null) || d.takerBuyRatio != null
-  );
+     ALL THREE, and the asymmetry with `volRatio` still holds: it is a bonus multiplier the function
+     only applies once a direction already scores above 10, so it is not part of readiness.
+
+     IF A FEED NEVER ARRIVES, THIS STAYS A DASH, and that is the honest outcome rather than a
+     regression: we never have the score, and #2125 settled that an absence is stated rather than
+     filled in. Showing the score from a partial set once the fetches have SETTLED would need a
+     settled flag on the store, and there is none today - `lib/marketStore.ts` exposes no
+     loaded/settled signal for these feeds. That is the follow-up if PM wants a partial score after
+     settling; it is provider surgery, not a gate change.
+
+     THE THREE INPUTS COME FROM THREE DIFFERENT FEEDS, which is why the window is wide enough to see:
+     funding from the ticker pass, the long/short pair from its own endpoint (MarketProvider ~:458),
+     and takerBuy computed from klines (~:633). This predicate restates the function's input list, so
+     a fourth signal added there would not reach it - QA's source-reading cell is the guard. */
+  const sqReady = d != null
+    && d.fundingRate != null
+    && d.longRatio != null && d.shortRatio != null
+    && d.takerBuyRatio != null;
 
   const price = d?.price ?? null;
   const vwap  = d?.vwap ?? null;
