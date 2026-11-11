@@ -155,6 +155,12 @@ export type MarketStore = {
   ethDom: number | null;            // ETH market dominance % (from CMC)
   altSeasonScore: number | null;    // 0–100: % of top-50 alts outperforming BTC (90d)
   wsStatus: string;
+  /** A PRICE READ FAILED AND NOTHING ARRIVED, which is a different fact from 'still loading'.
+   *  Panels that gate on `coins[id].price != null` cannot tell those apart on their own, so they
+   *  showed a loading skeleton for ever while the feed was down (#1263's class). Cleared the moment
+   *  any source - the WebSocket or the REST fallback - delivers a price, so a recovery heals the
+   *  display without a reload. */
+  pricesFailed: boolean;
   newsCache: string[];
   oilPrice: number | null;
   oilChg: number | null;         // its 1-day change in % (#1631 A)
@@ -217,6 +223,7 @@ export const defaultStore: MarketStore = {
   ethDom: null,
   altSeasonScore: null,
   wsStatus: 'Connecting...',
+  pricesFailed: false,
   newsCache: [],
   oilPrice: null,
   oilChg: null,

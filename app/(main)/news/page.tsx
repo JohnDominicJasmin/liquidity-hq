@@ -406,7 +406,7 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
 ──────────────────────────────────────────────── */
 export default function NewsPage() {
   const { t } = useLabels();
-  const { alerts, geoEvents, econEvents, whaleAlerts, alertsLoaded } = useNews();
+  const { alerts, geoEvents, econEvents, whaleAlerts, alertsLoaded, alertsFailed } = useNews();
   const [tab, setTab] = useState<Tab>('foryou');
 
   /* ── Coin mention tally ── */
@@ -637,6 +637,13 @@ export default function NewsPage() {
                 <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_GEO_EMPTY')}</div>
               ) : tab === 'crypto' ? (
                 <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_CRYPTO_EMPTY')}</div>
+              ) : alertsFailed && !alertsLoaded ? (
+                /* FAILED, AND NOTHING EVER ARRIVED. The comment below used to end by saying this
+                   branch could not exist without a failure flag on the provider; the flag is now
+                   there (`alertsFailed`), so it does. Gated on `!alertsLoaded` as well, because a
+                   feed that succeeded once and then started failing still has real headlines to
+                   show - an error over existing content would be a worse lie than stale content. */
+                <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_FEED_FAILED')}</div>
               ) : !alertsLoaded ? (
                 /* STILL LOADING - the skeleton is honest here and only here. */
                 <>
@@ -656,9 +663,9 @@ export default function NewsPage() {
                    claimed otherwise, which QA caught. `NewsProvider` returns on error at :342 and
                    reaches `setAlertsLoaded(true)` only at :348, deliberately: its own comment there
                    says "a failed read is not an empty feed". So a persistent failure never arrives
-                   at this branch and still shows the skeleton. Closing that needs a failure flag on
-                   the provider - a tracker line, not something this branch can infer, since from
-                   here "not loaded" and "failed" are the same absence. */
+                   at this branch. CLOSED by the branch above, which reads `alertsFailed` - the flag that
+                   comment asked for. From here "not loaded" and "failed" really are the same
+                   absence, which is why the distinction had to come from the provider. */
                 <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_CRYPTO_EMPTY')}</div>
               )}
             </div>

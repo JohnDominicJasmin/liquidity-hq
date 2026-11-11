@@ -90,10 +90,17 @@ export default function DistributionTracker() {
           THE HALF THIS DOES NOT FIX, stated rather than implied: a FAILED read still looks like a
           cold one, because `lib/marketStore.ts` carries no error flag - there is no value here that
           distinguishes "still arriving" from "gave up". That flag is PM's tracker line; this change
-          separates "no data yet" from "data arrived and found nothing", which is the half that is
-          reachable today. */}
+          separates "no data yet" from "data arrived and found nothing"; `store.pricesFailed` covers the
+          third case (#1263). */}
       {rows.length === 0 && !COINS.some(id => store.coins[id]?.price != null) ? (
-        <div className="empty-state"><SkeletonBar width={180} height={13} style={{ margin: '0 auto' }} /></div>
+        store.pricesFailed ? (
+          /* FAILED, not slow. Same absence of prices either way, so the flag is the only thing
+             that can tell them apart - without it this branch showed a loading skeleton for as
+             long as the feed stayed down. */
+          <div className="empty-state"><div className="empty-state-sub">{t('MARKET_FEED_FAILED')}</div></div>
+        ) : (
+          <div className="empty-state"><SkeletonBar width={180} height={13} style={{ margin: '0 auto' }} /></div>
+        )
       ) : rows.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-title">{t('DISTRIBUTION_TRACKER_EMPTY_TITLE')}</div>
