@@ -637,11 +637,29 @@ export default function NewsPage() {
                 <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_GEO_EMPTY')}</div>
               ) : tab === 'crypto' ? (
                 <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_CRYPTO_EMPTY')}</div>
-              ) : (
+              ) : !alertsLoaded ? (
+                /* STILL LOADING - the skeleton is honest here and only here. */
                 <>
                   <SkeletonBar width={210} height={15} style={{ margin: '0 auto' }} />
                   <span className="sr-only">{t('NEWS_ALL_LOADING_SR')}</span>
                 </>
+              ) : (
+                /* LOADED AND EMPTY (#1185). This branch did not exist: the All tab showed the
+                   loading skeleton whenever it had nothing, so a feed that had finished and come
+                   back empty looked identical to one still arriving, for as long as
+                   the reader stared at it. The Geo and Crypto tabs beside it already say so
+                   plainly, and the For You tab above already gates on `alertsLoaded` (`:549`/`:553`);
+                   this is the same pattern, which is why it reuses `NEWS_CRYPTO_EMPTY` rather than
+                   inventing a fourth string for the same fact.
+
+                   LOADED-AND-EMPTY ONLY, NOT A FAILED READ - and an earlier version of this comment
+                   claimed otherwise, which QA caught. `NewsProvider` returns on error at :342 and
+                   reaches `setAlertsLoaded(true)` only at :348, deliberately: its own comment there
+                   says "a failed read is not an empty feed". So a persistent failure never arrives
+                   at this branch and still shows the skeleton. Closing that needs a failure flag on
+                   the provider - a tracker line, not something this branch can infer, since from
+                   here "not loaded" and "failed" are the same absence. */
+                <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_CRYPTO_EMPTY')}</div>
               )}
             </div>
           )}

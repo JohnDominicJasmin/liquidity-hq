@@ -54,13 +54,30 @@ export default function ConfluenceScore(
     : { line: '-', direction: null as null };
 
   const factors: ConfluenceFactorInput[] = [
-    {
-      kind: 'directional',
-      label: t('CONFLUENCE_SCORE_FACTOR_EMA_RIBBON'),
-      dir: (emaSignal.verdict === 'LONG_SETUP' || emaSignal.verdict === 'TRENDING_LONG') ? 'bull'
-         : (emaSignal.verdict === 'SHORT_SETUP' || emaSignal.verdict === 'TRENDING_SHORT') ? 'bear' : 'neutral',
-      weight: 30,
-    },
+    /* THE EMA FACTOR DROPS OUT WHEN THERE IS NO READ, rather than voting neutral (#1185).
+     *
+     * `confluence.ts` adds a directional factor's weight to `directionalTotal` UNCONDITIONALLY and
+     * only adds to `bullW`/`bearW` when it votes. So a neutral factor is 30 points of denominator
+     * that can never be voted - it does not read as "no opinion", it DILUTES the score toward 0.
+     * While the ribbon is loading, the Confluence Score was therefore quietly wrong rather than
+     * absent, and the dilution is invisible: the number looks like a real reading.
+     *
+     * DROPPING IT, NOT `active: false`: `active` is only consulted for PENALTY factors
+     * (`ConfluenceScore.tsx:243` derives it from `dir` for directional ones), so adding it here
+     * would have changed nothing. The house pattern for a directional factor with no reading is to
+     * leave it out of the array - the same thing `rotation` does below, and for the same reason the
+     * comment above it gives: it "drops out entirely rather than voting neutral on a question that
+     * does not apply". `computeConfluence`'s denominator is the sum of factors actually present,
+     * which is what makes that safe. */
+    ...(emaSignal.loading || emaSignal.verdict === 'LOADING' || emaSignal.error || emaSignal.signalLock
+      ? []
+      : [{
+          kind: 'directional' as const,
+          label: t('CONFLUENCE_SCORE_FACTOR_EMA_RIBBON'),
+          dir: ((emaSignal.verdict === 'LONG_SETUP' || emaSignal.verdict === 'TRENDING_LONG') ? 'bull'
+             : (emaSignal.verdict === 'SHORT_SETUP' || emaSignal.verdict === 'TRENDING_SHORT') ? 'bear' : 'neutral') as 'bull' | 'bear' | 'neutral',
+          weight: 30,
+        }]),
     orderFlowFactor(of.bias),
     multiTfRsiFactor(d.rsi14, d.rsi1h, d.rsi4h),
     // GEX is BTC-only (options data) and a REGIME MODIFIER, not a directional

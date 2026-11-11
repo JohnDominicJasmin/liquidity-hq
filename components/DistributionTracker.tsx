@@ -1,6 +1,7 @@
 'use client';
 import { useMemo } from 'react';
 import { useMarket, COINS, CoinId, CoinData, fmtPrice, COIN_DEC } from '@/lib/marketStore';
+import { SkeletonBar } from './Skeleton';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
@@ -81,7 +82,19 @@ export default function DistributionTracker() {
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('DISTRIBUTION_TRACKER_SUBTITLE')}</span>
       </div>
 
-      {rows.length === 0 ? (
+      {/* "NOTHING FOUND" ONLY ONCE SOMETHING HAS ARRIVED (#1185). `rows.length === 0` was treated
+          as "no distribution" whether the scan had run or the market store was still empty, so a
+          cold load stated a result it had not computed. A skeleton rather than new copy, matching
+          the news feed's loading branch.
+
+          THE HALF THIS DOES NOT FIX, stated rather than implied: a FAILED read still looks like a
+          cold one, because `lib/marketStore.ts` carries no error flag - there is no value here that
+          distinguishes "still arriving" from "gave up". That flag is PM's tracker line; this change
+          separates "no data yet" from "data arrived and found nothing", which is the half that is
+          reachable today. */}
+      {rows.length === 0 && !COINS.some(id => store.coins[id]?.price != null) ? (
+        <div className="empty-state"><SkeletonBar width={180} height={13} style={{ margin: '0 auto' }} /></div>
+      ) : rows.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-title">{t('DISTRIBUTION_TRACKER_EMPTY_TITLE')}</div>
           <div className="empty-state-sub">{t('DISTRIBUTION_TRACKER_EMPTY_SUB')}</div>
