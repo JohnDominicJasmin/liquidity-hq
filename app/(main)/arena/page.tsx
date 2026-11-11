@@ -259,7 +259,12 @@ function ArenaContent() {
   // clobber a real in-flight choice once it finally resolves.
   const coinTouchedRef = useRef(false);
   const tfTouchedRef   = useRef(false);
-  const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '-' });
+  /* STAMPED WITH THE COIN IT DESCRIBES (#1651, QA). Clearing on change was not enough:
+     `useOI1h` flips to loading INSIDE an effect, so for one render after a coin change this
+     consumer still sees the old snapshot - loading false, the previous coin's pct - and writes it
+     to the ref before the clear runs. Carrying the coin makes staleness impossible rather than
+     brief, and independent of effect order, the same way `chartAlertsCoinRef` does it. */
+  const oi1hDataRef   = useRef<{ coin: CoinId | null; pct: number | null; signal: string }>({ coin: null, pct: null, signal: '-' });
   const msDataRef     = useRef<MSData | null>(null);
   // State, not a ref: the Confluence Score re-renders on it. Sourced from the
   // chart rather than recomputed here so the score votes on the same break the
@@ -838,10 +843,10 @@ function ArenaContent() {
        The clear covers `loading` too, deliberately: `useOI1h` flips to loading the moment the coin
        changes, so this is the earliest point the stale value can be dropped. A read fired during
        that window is told '-' rather than the old coin's move. */
-    if (oi1h.loading || oi1h.pct == null) { oi1hDataRef.current = { pct: null, signal: '-' }; return; }
+    if (oi1h.loading || oi1h.pct == null) { oi1hDataRef.current = { coin: selectedCoin, pct: null, signal: '-' }; return; }
     // #1613: the AI read is told the 1h OI change with a trend text from the SAME hour (not the store's oiTrend, another window).
     const { txt } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
-    oi1hDataRef.current = { pct: oi1h.pct, signal: txt };
+    oi1hDataRef.current = { coin: selectedCoin, pct: oi1h.pct, signal: txt };
   }, [oi1h.pct, oi1h.pricePct, oi1h.loading, selectedCoin]);
 
   /* ── Sync EMA strategy → ref (used by Grok context builder) ── */
@@ -1360,7 +1365,10 @@ function ArenaContent() {
         return `Score ${sq.score}/100 · ${sq.label} · ${oiChip}, ${cvdChip}, ${tkr}, ${rsi}`;
       })(),
       oi1hChange: (() => {
-        const { pct, signal } = oi1hDataRef.current;
+        const { coin: stampedCoin, pct, signal } = oi1hDataRef.current;
+        /* A FIGURE FOR ANOTHER COIN IS NOT A FIGURE FOR THIS ONE. The model cannot tell, and the
+           read it writes looks exactly as confident either way. */
+        if (stampedCoin !== selectedCoin) return '-';
         if (pct == null) return '-';
         return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '% · ' + signal;
       })(),
