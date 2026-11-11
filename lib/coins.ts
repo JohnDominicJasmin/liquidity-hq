@@ -504,14 +504,13 @@ export function venueSymbols(coin: string): { bybit: string | null; binance: str
 /** The denomination a SYMBOL declares, from its own leading multiplier: `1000PEPEUSDT` -> 0.001,
  *  `10000SATSUSDT` -> 0.0001, `1000000MOGUSDT` -> 0.000001, anything else -> 1.
  *
- * VENUE-NEUTRAL BY NAME NOW, and the old name was a trap rather than merely untidy. It read
- * `bybitSymbolPriceFactor`, while three Arena surfaces correctly pass it a BINANCE symbol - which
- * is right, because it reads the symbol's own declared denomination and that is the only thing
- * correct for `sats`, `tag`, `toshi` and `turbo`, where the two venues denominate the SAME coin
- * differently (bybit 10000SATS vs binance 1000SATS). A name saying "bybit" invites the next reader
- * to "correct" those call sites to the venue-keyed `bybitPriceFactor`, which would silently price
- * those four coins out by 10x to 1000x. QA raised it; the old name stays as a deprecated alias so
- * nothing breaks while the call sites migrate.
+ * VENUE-NEUTRAL BY NAME, and that is load-bearing rather than tidy. This was renamed from a
+ * venue-named predecessor (#2135, migrated over #2136/#2137, the alias deleted here) because three
+ * Arena surfaces correctly pass it a BINANCE symbol: it reads the symbol's own declared
+ * denomination, which is the only reading that works for `sats`, `tag`, `toshi` and `turbo`, where
+ * the two venues denominate the SAME coin differently (bybit 10000SATS vs binance 1000SATS). The
+ * old name invited readers to "correct" those call sites to the venue-keyed `bybitPriceFactor`,
+ * which would have silently priced those four coins out by 10x to 1000x. QA raised it.
  *
  * NOT TO BE CONFUSED WITH `bybitPriceFactor` / `binancePriceFactor`, which are genuinely
  * venue-specific: they look the coin up and read that venue's `mult` from the generated row. Use
@@ -530,12 +529,6 @@ export function symbolDenominationFactor(symbol: string): number {
   const isDenomination = n >= 1000 && Number.isInteger(Math.log10(n));
   return isDenomination ? 1 / n : 1;
 }
-
-/** @deprecated Use `symbolDenominationFactor`. The name says "bybit" but the function reads the
- *  SYMBOL's denomination, not the venue's - see there. Kept so the migration can run in steps:
- *  nothing breaks while call sites move across, and deleting this alias is what proves the
- *  migration finished. */
-export const bybitSymbolPriceFactor = symbolDenominationFactor;
 
 /* The symbol the CHART shows, which is not always the symbol we fetch.
  *
