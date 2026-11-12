@@ -118,9 +118,19 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   useEffect(() => { setMounted(true); }, []);
   const sq = computeSqueezeScore(d);
 
-  const verdictCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt2)';
-  const verdictText = sq.dir === 'SHORT_SQ' ? 'BULLISH' : sq.dir === 'LONG_LIQ' ? 'BEARISH' : 'NO READ';
-  const hasConfidence = sq.dir !== 'NEUTRAL';
+  /* DESIGN A (#1651): the verdict needs all THREE inputs present (funding, long/short, taker flow),
+     not just the >=2-signal direction gate. While fewer have arrived, the big verdict line and the
+     confidence bar are withheld and the Setup row below shows the score with an "N of 3 signals"
+     note instead - so a partial reading on the public hero never reads as a final call, and the
+     panel still fills from the first signal rather than blanking until everything lands (the #2144
+     failure this replaces). It counts whatever arrived, so it assumes nothing about which inputs
+     the landing happens to receive. */
+  const setupComplete = sq.signalsPresent === 3;
+  const setupPartial = d != null && sq.signalsPresent >= 1 && !setupComplete;
+  const shownDir = setupComplete ? sq.dir : 'NEUTRAL';
+  const verdictCol = shownDir === 'SHORT_SQ' ? 'var(--green)' : shownDir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt2)';
+  const verdictText = shownDir === 'SHORT_SQ' ? 'BULLISH' : shownDir === 'LONG_LIQ' ? 'BEARISH' : 'NO READ';
+  const hasConfidence = shownDir !== 'NEUTRAL';
 
   const price = d?.price ?? null;
   const vwap  = d?.vwap ?? null;
@@ -146,7 +156,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const { txt: oi1hTxt, col: oi1hColRaw } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
   const oi1hCol = oi1h.pct == null ? 'var(--txt2)' : oi1hColRaw;
 
-  const evidence: { label: string; value: string | null; note: string; col: string }[] = [
+  const evidence: { label: string; value: string | null; note: string; col: string; title?: string }[] = [
     /* THE VWAP, not the price (#1263). This row printed `price` under a "VWAP" label on the PUBLIC
        hero - a signed-out visitor's first impression of the product - for every coin. Measured: all
        49 coins in the snapshot carry a real vwap, so this shows a number rather than a dash; the
@@ -164,8 +174,17 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
 
        KEYED ON DATA PRESENCE, NOT ON `dir`: a real NEUTRAL reading with data behind it is a
        legitimate score and must still show. The big score and its bar below are already guarded by
-       `hasConfidence`, so they were never part of this. */
-    { label: 'Setup',   value: d ? String(sq.score) : null, note: sq.label, col: sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)' },
+       `hasConfidence`, so they were never part of this.
+
+       DESIGN A (#1651): the score shows from the first signal, but the DIRECTION label and colour
+       wait until all three inputs are in. While partial the note is "N of 3 signals" and the value
+       stays neutral, so the number reads as a partial sum in progress, not a final call; a tooltip
+       names which signals are in. */
+    { label: 'Setup',
+      value: (d && sq.signalsPresent >= 1) ? String(sq.score) : null,
+      note: setupComplete ? sq.label : (d ? `${sq.signalsPresent} of 3 signals` : sq.label),
+      col: setupComplete ? (sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)') : 'var(--txt)',
+      title: sq.present.length ? `Signals in: ${sq.present.join(', ')}` : undefined },
   ];
 
   return (
@@ -212,7 +231,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
 
         <div style={{ marginTop: 4 }}>
           {evidence.map(row => (
-            <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 14px', borderBottom: '1px solid var(--bdr2)' }}>
+            <div key={row.label} title={row.title} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 14px', borderBottom: '1px solid var(--bdr2)' }}>
               <span style={{ width: 2, height: 18, flexShrink: 0, background: row.value == null ? 'var(--mark-idle)' : row.col }} />
               <span style={{ width: 76, flexShrink: 0, fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.1em', color: 'var(--txt3)' }}>{row.label}</span>
               <span style={{ fontSize: 12.5, fontFamily: 'var(--font-mono), monospace', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: row.value == null ? 'var(--txt2)' : row.col }}>
