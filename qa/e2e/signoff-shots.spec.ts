@@ -100,9 +100,9 @@ test.describe('sign-off shots', () => {
   }
 
   /* Draw Structure labels, both themes, with a STUBBED proposal (nothing billed). */
-  for (const theme of themes) {
-    test(`draw structure labels ${theme}`, async ({ browser }) => {
-      const ctx = await signedInContext(browser, 'a', { viewport: { width: 1280, height: 1000 }, theme });
+  for (const theme of themes) for (const width of [1280, 390]) {
+    test(`draw structure labels ${width}px ${theme}`, async ({ browser }) => {
+      const ctx = await signedInContext(browser, 'a', { viewport: { width, height: width === 390 ? 844 : 1000 }, theme });
       const p = await ctx.newPage();
       await installPaidAiFence(p);
       let intercepted = 0;
@@ -132,12 +132,48 @@ test.describe('sign-off shots', () => {
       await tf(p, '1h');
       const btn = p.getByRole('button', { name: /Draw Structure/i }).first();
       if (await btn.count()) { await btn.click({ timeout: 10_000 }).catch(() => {}); await p.waitForTimeout(5_000); }
-      console.log(`[draw structure ${theme}] stub intercepted ${intercepted} call(s)`);
+      console.log(`[draw structure ${width} ${theme}] stub intercepted ${intercepted} call(s)`);
       /* A proposal label must be on screen BEFORE the shot, otherwise the image proves nothing about
          #2165: "Could not read the chart" is a different state wearing the same screenshot. */
       await expect(p.locator('.klc-draw-item', { hasText: /Trend line/i }).first(),
         'no structure label rendered - the stub was rejected (see the response shape) or the call never fired').toBeVisible({ timeout: 15_000 });
-      await shot(p, `draw-structure-${theme}`);
+      const sfx = width === 1280 ? '' : `-${width}`;
+      await shot(p, `draw-structure${sfx}-${theme}`);
+      /* MENU CLOSED (PM, 2026-11-13): with the menu open the drawn lines cannot be told apart from the
+         EMAs. Close it, assert it is really gone, then shoot the chart with the proposal lines on it. */
+      const menu = p.locator('.klc-draw-item').first();
+      await p.keyboard.press('Escape');
+      if (await menu.isVisible().catch(() => false)) await p.mouse.click(5, 5);
+      await expect(menu, 'the Draw Structure menu did not close, so the closed-menu shot would repeat the open one').toBeHidden({ timeout: 5_000 });
+      await p.waitForTimeout(1_500);
+      await shot(p, `draw-structure-closed${sfx}-${theme}`);
+      await ctx.close();
+    });
+  }
+
+  /* Strategy indicator chips (#2184: full names), Pro, 390/768/1280 x both themes. The shot is the panel
+     itself so a clipped or wrapped name is visible; each chip's text and overflow is also logged. */
+  for (const theme of themes) for (const width of [390, 768, 1280]) {
+    test(`strategy chips ${width}px ${theme}`, async ({ browser }) => {
+      const ctx = await signedInContext(browser, 'a', { viewport: { width, height: 1000 }, theme });
+      const p = await ctx.newPage();
+      await installPaidAiFence(p);
+      await gotoSignedIn(p, '/arena');
+      const panel = p.locator('.strat-panel').first();
+      await panel.waitFor({ state: 'visible', timeout: 30_000 });
+      await p.waitForTimeout(4_000);
+      const m = await p.evaluate(() => ({
+        sw: document.documentElement.scrollWidth,
+        chips: Array.from(document.querySelectorAll('.strat-ind-chip')).map(c => {
+          const n = c.querySelector('.strat-ind-name') as HTMLElement | null;
+          return { name: (n?.textContent ?? '').trim(), clipped: !!n && n.scrollWidth > n.clientWidth + 1 };
+        }),
+      }));
+      console.log(`[chips ${width} ${theme}] scrollWidth=${m.sw} ` + m.chips.map(c => `${c.name}${c.clipped ? '(CLIPPED)' : ''}`).join(' | '));
+      expect(m.chips.length, 'no indicator chips rendered').toBeGreaterThan(0);
+      await panel.scrollIntoViewIfNeeded();
+      mkdirSync(DIR, { recursive: true });
+      await panel.screenshot({ path: `${DIR}/chips-${width}-${theme}.png`, mask: mask(p), maskColor: '#000000' });
       await ctx.close();
     });
   }
