@@ -1,7 +1,7 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { getSupabase } from '@/lib/supabase';
-import { forceSignOut } from '@/lib/authSession';
+import { forceSignOut, INACTIVITY_MS, LAST_ACTIVE_KEY } from '@/lib/authSession';
 import type { User } from '@supabase/supabase-js';
 import posthog from 'posthog-js';
 import { T } from '@/lib/tables';
@@ -82,7 +82,9 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-const INACTIVITY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+// INACTIVITY_MS and LAST_ACTIVE_KEY are imported from lib/authSession.ts (#1173): the pre-paint
+// landing redirect in RootDocument.tsx reads the same window and the same key, and two copies of
+// either would drift without anything failing.
 
 /* How long the initial session read may take before the app gives up and
    renders as signed-out (#727). Generous enough that a slow-but-working
@@ -174,7 +176,7 @@ function qaForcedEntitlementsFailure(): boolean {
   return Boolean((window as unknown as { __LHQ_QA_FORCE_ENTITLEMENTS_FAIL__?: boolean }).__LHQ_QA_FORCE_ENTITLEMENTS_FAIL__);
 }
 
-const LAST_ACTIVE_KEY = 'lhq_last_active';
+
 // Read by AuthGate - shared here so both sides reference the same literal.
 export const BAN_NOTICE_KEY = 'lhq_ban_notice';
 
