@@ -2,7 +2,6 @@ import { getAuthToken } from './supabase.ts';
 import { nextResetLocalTime } from './resetTime.ts';
 import { wilderRsiSeries } from './rsi.ts';
 import { priceText } from './numberFormat.ts';
-import { describeSelection } from './strategyRegistry.ts';
 
 export interface GrokUsageInfo {
   deep_used:     number; deep_limit:     number;
@@ -958,8 +957,14 @@ function parseCombinedResponse(text: string, tf: string, session: string, nowMs:
   for (const line of patSect.split('\n')) {
     const m = line.match(/^-\s*(.+)/);
     if (m) {
-      const p = stripMd(m[1]);
-      if (p && p.toLowerCase() !== 'none detected' && p.toLowerCase() !== 'none') patterns.push(p);
+      /* ONE BULLET CAN NAME SEVERAL PATTERNS ("- Double top; Tight consolidation", seen on a Deep run, #1631), and the
+         card shows one pill per entry, so a semicolon-joined bullet read as a single pattern with a semicolon in it.
+         Split on the semicolon and apply the "none" check to each part. Commas are left alone: they appear INSIDE
+         one pattern's own description ("Bear flag, 4h"). */
+      for (const part of stripMd(m[1]).split(/\s*;\s*/)) {
+        const p = part.trim();
+        if (p && p.toLowerCase() !== 'none detected' && p.toLowerCase() !== 'none') patterns.push(p);
+      }
     }
   }
 
@@ -1282,8 +1287,17 @@ export function buildQuickPrompt(ctx: GrokContext, chart: ChartData): string {
  * THE SELECTION SENTENCES ARE PROMPT TEXT AND THEY LIVE HERE ON PURPOSE. They are instructions - weight
  * these, say so if they disagree - not data. Taking them from the client would have left an injection
  * point inside a route that otherwise looks like it builds its own prompt, which is worse than the
- * original hole for being harder to notice. `describeSelection` maps ids to labels from the registry, so
- * the only thing the caller controls is WHICH known indicators are named. */
+ * original hole for being harder to notice.
+ *
+ * #1631: THE INSTRUCTION NOW POINTS AT THE READINGS BLOCK, IT NO LONGER ENUMERATES IDS. The selected
+ * indicators' latest values travel in the `emaStrategy` line above (lib/useEMAStrategy.ts
+ * strategyToGrokLine), and ONLY value-bearing ones are in that block. So the instruction tells the
+ * model to weigh the indicators whose readings appear there and nothing else - which means a
+ * selected indicator with no value this render (a warm-up bar) is not named anywhere as something to
+ * weigh. The old form listed `describeSelection(selection)` by name, which would have named such an
+ * indicator with no value line beside it - the exact thing the owner's "never sell inaccurate data"
+ * forbids. `selection` is still the gate on whether to say anything at all; it is not enumerated, and
+ * its semantics on the paid path are unchanged (its only server consumer is this function). */
 export function buildArenaPrompt(
   ctx: GrokContext,
   chart: ChartData,
@@ -1291,14 +1305,14 @@ export function buildArenaPrompt(
   selection: readonly string[] = [],
 ): string {
   const base = type === 'quick' ? buildQuickPrompt(ctx, chart) : buildCombinedPrompt(ctx, chart);
-  const watching = describeSelection(selection);
-  if (!watching) return base;
+  if (selection.length === 0) return base;
   return [
     base,
     '',
-    'The trader has chosen to weigh these indicators: ' + watching + '.',
-    'Give them more weight in the read, and say plainly if they disagree',
-    'with what the rest of the data shows.',
+    'The trader has chosen to weigh specific indicators. Their current readings appear in the',
+    'ribbon line above, each named with its latest value. Weigh ONLY the indicators whose readings',
+    'appear there, give them more weight, and say plainly if they disagree with the rest of the data.',
+    'Do not weigh, or name as weighted, any indicator that has no reading line above.',
   ].join('\n');
 }
 

@@ -201,7 +201,33 @@ if [ "$saw_ref" = 1 ] && [ "$only_deletions" = 1 ]; then
   exit 0
 fi
 
-printf '[pre-push] typecheck\n'
+# LOW MEMORY: GITHUB RUNS THE TYPECHECK INSTEAD. Owner, 2026-11-13, on reading that a push
+# was waiting for his laptop to have free memory: "run it on github then". Every pull request
+# runs `Lint + typecheck + test + build` on GitHub, and nothing merges without it green, so
+# below the 2.5 GB floor (OWNER-RULES §4) this hook skips the local typecheck instead of
+# making the session wait. It prints the reading so the skip is never silent.
+#
+# UNKNOWN IS NOT LOW. If free memory cannot be read (no /proc/meminfo, or an empty value),
+# the typecheck runs as before; a failed reading must not turn the gate off.
+free_mb=$(awk '/^MemAvailable:/{a=int($2/1024)} /^MemFree:/{f=int($2/1024)} END{if(a!="")print a; else if(f!="")print f}' /proc/meminfo 2>/dev/null || true)
+case "$free_mb" in
+  ''|*[!0-9]*) free_mb='' ;;
+esac
+if [ -n "$free_mb" ] && [ "$free_mb" -lt 2500 ]; then
+  printf '[pre-push] free memory %s MB is below the 2500 MB floor - local typecheck SKIPPED.\n' "$free_mb"
+  printf '[pre-push] GitHub runs it on the pull request; do not merge until that check is green.\n'
+  exit 0
+fi
+
+printf '[pre-push] typecheck (free memory: %s MB)\n' "${free_mb:-unknown}"
 npx tsc --noEmit
 
-printf '[pre-push] typecheck passed. LINT, UNIT TESTS AND BUILD NOT RUN HERE - run `npm run verify` locally before the PR merges (OWNER-RULES §17: CI runs only on the release PR).\n'
+# THIS LINE TOLD PEOPLE TO RUN `npm run verify` LOCALLY UNTIL 2026-11-12, and it cited §17's
+# "CI runs only on the release PR" as the reason. Both halves are now wrong: the owner moved all
+# testing onto GitHub that day, and `ci.yml` runs the quick jobs on every PR into dev, qa and
+# staging. A hook that sends people back to their own machine is the opposite of that decision -
+# and on this machine it was costing the owner the memory his browser needs.
+#
+# The push itself is still gated by the typecheck above, because a PR check cannot stop a push to
+# a branch nobody opens a PR for.
+printf '[pre-push] typecheck passed. Lint, unit tests and build run as the PR automatic GitHub check (OWNER-RULES §17).\n'

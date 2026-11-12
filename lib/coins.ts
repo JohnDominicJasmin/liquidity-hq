@@ -31,7 +31,8 @@ export type CoinId = string;
 
 const BY_ID = new Map<string, CoinRow>(COIN_UNIVERSE.map(r => [r.id, r]));
 
-/** EVERY instrument the exchanges trade and both venues cover - 463 of them, opt-in.
+/** EVERY instrument in the generated universe: the crypto both venues cover (463) plus Binance's
+ * TradFi contracts - stocks, funds, commodities, FX and pre-IPO references (235) - opt-in.
  *
  * Nothing renders this by default. It is here for the surfaces that are SUPPOSED to offer the
  * whole market, and each of those is a visual decision the owner signs off on one at a time.
@@ -137,6 +138,61 @@ export const UNIVERSE_SYM_TO_COIN: Record<string, string> = Object.fromEntries(
 export function coinRow(coin: string): CoinRow | undefined {
   return BY_ID.get(coin);
 }
+
+/* ── TRADFI: stocks, funds, commodities, FX and pre-IPO references (owner, 2026-11-12) ─────────
+ *
+ * Binance lists these as TRADIFI_PERPETUAL and the generator now carries them (see its header). A
+ * row has `kind` and `ticker`; a plain crypto coin has neither. Two things callers must know:
+ *
+ *   - THE ID IS NOT ALWAYS THE TICKER. A ticker that clashes with a crypto base takes Bybit's own
+ *     `<ticker>stock` form (`catstock`, because `cat` is a memecoin), so show `coinLabel(id)`, never
+ *     `id.toUpperCase()`, on a surface that can hold one of these.
+ *   - THEY ARE UNIVERSE-ONLY. None is in `COINS`, so none is scanned, alerted on, or offered an AI
+ *     read - the same coverage line every other non-curated coin sits behind. */
+export type CoinKind = NonNullable<CoinRow['kind']>;
+
+/** What kind of instrument a coin id is, or undefined for a plain crypto coin. */
+export function coinKind(coin: string): CoinKind | undefined {
+  return BY_ID.get(coin)?.kind;
+}
+
+/** A warning the app must show for this row (see the generator's TRADFI_CAVEAT), or undefined. */
+export type CoinCaveat = NonNullable<CoinRow['caveat']>;
+export function coinCaveat(coin: string): CoinCaveat | undefined {
+  return BY_ID.get(coin)?.caveat;
+}
+
+/* THE CURRENCY SIGN FOR A COIN'S PRICE. Everything is quoted in dollars except the Hong Kong listings Binance
+ * quotes in Hong Kong dollars, which print "HK$". A price for one of those rows must NEVER carry a bare "$":
+ * 396 HK$ read as $396 is wrong by a currency (HK0700 is 7.84x its own USD-quoted TENCENT). Every surface that
+ * writes a literal "$" in front of a selected coin's price goes through this; a surface that does not is a
+ * defect on those four rows. */
+export function currencyPrefix(coin: string | null | undefined): string {
+  return coin != null && BY_ID.get(coin)?.caveat === 'hkd' ? 'HK$' : '$';
+}
+
+const idsOfKind = (kinds: readonly CoinKind[]): CoinId[] =>
+  COIN_UNIVERSE.filter(r => r.kind && kinds.includes(r.kind)).map(r => r.id);
+
+/** The Arena's three TradFi category tabs. A pre-IPO reference and a "Tokenized asset" (an equity whose
+ *  stock-vs-fund status is unconfirmed) sit with Stocks, each labelled as what it is on its row; FX sits
+ *  with Commodities, whose tab says so. */
+export const TRADFI_CATEGORY_COINS: { stocks: CoinId[]; etfs: CoinId[]; commodities: CoinId[] } = {
+  stocks: idsOfKind(['stock', 'asset', 'preipo']),
+  etfs: idsOfKind(['etf']),
+  commodities: idsOfKind(['commodity', 'fx']),
+};
+
+/* BINANCE SYMBOL -> COIN ID, for the universe rows Bybit does not list at all (18 today: the pre-IPO
+ * references, a few commodities and the Hong Kong shares). The Bybit bulk ticker is what prices every
+ * other universe coin, so these would have no price without a second source. They are read with one
+ * small request naming exactly these symbols - never the whole market. The curated Binance-only coin
+ * (`fet`) is excluded: it is priced by the curated path. */
+export const UNIVERSE_BINANCE_ONLY: Record<string, string> = Object.fromEntries(
+  COIN_UNIVERSE
+    .filter(r => !r.bybit && r.binance && !RENDERED_IDS.includes(r.id))
+    .map(r => [r.binance as string, r.id]),
+);
 
 /* THESE TWO MAPS COVER WHAT THE APP RENDERS, NOT THE WHOLE UNIVERSE, and that is load-bearing
  * rather than tidy.
@@ -432,7 +488,7 @@ const LABEL_OVERRIDE: Record<string, string> = { spx: 'SPX6900' };
 /** Display label. The ticker is the label for every instrument, so this is derived rather
  *  than listed - a generated coin cannot arrive without one. */
 export const COIN_LABELS: Record<string, string> = Object.fromEntries(
-  COIN_UNIVERSE.map(r => [r.id, LABEL_OVERRIDE[r.id] ?? r.id.toUpperCase()]),
+  COIN_UNIVERSE.map(r => [r.id, LABEL_OVERRIDE[r.id] ?? r.ticker ?? r.id.toUpperCase()]),
 );
 
 /* Bybit quotes the low-unit-price meme perps per 1000 tokens - 1000PEPEUSDT, 1000BONKUSDT -
@@ -543,7 +599,7 @@ export function symbolDenominationFactor(symbol: string): number {
  * symbolDenominationFactor in the chart's fetches. */
 export function chartDisplaySymbol(coin: string): string {
   const prefix = BYBIT_SYMS[coin]?.startsWith('1000') ? '1000' : '';
-  return `${prefix}${coin.toUpperCase()}/USDT`;
+  return `${prefix}${BY_ID.get(coin)?.ticker ?? coin.toUpperCase()}/USDT`;
 }
 
 /* The helper arrived on `dev` in #1863 with a HAND-WRITTEN COIN_LABELS beside it; this branch

@@ -5,6 +5,7 @@ import { hasProFeatures } from '@/lib/entitlements';
 import { ACTIVE_ALERT_CAP, PRICE_ALERT_PRUNE_AT, PRICE_ALERT_PRUNE_TO, TEXT_LIMITS, limitRefusal } from '@/lib/ownRowLimits';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { COINS } from '@/lib/coins';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,6 +80,15 @@ export async function POST(req: NextRequest) {
   const { coin, target_price, direction, label } = body;
   if (!coin || !target_price || !direction)
     return NextResponse.json({ error: 'coin, target_price, direction required' }, { status: 400 });
+  /* AN ALERT ON A COIN THE CRON DOES NOT PRICE CAN NEVER FIRE. The alert cron reads prices from the curated maps
+     (COINS: fetchSpotPrices and bybitMarketForCoin in app/api/telegram/alert/route.ts), so for any other coin the
+     price is unknown and the alert sits armed forever. Creation used to accept any string, which let the Arena save
+     one for a coin it offers but the cron never reads - a silent failure, the same shape as the free-tier case above.
+     Refused here with the reason, and the Arena disables the button with the same sentence. EXACT membership: the
+     cron looks the coin up by its id as stored, so a differently-cased id would also never fire. */
+  if (typeof coin !== 'string' || !(COINS as string[]).includes(coin)) {
+    return NextResponse.json({ error: 'COIN_NOT_COVERED', message: 'Price alerts cover the main coins only.' }, { status: 400 });
+  }
   // #1632 M9: the same limits the database enforces (migration 20261021e), said first so the user gets a clear message.
   if (label != null && (typeof label !== 'string' || label.length > TEXT_LIMITS.alertLabel)) {
     return NextResponse.json({ error: 'TOO_LONG', message: `The note can be at most ${TEXT_LIMITS.alertLabel} characters.` }, { status: 400 });

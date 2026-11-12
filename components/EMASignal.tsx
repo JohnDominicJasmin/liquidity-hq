@@ -1,6 +1,7 @@
 'use client';
 import { StrategySignal, StrategyVerdict, SIGNAL_OLD_BARS } from '@/lib/useEMAStrategy';
 import { CoinId } from '@/lib/marketStore';
+import { currencyPrefix } from '@/lib/coins';
 import { ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtestEngine';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -45,7 +46,7 @@ function buildSignalPrompt(signal: StrategySignal, coin: CoinId, tf: string, cfg
     ...failing.map(c  => `  ✗ ${c.label}: ${c.detail}`),
   ].join('\n');
   const sltp = signal.sl && signal.tp
-    ? `Stop loss: $${fmt(signal.sl)} · Take profit: $${fmt(signal.tp)}`
+    ? `Stop loss: ${currencyPrefix(coin)}${fmt(signal.sl)} · Take profit: ${currencyPrefix(coin)}${fmt(signal.tp)}`
     : '';
 
   return [
@@ -81,7 +82,7 @@ function buildConditionPrompt(label: string, pass: boolean | null, detail: strin
   ].join('\n');
 }
 
-interface Props { signal: StrategySignal; tf?: string; coin?: CoinId }
+interface Props { signal: StrategySignal; tf?: string; coin?: CoinId; aboveCeiling?: boolean }
 
 /* The signal coin gate's locked state (lib/signalCoinGate.ts): in place of the verdict, the checklist and the levels. */
 function LockedSignal({ lock }: { lock: 'signed_out' | 'free' }) {
@@ -98,8 +99,25 @@ function LockedSignal({ lock }: { lock: 'signed_out' | 'free' }) {
   );
 }
 
-export default function EMASignal({ signal, tf = '4h', coin }: Props) {
+export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = false }: Props) {
   const { t } = useLabels();
+
+  /* ABOVE THE ANALYSIS CEILING (#1263): the chart is on a weekly or monthly timeframe, which the EMA
+     signal, the AI read and Draw Structure do not operate at (owner's scope: those stay <= 1d). The
+     panel says so rather than showing a 1d verdict under a weekly chart - the same honesty the rest
+     of this page applies to a reading it does not have. Literal English, matching this component's
+     other static chrome ("EMA Ribbon Strategy", "Fast avg") which is not translated either. Placed
+     before every other branch because none of them apply at this timeframe. */
+  if (aboveCeiling) {
+    return (
+      <div data-testid="signal-above-ceiling" style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 10, padding: '12px 14px', marginBottom: 10 }}>
+        <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>EMA Ribbon Strategy</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.5 }}>
+          {t('EMA_SIGNAL_ABOVE_CEILING', { tf: tf.toUpperCase() })}
+        </div>
+      </div>
+    );
+  }
   const v   = signal.verdict;
   const isSetup = v === 'LONG_SETUP' || v === 'SHORT_SETUP';
   // Downgrade the badge instead of the entry itself - testing showed that filtering
@@ -121,9 +139,9 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 8 }}>EMA Ribbon Strategy</div>
         <LockedSignal lock={signal.signalLock} />
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10 }}>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: 'var(--amber)' }}>${fmt(signal.ema9_4h)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: 'var(--accent-2)' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: 'var(--txt2)' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: 'var(--amber)' }}>{currencyPrefix(coin)}{fmt(signal.ema9_4h)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: 'var(--accent-2)' }}>{currencyPrefix(coin)}{fmt(signal.ema20_4h ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: 'var(--txt2)' }}>{currencyPrefix(coin)}{fmt(signal.ema50_4h ?? null)}</b></span>
         </div>
       </div>
     );
@@ -242,6 +260,21 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
       )}
 
+      {/* MARKERS, SEPARATELY FROM THE VERDICT (#1263/#985). Keyed on markersFilteredBySelection, NOT
+          selectionLabel: an RSI-only selection sets a label (RSI is weighed in the read) but filters
+          no markers (RSI is advisory and never participates), so keying this on the label would claim
+          a filtering that did not happen. Says the same thing the chart caption does, from the panel. */}
+      {!signal.loading && signal.verdict !== 'LOADING' && signal.markersFilteredBySelection && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 'var(--fs-micro)', color: 'var(--txt2)',
+          marginBottom: 10, lineHeight: 1.4,
+        }}>
+          <span aria-hidden style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--txt3)', flexShrink: 0 }} />
+          <span>The chart&apos;s BUY/SELL markers show only the bars where your selected indicators agree with the ribbon.</span>
+        </div>
+      )}
+
       {/* Conditions grid - each chip clickable to explain */}
       {signal.conditions.length > 0 && (
         <div style={{
@@ -314,7 +347,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         }}>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginRight: 4 }}>Levels:</span>
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--red)' }}>
-            SL ${fmt(signal.sl)}
+            SL {currencyPrefix(coin)}{fmt(signal.sl)}
           </span>
           <span style={{ fontSize: '0.6875rem', color: 'var(--txt-dim)' }}>·</span>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
@@ -322,7 +355,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           </span>
           <span style={{ fontSize: '0.6875rem', color: 'var(--txt-dim)' }}>·</span>
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--green-2)' }}>
-            TP ${fmt(signal.tp)} (2:1)
+            TP {currencyPrefix(coin)}{fmt(signal.tp)} (2:1)
           </span>
         </div>
       )}
@@ -335,8 +368,8 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           paddingTop: 8,
           borderTop: '0.5px solid var(--bdr)',
         }}>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: 'var(--amber)' }}>${fmt(signal.ema9_4h)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: 'var(--accent-2)' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: 'var(--amber)' }}>{currencyPrefix(coin)}{fmt(signal.ema9_4h)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: 'var(--accent-2)' }}>{currencyPrefix(coin)}{fmt(signal.ema20_4h ?? null)}</b></span>
           {/* --txt2, not #f97316 (#638). This was the only literal in a row
               whose three siblings all use tokens, and a literal chosen against
               a dark ground: it measures 2.59:1 on terminal light and fails in
@@ -349,8 +382,8 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
               border-weight grey that fails as text on dark, and there is no
               governed orange in the terminal palette at all - #614 established
               that. */}
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: 'var(--txt2)' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Daily trend <b style={{ color: 'var(--accent)' }}>${fmt(signal.sma200_1d ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: 'var(--txt2)' }}>{currencyPrefix(coin)}{fmt(signal.ema50_4h ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Daily trend <b style={{ color: 'var(--accent)' }}>{currencyPrefix(coin)}{fmt(signal.sma200_1d ?? null)}</b></span>
         </div>
       )}
 

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, BILLED_CALLS_READY, BILLED_CALLS_SKIP_REASON } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
+import { chip } from './_shared';
 
 /* #1348 item 1 (from #1347's audit) - the audit's headline target.
  *
@@ -36,7 +37,7 @@ import { installPaidAiFence } from './_no-paid-ai';
  * inspect output already in hand instead of reading it), reported as such
  * rather than folded into "the authorised check." All four post-fix
  * calls: clean negative, both required assertions (names SMA, does not
- * name EMA Ribbon) satisfied every time.
+ * name MACD) satisfied every time.
  *
  * METHODOLOGY: click QUICK once (selection A, lets the first call complete
  * so the button re-enables - #1338's guard requires this), THEN change the
@@ -89,9 +90,9 @@ test.describe('QUICK/DEEP must send the selection current at click time, not a s
 
       await page.goto('/arena');
 
-      // Enter custom indicator mode and select EMA Ribbon first.
+      // Enter custom indicator mode and select MACD first.
       await page.locator('select.strat-sel').selectOption('custom');
-      const emaChip = page.locator('button.strat-chip', { hasText: 'EMA Ribbon' });
+      const emaChip = chip(page, 'MACD');
       await emaChip.click();
       await expect(emaChip).toHaveAttribute('aria-pressed', 'true');
 
@@ -99,7 +100,7 @@ test.describe('QUICK/DEEP must send the selection current at click time, not a s
       const deepBtn  = page.getByRole('button', { name: 'DEEP', exact: true });
       await expect(quickBtn).toBeVisible({ timeout: 15_000 });
 
-      // Call #1 (real AI credit #1) - selection A (EMA Ribbon), mode 'quick'.
+      // Call #1 (real AI credit #1) - selection A (MACD), mode 'quick'.
       await quickBtn.click();
       await expect.poll(() => grokRequestBodies.length, {
         message: 'first QUICK click never reached /api/grok',
@@ -110,8 +111,8 @@ test.describe('QUICK/DEEP must send the selection current at click time, not a s
       // Switch selection to B (SMA) and fire immediately - no wait, no
       // intervening navigation - the whole point is to land inside the
       // window before any of readMarket's other dependencies refresh it.
-      await emaChip.click(); // deselect EMA Ribbon
-      const smaChip = page.locator('button.strat-chip', { hasText: 'SMA' });
+      await emaChip.click(); // deselect MACD
+      const smaChip = chip(page, 'SMA');
       await smaChip.click(); // select SMA
       await expect(smaChip).toHaveAttribute('aria-pressed', 'true');
 
@@ -129,33 +130,30 @@ test.describe('QUICK/DEEP must send the selection current at click time, not a s
         timeout: 30_000,
       }).toBe(2);
 
-      // Scoped to the "weighing these indicators" SENTENCE specifically
-      // (app/arena/page.tsx:1425's own text), not the whole prompt body -
-      // "EMA Ribbon Strategy: ..." also appears unconditionally in every
-      // prompt's standard technicals section (readMarket's own chartData
-      // summary), regardless of selection. Matching that section would
-      // false-positive "still weighing EMA Ribbon" on a run that never
-      // selected it at all. First run of this exact regex made that mistake
-      // - fixed here without re-running, to avoid spending another billed
-      // call just to correct a matching pattern.
-      const secondPrompt = grokRequestBodies[1];
-      const weighSentenceMatch = secondPrompt.match(/weigh these indicators:\s*([^.\\]*)\./);
-      const weighSentence = weighSentenceMatch?.[1] ?? '(no "weighing these indicators" sentence found at all)';
+      /* THE SELECTION IS READ FROM THE REQUEST'S DATA, NOT FROM A PROMPT SENTENCE. This cell used to regex a
+         "weigh these indicators: ..." sentence out of the posted body. Since #1631 item 5 the browser sends data
+         (`{ context, chart, type, selection }`) and the server builds the prompt, so that sentence is no longer in
+         the body at all - the old read would have found nothing and reported "no sentence found". The same claim
+         (the DEEP call carries the selection current at click time, not the one from the first click) is now
+         asserted on the `selection` array the client posts. The first call went out with MACD selected; the
+         second, after switching to SMA, must name SMA and must not still name MACD. */
+      const secondBody = JSON.parse(grokRequestBodies[1]) as { selection?: unknown };
+      const sent = Array.isArray(secondBody.selection) ? (secondBody.selection as unknown[]).map(String) : [];
 
       test.info().annotations.push({
         type: 'result',
-        description: `weighing-sentence content: "${weighSentence}". ` +
-          (weighSentence.includes('SMA') && !weighSentence.includes('EMA')
-            ? 'CLEAN NEGATIVE: the DEEP call correctly named the new selection (SMA) in the indicator-weighting sentence - downgrades item 1 from confirmed-live-defect to latent-hazard for THIS run. The static defect (readMarket\'s missing dependency) still stands; this attempt did not catch it in the act.'
-            : weighSentence.includes('EMA')
-              ? 'CONFIRMED LIVE DEFECT: the DEEP call still named the pre-switch selection (EMA Ribbon) in the weighting sentence.'
-              : 'INCONCLUSIVE: the weighting sentence named neither - inspect manually.'),
+        description: `selection sent with the DEEP call: ${JSON.stringify(sent)}. ` +
+          (sent.includes('SMA') && !sent.includes('MACD')
+            ? 'CLEAN NEGATIVE: the DEEP call carried the new selection (SMA), not the pre-switch one (MACD) - latent hazard only for THIS run.'
+            : sent.includes('MACD')
+              ? 'CONFIRMED LIVE DEFECT: the DEEP call still carried the pre-switch selection (MACD).'
+              : 'INCONCLUSIVE: the posted selection named neither - inspect manually.'),
       });
 
-      expect(weighSentence, 'the DEEP call\'s "weighing these indicators" sentence, sent immediately after switching from EMA Ribbon to SMA, must name SMA - not the pre-switch EMA Ribbon selection, and not the always-present "EMA Ribbon Strategy" technicals section elsewhere in the prompt (#1348 item 1)')
+      expect(sent, 'the DEEP call\'s posted selection, sent immediately after switching from MACD to SMA, must name SMA')
         .toContain('SMA');
-      expect(weighSentence, 'the weighting sentence must not still name the pre-switch EMA Ribbon selection')
-        .not.toContain('EMA');
+      expect(sent, 'the DEEP call\'s posted selection must not still name the pre-switch MACD selection')
+        .not.toContain('MACD');
     } finally {
       await ctx.close();
     }

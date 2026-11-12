@@ -123,6 +123,9 @@ export interface SettingsContextValue {
   // again to the same newer write).
   saveStatus: 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
   update:     (partial: Partial<UserSettings>) => void;
+  // Save and wait (#1113): like update(), but flushes now and resolves true only once the server accepted the save
+  // (false when every attempt failed). For a caller that must not move on until the write has landed.
+  saveNow:    (partial: Partial<UserSettings>) => Promise<boolean>;
   // Re-read the saved row from the server. Needed by flows where the SERVER,
   // not this client, writes the value: connecting Telegram is finished by the
   // bot webhook (see app/api/telegram/webhook/route.ts), so the page has no
@@ -143,6 +146,7 @@ export const SettingsContext = createContext<SettingsContextValue>({
   settingsLoadStatus: 'loading',
   saveStatus: 'idle',
   update:     () => {},
+  saveNow:    async () => false,
   refresh:    async () => {},
   retrySave:  () => {},
 });

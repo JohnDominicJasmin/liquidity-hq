@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { CoinId, venueSymbols } from './marketStore.ts';
 import { OKX_SYMS } from './coins.ts';
 import { okxBarForBinanceInterval } from './okx.ts';
-import { symbolDenominationFactor } from './coins.ts';
+import { symbolDenominationFactor, currencyPrefix } from './coins.ts';
 import { fundingDetail } from './fundingDetail.ts';
 import {
   emaArr, smaArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
@@ -66,6 +66,14 @@ export interface StrategySignal {
      `pendingSetup` is the same signal as text under the chart. */
   signalLongs:  Array<{ timestamp: number; anchorPrice: number; pending: boolean }>;
   signalShorts: Array<{ timestamp: number; anchorPrice: number; pending: boolean }>;
+  /* #985/#1263: true when a selected indicator filtered the chart markers this render - at least
+     one marker-participating indicator (SMA, Bollinger, PSAR, MACD; RSI is advisory and never
+     filters) is selected, so `signalLongs`/`signalShorts` below are the base signals MINUS the
+     bars where a chosen indicator disagreed with the ribbon's direction. False for an empty or
+     RSI-only selection, where the arrays are the unfiltered base signal. The chart and the panel
+     read this to say the markers are filtered by the trader's choice rather than leaving a marker
+     silently absent. */
+  markersFilteredBySelection: boolean;
   pendingSetup: { dir: 'long' | 'short'; held: number; need: number } | null;
   /* The signal coin gate (lib/signalCoinGate.ts). Set by gateSignal() when this coin's signals are locked on the viewer's plan.
      `lockedMarkers` are where signals WERE, with no direction: always the candle's high, so a marker's position says nothing. */
@@ -101,6 +109,15 @@ export interface StrategySignal {
   // LiquidityAI already use. Naming the selection is not the same claim as
   // the call having moved - see verdictChangedBySelection below for that.
   selectionLabel: string | null;
+  /* #1631: the LATEST VALUE of each SELECTED indicator that has one this render, as factual text
+     for the AI read - SMA mean, Bollinger mid/upper/lower, PSAR value and side, MACD DIF/DEA, RSI.
+     Only value-bearing selected indicators appear (a warm-up bar with no value is omitted, never
+     sent as a guess), so this list IS "the indicators whose values are sent to the read". The read
+     prompt's weighting instruction points at this block and names nothing outside it, so an
+     indicator the trader picked but that has no value here is not one the model is told to weigh
+     (owner: never sell inaccurate data). Rides the emaStrategy ctx key via strategyToGrokLine - no
+     new context key, same server-side cap and sanitising in lib/arenaContext.ts. */
+  selectedReadings: Array<{ id: string; text: string }>;
   // #997/SMA (second indicator): true only when a gating indicator (SMA
   // today) actually downgraded a SETUP to its matching TRENDING state THIS
   // render - not "a gating-capable indicator is selected", which could be
@@ -246,13 +263,14 @@ export const STRATEGY_LOADING: StrategySignal = {
   volMA20: null, lastVol: null, priceInValueZone: false,
   sl: null, tp: null, loading: true, error: null,
   signalTimestamp: null, signalAnchorPrice: null, signalDir: null, signalBarsAgo: null,
-  signalLongs: [], signalShorts: [], pendingSetup: null, lockedMarkers: [], signalLock: null, counterTrend: false,
+  signalLongs: [], signalShorts: [], markersFilteredBySelection: false, pendingSetup: null, lockedMarkers: [], signalLock: null, counterTrend: false,
   atrLast: null, ema50Slope: null,
   chopIndex: null, chopRegime: null,
   reversalWarnings: [],
   recentStats: null,
   weakEdge: false,
   selectionLabel: null,
+  selectedReadings: [],
   verdictChangedBySelection: false,
 };
 
@@ -579,6 +597,33 @@ export function useEMAStrategy(
         const rsiSelected = selection.includes('RSI');
         const rsiLast = rsiSelected ? rsiArr(cl4, 14).at(-1) : undefined;
 
+        /* THE SELECTED INDICATORS' LATEST VALUES, FOR THE AI READ (#1631). Built from the same
+           latest-bar values the verdict gate above already computed - a value-bearing selected
+           indicator is one that both was picked and has a finite reading this render. A warm-up bar
+           (no value yet) is OMITTED, never sent as a guess: the read must not be told to weigh a
+           number we do not have. bollingerBandsArr returns {mid, up, dn} (not upper/lower) and its
+           elements can be null, hence the field names and the null guards. price is this bar's close. */
+        const fvNum = (n: number) => n.toLocaleString('en-US', { maximumSignificantDigits: 6 });
+        const selectedReadings: Array<{ id: string; text: string }> = [];
+        if (smaSelected && smaLast != null && isFinite(smaLast)) {
+          selectedReadings.push({ id: 'SMA', text: `SMA(12) ${fvNum(smaLast)}, price ${price >= smaLast ? 'above' : 'below'}` });
+        }
+        if (bollSelected && bollLast != null) {
+          const pos = price > bollLast.up ? 'above the upper band'
+            : price < bollLast.dn ? 'below the lower band'
+            : price >= bollLast.mid ? 'between mid and upper' : 'between lower and mid';
+          selectedReadings.push({ id: 'BOLL', text: `Bollinger(20,2) mid ${fvNum(bollLast.mid)} upper ${fvNum(bollLast.up)} lower ${fvNum(bollLast.dn)}, price ${pos}` });
+        }
+        if (psarSelected && psarLast != null && isFinite(psarLast)) {
+          selectedReadings.push({ id: 'SAR', text: `PSAR ${fvNum(psarLast)}, dot ${psarLast < price ? 'below price (bullish)' : 'above price (bearish)'}` });
+        }
+        if (macdSelected && macdLast != null && isFinite(macdLast.dif) && isFinite(macdLast.dea)) {
+          selectedReadings.push({ id: 'MACD', text: `MACD DIF ${fvNum(macdLast.dif)} / DEA ${fvNum(macdLast.dea)}, DIF ${macdLast.dif >= macdLast.dea ? 'above (bullish)' : 'below (bearish)'} DEA` });
+        }
+        /* NO RSI READING (#1263): RSI is a chart layer now, not a selectable indicator, so `selection`
+           never contains it and a reading here would be dead. `rsiSelected`/`rsiLast` stay - the RSI
+           advisory CONDITION below still uses them (it can never move the verdict, see :109). */
+
         // SL / TP (0.5% buffer beyond 50 EMA)
         const BUF = 0.005;
         let sl: number | null = null;
@@ -593,6 +638,8 @@ export function useEMAStrategy(
 
         // Conditions checklist
         const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+        /* "$" for dollars, "HK$" for a Hong Kong dollar row - see currencyPrefix in lib/coins.ts. */
+        const cur = currencyPrefix(coin);
         const conditions: StrategyCondition[] = [
           {
             label: '200 SMA Filter (Daily)',
@@ -600,8 +647,8 @@ export function useEMAStrategy(
             detail: !have200D
               ? 'Insufficient daily history - ribbon used as trend proxy'
               : above200D
-                ? `Price $${fmt(priceD)} above Daily 200 SMA $${sma200 !== null ? fmt(sma200) : '-'} - ${counterTrend ? 'against a short' : 'favours longs'}`
-                : `Price $${fmt(priceD)} below Daily 200 SMA $${sma200 !== null ? fmt(sma200) : '-'} - ${counterTrend ? 'against a long' : 'favours shorts'}`,
+                ? `Price ${cur}${fmt(priceD)} above Daily 200 SMA ${cur}${sma200 !== null ? fmt(sma200) : '-'} - ${counterTrend ? 'against a short' : 'favours longs'}`
+                : `Price ${cur}${fmt(priceD)} below Daily 200 SMA ${cur}${sma200 !== null ? fmt(sma200) : '-'} - ${counterTrend ? 'against a long' : 'favours shorts'}`,
           },
           ...(counterTrend ? [{
             label: 'Counter-trend',
@@ -634,11 +681,11 @@ export function useEMAStrategy(
             pass:  judgeLong ? price > ema50 : price < ema50,
             detail: judgeLong
               ? (price > ema50
-                ? `Close $${fmt(price)} above EMA50 $${fmt(ema50)} - long entry confirmed`
-                : `Close $${fmt(price)} below EMA50 $${fmt(ema50)} - wait for candle close above EMA 50`)
+                ? `Close ${cur}${fmt(price)} above EMA50 ${cur}${fmt(ema50)} - long entry confirmed`
+                : `Close ${cur}${fmt(price)} below EMA50 ${cur}${fmt(ema50)} - wait for candle close above EMA 50`)
               : (price < ema50
-                ? `Close $${fmt(price)} below EMA50 $${fmt(ema50)} - short entry confirmed`
-                : `Close $${fmt(price)} above EMA50 $${fmt(ema50)} - wait for candle close below EMA 50`),
+                ? `Close ${cur}${fmt(price)} below EMA50 ${cur}${fmt(ema50)} - short entry confirmed`
+                : `Close ${cur}${fmt(price)} above EMA50 ${cur}${fmt(ema50)} - wait for candle close below EMA 50`),
           },
           {
             label: 'Price in Value Zone',
@@ -816,9 +863,48 @@ export function useEMAStrategy(
         // 2-step arm/confirm, ATR buffer, EMA50 slope, ribbon spread, whipsaw persistence,
         // and strict buy/sell alternation.
         const detected = detectEMASignals(cRibbon, tf, filterParams);
-        const signalLongs  = detected.signalLongs.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
-        const signalShorts = detected.signalShorts.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
-        const pendingSetup  = pendingSetupOf([...detected.signalLongs, ...detected.signalShorts]);
+
+        /* EVERY SELECTED INDICATOR TAKES PART IN THE MARKERS (#985 gap, owner 2026-11-12: changing an
+           indicator updates the buy/sell markers live). A marker survives only where ALL selected
+           marker-participating indicators AGREE with its direction AT ITS OWN BAR - the same per-bar
+           tests the verdict gate above uses on the latest bar, lifted to each marker's `armIndex`.
+
+           ALIGNMENT: `armIndex` indexes `cRibbon`, and `cl4 = cRibbon.map(c => c.close)` (line ~355),
+           so `cl4[i]`, `cRibbon[i]` and every series below share one index - checked, not assumed,
+           because a series on a different candle array indexed by this `armIndex` would hide the
+           wrong markers and look like data.
+
+           RSI DOES NOT PARTICIPATE: it is advisory everywhere else in this hook (its gate can never
+           move the verdict, see :109) and the approved panel moves it to the always-on chart layers,
+           so it is not one of the four here. A MISSING value at a bar does not disagree - it hides
+           nothing - matching the `isFinite`/null guards the verdict gate already uses, and keeping a
+           warm-up bar from silently emptying the early chart. An EMPTY (or RSI-only) selection filters
+           nothing: the base markers, unchanged - which is also what Telegram/push fire on, since the
+           alert route builds its own signal server-side and never sees the selection. */
+        const smaSeries  = smaSelected  ? smaArr(cl4, 12)             : null;
+        const bollSeries = bollSelected ? bollingerBandsArr(cl4, 20, 2) : null;
+        const psarSeries = psarSelected ? psarArr(cRibbon, 0.02, 0.02, 0.2) : null;
+        const macdSeries = macdSelected ? macdArr(cl4, 12, 26, 9)     : null;
+        const markersFilteredBySelection = smaSelected || bollSelected || psarSelected || macdSelected;
+        const markerAgrees = (i: number, dir: 'long' | 'short'): boolean => {
+          if (smaSeries) { const v = smaSeries[i]; if (v != null && isFinite(v) && (dir === 'long' ? cl4[i] <= v : cl4[i] >= v)) return false; }
+          if (bollSeries) { const b = bollSeries[i]; if (b != null && (dir === 'long' ? cl4[i] <= b.mid : cl4[i] >= b.mid)) return false; }
+          if (psarSeries) { const p = psarSeries[i]; if (p != null && isFinite(p) && (dir === 'long' ? cl4[i] <= p : cl4[i] >= p)) return false; }
+          if (macdSeries) { const m = macdSeries[i]; if (m != null && isFinite(m.dif) && isFinite(m.dea) && (dir === 'long' ? m.dif <= m.dea : m.dif >= m.dea)) return false; }
+          return true;
+        };
+        const keepLong  = (s: { armIndex: number }) => !markersFilteredBySelection || markerAgrees(s.armIndex, 'long');
+        const keepShort = (s: { armIndex: number }) => !markersFilteredBySelection || markerAgrees(s.armIndex, 'short');
+        const keptLongs  = detected.signalLongs.filter(keepLong);
+        const keptShorts = detected.signalShorts.filter(keepShort);
+        const signalLongs  = keptLongs.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
+        const signalShorts = keptShorts.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
+        /* pendingSetup mirrors a LIVE marker, so it is derived from the FILTERED set: a pending setup
+           whose marker a selected indicator just removed must not linger as text under a chart that no
+           longer shows it. `lockedMarkers` and the recent record below stay on the BASE detection -
+           the lock is a plan-state artifact unrelated to the selection, and the record is the EMA
+           strategy's own track record, which must not lurch every time a chip is toggled. */
+        const pendingSetup  = pendingSetupOf([...keptLongs, ...keptShorts]);
         const lockedMarkers = [...detected.signalLongs, ...detected.signalShorts].map(s => ({ timestamp: s.timestamp, anchorPrice: cRibbon[s.armIndex].high }));
 
         // Recent record - confirmed signals only (pending have unreliable fillPrice at live edge)
@@ -859,12 +945,13 @@ export function useEMAStrategy(
           volMA20: volma20, lastVol, priceInValueZone: inValueZone,
           sl, tp, loading: false, error: null,
           signalTimestamp, signalAnchorPrice, signalDir, signalBarsAgo,
-          signalLongs, signalShorts, pendingSetup, lockedMarkers, counterTrend,
+          signalLongs, signalShorts, markersFilteredBySelection, pendingSetup, lockedMarkers, counterTrend,
           chopIndex, chopRegime,
           reversalWarnings,
           atrLast, ema50Slope,
           recentStats, weakEdge,
           selectionLabel: describeSelection(selection),
+          selectedReadings,
           verdictChangedBySelection,
         });
     } catch (err) {
@@ -1022,5 +1109,12 @@ export function strategyToGrokLine(sig: StrategySignal, tf = '4h'): string {
     : sig.signalBarsAgo >= SIGNAL_OLD_BARS
     ? ` · last ${sig.signalDir ?? ''} signal ${sig.signalBarsAgo} bars ago - OLD, treat as context not a current call`
     : ` · last ${sig.signalDir ?? ''} signal ${sig.signalBarsAgo} bars ago`;
-  return `[${tf.toUpperCase()} ribbon + 1D SMA200 filter] ${sig.verdict} · ${sig.phase}${counter} · ${condStr}${sltp}${age}`;
+  /* #1631: the selected indicators' latest values ride HERE, on the emaStrategy ctx line, so they
+     reach the read with no new context key and the same server-side cap + sanitising. Only
+     value-bearing selected indicators are in the list (see StrategySignal.selectedReadings), which
+     is what lets buildArenaPrompt tell the model to weigh ONLY these and nothing it has no value for. */
+  const readings = sig.selectedReadings.length
+    ? ` · selected indicator readings — ${sig.selectedReadings.map(r => r.text).join('; ')}`
+    : '';
+  return `[${tf.toUpperCase()} ribbon + 1D SMA200 filter] ${sig.verdict} · ${sig.phase}${counter} · ${condStr}${sltp}${age}${readings}`;
 }

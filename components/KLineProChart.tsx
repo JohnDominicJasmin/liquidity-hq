@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { COIN_DEC, CoinId, useMarket, computeSqueezeScore, venueSymbols } from '@/lib/marketStore';
-import { chartDisplaySymbol } from '@/lib/coins';
+import { liftClearOfLevels } from '@/lib/chartLabelOffsets';
+import { chartDisplaySymbol, currencyPrefix } from '@/lib/coins';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
@@ -22,7 +23,13 @@ import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
 
-const TF_TO_PERIOD: Record<string, Period> = {
+/* TOTAL OVER ChartTf, NOT Record<string, Period> (#1263).
+ *
+ * This was keyed by `string`, so adding a timeframe to `ChartTf` and forgetting a row here was not a
+ * compile error - it was `undefined` reaching klinecharts. Typed as a total Record, the type system is
+ * what guarantees every chart timeframe has a period, and that in turn is what makes the two
+ * converters below exhaustive: the only Periods this chart ever constructs are the values here. */
+const TF_TO_PERIOD: Record<ChartTf, Period> = {
   '1m':  { type: 'minute', span: 1  },
   '5m':  { type: 'minute', span: 5  },
   '15m': { type: 'minute', span: 15 },
@@ -31,20 +38,45 @@ const TF_TO_PERIOD: Record<string, Period> = {
   '2h':  { type: 'hour',   span: 2  },
   '4h':  { type: 'hour',   span: 4  },
   '1d':  { type: 'day',    span: 1  },
+  '1w':  { type: 'week',   span: 1  },
+  '1M':  { type: 'month',  span: 1  },
 };
 
+/* THE FALL-THROUGH USED TO BE A 15-MINUTE DEFAULT, AND IT WAS A FAIL-OPEN (#1263).
+ *
+ * `periodToBybitInterval` handled minute/hour/day and then `return '15'`; `periodToBnInterval` also
+ * handled week and then `return '15m'`. So a MONTHLY period asked both venues for 15-MINUTE candles,
+ * and the chart drew them under a monthly label - correct-looking candles at the wrong interval, which
+ * no gate can see and which a reader cannot tell from real data. Six call sites inherited it, the
+ * scroll-back pages among them.
+ *
+ * Exhaustive now, and the default THROWS rather than guessing. It is unreachable while TF_TO_PERIOD
+ * above is a total `Record<ChartTf, Period>`, because that map is the only place this component
+ * constructs a Period - so the throw is a tripwire for a future type change, not a runtime path. A
+ * thrown error surfaces as a failed history load, which says something is wrong; a 15-minute candle
+ * labelled 1M says nothing at all.
+ *
+ * `PeriodType` also has 'second' and 'year' (node_modules/klinecharts/dist/index.d.ts:479). Neither is
+ * in TF_TO_PERIOD, so neither can arrive here, and neither is guessed at. */
 function periodToBnInterval(p: Period): string {
-  if (p.type === 'minute') return `${p.span}m`;
-  if (p.type === 'hour')   return `${p.span}h`;
-  if (p.type === 'day')    return `${p.span}d`;
-  if (p.type === 'week')   return `${p.span}w`;
-  return '15m';
+  switch (p.type) {
+    case 'minute': return `${p.span}m`;
+    case 'hour':   return `${p.span}h`;
+    case 'day':    return `${p.span}d`;
+    case 'week':   return `${p.span}w`;
+    case 'month':  return `${p.span}M`;
+    default:       throw new Error(`periodToBnInterval: no Binance interval for ${p.type}/${p.span}`);
+  }
 }
 function periodToBybitInterval(p: Period): string {
-  if (p.type === 'minute') return String(p.span);
-  if (p.type === 'hour')   return String(p.span * 60);
-  if (p.type === 'day')    return 'D';
-  return '15';
+  switch (p.type) {
+    case 'minute': return String(p.span);
+    case 'hour':   return String(p.span * 60);
+    case 'day':    return 'D';
+    case 'week':   return 'W';
+    case 'month':  return 'M';
+    default:       throw new Error(`periodToBybitInterval: no Bybit interval for ${p.type}/${p.span}`);
+  }
 }
 
 // ── Drawing tools ─────────────────────────────────────────────────────────
@@ -270,6 +302,9 @@ const OVERLAY_INK = {
     markerFill:  'rgba(245,158,11,0.1)',
     markerCore:  '#fcd34d',   // --amber-2, dark
     chevron:     '#fde68a',   // 16.86
+    structLabel:       '#e8e9ea',  // chip text, dark: 13.9:1 on #16191b (#1263)
+    structLabelBg:     '#16191b',  // the chart's own crosshair-label ground, dark
+    structLabelBorder: '#3a3f45',  // a quiet border, not klinecharts' #1677FF
   },
   light: {
     alertLine:   '#8F4508',   // 5.76 on #E8EAED
@@ -278,6 +313,9 @@ const OVERLAY_INK = {
     markerFill:  'rgba(124,45,18,0.10)',
     markerCore:  '#92400E',   // --amber-2, light
     chevron:     '#7c2d12',   // 7.77
+    structLabel:       '#1A1916',  // chip text, light: 13.3:1 on #E8EAED (#1263)
+    structLabelBg:     '#E8EAED',  // the chart's own light ground
+    structLabelBorder: '#B9BDC4',  // a quiet border, not klinecharts' #1677FF
   },
 } as const;
 
@@ -304,7 +342,14 @@ function paletteFor(dark: boolean): Record<string, unknown> {
 
 // ── Component ─────────────────────────────────────────────────────────────
 
-export type ChartTf = '1m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '1d';
+/* WEEKLY AND MONTHLY ADDED 2026-11-12 (#1263, owner request). 6M and 1Y were considered and are NOT
+   approved - do not add them here.
+
+   ADDING ONE IS NOT A ONE-LINE CHANGE, and the compiler says so: `lib/limits.ts` asserts CHART_TFS and
+   this type are exactly equal, TF_TO_PERIOD above is a total Record over it, and ARENA_TFS (the
+   analysis timeframes, <= 1d) is asserted to be a SUBSET. The last of those is the one that carries
+   the design: the chart may offer a timeframe the AI read, the EMA panel and Draw Structure do not. */
+export type ChartTf = '1m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '1d' | '1w' | '1M';
 
 export interface ChartAlert {
   id:           string;
@@ -373,7 +418,7 @@ interface Props {
   indicatorParams?: Record<string, Record<string, string | number | boolean>>;
 }
 
-const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d'];
+const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d','1w','1M'];
 
 let emaSignalOverlayRegistered = false;
 let emaRibbonLineRegistered = false;
@@ -819,6 +864,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
   // ── Candle-close countdown ───────────────────────────────────────────
   useEffect(() => {
+    /* NO ROW FOR '1w' OR '1M', DELIBERATELY (#1263). The countdown below is `periodMs - (now % periodMs)`,
+       which assumes the interval divides the epoch. A week does not: `Date.now() % 604800000` counts from
+       the epoch's Thursday, not the venue's Monday weekly open, so a weekly countdown would be confidently
+       several days wrong. A month has no fixed length at all. `if (!periodMs) return` below leaves the
+       countdown absent on both, which is the same reason `intervalToMs` in lib/candles.ts returns null for
+       W and M rather than computing a boundary it cannot know. */
     const MS: Record<string, number> = {
       '1m': 60_000, '5m': 300_000, '15m': 900_000, '30m': 1_800_000,
       '1h': 3_600_000, '2h': 7_200_000, '4h': 14_400_000, '1d': 86_400_000,
@@ -1097,11 +1148,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
            50px stalk and an arrowhead per annotation - that is a pointer, not a label, and four of
            them crowd the window it is trying to explain.
 
-           NO COLOUR AND NO STYLES, deliberately, for the same reason the segment itself sets none:
-           the chart's line ink differs per theme and a hardcoded colour here is how the last two
-           colour fixes regressed the other theme. A figure with no styles takes the chart's own
-           themed defaults, so this follows the theme by construction rather than by a pair of
-           values someone has to keep measured. */
+           STYLES ARE READ FROM overlayInk AT DRAW TIME (#1263). An earlier comment here claimed a
+           figure with no styles "takes the chart's own themed defaults, so this follows the theme by
+           construction" - wrong, and QA/PM caught it in two steps: klinecharts' `text()` figure is a
+           filled CHIP, defaulting to white text on a `#1677FF` ground with a `#1677FF` border. Setting
+           only `color` left the blue chip (and in light mode put dark text on it). So the chip's
+           background and border are set from overlayInk too, per theme, with the text at >=13:1 on its
+           ground in both - read at draw time exactly as the marker and alert overlays read overlayInk
+           (written by the theme-sync effect), so it still follows a theme flip on the next frame with
+           nothing to re-create, and it is now correct rather than accidentally blue. */
         (kc as any).registerOverlay({
           name: 'structureLabel',
           totalStep: 1,
@@ -1112,10 +1167,36 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const text = typeof overlay.extendData === 'string' ? overlay.extendData : '';
             if (!text || !coordinates.length) return [];
             /* Above and to the right of the line's start, so it does not sit on the line itself.
-               `baseline: 'bottom'` keeps it clear of the first candle the line touches. */
+               `baseline: 'bottom'` keeps it clear of the first candle the line touches.
+
+               PINNED TO x >= 6, AND y FOLLOWS THE SEGMENT TO THAT x (#1263, PM audit). A structure
+               line can START off the left edge - the swing it was drawn through scrolled out of view
+               - so `coordinates[0].x` is negative and the label ("... · 3 touches") was clipped off
+               the left. Clamping x to 6 pins it at the left edge like the sibling S/R labels. But the
+               y must move with it: holding the off-screen start's y floats the label at the wrong
+               height. With both endpoints now on this overlay, interpolate y along the segment at the
+               clamped x. A line that starts on-screen is unaffected (x + 4 is past 6, no clamp). */
+            const x0 = coordinates[0].x, y0 = coordinates[0].y;
+            const x = Math.max(6, x0 + 4);
+            let y = y0;
+            if (x > x0 + 4 && coordinates.length >= 2 && coordinates[1].x !== x0) {
+              const tt = (x - x0) / (coordinates[1].x - x0);
+              y = y0 + tt * (coordinates[1].y - y0);
+            }
+            /* THE BLUE WAS THE CHIP, NOT THE TEXT (#1263, PM audit). klinecharts' `text()` figure
+               defaults to a filled chip: white text on `#1677FF` with a `#1677FF` border. Setting
+               only `color` left that blue box, and in light mode put dark text on it - worse. So the
+               background and border are set from overlayInk too, per theme, with the text at >=13:1
+               on its ground in both. Read at draw time, so a theme flip is picked up on the next
+               frame with nothing to re-create. */
             return [{
               type: 'text',
-              attrs: { x: coordinates[0].x + 4, y: coordinates[0].y - 4, text, align: 'left', baseline: 'bottom' },
+              attrs: { x, y: y - 4, text, align: 'left', baseline: 'bottom' },
+              styles: {
+                color: overlayInk.structLabel, size: 10, weight: '700',
+                backgroundColor: overlayInk.structLabelBg, borderColor: overlayInk.structLabelBorder, borderSize: 1,
+                paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
+              },
             }];
           },
         });
@@ -1384,7 +1465,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               },
               {
                 type: 'text',
-                attrs: { x: rightX - 6, y: labelY, text: `${srType === 'resistance' ? 'R' : 'S'} $${fmtPx(price)}`, align: 'right', baseline: 'bottom' },
+                attrs: { x: rightX - 6, y: labelY, text: `${srType === 'resistance' ? 'R' : 'S'} ${currencyPrefix(coinRef.current)}${fmtPx(price)}`, align: 'right', baseline: 'bottom' },
                 // #598 D1 residual, QA pixel-sampled: no backgroundColor meant
                 // klinecharts filled the label with its own default primary
                 // (#1677ff) instead of anything from this file's palette -
@@ -1441,7 +1522,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               },
               {
                 type: 'text',
-                attrs: { x: 6, y: labelY, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
+                attrs: { x: 6, y: labelY, text: `${label} ${currencyPrefix(coinRef.current)}${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
                 styles: {
                   color: ink.text, size: 9, weight: '700',
                   paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
@@ -1561,7 +1642,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               },
               {
                 type: 'text',
-                attrs: { x: 6, y: y - 3, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
+                attrs: { x: 6, y: y - 3, text: `${label} ${currencyPrefix(coinRef.current)}${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
                 styles: { color, size: 10, weight: '700' },
               },
             ];
@@ -2624,7 +2705,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       .filter(l => Number.isFinite(l.price) && l.price > 0)
       .slice(0, LIQ_CLUSTER_LINES);
     const bands = mergeLiqBands(heaviest);
-    const labelOffsets = computeLabelOffsets(bands);
+    /* THE REALIZED TAG YIELDS TO A CLOSE S/R TAG (#1263). The two layers stack their own tags and never see each
+       other, so a band at nearly an S/R level's price was painted over it. S/R keeps its own offsets untouched;
+       only this tag lifts clear (see lib/chartLabelOffsets.ts). It follows the S/R layer only when that layer is
+       actually drawn. */
+    const bandOffsets = computeLabelOffsets(bands);
+    const labelOffsets = showSR && srLevels.length
+      ? liftClearOfLevels(bandOffsets, bands, srLevels, computeLabelOffsets(srLevels))
+      : bandOffsets;
     for (const b of bands) {
       const id = chart.createOverlay({
         name: 'liqClusterLine',
@@ -2635,7 +2723,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       } as OverlayCreate);
       if (typeof id === 'string') liqClusterIds.current.push(id);
     }
-  }, [liqClusters, showLiq, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [liqClusters, showLiq, chartReady, srLevels, showSR]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── The strategy selection's klinecharts indicators (#930) ─────────────────
    *
@@ -2825,6 +2913,34 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [dsNone, setDsNone] = useState(false);
   const proposalIds = useRef<string[]>([]);
 
+  /* THE DRAW STRUCTURE MENU HAS AN OPEN STATE (#1263). It used to render whenever there was something to
+     show - proposals, an error or "none" - and its only control was Clear, which also deletes the lines. So
+     after a read the menu covered the chart for good: Escape and a click elsewhere did nothing. The Draw menu
+     beside it already had the right shape (open flag, Escape, click-away), and this mirrors it.
+
+     THE LINES AND THE MENU ARE SEPARATE THINGS. Closing the menu never touches the overlays: they live in
+     PROPOSAL_GROUP and only `clearProposals` removes them. The menu opens by itself when a read finishes
+     (result, error or "none") and is closed by Escape or a click outside; the button reopens it while
+     proposals exist, WITHOUT a new request, so reopening spends no read.
+
+     `dsMenuShown` is what is actually on screen. The flag alone can be stale (Clear and the coin/timeframe
+     effect empty the content without touching it), and aria-expanded must describe the screen. */
+  const [dsMenuOpen, setDsMenuOpen] = useState(false);
+  const dsWrapRef = useRef<HTMLDivElement>(null);
+  const dsMenuShown = dsMenuOpen && (proposals.length > 0 || !!dsError || dsNone);
+  useEffect(() => {
+    if (!dsMenuShown) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setDsMenuOpen(false);
+      dsWrapRef.current?.querySelector<HTMLElement>('.klc-draw-btn')?.focus();
+    };
+    const onDown = (e: PointerEvent) => { if (!dsWrapRef.current?.contains(e.target as Node)) setDsMenuOpen(false); };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onDown);
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onDown); };
+  }, [dsMenuShown]);
+
   /* The two setState calls BAIL OUT when there is nothing to clear, returning the previous
      reference so React skips the re-render. This runs from an effect on every coin and
      timeframe change - which is most of what this chart does - and an unconditional
@@ -2933,7 +3049,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           name: 'structureLabel',
           groupId: PROPOSAL_GROUP,
           lock: true,
-          points: [{ timestamp: s.from.timestamp, value: s.from.price }],
+          /* BOTH endpoints (#1263, PM audit), not just `from`. The label is drawn at the line's
+             start, but when that start has scrolled off the left edge the label pins to x=6 and must
+             take the line's HEIGHT at x=6 - which needs the second point to interpolate along the
+             segment. With only `from`, the clamp kept the off-screen start's y and the label floated
+             at the wrong height. */
+          points: [
+            { timestamp: s.from.timestamp, value: s.from.price },
+            { timestamp: s.to.timestamp, value: s.to.price },
+          ],
           extendData: structureRowText(s),
         } as OverlayCreate);
         if (typeof labelId === 'string') ids.push(labelId);
@@ -2948,6 +3072,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       setDsError(tl('DRAW_STRUCTURE_FAILED'));
     } finally {
       setDsLoading(false);
+      /* Every way a read ends leaves something to show - lines, an error or "none" - so it opens on all of
+         them. If nothing is there the render condition keeps it shut anyway. */
+      setDsMenuOpen(true);
     }
   }, [tf, tl, dsLoading, clearProposals, structureRowText]);
   /* NO acceptProposal / dropProposal ANY MORE (owner, 2026-11-10). Keep/Discard is gone, so the
@@ -3077,7 +3204,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             menu's classes so this adds no CSS - globals.css is a landing-gated file and this
             needs none of it. */}
         {drawStructureAvailable(tf) && entitlementStatus === 'not_entitled' && onUnlock && (
-          <div className="klc-draw-wrap">
+          <div className="klc-draw-wrap klc-ds-wrap">
             {/* NEVER `requestStructures` ON THIS BRANCH. The server already refuses a Free
                 account, but a call that is certain to be refused is a wasted round trip and, on
                 the AI path, a wasted quota check - so this button only opens the upsell.
@@ -3088,7 +3215,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 that it is locked or what tapping does. The Lock icon itself carries aria-hidden,
                 so it contributes nothing - the name has to come from the label. */}
             <button
-              className="klc-tool-btn klc-draw-btn"
+              className="klc-tool-btn klc-draw-btn klc-ds-btn"
               onClick={onUnlock}
               aria-label={tl('DRAW_STRUCTURE_LOCKED_ARIA')}
               title={tl('DRAW_STRUCTURE_LOCKED_ARIA')}
@@ -3108,16 +3235,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         )}
 
         {drawStructureAvailable(tf) && entitlementStatus !== 'not_entitled' && (
-          <div className="klc-draw-wrap">
+          <div className="klc-draw-wrap klc-ds-wrap" ref={dsWrapRef}>
             <button
-              className={`klc-tool-btn klc-draw-btn${proposals.length ? ' on' : ''}`}
-              onClick={requestStructures}
+              className={`klc-tool-btn klc-draw-btn klc-ds-btn${proposals.length ? ' on' : ''}`}
+              /* WITH PROPOSALS ON THE CHART the button toggles the menu and makes NO request: the read is
+                 already paid for. With none, it requests exactly as it always did (also after an error or a
+                 "none" answer). To ask again with lines present, use Clear and then this button - the menu's
+                 own item, no new control. */
+              onClick={proposals.length > 0 ? () => setDsMenuOpen(v => !v) : requestStructures}
+              aria-expanded={dsMenuShown}
               disabled={dsLoading}
               title={tl('DRAW_STRUCTURE_BUTTON')}
             >
               {dsLoading ? tl('DRAW_STRUCTURE_LOADING') : tl('DRAW_STRUCTURE_BUTTON')}
             </button>
-            {(proposals.length > 0 || dsError || dsNone) && (
+            {dsMenuShown && (
               <div className="klc-draw-menu">
                 {dsError
                   ? <div className="klc-draw-item">{dsError}</div>
@@ -3157,7 +3289,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                           </div>
                         );
                       })}
-                      <button className="klc-draw-item klc-draw-clear" onClick={clearProposals}>
+                      <button className="klc-draw-item klc-draw-clear" onClick={() => { clearProposals(); setDsMenuOpen(false); }}>
                         {tl('DRAW_STRUCTURE_CLEAR')}
                       </button>
                     </>)}
@@ -3225,9 +3357,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 key={alert.id}
                 className="klc-price-chip"
                 style={{ color: 'var(--amber)', background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.2)', cursor: 'default' }}
-                title={`Alert: ${alert.direction} $${fmtPx(alert.target_price)}${alert.label ? ` · ${alert.label}` : ''} - drag the dashed line to adjust`}
+                title={`Alert: ${alert.direction} ${currencyPrefix(coin)}${fmtPx(alert.target_price)}${alert.label ? ` · ${alert.label}` : ''} - drag the dashed line to adjust`}
               >
-                {alert.direction === 'above' ? '↑' : '↓'} ${fmtPx(alert.target_price)}
+                {alert.direction === 'above' ? '↑' : '↓'} {currencyPrefix(coin)}{fmtPx(alert.target_price)}
                 {alert.label ? <>&nbsp;·&nbsp;{alert.label}</> : null}
               </span>
             ))}
@@ -3358,6 +3490,27 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             }}
           >
             Loading {loadingTf.toUpperCase()}&hellip;
+          </div>
+        )}
+        {/* THE CHART SAYS THE MARKERS ARE FILTERED (#1263/#985, owner 2026-11-12). When a selected
+            indicator is removing buy/sell markers, a reader must be told - a marker that silently
+            vanishes reads as "no signal here" rather than "your selection hid it". Hidden while a
+            timeframe loads so it never stacks with the loading label; top-left, clear of the
+            centre loading label and the price-anchored countdown. Reads the flag the EMA hook
+            sets, so it can never disagree with whether the markers were actually filtered. */}
+        {emaSignal?.markersFilteredBySelection && !loadingTf && (
+          <div
+            role="status"
+            aria-live="polite"
+            data-testid="chart-markers-filtered"
+            style={{
+              position: 'absolute', top: 10, left: 10,
+              padding: '3px 10px', borderRadius: 4, pointerEvents: 'none', whiteSpace: 'nowrap',
+              fontSize: 'var(--fs-caption)', fontWeight: 600, letterSpacing: '.02em',
+              color: 'var(--txt2)', background: 'var(--bg1)', border: '1px solid var(--bdr3)',
+            }}
+          >
+            Markers filtered by your selection
           </div>
         )}
         {/* Drag-to-resize handle - grab and drag to set chart height (Bybit-style),
@@ -3542,7 +3695,7 @@ function fmtLiqUsd(n: number): string {
 }
 
 // ── Helper ────────────────────────────────────────────────────────────────
-function setChartSymbolPeriod(chart: KChart, coin: CoinId, tf: string) {
+function setChartSymbolPeriod(chart: KChart, coin: CoinId, tf: ChartTf) {
   /* venueSymbols, not the editorial maps: Arena offers the whole universe (#1263). */
   const { binance: bnSym, bybit: bybitSym } = venueSymbols(coin);
   chart.setSymbol({ ticker: chartDisplaySymbol(coin), shortName: chartDisplaySymbol(coin), pricePrecision: COIN_DEC[coin] ?? 2 });

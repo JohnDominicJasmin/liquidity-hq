@@ -21,6 +21,25 @@ export const XAI_RATES_BY_MODEL: Record<string, { input: number; cachedInput: nu
   'grok-4.3': { input: 1.25, cachedInput: 0.20, output: 2.50 },
 };
 
+/* ANTHROPIC RATES, $ per 1M tokens (#1631, group 4 - the Grok+Claude engine switch). Unlike xAI,
+ * Anthropic returns NO per-call cost figure, so a Claude call is always priced from this table
+ * (source 'estimated'), and unlike xAI its `input_tokens` EXCLUDES cached reads - the cache-read and
+ * cache-write tokens arrive as their own fields and bill at their own rates, so parseAiUsage sums
+ * three input tiers rather than one. Prices cited from platform.claude.com/docs/en/about-claude/
+ * pricing (read 2026-11-12), not from memory. `cacheWrite` is the 5-minute TTL rate; the 1-hour TTL
+ * writes at $8 - the usage object does not split them on the older API shape, so the 5m rate is the
+ * floor and a report built on it is a lower bound on write cost, which is stated where it is used. */
+export const ANTHROPIC_RATES_BY_MODEL: Record<string, { input: number; cacheRead: number; cacheWrite: number; output: number }> = {
+  'claude-opus-5-5':   { input: 4.00, cacheRead: 0.20, cacheWrite: 5.00,  output: 20.00 },
+  'claude-sonnet-5-5': { input: 2.00, cacheRead: 0.10, cacheWrite: 2.50,  output: 10.00 },
+  /* HAIKU AT THE <=100K-TOKEN TIER - the quick-read band this switch is for (#1631). Over 100K,
+     Haiku 5.5 is input 0.50 / cacheRead 0.05 / cacheWrite 0.625 / output 2.50; the reads this
+     engine serves are well under that, and a report that ever crosses it states the tier. Haiku is
+     the only Claude model that lands under the $0.0085 quick-read ceiling, so it is the one the
+     owner is most likely to pick. */
+  'claude-haiku-5-5':  { input: 0.10, cacheRead: 0.01, cacheWrite: 0.125, output: 0.50 },
+};
+
 // The model every call site pins today. A new model shipped before this table
 // is updated makes parseAiUsage answer 'unknown' for it (never a wrong number),
 // and the /ops estimate keeps using this one.
@@ -115,6 +134,32 @@ export function parseAiUsage(model: string, usage: unknown): AiCallCost {
   if (ticks != null) return { costUsd: ticks / 1e10, source: 'xai', promptTokens, completionTokens };
   const nano = num(u.cost_in_nano_usd);
   if (nano != null) return { costUsd: nano / 1e9, source: 'xai', promptTokens, completionTokens };
+
+  /* ANTHROPIC SHAPE (#1631, group 4). Keyed on the model, which recordAiCall always passes, so this
+     fires for a Claude call and never for a Grok one (grok-4.3 is not in ANTHROPIC_RATES, and a Grok
+     call returns above on its tick figure anyway). Two things differ from xAI and both are handled
+     here rather than in the shared top-of-function reads:
+       - Anthropic returns NO per-call cost, so a Claude call is ALWAYS 'estimated' from the table.
+       - `input_tokens` EXCLUDES cached reads. The cache-read and cache-write tokens are their own
+         top-level fields (not `prompt_tokens_details.cached_tokens`), and each bills at its own rate,
+         so the billed input is the SUM of three tiers. `promptTokens` reports that sum, matching
+         xAI's convention where `prompt_tokens` already includes the cached portion - so the ledger's
+         token columns mean the same thing across both engines. */
+  const anthRate = ANTHROPIC_RATES_BY_MODEL[model];
+  if (anthRate) {
+    const base = num(u.input_tokens) ?? 0;
+    const cacheRead = num(u.cache_read_input_tokens) ?? 0;
+    const cacheWrite = num(u.cache_creation_input_tokens) ?? 0;
+    const out = num(u.output_tokens);
+    const promptSum = base + cacheRead + cacheWrite;
+    if (out != null) {
+      const costUsd = (base * anthRate.input + cacheRead * anthRate.cacheRead + cacheWrite * anthRate.cacheWrite + out * anthRate.output) / 1e6;
+      return { costUsd, source: 'estimated', promptTokens: promptSum, completionTokens: out };
+    }
+    /* No output count is an unmeasurable call, not a free one - null cost, never 0 (same rule as
+       the 'unknown' return below). */
+    return { costUsd: null, source: 'unknown', promptTokens: promptSum || null, completionTokens: null };
+  }
 
   const rate = XAI_RATES_BY_MODEL[model];
   if (rate && promptTokens != null && completionTokens != null) {
