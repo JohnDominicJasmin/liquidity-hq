@@ -280,8 +280,23 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
   dir: 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL';
   label: string;
   color: string;
+  /* HOW MANY OF THE THREE INPUTS ARRIVED (#1651 design A), and their plain-word names. This is DATA
+     PRESENCE, not threshold-crossing (longSignals/shortSignals are that) - the landing hero reads it
+     to show "N of 3 signals" and to withhold the verdict until all three are in, so it needs no
+     assumption about which inputs the public page happens to receive. volRatio is a bonus, not one
+     of the three, so it is not counted. */
+  signalsPresent: number;
+  present: string[];
 } {
-  if (!coin) return { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)' };
+  if (!coin) return { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)', signalsPresent: 0, present: [] };
+
+  /* The three inputs, counted by PRESENCE (does the datum exist), independent of whether it crossed
+     a threshold - a funding rate of 0.001 has still "arrived". Names are the plain words the hero
+     tooltip shows. */
+  const present: string[] = [];
+  if (coin.fundingRate != null) present.push('funding');
+  if (coin.longRatio != null && coin.shortRatio != null) present.push('long/short');
+  if (coin.takerBuyRatio != null) present.push('taker flow');
 
   let longRisk = 0;    // longs overleveraged → price dump incoming
   let shortRisk = 0;   // shorts overleveraged → price pump incoming
@@ -328,11 +343,12 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
   const score = Math.min(100, dominant + (dominant > 10 ? volBonus : 0));
 
   // ── Gate: ≥2 independent signals required to label as Flush / Squeeze ─────
+  const signalsPresent = present.length;
   if (longRisk > shortRisk && longSignals >= 2)
-    return { score, dir: 'LONG_LIQ', label: 'Long liquidation risk ↓', color: 'var(--red-soft)' };
+    return { score, dir: 'LONG_LIQ', label: 'Long liquidation risk ↓', color: 'var(--red-soft)', signalsPresent, present };
   if (shortRisk > longRisk && shortSignals >= 2)
-    return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: 'var(--green-soft)' };
-  return { score, dir: 'NEUTRAL', label: 'Balanced', color: 'var(--txt-dim)' };
+    return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: 'var(--green-soft)', signalsPresent, present };
+  return { score, dir: 'NEUTRAL', label: 'Balanced', color: 'var(--txt-dim)', signalsPresent, present };
 }
 
 /* ── Coin Health Score ─────────────────────────────────────────────────────

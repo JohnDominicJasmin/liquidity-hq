@@ -81,7 +81,7 @@ function buildConditionPrompt(label: string, pass: boolean | null, detail: strin
   ].join('\n');
 }
 
-interface Props { signal: StrategySignal; tf?: string; coin?: CoinId }
+interface Props { signal: StrategySignal; tf?: string; coin?: CoinId; aboveCeiling?: boolean }
 
 /* The signal coin gate's locked state (lib/signalCoinGate.ts): in place of the verdict, the checklist and the levels. */
 function LockedSignal({ lock }: { lock: 'signed_out' | 'free' }) {
@@ -98,8 +98,25 @@ function LockedSignal({ lock }: { lock: 'signed_out' | 'free' }) {
   );
 }
 
-export default function EMASignal({ signal, tf = '4h', coin }: Props) {
+export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = false }: Props) {
   const { t } = useLabels();
+
+  /* ABOVE THE ANALYSIS CEILING (#1263): the chart is on a weekly or monthly timeframe, which the EMA
+     signal, the AI read and Draw Structure do not operate at (owner's scope: those stay <= 1d). The
+     panel says so rather than showing a 1d verdict under a weekly chart - the same honesty the rest
+     of this page applies to a reading it does not have. Literal English, matching this component's
+     other static chrome ("EMA Ribbon Strategy", "Fast avg") which is not translated either. Placed
+     before every other branch because none of them apply at this timeframe. */
+  if (aboveCeiling) {
+    return (
+      <div data-testid="signal-above-ceiling" style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 10, padding: '12px 14px', marginBottom: 10 }}>
+        <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>EMA Ribbon Strategy</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.5 }}>
+          Signals, the AI read and Draw Structure cover up to the 1D chart. The {tf.toUpperCase()} chart is for context - switch to 1D or lower to run them.
+        </div>
+      </div>
+    );
+  }
   const v   = signal.verdict;
   const isSetup = v === 'LONG_SETUP' || v === 'SHORT_SETUP';
   // Downgrade the badge instead of the entry itself - testing showed that filtering
@@ -239,6 +256,21 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           ) : (
             <span>The checklist below now weighs your selection ({signal.selectionLabel}). It has not changed the BUY/SELL call this time - see the checklist for whether each part agrees.</span>
           )}
+        </div>
+      )}
+
+      {/* MARKERS, SEPARATELY FROM THE VERDICT (#1263/#985). Keyed on markersFilteredBySelection, NOT
+          selectionLabel: an RSI-only selection sets a label (RSI is weighed in the read) but filters
+          no markers (RSI is advisory and never participates), so keying this on the label would claim
+          a filtering that did not happen. Says the same thing the chart caption does, from the panel. */}
+      {!signal.loading && signal.verdict !== 'LOADING' && signal.markersFilteredBySelection && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 'var(--fs-micro)', color: 'var(--txt2)',
+          marginBottom: 10, lineHeight: 1.4,
+        }}>
+          <span aria-hidden style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--txt3)', flexShrink: 0 }} />
+          <span>The chart&apos;s BUY/SELL markers show only the bars where your selected indicators agree with the ribbon.</span>
         </div>
       )}
 
