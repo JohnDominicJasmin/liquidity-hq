@@ -13,21 +13,36 @@
  * the configuration the product would actually use.
  */
 import { SYSTEM, buildPrompt } from './prompt.mjs';
+import { XAI_RATES_BY_MODEL } from '../../lib/aiCost.ts';
 
 const TIMEOUT = 180_000;
 
 /* PRICES ARE PER MILLION TOKENS AND ARE THE ONE THING IN HERE THAT GOES STALE.
  *
- * Kept as data with the date they were read, so a cost figure in a report can be recomputed when
- * they change rather than being a number nobody can re-derive. The Grok rate is the one this
- * project already measured at $0.0238 per `deep` call (#1818); the Claude rates are list price.
+ * ── GROK RATE HAS ONE SOURCE: lib/aiCost.ts (#1631) ──────────────────────────────────────────
  *
- * **The Claude figure this harness produces is an UPPER BOUND, not the running cost: prompt
- * caching is OFF on the account.** On a ~15,000-token input that is the single largest lever
- * available, so the number must be reported as a ceiling. Raised by PM from the account dashboard. */
+ * This file used to hard-code `grok-4.3: { in: 3.00, out: 15.00 }` ("x.ai list"), while the app
+ * bills every real Grok call from `XAI_RATES_BY_MODEL` in lib/aiCost.ts at { input: 1.25, output:
+ * 2.50 } - that table is cross-validated against this account's actual invoice (see its comment).
+ * Two rate tables 2.4x/6x apart meant the bake-off would price Grok several times too high and hand
+ * Claude a cost win that does not exist. So the Grok rate is now IMPORTED from aiCost.ts, not
+ * retyped: the harness and the ledger cannot disagree, and the day the invoice rate changes, one
+ * edit moves both. (The deeper fix - pricing Grok from its own `cost_in_usd_ticks` per response
+ * rather than from any rate table - is the recommendation on #1631; this change just removes the
+ * second, wrong table.)
+ *
+ * ── CLAUDE RATE: the model actually called, priced from the docs ─────────────────────────────
+ *
+ * `callClaude` below uses `claude-opus-5-5`. The old row carried $5 / $25 - those are Claude Opus
+ * 5's prices under Opus 5.5's id. Corrected to Opus 5.5's own list, cited from
+ * platform.claude.com/docs/en/about-claude/pricing (read 2026-11-12): $4 input / $20 output per
+ * MTok, cache read $0.20 (0.05x). STILL AN UPPER BOUND, not the running cost: prompt caching is OFF
+ * on the account, and on a ~15,000-token input that is the single largest lever, so the number is
+ * reported as a ceiling. */
+const GROK = XAI_RATES_BY_MODEL['grok-4.3'];
 const PRICING = {
-  'grok-4.3':       { in: 3.00, out: 15.00, readAt: '2026-10-31', note: 'x.ai list' },
-  'claude-opus-5-5':{ in: 5.00, out: 25.00, readAt: '2026-10-31', note: 'Anthropic list; caching OFF on this account, so a ceiling' },
+  'grok-4.3':       { in: GROK.input, out: GROK.output, readAt: 'from lib/aiCost.ts', note: 'single source: XAI_RATES_BY_MODEL (invoice-validated)' },
+  'claude-opus-5-5':{ in: 4.00, out: 20.00, readAt: '2026-11-12', note: 'Anthropic docs pricing page, Opus 5.5 list; caching OFF on this account, so a ceiling' },
 };
 
 function costOf(model, usage) {
