@@ -89,6 +89,7 @@ const shot = async (p: Page, name: string) => {
 
 /** mode: false = happy path; true = the settings save ALWAYS fails; 'retry' = it fails on the FIRST press only, then the user presses again. */
 async function walkWizard(browser: Browser, mode: boolean | 'retry') {
+    const gate = { open: false };
     const failSettings = mode !== false;
     const ctx = await signedInContext(browser, 'b', { viewport: { width: 1280, height: 1000 }, theme: 'dark' });
     /* ORDER IS THE POINT, so these are appended as they happen rather than counted. */
@@ -113,9 +114,12 @@ async function walkWizard(browser: Browser, mode: boolean | 'retry') {
       /* THE FAILURE WINDOW: the settings save is refused with a 500 while everything else is left
          alone, so the only way profile_complete can become true is the finish() code path itself. */
       let refused = 0;
+      /* RETRY MODE: refuse EVERY attempt until the test opens the gate. A single refusal is not a user-visible failure: finish() awaits saveNow, which
+         retries with its own backoff, so run 43305479865 saw the 2nd automatic attempt succeed, the wizard complete and the dashboard load (no wizard in
+         the DOM at all). The user only sees the failure once every attempt has been refused. */
       await ctx.route('**/api/settings', (route) => {
         if (route.request().method() !== 'PATCH') return route.continue();
-        if (mode === 'retry' && refused >= 1) return route.continue();   // the retry press goes through
+        if (mode === 'retry' && gate.open) return route.continue();
         refused += 1;
         return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'qa: forced settings failure' }) });
       });
@@ -206,7 +210,9 @@ async function walkWizard(browser: Browser, mode: boolean | 'retry') {
     let mid: Awaited<ReturnType<typeof readRows>> | null = null;
     let midWizardShown = wizardStillShown;
     if (mode === 'retry') {
-      /* THE RETRY: the first press failed, the wizard must still be open, and pressing the same button again re-sends the save. */
+      /* THE RETRY: every attempt of the first press is refused; the wizard must show the save-failed line and stay open. Only then does the test open the gate and press again. */
+      await expect(p.locator('.obw-root [role="alert"]').first(), 'the failed save never produced the save-failed line (the wizard may have completed on an automatic retry, or been dismissed)').toBeVisible({ timeout: 90_000 });
+      midWizardShown = await p.locator('.obw-headline').first().isVisible().catch(() => false);
       mid = await readRows(sb, uid);
       /* WHAT THE WIZARD SHOWS AFTER THE FAILED SAVE, logged before anything is asserted: run 43302763554 found no button.obw-btn-next here,
          so say what IS there (headline, every wizard button's class and text, any alert/status line) instead of guessing the control. */
@@ -218,6 +224,7 @@ async function walkWizard(browser: Browser, mode: boolean | 'retry') {
       console.log('RETRY wizard state after the failed press:', JSON.stringify(state));
       const again = p.locator('.obw-root button.obw-btn-next, .obw-root button.obw-btn-finish, .obw-root button.obw-btn-primary').first();
       await expect(again, 'after a failed save the wizard must still offer a button to press again (see the logged wizard state)').toBeVisible({ timeout: 15_000 });
+      gate.open = true;                                        // the retry press goes through
       await again.click();
       await p.waitForTimeout(8_000);
       await shot(p, 'onb-07-after-retry');
