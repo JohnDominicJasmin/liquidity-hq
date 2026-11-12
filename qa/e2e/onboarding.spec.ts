@@ -173,6 +173,10 @@ test.describe('#1113 onboarding, end to end', () => {
     const acct = p.locator('button').filter({ hasText: '$1k - $5k' }).first();
     await expect(acct, 'step 1 should offer the account ranges').toBeVisible();
     await acct.click();
+    /* Wait for the step to be ADVANCEABLE before clicking Next - `canAdvance` for step 1 needs both
+       the country and the account range registered, and clicking Next while it is still disabled
+       advances nothing, so step 2's rows never appear (the real failure mode here). */
+    await expect(nextBtn(), 'step 1 Next should enable once country and account are set').toBeEnabled({ timeout: 15_000 });
     await shot(p, 'onb-02-step1-filled');
     await nextBtn().click();
 
@@ -186,6 +190,9 @@ test.describe('#1113 onboarding, end to end', () => {
       await first.click();
       await p.waitForTimeout(400);
       await shot(p, `onb-0${3 + i}-step${2 + i}`);
+      /* Same guard between every step: a selection sets the flag that enables Next; clicking it
+         before that lands advances nothing. */
+      await expect(nextBtn(), `step ${2 + i} Next should enable once an option is picked`).toBeEnabled({ timeout: 15_000 });
       await nextBtn().click();
       await p.waitForTimeout(1_200);
     }
