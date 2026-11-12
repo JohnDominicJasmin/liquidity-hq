@@ -66,6 +66,14 @@ export interface StrategySignal {
      `pendingSetup` is the same signal as text under the chart. */
   signalLongs:  Array<{ timestamp: number; anchorPrice: number; pending: boolean }>;
   signalShorts: Array<{ timestamp: number; anchorPrice: number; pending: boolean }>;
+  /* #985/#1263: true when a selected indicator filtered the chart markers this render - at least
+     one marker-participating indicator (SMA, Bollinger, PSAR, MACD; RSI is advisory and never
+     filters) is selected, so `signalLongs`/`signalShorts` below are the base signals MINUS the
+     bars where a chosen indicator disagreed with the ribbon's direction. False for an empty or
+     RSI-only selection, where the arrays are the unfiltered base signal. The chart and the panel
+     read this to say the markers are filtered by the trader's choice rather than leaving a marker
+     silently absent. */
+  markersFilteredBySelection: boolean;
   pendingSetup: { dir: 'long' | 'short'; held: number; need: number } | null;
   /* The signal coin gate (lib/signalCoinGate.ts). Set by gateSignal() when this coin's signals are locked on the viewer's plan.
      `lockedMarkers` are where signals WERE, with no direction: always the candle's high, so a marker's position says nothing. */
@@ -255,7 +263,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   volMA20: null, lastVol: null, priceInValueZone: false,
   sl: null, tp: null, loading: true, error: null,
   signalTimestamp: null, signalAnchorPrice: null, signalDir: null, signalBarsAgo: null,
-  signalLongs: [], signalShorts: [], pendingSetup: null, lockedMarkers: [], signalLock: null, counterTrend: false,
+  signalLongs: [], signalShorts: [], markersFilteredBySelection: false, pendingSetup: null, lockedMarkers: [], signalLock: null, counterTrend: false,
   atrLast: null, ema50Slope: null,
   chopIndex: null, chopRegime: null,
   reversalWarnings: [],
@@ -853,9 +861,48 @@ export function useEMAStrategy(
         // 2-step arm/confirm, ATR buffer, EMA50 slope, ribbon spread, whipsaw persistence,
         // and strict buy/sell alternation.
         const detected = detectEMASignals(cRibbon, tf, filterParams);
-        const signalLongs  = detected.signalLongs.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
-        const signalShorts = detected.signalShorts.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
-        const pendingSetup  = pendingSetupOf([...detected.signalLongs, ...detected.signalShorts]);
+
+        /* EVERY SELECTED INDICATOR TAKES PART IN THE MARKERS (#985 gap, owner 2026-11-12: changing an
+           indicator updates the buy/sell markers live). A marker survives only where ALL selected
+           marker-participating indicators AGREE with its direction AT ITS OWN BAR - the same per-bar
+           tests the verdict gate above uses on the latest bar, lifted to each marker's `armIndex`.
+
+           ALIGNMENT: `armIndex` indexes `cRibbon`, and `cl4 = cRibbon.map(c => c.close)` (line ~355),
+           so `cl4[i]`, `cRibbon[i]` and every series below share one index - checked, not assumed,
+           because a series on a different candle array indexed by this `armIndex` would hide the
+           wrong markers and look like data.
+
+           RSI DOES NOT PARTICIPATE: it is advisory everywhere else in this hook (its gate can never
+           move the verdict, see :109) and the approved panel moves it to the always-on chart layers,
+           so it is not one of the four here. A MISSING value at a bar does not disagree - it hides
+           nothing - matching the `isFinite`/null guards the verdict gate already uses, and keeping a
+           warm-up bar from silently emptying the early chart. An EMPTY (or RSI-only) selection filters
+           nothing: the base markers, unchanged - which is also what Telegram/push fire on, since the
+           alert route builds its own signal server-side and never sees the selection. */
+        const smaSeries  = smaSelected  ? smaArr(cl4, 12)             : null;
+        const bollSeries = bollSelected ? bollingerBandsArr(cl4, 20, 2) : null;
+        const psarSeries = psarSelected ? psarArr(cRibbon, 0.02, 0.02, 0.2) : null;
+        const macdSeries = macdSelected ? macdArr(cl4, 12, 26, 9)     : null;
+        const markersFilteredBySelection = smaSelected || bollSelected || psarSelected || macdSelected;
+        const markerAgrees = (i: number, dir: 'long' | 'short'): boolean => {
+          if (smaSeries) { const v = smaSeries[i]; if (v != null && isFinite(v) && (dir === 'long' ? cl4[i] <= v : cl4[i] >= v)) return false; }
+          if (bollSeries) { const b = bollSeries[i]; if (b != null && (dir === 'long' ? cl4[i] <= b.mid : cl4[i] >= b.mid)) return false; }
+          if (psarSeries) { const p = psarSeries[i]; if (p != null && isFinite(p) && (dir === 'long' ? cl4[i] <= p : cl4[i] >= p)) return false; }
+          if (macdSeries) { const m = macdSeries[i]; if (m != null && isFinite(m.dif) && isFinite(m.dea) && (dir === 'long' ? m.dif <= m.dea : m.dif >= m.dea)) return false; }
+          return true;
+        };
+        const keepLong  = (s: { armIndex: number }) => !markersFilteredBySelection || markerAgrees(s.armIndex, 'long');
+        const keepShort = (s: { armIndex: number }) => !markersFilteredBySelection || markerAgrees(s.armIndex, 'short');
+        const keptLongs  = detected.signalLongs.filter(keepLong);
+        const keptShorts = detected.signalShorts.filter(keepShort);
+        const signalLongs  = keptLongs.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
+        const signalShorts = keptShorts.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
+        /* pendingSetup mirrors a LIVE marker, so it is derived from the FILTERED set: a pending setup
+           whose marker a selected indicator just removed must not linger as text under a chart that no
+           longer shows it. `lockedMarkers` and the recent record below stay on the BASE detection -
+           the lock is a plan-state artifact unrelated to the selection, and the record is the EMA
+           strategy's own track record, which must not lurch every time a chip is toggled. */
+        const pendingSetup  = pendingSetupOf([...keptLongs, ...keptShorts]);
         const lockedMarkers = [...detected.signalLongs, ...detected.signalShorts].map(s => ({ timestamp: s.timestamp, anchorPrice: cRibbon[s.armIndex].high }));
 
         // Recent record - confirmed signals only (pending have unreliable fillPrice at live edge)
@@ -896,7 +943,7 @@ export function useEMAStrategy(
           volMA20: volma20, lastVol, priceInValueZone: inValueZone,
           sl, tp, loading: false, error: null,
           signalTimestamp, signalAnchorPrice, signalDir, signalBarsAgo,
-          signalLongs, signalShorts, pendingSetup, lockedMarkers, counterTrend,
+          signalLongs, signalShorts, markersFilteredBySelection, pendingSetup, lockedMarkers, counterTrend,
           chopIndex, chopRegime,
           reversalWarnings,
           atrLast, ema50Slope,

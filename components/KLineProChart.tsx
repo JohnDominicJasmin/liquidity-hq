@@ -3404,6 +3404,27 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             Loading {loadingTf.toUpperCase()}&hellip;
           </div>
         )}
+        {/* THE CHART SAYS THE MARKERS ARE FILTERED (#1263/#985, owner 2026-11-12). When a selected
+            indicator is removing buy/sell markers, a reader must be told - a marker that silently
+            vanishes reads as "no signal here" rather than "your selection hid it". Hidden while a
+            timeframe loads so it never stacks with the loading label; top-left, clear of the
+            centre loading label and the price-anchored countdown. Reads the flag the EMA hook
+            sets, so it can never disagree with whether the markers were actually filtered. */}
+        {emaSignal?.markersFilteredBySelection && !loadingTf && (
+          <div
+            role="status"
+            aria-live="polite"
+            data-testid="chart-markers-filtered"
+            style={{
+              position: 'absolute', top: 10, left: 10,
+              padding: '3px 10px', borderRadius: 4, pointerEvents: 'none', whiteSpace: 'nowrap',
+              fontSize: 'var(--fs-caption)', fontWeight: 600, letterSpacing: '.02em',
+              color: 'var(--txt2)', background: 'var(--bg1)', border: '1px solid var(--bdr3)',
+            }}
+          >
+            Markers filtered by your selection
+          </div>
+        )}
         {/* Drag-to-resize handle - grab and drag to set chart height (Bybit-style),
             persisted. Hidden in fullscreen (height is fixed to the viewport there). */}
         {!fullscreen && (
