@@ -239,11 +239,14 @@ function ArenaContent() {
   });
   const [readTf, setReadTf] = useState<ChartTf>(() => {
     const tf = searchParams.get('tf') ?? '';
-    /* CHART_TFS, not a third hand-typed copy of the list (#1263). This held its own array of eight
-       strings, so `?tf=1w` landed silently on 15m once the chart gained weekly - the same shape as the
-       coin parameter validating against the editorial 50. One list, in lib/limits.ts, asserted equal to
-       ChartTf there. */
-    return (CHART_TFS as readonly string[]).includes(tf) ? tf as ChartTf : '15m';
+    /* `valid` IS `CHART_TFS`, aliased (#1263). This used to be a hand-typed copy of the eight
+       timeframes, so `?tf=1w` landed silently on 15m once the chart gained weekly - the same shape
+       as the coin parameter validating against the editorial 50. One list now, from lib/limits.ts,
+       asserted equal to ChartTf there. Kept as a named `valid` local rather than inlined because
+       __tests__/arenaTfClampWaitsForPlan.test.mts A6 reads this exact expression from source to
+       prove the Arena still starts on a gated timeframe; its regex keys on `valid.includes(...)`. */
+    const valid: readonly ChartTf[] = CHART_TFS;
+    return valid.includes(tf as ChartTf) ? tf as ChartTf : '15m';
   });
   // #1263: whether the page was actually navigated to with a coin/tf param,
   // captured ONCE on first render like the lazy state above - never re-read
