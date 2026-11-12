@@ -161,6 +161,16 @@ export type MarketStore = {
    *  any source - the WebSocket or the REST fallback - delivers a price, so a recovery heals the
    *  display without a reload. */
   pricesFailed: boolean;
+  /** THE STATE OF THE ONE BULK SNAPSHOT READ (`/api/market/snapshot`), which is what supplies the first
+   *  VWAP, RSI and long/short figures on a cold load.
+   *    'loading' - no answer yet. A figure that depends on it is simply not here YET, and a surface must
+   *                show that as loading (a dash, no note), never as a reading.
+   *    'ok'      - the read answered. A figure still missing after this is genuinely not carried.
+   *    'failed'  - the read errored and nothing has ever answered. Only now is "unavailable" true.
+   *  Once 'ok' it stays 'ok': a later blip leaves the last good figures on screen, so it must not
+   *  re-flag them. The landing hero read "Unavailable" for the first seconds because it could not tell
+   *  'loading' from 'failed' (#1651). */
+  snapshotStatus: 'loading' | 'ok' | 'failed';
   newsCache: string[];
   oilPrice: number | null;
   oilChg: number | null;         // its 1-day change in % (#1631 A)
@@ -224,6 +234,7 @@ export const defaultStore: MarketStore = {
   altSeasonScore: null,
   wsStatus: 'Connecting...',
   pricesFailed: false,
+  snapshotStatus: 'loading',
   newsCache: [],
   oilPrice: null,
   oilChg: null,

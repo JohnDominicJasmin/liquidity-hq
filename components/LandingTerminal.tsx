@@ -132,6 +132,10 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const verdictText = shownDir === 'SHORT_SQ' ? 'BULLISH' : shownDir === 'LONG_LIQ' ? 'BEARISH' : 'NO READ';
   const hasConfidence = shownDir !== 'NEUTRAL';
 
+  /* LOADING IS NOT A READING (#1651). Until the snapshot read has answered, a missing figure is simply
+     not here yet: the row shows a dash and NO note. "Unavailable" / "No data" are only true once the read
+     has finished (ok without this figure) or failed. */
+  const snapshotLoading = store.snapshotStatus === 'loading';
   const price = d?.price ?? null;
   const vwap  = d?.vwap ?? null;
   const vwapAbove = vwap != null && price != null ? price > vwap : null;
@@ -161,7 +165,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
        hero - a signed-out visitor's first impression of the product - for every coin. Measured: all
        49 coins in the snapshot carry a real vwap, so this shows a number rather than a dash; the
        'Unavailable' note is reachable only if that feed fails or the coin is outside it. */
-    { label: 'VWAP',    value: vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[LIVE_READ_COIN]) : null, note: vwap == null ? 'Unavailable' : vwapAbove == null ? '' : vwapAbove ? 'Above' : 'Below', col: vwapCol },
+    { label: 'VWAP',    value: vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[LIVE_READ_COIN]) : null, note: vwap == null ? (snapshotLoading ? '' : 'Unavailable') : vwapAbove == null ? '' : vwapAbove ? 'Above' : 'Below', col: vwapCol },
     { label: 'OI trend', value: oiRow ? oiRow.txt : null, note: '', col: oiRow ? oiRow.col : 'var(--txt2)' },
     { label: 'Funding', value: fr != null ? (fr * 100 >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : null, note: frInfo ? frInfo.label : '', col: frCol },
     { label: 'CB prem', value: null, note: '', col: 'var(--txt2)' /* no source wired - see LABELS in spec, always em dash */ },
@@ -182,7 +186,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
        names which signals are in. */
     { label: 'Setup',
       value: (d && sq.signalsPresent >= 1) ? String(sq.score) : null,
-      note: setupComplete ? sq.label : (d ? `${sq.signalsPresent} of 3 signals` : sq.label),
+      note: setupComplete ? sq.label : (d ? `${sq.signalsPresent} of 3 signals` : (snapshotLoading ? '' : sq.label)),
       col: setupComplete ? (sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)') : 'var(--txt)',
       title: sq.present.length ? `Signals in: ${sq.present.join(', ')}` : undefined },
   ];
