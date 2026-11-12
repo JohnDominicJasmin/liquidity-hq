@@ -41,9 +41,38 @@ function baseCoin(overrides: Partial<CoinData> = {}): CoinData {
 }
 
 test('computeSqueezeScore', async (t) => {
-  await t.test('no coin: NEUTRAL, score 0, "No data"', () => {
+  await t.test('no coin: NEUTRAL, score 0, "No data", and no signals present', () => {
     const r = computeSqueezeScore(undefined);
-    assert.deepEqual(r, { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)' });
+    // Full shape, now including the additive partial-score fields (#2167): with no coin there are
+    // zero signals and an empty present list.
+    assert.deepEqual(r, { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)', signalsPresent: 0, present: [] });
+  });
+
+  await t.test('signalsPresent counts the independent signals by presence; present names them; volRatio is a bonus and does not count', () => {
+    // 0 - a coin with every signal field null (volRatio set, to prove it is NOT a signal).
+    const none = computeSqueezeScore(baseCoin({ volRatio: 2 }));
+    assert.equal(none.signalsPresent, 0, 'volRatio present but no real signal - signalsPresent stays 0');
+    assert.deepEqual(none.present, [], 'volRatio is a bonus, never named in present');
+
+    // 1 - funding only.
+    const one = computeSqueezeScore(baseCoin({ fundingRate: 0.01 }));
+    assert.equal(one.signalsPresent, 1);
+    assert.deepEqual(one.present, ['funding']);
+
+    // 2 - funding + long/short (BOTH ratio fields required for that signal to count).
+    const two = computeSqueezeScore(baseCoin({ fundingRate: 0.01, longRatio: 1, shortRatio: 1 }));
+    assert.equal(two.signalsPresent, 2);
+    assert.deepEqual(two.present, ['funding', 'long/short']);
+
+    // 3 - funding + long/short + taker flow, with volRatio also set to confirm it is still not counted.
+    const three = computeSqueezeScore(baseCoin({ fundingRate: 0.01, longRatio: 1, shortRatio: 1, takerBuyRatio: 0.5, volRatio: 2 }));
+    assert.equal(three.signalsPresent, 3, 'three signals; volRatio does not make it four');
+    assert.deepEqual(three.present, ['funding', 'long/short', 'taker flow']);
+
+    // A lone longRatio (shortRatio still null) does NOT count - the signal needs both halves.
+    const halfLS = computeSqueezeScore(baseCoin({ longRatio: 1 }));
+    assert.equal(halfLS.signalsPresent, 0, 'longRatio without shortRatio is not a signal');
+    assert.deepEqual(halfLS.present, []);
   });
 
   await t.test('a single signal, however extreme, cannot label Flush/Squeeze - the >=2-signal gate', () => {
