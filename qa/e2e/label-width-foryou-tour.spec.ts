@@ -156,8 +156,9 @@ test.describe('§7 phone-width: the two new label keys (#2203)', () => {
         log('next'); await next().click(T);
         for (let i = 0; i < 4; i += 1) {
           log(`wizard step ${i + 2}`);
-          await expect(page.locator('button.obw-row').first(), `wizard step ${i + 2} showed no options`).toBeVisible({ timeout: 30_000 });
-          await page.locator('button.obw-row').first().click(T);
+          const opts = () => page.locator(i === 3 ? 'button.obw-chip' : 'button.obw-row');   /* step 5 (Source) renders chips, not rows: the same trap the onboarding spec records */
+          await expect(opts().first(), `wizard step ${i + 2} showed no options`).toBeVisible({ timeout: 30_000 });
+          await opts().first().click(T);
           await page.waitForTimeout(400);
           await next().click(T);
           await page.waitForTimeout(1_200);
