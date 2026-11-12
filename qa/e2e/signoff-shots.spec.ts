@@ -26,6 +26,11 @@ const shot = async (p: Page, name: string) => {
 const tf = async (p: Page, label: string) => {
   const b = p.getByRole('button', { name: new RegExp(`^${label}$`) }).first();
   if (await b.count()) { await b.click({ timeout: 10_000 }).catch(() => {}); await p.waitForTimeout(6_000); return true; }
+  /* AT 390 THE TIMEFRAME BUTTONS CAN BE OFF-SCREEN OR OUTSIDE A CLIPPED TOOLBAR (run 43258462022: Draw Structure was
+     absent because the 1h click never landed and the default timeframe does not offer it). A DOM click needs no
+     visibility, so fall back to it on the chart's own timeframe button. */
+  const dom = p.locator('.klc-tf-btn', { hasText: new RegExp(`^${label}$`) }).first();
+  if (await dom.count()) { await dom.evaluate((el) => (el as HTMLElement).click()); await p.waitForTimeout(6_000); return true; }
   return false;
 };
 
@@ -132,7 +137,7 @@ test.describe('sign-off shots', () => {
       await tf(p, '1h');
       const btn = p.getByRole('button', { name: /Draw Structure/i }).first();
       await btn.scrollIntoViewIfNeeded({ timeout: 10_000 }).catch(() => {});
-      console.log(`[draw structure ${width} ${theme}] button count=${await btn.count()} box=${JSON.stringify(await btn.boundingBox().catch(() => null))}`);
+      console.log(`[draw structure ${width} ${theme}] button count=${await btn.count()} tfButtons=${await p.locator('.klc-tf-btn').count()} activeTf=${JSON.stringify(await p.locator('.klc-tf-btn.on').allInnerTexts())}`);
       if (await btn.count()) { await btn.click({ timeout: 10_000 }).catch(() => {}); await p.waitForTimeout(5_000); }
       console.log(`[draw structure ${width} ${theme}] stub intercepted ${intercepted} call(s)`);
       /* A proposal label must be on screen BEFORE the shot, otherwise the image proves nothing about
