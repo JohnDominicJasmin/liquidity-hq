@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { DEFAULT_SETTINGS } from '../../lib/settings';
 import { installSyntheticSocket } from './_fixtures';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL, FIXTURES } from './_auth';
 import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
@@ -377,7 +378,7 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
     }
   });
 
-  test('C5: a signed-out cold /arena lands on the page defaults and the URL is still synced', async ({ browser }) => {
+  test('C5: a signed-out cold /arena lands on DEFAULT_SETTINGS and the URL is still synced', async ({ browser }) => {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     try {
@@ -386,7 +387,9 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
       const { coin, tf, stable, search } = await settledCoinAndTf(page);
       expect(stable, `the query string never stopped changing (last: '${search}')`).toBe(true);
       expect(search, 'the URL was never synced for a signed-out visitor - the fix gated the sync on a read that never completes for them').toMatch(/coin=/);
-      expect({ coin, tf }, `settled query was '${search}'`).toEqual({ coin: 'btc', tf: '15m' });
+      /* READ FROM THE MODULE, not hard-coded: a signed-out session is marked 'ready' with DEFAULT_SETTINGS and the seed effect applies it
+         (PM, from source: arena/page.tsx seed effect, lib/settings.ts). Measured on run 43291409418: ?coin=btc&tf=1h. */
+      expect({ coin, tf }, `settled query was '${search}'`).toEqual({ coin: DEFAULT_SETTINGS.default_coin, tf: DEFAULT_SETTINGS.default_tf });
     } finally {
       await ctx.close();
     }
