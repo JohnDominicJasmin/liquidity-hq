@@ -293,22 +293,6 @@ export function slottedIds(ids: readonly string[]): readonly string[] {
   return ids.filter(id => !isOverlayId(id));
 }
 
-/* THE SELECTABLE INDICATORS (#1263): the builtins that draw AND are not the always-on RSI pane -
- * SMA, PSAR, MACD, Bollinger. RSI is a chart layer now, not a selectable chip, so it is excluded
- * here even though it is a `builtin`. The panel renders this array; the page filters a saved
- * selection to these ids so a stale RSI (or a since-removed id) from an old saved set neither counts,
- * labels, nor reaches the read's non-empty weighting branch. `canRender` is a hoisted function
- * declaration, so it is callable at this module-init point though it is defined below. */
-export const SELECTABLE_INDICATORS: readonly IndicatorEntry[] =
-  INDICATORS.filter(e => e.source === 'builtin' && canRender(e) && e.id !== 'RSI');
-export const SELECTABLE_INDICATOR_IDS: ReadonlySet<string> = new Set(SELECTABLE_INDICATORS.map(e => e.id));
-
-/** Keep only the ids this panel can actually offer as selectable indicators (drops a stale RSI or a
- *  removed id from an old saved selection). Order preserved. */
-export function selectableIds(ids: readonly string[]): readonly string[] {
-  return ids.filter(id => SELECTABLE_INDICATOR_IDS.has(id));
-}
-
 /* What each overlay chip shows, derived from the SAME values the chart draws from, so the two cannot drift:
      always - drawn whatever the user does (the EMA ribbon; GEX where its levels exist)
      on/off - has a toggle (the chart toolbar's S/R and Liq buttons); the chip and the toolbar are one switch
@@ -492,4 +476,25 @@ const SOURCE_RENDERS: Record<Source, boolean> = {
 
 export function canRender(entry: IndicatorEntry): boolean {
   return SOURCE_RENDERS[entry.source];
+}
+
+/* THE SELECTABLE INDICATORS (#1263): the builtins that draw AND are not the always-on RSI pane -
+ * SMA, PSAR, MACD, Bollinger. RSI is a chart layer now, not a selectable chip, so it is excluded
+ * here even though it is a `builtin`. The panel renders this array; the page filters a saved
+ * selection to these ids so a stale RSI (or a since-removed id) from an old saved set neither counts,
+ * labels, nor reaches the read's non-empty weighting branch.
+ *
+ * DEFINED HERE, AFTER canRender AND SOURCE_RENDERS, NOT beside slottedIds above. It calls canRender,
+ * whose body reads the `const SOURCE_RENDERS`; placed earlier, this module-level initializer ran
+ * while SOURCE_RENDERS was still in its temporal dead zone and threw a ReferenceError at import -
+ * which tsc does not see but the test suite caught at once. Function hoisting makes canRender
+ * callable early; it does not initialize the const its body reads. */
+export const SELECTABLE_INDICATORS: readonly IndicatorEntry[] =
+  INDICATORS.filter(e => e.source === 'builtin' && canRender(e) && e.id !== 'RSI');
+export const SELECTABLE_INDICATOR_IDS: ReadonlySet<string> = new Set(SELECTABLE_INDICATORS.map(e => e.id));
+
+/** Keep only the ids this panel can actually offer as selectable indicators (drops a stale RSI or a
+ *  removed id from an old saved selection). Order preserved. */
+export function selectableIds(ids: readonly string[]): readonly string[] {
+  return ids.filter(id => SELECTABLE_INDICATOR_IDS.has(id));
 }
