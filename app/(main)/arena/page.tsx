@@ -151,7 +151,7 @@ const READABLE_COINS = new Set<string>(COINS);
    no entry cannot render: this is a Record over every CoinKind, so a new kind fails tsc here. */
 const KIND_LABEL_KEYS: Record<CoinKind, LabelKey> = {
   stock: 'ARENA_KIND_STOCK', etf: 'ARENA_KIND_ETF', commodity: 'ARENA_KIND_COMMODITY',
-  fx: 'ARENA_KIND_FX', preipo: 'ARENA_KIND_PREIPO',
+  fx: 'ARENA_KIND_FX', preipo: 'ARENA_KIND_PREIPO', asset: 'ARENA_KIND_ASSET',
 };
 /** The name to show for a coin. Only the TradFi rows route through coinLabel: `catstock` is CAT, and the
  *  plain `id.toUpperCase()` the page used for everything else is left exactly as it was. */

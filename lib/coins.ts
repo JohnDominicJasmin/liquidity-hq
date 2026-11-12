@@ -159,10 +159,11 @@ export function coinKind(coin: string): CoinKind | undefined {
 const idsOfKind = (kinds: readonly CoinKind[]): CoinId[] =>
   COIN_UNIVERSE.filter(r => r.kind && kinds.includes(r.kind)).map(r => r.id);
 
-/** The Arena's three TradFi category tabs. A pre-IPO reference sits with Stocks (it is labelled as
- *  what it is on the row); FX sits with Commodities, whose tab says so. */
+/** The Arena's three TradFi category tabs. A pre-IPO reference and a "Tokenized asset" (an equity whose
+ *  stock-vs-fund status is unconfirmed) sit with Stocks, each labelled as what it is on its row; FX sits
+ *  with Commodities, whose tab says so. */
 export const TRADFI_CATEGORY_COINS: { stocks: CoinId[]; etfs: CoinId[]; commodities: CoinId[] } = {
-  stocks: idsOfKind(['stock', 'preipo']),
+  stocks: idsOfKind(['stock', 'asset', 'preipo']),
   etfs: idsOfKind(['etf']),
   commodities: idsOfKind(['commodity', 'fx']),
 };

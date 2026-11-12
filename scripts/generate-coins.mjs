@@ -33,7 +33,7 @@
  *   - SINGLE-VENUE IS ALLOWED. A TradFi row needs Binance; Bybit is attached where Bybit lists the
  *     same instrument and the row is `oneVenue` where it does not. The both-venues rule is a
  *     failover guarantee for crypto and stays exactly as it was.
- *   - Rows carry `kind` (stock | etf | commodity | fx | preipo) and `ticker`, from an explicit
+ *   - Rows carry `kind` (stock | etf | commodity | fx | preipo | asset) and `ticker`, from an explicit
  *     classification map below. An unclassified underlying defaults to 'stock' and SAYS SO in the
  *     output, so a new asset class cannot arrive unlabelled or unnoticed.
  *   - IDS CANNOT COLLIDE WITH CRYPTO. A TradFi ticker that equals a crypto base on EITHER venue
@@ -127,11 +127,37 @@ const BYBIT_TRADFI_TYPES = new Set(['stock', 'ETF', 'commodity', 'forex']);
  *  entry is checked every run (target must exist, prices must agree) and printed, never silent. */
 const TRADFI_SAME_AS_CURATED = new Map([['XAU', 'xau']]);
 
+/* HELD OUT, WITH THE REASON - NOT DROPPED QUIETLY. Binance quotes four Hong Kong listings by their exchange
+ * code (HK0700, HK1810, HK0992, HK0625) and every other equity by company name (TENCENT, MEITUAN, ...). The
+ * company-named ones are priced in USD; the code-named ones are in HONG KONG DOLLARS: Binance's HK0700 is
+ * 396.09 against its own TENCENT at 50.54, a ratio of 7.84 - the HKD/USD rate - for the same company.
+ * Shown as "$396" that is wrong by a currency, and a Binance-only row has no second venue to catch it.
+ * HK0700 is MEASURED (the ratio above, printed every run); the other three are held on the same naming
+ * pattern, which is evidence of a shared convention and not a measurement of each. Remove an entry only
+ * after the row's unit has been confirmed. */
+const TRADFI_HOLD = new Map([
+  ['HK0700', { versus: 'TENCENT' }],
+  ['HK1810', {}],
+  ['HK0992', {}],
+  ['HK0625', {}],
+]);
+
+/* SAME ASSET, DIFFERENT NAME ON THE TWO VENUES. Found by matching Binance-only prices against Bybit's
+ * non-crypto instruments (both pairs agree to 0.1%) - and the agreement guard below re-checks every run
+ * and refuses the file if either stops agreeing. Binance GIGADEV is Bybit's GIGADEVICE; Binance NOK is
+ * Bybit's NOKIA. */
+const BYBIT_NAME_ALIAS = new Map([['GIGADEV', 'GIGADEVICE'], ['NOK', 'NOKIA']]);
+
 const unclassified = [];
 function tradfiKind(base, underlyingType, bybitType) {
   const fromBybit = bybitType ? KIND_BY_BYBIT_TYPE[bybitType] : undefined;
   if (fromBybit) return fromBybit;
+  /* A STOCK IS ONLY CALLED ONE WHEN A SECOND SOURCE SAYS SO. Binance types a share and a fund both as
+     EQUITY, and Bybit's symbolType is the only thing that tells them apart. An equity-class row with no
+     Bybit twin therefore gets the neutral kind 'asset' ("Tokenized asset") - never a guess at 'stock'. */
+  if (bybitType === 'stock') return 'stock';
   const fromUnderlying = KIND_BY_UNDERLYING[underlyingType];
+  if (fromUnderlying === 'stock') return 'asset';
   if (fromUnderlying) return fromUnderlying;
   unclassified.push(`${base} (${underlyingType})`);
   return 'stock';
@@ -396,6 +422,8 @@ const tradfiRows = [];
 const tradfiRenamed = [];        // ticker -> id, where the ticker clashed with a crypto base
 const tradfiBybitSuffix = [];    // matched only under Bybit's <ticker>STOCK name
 const tradfiAlias = [];          // skipped because the same instrument is already a curated row
+const tradfiHeld = [];           // held out on purpose, with the reason (TRADFI_HOLD)
+const tradfiBybitAlias = [];     // matched to a differently-named Bybit instrument (BYBIT_NAME_ALIAS)
 const tradfiKindMismatch = [];   // Bybit and Binance disagree on what the instrument is
 for (const [base, n] of [...bnTradfi.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
   const alias = TRADFI_SAME_AS_CURATED.get(base);
@@ -416,8 +444,16 @@ for (const [base, n] of [...bnTradfi.entries()].sort((a, b) => (a[0] < b[0] ? -1
     continue;
   }
 
-  const by = bybitTradfi.get(base) ?? bybitTradfi.get(base + 'STOCK') ?? null;
-  if (by && !bybitTradfi.has(base)) tradfiBybitSuffix.push(base);
+  if (TRADFI_HOLD.has(base)) {
+    const v = TRADFI_HOLD.get(base).versus;
+    const mine = bnLast.get(n.symbol) ?? 0;
+    const ref = v ? (bnLast.get(bnTradfi.get(v)?.symbol) ?? 0) : 0;
+    tradfiHeld.push(v && ref > 0 ? `${base} (x${(mine / ref).toFixed(2)} vs ${v}: HKD-quoted)` : `${base} (HKD-quoted, by naming pattern)`);
+    continue;
+  }
+  const by = bybitTradfi.get(base) ?? bybitTradfi.get(base + 'STOCK')
+    ?? (BYBIT_NAME_ALIAS.has(base) ? bybitTradfi.get(BYBIT_NAME_ALIAS.get(base)) : undefined) ?? null;
+  if (by && !bybitTradfi.has(base)) (BYBIT_NAME_ALIAS.has(base) ? tradfiBybitAlias : tradfiBybitSuffix).push(base);
 
   const lower = base.toLowerCase();
   const id = cryptoBases.has(lower) ? lower + 'stock' : lower;
@@ -818,7 +854,7 @@ export interface CoinRow {
   readonly oneVenue: boolean;
   /** TRADFI ONLY (stocks, funds, commodities, FX, pre-IPO references). Absent on crypto rows, except
    *  the curated gold row which Bybit types as a commodity. */
-  readonly kind?: 'stock' | 'etf' | 'commodity' | 'fx' | 'preipo';
+  readonly kind?: 'stock' | 'etf' | 'commodity' | 'fx' | 'preipo' | 'asset';
   /** The name to DISPLAY when it is not \`id.toUpperCase()\` - set on every TradFi row, because a
    *  ticker that clashes with a crypto base gets a suffixed id (\`catstock\`) but is still CAT. */
   readonly ticker?: string;
@@ -838,12 +874,14 @@ ${rows.map(r => `  { id: '${r.id}', bybit: ${r.bybit ? `'${r.bybit}'` : 'null'},
   console.log(`  on both venues: ${tradfiRows.filter(r => !r.oneVenue).length}; Binance-only: ${tradfiRows.filter(r => r.oneVenue).length}`
     + ` (${tradfiRows.filter(r => r.oneVenue).map(r => r.ticker).join(' ')})`);
   if (tradfiBybitSuffix.length) console.log(`  matched under Bybit's <ticker>STOCK name: ${tradfiBybitSuffix.join(' ')}`);
+  if (tradfiBybitAlias.length) console.log(`  matched under a different Bybit name (BYBIT_NAME_ALIAS): ${tradfiBybitAlias.map(b => `${b} -> ${BYBIT_NAME_ALIAS.get(b)}`).join(', ')}`);
   if (tradfiRenamed.length) console.log(`  id renamed to avoid a crypto collision: ${tradfiRenamed.join(', ')}`);
   for (const a of tradfiAlias) console.log(`  not added, already a curated row: ${a}`);
   if (unclassified.length) console.log(`  UNCLASSIFIED underlying, defaulted to stock: ${unclassified.join(', ')}`);
   if (tradfiKindMismatch.length) console.log(`  kind disagreement between venues (check): ${tradfiKindMismatch.join(' | ')}`);
-  const noFundFlag = tradfiRows.filter(r => r.kind === 'stock' && r.oneVenue).length;
-  if (noFundFlag) console.log(`  ${noFundFlag} Binance-only 'stock' rows could be funds - Bybit's ETF flag is the only fund signal and these have no Bybit row`);
+  if (tradfiHeld.length) console.log(`  HELD OUT (${tradfiHeld.length}): ${tradfiHeld.join(', ')}`);
+  const assetRows = tradfiRows.filter(r => r.kind === 'asset').map(r => r.ticker);
+  if (assetRows.length) console.log(`  neutral kind 'asset' (equity with no Bybit twin, so stock-vs-fund is unknown): ${assetRows.join(' ')}`);
 }
 
 if (CHECK) {
