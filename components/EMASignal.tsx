@@ -1,5 +1,5 @@
 'use client';
-import { StrategySignal, StrategyVerdict } from '@/lib/useEMAStrategy';
+import { StrategySignal, StrategyVerdict, SIGNAL_OLD_BARS } from '@/lib/useEMAStrategy';
 import { CoinId } from '@/lib/marketStore';
 import { ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtestEngine';
 import { withAlpha } from '@/lib/color';
@@ -194,6 +194,26 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
       {!signal.loading && signal.verdict !== 'LOADING' && (
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', marginBottom: 10, lineHeight: 1.4 }}>
           {signal.phase}
+        </div>
+      )}
+
+      {/* HOW OLD THE SIGNAL IS (#1583/#1541, PM's ruling 2026-11-11: every figure carries its age).
+          The verdict above describes the ribbon's SIDE, which holds for as long as the ribbon does -
+          so the card could read as a current call while the signal behind it fired weeks earlier
+          (QA's example: bnb 4h, a short from five weeks back). Bars rather than a date, because
+          that is the unit the chart and the strategy are in, and a date invites the reader to work
+          out the gap themselves.
+
+          Past SIGNAL_OLD_BARS it says so in amber. Below it, the age alone is the honest statement -
+          calling a 12-bar-old signal "recent" would be a judgement the threshold does not support. */}
+      {!signal.loading && signal.verdict !== 'LOADING' && signal.signalBarsAgo != null && signal.signalDir && (
+        <div style={{
+          fontSize: 'var(--fs-caption)', marginBottom: 10, lineHeight: 1.4,
+          color: signal.signalBarsAgo >= SIGNAL_OLD_BARS ? 'var(--amber)' : 'var(--txt3)',
+        }}>
+          {signal.signalBarsAgo >= SIGNAL_OLD_BARS
+            ? t('EMA_SIGNAL_AGE_OLD', { dir: signal.signalDir, bars: String(signal.signalBarsAgo) })
+            : t('EMA_SIGNAL_AGE', { dir: signal.signalDir, bars: String(signal.signalBarsAgo) })}
         </div>
       )}
 

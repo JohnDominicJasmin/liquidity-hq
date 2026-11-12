@@ -10,7 +10,7 @@
 // Binance-first with a Bybit fallback for Bybit-only coins (e.g. HYPE), which
 // matches how the Arena chart itself sources candles (lib/useEMAStrategy.ts) -
 // a gap the old Binance-only checkEMASetup silently had.
-import { BINANCE_SYMS, BYBIT_SYMS, bybitSymbolPriceFactor } from '@/lib/coins';
+import { BINANCE_SYMS, BYBIT_SYMS, symbolDenominationFactor } from '@/lib/coins';
 import type { OHLCV } from '@/lib/strategyCore';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { exchangeFetch } from './exchangeGuard.ts';
@@ -86,7 +86,7 @@ async function fetchFromBybit(bySym: string, tf: EMASignalTF, healthSource: stri
     // but every use of it here is a RATIO against the same series' own average
     // (see lib/priceAction), so a constant factor cancels and rescaling it
     // would only invite confusion about what the number means.
-    const pf = bybitSymbolPriceFactor(bySym);
+    const pf = symbolDenominationFactor(bySym);
     const out = list.map(k => ({
       time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5],
     }));

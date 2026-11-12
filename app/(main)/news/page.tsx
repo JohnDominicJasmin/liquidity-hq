@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useNews } from '@/components/NewsProvider';
 import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline } from '@/lib/classify';
+import { isSafeHttpUrl } from '@/lib/safeUrl';
 import { withAlpha } from '@/lib/color';
 import LoadingState from '@/components/LoadingState';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -300,7 +301,7 @@ function HeroCard({ a }: { a: AlertItem }) {
           300px block after first paint, shifting the whole feed under the
           largest card on the page. */}
       <div className="ncard-grid-img-wrap">
-        {a.image && (
+        {a.image && isSafeHttpUrl(a.image) && (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={a.image} alt="" className="ncard-grid-img"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -357,7 +358,7 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
           icon - the same generic image repeated down a feed reads as broken,
           where an empty tile reads as designed. */}
       <div className="ncard-grid-img-wrap">
-        {hasImg && (
+        {hasImg && isSafeHttpUrl(a.image) && (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={a.image} alt="" className="ncard-grid-img"
             onError={e => {
@@ -405,7 +406,7 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
 ──────────────────────────────────────────────── */
 export default function NewsPage() {
   const { t } = useLabels();
-  const { alerts, geoEvents, econEvents, whaleAlerts, alertsLoaded } = useNews();
+  const { alerts, geoEvents, econEvents, whaleAlerts, alertsLoaded, alertsFailed } = useNews();
   const [tab, setTab] = useState<Tab>('foryou');
 
   /* ── Coin mention tally ── */
@@ -636,11 +637,36 @@ export default function NewsPage() {
                 <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_GEO_EMPTY')}</div>
               ) : tab === 'crypto' ? (
                 <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_CRYPTO_EMPTY')}</div>
-              ) : (
+              ) : alertsFailed && !alertsLoaded ? (
+                /* FAILED, AND NOTHING EVER ARRIVED. The comment below used to end by saying this
+                   branch could not exist without a failure flag on the provider; the flag is now
+                   there (`alertsFailed`), so it does. Gated on `!alertsLoaded` as well, because a
+                   feed that succeeded once and then started failing still has real headlines to
+                   show - an error over existing content would be a worse lie than stale content. */
+                <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_FEED_FAILED')}</div>
+              ) : !alertsLoaded ? (
+                /* STILL LOADING - the skeleton is honest here and only here. */
                 <>
                   <SkeletonBar width={210} height={15} style={{ margin: '0 auto' }} />
                   <span className="sr-only">{t('NEWS_ALL_LOADING_SR')}</span>
                 </>
+              ) : (
+                /* LOADED AND EMPTY (#1185). This branch did not exist: the All tab showed the
+                   loading skeleton whenever it had nothing, so a feed that had finished and come
+                   back empty looked identical to one still arriving, for as long as
+                   the reader stared at it. The Geo and Crypto tabs beside it already say so
+                   plainly, and the For You tab above already gates on `alertsLoaded` (`:549`/`:553`);
+                   this is the same pattern, which is why it reuses `NEWS_CRYPTO_EMPTY` rather than
+                   inventing a fourth string for the same fact.
+
+                   LOADED-AND-EMPTY ONLY, NOT A FAILED READ - and an earlier version of this comment
+                   claimed otherwise, which QA caught. `NewsProvider` returns on error at :342 and
+                   reaches `setAlertsLoaded(true)` only at :348, deliberately: its own comment there
+                   says "a failed read is not an empty feed". So a persistent failure never arrives
+                   at this branch. CLOSED by the branch above, which reads `alertsFailed` - the flag that
+                   comment asked for. From here "not loaded" and "failed" really are the same
+                   absence, which is why the distinction had to come from the provider. */
+                <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_CRYPTO_EMPTY')}</div>
               )}
             </div>
           )}

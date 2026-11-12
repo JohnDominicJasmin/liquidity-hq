@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { CoinId } from '@/lib/marketStore';
-import { BINANCE_SYMS, BYBIT_SYMS, bybitSymbolPriceFactor } from '@/lib/coins';
+import { symbolDenominationFactor, venueSymbols } from '@/lib/coins';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import Tip from './Tip';
 import { Warn } from './icons';
@@ -35,13 +35,22 @@ export default function HigherTfMoveBadge({ coin, tf, signalDir }: Props) {
 
     async function load() {
       try {
-        const bn = BINANCE_SYMS[coin];
-        const by = BYBIT_SYMS[coin];
+        /* BOTH VENUES FROM THE UNIVERSE (#1263). Safe here because the Binance call is
+           `source=binance-futures`, and the universe's `binance` column IS the futures symbol - unlike
+           the spot callers, where widening would send a futures symbol to the spot allowlist. */
+        const { binance: bn, bybit: by } = venueSymbols(coin);
         let closes: number[] = [];
         // #1059: Bybit primary, Binance fallback. This only ever compares two
-        // closes as a ratio, so bybitSymbolPriceFactor is a no-op here (both
-        // sides scale identically) - applied anyway per the coins.ts rule that
-        // any new code reading a price off BYBIT_SYMS applies the factor.
+        // closes as a RATIO, so a constant denomination factor cancels - which
+        // is the only reason the Binance branch below can map raw closes
+        // without applying one. The Bybit branch applies it anyway, per the
+        // coins.ts rule that any new code reading a price off a Bybit symbol
+        // applies the factor.
+        //
+        // SO: nothing here may start using these closes as absolute prices.
+        // The moment one does, the Binance path is wrong by the symbol's
+        // denomination for every 1000x coin - silently, and in the direction
+        // that looks plausible.
         if (by) {
           // #1080: retry shared with every other Bybit-klines caller (see
           // lib/bybitKlines.ts). Exhaustion is unchanged - `d === null` falls
@@ -59,7 +68,7 @@ export default function HigherTfMoveBadge({ coin, tf, signalDir }: Props) {
           if (d === null) {
             console.warn(`HigherTfMoveBadge: Bybit klines retry exhausted for ${by}/${coin}`);
           }
-          const pf = bybitSymbolPriceFactor(by);
+          const pf = symbolDenominationFactor(by);
           closes = [...(d?.result?.list ?? [])].reverse().map(k => +k[4] * pf);
         } else if (bn) {
           const r = await fetch(`/api/market/klines?source=binance-futures&symbol=${bn}&interval=4h&limit=${LOOKBACK_BARS + 1}`);

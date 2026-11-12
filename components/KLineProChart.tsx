@@ -1,16 +1,16 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
-import { BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, CoinId, useMarket, computeSqueezeScore } from '@/lib/marketStore';
+import { COIN_DEC, CoinId, useMarket, computeSqueezeScore, venueSymbols } from '@/lib/marketStore';
 import { chartDisplaySymbol } from '@/lib/coins';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
-import { Warn } from '@/components/icons';
+import { Lock, Warn } from '@/components/icons';
 import { useLabels } from '@/lib/labels';
 import { useAuth } from '@/components/AuthProvider';
 import { getAuthToken } from '@/lib/supabase';
-import { drawStructureAvailable, type DrawableStructure } from '@/lib/drawStructure';
+import { drawStructureAvailable, DRAW_STRUCTURE_NOISY_TFS, type DrawableStructure } from '@/lib/drawStructure';
 import Tip from '@/components/Tip';
 import { barsAfter } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
@@ -359,6 +359,13 @@ interface Props {
   onShowSRChange:  (next: boolean) => void;
   showLiq:       boolean;
   onShowLiqChange: (next: boolean) => void;
+  /* Called when a confirmed-Free visitor taps the locked Draw Structure button. The PAGE owns the
+     upsell, the same way it owns the fast-timeframe gate - this chart has no router and no opinion
+     about what an upgrade prompt looks like, and `onUnlock` is already the established prop name for
+     "the visitor tapped something locked" (arena/page.tsx passes one to the Confluence card). Left
+     optional so every other embedder of this chart keeps compiling and simply renders nothing
+     clickable there. */
+  onUnlock?:     () => void;
   /* Per-indicator edited parameter values for `indicators` (#1008), keyed by
      indicator id then param key. An indicator with no entry here uses
      strategyRegistry's defaultParams - see the sync effect below and
@@ -615,7 +622,7 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, onUnlock }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -640,6 +647,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const loadBumpedAtRef  = useRef(Date.now());
   const deliveredGenRef  = useRef(-1);
   const historyRetryRef  = useRef(0);
+  /* ONE OLDER-PAGE REQUEST AT A TIME (scroll-back). Reset in the `finally` of that branch, so a
+     failed or superseded page cannot wedge it closed. */
+  const olderInFlightRef = useRef(false);
 
   // Screenshot the live canvas → show it as a frozen image while new data loads → crossfade out
   const startFade = () => {
@@ -1082,6 +1092,33 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       if (!emaSignalOverlayRegistered) {
         emaSignalOverlayRegistered = true;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        /* THE LINE'S OWN LABEL, so a chart with four dashed lines says which is which (owner,
+           2026-11-10). Registered rather than using the built-in `simpleAnnotation`, which draws a
+           50px stalk and an arrowhead per annotation - that is a pointer, not a label, and four of
+           them crowd the window it is trying to explain.
+
+           NO COLOUR AND NO STYLES, deliberately, for the same reason the segment itself sets none:
+           the chart's line ink differs per theme and a hardcoded colour here is how the last two
+           colour fixes regressed the other theme. A figure with no styles takes the chart's own
+           themed defaults, so this follows the theme by construction rather than by a pair of
+           values someone has to keep measured. */
+        (kc as any).registerOverlay({
+          name: 'structureLabel',
+          totalStep: 1,
+          needDefaultPointFigure: false,
+          needDefaultXAxisFigure: false,
+          needDefaultYAxisFigure: false,
+          createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
+            const text = typeof overlay.extendData === 'string' ? overlay.extendData : '';
+            if (!text || !coordinates.length) return [];
+            /* Above and to the right of the line's start, so it does not sit on the line itself.
+               `baseline: 'bottom'` keeps it clear of the first candle the line touches. */
+            return [{
+              type: 'text',
+              attrs: { x: coordinates[0].x + 4, y: coordinates[0].y - 4, text, align: 'left', baseline: 'bottom' },
+            }];
+          },
+        });
         (kc as any).registerOverlay({
           name: 'emaSignal',
           totalStep: 1,
@@ -1534,15 +1571,89 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
       // DataLoader
       const loader: DataLoader = {
-        getBars: async ({ symbol, period, callback }) => {
+        getBars: async ({ symbol, period, callback, type, timestamp }) => {
           // Snapshot the load token; if a newer coin/tf switch happens while this
           // fetch is in flight, the result is stale and must be discarded so it
           // can't overwrite the chart with the wrong timeframe/coin.
           const myGen = loadGenRef.current;
           const stale = () => myGen !== loadGenRef.current;
           const c   = coinRef.current;
-          const bnSym    = BINANCE_SYMS[c] as string | undefined;
-          const bybitSym = BYBIT_SYMS[c]   as string | undefined;
+          /* venueSymbols, not the editorial maps: Arena offers the whole universe (#1263). */
+          const { binance: bnSym, bybit: bybitSym } = venueSymbols(c);
+          /* ── SCROLL-BACK: OLDER CANDLES, FETCHED WHEN THE USER REACHES THE LEFT EDGE ──────────
+           *
+           * klinecharts asks for OLDER bars with type `'forward'`, and the name is the opposite of
+           * the intuition. Verified in the library's own reducer rather than inferred from the word:
+           * `case 'forward'` does `data.concat(this._dataList)` - a PREPEND, so older - while
+           * `case 'backward'` does `this._dataList.concat(data)`. Taking the name at face value
+           * loads the wrong end of the chart and looks like nothing happening.
+           *
+           * `end` is one millisecond before the oldest bar we hold, because both venues treat that
+           * bound as INCLUSIVE and would otherwise hand back a duplicate of it. The filter below is
+           * a second guard on the same seam, for a venue that rounds the bound to its own candle
+           * boundary.
+           *
+           * ONE REQUEST AT A TIME. A fast scroll fires several of these; `exchangeGuard` paces the
+           * requests but would still let them interleave and prepend out of order. The ref refuses
+           * the overlapping ones and answers `forward: true`, so the next scroll retries rather than
+           * the chart concluding the history has ended.
+           *
+           * NO SIDE EFFECTS HERE, deliberately. `applyBars` sets `lastCloseRef` and the S/R levels
+           * from its LAST bar; on an older page that bar is weeks old, so running it would move the
+           * live price and redraw support and resistance off stale history. Overlays stay anchored
+           * because klinecharts v10 keys them by timestamp rather than by index.
+           *
+           * Binance FUTURES, not spot, for these pages: the spot allowlist is still the editorial
+           * 50 (#2127), so a universe coin is refused there while futures carries all 461. */
+          if (type === 'forward') {
+            if (timestamp == null) { callback([], false); return; }
+            if (olderInFlightRef.current) { callback([], { forward: true }); return; }
+            olderInFlightRef.current = true;
+            try {
+              const endMs = timestamp - 1;
+              type Bar = { timestamp: number; open: number; high: number; low: number; close: number; volume: number };
+              let older: Bar[] = [];
+              if (bybitSym) {
+                const json = await fetchBybitKlinesRetry(bybitSym, periodToBybitInterval(period), 1000, {
+                  extraParams: { end: String(endMs) },
+                  isStale: stale,
+                  attemptTimeoutMs: HISTORY_ATTEMPT_TIMEOUT_MS,
+                });
+                if (stale()) { callback([], false); return; }
+                older = [...(json?.result?.list ?? [])].reverse().map(k => ({
+                  timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
+                  low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
+                }));
+              } else if (bnSym) {
+                const res = await fetch(
+                  `/api/market/klines?source=binance-futures&symbol=${bnSym}&interval=${periodToBnInterval(period)}&limit=1500&end=${endMs}`,
+                  { signal: AbortSignal.timeout(HISTORY_ATTEMPT_TIMEOUT_MS) },
+                );
+                if (stale()) { callback([], false); return; }
+                if (res.ok) {
+                  const j = await res.json() as unknown;
+                  if (Array.isArray(j)) {
+                    older = (j as (string | number)[][]).map(k => ({
+                      timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
+                      low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
+                    }));
+                  }
+                }
+              }
+              /* A BAR AT OR AFTER THE SEAM IS A DUPLICATE, and a non-finite timestamp would sort
+                 anywhere, so both are dropped before the prepend. An empty result is how a venue
+                 says it has no more history, and `forward: false` stops the chart asking again. */
+              const bars = older.filter(b => Number.isFinite(b.timestamp) && b.timestamp < timestamp);
+              callback(bars, { forward: bars.length > 0 });
+            } catch {
+              /* A failed page is not the end of the history, so the door stays open: the next scroll
+                 retries rather than the chart deciding this coin has no older candles. */
+              if (!stale()) callback([], { forward: true });
+            } finally {
+              olderInFlightRef.current = false;
+            }
+            return;
+          }
           const applyBars = (bars: { timestamp: number; open: number; high: number; low: number; close: number; volume: number }[]) => {
             if (bars.length) {
               lastCloseRef.current = bars[bars.length - 1].close;
@@ -1557,7 +1668,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             }
             if (bars.length) historyRetryRef.current = 0;
             deliveredGenRef.current = myGen;
-            callback(bars, false);
+            /* AN OBJECT, NOT `false`. Passing `false` tells klinecharts there is no more data in
+               EITHER direction, so it would never request an older page and the scroll-back branch
+               above would be dead code. An empty history is the one case with nothing older to ask
+               for. */
+            callback(bars, { forward: bars.length > 0 });
           };
           setHistoryFailed(false); // clear any previous coin's failure banner immediately
           setHistoryViaServerBybitFallback(false); // same - clear the previous coin's label immediately
@@ -1709,8 +1824,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
         subscribeBar: ({ period, callback }) => {
           const c        = coinRef.current;
-          const bnSym    = BINANCE_SYMS[c] as string | undefined;
-          const bybitSym = BYBIT_SYMS[c]   as string | undefined;
+          /* venueSymbols, not the editorial maps: Arena offers the whole universe (#1263). */
+          const { binance: bnSym, bybit: bybitSym } = venueSymbols(c);
           wsRef.current?.close();
           /* #1572: lastBarTsRef is only ever written by live frames, so a new subscription (another timeframe or coin) inherited the
              previous one's last-bar time, and a reconnect before the first frame would backfill from the WRONG point. 0 means "nothing
@@ -2207,8 +2322,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     historyRetryRef.current = 0;
     if (coinChanged) {
       loadGenRef.current += 1; loadBumpedAtRef.current = Date.now();
-      const bnSym    = BINANCE_SYMS[coin] as string | undefined;
-      const bybitSym = BYBIT_SYMS[coin]   as string | undefined;
+      /* venueSymbols, not the editorial maps: Arena offers the whole universe (#1263). */
+      const { binance: bnSym, bybit: bybitSym } = venueSymbols(coin);
       const baseSym  = bnSym ?? bybitSym ?? 'BTCUSDT';
       chart.setSymbol({ ticker: chartDisplaySymbol(coin), shortName: chartDisplaySymbol(coin), pricePrecision: COIN_DEC[coin] ?? 2 });
     }
@@ -2731,6 +2846,34 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
      never fitted to. */
   useEffect(() => { clearProposals(); }, [coin, tf, clearProposals]);
 
+  const structureTypeLabel = useCallback(
+    (type: DrawableStructure['type']) => tl(`DRAW_STRUCTURE_TYPE_${type.toUpperCase()}` as Parameters<typeof tl>[0]),
+    [tl],
+  );
+
+  /* ONE TEXT, TWO SURFACES: the menu row and the on-chart label beside the line. Shared so they
+     cannot drift - the owner's need is telling WHICH line on the chart is which, and a label that
+     disagreed with its row would defeat that.
+
+     BOTH ARE useCallback AND DECLARED ABOVE `requestStructures`, which is not tidiness. That
+     callback creates the on-chart labels, so it needs this in its dependency list; a plain function
+     would be a new identity every render, and a dependency array referencing a `const` declared
+     further down the component throws at render time rather than warning. Captured stale, the
+     on-chart label would keep the FIRST render's labels - default copy - while the menu row
+     re-rendered with the ones from the database. That is exactly the drift the sharing prevents.
+
+     A zero count shows the kind alone rather than "0 touches": a zero there is a line drawn through
+     nothing the model would name, and printing it as evidence dresses an absence up as a
+     measurement. No confidence number, because `DrawableStructure` has none - its comment says the
+     absence is the point. */
+  const structureRowText = useCallback((s: DrawableStructure) => {
+    const touches = s.touchTimestamps.length;
+    return touches === 0
+      ? structureTypeLabel(s.type)
+      : tl(touches === 1 ? 'DRAW_STRUCTURE_ITEM_ONE' : 'DRAW_STRUCTURE_ITEM',
+           { kind: structureTypeLabel(s.type), count: String(touches) });
+  }, [tl, structureTypeLabel]);
+
   const requestStructures = useCallback(async () => {
     const chart = chartRef.current;
     if (!chart || dsLoading) return;
@@ -2783,6 +2926,17 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           styles: { line: { style: 'dashed', size: 1 } },
         } as OverlayCreate);
         if (typeof id === 'string') ids.push(id);
+        /* The label rides in the SAME group, so `clearProposals`'s `removeOverlay({ groupId })`
+           takes the line and its label together. A label left behind would name a line that is no
+           longer there, which is worse than no label at all. */
+        const labelId = chart.createOverlay({
+          name: 'structureLabel',
+          groupId: PROPOSAL_GROUP,
+          lock: true,
+          points: [{ timestamp: s.from.timestamp, value: s.from.price }],
+          extendData: structureRowText(s),
+        } as OverlayCreate);
+        if (typeof labelId === 'string') ids.push(labelId);
       }
       proposalIds.current = ids;
       setProposals(list);
@@ -2795,43 +2949,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     } finally {
       setDsLoading(false);
     }
-  }, [tf, tl, dsLoading, clearProposals]);
+  }, [tf, tl, dsLoading, clearProposals, structureRowText]);
+  /* NO acceptProposal / dropProposal ANY MORE (owner, 2026-11-10). Keep/Discard is gone, so the
+     promotion that moved a proposal into DRAWING_GROUP is gone with it - which means nothing the
+     model draws can reach the user's persisted drawing store at all now, rather than merely not
+     reaching it until they chose. clearProposals() below removes the whole group. */
 
-  const dropProposal = (i: number) => {
-    const chart = chartRef.current;
-    const id = proposalIds.current[i];
-    if (chart && id) chart.removeOverlay({ id });
-    proposalIds.current = proposalIds.current.filter((_, n) => n !== i);
-    setProposals(prev => prev.filter((_, n) => n !== i));
-  };
 
-  /* ACCEPT IS A PROMOTION, NOT A FLAG. The proposal overlay is removed and the same two
-     points are re-created in DRAWING_GROUP with no `lock`, which hands it to the existing
-     user-drawing machinery: drag handles, per-coin persistence, the same Clear-all button.
-     Nothing marks it as model-suggested afterwards, on purpose - the trader accepted it, so
-     it is their line. */
-  const acceptProposal = (i: number) => {
-    const chart = chartRef.current;
-    const s = proposals[i];
-    if (!chart || !s) return;
-    const id = chart.createOverlay({
-      name: 'segment',
-      groupId: DRAWING_GROUP,
-      points: [
-        { timestamp: s.from.timestamp, value: s.from.price },
-        { timestamp: s.to.timestamp, value: s.to.price },
-      ],
-      onDrawEnd: () => saveDrawings(chart, coinRef.current),
-      onRemoved: () => saveDrawings(chart, coinRef.current),
-      onPressedMoveEnd: () => saveDrawings(chart, coinRef.current),
-    } as OverlayCreate);
-    if (typeof id === 'string') userDrawOverlayIds.current.push(id);
-    saveDrawings(chart, coinRef.current);
-    dropProposal(i);
-  };
-
-  const structureTypeLabel = (type: DrawableStructure['type']) =>
-    tl(`DRAW_STRUCTURE_TYPE_${type.toUpperCase()}` as Parameters<typeof tl>[0]);
 
   // ── Drawing toolbar ──────────────────────────────────────────────────
   const handleTool = (toolId: string) => {
@@ -2941,13 +3065,48 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             blind charts, not a guess about what traders like. 15m was 0 of 4 and is absent
             rather than configurable, because a setting invites someone to turn it on.
 
-            HIDDEN ONLY ON A CONFIRMED FREE ACCOUNT. `entitlementStatus` is 'unknown' when
-            every entitlement retry failed, and the conscious decision for that case (which
-            AuthProvider requires each call site to make) is to SHOW the button: hiding a paid
-            feature from a paying customer because OUR read failed is the worse error, and the
-            route refuses a genuine free account server-side regardless. Reuses the Draw
+            A CONFIRMED FREE ACCOUNT NOW SEES IT LOCKED, NOT ABSENT (owner, 2026-11-10). It used
+            to be hidden outright, so a Free visitor had no idea the feature existed and nothing
+            invited them to upgrade. The locked branch is below.
+
+            `entitlementStatus` is 'unknown' when every entitlement retry failed, and the conscious
+            decision for that case (which AuthProvider requires each call site to make) is to show
+            the WORKING button: hiding a paid feature from a paying customer because OUR read failed
+            is the worse error, and the route refuses a genuine free account server-side regardless.
+            So 'unknown' keeps today's behaviour and only 'not_entitled' locks. Reuses the Draw
             menu's classes so this adds no CSS - globals.css is a landing-gated file and this
             needs none of it. */}
+        {drawStructureAvailable(tf) && entitlementStatus === 'not_entitled' && onUnlock && (
+          <div className="klc-draw-wrap">
+            {/* NEVER `requestStructures` ON THIS BRANCH. The server already refuses a Free
+                account, but a call that is certain to be refused is a wasted round trip and, on
+                the AI path, a wasted quota check - so this button only opens the upsell.
+
+                `aria-label` IS SET EXPLICITLY, and that is #959's lesson rather than belt and
+                braces: the visible content here is an icon plus two separate text nodes, which a
+                screen reader would otherwise announce as "Draw Structure Pro" with no indication
+                that it is locked or what tapping does. The Lock icon itself carries aria-hidden,
+                so it contributes nothing - the name has to come from the label. */}
+            <button
+              className="klc-tool-btn klc-draw-btn"
+              onClick={onUnlock}
+              aria-label={tl('DRAW_STRUCTURE_LOCKED_ARIA')}
+              title={tl('DRAW_STRUCTURE_LOCKED_ARIA')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+            >
+              <Lock size={11} />
+              {tl('DRAW_STRUCTURE_BUTTON')}
+              {/* Inline rather than a new class, for the same reason the rest of this block
+                  reuses the Draw menu's classes: globals.css is landing-gated and this needs
+                  none of it. Tokens only, so it follows the theme. */}
+              <span style={{
+                fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em',
+                textTransform: 'uppercase', color: 'var(--accent-2)',
+              }}>{tl('DRAW_STRUCTURE_PRO_TAG')}</span>
+            </button>
+          </div>
+        )}
+
         {drawStructureAvailable(tf) && entitlementStatus !== 'not_entitled' && (
           <div className="klc-draw-wrap">
             <button
@@ -2968,20 +3127,36 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                      the coin/timeframe effect. Same single-line shape as the error branch
                      rather than a new one, so this adds no CSS: globals.css is landing-gated. */
                   ? <div className="klc-draw-item">{tl('DRAW_STRUCTURE_NONE')}</div>
+                  /* NO PER-LINE KEEP/DISCARD. Owner, 2026-11-10: "I don't think this is a good
+                     idea where we ask user about this." The lines are already drawn by the time
+                     this panel opens - dashed, locked, and in PROPOSAL_GROUP, which `saveDrawings`
+                     does not persist - so the trader reads the chart instead of answering a
+                     question per line. One Clear removes them all.
+
+                     WHAT WAS DELIBERATELY KEPT, because it is what stops an AI line quietly
+                     becoming the trader's own: proposals stay in their own unpersisted group with
+                     `lock: true` and a dashed style. Accepting one used to MOVE it into
+                     DRAWING_GROUP, where it became an ordinary saved drawing - that promotion is
+                     gone with the question that justified it, so nothing the model drew can end up
+                     in the user's drawing store at all now.
+
+                     The type list stays: with the Keep/Discard buttons gone it is the only thing
+                     naming what was drawn. */
                   : (<>
                       <div className="klc-draw-item">{tl('DRAW_STRUCTURE_PANEL_TITLE')}</div>
-                      <div className="klc-draw-item">{tl('DRAW_STRUCTURE_HINT')}</div>
-                      {proposals.map((s, i) => (
-                        <div key={`${s.type}-${s.from.timestamp}-${s.to.timestamp}`} className="klc-draw-item">
-                          {structureTypeLabel(s.type)}
-                          <button className="klc-draw-item" onClick={() => acceptProposal(i)}>
-                            {tl('DRAW_STRUCTURE_ACCEPT')}
-                          </button>
-                          <button className="klc-draw-item" onClick={() => dropProposal(i)}>
-                            {tl('DRAW_STRUCTURE_REJECT')}
-                          </button>
-                        </div>
-                      ))}
+                      {DRAW_STRUCTURE_NOISY_TFS.includes(tf) && (
+                        <div className="klc-draw-item">{tl('DRAW_STRUCTURE_LOWER_TF_NOTE')}</div>
+                      )}
+                      {proposals.map(s => {
+                        /* Same text as the on-chart label beside the line - see structureRowText,
+                           which carries the reasoning for the count, the plural and the zero case. */
+                        const row = structureRowText(s);
+                        return (
+                          <div key={`${s.type}-${s.from.timestamp}-${s.to.timestamp}`} className="klc-draw-item">
+                            {row}
+                          </div>
+                        );
+                      })}
                       <button className="klc-draw-item klc-draw-clear" onClick={clearProposals}>
                         {tl('DRAW_STRUCTURE_CLEAR')}
                       </button>
@@ -3368,8 +3543,8 @@ function fmtLiqUsd(n: number): string {
 
 // ── Helper ────────────────────────────────────────────────────────────────
 function setChartSymbolPeriod(chart: KChart, coin: CoinId, tf: string) {
-  const bnSym    = BINANCE_SYMS[coin] as string | undefined;
-  const bybitSym = BYBIT_SYMS[coin]   as string | undefined;
+  /* venueSymbols, not the editorial maps: Arena offers the whole universe (#1263). */
+  const { binance: bnSym, bybit: bybitSym } = venueSymbols(coin);
   chart.setSymbol({ ticker: chartDisplaySymbol(coin), shortName: chartDisplaySymbol(coin), pricePrecision: COIN_DEC[coin] ?? 2 });
   chart.setPeriod(TF_TO_PERIOD[tf] ?? TF_TO_PERIOD['15m']);
 }

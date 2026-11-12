@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { closedCandles, EMA_SIGNAL_TFS, type EMASignalTF } from '../lib/ribbonCandles.ts';
 import { detectEMASignals, DEFAULT_FILTER_PARAMS, type OHLCV } from '../lib/strategyCore.ts';
+import { unfilteredCandlesReachDetector, CRON_ALERT_PATHS } from '../qa/wiringGuards.ts';
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const TF_MS: Record<EMASignalTF, number> = {
@@ -143,19 +144,67 @@ test('C2b. nothing else is dropped: a fully closed series survives the filter wh
 
 /* ── 3. the wiring ────────────────────────────────────────────────────────── */
 
+/* THE WIRING CHECK LIVES IN `qa/wiringGuards.ts`, not here, so the probe that proved it against
+ * #2080's branch runs the same function rather than a copy of it. Its comment carries the history:
+ * it used to match a CALL SHAPE (`closedCandles(await fetchRibbonCandles(`), #2080 wrapped the fetch
+ * in a pacer, the invariant held, and the guard failed anyway for two days. C3c below is its
+ * control. */
+
 test('C3. both alert paths and both preview branches judge CLOSED candles', () => {
   const cron = read('app/api/telegram/alert/route.ts');
-  for (const fn of ['checkEMASignal', 'checkStructureSignal']) {
+  for (const [fn, detector] of CRON_ALERT_PATHS) {
     const at = cron.indexOf(`async function ${fn}(`);
     assert.ok(at > 0, `${fn} is gone from the cron route`);
     const body = cron.slice(at, at + 4000);
-    assert.match(body, /closedCandles\(await fetchRibbonCandles\(/,
-      `${fn} reads fetchRibbonCandles directly: it would judge the forming candle again`);
+    const why = unfilteredCandlesReachDetector(body, detector);
+    assert.equal(why, null, `${fn} would judge the forming candle: ${why}`);
   }
   const preview = read('app/api/alerts/preview/route.ts');
   assert.match(preview, /detectEMASignals\(\s*\n?\s*closedCandles\(/, 'the preview\'s EMA branch does not filter to closed candles');
   assert.match(preview, /detectStructureSignals\(closedCandles\(/, 'the preview\'s structure branch does not filter to closed candles');
   assert.equal(preview.includes('detectEMASignals(\n          candles,'), false, 'the preview still passes the raw candles somewhere');
+});
+
+test('C3c. the wiring check fires on the defect and tolerates refactors that keep the property', () => {
+  /* THE CONTROL FOR C3, and the reason it exists is that C3's predecessor had none: a guard matching
+     a call shape looked identical to a guard matching the property until a wrapper arrived.
+     Synthetic sources rather than mutations of the real route, because the route is app code and QA
+     does not edit it - and a fixture states the shape being claimed, which a mutation does not.
+     Cases 2 and 3 are the ones the old assertion got wrong. */
+  const CASES: Array<{ name: string; body: string; holds: boolean }> = [
+    { name: '1. the shape on qa today', holds: true,
+      body: 'const candles = closedCandles(await fetchRibbonCandles(coin, tf), tf);\n'
+          + 'const { signalLongs } = detectEMASignals(candles, tf, mode.params);' },
+    { name: '2. #2080: the fetch wrapped in a pacer - the property HOLDS', holds: true,
+      body: 'const candles = closedCandles(await paceBybit(() => fetchRibbonCandles(coin, tf)), tf);\n'
+          + 'const { signalLongs } = detectEMASignals(candles, tf, mode.params);' },
+    { name: '3. an intermediate variable - also legitimate', holds: true,
+      body: 'const raw = await fetchRibbonCandles(coin, tf);\nconst candles = closedCandles(raw, tf);\n'
+          + 'const { signalLongs } = detectEMASignals(candles, tf, mode.params);' },
+    { name: '4. a first argument that is an expression over the filtered candles', holds: true,
+      body: 'const candles = closedCandles(await fetchRibbonCandles(coin, tf), tf);\n'
+          + 'const signals = detectStructureSignals(\n  candles.map(c => ({ time: c.time, close: c.close })),\n  tf,\n);' },
+    { name: '5. THE DEFECT: the filter is gone', holds: false,
+      body: 'const candles = await fetchRibbonCandles(coin, tf);\n'
+          + 'const { signalLongs } = detectEMASignals(candles, tf, mode.params);' },
+    { name: '6. THE DEFECT: filtered, then the raw series is judged anyway', holds: false,
+      body: 'const raw = await fetchRibbonCandles(coin, tf);\nconst candles = closedCandles(raw, tf);\n'
+          + 'const { signalLongs } = detectEMASignals(raw, tf, mode.params);' },
+    { name: '7. THE DEFECT: an awaited fetch straight into the detector', holds: false,
+      body: 'const candles = closedCandles(await fetchRibbonCandles(coin, tf), tf);\n'
+          + 'const { signalLongs } = detectEMASignals(await fetchRibbonCandles(coin, tf), tf, mode.params);' },
+  ];
+
+  for (const c of CASES) {
+    const detector = c.body.includes('detectStructureSignals(') ? 'detectStructureSignals' : 'detectEMASignals';
+    const why = unfilteredCandlesReachDetector(c.body, detector);
+    if (c.holds) assert.equal(why, null, `${c.name}: the check rejected a source where the property HOLDS - ${why}`);
+    else assert.notEqual(why, null, `${c.name}: the check PASSED a source where the forming candle reaches the detector`);
+  }
+
+  /* And the guard must not be vacuous: at least one case of each verdict, or a function that always
+     returned null (or never did) would satisfy the loop above. */
+  assert.ok(CASES.some((c) => c.holds) && CASES.some((c) => !c.holds), 'the fixture set tests only one verdict');
 });
 
 test('C3b. the timeframes the structure alert uses are all known to the helper, or every structure alert stops silently', () => {

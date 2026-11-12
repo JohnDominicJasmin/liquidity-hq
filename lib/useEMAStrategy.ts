@@ -1,9 +1,9 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
+import { CoinId, venueSymbols } from './marketStore.ts';
 import { OKX_SYMS } from './coins.ts';
 import { okxBarForBinanceInterval } from './okx.ts';
-import { bybitSymbolPriceFactor } from './coins.ts';
+import { symbolDenominationFactor } from './coins.ts';
 import { fundingDetail } from './fundingDetail.ts';
 import {
   emaArr, smaArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
@@ -57,6 +57,10 @@ export interface StrategySignal {
   signalTimestamp:   number | null;
   signalAnchorPrice: number | null;
   signalDir:         'long' | 'short' | null;
+  /** HOW MANY BARS BACK the latest signal fired, on THIS timeframe. The verdict follows the ribbon's
+   *  side however old that signal is, so without this a five-week-old short reads as current - both
+   *  in the AI context and in Arena's ribbon-agreement check (#1583/#1541). null when none. */
+  signalBarsAgo:     number | null;
   /* Markers are on the ARM candle (the EMA9/20 cross) again, and a signal still holding its hold is drawn hollow with
      `pending` set (owner, 2026-10-07, after trying fill-candle placement on qa: "massive delay, selling at the bottom").
      `pendingSetup` is the same signal as text under the chart. */
@@ -118,16 +122,16 @@ async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: n
   if (!r.ok) throw new Error(`Binance futures klines ${r.status}`);
   const raw = await r.json() as (string | number)[][];
   /* THE SAME 1000x CORRECTION THE BYBIT PATH APPLIES, and it was missing here (#1263).
-     `bybitSymbolPriceFactor` reads the SYMBOL STRING, not the venue - `startsWith('1000')` - so it is
+     `symbolDenominationFactor` reads the SYMBOL STRING, not the venue - `startsWith('1000')` - so it is
      correct for a Binance `1000PEPEUSDT` too, and only its name says otherwise.
 
-     Not reachable today: BINANCE_SYMS has no pepe or bonk entry (lib/coins.ts keeps them Bybit-only
-     precisely to avoid the 1000x denomination), so no symbol reaching this function starts with 1000.
-     It is here because the fallback below now actually runs, and the day someone adds a 1000x symbol
-     to BINANCE_SYMS the failure is entry, stop-loss and take-profit wrong by 1000x on a live signal -
-     silent, plausible-looking numbers. Guarding the rule costs one line; relying on a list staying
-     short is how #1059's own comment says this broke the first time. */
-  const pf = bybitSymbolPriceFactor(sym);
+     REACHABLE SINCE #1263, and this comment said "unreachable today" until then. The symbol now
+     comes from `venueSymbols()`, which reads the generated universe, so SEVEN 1000x-denominated
+     coins arrive here on Binance: cat, floki, lunc, rats, sats, xec at x1000 and mog at
+     x1000000. Only bonk and pepe are still held out of the Binance map by hand. So the guard
+     below is load-bearing rather than defensive, and the comment that called it unnecessary was
+     the only thing suggesting otherwise. */
+  const pf = symbolDenominationFactor(sym);
   return raw.map(k => ({
     time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5],
   }));
@@ -136,7 +140,7 @@ async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: n
 /* OKX, THE THIRD VENUE (#1651). Same bare oldest-first array `source=binance-futures` returns, so
    this is the Binance fetcher with two differences, both deliberate:
 
-   NO PRICE FACTOR. `bybitSymbolPriceFactor` reads the symbol string for a `1000` prefix, and OKX
+   NO PRICE FACTOR. `symbolDenominationFactor` reads the symbol string for a `1000` prefix, and OKX
    has no such instrument - it quotes every one of these per token, measured against both other
    venues at ratios of 1.000. Applying it would be harmless today (an OKX instId never starts with
    `1000`) and misleading tomorrow, because it would imply the guarantee comes from the symbol
@@ -179,21 +183,21 @@ async function fetchBybitKlines(sym: string, interval: string, limit: number): P
   // dollar prices next to a ticker quoting per-token - so without this those
   // three numbers were 1000x on exactly two coins. Volume left alone: it is
   // only ever compared against its own moving average.
-  const pf = bybitSymbolPriceFactor(sym);
+  const pf = symbolDenominationFactor(sym);
   return list.map(k => ({
     time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5],
   }));
 }
 
 async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval: string, limit: number): Promise<OHLCV[]> {
-  const bnSym = BINANCE_SYMS[coin];
-  const bySym = BYBIT_SYMS[coin];
+  /* venueSymbols, not the editorial maps: the Arena scanner scores the whole universe (#1263). */
+  const { binance: bnSym, bybit: bySym } = venueSymbols(coin);
   /* #1059: Bybit primary, Binance fallback - reversed from Binance-primary.
      Binance futures is rate-limiting/blocking this server's egress IP (502,
      418) while Bybit answers normally from the same IP, for BTC/ETH/SOL/DOGE/
      XRP/HYPE and both 1000x meme coins Binance doesn't even list. Bybit's
      public limit (600 req/5s per IP) is orders of magnitude above what this
-     hook needs. fetchBybitKlines already applies bybitSymbolPriceFactor.
+     hook needs. fetchBybitKlines already applies symbolDenominationFactor.
 
      #1263: AND UNTIL NOW THE FALLBACK DID NOT EXIST. This read:
 
@@ -241,7 +245,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   ema9_4h: null, ema20_4h: null, ema50_4h: null, sma200_1d: null,
   volMA20: null, lastVol: null, priceInValueZone: false,
   sl: null, tp: null, loading: true, error: null,
-  signalTimestamp: null, signalAnchorPrice: null, signalDir: null,
+  signalTimestamp: null, signalAnchorPrice: null, signalDir: null, signalBarsAgo: null,
   signalLongs: [], signalShorts: [], pendingSetup: null, lockedMarkers: [], signalLock: null, counterTrend: false,
   atrLast: null, ema50Slope: null,
   chopIndex: null, chopRegime: null,
@@ -747,6 +751,7 @@ export function useEMAStrategy(
         let signalTimestamp: number | null = null;
         let signalAnchorPrice: number | null = null;
         let signalDir: 'long' | 'short' | null = null;
+        let signalBarsAgo: number | null = null;
 
         // Anti-chop filters applied to all signal scans:
         //   ATR buffer:    close must clear EMA50 by ≥ 35% of ATR(14) - rejects marginal grazes
@@ -785,6 +790,7 @@ export function useEMAStrategy(
               signalTimestamp   = cRibbon[i].time;
               signalAnchorPrice = cRibbon[i].low;
               signalDir         = 'long';
+              signalBarsAgo     = cRibbon.length - 1 - i;   // bars, not wall time: the unit the chart and the spec are in
               break;
             }
           }
@@ -798,6 +804,7 @@ export function useEMAStrategy(
               signalTimestamp   = cRibbon[i].time;
               signalAnchorPrice = cRibbon[i].high;
               signalDir         = 'short';
+              signalBarsAgo     = cRibbon.length - 1 - i;
               break;
             }
           }
@@ -851,7 +858,7 @@ export function useEMAStrategy(
           ema9_4h: ema9, ema20_4h: ema20, ema50_4h: ema50, sma200_1d: sma200,
           volMA20: volma20, lastVol, priceInValueZone: inValueZone,
           sl, tp, loading: false, error: null,
-          signalTimestamp, signalAnchorPrice, signalDir,
+          signalTimestamp, signalAnchorPrice, signalDir, signalBarsAgo,
           signalLongs, signalShorts, pendingSetup, lockedMarkers, counterTrend,
           chopIndex, chopRegime,
           reversalWarnings,
@@ -920,7 +927,7 @@ export function useEMAStrategy(
           /* A stable sentinel, not display text (#1024) - EMASignal.tsx maps
              this to a translated label, the same shape OnChainScore already
              uses for its own known-error codes. */
-          setSig({ ...STRATEGY_LOADING, loading: false, error: 'INSUFFICIENT_DATA', signalTimestamp: null, signalAnchorPrice: null, signalDir: null });
+          setSig({ ...STRATEGY_LOADING, loading: false, error: 'INSUFFICIENT_DATA', signalTimestamp: null, signalAnchorPrice: null, signalDir: null, signalBarsAgo: null });
           return false;
         }
         klineCache.set(cacheKey, { cRibbon, c1d, fetchedAt: Date.now() });
@@ -986,6 +993,14 @@ export function useEMAStrategy(
 }
 
 /* ── Grok context summary line ───────────────────────────────────────────── */
+/** Past this many bars on its own timeframe, the latest signal is OLD rather than current.
+ *
+ * PM's ruling, 2026-11-11, under the standing rule that every figure carries its age: the verdict
+ * follows the ribbon's side however far back the signal fired, so a stale one used to read as
+ * current to both the model and the ribbon-agreement check. 50 is a product decision, not a
+ * measured threshold, and is stated as such rather than dressed up. */
+export const SIGNAL_OLD_BARS = 50;
+
 export function strategyToGrokLine(sig: StrategySignal, tf = '4h'): string {
   if (sig.loading || sig.verdict === 'LOADING') return 'Loading…';
   // A locked coin gives the AI no buy or sell read either: nothing here can leak what the page is not showing.
@@ -1000,5 +1015,12 @@ export function strategyToGrokLine(sig: StrategySignal, tf = '4h'): string {
     : '';
   // judgeRibbon already ends the phase with the flag; this covers a phase that a selected indicator rewrote.
   const counter = sig.counterTrend && !sig.phase.includes('counter-trend') ? ' · COUNTER-TREND vs the daily 200 SMA' : '';
-  return `[${tf.toUpperCase()} ribbon + 1D SMA200 filter] ${sig.verdict} · ${sig.phase}${counter} · ${condStr}${sltp}`;
+  /* THE AGE TRAVELS WITH THE SIGNAL (#1583/#1541). The verdict describes the ribbon's side, which
+     holds for as long as the ribbon does - so a signal from 32 bars back produced a line the model
+     read as a fresh call. Bars, not a date: the model is reasoning on this timeframe's candles. */
+  const age = sig.signalBarsAgo == null ? ''
+    : sig.signalBarsAgo >= SIGNAL_OLD_BARS
+    ? ` · last ${sig.signalDir ?? ''} signal ${sig.signalBarsAgo} bars ago - OLD, treat as context not a current call`
+    : ` · last ${sig.signalDir ?? ''} signal ${sig.signalBarsAgo} bars ago`;
+  return `[${tf.toUpperCase()} ribbon + 1D SMA200 filter] ${sig.verdict} · ${sig.phase}${counter} · ${condStr}${sltp}${age}`;
 }

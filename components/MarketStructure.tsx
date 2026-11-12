@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
-import { bybitSymbolPriceFactor } from '@/lib/coins';
+import { CoinId, BINANCE_SYMS, BYBIT_SYMS, venueSymbols } from '@/lib/marketStore';
+import { symbolDenominationFactor } from '@/lib/coins';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
@@ -136,7 +136,14 @@ export default function MarketStructure({ coin, onData }: Props) {
     setLoading(true); setErr('');
     try {
       const binSym = BINANCE_SYMS[coin] as string | undefined;
-      const bytSym = BYBIT_SYMS[coin]   as string | undefined;
+      /* BYBIT FROM THE UNIVERSE, BINANCE LEFT ON THE EDITORIAL MAP, and the asymmetry is the point
+         (#1263). Bybit is the primary here and `venueSymbols` covers all 462, so a non-core coin now
+         gets data. The Binance call below is `source=binance` - SPOT - and the universe has no
+         spot-verified column: `venueSymbols().binance` is a FUTURES symbol, which the spot allowlist
+         refuses by design (#2127). Passing it would manufacture a request that can never succeed and
+         call it a fallback, which is the `SPXUSDT` defect the klines route documents. So a non-core
+         coin is served by Bybit and simply has no spot fallback, exactly as `fet` has none today. */
+      const bytSym = venueSymbols(coin).bybit as string | undefined;
       let candles: Candle[];
 
       if (binSym) {
@@ -154,7 +161,7 @@ export default function MarketStructure({ coin, onData }: Props) {
         // Per-1000 quoting on 1000PEPEUSDT / 1000BONKUSDT. This card prints the
         // broken level and both swing levels as dollar prices, so without the
         // factor they read 1000x against the ticker right above them.
-        const pf = bybitSymbolPriceFactor(bytSym);
+        const pf = symbolDenominationFactor(bytSym);
         candles = [...(d.result?.list ?? [])].reverse().map(k => ({
           t: +k[0], o: +k[1] * pf, h: +k[2] * pf, l: +k[3] * pf, c: +k[4] * pf, v: +k[5],
         }));

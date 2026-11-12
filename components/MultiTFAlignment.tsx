@@ -6,10 +6,14 @@ import { useAuth } from '@/components/AuthProvider';
 import { isGatedTf } from '@/lib/limits';
 import { formatRsi } from '@/lib/rsi';
 
-type Bias = 'bullish' | 'bearish' | 'neutral';
+/* 'unknown' IS NOT 'neutral' (#1185). An absent RSI used to return 'neutral', which is also what a
+   real 43-57 reading returns - so the badge said "Neutral" whether the market was balanced or we
+   had no number at all, and those are different facts. The bar was already honest (it renders
+   transparent when `rsi == null`, see RsiRow below); it was the badge that claimed a reading. */
+type Bias = 'bullish' | 'bearish' | 'neutral' | 'unknown';
 
 function getBias(rsi: number | null): Bias {
-  if (rsi == null) return 'neutral';
+  if (rsi == null) return 'unknown';
   if (rsi > 57) return 'bullish';
   if (rsi < 43) return 'bearish';
   return 'neutral';
@@ -36,8 +40,13 @@ function valColor(bias: Bias): string {
 
 function BiasBadge({ bias }: { bias: Bias }) {
   const { t } = useLabels();
-  const icon = bias === 'bullish' ? '▲' : bias === 'bearish' ? '▼' : '→';
-  const label = bias === 'bullish' ? t('MULTI_TF_ALIGNMENT_BIAS_BULLISH') : bias === 'bearish' ? t('MULTI_TF_ALIGNMENT_BIAS_BEARISH') : t('MULTI_TF_ALIGNMENT_BIAS_NEUTRAL');
+  /* `unknown` gets its own glyph and words, not the neutral arrow: an em dash reads as "nothing
+     here" where "→" reads as "sideways", which is a claim about the market. */
+  const icon = bias === 'bullish' ? '▲' : bias === 'bearish' ? '▼' : bias === 'unknown' ? '—' : '→';
+  const label = bias === 'bullish' ? t('MULTI_TF_ALIGNMENT_BIAS_BULLISH')
+              : bias === 'bearish' ? t('MULTI_TF_ALIGNMENT_BIAS_BEARISH')
+              : bias === 'unknown' ? t('MULTI_TF_ALIGNMENT_BIAS_UNKNOWN')
+              : t('MULTI_TF_ALIGNMENT_BIAS_NEUTRAL');
   /* Bullish TEXT takes --green-fg, not --green-2 (#738).
    *
    * The badge puts its label on a 12% tint of its own signal colour - the
@@ -88,7 +97,7 @@ function BiasBadge({ bias }: { bias: Bias }) {
  * Same shape as #273, where backtesting was gated and still advertised: the
  * feature was blocked and the information was not. */
 function RsiRow({ tf, rsi, bias, last, locked }: { tf: string; rsi: number | null; bias: Bias; last?: boolean; locked?: boolean }) {
-  if (locked) { rsi = null; bias = 'neutral'; }
+  if (locked) { rsi = null; bias = 'unknown'; }   // no reading, same as an absent RSI (#1185)
   const pct = rsi != null ? Math.min(100, Math.max(0, rsi)) : 0;
   return (
     <div style={{

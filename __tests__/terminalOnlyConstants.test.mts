@@ -101,7 +101,12 @@ function constantTypographyCount(file: string): number {
 const BASELINE: Record<string, number> = {
   'components/BriefingTerminal.tsx': 43,
   'components/CorrelationTerminal.tsx': 9,
-  'components/DashboardTerminal.tsx': 16,
+  /* 16 -> 15 with #2131: the VWAP card's value became the vwap itself, so the sub-line that
+     printed the same number underneath went with it, and one inline typography value went
+     with that. Lowered for the same reason as MarketsTerminal below - the ratchet only holds
+     if an improvement resets it, and a baseline left above the real count silently buys back
+     room to regress into. */
+  'components/DashboardTerminal.tsx': 15,
   'components/FundingTerminal.tsx': 35,
   'components/LandingTerminal.tsx': 169,
   'components/LiqTerminal.tsx': 56,

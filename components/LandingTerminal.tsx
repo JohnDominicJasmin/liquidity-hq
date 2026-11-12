@@ -113,12 +113,25 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const oi1hCol = oi1h.pct == null ? 'var(--txt2)' : oi1hColRaw;
 
   const evidence: { label: string; value: string | null; note: string; col: string }[] = [
-    { label: 'VWAP',    value: price != null ? '$' + fmtPrice(price, COIN_DEC[LIVE_READ_COIN]) : null, note: vwapAbove == null ? '' : vwapAbove ? 'Above' : 'Below', col: vwapCol },
+    /* THE VWAP, not the price (#1263). This row printed `price` under a "VWAP" label on the PUBLIC
+       hero - a signed-out visitor's first impression of the product - for every coin. Measured: all
+       49 coins in the snapshot carry a real vwap, so this shows a number rather than a dash; the
+       'Unavailable' note is reachable only if that feed fails or the coin is outside it. */
+    { label: 'VWAP',    value: vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[LIVE_READ_COIN]) : null, note: vwap == null ? 'Unavailable' : vwapAbove == null ? '' : vwapAbove ? 'Above' : 'Below', col: vwapCol },
     { label: 'OI trend', value: oiRow ? oiRow.txt : null, note: '', col: oiRow ? oiRow.col : 'var(--txt2)' },
     { label: 'Funding', value: fr != null ? (fr * 100 >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : null, note: frInfo ? frInfo.label : '', col: frCol },
     { label: 'CB prem', value: null, note: '', col: 'var(--txt2)' /* no source wired - see LABELS in spec, always em dash */ },
     { label: 'OI 1h',   value: oi1h.loading ? null : (oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : null), note: oi1h.loading ? '' : oi1hTxt, col: oi1hCol },
-    { label: 'Setup',   value: String(sq.score), note: sq.label, col: sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)' },
+    /* `null` WHEN THERE IS NO COIN DATA, not the score (#1185). `computeSqueezeScore` returns
+       `{ score: 0, dir: 'NEUTRAL', label: 'No data' }` for a missing coin, so this row printed a
+       confident "0" next to its own "No data" note - on the PUBLIC landing hero, which is the first
+       thing an ad visitor sees. The other five rows in this array already use `null` for absent and
+       render the em dash; this one did not.
+
+       KEYED ON DATA PRESENCE, NOT ON `dir`: a real NEUTRAL reading with data behind it is a
+       legitimate score and must still show. The big score and its bar below are already guarded by
+       `hasConfidence`, so they were never part of this. */
+    { label: 'Setup',   value: d ? String(sq.score) : null, note: sq.label, col: sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)' },
   ];
 
   return (

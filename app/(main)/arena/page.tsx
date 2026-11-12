@@ -2,8 +2,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useNow } from '@/lib/useNow';
+import { isSafeHttpUrl } from '@/lib/safeUrl';
+import { plainSummary } from '@/lib/plainSummary';
 import { useSearchParams } from 'next/navigation';
-import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
+import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, venueSymbols, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
@@ -30,7 +32,7 @@ import LiqFeed, { type Bucket } from '@/components/LiqFeed';
 import { topClustersForCoin, acceptClusterEmission, formatClustersForPrompt } from '@/lib/liqClusters';
 import UsageMeter from '@/components/UsageMeter';
 import { FreeUpgradePill } from '@/components/UpgradePill';
-import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
+import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, SIGNAL_OLD_BARS } from '@/lib/useEMAStrategy';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
@@ -102,6 +104,16 @@ function ReasoningText({ text }: { text: string }) {
         const link = seg.match(/^\[(\[?[^\]]*\]?)\]\(([^)]+)\)$/);
         if (link) {
           const label = link[1].replace(/^\[/, '').replace(/\]$/, '') || t('ARENA_REASONING_LINK_FALLBACK');
+          /* THE URL COMES FROM MODEL-WRITTEN TEXT, so it is checked before it becomes an href
+             (#1631, found by PM 2026-11-10). This used to render `href={link[2]}` with no check,
+             so a `javascript:` URL in the AI's prose became a clickable link - and because Deep
+             mode searches the web, a crafted page could seed that text, and the read is stored in
+             history, so it persisted. Live since 2026-05-29.
+
+             AN UNSAFE URL RENDERS THE LABEL AS PLAIN TEXT rather than dropping the segment: the
+             sentence the model wrote still reads correctly, it simply is not clickable. Dropping it
+             would silently edit the answer. */
+          if (!isSafeHttpUrl(link[2])) return <span key={i}>{label}</span>;
           return (
             <a key={i} href={link[2]} target="_blank" rel="noopener noreferrer" className="reasoning-link">
               {label}
@@ -247,7 +259,12 @@ function ArenaContent() {
   // clobber a real in-flight choice once it finally resolves.
   const coinTouchedRef = useRef(false);
   const tfTouchedRef   = useRef(false);
-  const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '-' });
+  /* STAMPED WITH THE COIN IT DESCRIBES (#1651, QA). Clearing on change was not enough:
+     `useOI1h` flips to loading INSIDE an effect, so for one render after a coin change this
+     consumer still sees the old snapshot - loading false, the previous coin's pct - and writes it
+     to the ref before the clear runs. Carrying the coin makes staleness impossible rather than
+     brief, and independent of effect order, the same way `chartAlertsCoinRef` does it. */
+  const oi1hDataRef   = useRef<{ coin: CoinId | null; pct: number | null; signal: string }>({ coin: null, pct: null, signal: '-' });
   const msDataRef     = useRef<MSData | null>(null);
   // State, not a ref: the Confluence Score re-renders on it. Sourced from the
   // chart rather than recomputed here so the score votes on the same break the
@@ -817,11 +834,25 @@ function ArenaContent() {
 
   /* ── Sync OI 1h hook data → ref (used by Grok context builder) ── */
   useEffect(() => {
-    if (oi1h.loading || oi1h.pct == null) return;
+    /* CLEARED, NOT LEFT ALONE, when there is no usable value (#1651). This used to `return` early,
+       and `selectedCoin` is in the deps - so switching to a coin with no OI history left the ref
+       holding the PREVIOUS coin's number, and the context builder below then sent it to the model
+       as this coin's 1h open-interest change. A wrong number attributed to the wrong coin is worse
+       than no number, and the model has no way to notice.
+
+       The clear covers `loading` too, deliberately: `useOI1h` flips to loading the moment the coin
+       changes, so this is the earliest point the stale value can be dropped. A read fired during
+       that window is told '-' rather than the old coin's move. */
+    if (oi1h.loading || oi1h.pct == null) { oi1hDataRef.current = { coin: oi1h.coin, pct: null, signal: '-' }; return; }
     // #1613: the AI read is told the 1h OI change with a trend text from the SAME hour (not the store's oiTrend, another window).
     const { txt } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
-    oi1hDataRef.current = { pct: oi1h.pct, signal: txt };
-  }, [oi1h.pct, oi1h.pricePct, oi1h.loading, selectedCoin]);
+    oi1hDataRef.current = { coin: oi1h.coin, pct: oi1h.pct, signal: txt };
+    /* `selectedCoin` IS GONE FROM THE DEPS ON PURPOSE, and legitimately: this effect no longer
+       reads it. The stamp comes from `oi1h.coin`, which the hook sets from the coin it fetched, so
+       the ref can only ever describe the snapshot it was written from (#1651, QA). Stamping the
+       component's current coin was the bug this replaces - on an ETH to BTC switch that wrote
+       { coin: BTC, pct: ETH's } and the guard let it through. */
+  }, [oi1h.coin, oi1h.pct, oi1h.pricePct, oi1h.loading]);
 
   /* ── Sync EMA strategy → ref (used by Grok context builder) ── */
   useEffect(() => {
@@ -1339,7 +1370,10 @@ function ArenaContent() {
         return `Score ${sq.score}/100 · ${sq.label} · ${oiChip}, ${cvdChip}, ${tkr}, ${rsi}`;
       })(),
       oi1hChange: (() => {
-        const { pct, signal } = oi1hDataRef.current;
+        const { coin: stampedCoin, pct, signal } = oi1hDataRef.current;
+        /* A FIGURE FOR ANOTHER COIN IS NOT A FIGURE FOR THIS ONE. The model cannot tell, and the
+           read it writes looks exactly as confident either way. */
+        if (stampedCoin !== selectedCoin) return '-';
         if (pct == null) return '-';
         return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '% · ' + signal;
       })(),
@@ -1439,7 +1473,14 @@ function ArenaContent() {
     if (readInFlightRef.current) return;
     readInFlightRef.current = true;
     const binanceSym = BINANCE_SYMS[selectedCoin] as string | undefined;
-    const bybitSym   = BYBIT_SYMS[selectedCoin]   as string | undefined;
+      /* BYBIT FROM THE UNIVERSE, BINANCE LEFT ON THE EDITORIAL MAP, and the asymmetry is the point
+         (#1263). Bybit is the primary here and `venueSymbols` covers all 462, so a non-core coin now
+         gets data. The Binance call below is `source=binance` - SPOT - and the universe has no
+         spot-verified column: `venueSymbols().binance` is a FUTURES symbol, which the spot allowlist
+         refuses by design (#2127). Passing it would manufacture a request that can never succeed and
+         call it a fallback, which is the `SPXUSDT` defect the klines route documents. So a non-core
+         coin is served by Bybit and simply has no spot fallback, exactly as `fet` has none today. */
+    const bybitSym   = venueSymbols(selectedCoin).bybit as string | undefined;
     if (!binanceSym && !bybitSym) {
       setReadError(t('ARENA_ERROR_NO_DATA_SOURCE', { coin: selectedCoin.toUpperCase() })); setReadProLocked(false);
       readInFlightRef.current = false;
@@ -2112,6 +2153,14 @@ function ArenaContent() {
               return (
                 <button
                   key={c}
+                  /* A STABLE HANDLE PER ROW, the companion to `scanner-trigger` on the wrapper
+                     above (#1775). The trigger got one because its `aria-expanded` is shared with
+                     four other components and its accessible name contains the SELECTED coin; the
+                     rows have the matching problem for the opposite reason - their accessible name
+                     is the concatenation of all six grid cells (label, score, change, RSI, funding,
+                     caret), so `getByRole("button", /^BTC/)` matches by luck and breaks when a cell
+                     changes. Keyed by the coin ID, which is what the search box filters on. */
+                  data-testid={`scanner-row-${c}`}
                   className="scanner-flyout-grid"
                   onClick={() => {
                     coinTouchedRef.current = true;
@@ -2454,10 +2503,33 @@ function ArenaContent() {
         // page was contradicting itself, when really it's one input the AI weighed against
         // the others and still called LONG anyway.
         const verdictDir = result.signal.includes('BULLISH') ? 'long' : result.signal.includes('BEARISH') ? 'short' : null;
-        const ribbonRel = !verdictDir || !emaSignal.signalDir ? 'neutral'
+        /* AN OLD SIGNAL IS NOT AGREEMENT (PM, 2026-11-11, once #2122 gave the signal its age).
+           A cross from 50+ bars back is history, not a second opinion on today's read, so it reads
+           'neutral' here rather than 'agrees' or 'opposes' - dropped from the comparison the same
+           way a neutral directional factor is dropped from the Confluence denominator (#2119), and
+           for the same reason: a vote nobody cast today should not look like one.
+
+           Under the threshold nothing changes, and this row is DISPLAY ONLY - `factors` is built
+           here and consumed only by the render below, so no score or confidence moves. */
+        const ribbonStale = emaSignal.signalBarsAgo != null && emaSignal.signalBarsAgo >= SIGNAL_OLD_BARS;
+        /* FOUR STATES, NOT THREE, and this is QA's design point rather than a flourish. My first
+           version collapsed a stale signal into 'neutral' - the same token as "there is no signal
+           at all" - which is precisely the unknown-drawn-as-neutral conflation removed from the
+           multi-timeframe badge earlier today (#2119). "We dropped an old vote" and "there was
+           never a vote" are different facts and the row has to say which.
+
+           So 'stale' is its own state, reported as "no recent signal" rather than a neutral tick.
+           It carries the same neutral colour, because the point is that it adds nothing to today's
+           read, and the same `•` arrow, because it points nowhere. */
+        const ribbonRel: 'agrees' | 'opposes' | 'stale' | 'neutral' =
+            !verdictDir || !emaSignal.signalDir ? 'neutral'
+          : ribbonStale ? 'stale'
           : emaSignal.signalDir === verdictDir ? 'agrees' : 'opposes';
         const factors = [
-          { k: 'Ribbon',    v: ribbonRel === 'agrees' ? 'agrees' : ribbonRel === 'opposes' ? 'opposes' : 'neutral', c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '↑' : ribbonRel === 'opposes' ? '↓' : '•' },
+          /* 'stale' prints its own words. Falling through to 'neutral' here was the bug in the first
+             cut of this change: the state existed in the type and died at the render, so a dropped
+             old vote looked exactly like a coin with no signal at all. */
+          { k: 'Ribbon',    v: ribbonRel === 'agrees' ? 'agrees' : ribbonRel === 'opposes' ? 'opposes' : ribbonRel === 'stale' ? 'no recent signal' : 'neutral', c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '↑' : ribbonRel === 'opposes' ? '↓' : '•' },
           { k: 'Squeeze',   v: sqzCount > 0 ? 'building' : flushCount > 0 ? 'flush risk' : 'quiet', c: sqzCount > 0 ? GC : flushCount > 0 ? RC : NC, a: sqzCount > 0 ? '↑' : flushCount > 0 ? '↓' : '•' },
           { k: 'Funding',   v: frPct == null ? (feedGraceOver ? 'unavailable' : 'loading…') : frPct >= 0.03 ? 'long-heavy' : frPct <= -0.02 ? 'short-heavy' : 'neutral', c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' },
           { k: 'Multi-TF',  v: tfBull >= 2 ? `${tfBull}/3 up` : tfBear >= 2 ? `${tfBear}/3 down` : (tfBull > 0 && tfBear > 0) ? 'conflicting' : 'mixed', c: tfBull >= 2 ? GC : tfBear >= 2 ? RC : NC, a: tfBull >= 2 ? '↑' : tfBear >= 2 ? '↓' : '•' },
@@ -2629,7 +2701,7 @@ function ArenaContent() {
         </div>
       )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} />
+      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
       {/* Directly under the chart, on the owner's request (#370). The read
           refers to what the chart shows - "price below EMAs", "closing below
           the swing low", "lower wick at Fib support" - so anything between
@@ -2655,6 +2727,30 @@ function ArenaContent() {
                 : t('ARENA_STALE_SELECTION_CLEARED')}
             </div>
           )}
+          {/* ONE PLAIN-ENGLISH LINE FIRST, for a reader who does not know the vocabulary (owner,
+              2026-11-10). Built from the read's own fields by `plainSummary` - no second AI call,
+              because a summary that asks the model to summarise itself can disagree with the read
+              printed directly underneath it, and the reader has no way to tell which is wrong.
+
+              The technical paragraph, the patterns and the chips all stay, below it. */}
+          {(() => {
+            const s = plainSummary(result.signal, result.levels);
+            if (!s) return null;
+            const watch  = s.watch  ? t(s.watch.key,  { price: s.watch.price })  : null;
+            /* THE CANCEL CLAUSE ONLY APPEARS ALONGSIDE THE WATCH CLAUSE. On its own it would need
+               its first word capitalised, and capitalising a translated string is the kind of
+               English-shaped assumption that breaks in other locales. A read that names an
+               invalidation level but no confirmation level is also the rarer half of a pair, so
+               dropping it costs little - and `plainSummary` omits rather than invents either way. */
+            const cancel = watch && s.cancel ? t(s.cancel.key, { price: s.cancel.price }) : null;
+            return (
+              <div className="arena-reasoning" style={{ margin: '10px 0' }}>
+                <div className="arena-reasoning-text" data-testid="arena-plain-summary">
+                  {t(s.verdictKey)}{watch ? ` ${watch}${cancel ? `; ${cancel}` : ''}.` : ''}
+                </div>
+              </div>
+            );
+          })()}
           {result.chartAnalysis && (
             <div className="arena-reasoning" style={{ margin: '10px 0' }}>
               <div className="arena-reasoning-title">{t('ARENA_REASONING_CHART_TITLE')}</div>

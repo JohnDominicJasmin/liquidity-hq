@@ -1,6 +1,7 @@
 'use client';
 import { useMemo, useRef, useState } from 'react';
 import { useMarket, COINS, CoinId, CoinData, computeSqueezeScore, classifyFunding } from '@/lib/marketStore';
+import { SkeletonBar } from './Skeleton';
 import { Warn } from '@/components/icons';
 import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
@@ -309,7 +310,19 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
       </div>
 
       {/* Cards */}
-      {searchDisplayed.length === 0 && (
+      {/* Only once data has arrived (#1185): an empty scan on a cold store used to read as
+          "no setups match". The failed-vs-cold half reads `store.pricesFailed` (#1263). */}
+      {searchDisplayed.length === 0 && !COINS.some(id => store.coins[id]?.price != null) && (
+        store.pricesFailed ? (
+          /* FAILED, not slow. Same absence of prices either way, so the flag is the only thing
+             that can tell them apart - without it this branch showed a loading skeleton for as
+             long as the feed stayed down. */
+          <div className="empty-state"><div className="empty-state-sub">{t('MARKET_FEED_FAILED')}</div></div>
+        ) : (
+          <div className="empty-state"><SkeletonBar width={180} height={13} style={{ margin: '0 auto' }} /></div>
+        )
+      )}
+      {searchDisplayed.length === 0 && COINS.some(id => store.coins[id]?.price != null) && (
         <div style={{ textAlign: 'center', color: 'var(--txt3)', padding: '3rem 0', fontSize: 'var(--fs-label)' }}>
           {search.trim()
             ? t('SETUP_SCANNER_NO_MATCH_SEARCH', { search: search.trim() })

@@ -473,9 +473,61 @@ export function binancePriceFactor(coin: string): number {
 }
 
 /** Same conversion when only the symbol is in hand, not the coin id. */
-export function bybitSymbolPriceFactor(symbol: string): number {
+
+/* THE VENUE SYMBOLS FOR ANY COIN THE APP OFFERS, editorial or universe (#1263, owner report).
+ *
+ * `BYBIT_SYMS`/`BINANCE_SYMS` are built from `RENDERED_IDS` on purpose and 17 files read them, so
+ * they stay the editorial list. But Arena's selector and scanner offer all 463 `UNIVERSE_COINS`,
+ * and its chart resolved symbols from those editorial maps - so for a non-core coin both came back
+ * `undefined`, every fetch branch was skipped, and NO REQUEST WAS EVER MADE. Widening the kline
+ * route's allowlist (#2127) could not help, because nothing was calling it.
+ *
+ * Use this ONLY on a surface that deliberately offers the universe. A surface that renders the
+ * editorial list should keep reading the maps, so that a coin appearing where it should not is a
+ * missing symbol rather than a silently working one.
+ *
+ * BINANCE_HOLD IS RESPECTED, and deliberately not re-derived. It holds `pepe` and `bonk` out of
+ * the Binance map because `binancePriceFactor` has zero call sites, and the last time symbols were
+ * added before the factor was applied it put those two coins' alert outcomes at +/-100,000% and
+ * dragged the Track Record average to -126%. That is a measured incident with a hand-written list
+ * naming its own exit condition; this resolver is not the place to overturn it. Such a coin still
+ * charts, from Bybit. */
+export function venueSymbols(coin: string): { bybit: string | null; binance: string | null } {
+  const row = BY_ID.get(coin);
+  if (!row) return { bybit: null, binance: null };
+  return {
+    bybit:   row.bybit ?? null,
+    binance: BINANCE_HOLD.has(coin) ? null : (row.binance ?? null),
+  };
+}
+
+/** The denomination a SYMBOL declares, from its own leading multiplier: `1000PEPEUSDT` -> 0.001,
+ *  `10000SATSUSDT` -> 0.0001, `1000000MOGUSDT` -> 0.000001, anything else -> 1.
+ *
+ * VENUE-NEUTRAL BY NAME, and that is load-bearing rather than tidy. This was renamed from a
+ * venue-named predecessor (#2135, migrated over #2136/#2137, the alias deleted here) because three
+ * Arena surfaces correctly pass it a BINANCE symbol: it reads the symbol's own declared
+ * denomination, which is the only reading that works for `sats`, `tag`, `toshi` and `turbo`, where
+ * the two venues denominate the SAME coin differently (bybit 10000SATS vs binance 1000SATS). The
+ * old name invited readers to "correct" those call sites to the venue-keyed `bybitPriceFactor`,
+ * which would have silently priced those four coins out by 10x to 1000x. QA raised it.
+ *
+ * NOT TO BE CONFUSED WITH `bybitPriceFactor` / `binancePriceFactor`, which are genuinely
+ * venue-specific: they look the coin up and read that venue's `mult` from the generated row. Use
+ * those when you have a COIN ID and know the venue; use this when all you have is a symbol string
+ * off a feed.
+ *
+ * A LEADING DIGIT IS NOT ALWAYS A MULTIPLIER (#1263). Three universe tickers begin with one -
+ * `0GUSDT`, `2ZUSDT`, `4USDT` - and dividing by it gave `Infinity`, `0.5` and `0.25`. So the
+ * prefix counts only as a denomination when it is a power of ten of at least 1000, which is the
+ * exchanges' actual convention. Verified against all 463 generated rows: the result equals each
+ * row's own `bybitMult`/`binanceMult`, where three disagreed before. */
+export function symbolDenominationFactor(symbol: string): number {
   const m = /^(\d+)/.exec(symbol);
-  return m ? 1 / Number(m[1]) : 1;
+  if (!m) return 1;
+  const n = Number(m[1]);
+  const isDenomination = n >= 1000 && Number.isInteger(Math.log10(n));
+  return isDenomination ? 1 / n : 1;
 }
 
 /* The symbol the CHART shows, which is not always the symbol we fetch.
@@ -488,7 +540,7 @@ export function bybitSymbolPriceFactor(symbol: string): number {
  * Nothing leaks out of the chart at this scale: its two internal consumers of the last close
  * are a pixel conversion and a percentage distance to S/R, both scale-invariant. Revisit if
  * klinecharts fixes small-value axes - the fix is to delete this and re-apply
- * bybitSymbolPriceFactor in the chart's fetches. */
+ * symbolDenominationFactor in the chart's fetches. */
 export function chartDisplaySymbol(coin: string): string {
   const prefix = BYBIT_SYMS[coin]?.startsWith('1000') ? '1000' : '';
   return `${prefix}${coin.toUpperCase()}/USDT`;

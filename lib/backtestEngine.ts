@@ -2,8 +2,8 @@
 // Reuses the exact same signal-detection logic as the live hook (lib/strategyCore.ts)
 // so backtest results can never silently diverge from what fires on the live chart.
 
-import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore.ts';
-import { bybitSymbolPriceFactor } from './coins.ts';
+import { CoinId } from './marketStore.ts';
+import { symbolDenominationFactor, venueSymbols } from './coins.ts';
 import { fetchBybitKlinesRetry } from './bybitKlines.ts';
 import { firstVenueThatAnswers } from './venueFallback.ts';
 import {
@@ -58,11 +58,16 @@ async function fetchBinanceFuturesKlinesRange(sym: string, interval: string, sta
     if (!r.ok) throw new Error(`Binance futures klines ${r.status}`);
     const raw = await r.json() as (string | number)[][];
     if (!raw.length) break;
-    /* #1263: the same 1000x correction the Bybit range path applies. `bybitSymbolPriceFactor` reads the
-       SYMBOL STRING, not the venue, so it is right for a Binance `1000PEPEUSDT` too. Unreachable today -
-       BINANCE_SYMS has no 1000x entry - but this path now actually runs as a fallback, and a backtest
-       priced 1000x out reads as a plausible result rather than an error. */
-    const pf = bybitSymbolPriceFactor(sym);
+    /* #1263: the same 1000x correction the Bybit range path applies. `symbolDenominationFactor` reads the
+       SYMBOL STRING, not the venue, so it is right for a Binance `1000PEPEUSDT` too.
+       
+       REACHABLE SINCE #1263, and this comment said "unreachable today" until then. The symbol now
+       comes from `venueSymbols()`, which reads the generated universe, so SEVEN 1000x-denominated
+       coins arrive here on Binance: cat, floki, lunc, rats, sats, xec at x1000 and mog at
+       x1000000. Only bonk and pepe are still held out of the Binance map by hand. So the guard
+       below is load-bearing rather than defensive, and the comment that called it unnecessary was
+       the only thing suggesting otherwise. */
+    const pf = symbolDenominationFactor(sym);
     const batch = raw.map(k => ({ time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5] }));
     out.push(...batch);
     const lastTime = batch[batch.length - 1].time;
@@ -95,8 +100,11 @@ async function fetchBybitKlinesRange(sym: string, interval: string, startTime: n
     if (!list.length) break;
     // #1059: 1000PEPEUSDT/1000BONKUSDT are quoted per 1000 tokens - without
     // this, a backtest on either coin simulated trades at 1000x the real
-    // price. See bybitPriceFactor in lib/coins.ts.
-    const pf = bybitSymbolPriceFactor(sym);
+    // price. See symbolDenominationFactor in lib/coins.ts - NOT the venue-keyed bybitPriceFactor,
+    // which this comment used to name. The symbol's own denomination is the right reading here
+    // because sats, tag, toshi and turbo are denominated differently by the two venues, so a
+    // venue-keyed factor would be wrong for exactly the coins that need one.
+    const pf = symbolDenominationFactor(sym);
     const batch = list.map(k => ({ time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5] }));
     out.push(...batch);
     const lastTime = batch[batch.length - 1].time;
@@ -159,8 +167,10 @@ async function fetchBybitFundingRange(sym: string, startTime: number, endTime: n
 export async function fetchHistoricalFunding(coin: CoinId, yearsBack: number): Promise<FundingPoint[]> {
   const endTime   = Date.now();
   const startTime = endTime - yearsBack * 365 * 24 * 3_600_000;
-  const bnSym = BINANCE_SYMS[coin];
-  const bySym = BYBIT_SYMS[coin];
+  /* BOTH VENUES FROM THE UNIVERSE (#1263). Safe here because the Binance call is
+     `source=binance-futures`, and the universe's `binance` column IS the futures symbol - unlike
+     the spot callers, where widening would send a futures symbol to the spot allowlist. */
+  const { binance: bnSym, bybit: bySym } = venueSymbols(coin);
   if (bnSym) return fetchBinanceFundingRange(bnSym, startTime, endTime);
   if (bySym) return fetchBybitFundingRange(bySym, startTime, endTime);
   throw new Error(`No symbol for ${coin}`);
@@ -172,8 +182,10 @@ export async function fetchHistoricalOHLCV(coin: CoinId, tf: string, yearsBack: 
   if (!bnInterval || !byInterval) throw new Error(`Unsupported backtest timeframe: ${tf}`);
   const endTime   = Date.now();
   const startTime = endTime - yearsBack * 365 * 24 * 3_600_000;
-  const bnSym = BINANCE_SYMS[coin];
-  const bySym = BYBIT_SYMS[coin];
+  /* BOTH VENUES FROM THE UNIVERSE (#1263). Safe here because the Binance call is
+     `source=binance-futures`, and the universe's `binance` column IS the futures symbol - unlike
+     the spot callers, where widening would send a futures symbol to the spot allowlist. */
+  const { binance: bnSym, bybit: bySym } = venueSymbols(coin);
   /* #1059: Bybit primary, Binance fallback.
      #1263: and the fallback was unreachable here too - the identical shape to
      lib/useEMAStrategy.ts, found while fixing that one rather than reported separately.

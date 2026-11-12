@@ -35,9 +35,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor, bybitSymbolPriceFactor, chartDisplaySymbol } from '../lib/coins.ts';
+import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor, binancePriceFactor, symbolDenominationFactor, chartDisplaySymbol } from '../lib/coins.ts';
+import { COIN_UNIVERSE } from '../lib/coinUniverse.generated.ts';
 /* The whole module, for a function that exists on some trees and not others - a named import of
    `binancePriceFactor` would fail to COMPILE where the generated universe has not landed. */
 import * as COINS_MOD from '../lib/coins.ts';
@@ -80,10 +82,146 @@ test('M3. the symbol-only and coin-only conversions agree, for every coin', () =
      exactly the pair that can drift apart without anything noticing. */
   for (const [coin, sym] of Object.entries(BYBIT_SYMS)) {
     assert.equal(
-      bybitSymbolPriceFactor(sym), bybitPriceFactor(coin),
-      `${sym}: bybitSymbolPriceFactor=${bybitSymbolPriceFactor(sym)} but bybitPriceFactor('${coin}')=${bybitPriceFactor(coin)}`,
+      symbolDenominationFactor(sym), bybitPriceFactor(coin),
+      `${sym}: symbolDenominationFactor=${symbolDenominationFactor(sym)} but bybitPriceFactor('${coin}')=${bybitPriceFactor(coin)}`,
     );
   }
+});
+
+/* ── 1b. THE SAME PARITY, OVER THE WHOLE UNIVERSE ─────────────────────────────────────────────────
+ *
+ * M3 is the right check with the wrong domain, and that gap shipped a real defect (#2129).
+ *
+ * It iterates `Object.entries(BYBIT_SYMS)` - the editorial 50 - so the ~413 universe coins were
+ * never compared. `symbolDenominationFactor` read `1 / Number(m[1])` for ANY leading digits, which
+ * made `0GUSDT` return `Infinity`, `2ZUSDT` 0.5 and `4USDT` 0.25. Harmless only while nothing
+ * resolved those symbols; #1263's client resolver reached them, and the consequence would have been
+ * a signal's entry, stop and target wrong by 2x or 4x, or NaN - silently, and plausibly.
+ *
+ * THE COMMENT ON `UNIT_PREFIXES` ABOVE ALREADY NAMED THIS EXACT TRAP - "a leading digit in a token
+ * NAME - 0G, 2Z, 1INCH, 4 - is a ticker, not a quantity, and conflating the two is its own defect".
+ * The knowledge was in the file and the coverage was not, because the loop below it could not see
+ * those coins. These cells close that, and the generated universe is the right domain for a parser
+ * that takes a bare symbol from a feed: the feed is not limited to the coins we render.
+ */
+
+test('M8. the symbol parser agrees with the generator row, for every coin in the UNIVERSE', () => {
+  const withBybit = COIN_UNIVERSE.filter(r => r.bybit);
+
+  /* CONTROLS, both needed. The first: an empty or truncated universe makes every assertion below
+     hold vacuously. The second: the three leading-digit tickers must actually be IN the set being
+     checked - they are the regression this cell exists for, and a domain that excluded them would
+     be M3's bug again under a new name. */
+  assert.ok(withBybit.length > 400, `only ${withBybit.length} universe rows carry a Bybit symbol - the import is wrong or the file is truncated`);
+  for (const id of ['0g', '2z', '4']) {
+    assert.ok(withBybit.some(r => r.id === id), `'${id}' is missing from the checked set - without it this cell cannot see the defect it was written for`);
+  }
+
+  for (const row of withBybit) {
+    assert.equal(
+      symbolDenominationFactor(row.bybit as string), row.bybitMult,
+      `BYBIT column: ${row.id} (${row.bybit}): parser says ${symbolDenominationFactor(row.bybit as string)}, the generated row says ${row.bybitMult}`,
+    );
+    /* And the coin-id form, which reads the row directly - so this pins all three answers together
+       rather than letting two of them agree while the third drifts. */
+    assert.equal(bybitPriceFactor(row.id), row.bybitMult, `bybitPriceFactor('${row.id}') disagrees with its own row`);
+  }
+
+  /* THE BINANCE COLUMN, which #2133 made a live path for this function and this cell did not cover.
+   *
+   * Three call sites now hand it a BINANCE symbol - `useEMAStrategy`, `backtestEngine` and the
+   * higher-timeframe badge - because the function reads the symbol string rather than the venue. So
+   * the bybit loop above was the same shape of gap M3 had, one column over: the right assertion over
+   * an incomplete domain.
+   *
+   * FOUR COINS ARE THE WHOLE REASON THIS IS NOT REDUNDANT. The venues denominate these differently,
+   * so a column-blind check passes while a venue-keyed implementation would be wrong:
+   *
+   *   sats   10000SATSUSDT  0.0001  |  1000SATSUSDT  0.001
+   *   tag    1000TAGUSDT    0.001   |  TAGUSDT       1
+   *   toshi  1000TOSHIUSDT  0.001   |  TOSHIUSDT     1
+   *   turbo  1000TURBOUSDT  0.001   |  TURBOUSDT     1
+   */
+  const withBinance = COIN_UNIVERSE.filter(r => r.binance);
+  assert.ok(withBinance.length > 400, `only ${withBinance.length} universe rows carry a Binance symbol - the import is wrong or the file is truncated`);
+
+  /* CONTROL: the four coins whose venues DISAGREE must be in this set, and must actually disagree in
+     the generated data. If they ever stop disagreeing, this loop still passes but has stopped testing
+     anything that the bybit loop above does not already cover - so the cell says so rather than
+     quietly becoming a duplicate. */
+  const disagree = withBinance.filter(r => r.bybit && r.bybitMult !== r.binanceMult).map(r => r.id);
+  assert.deepEqual(disagree.sort(), ['sats', 'tag', 'toshi', 'turbo'],
+    `expected exactly sats/tag/toshi/turbo to denominate differently per venue, got [${disagree.join(', ')}] - `
+    + 'if the universe changed, re-derive which coins make this cell worth having');
+
+  for (const row of withBinance) {
+    assert.equal(
+      symbolDenominationFactor(row.binance as string), row.binanceMult,
+      `BINANCE column: ${row.id} (${row.binance}): parser says ${symbolDenominationFactor(row.binance as string)}, the generated row says ${row.binanceMult}`,
+    );
+    assert.equal(binancePriceFactor(row.id), row.binanceMult, `binancePriceFactor('${row.id}') disagrees with its own row`);
+  }
+});
+
+test('M9. a leading digit that is NOT a denomination does not scale the price', () => {
+  /* Named individually rather than looped, because these three are the whole point: a ticker that
+     happens to start with a digit. `1inch` is the fourth of the kind named in the comment above and
+     is included for the same reason. */
+  for (const id of ['0g', '2z', '4', '1inch']) {
+    const row = COIN_UNIVERSE.find(r => r.id === id);
+    assert.ok(row?.bybit, `control: '${id}' must exist with a Bybit symbol for this cell to mean anything`);
+    assert.equal(symbolDenominationFactor(row!.bybit as string), 1,
+      `${row!.bybit} is a token name beginning with a digit, not a 1000x listing - scaling it puts a live signal's entry, stop and target out by that factor`);
+  }
+
+  /* The real denominations must still scale, or "nothing scales" would pass this file. */
+  assert.equal(symbolDenominationFactor('1000PEPEUSDT'), 0.001);
+  assert.equal(symbolDenominationFactor('10000SATSUSDT'), 0.0001);
+  assert.equal(symbolDenominationFactor('1000000MOGUSDT'), 0.000001);
+});
+
+test('M10. the renamed-away identifier appears nowhere in current source', () => {
+  /* THE ARTIFACT THAT PROVES THE RENAME FINISHED (#2135 steps 1-4).
+   *
+   * While the deprecated alias was exported, a completed migration and one that had stalled with
+   * call sites still on the old name were indistinguishable - everything compiled and everything
+   * passed either way. The alias's deletion separated them, and this cell is what keeps them
+   * separated: it fails if the alias is reintroduced, if a new call site adopts the old name, or if
+   * someone restores the export for convenience.
+   *
+   * THE NEEDLE IS SPLIT SO THIS FILE CAN SCAN ITSELF. A cell that forbids a string has to contain
+   * that string to search for it, and would then find itself. Excluding this file would have been
+   * the easy fix and the wrong one: it is the file where the old name lived longest, so it is the
+   * likeliest place for a leftover and the last place that should be exempt. */
+  const OLD = 'bybitSymbol' + 'PriceFactor';
+
+  /* GUARD ON THE TRICK ITSELF, composed a second way. A typo in the concatenation yields a needle
+     that matches nothing and passes - and a search for the wrong string returns zero exactly like a
+     finished migration does, which is the failure this whole cell exists to catch. */
+  assert.equal(OLD.length, 22, `the split literal is the wrong length (${OLD.length}) - it has been mistyped`);
+  assert.ok(OLD.startsWith('bybit') && OLD.endsWith('PriceFactor') && OLD.includes('Symbol'),
+    `the split literal does not compose the expected identifier: got '${OLD}'`);
+
+  /* `supabase/migrations` is EXCLUDED AS A CLASS, not as an exception: those files have already run
+     against dev and prod, so they are applied history rather than current source. One of them
+     mentions the old name in a comment describing what the code did at that commit, and editing it
+     would make the record wrong to make this check clean. Noted on #1263 so nobody re-derives it. */
+  const tracked = execFileSync('git', ['grep', '-l', '--', OLD], { cwd: ROOT, encoding: 'utf8' })
+    .split('\n').map(s => s.trim()).filter(Boolean)
+    .filter(p => !p.startsWith('supabase/migrations/'));
+
+  /* POSITIVE CONTROL: the same command, same scope, for the name that replaced it. A zero from a
+     `git grep` that cannot see this identifier at all looks exactly like a zero from a finished
+     migration, and only this line tells them apart. */
+  const current = execFileSync('git', ['grep', '-l', '--', 'symbolDenominationFactor'], { cwd: ROOT, encoding: 'utf8' })
+    .split('\n').map(s => s.trim()).filter(Boolean);
+  assert.ok(current.length >= 5,
+    `control: the replacement name was found in only ${current.length} files - git grep is not seeing `
+    + 'identifiers here, so the empty result below would prove nothing');
+
+  assert.deepEqual(tracked, [],
+    `the renamed-away identifier still appears in current source: ${tracked.join(', ')}. Either a call `
+    + 'site was missed, or the deprecated alias has been reintroduced - the rename is not finished.');
 });
 
 test('M4. the chart label carries the 1000 prefix exactly when the series does', () => {
@@ -110,8 +248,21 @@ const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(
 const PRICE_FIELD = /\b(lastPrice|markPrice|indexPrice|prevPrice24h|highPrice24h|lowPrice24h)\b/;
 /** Something that makes the value come FROM Bybit rather than being a parameter called price. */
 const BYBIT_SOURCE = /\bBYBIT_SYMS\b|api\.bybit\.com|bybitFanout|type=bybit/;
-/** The conversion, by either entry point. */
-const APPLIES_FACTOR = /\bbybitPriceFactor\b|\bbybitSymbolPriceFactor\b/;
+/** The conversion, by any entry point.
+ *
+ * TIGHTENED TO THE CURRENT NAMES (#2135's rename, step 4b of four — the alias is gone).
+ *
+ * This is a pattern matched against OTHER FILES' source, not a reference to the function, so it has
+ * to describe what the app code actually contains. For three steps of the rename that meant
+ * accepting the old venue-named identifier as well, because the app still called it — and renaming
+ * this pattern along with the imports is what broke this cell in the first draft of step 2: a
+ * blanket identifier replace treats a scan pattern as if it were a call, when it is data about other
+ * files. It did not fail cleanly either; it reported a missing conversion that was in fact present.
+ *
+ * The alternative is dropped here rather than earlier because the export's deletion is what makes it
+ * safe: removing it while any app file still used the old name would bring that false finding back.
+ * M10 below now asserts the old name appears nowhere, which is what keeps this pattern honest. */
+const APPLIES_FACTOR = /\bbybitPriceFactor\b|\bsymbolDenominationFactor\b/;
 
 /**
  * Files that read a Bybit price and deliberately do NOT convert, with the reason each is safe.
@@ -159,7 +310,7 @@ test('M5. every file that reads a Bybit price applies the conversion, or says wh
   assert.deepEqual(
     unconverted, [],
     'these files read a Bybit price and never mention the conversion:\n  ' + unconverted.join('\n  ') +
-    '\n\nEither apply bybitPriceFactor/bybitSymbolPriceFactor, or add the file to FORWARDS_RAW with ' +
+    '\n\nEither apply bybitPriceFactor/symbolDenominationFactor, or add the file to FORWARDS_RAW with ' +
     'the reason it is safe. A scaled symbol read raw is a price out by 1,000 to 1,000,000.' +
     `\n(files currently in the Bybit price path: ${inPricePath.join(', ')})`,
   );

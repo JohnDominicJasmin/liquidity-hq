@@ -46,8 +46,19 @@ test('B2. every BAD_ANSWER return reports usageAfterRefund(), so the counter the
   badAnswerReturns.forEach((r, i) => {
     assert.match(
       r, /usage:\s*usageAfterRefund\(/,
-      `BAD_ANSWER return #${i + 1} does not report usageAfterRefund(). The banner says "This read was not counted"; ` +
-      `returning the reserved usage makes that sentence false. Return was: ${r.replace(/\s+/g, ' ').slice(0, 180)}`,
+      /* THE REASON, UPDATED - the assertion was always right but this sentence went stale (Dev Team,
+         2026-11-10). It used to say the banner reads "This read was not counted" FULL STOP, which was
+         true when written and is not now: #2065 keyed the copy on the server's `refunded` flag, so the
+         page says "not counted" only when the refund landed and "This read was counted" otherwise. My
+         own `lib/aiUsage.ts` finding is what forced that - `refundUsageColumn` returns null from its
+         catch and from any non-PGRST202 error, not only when the migration is missing.
+         So the thing this cell protects is one step back from the copy: the client can only pick the
+         honest sentence if the response carries the post-refund usage. Report the reserved number and
+         BOTH wordings become unreliable, because the counter on screen contradicts whichever one is
+         shown. */
+      `BAD_ANSWER return #${i + 1} does not report usageAfterRefund(). The client picks its wording from ` +
+      `the \`refunded\` flag and its counter from this \`usage\`; returning the RESERVED value makes the ` +
+      `number contradict the sentence either way. Return was: ${r.replace(/\s+/g, ' ').slice(0, 180)}`,
     );
   });
 });
