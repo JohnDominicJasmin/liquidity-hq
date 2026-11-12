@@ -74,10 +74,18 @@ test.describe('chart reconnects after a real transport drop', () => {
 
     /* INSTRUMENT CHECK 1. Binance is reachable from this machine or it is not.
        Two of dev's five attempts were void because the page never opened a
-       socket, so "no socket after" said nothing. */
-    expect(opensBefore,
-      'the page never opened a WebSocket - Binance is unreachable from here, so this run ' +
-      'cannot say anything about reconnection. Not a finding.').toBeGreaterThan(0);
+       socket, so "no socket after" said nothing.
+
+       SKIP, NOT FAIL - matched to INSTRUMENT CHECK 2 below, which already skips
+       for the same class of reason. This used to `expect(opensBefore > 0)`, a
+       hard assertion, and the file's own message already calls the no-socket
+       case "Not a finding" - so a GitHub runner, whose browser cannot open a
+       direct socket to Binance (US egress is refused), turned a non-measurement
+       into a red gate on every run. When the page opened no socket there is
+       nothing to measure about reconnection, which is a skip, not a defect. */
+    test.skip(opensBefore === 0,
+      'the page never opened a WebSocket - Binance is unreachable from here (a GitHub runner cannot '
+      + 'open a direct Binance socket), so this run cannot say anything about reconnection. Not a finding.');
 
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('Network.enable');
