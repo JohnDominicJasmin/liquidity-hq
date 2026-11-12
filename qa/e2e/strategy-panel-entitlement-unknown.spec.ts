@@ -220,15 +220,20 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
       let params = 'SMA chip not reachable';
       let limit = 'not observed';
       if (await sma.isVisible().catch(() => false)) {
-        await sma.click();
+        /* EVERY ACTION HERE IS TIME-BOUNDED. Playwright's actionTimeout is 0 (unlimited) on a local
+           build - only a remote run gets 30s - so a chip that is visible but never actionable (a
+           disabled or `blocked` chip while the plan is unresolved is exactly this measurement's
+           subject) waited out the whole 240s test timeout instead of being recorded. This test
+           observes; a chip that cannot be clicked is an observation, not a hang. */
+        await sma.click({ timeout: 10_000 }).catch(() => { params = 'SMA chip visible but not clickable'; });
         const input = panel.locator('.strat-params input').first();
         params = await input.isVisible().catch(() => false)
-          ? ((await input.isDisabled()) ? 'params inputs DISABLED (read-only)' : 'params inputs enabled')
+          ? ((await input.isDisabled({ timeout: 3_000 })) ? 'params inputs DISABLED (read-only)' : 'params inputs enabled')
           : 'no params box for SMA';
-        const rsiBlocked = ((await rsi.getAttribute('class')) ?? '').includes('blocked');
-        const limitNote = (await panel.locator('.strat-limit').innerText().catch(() => '')).trim();
-        await rsi.click().catch(() => {});
-        const rsiPressed = await rsi.getAttribute('aria-pressed');
+        const rsiBlocked = ((await rsi.getAttribute('class', { timeout: 3_000 }).catch(() => null)) ?? '').includes('blocked');
+        const limitNote = (await panel.locator('.strat-limit').innerText({ timeout: 3_000 }).catch(() => '')).trim();
+        await rsi.click({ timeout: 5_000 }).catch(() => { /* blocked/disabled while in flight - recorded via the class and pressed state below */ });
+        const rsiPressed = await rsi.getAttribute('aria-pressed', { timeout: 3_000 }).catch(() => 'n/a');
         limit = `second chip (RSI) blocked class: ${rsiBlocked} | limit note: ${limitNote ? `"${limitNote}"` : 'none'} | RSI pressed after click: ${rsiPressed}`;
       }
       const freeNote = await panel.getByText(/Defaults on free/i).count();
