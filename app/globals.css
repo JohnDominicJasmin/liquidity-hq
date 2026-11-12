@@ -9137,13 +9137,14 @@ main.app-content[data-chrome="none"] {
  *
  * 72px IS A DERIVED UPPER BOUND, NOT A MEASURED FIT, and it is scoped to this one list on purpose. The
  * button needs 84px clear and the page gutter already supplies some of it; 72 is enough with a gutter as
- * small as 12px and costs only a narrower right column. The 1100px ceiling is PM's band for the FAB work on
- * #1185 (641 to about 1100) and phones share the same button column; ABOVE IT THE PANEL WAS NOT MEASURED, so
- * nothing is changed there. If a deployed screenshot shows more space than it needs, lower this value; do not
- * remove the opaque background above, which is the other half. */
-@media (max-width: 1100px) {
-  [data-design="terminal"] .strat-layers { padding-right: 72px; }
-}
+ * small as 12px and costs only a narrower right column. IT APPLIES AT EVERY WIDTH (#1185, PM sign-off at 1280):
+ * this rule was first limited to 1100px and below, the band PM had measured, on the reading that above it the panel
+ * was unmeasured. At 1280 the screenshot showed "· BTC only" under the button and the panel right edge running
+ * beneath it, because the button sits in the viewport's right column at every width and the panel reaches that
+ * column wherever it is not centred in a wider page. At desktop the only cost is the right column's text width.
+ * If a deployed screenshot shows more space than it needs, lower this value; do not remove the opaque background
+ * above, which is the other half. */
+[data-design="terminal"] .strat-layers { padding-right: 72px; }
 [data-design="terminal"] .strat-layer-name { font-size: 12px; color: var(--txt); }
 [data-design="terminal"] .strat-layer-state { font-size: 10.5px; color: var(--txt3); } /* 4.71 / 5.07 on --bg1 */
 [data-design="terminal"] .strat-switch {
