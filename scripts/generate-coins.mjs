@@ -25,6 +25,26 @@
  * exchange actually returned and written into the generated row, so a new 1000x listing cannot
  * arrive without its factor.
  *
+ * TRADFI INSTRUMENTS ARE A SECOND CLASS WITH THEIR OWN RULE (owner, 2026-11-12: "this tokenized
+ * stocks or TradFi, I want them included"). Binance lists stocks, ETFs, commodities, FX and
+ * pre-IPO references as contractType `TRADIFI_PERPETUAL`, which the crypto rule above
+ * (`PERPETUAL`) never saw, so every one of them was dropped. They are added here under rules that
+ * differ from the crypto rule on purpose:
+ *   - SINGLE-VENUE IS ALLOWED. A TradFi row needs Binance; Bybit is attached where Bybit lists the
+ *     same instrument and the row is `oneVenue` where it does not. The both-venues rule is a
+ *     failover guarantee for crypto and stays exactly as it was.
+ *   - Rows carry `kind` (stock | etf | commodity | fx | preipo) and `ticker`, from an explicit
+ *     classification map below. An unclassified underlying defaults to 'stock' and SAYS SO in the
+ *     output, so a new asset class cannot arrive unlabelled or unnoticed.
+ *   - IDS CANNOT COLLIDE WITH CRYPTO. A TradFi ticker that equals a crypto base on EITHER venue
+ *     (CAT, WEN, PENG, ...) takes Bybit's own convention, `<ticker>stock` (Bybit lists Caterpillar
+ *     as CATSTOCKUSDT for the same reason), so the id stays unique and `id.toUpperCase()` is still
+ *     the symbol Bybit trades. The DISPLAYED name stays the ticker (`ticker`). A collision that
+ *     survives the rename is a hard stop (exit 2) - rows are never dropped quietly.
+ *   - NO TRADFI ROW MAY BE A 1000x QUOTE. A leading digit in a TradFi base cannot be told from a
+ *     denomination without a venue to compare against, and single-venue rows have none, so one is
+ *     refused rather than guessed at.
+ *
  * Run: node scripts/generate-coins.mjs          (writes the file)
  *      node scripts/generate-coins.mjs --check  (exits 1 if the file is stale; no write)
  */
@@ -81,6 +101,41 @@ const TICKER_COLLISIONS = new Map([
 
 /** Kept although only one venue lists them - see the header. */
 const ONE_VENUE_KEEP = new Set(['xau', 'spx', 'fet']);
+
+/* ── TRADFI CLASSIFICATION: a small explicit map, not a heuristic ─────────────────────────────
+ *
+ * Binance's `underlyingType` says what the asset is; Bybit's `symbolType` says it again and also
+ * knows which equity contracts are FUNDS - Binance calls SPY and NVDA both 'EQUITY'. So the fund
+ * distinction comes from Bybit, and a fund that only Binance lists is classed as a stock (stated in
+ * the output, since a Binance-only ETF is indistinguishable from a stock on the data we have).
+ * An underlying NOT in this map defaults to 'stock' and is logged - never skipped, never silent. */
+const KIND_BY_UNDERLYING = {
+  EQUITY: 'stock', KR_EQUITY: 'stock', HK_EQUITY: 'stock', CN_EQUITY: 'stock',
+  COMMODITY: 'commodity',
+  FX: 'fx',
+  PREMARKET: 'preipo',
+};
+const KIND_BY_BYBIT_TYPE = { ETF: 'etf' };
+/** For a CRYPTO-pipeline row whose Bybit side is not crypto (today: xau = gold, on = ON Semiconductor,
+ *  whose Bybit ONUSDT trades at $70 while Binance's ON is the Ontology token at $0.15 - the known
+ *  collision in TICKER_COLLISIONS). Bybit's own type is the label; nothing is guessed. */
+const KIND_FROM_BYBIT_TYPE = { stock: 'stock', ETF: 'etf', commodity: 'commodity', forex: 'fx' };
+/** Bybit symbolTypes that mean "not a crypto asset". Bybit's own crypto rows are '' or 'innovation'. */
+const BYBIT_TRADFI_TYPES = new Set(['stock', 'ETF', 'commodity', 'forex']);
+/** The same instrument already served as a curated crypto-pipeline row. Binance's XAUUSDT is gold,
+ *  exactly like the curated `xau` (Bybit), so adding it would be a second id for one thing. The
+ *  entry is checked every run (target must exist, prices must agree) and printed, never silent. */
+const TRADFI_SAME_AS_CURATED = new Map([['XAU', 'xau']]);
+
+const unclassified = [];
+function tradfiKind(base, underlyingType, bybitType) {
+  const fromBybit = bybitType ? KIND_BY_BYBIT_TYPE[bybitType] : undefined;
+  if (fromBybit) return fromBybit;
+  const fromUnderlying = KIND_BY_UNDERLYING[underlyingType];
+  if (fromUnderlying) return fromUnderlying;
+  unclassified.push(`${base} (${underlyingType})`);
+  return 'stock';
+}
 
 const j = async (url) => {
   const r = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(30_000) });
@@ -160,6 +215,7 @@ for (const i of byInst.result?.list ?? []) {
   const { id, mult } = normaliseBase(i.baseCoin);
   bybit.set(id, {
     symbol: i.symbol,
+    symbolType: i.symbolType,
     mult,
     tick: Number(i.priceFilter?.tickSize) || 0,
     turnover: byTurnover.get(i.symbol) ?? 0,
@@ -174,6 +230,43 @@ for (const s of bnInfo.symbols ?? []) {
   const { id, mult } = normaliseBase(s.baseAsset);
   const tick = Number((s.filters ?? []).find(f => f.filterType === 'PRICE_FILTER')?.tickSize) || 0;
   binance.set(id, { symbol: s.symbol, mult, tick, volume: bnVolume.get(s.symbol) ?? 0 });
+}
+
+/* ── TRADFI SOURCES, from both venues. Built apart from the crypto maps so nothing above changes ── */
+const bybitTradfi = new Map();   // Bybit baseCoin -> instrument (only non-crypto symbolTypes)
+for (const i of byInst.result?.list ?? []) {
+  if (i.quoteCoin !== 'USDT' || i.status !== 'Trading' || i.contractType !== 'LinearPerpetual') continue;
+  if (!BYBIT_TRADFI_TYPES.has(i.symbolType)) continue;
+  bybitTradfi.set(i.baseCoin, {
+    symbol: i.symbol,
+    symbolType: i.symbolType,
+    tick: Number(i.priceFilter?.tickSize) || 0,
+  });
+}
+const bnTradfi = new Map();      // Binance baseAsset -> instrument
+for (const s of bnInfo.symbols ?? []) {
+  if (s.contractType !== 'TRADIFI_PERPETUAL' || s.quoteAsset !== 'USDT' || s.status !== 'TRADING') continue;
+  bnTradfi.set(s.baseAsset, {
+    symbol: s.symbol,
+    underlyingType: s.underlyingType ?? '',
+    tick: Number((s.filters ?? []).find(f => f.filterType === 'PRICE_FILTER')?.tickSize) || 0,
+  });
+}
+/* A ZERO HERE IS A FAILURE, NOT "NO STOCKS TODAY". If Binance renames the contract type again, the
+   filter above matches nothing and every TradFi row silently disappears - which is exactly how all
+   of them went missing the first time. */
+if (bnTradfi.size === 0) {
+  console.error('binance exchangeInfo carried no TRADIFI_PERPETUAL USDT contracts - refusing to write a');
+  console.error('  universe with every stock, ETF and commodity silently absent. Check contractType.');
+  process.exit(2);
+}
+/* A NON-CRYPTO instrument whose base starts with a digit cannot be told apart from a 1000x quote, and a
+   Binance-only row has no second venue to settle it. Refuse and name it. (None today: 236 checked.) */
+const digitLeading = [...bnTradfi.keys()].filter(b => !/^[A-Z][A-Z0-9]*$/.test(b));
+if (digitLeading.length) {
+  console.error(`TRADFI base(s) outside [A-Z][A-Z0-9]*: ${digitLeading.join(', ')}`);
+  console.error('  A leading digit may be a denomination (1000x). Decide each one, do not guess.');
+  process.exit(2);
 }
 
 /* OKX, AS A THIRD COLUMN ONLY - IT DOES NOT CHANGE WHICH COINS EXIST.
@@ -208,7 +301,7 @@ const okx = new Map();
 const ids = new Set([...bybit.keys()].filter(id => binance.has(id)));
 for (const id of ONE_VENUE_KEEP) if (bybit.has(id) || binance.has(id)) ids.add(id);
 
-const rows = [...ids].map(id => {
+const cryptoRows = [...ids].map(id => {
   /* THE COLLIDING VENUE IS DROPPED HERE, AT THE TOP, so everything below follows from the venues
      the row actually keeps: the multiplier, the decimals, `oneVenue` and the liquidity rank.
      Dropping it only in the emitted field would leave `dec` and `oneVenue` describing a venue the
@@ -254,6 +347,9 @@ const rows = [...ids].map(id => {
        only venue. */
     dec: b ? decimalsFromTick(b.tick, b.mult) : decimalsFromTick(n.tick, n.mult),
     oneVenue,
+    /* A crypto-pipeline row is tagged only where BYBIT says its instrument is not crypto - today `xau`
+       (gold, lands in Commodities) and `on` (ON Semiconductor, lands in Stocks). Every other row has none. */
+    kind: b ? KIND_FROM_BYBIT_TYPE[b.symbolType] : undefined,
     liq,
   };
 }).filter(r => r.dec !== null)
@@ -280,6 +376,84 @@ const rows = [...ids].map(id => {
      somewhere inside it. `liq` is still computed and still filters nothing - it is dropped from
      the emitted row below, because a field nobody reads is a field that will be trusted. */
   .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+/* ── THE TRADFI ROWS ───────────────────────────────────────────────────────────────────────── */
+const UNIT_REFUSE_TRADFI = [0.5, 2.0];   // same band as the agreement guard below
+const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+const cryptoRowIds = new Set(cryptoRows.map(r => r.id));
+/* EVERY CRYPTO BASE ON EITHER VENUE, not only the ones that made the intersection - a token listed
+   on one venue today can be on both tomorrow, and the id it would take must already be reserved. */
+const cryptoBases = new Set([...binance.keys(), ...cryptoRowIds]);
+/* ANY STATUS, ANY QUOTE: a pre-launch or settling crypto contract still owns its ticker. */
+for (const i of byInst.result?.list ?? []) {
+  if (!BYBIT_TRADFI_TYPES.has(i.symbolType)) cryptoBases.add(normaliseBase(i.baseCoin).id);
+}
+for (const s of bnInfo.symbols ?? []) {
+  if (s.contractType === 'PERPETUAL') cryptoBases.add(normaliseBase(s.baseAsset).id);
+}
+
+const tradfiRows = [];
+const tradfiRenamed = [];        // ticker -> id, where the ticker clashed with a crypto base
+const tradfiBybitSuffix = [];    // matched only under Bybit's <ticker>STOCK name
+const tradfiAlias = [];          // skipped because the same instrument is already a curated row
+const tradfiKindMismatch = [];   // Bybit and Binance disagree on what the instrument is
+for (const [base, n] of [...bnTradfi.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
+  const alias = TRADFI_SAME_AS_CURATED.get(base);
+  if (alias) {
+    const target = cryptoRows.find(r => r.id === alias);
+    if (!target) {
+      console.error(`TRADFI_SAME_AS_CURATED says ${base} is ${alias}, but ${alias} is not in the universe - stale entry.`);
+      process.exit(2);
+    }
+    const mine = (bnLast.get(n.symbol) ?? 0);
+    const theirs = (byLast.get(target.bybit) ?? 0) * target.bybitMult;
+    const ratio = mine / theirs;
+    if (!(ratio >= UNIT_REFUSE_TRADFI[0] && ratio <= UNIT_REFUSE_TRADFI[1])) {
+      console.error(`TRADFI_SAME_AS_CURATED: ${base} (binance ${mine}) vs ${alias} (bybit ${theirs}) = x${ratio.toFixed(3)} - NOT the same instrument.`);
+      process.exit(2);
+    }
+    tradfiAlias.push(`${base} -> ${alias} (price ratio ${ratio.toFixed(4)})`);
+    continue;
+  }
+
+  const by = bybitTradfi.get(base) ?? bybitTradfi.get(base + 'STOCK') ?? null;
+  if (by && !bybitTradfi.has(base)) tradfiBybitSuffix.push(base);
+
+  const lower = base.toLowerCase();
+  const id = cryptoBases.has(lower) ? lower + 'stock' : lower;
+  if (id !== lower) tradfiRenamed.push(`${base} -> ${id}`);
+  if (cryptoBases.has(id)) {
+    console.error(`TRADFI ID COLLISION: '${base}' needs id '${id}', which is also a crypto id or base.`);
+    console.error('  Rename by hand in this generator rather than letting a row replace another one.');
+    process.exit(2);
+  }
+
+  const kind = tradfiKind(base, n.underlyingType, by?.symbolType);
+  /* Bybit and Binance should agree on the BROAD class. A mismatch is not an error (Binance has no
+     fund flag), but a stock Bybit calls a commodity is worth a human look. */
+  if (by && ((by.symbolType === 'commodity') !== (kind === 'commodity') || (by.symbolType === 'forex') !== (kind === 'fx'))) {
+    tradfiKindMismatch.push(`${base}: binance ${n.underlyingType} vs bybit ${by.symbolType}`);
+  }
+
+  const dec = decimalsFromTick(by ? by.tick : n.tick, 1);
+  if (dec === null) {
+    console.error(`TRADFI row ${base} has no usable tick size - refusing to ship a row with no price precision.`);
+    process.exit(2);
+  }
+  tradfiRows.push({
+    id, ticker: base, kind,
+    bybit: by?.symbol ?? null,
+    binance: n.symbol,
+    okx: null,
+    bybitMult: 1,
+    binanceMult: 1,
+    dec,
+    oneVenue: !by,
+    liq: 0,
+  });
+}
+
+const rows = [...cryptoRows, ...tradfiRows].sort(byId);
 
 /* THE AGREEMENT GUARD: do the venues mean the same ASSET, and quote it in the same UNIT?
  *
@@ -616,9 +790,10 @@ if (!hlCtx || !Array.isArray(hlCtx) || hlCtx.length < 2) {
 
 const body = `/* GENERATED by scripts/generate-coins.mjs - DO NOT EDIT BY HAND.
  *
- * Every instrument both Bybit and Binance trade as a USDT perpetual, ranked by 24h turnover on
- * the THINNER of the two venues, plus the explicit single-venue instruments listed in the
- * generator. Regenerate with: node scripts/generate-coins.mjs
+ * Every instrument both Bybit and Binance trade as a USDT perpetual, plus the explicit single-venue
+ * instruments listed in the generator, plus every Binance TRADIFI_PERPETUAL (stocks, funds,
+ * commodities, FX and pre-IPO references - see the generator header for how those differ). Rows are
+ * sorted by id. Regenerate with: node scripts/generate-coins.mjs
  *
  * \`mult\` converts an exchange price to the per-token price the app uses - 0.001 for the 1000x
  * memecoin listings. \`dec\` comes from the exchange tick size. \`oneVenue\` marks an instrument
@@ -641,12 +816,35 @@ export interface CoinRow {
   readonly okx: string | null;
   readonly dec: number;
   readonly oneVenue: boolean;
+  /** TRADFI ONLY (stocks, funds, commodities, FX, pre-IPO references). Absent on crypto rows, except
+   *  the curated gold row which Bybit types as a commodity. */
+  readonly kind?: 'stock' | 'etf' | 'commodity' | 'fx' | 'preipo';
+  /** The name to DISPLAY when it is not \`id.toUpperCase()\` - set on every TradFi row, because a
+   *  ticker that clashes with a crypto base gets a suffixed id (\`catstock\`) but is still CAT. */
+  readonly ticker?: string;
 }
 
 export const COIN_UNIVERSE: readonly CoinRow[] = [
-${rows.map(r => `  { id: '${r.id}', bybit: ${r.bybit ? `'${r.bybit}'` : 'null'}, binance: ${r.binance ? `'${r.binance}'` : 'null'}, okx: ${r.okx ? `'${r.okx}'` : 'null'}, bybitMult: ${r.bybitMult}, binanceMult: ${r.binanceMult}, dec: ${r.dec}, oneVenue: ${r.oneVenue} },`).join('\n')}
+${rows.map(r => `  { id: '${r.id}', bybit: ${r.bybit ? `'${r.bybit}'` : 'null'}, binance: ${r.binance ? `'${r.binance}'` : 'null'}, okx: ${r.okx ? `'${r.okx}'` : 'null'}, bybitMult: ${r.bybitMult}, binanceMult: ${r.binanceMult}, dec: ${r.dec}, oneVenue: ${r.oneVenue}${r.kind ? `, kind: '${r.kind}'` : ''}${r.ticker ? `, ticker: '${r.ticker}'` : ''} },`).join('\n')}
 ];
 `;
+
+/* WHAT THE TRADFI PASS DID, printed every run so a change in it is visible in the diff of the output
+   rather than only in the diff of the generated file. */
+{
+  const byKind = {};
+  for (const r of tradfiRows) byKind[r.kind] = (byKind[r.kind] ?? 0) + 1;
+  console.log(`tradfi: ${tradfiRows.length} instruments of ${bnTradfi.size} on Binance (${Object.entries(byKind).map(([k, v]) => `${k} ${v}`).join(', ')})`);
+  console.log(`  on both venues: ${tradfiRows.filter(r => !r.oneVenue).length}; Binance-only: ${tradfiRows.filter(r => r.oneVenue).length}`
+    + ` (${tradfiRows.filter(r => r.oneVenue).map(r => r.ticker).join(' ')})`);
+  if (tradfiBybitSuffix.length) console.log(`  matched under Bybit's <ticker>STOCK name: ${tradfiBybitSuffix.join(' ')}`);
+  if (tradfiRenamed.length) console.log(`  id renamed to avoid a crypto collision: ${tradfiRenamed.join(', ')}`);
+  for (const a of tradfiAlias) console.log(`  not added, already a curated row: ${a}`);
+  if (unclassified.length) console.log(`  UNCLASSIFIED underlying, defaulted to stock: ${unclassified.join(', ')}`);
+  if (tradfiKindMismatch.length) console.log(`  kind disagreement between venues (check): ${tradfiKindMismatch.join(' | ')}`);
+  const noFundFlag = tradfiRows.filter(r => r.kind === 'stock' && r.oneVenue).length;
+  if (noFundFlag) console.log(`  ${noFundFlag} Binance-only 'stock' rows could be funds - Bybit's ETF flag is the only fund signal and these have no Bybit row`);
+}
 
 if (CHECK) {
   const current = existsSync(OUT) ? readFileSync(OUT, 'utf8') : '';

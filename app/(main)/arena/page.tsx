@@ -45,6 +45,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
+import { coinKind, coinLabel, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF, CHART_TFS, ARENA_TFS } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
@@ -146,7 +147,23 @@ function ReasoningText({ text }: { text: string }) {
 const SIGNAL_COINS = new Set<string>(COINS);
 const READABLE_COINS = new Set<string>(COINS);
 
-const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', readonly CoinId[]> = {
+/* TRADFI NAMES AND NOTES. The label key per kind, shown on the scanner row and beside the chart. A kind with
+   no entry cannot render: this is a Record over every CoinKind, so a new kind fails tsc here. */
+const KIND_LABEL_KEYS: Record<CoinKind, LabelKey> = {
+  stock: 'ARENA_KIND_STOCK', etf: 'ARENA_KIND_ETF', commodity: 'ARENA_KIND_COMMODITY',
+  fx: 'ARENA_KIND_FX', preipo: 'ARENA_KIND_PREIPO',
+};
+/** The name to show for a coin. Only the TradFi rows route through coinLabel: `catstock` is CAT, and the
+ *  plain `id.toUpperCase()` the page used for everything else is left exactly as it was. */
+const displayCoin = (c: string): string => (coinKind(c) ? coinLabel(c) : c.toUpperCase());
+const COIN_CATEGORIES = ['all', 'majors', 'alts', 'defi', 'meme', 'stocks', 'etfs', 'commodities'] as const;
+type CoinCategory = (typeof COIN_CATEGORIES)[number];
+const CAT_LABEL_KEYS: Record<CoinCategory, LabelKey> = {
+  all: 'ARENA_CAT_ALL', majors: 'ARENA_CAT_MAJORS', alts: 'ARENA_CAT_ALTS', defi: 'ARENA_CAT_DEFI', meme: 'ARENA_CAT_MEME',
+  stocks: 'ARENA_CAT_STOCKS', etfs: 'ARENA_CAT_ETFS', commodities: 'ARENA_CAT_COMMODITIES',
+};
+
+const CAT_FILTER_COINS: Record<CoinCategory, readonly CoinId[]> = {
   /* Every instrument both venues trade, not the rendered 50 - this is the one surface the
      owner asked to cover the whole market, and the search box and category tabs it already
      has are what make 463 entries navigable without a new control. */
@@ -155,6 +172,10 @@ const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', read
   alts:   ['near', 'sui', 'avax', 'link', 'dot', 'atom', 'arb', 'op', 'apt', 'sei', 'inj', 'tia', 'trx', 'xlm', 'etc', 'fil', 'stx'],
   defi:   ['hype', 'aave', 'uni', 'ldo', 'rune', 'gmx', 'crv', 'jup', 'wld', 'render', 'tao', 'fet', 'ondo', 'pyth', 'ena', 'dydx', 'xau', 'spx'],
   meme:   ['doge', 'pepe', 'wif', 'bonk', 'gmt', 'sand', 'mana'],
+  /* TradFi, from the generated rows' own kind - nothing to keep in step by hand. */
+  stocks: TRADFI_CATEGORY_COINS.stocks,
+  etfs: TRADFI_CATEGORY_COINS.etfs,
+  commodities: TRADFI_CATEGORY_COINS.commodities,
 };
 
 
@@ -505,7 +526,7 @@ function ArenaContent() {
   const [scannerOpen, setScannerOpen]   = useState(false);
   const [scannerSearch, setScannerSearch] = useState('');
   const scannerSearchRef = useRef<HTMLInputElement>(null);
-  const [coinCat, setCoinCat]           = useState<'all' | 'majors' | 'alts' | 'defi' | 'meme'>('all');
+  const [coinCat, setCoinCat]           = useState<CoinCategory>('all');
   const [copiedKey, setCopiedKey]           = useState<string | null>(null);
   const [jpyUsd, setJpyUsd]                 = useState<number | null>(null);
   /* Perps vs spot (#340) - the same reading the dashboard card shows, from the
@@ -1977,8 +1998,8 @@ function ArenaContent() {
       />
 
       {/* ── COIN CATEGORY TABS ── */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-        {(['all', 'majors', 'alts', 'defi', 'meme'] as const).map(c => (
+      <div style={{ display: 'flex', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
+        {COIN_CATEGORIES.map(c => (
           <button
             key={c}
             type="button"
@@ -1998,7 +2019,7 @@ function ArenaContent() {
             style={{ padding: '3px 9px', fontSize: 'var(--fs-caption)', textTransform: 'capitalize' }}
             onClick={() => setCoinCat(c)}
           >
-            {c === 'all' ? t('ARENA_CAT_ALL') : c === 'majors' ? t('ARENA_CAT_MAJORS') : c === 'alts' ? t('ARENA_CAT_ALTS') : c === 'defi' ? t('ARENA_CAT_DEFI') : t('ARENA_CAT_MEME')}
+            {t(CAT_LABEL_KEYS[c])}
           </button>
         ))}
       </div>
@@ -2077,7 +2098,7 @@ function ArenaContent() {
             flexShrink: 0,
           }}>
             <CoinIcon coin={selectedCoin} size={16} color="#5aa3ff" bg="color-mix(in srgb, var(--accent-2) 15%, transparent)" />
-            {selectedCoin.toUpperCase()}
+            {displayCoin(selectedCoin)}
           </span>
           {/* Spacer */}
           <span style={{ flex: 1 }} />
@@ -2257,7 +2278,7 @@ function ArenaContent() {
                     />
                     <div>
                       <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isSelected ? 'var(--accent-2)' : isActive ? 'var(--txt)' : 'var(--txt3)', lineHeight: 1.2 }}>
-                        {c.toUpperCase()}
+                        {displayCoin(c)}
                       </div>
                       {badges.length > 0 ? (
                         <div style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap' }}>
@@ -2277,7 +2298,7 @@ function ArenaContent() {
                           {/* Said before the click, not after. A row with no AI read is still worth
                               selecting - the chart and the price work - so this is a note, not a
                               disabled control. */}
-                          {canRead ? t('ARENA_SCANNER_USDT_PERP') : t('ARENA_SCANNER_NO_AI_READ')}
+                          {canRead ? t('ARENA_SCANNER_USDT_PERP') : coinKind(c) ? t('ARENA_SCANNER_KIND_NO_AI_READ', { kind: t(KIND_LABEL_KEYS[coinKind(c) as CoinKind]) }) : t('ARENA_SCANNER_NO_AI_READ')}
                         </div>
                       )}
                     </div>
@@ -2334,6 +2355,17 @@ function ArenaContent() {
           </div>
         )}
       </div>
+
+      {/* ── TRADFI NOTE: what this instrument is, and the one fact that is easy to get wrong ──
+          A tokenized stock, ETF or commodity contract trades around the clock; the market behind it does
+          not. A pre-IPO reference is not a listed share at all. Shown only when the selected coin is one. */}
+      {coinKind(selectedCoin) && (
+        <p data-testid="tradfi-note" style={{ margin: '0 0 10px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.45 }}>
+          <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>{t(KIND_LABEL_KEYS[coinKind(selectedCoin) as CoinKind])}</span>
+          {' · '}
+          {coinKind(selectedCoin) === 'preipo' ? t('ARENA_TRADFI_NOTE_PREIPO') : t('ARENA_TRADFI_NOTE')}
+        </p>
+      )}
 
       {/* ── AI READ · answer-first hero ── */}
       <div className="arena-below-chart">
@@ -2471,7 +2503,7 @@ function ArenaContent() {
                     color: 'var(--accent-2)', background: 'var(--accent-bg)', border: '0.5px solid var(--accent-bdr)',
                     borderRadius: 7, padding: '4px 9px',
                   }}>
-                    {selectedCoin.toUpperCase()}
+                    {displayCoin(selectedCoin)}
                   </span>
                 </div>
               </div>
