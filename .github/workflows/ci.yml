@@ -71,9 +71,13 @@ name: CI
 #
 # ── WHERE THE SUITE RUNS WHEN IT IS ON ───────────────────────────────────────
 #
-# ONE trigger, and no manual override:
+# ⚠️ THIS LIST CHANGED ON 2026-11-12. It read "ONE trigger, and no manual override: a PR into
+# `main`", which was true from 2026-11-10 until the owner amended the rule. Now:
 #
-#   a PR into `main` - the release, immediately before a production deploy
+#   a PR into `main`                     - the release, immediately before a production deploy
+#                                          (the ONLY automatic browser-suite run)
+#   a PR into `dev`, `qa` or `staging`   - the QUICK jobs only; no browser suite
+#   a dispatch with `e2e` ticked         - the per-group run, and QA's `spec` runs
 #
 # ⚠️ THE SUITE CAN BE RUN ON DEMAND AGAIN, AS OF 2026-10-29, BUT ONLY IF YOU
 # ASK FOR IT: dispatch this workflow with `e2e` ticked. A dispatch without it
@@ -238,8 +242,27 @@ on:
   # Feature PRs, dev, qa and staging pushes run nothing here; QA tests on the deployed qa site.
   # The `push:` trigger (qa, staging, main) was removed for the same reason; drift on main is
   # release-signals.yml's job, not this file's. Re-adding a branch here re-adds that bill.
+  # ── `dev`, `qa` AND `staging` ADDED 2026-11-12, ON THE OWNER'S DECISION ────────────────────
+  #
+  # He chose, first-hand and from options: quick checks run automatically on EVERY PR; the full
+  # browser suite runs per group (dispatched) and on the release PR; nothing runs on his laptop.
+  #
+  # WHAT THIS DOES AND DOES NOT TURN ON. A PR into `dev`/`qa`/`staging` runs `changes` and
+  # `build` — classification, lint, typecheck, unit tests, build. It does NOT run the browser
+  # suite: the `e2e` job's `if:` is `base_ref == 'main'` or an explicit dispatch, and neither is
+  # satisfied by a PR into `dev`. The `gate` job already accepts a skipped `e2e` outside `main`,
+  # so nothing there needed changing for this.
+  #
+  # ⚠️ THIS IS THE EXACT TRIGGER THAT PRODUCED THE NOVEMBER BILL, and saying so is the point:
+  # 1,808 of November's 3,565 job-minutes were this build job on PRs into dev/qa/staging. What
+  # changed is not the volume, it is who pays — the repo went public on 2026-11-10, and standard
+  # runners on a public repo are free. If this repo ever goes private again, THIS BLOCK IS THE
+  # FIRST THING TO REVERT, and whoever makes it private owes the owner that number before doing it.
+  #
+  # Still NO `push:` trigger. Promotions are fast-forward pushes and are covered by the group's
+  # dispatched run; a push trigger would double every merge.
   pull_request:
-    branches: [main]
+    branches: [main, dev, qa, staging]
     types: [opened, reopened, synchronize, ready_for_review]
 
   workflow_dispatch:
