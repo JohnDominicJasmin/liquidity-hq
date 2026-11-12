@@ -643,13 +643,25 @@ function ArenaContent() {
     return () => window.removeEventListener('hashchange', scrollToUsage);
   }, []);
 
-  /* ── Sync coin + tf to URL so the page is shareable ── */
+  /* ── Sync coin + tf to URL so the page is shareable ──
+     #1263, COLD LOAD: NOT WHILE THE ACCOUNT'S SETTINGS ARE STILL BEING READ. On a cold signed-in load
+     OnboardingGate unmounts the page (it renders the onboarding LOADING screen while the profile
+     read is in flight) and mounts it again when that read lands. If this effect had already written
+     `?coin=btc&tf=15m` - the initialisers' defaults - on the first mount, the second mount read
+     those two params as a deep link, `hadCoinParamAtMount`/`hadTfParamAtMount` came out true, and
+     the seed effect below skipped both: the account's saved coin and timeframe were ignored on every
+     cold load, and only a warm client-side navigation (where the page mounts once) honoured them.
+     Waiting for the settings read means a page that is about to be unmounted never writes at all, so
+     the remount sees the URL the visitor really arrived with. A real deep link is untouched: its
+     params are already in the URL and are read by the initialisers either way. A failed read
+     ('error') still syncs, as it always did. */
   useEffect(() => {
+    if (settingsLoadStatus === 'loading') return;
     const url = new URL(window.location.href);
     url.searchParams.set('coin', selectedCoin);
     url.searchParams.set('tf', readTf);
     window.history.replaceState(null, '', url.toString());
-  }, [selectedCoin, readTf]);
+  }, [selectedCoin, readTf, settingsLoadStatus]);
 
   /* ── Fetch alerts for selected coin (chart overlay lines) ── */
   useEffect(() => {
