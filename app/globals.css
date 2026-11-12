@@ -2315,7 +2315,11 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .gchat-fab {
   position: fixed; bottom: 24px; right: 20px; z-index: 9995;
   width: 64px; height: 64px; border-radius: 50%;
-  background: var(--accent-bg);
+  /* OPAQUE (#1185). `--accent-bg` is a 7% blue tint, so on its own this button was see-through in dark:
+     whatever scrolled under it - the Strategy panel's "Always on" text - showed through the button, while
+     the light theme (below) was already solid. The tint is kept, laid over a solid surface, so the colour
+     reads the same on a dark page and nothing shows through. */
+  background: linear-gradient(var(--accent-bg), var(--accent-bg)), var(--bg1);
   border: 0.5px solid var(--accent-bdr);
   /* #970: was `0 4px 24px rgba(0,0,0,0.8), var(--glow-accent)`. --glow-accent
      is `none` in every context that reaches this rule (dark by :root, and
@@ -9113,6 +9117,21 @@ main.app-content[data-chrome="none"] {
   min-height: 40px; border-bottom: 1px solid var(--bdr3);
 }
 [data-design="terminal"] .strat-layer:last-child { border-bottom: 0; }
+/* KEEP THE CHART LAYERS ROWS OUT FROM UNDER THE ASK AI BUTTON (#1185). `.gchat-fab` is `position: fixed` and
+ * takes no space, so it owns the rightmost 84px of the viewport (right: 20px + 64px wide; 16px + 64px on
+ * phones) and the panel scrolls under it - whichever layer row is at the bottom of the viewport has its
+ * right-hand text, or its switch, covered. Moving the button cannot help (the file's other #1185 notes
+ * measured that), so the rows stop reaching into the column, the same remedy as `.pb-star` above.
+ *
+ * 72px IS A DERIVED UPPER BOUND, NOT A MEASURED FIT, and it is scoped to this one list on purpose. The
+ * button needs 84px clear and the page gutter already supplies some of it; 72 is enough with a gutter as
+ * small as 12px and costs only a narrower right column. The 1100px ceiling is PM's band for the FAB work on
+ * #1185 (641 to about 1100) and phones share the same button column; ABOVE IT THE PANEL WAS NOT MEASURED, so
+ * nothing is changed there. If a deployed screenshot shows more space than it needs, lower this value; do not
+ * remove the opaque background above, which is the other half. */
+@media (max-width: 1100px) {
+  [data-design="terminal"] .strat-layers { padding-right: 72px; }
+}
 [data-design="terminal"] .strat-layer-name { font-size: 12px; color: var(--txt); }
 [data-design="terminal"] .strat-layer-state { font-size: 10.5px; color: var(--txt3); } /* 4.71 / 5.07 on --bg1 */
 [data-design="terminal"] .strat-switch {
