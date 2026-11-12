@@ -62,8 +62,56 @@ const world = {
   priceAlertMessages: [] as string[],                        // every price-alert message Telegram was asked to send
   switchedOff: [] as number[][],                             // ids in each "active: false" write
   upstream: [] as string[],                                  // every call the route made to a PRICE source (not Telegram, not Supabase)
-  prices: {} as Record<string, number>,                      // extra spot prices by symbol, e.g. ETHUSDT, for the multi-coin cells
+  prices: {} as Record<string, number>,
+  realistic: false,                                          // serve real klines / tickers / open-interest instead of empty lists (see `realistic` below)                      // extra spot prices by symbol, e.g. ETHUSDT, for the multi-coin cells
 };
+/* ── A STAND-IN THAT SERVES REAL ANSWERS (QA, after Dev's #2218 review: the plain stand-in answers [] to everything it does not know, so every klines read
+   is empty, the ribbon scan reads that as a failure and falls over to Bybit, and nothing is ever cacheable - 1,405 calls is the cost of an all-empty
+   upstream, not of prod and not of a warm pass). With `world.realistic` on, Bybit and Binance futures/spot klines answer with CLOSED candles plus ONE
+   FORMING candle per interval (the newest one open, as an exchange sends it), Bybit tickers answer for every coin the app prices, and open-interest
+   answers with 13 points. Prices follow `world.prices` (BTC from `world.btc`), a known value per symbol. */
+const coinsP = import('../lib/coins.ts') as Promise<{ BYBIT_SYMS: Record<string, string> }>;
+const ivMsOf = (iv: string): number => {
+  const n = parseInt(iv, 10);
+  if (/^\d+$/.test(iv)) return n * 60_000;                 // Bybit minutes: 1, 5, 60, 240
+  if (/^\d+m$/.test(iv)) return n * 60_000;                // Binance 1m, 5m, 30m
+  if (/^\d+h$/.test(iv)) return n * 3_600_000;
+  if (/^\d+d$/i.test(iv) || iv === 'D') return (n || 1) * 86_400_000;
+  if (iv === 'W') return 7 * 86_400_000;
+  return 60_000;
+};
+const basePrice = (symbol: string): number => (symbol === 'BTCUSDT' ? world.btc : world.prices[symbol] ?? 100);
+/** Newest-first rows for Bybit; oldest-first arrays for Binance. Row 0 is the FORMING candle (open time = the current interval's start). */
+function candleRows(symbol: string, ivMs: number, limit: number) {
+  const now = Date.now(); const forming = Math.floor(now / ivMs) * ivMs; const p = basePrice(symbol);
+  return Array.from({ length: limit }, (_, i) => {
+    const t = forming - i * ivMs; const c = p * (1 + 0.002 * Math.sin(t / ivMs)); const o = p * (1 + 0.002 * Math.sin(t / ivMs - 1));
+    return { t, o, h: Math.max(o, c) * 1.001, l: Math.min(o, c) * 0.999, c, v: 100 + (i % 7) };
+  });
+}
+async function realistic(url: URL): Promise<Response | null> {
+  const sym = url.searchParams.get('symbol') ?? '';
+  const limit = Number(url.searchParams.get('limit') ?? '200');
+  if (url.host === 'api.bybit.com' && url.pathname === '/v5/market/kline') {
+    const rows = candleRows(sym, ivMsOf(url.searchParams.get('interval') ?? '1'), limit);
+    return json(200, { retCode: 0, result: { list: rows.map(r => [String(r.t), String(r.o), String(r.h), String(r.l), String(r.c), String(r.v), String(r.v * r.c)]) } });
+  }
+  if ((url.host === 'fapi.binance.com' && url.pathname === '/fapi/v1/klines') || (url.host === 'api.binance.com' && url.pathname === '/api/v3/klines')) {
+    const iv = ivMsOf(url.searchParams.get('interval') ?? '1m');
+    const rows = candleRows(sym, iv, limit).reverse();
+    return json(200, rows.map(r => [r.t, String(r.o), String(r.h), String(r.l), String(r.c), String(r.v), r.t + iv - 1, String(r.v * r.c), 100, '50', '5000', '0']));
+  }
+  if (url.host === 'api.bybit.com' && url.pathname === '/v5/market/open-interest') {
+    const now = Date.now();
+    return json(200, { retCode: 0, result: { list: Array.from({ length: limit || 13 }, (_, i) => ({ openInterest: String(1_000_000 + (i % 5) * 1000), timestamp: String(now - i * 300_000) })) } });
+  }
+  if (url.host === 'api.bybit.com' && url.pathname === '/v5/market/tickers') {
+    const { BYBIT_SYMS } = await coinsP;
+    const syms = new Set<string>(['BTCUSDT', ...Object.values(BYBIT_SYMS), ...Object.keys(world.prices)]);
+    return json(200, { retCode: 0, result: { list: [...syms].map(symbol => ({ symbol, lastPrice: String(basePrice(symbol)) })) } });
+  }
+  return null;
+}
 const realFetch = globalThis.fetch;
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const req = input instanceof Request ? input : new Request(String(input), init);
@@ -73,7 +121,8 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (body.text.includes('Price Alert Triggered')) world.priceAlertMessages.push(body.text);
     return world.telegram === 'ok' ? json(200, { ok: true }) : json(403, { ok: false, description: 'Forbidden: bot was blocked by the user' });
   }
-  if (url.origin !== SUPABASE) world.upstream.push(`${url.host}${url.pathname}${url.search ? '?' + [...url.searchParams.keys()].sort().map(k => `${k}=${k === 'symbol' || k === 'category' ? url.searchParams.get(k) : '*'}`).join('&') : ''}`);
+  if (world.realistic && url.origin !== SUPABASE && url.host !== 'api.telegram.org') { if (url.origin !== SUPABASE) world.upstream.push(`${url.host}${url.pathname}${url.search ? '?' + [...url.searchParams.keys()].sort().map(k => `${k}=${['category', 'interval', 'limit', 'period', 'intervalTime'].includes(k) ? url.searchParams.get(k) : '*'}`).join('&') : ''}`); const r = await realistic(url); if (r) return r; }
+  if (!world.realistic && url.origin !== SUPABASE) world.upstream.push(`${url.host}${url.pathname}${url.search ? '?' + [...url.searchParams.keys()].sort().map(k => `${k}=${['category', 'interval', 'limit', 'period', 'intervalTime'].includes(k) ? url.searchParams.get(k) : '*'}`).join('&') : ''}`);
   if (url.host === 'api.bybit.com' && url.pathname === '/v5/market/tickers') {
     const spot = [{ symbol: 'BTCUSDT', lastPrice: String(world.btc) }, ...Object.entries(world.prices).map(([symbol, p]) => ({ symbol, lastPrice: String(p) }))];
     return json(200, { retCode: 0, result: { list: url.searchParams.get('category') === 'spot' ? spot : [] } });
@@ -219,7 +268,7 @@ test('B0. five alerts on five coins: the crossing fires once, the others stay, a
   const switchedBefore = world.switchedOff.length;
   world.upstream.length = 0;
   const { status } = await run();
-  const kinds = world.upstream.map(u => u.replace(/\?.*/, ''));
+  const kinds = world.upstream.slice();   // the FULL key, with interval and limit, so a category can be split
   const tally: Record<string, number> = {};
   for (const k of kinds) tally[k] = (tally[k] ?? 0) + 1;
   // eslint-disable-next-line no-console
@@ -230,4 +279,51 @@ test('B0. five alerts on five coins: the crossing fires once, the others stay, a
   assert.match(sent[0], /SOL/i, 'the delivered message is not about the crossed coin (SOL)');
   assert.deepEqual(world.switchedOff.slice(switchedBefore), [[202]], 'only the crossed alert (id 202) may be consumed');
   assert.deepEqual(world.alerts.filter(a => a.active).map(a => a.id).sort(), [201, 203, 204, 205], 'the four uncrossed alerts must stay active');
+});
+
+/* ── B0r: THE SAME QUESTION IN A WORLD WHERE UPSTREAM ANSWERS (QA, after Dev's review of B0) ───────────────────────────────────────────────
+ *
+ * B0's 1,405 was an all-empty-upstream pass: every klines read came back empty, the ribbon scan read that as a failure and fell over to
+ * Bybit, and nothing was cacheable. Here `world.realistic` serves closed candles plus one forming candle per interval, tickers for every coin
+ * and open-interest with 13 points. TWO passes in one process, inside the same hour: the first is COLD, the second WARM. The tallies are logged
+ * per endpoint (with interval and limit) and in total, and on a tree with Dev's counters (bybitKlineCalls, candleCacheHits in the JSON
+ * response) those are logged too. Asserted: the crossing fires once on the first pass and nothing new on the second, the other four stay
+ * active, and the warm pass never makes MORE calls than the cold one. The saving itself is B2's job once #2218's head is under it. */
+test('B0r. realistic upstream: cold pass then warm pass in the same hour, tallied per endpoint', async () => {
+  world.realistic = true;
+  try {
+    /* ALIGN THE CLOCK so BOTH passes fall inside ONE minute and ONE hour. The 1-minute series expires at a minute boundary: two runs of this same cell on the
+       unchanged dev tree gave warm totals 687 and 637 (a difference of exactly the 47 + 3 one-minute reads) depending only on where the wall clock was. 5 s past
+       a minute start leaves ~50 s for the two passes; if the minute is past :50 of the hour, move to the next hour's first minute. */
+    { const now = Date.now(); const intoHour = now % 3_600_000; tick(intoHour > 3_000_000 ? 3_600_000 - intoHour + 5_000 : 60_000 - (now % 60_000) + 5_000); }
+    world.alerts = [];
+    world.prices = { ETHUSDT: 3000, SOLUSDT: 150, XRPUSDT: 0.6, DOGEUSDT: 0.1, ADAUSDT: 0.4 };
+    const mk = (id: number, coin: string, target: number): Alert => ({ ...alert(id), coin, target_price: target, direction: 'above' });
+    world.alerts = [mk(301, 'eth', 3100), mk(302, 'sol', 140), mk(303, 'xrp', 0.7), mk(304, 'doge', 0.2), mk(305, 'ada', 0.5)];
+    const tally = () => { const o: Record<string, number> = {}; for (const k of world.upstream) o[k] = (o[k] ?? 0) + 1; return o; };
+    const sentBefore = world.priceAlertMessages.length;
+
+    world.upstream.length = 0;
+    const cold = await run();
+    const coldTally = tally(); const coldTotal = world.upstream.length;
+    const sentAfterCold = world.priceAlertMessages.length;
+
+    tick(20_000);                                              // a later pass, the SAME hour
+    world.upstream.length = 0;
+    const warm = await run();
+    const warmTally = tally(); const warmTotal = world.upstream.length;
+
+    const lines = (t: Record<string, number>) => Object.entries(t).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${String(v).padStart(4)} ${k}`).join('\n');
+    // eslint-disable-next-line no-console
+    console.log(`[B0r] COLD total=${coldTotal}\n${lines(coldTally)}\n[B0r] WARM total=${warmTotal}\n${lines(warmTally)}`);
+    const counters = (b: unknown) => { const x = b as { bybitKlineCalls?: number; candleCacheHits?: number }; return JSON.stringify({ bybitKlineCalls: x.bybitKlineCalls ?? null, candleCacheHits: x.candleCacheHits ?? null }); };
+    // eslint-disable-next-line no-console
+    console.log(`[B0r] counters cold=${counters(cold.body)} warm=${counters(warm.body)}`);
+
+    assert.equal(cold.status, 200); assert.equal(warm.status, 200);
+    assert.equal(sentAfterCold - sentBefore, 1, 'the one crossed alert (SOL) must be delivered exactly once on the cold pass');
+    assert.equal(world.priceAlertMessages.length, sentAfterCold, 'the warm pass delivered something new: a duplicate or a false crossing');
+    assert.deepEqual(world.alerts.filter(a => a.active).map(a => a.id).sort(), [301, 303, 304, 305], 'the four uncrossed alerts must stay active');
+    assert.ok(warmTotal <= coldTotal, `the warm pass made MORE calls (${warmTotal}) than the cold one (${coldTotal})`);
+  } finally { world.realistic = false; }
 });
