@@ -101,6 +101,15 @@ export interface StrategySignal {
   // LiquidityAI already use. Naming the selection is not the same claim as
   // the call having moved - see verdictChangedBySelection below for that.
   selectionLabel: string | null;
+  /* #1631: the LATEST VALUE of each SELECTED indicator that has one this render, as factual text
+     for the AI read - SMA mean, Bollinger mid/upper/lower, PSAR value and side, MACD DIF/DEA, RSI.
+     Only value-bearing selected indicators appear (a warm-up bar with no value is omitted, never
+     sent as a guess), so this list IS "the indicators whose values are sent to the read". The read
+     prompt's weighting instruction points at this block and names nothing outside it, so an
+     indicator the trader picked but that has no value here is not one the model is told to weigh
+     (owner: never sell inaccurate data). Rides the emaStrategy ctx key via strategyToGrokLine - no
+     new context key, same server-side cap and sanitising in lib/arenaContext.ts. */
+  selectedReadings: Array<{ id: string; text: string }>;
   // #997/SMA (second indicator): true only when a gating indicator (SMA
   // today) actually downgraded a SETUP to its matching TRENDING state THIS
   // render - not "a gating-capable indicator is selected", which could be
@@ -253,6 +262,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   recentStats: null,
   weakEdge: false,
   selectionLabel: null,
+  selectedReadings: [],
   verdictChangedBySelection: false,
 };
 
@@ -579,6 +589,33 @@ export function useEMAStrategy(
         const rsiSelected = selection.includes('RSI');
         const rsiLast = rsiSelected ? rsiArr(cl4, 14).at(-1) : undefined;
 
+        /* THE SELECTED INDICATORS' LATEST VALUES, FOR THE AI READ (#1631). Built from the same
+           latest-bar values the verdict gate above already computed - a value-bearing selected
+           indicator is one that both was picked and has a finite reading this render. A warm-up bar
+           (no value yet) is OMITTED, never sent as a guess: the read must not be told to weigh a
+           number we do not have. bollingerBandsArr returns {mid, up, dn} (not upper/lower) and its
+           elements can be null, hence the field names and the null guards. price is this bar's close. */
+        const fvNum = (n: number) => n.toLocaleString('en-US', { maximumSignificantDigits: 6 });
+        const selectedReadings: Array<{ id: string; text: string }> = [];
+        if (smaSelected && smaLast != null && isFinite(smaLast)) {
+          selectedReadings.push({ id: 'SMA', text: `SMA(12) ${fvNum(smaLast)}, price ${price >= smaLast ? 'above' : 'below'}` });
+        }
+        if (bollSelected && bollLast != null) {
+          const pos = price > bollLast.up ? 'above the upper band'
+            : price < bollLast.dn ? 'below the lower band'
+            : price >= bollLast.mid ? 'between mid and upper' : 'between lower and mid';
+          selectedReadings.push({ id: 'BOLL', text: `Bollinger(20,2) mid ${fvNum(bollLast.mid)} upper ${fvNum(bollLast.up)} lower ${fvNum(bollLast.dn)}, price ${pos}` });
+        }
+        if (psarSelected && psarLast != null && isFinite(psarLast)) {
+          selectedReadings.push({ id: 'SAR', text: `PSAR ${fvNum(psarLast)}, dot ${psarLast < price ? 'below price (bullish)' : 'above price (bearish)'}` });
+        }
+        if (macdSelected && macdLast != null && isFinite(macdLast.dif) && isFinite(macdLast.dea)) {
+          selectedReadings.push({ id: 'MACD', text: `MACD DIF ${fvNum(macdLast.dif)} / DEA ${fvNum(macdLast.dea)}, DIF ${macdLast.dif >= macdLast.dea ? 'above (bullish)' : 'below (bearish)'} DEA` });
+        }
+        if (rsiSelected && rsiLast != null && isFinite(rsiLast)) {
+          selectedReadings.push({ id: 'RSI', text: `RSI(14) ${rsiLast.toFixed(1)}, ${rsiLast >= 50 ? 'above 50 (bullish lean)' : 'below 50 (bearish lean)'}` });
+        }
+
         // SL / TP (0.5% buffer beyond 50 EMA)
         const BUF = 0.005;
         let sl: number | null = null;
@@ -865,6 +902,7 @@ export function useEMAStrategy(
           atrLast, ema50Slope,
           recentStats, weakEdge,
           selectionLabel: describeSelection(selection),
+          selectedReadings,
           verdictChangedBySelection,
         });
     } catch (err) {
@@ -1022,5 +1060,12 @@ export function strategyToGrokLine(sig: StrategySignal, tf = '4h'): string {
     : sig.signalBarsAgo >= SIGNAL_OLD_BARS
     ? ` · last ${sig.signalDir ?? ''} signal ${sig.signalBarsAgo} bars ago - OLD, treat as context not a current call`
     : ` · last ${sig.signalDir ?? ''} signal ${sig.signalBarsAgo} bars ago`;
-  return `[${tf.toUpperCase()} ribbon + 1D SMA200 filter] ${sig.verdict} · ${sig.phase}${counter} · ${condStr}${sltp}${age}`;
+  /* #1631: the selected indicators' latest values ride HERE, on the emaStrategy ctx line, so they
+     reach the read with no new context key and the same server-side cap + sanitising. Only
+     value-bearing selected indicators are in the list (see StrategySignal.selectedReadings), which
+     is what lets buildArenaPrompt tell the model to weigh ONLY these and nothing it has no value for. */
+  const readings = sig.selectedReadings.length
+    ? ` · selected indicator readings — ${sig.selectedReadings.map(r => r.text).join('; ')}`
+    : '';
+  return `[${tf.toUpperCase()} ribbon + 1D SMA200 filter] ${sig.verdict} · ${sig.phase}${counter} · ${condStr}${sltp}${age}${readings}`;
 }
