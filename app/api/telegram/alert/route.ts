@@ -2661,8 +2661,14 @@ async function runAlerts(token: string): Promise<NextResponse> {
     'market',
     skippedVenues.length === 0,
     skippedVenues.length === 0
-      ? `${fired} fired, no venue skipped`
-      : `alerts degraded: ${skippedVenues.map(([v, n]) => `${v} skipped ${n}`).join(', ')} - fired=${fired}, so a quiet result here is not evidence the market was quiet`,
+      /* `.length`, NOT the array (#1651). Both of these interpolated a `string[]` straight into the
+         health detail, so `lhq_api_health`'s `alert:pass` row recorded " fired, no venue skipped" for
+         an empty run and a comma-joined list of rule keys for a busy one - where the sentence
+         plainly means a count. PM read the empty-run version off production. Swept this file: the OTHER
+         `reportHealth` uses `expired.length` and scalars, and `recordApiHealth`'s `${reasons}` is a
+         pre-joined string from `[...set].join('; ')`, so this call was the only one affected. */
+      ? `${fired.length} fired, no venue skipped`
+      : `alerts degraded: ${skippedVenues.map(([v, n]) => `${v} skipped ${n}`).join(', ')} - fired=${fired.length}, so a quiet result here is not evidence the market was quiet`,
     skippedTotal,
   );
 
