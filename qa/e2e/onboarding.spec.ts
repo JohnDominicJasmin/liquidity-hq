@@ -30,7 +30,7 @@
  * Screenshots are off unless asked for, go only to `qa/.shots`, are taken with `mask` over
  * anything that could carry the fixture's email, and no account or settings page is shot at all.
  */
-import { test, expect, type Page, type Locator } from '@playwright/test';
+import { test, expect, type Page, type Locator, type Browser } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { signedInContext } from './_auth.ts';
@@ -87,37 +87,10 @@ const shot = async (p: Page, name: string) => {
   await p.screenshot({ path: `${SHOT_DIR}/${name}.png`, mask: maskList(p), maskColor: '#000000' });
 };
 
-test.describe('#1113 onboarding, end to end', () => {
-  test.describe.configure({ mode: 'serial', timeout: 240_000 });
-  /* A LOUD skip, not a silent pass: the reason prints in the report, so a run that did nothing
-     cannot be mistaken for a run that proved something. */
-  test.skip(!RESET_OK, 'QA_FIXTURE_RESET is not set — this spec rewrites a shared fixture account, so it refuses to run unless the dispatch ticked `fixture_reset`.');
-
-  const writes: string[] = [];
-
-  test('resets fixture B to a pre-onboarding state, after snapshotting it', async () => {
-    const { sb, uid } = await fixtureDb();
-    const before = await readRows(sb, uid);
-    mkdirSync(SHOT_DIR, { recursive: true });
-    writeFileSync(SNAP, JSON.stringify({ at: new Date().toISOString(), ...before }, null, 2));
-    console.log('BEFORE onboarding:', JSON.stringify(before.onboarding));
-    console.log('BEFORE settings  :', JSON.stringify(before.settings));
-
-    const a = await sb.from('lhq_dev_user_onboarding')
-      .update({ tour_seen: false, profile_complete: false, checklist_telegram: false, checklist_price_alert: false, checklist_grok: false, checklist_coins: false, updated_at: new Date().toISOString() })
-      .eq('user_id', uid).select(FLAGS.join(','));
-    expect(a.error, `reset onboarding: ${a.error?.message ?? ''}`).toBeNull();
-    const b = await sb.from('lhq_dev_user_settings').update(RESET_ANSWERS).eq('user_id', uid).select(ANSWERS.join(','));
-    expect(b.error, `reset settings: ${b.error?.message ?? ''}`).toBeNull();
-
-    const after = await readRows(sb, uid);
-    expect(after.onboarding?.profile_complete, 'profile_complete must be false for the wizard to render').toBe(false);
-    expect(after.settings?.display_name, 'the answers must be cleared or the wizard prefills them').toBeNull();
-  });
-
-  test('walks the wizard, and the answers reach the database in the order finish() writes them', async ({ browser }) => {
+async function walkWizard(browser: Browser, failSettings: boolean) {
     const ctx = await signedInContext(browser, 'b', { viewport: { width: 1280, height: 1000 }, theme: 'dark' });
     /* ORDER IS THE POINT, so these are appended as they happen rather than counted. */
+    const writes: string[] = [];
     ctx.on('request', (r) => {
       const u = r.url();
       if (!/rest\/v1\/lhq_dev_user_(settings|onboarding)/.test(u) || r.method() === 'GET') return;
@@ -129,6 +102,18 @@ test.describe('#1113 onboarding, end to end', () => {
       writes.push(`  -> ${r.status()} ${/user_settings/.test(u) ? 'user_settings' : 'user_onboarding'}`);
     });
 
+    /* The app saves the answers through its OWN route (PATCH /api/settings), which the Supabase REST
+       listeners above never see - that is why the first v5 log showed no settings write at all. Log it
+       too so the order against the user_onboarding upsert is on record. */
+    ctx.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/api/settings')) writes.push('PATCH /api/settings'); });
+    ctx.on('response', (r) => { if (r.request().method() === 'PATCH' && r.url().includes('/api/settings')) writes.push(`  -> ${r.status()} /api/settings`); });
+    if (failSettings) {
+      /* THE FAILURE WINDOW: the settings save is refused with a 500 while everything else is left
+         alone, so the only way profile_complete can become true is the finish() code path itself. */
+      await ctx.route('**/api/settings', (route) => route.request().method() === 'PATCH'
+        ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'qa: forced settings failure' }) })
+        : route.continue());
+    }
     const p = await ctx.newPage();
     await p.goto('/dashboard', { waitUntil: 'domcontentloaded' });
 
@@ -210,25 +195,80 @@ test.describe('#1113 onboarding, end to end', () => {
 
     /* THE QUESTION THIS SPEC EXISTS FOR. `profile_complete` must not be true unless the answers
        landed - that combination is the state fixture B was found in. */
+    const wizardStillShown = await p.locator('.obw-headline').first().isVisible().catch(() => false);
+    const finalPath = new URL(p.url()).pathname;
     const { sb, uid } = await fixtureDb();
     const after = await readRows(sb, uid);
+    await ctx.close();
+    return { after, writes, wizardStillShown, finalPath };
+}
+
+test.describe('#1113 onboarding, end to end', () => {
+  test.describe.configure({ mode: 'serial', timeout: 240_000 });
+  /* A LOUD skip, not a silent pass: the reason prints in the report, so a run that did nothing
+     cannot be mistaken for a run that proved something. */
+  test.skip(!RESET_OK, 'QA_FIXTURE_RESET is not set — this spec rewrites a shared fixture account, so it refuses to run unless the dispatch ticked `fixture_reset`.');
+
+  const writes: string[] = [];
+
+  test('resets fixture B to a pre-onboarding state, after snapshotting it', async () => {
+    const { sb, uid } = await fixtureDb();
+    const before = await readRows(sb, uid);
+    mkdirSync(SHOT_DIR, { recursive: true });
+    writeFileSync(SNAP, JSON.stringify({ at: new Date().toISOString(), ...before }, null, 2));
+    console.log('BEFORE onboarding:', JSON.stringify(before.onboarding));
+    console.log('BEFORE settings  :', JSON.stringify(before.settings));
+
+    const a = await sb.from('lhq_dev_user_onboarding')
+      .update({ tour_seen: false, profile_complete: false, checklist_telegram: false, checklist_price_alert: false, checklist_grok: false, checklist_coins: false, updated_at: new Date().toISOString() })
+      .eq('user_id', uid).select(FLAGS.join(','));
+    expect(a.error, `reset onboarding: ${a.error?.message ?? ''}`).toBeNull();
+    const b = await sb.from('lhq_dev_user_settings').update(RESET_ANSWERS).eq('user_id', uid).select(ANSWERS.join(','));
+    expect(b.error, `reset settings: ${b.error?.message ?? ''}`).toBeNull();
+
+    const after = await readRows(sb, uid);
+    expect(after.onboarding?.profile_complete, 'profile_complete must be false for the wizard to render').toBe(false);
+    expect(after.settings?.display_name, 'the answers must be cleared or the wizard prefills them').toBeNull();
+  });
+
+  test('walks the wizard, and the answers reach the database in the order finish() writes them', async ({ browser }) => {
+    const { after, writes } = await walkWizard(browser, false);
+    console.log('writes, in order:');
+    for (const w of writes) console.log(`  ${w}`);
     console.log('AFTER onboarding:', JSON.stringify(after.onboarding));
     console.log('AFTER settings  :', JSON.stringify(after.settings));
-
-    const settingsWrite = writes.find(w => w.startsWith('  -> ') && w.includes('user_settings'));
-    const onboardingWrite = writes.find(w => w.startsWith('  -> ') && w.includes('user_onboarding'));
-    console.log(`first settings response: ${settingsWrite ?? 'NONE'} · first onboarding response: ${onboardingWrite ?? 'NONE'}`);
-
+    console.log(`order: first settings PATCH at #${writes.findIndex(w => w.startsWith('PATCH /api/settings'))}, first user_onboarding POST at #${writes.findIndex(w => w.startsWith('POST user_onboarding'))}`);
     if (after.onboarding?.profile_complete === true) {
-      expect(after.settings?.trading_experience, 'profile_complete is true, so the answers must be there too — true with NULL answers is the #1113 defect').not.toBeNull();
+      expect(after.settings?.trading_experience, 'profile_complete is true, so the answers must be there too - true with NULL answers is the #1113 defect').not.toBeNull();
       expect(after.settings?.display_name, 'the display name typed into step 1 must have been stored').toBe('QA Onboarding');
-      /* `finish()` maps the chosen range through `acctMap`, so "$1k - $5k" is stored as the
-         midpoint 2500 rather than as the label. Asserting the mapped number is what proves the
-         answer travelled through the save path rather than a default surviving the reset — the
-         reset leaves this column at its schema default of 1000. */
+      /* acctMap stores "$1k - $5k" as the midpoint 2500; the reset leaves the column at 1000, so 2500
+         proves the answer travelled the save path. */
       expect(Number(after.settings?.account_size), '"$1k - $5k" should be stored as acctMap 2500, not the 1000 default').toBe(2500);
     }
-    await ctx.close();
+  });
+
+  /* THE FAILURE WINDOW (PM, 2026-11-12). finish() saves the answers with `update(...)` and then upserts
+   * profile_complete, with no rollback between them. B was found with profile_complete=true and every
+   * answer NULL, and this is the only path that explains it. The settings save is forced to 500 and the
+   * wizard completed: profile_complete must NOT become true, and the user must not be sent past the
+   * wizard as if done. A red here is a DEFECT for Dev (finish() ordering) - the happy path passes. */
+  test('FAILURE WINDOW: when the settings save fails, profile_complete is not set and the wizard is not dismissed', async ({ browser }) => {
+    const { sb, uid } = await fixtureDb();
+    await sb.from('lhq_dev_user_onboarding').update({ tour_seen: false, profile_complete: false, updated_at: new Date().toISOString() }).eq('user_id', uid);
+    await sb.from('lhq_dev_user_settings').update(RESET_ANSWERS).eq('user_id', uid);
+    const { after, writes, wizardStillShown, finalPath } = await walkWizard(browser, true);
+    console.log('FAILURE WINDOW writes, in order:');
+    for (const w of writes) console.log(`  ${w}`);
+    console.log('FAILURE WINDOW onboarding:', JSON.stringify(after.onboarding));
+    console.log('FAILURE WINDOW settings  :', JSON.stringify(after.settings));
+    console.log(`FAILURE WINDOW ui: wizardStillShown=${wizardStillShown} finalPath=${finalPath}`);
+    expect(writes.some(w => w.includes('500 /api/settings')),
+      'the forced 500 never reached the app, so this run did not exercise the failure window').toBe(true);
+    expect(after.settings?.trading_experience, 'the settings save was refused, so the answers must be absent').toBeNull();
+    expect(after.onboarding?.profile_complete,
+      'DEFECT: the settings save FAILED yet profile_complete is TRUE - the user is marked onboarded with no answers stored, exactly the state fixture B was found in. finish() writes profile_complete without waiting on or rolling back the settings save.').not.toBe(true);
+    expect(wizardStillShown,
+      'the wizard was dismissed even though the save failed - the user is past onboarding with nothing stored').toBe(true);
   });
 
   test('restores the fixture to exactly what it was', async () => {
