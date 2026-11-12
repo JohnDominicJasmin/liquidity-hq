@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { DEFAULT_SETTINGS } from '../../lib/settings';
 import { installSyntheticSocket } from './_fixtures';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL, FIXTURES } from './_auth';
 import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
@@ -144,7 +145,7 @@ async function settledCoinAndTf(page: import('@playwright/test').Page) {
 }
 
 test.describe('a /briefing coin row opens Arena on that coin, not on the saved default (#1263)', () => {
-  /* ── C2 IS ANNOTATED FAILING, AND IT IS THE FINDING RATHER THAN A BROKEN CELL ──────────────
+  /* ── C2 WAS ANNOTATED FAILING UNTIL #2205 FIXED THE DEFECT; THE ANNOTATION IS STRIPPED AND THE CELL KEPT ──────────────
    *
    * Measured on deployed qa `705c149`, desktop, --repeat-each=2: a COLD /arena load settles on
    * `?coin=btc&tf=15m` - arena's own initializer defaults - after exactly 1 `user_settings` read,
@@ -177,9 +178,6 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
    * USER-VISIBLE SHAPE, for whoever picks it up: a signed-in account with a saved default coin that
    * opens /arena directly gets btc/15m instead of what it saved. Tracker line on #1263. */
   test('C2 CONTROL: /arena with no params lands on the STUBBED saved coin and tf', async ({ browser }) => {
-    /* INSIDE the body, not at describe level: a bare `test.fail()` in the describe scope applies to
-       EVERY cell in it, which would invert C1 and report the passing cell as a failure. */
-    test.fail();
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
@@ -231,6 +229,10 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
           : /Loading market data/i.test(t) ? 'STILL-LOADING'
           : `OTHER: ${JSON.stringify(t.replace(/\s+/g, ' ').slice(0, 240))}`;
         console.log(`[briefing-row] rows=${await rows.count()} state=${state}`);
+        /* MEASURED (run 43288972812): rows=0, ALL-QUIET - the stubbed market yields zero setups, so /briefing has no coin rows to
+           click. That is the harness's DATA, not the link: skip with the reason on record, and C1b below makes the same claim
+           (a coin link opens THAT coin on a warm client-side navigation) through the dashboard, whose cards always render. */
+        test.skip(state.startsWith('ALL-QUIET'), 'the stubbed market produces zero briefing setups (All quiet), so /briefing has no coin rows; C1b covers the same claim through the dashboard cards');
       }
       await expect(rows.first(), 'no /briefing coin rows rendered, so there is nothing to click').toBeVisible({ timeout: 60_000 });
       const hrefs = await rows.evaluateAll((els) =>
@@ -250,6 +252,34 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
       expect(stable, `the query string never stopped changing in 25s (last: '${search}'), so nothing below is a read of a settled state`).toBe(true);
       expect(tf, `WITNESS: tf must be the stubbed ${STUB_TF} - if it is '15m' the seed effect never ran in this load and the coin result below proves nothing`).toBe(STUB_TF);
       expect(coin, `the row promised coin=${target} and the saved default was ${STUB_COIN}`).toBe(target);
+      await assertNoUnstubbedPaidAi(page);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  /* C1b: C1's claim through the DASHBOARD cards (`a.scc-card`, href /arena?coin=<id>), which render whatever the market does. A warm
+     client-side navigation from a link to a coin that differs from the saved default must open THAT coin (#2150). */
+  test('C1b: clicking a dashboard coin card whose coin differs from the saved default opens THAT coin', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'a');
+    const page = await ctx.newPage();
+    await installSyntheticSocket(page);
+    await installPaidAiFence(page);
+    await stubSavedSettings(page);
+    try {
+      await gotoSignedIn(page, '/dashboard');
+      const cards = page.locator('a.scc-card[href^="/arena?coin="]');
+      await expect(cards.first(), 'no dashboard coin cards rendered, so there is nothing to click').toBeVisible({ timeout: 60_000 });
+      const hrefs = await cards.evaluateAll((els) => els.map((el) => (el as HTMLAnchorElement).getAttribute('href') ?? ''));
+      const candidates = hrefs.map((h) => new URLSearchParams(h.split('?')[1] ?? '').get('coin')).filter((c): c is string => !!c && c !== STUB_COIN);
+      expect(candidates.length, `every dashboard card was '${STUB_COIN}', so no card can discriminate`).toBeGreaterThan(0);
+      const target = candidates[0];
+      await cards.nth(hrefs.findIndex((h) => h.includes(`coin=${target}`))).click();
+      await page.waitForURL(/\/arena/, { timeout: 60_000 });
+      const { coin, tf, stable, search } = await settledCoinAndTf(page);
+      expect(stable, `the query string never stopped changing (last: '${search}')`).toBe(true);
+      expect(tf, `WITNESS: tf must be the stubbed ${STUB_TF}`).toBe(STUB_TF);
+      expect(coin, `the card promised coin=${target} and the saved default was ${STUB_COIN}`).toBe(target);
       await assertNoUnstubbedPaidAi(page);
     } finally {
       await ctx.close();
@@ -288,7 +318,6 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
    *
    * No write to the shared database: this only READS. */
   test('C3: a cold /arena load honours the account\'s REAL saved settings - no stub involved', async ({ browser }) => {
-    test.fail();
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
@@ -324,6 +353,43 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
         + `which would make C2 above a real defect rather than an artefact of my stub`,
       ).toEqual({ coin: expectedCoin, tf: expectedTf });
       await assertNoUnstubbedPaidAi(page);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  /* #2205's own guards. A cold DEEP LINK must still win over the saved default, and a signed-out visitor must still get the page's
+     defaults AND still have the URL synced (the fix gates the sync on the settings read; signed-out must reach 'ready'). */
+  test('C4: a cold deep link /arena?coin=sol&tf=1h on an eth/4h account settles on sol/1h, not on the saved default', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'a');
+    const page = await ctx.newPage();
+    await installSyntheticSocket(page);
+    await installPaidAiFence(page);
+    const servedCount = await stubSavedSettings(page);
+    try {
+      await gotoSignedIn(page, '/arena?coin=sol&tf=1h');
+      const { coin, tf, stable, search } = await settledCoinAndTf(page);
+      expect(stable, `the query string never stopped changing (last: '${search}')`).toBe(true);
+      expect(servedCount(), 'the user_settings stub never fired, so nothing here is about a saved default').toBeGreaterThan(0);
+      expect({ coin, tf }, `settled query was '${search}'; the stub says ${STUB_COIN}/${STUB_TF}`).toEqual({ coin: 'sol', tf: '1h' });
+      await assertNoUnstubbedPaidAi(page);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('C5: a signed-out cold /arena lands on DEFAULT_SETTINGS and the URL is still synced', async ({ browser }) => {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    try {
+      await installSyntheticSocket(page);
+      await page.goto('/arena', { waitUntil: 'domcontentloaded' });
+      const { coin, tf, stable, search } = await settledCoinAndTf(page);
+      expect(stable, `the query string never stopped changing (last: '${search}')`).toBe(true);
+      expect(search, 'the URL was never synced for a signed-out visitor - the fix gated the sync on a read that never completes for them').toMatch(/coin=/);
+      /* READ FROM THE MODULE, not hard-coded: a signed-out session is marked 'ready' with DEFAULT_SETTINGS and the seed effect applies it
+         (PM, from source: arena/page.tsx seed effect, lib/settings.ts). Measured on run 43291409418: ?coin=btc&tf=1h. */
+      expect({ coin, tf }, `settled query was '${search}'`).toEqual({ coin: DEFAULT_SETTINGS.default_coin, tf: DEFAULT_SETTINGS.default_tf });
     } finally {
       await ctx.close();
     }
