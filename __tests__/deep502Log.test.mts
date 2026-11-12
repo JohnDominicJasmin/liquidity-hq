@@ -73,13 +73,21 @@ test('L3b. an email, a bearer token with its spaces and a prompt, put in EVERY f
   }
 });
 
-/* FINDING, recorded as a todo so it stays visible without breaking the suite: the clamp is a CHARACTER SET (letters, digits, _ . : -), and a UUID or a
-   base64url token is made of exactly those characters, so a caller that ever passed a user id or a token as `coin` or `upstream` would get its first
-   24 or 16 characters into the line. The PR says there is no field that could carry one; true of the TYPES, not of the clamp. Today's callers pass a
-   market symbol and a source name, so nothing leaks in practice. A stricter shape (symbol-like only, e.g. /^[A-Z0-9]{2,20}$/ for coin) would close it. */
-test('L3e. TARGET: a user id placed in coin or upstream does not reach the line', { todo: 'Dev: the clamp lets a UUID prefix through (coin 24 chars, upstream 16); callers pass symbols today, so low' }, () => {
-  const line = deep502Line({ ...base, coin: FIXTURE.userId, upstream: FIXTURE.userId });
-  assert.deepEqual(leaks(line).filter(k => k === 'userId'), [], `the user id reached the line: ${line}`);
+/* L3e WAS A TODO (the clamp was a character set a UUID satisfies); #2217 b3a6efee now writes 'unknown' for any coin that is not 1-20 alphanumerics
+   (one optional hyphen segment) and any upstream that is not lowercase letters (one optional hyphen). Hard assertions now. */
+test('L3e. a user id, a JWT-like token or a dotted string in coin or upstream comes out as "unknown", never as a prefix of itself', () => {
+  for (const hostile of [FIXTURE.userId, FIXTURE.token, 'a.b.c', FIXTURE.email, 'x'.repeat(40)]) {
+    const o = parse(deep502Line({ ...base, coin: hostile, upstream: hostile }));
+    assert.equal(o.coin, 'unknown', `coin kept ${JSON.stringify(o.coin)} for ${hostile.slice(0, 20)}`);
+    assert.equal(o.upstream, 'unknown', `upstream kept ${JSON.stringify(o.upstream)} for ${hostile.slice(0, 20)}`);
+  }
+});
+
+test('L3f. CONTROL: real values still pass - BTCUSDT, BTC-USDT, binance, binance-futures - so L3e is not an always-unknown helper', () => {
+  for (const [coin, upstream] of [['BTCUSDT', 'binance'], ['BTC-USDT', 'binance-futures'], ['1000PEPE', 'bybit'], ['sol', 'xai']] as const) {
+    const o = parse(deep502Line({ ...base, coin, upstream }));
+    assert.equal(o.coin, coin); assert.equal(o.upstream, upstream);
+  }
 });
 
 test('L3c. logDeep502 writes exactly the built line, once, with console.error', () => {
