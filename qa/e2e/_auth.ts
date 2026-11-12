@@ -527,6 +527,41 @@ export async function signedInContext(
   // supabase-js v2 reads sb-<projectRef>-auth-token from localStorage.
   const projectRef = new URL(SUPABASE_URL).hostname.split('.')[0];
   const ctx = await browser.newContext({ viewport: opts.viewport ?? { width: 1440, height: 900 } });
+
+  /* ── THE FIXTURE EMAIL IS REDACTED IN EVERY SIGNED-IN CONTEXT (PM, 2026-11-12) ──────────────
+   *
+   * WHY HERE RATHER THAN IN THE CONFIG: `use.screenshot` accepts only `{ mode, fullPage,
+   * omitBackground }` - there is NO global `mask` for automatic failure screenshots, so the
+   * config cannot express this. Every context that can display an email is minted by this
+   * function, and a signed-out page has no email to show, so this is the one place that covers
+   * the whole suite without editing 46 specs.
+   *
+   * WHAT IS ACTUALLY EXPOSED, measured rather than assumed: the email reaches the screen in ONE
+   * element, `.tnav-drop-email`, and only while the account menu is open. `TerminalNav` also puts
+   * it in a `title` attribute, which renders as a browser tooltip and never appears in a
+   * screenshot, and in `initials`, which is one letter.
+   *
+   * A BLUR, NOT A COLOUR CHANGE OR A TEXT SUBSTITUTION. `filter` leaves the computed `color` and
+   * `background-color` untouched, so `contrast.spec.ts` keeps measuring the real values, and the
+   * DOM text is unchanged, so an assertion that reads this element still sees the address. Only
+   * the pixels are unreadable - which is the half that ends up in a public artifact.
+   *
+   * The repo is public (owner, 2026-11-10) and `qa/e2e-report/` is uploaded on failure, so a
+   * failing authenticated spec is the path that would otherwise publish it. */
+  await ctx.addInitScript(() => {
+    try {
+      const css = '.tnav-drop-email { filter: blur(6px) !important; }';
+      const apply = () => {
+        if (document.getElementById('qa-redact')) return;
+        const el = document.createElement('style');
+        el.id = 'qa-redact';
+        el.textContent = css;
+        (document.head ?? document.documentElement).appendChild(el);
+      };
+      if (document.head) apply();
+      else document.addEventListener('DOMContentLoaded', apply, { once: true });
+    } catch { /* a page that blocks inline styles is not worth failing a run over */ }
+  });
   /* THEME SEEDED BEFORE THE FIRST FRAME, not clicked after it. `app/layout.tsx` runs an inline script that reads
      localStorage before hydration and stamps `data-theme`, so seeding the key means the page never renders a frame of
      the theme we are not measuring - and there is no race with a toggle. Same approach as contrast.spec.ts. */

@@ -54,14 +54,20 @@ broken most often, in short — the full text and the rest are in that file:
 - **One tracker per area. Stop creating issues.** A finding on a page or feature
   that already has a tracker becomes a **checkbox on that tracker**. The measure
   of progress is issues **closed**, not PRs merged.
-- **CI runs ONCE, on the release PR (`staging` → `main`), and nowhere else.**
-  Owner, 2026-11-10, after the GitHub Actions budget ran out on day 10 of November
-  (3,565 job-minutes, $22, with no users): *"Park it in staging... run one time
-  testing CI, one time only."* Feature PRs and `dev`/`qa`/`staging` pushes run
-  **no** CI. Dev and QA test **locally or on the deployed `qa` site** (*"It should
-  be running locally"*), one session at a time, and batch changes so a release
-  carries many. Re-adding a CI trigger re-adds the bill. **A code PR's author runs
-  `npm run verify` locally before it merges into `dev`.** Anything that spends his
+- **All testing runs on GitHub, never on the owner's laptop.** Set 2026-11-10 as
+  "CI once" after a $22 Actions bill; **amended by the owner 2026-11-12** (*"put all the
+  testing on the CI/CD of GitHub. Since it's free, then use all of it"*). **Every PR into
+  `dev`/`qa`/`staging`/`main` runs the quick checks automatically** (lint, typecheck, unit
+  tests, build); **the full browser suite runs only when dispatched** (per group) **or on
+  the release PR.** No `push:` trigger. Work moves
+  in **groups** (Arena, Landing+onboarding, News+alerts, AI, Payments), and **each group
+  gets its own dispatched run (`e2e: true`) on its `qa` head before it enters `staging`**.
+  Then one final run on the `staging` → `main` release PR. **Nothing goes to production
+  until everything in scope is in `staging`, tested and audited.** QA's browser tests
+  run **on GitHub runners, not the owner's laptop** (`ci.yml` `spec` input). **A code
+  PR merges into `dev` only on a green automatic check on its head** (that check is the
+  pre-merge `verify`), plus QA's word. If the repo ever goes private again, the PR trigger
+  is the first thing to revert, and the cost goes to the owner first. Anything that spends his
   money gets its cost put to him first. Full text: OWNER-RULES §17. Screenshots
   still come from a deployed URL.
 - **The repo is PUBLIC since 2026-11-10** (owner, for free CI). Never put a secret,
