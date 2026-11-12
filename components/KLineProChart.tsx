@@ -270,6 +270,7 @@ const OVERLAY_INK = {
     markerFill:  'rgba(245,158,11,0.1)',
     markerCore:  '#fcd34d',   // --amber-2, dark
     chevron:     '#fde68a',   // 16.86
+    structLabel: '#e8e9ea',   // the chart's own crosshair/axis text, dark (#1263)
   },
   light: {
     alertLine:   '#8F4508',   // 5.76 on #E8EAED
@@ -278,6 +279,7 @@ const OVERLAY_INK = {
     markerFill:  'rgba(124,45,18,0.10)',
     markerCore:  '#92400E',   // --amber-2, light
     chevron:     '#7c2d12',   // 7.77
+    structLabel: '#1A1916',   // the chart's own crosshair/axis text, light (#1263)
   },
 } as const;
 
@@ -1097,11 +1099,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
            50px stalk and an arrowhead per annotation - that is a pointer, not a label, and four of
            them crowd the window it is trying to explain.
 
-           NO COLOUR AND NO STYLES, deliberately, for the same reason the segment itself sets none:
-           the chart's line ink differs per theme and a hardcoded colour here is how the last two
-           colour fixes regressed the other theme. A figure with no styles takes the chart's own
-           themed defaults, so this follows the theme by construction rather than by a pair of
-           values someone has to keep measured. */
+           THE COLOUR IS READ FROM overlayInk AT DRAW TIME (#1263). An earlier comment here claimed a
+           figure with no styles "takes the chart's own themed defaults, so this follows the theme by
+           construction" - that was wrong, and QA caught it: klinecharts paints a custom figure's text
+           in its own brand blue (#1677FF) in BOTH themes when no colour is set, which is neither
+           theme's text colour. So the text now sets `color: overlayInk.structLabel` - the chart's own
+           crosshair/axis text per theme - read at draw time exactly as the marker and alert overlays
+           do (overlayInk is written by the theme-sync effect), so it still follows a theme flip on the
+           next frame with nothing to re-create, and it is now correct rather than accidentally blue. */
         (kc as any).registerOverlay({
           name: 'structureLabel',
           totalStep: 1,
@@ -1112,10 +1117,18 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const text = typeof overlay.extendData === 'string' ? overlay.extendData : '';
             if (!text || !coordinates.length) return [];
             /* Above and to the right of the line's start, so it does not sit on the line itself.
-               `baseline: 'bottom'` keeps it clear of the first candle the line touches. */
+               `baseline: 'bottom'` keeps it clear of the first candle the line touches.
+
+               PINNED TO x >= 6 (#1263). A structure line can START off the left edge of the window -
+               the swing it was drawn through scrolled out of view - and then `coordinates[0].x` is
+               negative, so the label ("... · 3 touches") was clipped off the left and the trader saw
+               a line with no name. Clamping to 6 pins it at the left edge, the same x the sibling S/R
+               and analysis-level labels use, so an off-screen-start line is still named. A line that
+               starts on-screen is unaffected (its x + 4 is well past 6). */
             return [{
               type: 'text',
-              attrs: { x: coordinates[0].x + 4, y: coordinates[0].y - 4, text, align: 'left', baseline: 'bottom' },
+              attrs: { x: Math.max(6, coordinates[0].x + 4), y: coordinates[0].y - 4, text, align: 'left', baseline: 'bottom' },
+              styles: { color: overlayInk.structLabel, size: 10, weight: '700' },
             }];
           },
         });
