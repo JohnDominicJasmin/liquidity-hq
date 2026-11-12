@@ -3196,7 +3196,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             menu's classes so this adds no CSS - globals.css is a landing-gated file and this
             needs none of it. */}
         {drawStructureAvailable(tf) && entitlementStatus === 'not_entitled' && onUnlock && (
-          <div className="klc-draw-wrap">
+          <div className="klc-draw-wrap klc-ds-wrap">
             {/* NEVER `requestStructures` ON THIS BRANCH. The server already refuses a Free
                 account, but a call that is certain to be refused is a wasted round trip and, on
                 the AI path, a wasted quota check - so this button only opens the upsell.
@@ -3207,7 +3207,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 that it is locked or what tapping does. The Lock icon itself carries aria-hidden,
                 so it contributes nothing - the name has to come from the label. */}
             <button
-              className="klc-tool-btn klc-draw-btn"
+              className="klc-tool-btn klc-draw-btn klc-ds-btn"
               onClick={onUnlock}
               aria-label={tl('DRAW_STRUCTURE_LOCKED_ARIA')}
               title={tl('DRAW_STRUCTURE_LOCKED_ARIA')}
@@ -3227,9 +3227,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         )}
 
         {drawStructureAvailable(tf) && entitlementStatus !== 'not_entitled' && (
-          <div className="klc-draw-wrap" ref={dsWrapRef}>
+          <div className="klc-draw-wrap klc-ds-wrap" ref={dsWrapRef}>
             <button
-              className={`klc-tool-btn klc-draw-btn${proposals.length ? ' on' : ''}`}
+              className={`klc-tool-btn klc-draw-btn klc-ds-btn${proposals.length ? ' on' : ''}`}
               /* WITH PROPOSALS ON THE CHART the button toggles the menu and makes NO request: the read is
                  already paid for. With none, it requests exactly as it always did (also after an error or a
                  "none" answer). To ask again with lines present, use Clear and then this button - the menu's

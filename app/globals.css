@@ -2277,9 +2277,21 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
      User can still drag-resize from here (clamped to viewport, see the
      height-restore effect in KLineProChart.tsx). */
   .klc-canvas { height: 500px; }
-  /* Hide drawing tools on mobile - touch devices can't use them precisely */
-  .klc-tool-btn:not(.klc-tf-btn):not(.klc-clear):not(.klc-fullscreen-btn) { display: none !important; }
+  /* Hide the MANUAL drawing tools on mobile - touch devices can't use them precisely. DRAW STRUCTURE IS NOT ONE
+     OF THEM (#1263): it is one tap that asks the AI for lines, no precision needed, so it stays (`.klc-ds-btn`).
+     The rule used to hide every `.klc-tool-btn` that was not a timeframe, Clear or Fullscreen, which removed Draw
+     Structure from phones as collateral - on production too. */
+  .klc-tool-btn:not(.klc-tf-btn):not(.klc-clear):not(.klc-fullscreen-btn):not(.klc-ds-btn) { display: none !important; }
   .klc-sep { display: none !important; }
+  /* THE DRAW STRUCTURE MENU CANNOT SPILL OFF A PHONE BY CONSTRUCTION. It is normally anchored to its own button
+     (`left: 0`), so where it lands depends on where that button sits in the toolbar, which varies with the
+     timeframe buttons around it. Here the toolbar becomes its containing block and the menu spans it with an 8px
+     margin each side, so it is as wide as the chart container and no wider. Long rows (the lower-timeframe note)
+     wrap instead of forcing the width. Phone widths only; the manual Draw menu is untouched. */
+  .klc-toolbar { position: relative; }
+  .klc-ds-wrap { position: static; }
+  .klc-ds-wrap .klc-draw-menu { left: 8px; right: 8px; top: auto; margin-top: 4px; min-width: 0; }
+  .klc-ds-wrap .klc-draw-item { white-space: normal; }
   .klc-legend { flex-wrap: wrap; gap: 4px; max-width: calc(100% - 80px); }
 }
 
