@@ -117,13 +117,28 @@ test('OS7. the chart draws S/R and Liq from the switch it was given, and its too
 
 test('OS8. the panel counts only slotted chips and enforces the cap in one place', () => {
   anchorOnce(PANEL, 'const used = slottedIds(selected).length;', 'the counter counts slotted chips only');
-  anchorOnce(PANEL, 'if (slottedIds([id]).length > 0 && slottedIds(prev).length >= limit) return prev;', 'the cap is enforced in nextSelection');
+  /* The redesign made Pro unlimited, so nextSelection's cap branch now SWAPS on Free (limit 1)
+     instead of the old one-line `return prev` - the condition is the single place the cap is read.
+     Anchor on the condition rather than the now tier-dependent body. (Behaviour would be the better
+     test, but nextSelection lives in a .tsx component and node --test cannot import JSX, so a source
+     anchor is the available tool here.) */
+  anchorOnce(PANEL, 'if (slottedIds([id]).length > 0 && slottedIds(prev).length >= limit) {', 'the cap condition lives in nextSelection');
 });
 
-test('OS9. an overlay chip is on exactly when the chart is drawing it; "always" chips are fixed and tagged; RSI says its pane is always on', () => {
-  anchorOnce(PANEL, "const on = isOverlay ? (ovState === 'always' || ovState === 'on') : pos >= 0;", 'an overlay chip mirrors the overlay state');
-  anchorOnce(PANEL, "const fixedOn = ovState === 'always';", 'always-on overlays are fixed');
-  assert.match(PANEL, /\{fixedOn && <span className="strat-chip-tag" aria-hidden="true">always on<\/span>\}/, 'the "always on" tag is gone');
-  assert.match(PANEL, /\{entry\.id === 'RSI' && <span className="strat-chip-tag" aria-hidden="true">pane always on<\/span>\}/, 'the RSI "pane always on" tag is gone');
-  assert.match(PANEL, /fixedOn \? 'Always shown on the chart'/, 'the always-on tooltip is gone');
+test('OS9. the indicator grid is plain on/off selectable chips; the always-on layers and the S/R and Liq switches live in the chart-layers section, not as chips', () => {
+  /* REWRITTEN for the redesign. The grid no longer renders overlay chips with "always on" / "pane
+     always on" tags; it renders SELECTABLE_INDICATORS (no overlays, no RSI) as plain on/off chips,
+     and the chart layers moved to their own section: static status rows for the always-on layers
+     (EMA ribbon, RSI pane, GEX "Always on · BTC only") and real role="switch" toggles for S/R and
+     Liq, synced to the chart toolbar. */
+  anchorOnce(PANEL, 'const on = selected.includes(entry.id);', 'a chip is on exactly when its id is in the selection');
+  anchorOnce(PANEL, '<LayerRow name="RSI pane" status="Always on" />', 'RSI pane is an always-on layer ROW, not a selectable chip');
+  anchorOnce(PANEL, '<LayerRow name="EMA ribbon" status="Always on" />', 'the EMA ribbon is an always-on layer row');
+  anchorOnce(PANEL, '<LayerRow name="Options levels (GEX)" status="Always on · BTC only" />', 'GEX is an always-on layer row, BTC only');
+  anchorOnce(PANEL, "onToggle={() => onOverlayToggle?.('SR')}", 'S/R is a switch synced to the chart toolbar');
+  anchorOnce(PANEL, "onToggle={() => onOverlayToggle?.('LIQ_CLUSTERS')}", 'Liq is a switch synced to the chart toolbar');
+  assert.ok(PANEL.includes('role="switch"'), 'the chart layers use a real switch role');
+  /* The obsolete chip tags are gone - RSI is a layer row now, not a tagged chip. */
+  assert.equal(PANEL.includes('pane always on'), false, 'the old RSI "pane always on" chip tag must be gone');
+  assert.equal(PANEL.includes('strat-chip-tag'), false, 'the old always-on chip tag class must be gone');
 });
