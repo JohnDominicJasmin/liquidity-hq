@@ -45,7 +45,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
-import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF } from '@/lib/limits';
+import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF, CHART_TFS, ARENA_TFS } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
 import { usePerpSpot } from '@/lib/usePerpSpot';
@@ -213,6 +213,9 @@ const ARENA_HIST_KEY = 'arena-session-history-v1';
 // tapping a gated timeframe opens the upgrade modal instead of switching.
 const GATED_TFS: readonly ChartTf[] = LIMIT_GATED_TFS as readonly ChartTf[];
 const FREE_FALLBACK_TF = LIMIT_FREE_FALLBACK_TF as ChartTf;
+/* The AI read, the EMA signal and Draw Structure cover up to the 1D chart (#1263). On a weekly or
+   monthly chart their buttons are disabled with this tooltip rather than silently doing nothing. */
+const ANALYSIS_CEILING_TITLE = 'Covers up to the 1D chart - switch to 1D or lower to run this';
 const TF_FEATURE_LABEL_KEYS: Record<string, LabelKey> = {
   '1m': 'ARENA_TF_LABEL_1M', '5m': 'ARENA_TF_LABEL_5M', '15m': 'ARENA_TF_LABEL_15M',
 };
@@ -236,8 +239,11 @@ function ArenaContent() {
   });
   const [readTf, setReadTf] = useState<ChartTf>(() => {
     const tf = searchParams.get('tf') ?? '';
-    const valid: ChartTf[] = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'];
-    return valid.includes(tf as ChartTf) ? tf as ChartTf : '15m';
+    /* CHART_TFS, not a third hand-typed copy of the list (#1263). This held its own array of eight
+       strings, so `?tf=1w` landed silently on 15m once the chart gained weekly - the same shape as the
+       coin parameter validating against the editorial 50. One list, in lib/limits.ts, asserted equal to
+       ChartTf there. */
+    return (CHART_TFS as readonly string[]).includes(tf) ? tf as ChartTf : '15m';
   });
   // #1263: whether the page was actually navigated to with a coin/tf param,
   // captured ONCE on first render like the lazy state above - never re-read
@@ -399,16 +405,37 @@ function ArenaContent() {
     const id = window.setTimeout(() => setFeedGraceOver(true), 15_000);
     return () => window.clearTimeout(id);
   }, [selectedCoin]);
+  /* THE CHART GOES ABOVE 1D; THE ANALYSIS DOES NOT (#1263, owner: signals/read/Draw Structure stay
+     on <= 1d). `readTf` is one state - it is the chart's timeframe AND the analysis timeframe - so
+     weekly and monthly would otherwise drag the EMA signal, the AI read and the panels up with the
+     chart. `aboveAnalysisCeiling` is the one place that split is decided; everything that must stay
+     <= 1d reads it.
+
+     The hook is fed a clamped '1d' rather than the raw `readTf`, for two reasons: it must not fetch
+     and compute a weekly signal nobody is allowed to act on, and a signal computed from 1d candles
+     must not be drawn as markers onto a weekly chart (klinecharts keys overlays by timestamp, so
+     daily markers would scatter between weekly bars). The clamped signal is suppressed from both the
+     chart and the panel below when the ceiling is crossed - it exists only so the hook has a valid
+     timeframe. */
+  const aboveAnalysisCeiling = !(ARENA_TFS as readonly string[]).includes(readTf);
   const rawEmaSignal = useEMAStrategy(
     selectedCoin,
-    readTf,
+    aboveAnalysisCeiling ? '1d' : readTf,
     store.coins[selectedCoin]?.fundingRate ?? null,
     oi1h.pct,
     filterParams,
     strategySelection,
     feedGraceOver,
   );
-  const emaSignal = useMemo(() => gateSignal(rawEmaSignal, signalPlan, selectedCoin), [rawEmaSignal, signalPlan, selectedCoin]);
+  const gatedEmaSignal = useMemo(() => gateSignal(rawEmaSignal, signalPlan, selectedCoin), [rawEmaSignal, signalPlan, selectedCoin]);
+  /* No markers above the ceiling: the signal is not operating at this timeframe, so the chart shows
+     none and the panel says so. Empty marker arrays rather than a loading flag, so nothing spins. */
+  const emaSignal = useMemo(
+    () => (aboveAnalysisCeiling
+      ? { ...gatedEmaSignal, loading: false, signalLongs: [], signalShorts: [], lockedMarkers: [], reversalWarnings: [], signalLock: null }
+      : gatedEmaSignal),
+    [gatedEmaSignal, aboveAnalysisCeiling],
+  );
   /* #1613's feedGraceOver moved above the useEMAStrategy call (#1651) - a hook call reading it has to come after its declaration. */
   const [readLoading, setReadLoading] = useState(false);
   // #1309 item 24: state, not a ref, updates asynchronously - two clicks
@@ -1814,6 +1841,12 @@ function ArenaContent() {
      `readMarket` below exactly as received here, so a click is correct at
      the instant it happens regardless of tick timing. */
   const runStrategy = (kind: RunKind, selection: readonly string[]) => {
+    /* THE READ COVERS <= 1D, so above the ceiling every run path is refused here - the buttons are
+       disabled too (below), but ASK dispatches through an event channel and a future caller could
+       reach this directly. The server's own `isArenaTf` guard (lib/arenaContext.ts) would refuse a
+       weekly `chart.tf` anyway; this turns that server refusal into a no-op instead of a spent click
+       and an error banner. */
+    if (aboveAnalysisCeiling) return;
     if (kind === 'ask') {
       window.dispatchEvent(new CustomEvent('grok-chat', {
         detail: {
@@ -2282,10 +2315,10 @@ function ArenaContent() {
             pattern as this file's other #1347 fixes. */}
         <button
           className={`arena-fire-btn arena-quick-btn${(!user && !authLoading) || coinLocked ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
+          disabled={aboveAnalysisCeiling || readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
           onClick={() => runStrategy('quick', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
+          title={aboveAnalysisCeiling ? ANALYSIS_CEILING_TITLE : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
         >
           {readLoading && readMode === 'quick' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -2300,10 +2333,10 @@ function ArenaContent() {
         {/* Deep button - requires sign-in. Same fix as Quick above. */}
         <button
           className={`arena-fire-btn${(!user && !authLoading) || coinLocked ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
+          disabled={aboveAnalysisCeiling || readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
           onClick={() => runStrategy('deep', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
+          title={aboveAnalysisCeiling ? ANALYSIS_CEILING_TITLE : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
         >
           {readLoading && readMode === 'deep' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -2329,6 +2362,8 @@ function ArenaContent() {
         <button
           className="arena-ask-grok-btn"
           style={{ width: 'auto', marginBottom: 0 }}
+          disabled={aboveAnalysisCeiling}
+          title={aboveAnalysisCeiling ? ANALYSIS_CEILING_TITLE : undefined}
           onClick={() => runStrategy('ask', strategySelection)}
         >
           {t('ARENA_ASK_LIQUIDITYAI_BUTTON')}
@@ -2870,7 +2905,7 @@ function ArenaContent() {
       {/* EMA Ribbon Strategy card - sits directly under the chart so it reads as
           the explanation of the chart's own Buy/Sell markers, not a stray card
           four sections down. */}
-      <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
+      <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} aboveCeiling={aboveAnalysisCeiling} />
       {/* Owner-directed (screenshots, "put the multi timeframe inside of it"):
           the rail (.arena-ws-rail) runs longer than this left column - Strategy
           panel, market snapshot, Confluence Score - and .arena-ws uses
