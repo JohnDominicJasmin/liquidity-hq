@@ -340,10 +340,49 @@ export default function MarketProvider(
   useEffect(() => { startWSRef.current = startWS; }, [startWS]);
 
   /* ── Bybit: all coins - single bulk fetch instead of per-symbol calls ── */
+  /* ── FUNDING FROM BINANCE, WHEN THE BYBIT READ FAILS (#1651, the funding chip's single venue) ──
+   *
+   * The chip's `fundingRate` came from ONE source: Bybit's bulk ticker, above. A Bybit blip left it null
+   * and the chip said "unavailable" beside a healthy `/api/funding`, which has a Binance fallback of its own.
+   * Binance's premium index (already polled every 30s for the next-funding estimate) carries
+   * `lastFundingRate` for the same perps, so a failed Bybit read is backed by it.
+   *
+   * RULES, each one deliberate:
+   *   - ONLY WHEN THE BYBIT READ FAILED (non-OK, a throw, or no list at all). A Bybit read that answered
+   *     but carries no figure for some coin is NOT a failure and does not call this - same rule as the
+   *     1h open-interest fallback (#2149).
+   *   - NEVER OVERWRITE A FIGURE WE ALREADY HOLD. Funding differs a little between venues, and swapping
+   *     the chip between two venues cycle to cycle would read as the rate moving. It only fills a coin
+   *     that has none.
+   *   - NOT WHEN THE PROXY ANSWERED FROM BYBIT. `/api/proxy` falls back to Bybit if Binance is down
+   *     (X-Data-Source: bybit-fallback); that is the venue that just failed, so it is skipped.
+   *   - A missing or unparseable figure stays UNKNOWN (the key is left out), never 0. */
+  const fundingFromBinance = useCallback(async () => {
+    try {
+      const res = await fetch('/api/proxy?type=premium-index', { cache: 'no-store' });
+      if (!res.ok || res.headers.get('X-Data-Source') === 'bybit-fallback') return;
+      const data = await res.json() as Array<{ symbol: string; lastFundingRate?: string }>;
+      if (!Array.isArray(data)) return;
+      for (const item of data) {
+        const id = SYM_MAP[item.symbol];
+        if (!id || storeRef.current.coins[id]?.fundingRate != null) continue;
+        const fr = parseFloat(item.lastFundingRate ?? '');
+        if (Number.isFinite(fr)) updateCoin(id, { fundingRate: fr });
+      }
+    } catch { /* both venues down: the chip stays unknown, which is true */ }
+  }, [updateCoin]);
+
   const fetchBybit = useCallback(async () => {
     try {
-      const res = await fetch('/api/proxy?type=bybit-tickers');
-      const d = await res.json();
+      /* A non-OK answer or a throw is a FAILED read, handled by the Binance fallback below - not an empty
+         one. (A non-OK body used to be parsed and silently yield no rows, which looked like "no data".) */
+      const d = await (async () => {
+        try {
+          const res = await fetch('/api/proxy?type=bybit-tickers');
+          return res.ok ? await res.json() : null;
+        } catch { return null; }
+      })();
+      if (!d || !Array.isArray(d.result?.list)) { await fundingFromBinance(); return; }
       // Build symbol → ticker map for O(1) lookup
       const bySymbol: Record<string, Record<string, string>> = {};
       for (const t of (d.result?.list ?? [])) bySymbol[t.symbol] = t;
@@ -445,7 +484,7 @@ export default function MarketProvider(
       }
       updateCoins(extra);
     } catch { /* */ }
-  }, [updateCoin, updateCoins]);
+  }, [updateCoin, updateCoins, fundingFromBinance]);
 
   /* ── Bybit + Binance LSR ── */
   const fetchLSR = useCallback(async () => {
