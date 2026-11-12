@@ -1,6 +1,52 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import type { Page, Route } from '@playwright/test';
+// The SAME deterministic generator the server-side stub uses (qa/server-intercept.mjs), so the
+// browser socket and the server REST cannot drift. See qa/syntheticMarket.mjs.
+import { synthCombinedFrame } from '../syntheticMarket.mjs';
+
+/* Emit synthetic Binance combined-stream `@ticker` frames onto the price WebSocket, instead of
+ * closing it. This is what lets a spec show deterministic live PRICES with no Binance from a US
+ * runner (the direct browser socket is refused there), and it is reused by installMarketFixtures's
+ * `socket: 'synthetic'` mode.
+ *
+ * The symbols come from the stream URL the app subscribed to (`streams=btcusdt@ticker/...`), so we
+ * only emit what it asked for. The handler runs AFRESH for every socket the page opens, so when a
+ * spec drops the socket and the app reconnects, the new socket is served and keeps emitting - which
+ * is what makes the reconnect specs deterministic without a real venue.
+ *
+ * `priceOverride(symbolUpper)` lets a caller force a value (the market-scenarios sentinel) while
+ * everything else stays generated. */
+export async function installSyntheticSocket(
+  page: Page,
+  opts: { priceOverride?: (symUpper: string) => string | undefined; everyMs?: number } = {},
+): Promise<void> {
+  const everyMs = opts.everyMs ?? 1000;
+  await page.routeWebSocket(/stream\.binance\.com|fstream\.binance\.com/, (ws) => {
+    let symbols: string[] = [];
+    try {
+      const streams = new URL(ws.url()).searchParams.get('streams') ?? '';
+      symbols = streams.split('/').filter(s => s.includes('@ticker')).map(s => s.split('@')[0].toUpperCase()).filter(Boolean);
+    } catch { /* fall through to the default below */ }
+    if (symbols.length === 0) symbols = ['BTCUSDT', 'ETHUSDT'];
+    const emit = () => {
+      const now = Date.now();
+      for (const sym of symbols) {
+        let frame = synthCombinedFrame(sym, now);
+        const override = opts.priceOverride?.(sym);
+        if (override !== undefined) {
+          const parsed = JSON.parse(frame) as { stream: string; data: Record<string, unknown> };
+          parsed.data.c = override;
+          frame = JSON.stringify(parsed);
+        }
+        try { ws.send(frame); } catch { /* socket gone between ticks */ }
+      }
+    };
+    emit();
+    const timer = setInterval(emit, everyMs);
+    ws.onClose(() => clearInterval(timer));
+  });
+}
 
 /* Controllable market data — the thing `qa/TEST_GAPS.md` §1 says the suite has
  * never had.
@@ -173,7 +219,17 @@ function bybitTickersSigned(body: BybitTickersBody, sign: -1 | 1): BybitTickersB
  *  FAIL when the endpoint UNDER TEST was not intercepted. `count > 0` alone is
  *  not enough: it was satisfied by an unrelated route while the values on screen
  *  still came from elsewhere. */
-export async function installMarketFixtures(page: Page, scenario: Scenario = 'as-recorded') {
+export async function installMarketFixtures(
+  page: Page,
+  scenario: Scenario = 'as-recorded',
+  opts: { socket?: 'closed' | 'synthetic' } = {},
+) {
+  /* PER-SCENARIO SOCKET MODE (PM ruling, 2026-11-12). `closed` keeps the historical behaviour: the
+     price socket is closed so the app falls to restPoll - which is the path the sentinel test exists
+     to prove, so its `proxy-binance-24hr > 0` assertion is NOT weakened to fit the fixture.
+     `synthetic` emits generator frames instead, for specs that need live prices on screen (and for
+     the reconnect specs). Default stays `closed` so every existing caller is unchanged. */
+  const socketMode = opts.socket ?? 'closed';
   const served: { count: number; byKey: Record<string, number> } = { count: 0, byKey: {} };
 
   const fulfil = async (route: Route, name: string, transform?: (b: unknown) => unknown) => {
@@ -206,10 +262,16 @@ export async function installMarketFixtures(page: Page, scenario: Scenario = 'as
    * `!forceOrder@arr` (line 1208) is the liquidation stream and is closed for
    * the same reason: unclosed, it keeps pushing live events into a run that
    * claims to be deterministic. */
-  await page.routeWebSocket(/stream\.binance\.com|fstream\.binance\.com/, ws => ws.close());
-
   /** Implausible on purpose: no real BTC print rounds to this. */
   const SENTINEL_PRICE = '11111.11';
+
+  if (socketMode === 'synthetic') {
+    /* The sentinel scenario forces the price through the socket too, so it reaches the screen the
+       same deterministic way every other coin does. */
+    await installSyntheticSocket(page, scenario === 'price-sentinel' ? { priceOverride: () => SENTINEL_PRICE } : {});
+  } else {
+    await page.routeWebSocket(/stream\.binance\.com|fstream\.binance\.com/, ws => ws.close());
+  }
 
   const sign: -1 | 1 | null =
     scenario === 'funding-negative' ? -1 : scenario === 'funding-positive' ? 1 : null;

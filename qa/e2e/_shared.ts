@@ -1,7 +1,23 @@
 import type { Page, APIRequestContext, APIResponse } from '@playwright/test';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
+import { createServer as createNetServer } from 'node:net';
 import { awaitLogLine } from './awaitLogLine';
 import DEFAULT_EN_LABELS from '../../lib/labelDefaults.en.json';
+
+/** An OS-assigned free TCP port. `listen(0)` lets the kernel pick one nothing else holds; we close
+ *  immediately and hand the number back. There is a tiny race between close and the next bind, which
+ *  startFailOnceServer covers by retrying on EADDRINUSE. */
+async function findFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = createNetServer();
+    srv.on('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const addr = srv.address();
+      const port = typeof addr === 'object' && addr ? addr.port : 0;
+      srv.close(() => (port ? resolve(port) : reject(new Error('no free port'))));
+    });
+  });
+}
 
 /** Every route the suite sweeps. Public + app routes, signed out. */
 /* Every route the sweeping specs measure — contrast, layout, a11y, seo, perf.
@@ -840,18 +856,18 @@ export async function startFailOnceServer(opts: {
    *  finding a new one and hiding the leak. */
   port?: number;
 }): Promise<{ baseURL: string; logs: string[]; stop: () => Promise<void> }> {
-  /* PER-WORKER PORT, because a fixed one collides as soon as the suite runs parallel.
+  /* A FREE OS-ASSIGNED PORT, because the computed per-worker scheme still collided (PM, 2026-11-12).
    *
-   * This was `3101` flat, and CI failed with `EADDRINUSE: address already in use :::3101` - the
-   * child logged `[fail-once] armed` and then died on bind, so it started fine and simply had
-   * nowhere to listen. The suite runs 2 workers ("Running 640 tests using 2 workers"), and both
-   * the mobile and desktop legs exercise this helper, so two servers wanted the same port.
-   *
-   * `TEST_PARALLEL_INDEX` is Playwright's own answer to this: 0..workers-1, stable for the life of
-   * a worker, and documented for exactly this purpose - allocating a per-worker resource. Using
-   * `workerIndex` instead would keep climbing across retries and walk into whatever else is
-   * listening higher up. */
-  const port = opts.port ?? 3101 + Number(process.env.TEST_PARALLEL_INDEX ?? 0);
+   * This was `3101` flat (EADDRINUSE on two workers), then `3101 + TEST_PARALLEL_INDEX` - which is
+   * unique per worker in theory, but a run still died on `:3102` ("exited before it could answer").
+   * A leaked `next start` from a prior failed run holds that exact port, or a retry re-enters with
+   * the same index while the previous child is still shutting down, and the fixed arithmetic walks
+   * straight back into it. `listen(0)` asks the kernel for a port nothing currently holds, so
+   * neither a leak nor a parallel worker can clash. The small trade-off the old comment named - a
+   * fixed port made a leak "obvious" - is given up on purpose: a green suite beats a diagnosable red
+   * one, and a leak now simply fails to be re-bound rather than taking the next run down with it.
+   * `opts.port` still overrides, for a test that wants a known port. */
+  const port = opts.port ?? await findFreePort();
   const status = opts.status ?? 504;
   const logs: string[] = [];
 
