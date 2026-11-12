@@ -152,6 +152,17 @@ function fmtSignalPrice(n: number): string {
   return n.toLocaleString(undefined, { maximumSignificantDigits: 4 });
 }
 
+/* A PRICE IN A MESSAGE THAT CARRIES THE USER'S OWN NUMBER (#1651, QA). The price-alert text and the rapid-move text printed prices with a
+   bare `toLocaleString()`, which keeps at most three decimals, so a sub-cent price read "$0": PEPE crossing 0.000014 arrived as "Crossed
+   Above $0 / Current: $0", a wrong number to someone acting on it. A price of 1 or more is formatted exactly as before (BTC at 64,250.5
+   still reads 64,250.5, and the user's own target is never rounded to a whole number, which `fmtSignalPrice` above would do from 1000 up);
+   below 1 it keeps five significant digits, so 0.0000152 reads 0.0000152 and 0.6 still reads 0.6. */
+function fmtAlertPrice(n: number): string {
+  if (!Number.isFinite(n)) return String(n);
+  if (n >= 1) return n.toLocaleString();
+  return n.toLocaleString(undefined, { maximumSignificantDigits: 5 });
+}
+
 /* ── Per-recipient mute-aware delivery ── */
 interface Recipient { userId: string; chatId: string }
 
@@ -901,7 +912,7 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[], skipCounts: S
             coin, ruleKey: 'rapid_move', name: `${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
             title: `Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
             body: `${emoji} <b>${label} Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})</b>\n\n` +
-              `Price: <b>$${currClose.toLocaleString()}</b>\n` +
+              `Price: <b>$${fmtAlertPrice(currClose)}</b>\n` +
               `Signal: ${Math.abs(pct).toFixed(1)}% candle - ${pct > 0 ? 'momentum surge' : 'flash dump'}\n` +
               (patternStr ? `Pattern: <b>${patternStr}</b>\n` : '') +
               `Action: Check volume + OI. Next candle direction is key.` +
@@ -1340,12 +1351,12 @@ async function checkPriceAlerts(
         : { target: alert.target_price, direction: alert.direction, level: touch!.price, atMs: Date.now() };
       const at = new Date(hit.atMs).toISOString().slice(11, 16);
       const body = `🎯 <b>${label} Price Alert Triggered</b>\n\n` +
-        `${dirLabel} <b>$${alert.target_price.toLocaleString()}</b>\n` +
+        `${dirLabel} <b>$${fmtAlertPrice(alert.target_price)}</b>\n` +
         (pending
-          ? `Reached: $${hit.level.toLocaleString()} at ${at} UTC` + (price != null ? `\nCurrent: $${price.toLocaleString()}` : '')
+          ? `Reached: $${fmtAlertPrice(hit.level)} at ${at} UTC` + (price != null ? `\nCurrent: $${fmtAlertPrice(price)}` : '')
           : touch!.via === 'wick'
-            ? `Reached: $${touch!.level.toLocaleString()} (1-minute ${alert.direction === 'above' ? 'high' : 'low'} at ${at} UTC)` + (price != null ? `\nCurrent: $${price.toLocaleString()}` : '')
-            : `Current: $${touch!.price.toLocaleString()}`) +
+            ? `Reached: $${fmtAlertPrice(touch!.level)} (1-minute ${alert.direction === 'above' ? 'high' : 'low'} at ${at} UTC)` + (price != null ? `\nCurrent: $${fmtAlertPrice(price)}` : '')
+            : `Current: $${fmtAlertPrice(touch!.price)}`) +
         (alert.label ? `\nNote: ${escapeHtml(alert.label)}` : '') +
         `\n\n<i>${stamp}</i>`;
 
@@ -1523,7 +1534,7 @@ async function checkDailySummary(
       ? `\n\n🎯 <b>Active Price Alerts:</b>\n${own.map(a => {
           const lbl = LABELS[a.coin] ?? a.coin.toUpperCase();
           const dir = a.direction === 'above' ? '↑' : '↓';
-          return `• ${lbl} ${dir} $${parseFloat(String(a.target_price)).toLocaleString()}${a.label ? ` (${escapeHtml(a.label)})` : ''}`;
+          return `• ${lbl} ${dir} $${fmtAlertPrice(parseFloat(String(a.target_price)))}${a.label ? ` (${escapeHtml(a.label)})` : ''}`;
         }).join('\n')}`
       : '';
     return tg(token, r.chatId, `${bodyBase}${alertsBlock}\n\n<i>${stamp}</i>`);
