@@ -167,8 +167,8 @@ export function coinCaveat(coin: string): CoinCaveat | undefined {
  * 396 HK$ read as $396 is wrong by a currency (HK0700 is 7.84x its own USD-quoted TENCENT). Every surface that
  * writes a literal "$" in front of a selected coin's price goes through this; a surface that does not is a
  * defect on those four rows. */
-export function currencyPrefix(coin: string): string {
-  return BY_ID.get(coin)?.caveat === 'hkd' ? 'HK$' : '$';
+export function currencyPrefix(coin: string | null | undefined): string {
+  return coin != null && BY_ID.get(coin)?.caveat === 'hkd' ? 'HK$' : '$';
 }
 
 const idsOfKind = (kinds: readonly CoinKind[]): CoinId[] =>
