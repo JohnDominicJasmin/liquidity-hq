@@ -265,6 +265,11 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
     const page = await ctx.newPage();
     await installSyntheticSocket(page);
     await installPaidAiFence(page);
+    /* STUBS AFTER THE FENCE (the most recently registered handler wins): the dashboard polls three paid routes on load. Run 43297243971 failed C1b
+       on GET /api/macro-context (UNSTUBBED PAID AI CALL: fenced, nothing billed). `{}` is enough - those widgets are not what this cell measures. */
+    for (const seg of ['macro-context', 'dry-powder', 'onchain']) {
+      await page.route(`**/api/${seg}**`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
+    }
     await stubSavedSettings(page);
     try {
       await gotoSignedIn(page, '/dashboard');
