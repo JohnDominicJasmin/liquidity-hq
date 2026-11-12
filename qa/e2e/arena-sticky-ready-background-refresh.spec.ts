@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
+import { chip } from './_shared';
 
 /* PM/DevOps's own audit target on the #1347 fix, automated: a failed
  * BACKGROUND settings refresh must not demote an already-'ready' status
@@ -65,7 +66,7 @@ test.describe('A failed background settings refresh must not demote an already-r
       await resetStrategySelection(page, ['SMA']);
 
       await page.goto('/arena');
-      const smaChip    = page.locator('button.strat-chip', { hasText: 'SMA' });
+      const smaChip    = chip(page, 'SMA');
       const errorAlert = page.locator('[role="alert"]', { hasText: /couldn.?t load your saved indicators/i });
       await expect(smaChip, 'must reach ready with the real saved selection before this test can mean anything').toHaveAttribute('aria-pressed', 'true', { timeout: 10_000 });
 

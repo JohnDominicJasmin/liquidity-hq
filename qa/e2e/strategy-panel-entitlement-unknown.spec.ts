@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { installSyntheticSocket } from './_fixtures';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
+import { chip } from './_shared';
 
 /* #1347 item 6 (#1362, fix by Dev Team) - the Strategy Panel's `entitled`
  * boolean (`entitlementStatus === 'entitled'`) fed the indicator limit, the
@@ -78,7 +79,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
         'the panel must show EntitlementUnknownCard while the plan cannot be verified - the Confluence card being correct is not enough, ' +
         'the panel is where the defect lived').toBeVisible({ timeout: 15_000 });
 
-      await expect(panel.locator('button.strat-chip'),
+      await expect(panel.locator('button.strat-ind-chip'),
         'the indicator chip grid must not render while the plan is unknown - a Pro account capped at one chip is the fail-closed ' +
         'direction #1119 forbids').toHaveCount(0);
       await expect(panel.locator('select.strat-sel'),
@@ -125,7 +126,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
       await expect(page.locator(UNKNOWN_CARD),
         'clicking the PANEL\'s Try again left an unknown card on the page - the panel is not calling the shared retryEntitlements ' +
         '(a second implementation of the same pattern is exactly what this PR says it did not add)').toHaveCount(0, { timeout: 15_000 });
-      await expect(panel.locator('button.strat-chip').first(),
+      await expect(panel.locator('button.strat-ind-chip').first(),
         'once the plan is confirmed the chip grid must come back').toBeVisible({ timeout: 15_000 });
     } finally {
       await ctx.close();
@@ -141,7 +142,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
       await gotoSignedIn(page, '/arena');
       const panel = page.locator(PANEL);
       await expect(panel).toBeVisible({ timeout: 15_000 });
-      await expect(panel.locator('button.strat-chip').first(),
+      await expect(panel.locator('button.strat-ind-chip').first(),
         'a confirmed-free account must still get the chip grid (limit 1) - the fix must not have turned not_entitled into unknown').toBeVisible({ timeout: 15_000 });
       await expect(panel.locator(UNKNOWN_CARD), 'a confirmed-free account must not be shown the couldn\'t-verify card').toHaveCount(0);
     } finally {
@@ -158,7 +159,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
       await gotoSignedIn(page, '/arena');
       const panel = page.locator(PANEL);
       await expect(panel).toBeVisible({ timeout: 15_000 });
-      await expect(panel.locator('button.strat-chip').first(), 'a confirmed-Pro account must get the chip grid').toBeVisible({ timeout: 15_000 });
+      await expect(panel.locator('button.strat-ind-chip').first(), 'a confirmed-Pro account must get the chip grid').toBeVisible({ timeout: 15_000 });
       await expect(panel.locator(UNKNOWN_CARD), 'a confirmed-Pro account must not be shown the couldn\'t-verify card').toHaveCount(0);
     } finally {
       await ctx.close();
@@ -206,7 +207,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
         timeout: 15_000,
       }).toBeGreaterThan(0);
 
-      const chipCount = await panel.locator('button.strat-chip').count();
+      const chipCount = await panel.locator('button.strat-ind-chip').count();
       const unknownCard = await panel.locator(UNKNOWN_CARD).count();
       await panel.locator('select.strat-sel').selectOption('custom').catch(() => {});
 
@@ -215,8 +216,8 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
       // limit of one (the second chip gets `blocked` and a "Deselect one first"
       // note) and read-only params. The first chip in the grid has no params
       // box, which is why an earlier version of this test observed neither.
-      const sma = panel.locator('button.strat-chip', { hasText: 'SMA' }).first();
-      const rsi = panel.locator('button.strat-chip', { hasText: 'RSI' }).first();
+      const sma = chip(panel, 'SMA').first();
+      const rsi = chip(panel, 'MACD').first();
       let params = 'SMA chip not reachable';
       let limit = 'not observed';
       if (await sma.isVisible().catch(() => false)) {

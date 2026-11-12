@@ -1,4 +1,4 @@
-import type { Page, APIRequestContext, APIResponse } from '@playwright/test';
+import type { Page, Locator, APIRequestContext, APIResponse } from '@playwright/test';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { createServer as createNetServer } from 'node:net';
 import { awaitLogLine } from './awaitLogLine';
@@ -1087,4 +1087,22 @@ export async function entitlementsUnresolved(
     `cannot render in this state, and the Pro-gate control does NOT catch it - that card says ` +
     `neither "part of Pro" nor "Unlock with Pro". A failed DB read, not a product defect. ` +
     `Not a finding.`;
+}
+
+/* THE STRATEGY PANEL'S INDICATOR CHIPS, BY STABLE HANDLE (#2162 redesign, 2026-11-13).
+ *
+ * The chips were `button.strat-chip` filtered by their visible name. The redesign renamed the class to
+ * `button.strat-ind-chip`, renamed two labels (#2184: "Parabolic SAR", "Bollinger Bands") and gave every chip
+ * `data-testid="strategy-indicator-<registry id>"`. Ten specs went red on that (gate 43264183678) while the
+ * behaviour they pin was untouched, so the handle is the test id and the NAME is only mapped to it here, once.
+ *
+ * Selectable chips are SMA, SAR, MACD and BOLL only. RSI and the EMA ribbon are chart-layer rows, not chips -
+ * a spec that needs a chip must not ask for them. An unknown name is passed through as an id, so a typo fails
+ * as "element not found" on a visible id rather than matching something else. */
+const CHIP_ID: Record<string, string> = {
+  SMA: 'SMA', MACD: 'MACD', Bollinger: 'BOLL', 'Bollinger Bands': 'BOLL', BOLL: 'BOLL',
+  'Parabolic SAR': 'SAR', PSAR: 'SAR', SAR: 'SAR',
+};
+export function chip(scope: Page | Locator, name: string): Locator {
+  return scope.getByTestId(`strategy-indicator-${CHIP_ID[name] ?? name}`);
 }

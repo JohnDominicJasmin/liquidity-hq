@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
+import { chip } from './_shared';
 
 /* #1348 item 2 (from #1347's audit) - a FAILED settings read used to be
  * presented as a confirmed empty selection, then could overwrite the real
@@ -98,7 +99,7 @@ test.describe('A failed settings read must not present or persist an empty selec
 
       const skeleton   = page.locator('[role="status"][aria-live="polite"]', { hasText: /loading your saved strategy/i });
       const errorAlert = page.locator('[role="alert"]', { hasText: /couldn.?t load your saved indicators/i });
-      const smaChip    = page.locator('button.strat-chip', { hasText: 'SMA' });
+      const smaChip    = chip(page, 'SMA');
       const retryBtn   = errorAlert.getByRole('button', { name: /retry/i });
 
       await expect(errorAlert, 'the error state never appeared after a genuinely failed settings read').toBeVisible({ timeout: 10_000 });
@@ -113,7 +114,7 @@ test.describe('A failed settings read must not present or persist an empty selec
       // could turn into a persisting empty-selection write. This is the
       // actual mechanism that closes item 2's data-loss path: not "the
       // panel looks different", but "there is nothing to click."
-      await expect(page.locator('button.strat-chip'), 'no strategy chips should render at all while the settings read is in the error state').toHaveCount(0);
+      await expect(page.locator('button.strat-ind-chip'), 'no strategy chips should render at all while the settings read is in the error state').toHaveCount(0);
       await expect(skeleton, 'the panel must not ALSO be showing the loading skeleton once it has reached a definite error state').toHaveCount(0);
       expect(strategySelectionPatchCount, 'no strategy_selection PATCH should have fired from a state with nothing clickable in it').toBe(0);
 
