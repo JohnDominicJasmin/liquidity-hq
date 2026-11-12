@@ -4,7 +4,7 @@ import {
   MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
   BINANCE_SYMS, BYBIT_SYMS, UNIVERSE_SYM_TO_COIN,
 } from '@/lib/marketStore';
-import { bybitPriceFactor, BINANCE_SPOT_SYMS } from '@/lib/coins';
+import { bybitPriceFactor, binancePriceFactor, BINANCE_SPOT_SYMS, UNIVERSE_BINANCE_ONLY } from '@/lib/coins';
 import { computeRSI14 } from '@/lib/rsi';
 import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
@@ -444,6 +444,41 @@ export default function MarketProvider(
         };
       }
       updateCoins(extra);
+
+      /* ── UNIVERSE ROWS BYBIT DOES NOT LIST (Binance-only TradFi) ────────────────────────────
+       *
+       * The Bybit bulk response above prices every other universe coin, so these 18 (pre-IPO
+       * references, a few commodities, the Hong Kong shares) would sit at "-" with no source. One
+       * small request names exactly them. Same rule as above: price and 24h change only, no funding
+       * or open interest, and a failed or empty answer leaves the previous values rather than
+       * blanking them. `priceChangePercent` is already a percent (Bybit's is a fraction). */
+      const bnOnly = Object.keys(UNIVERSE_BINANCE_ONLY);
+      if (bnOnly.length > 0) {
+        try {
+          const r = await fetch('/api/proxy?type=binance-futures-24hr&symbols=' + encodeURIComponent(JSON.stringify(bnOnly)));
+          const arr: unknown = r.ok ? await r.json() : null;
+          if (Array.isArray(arr)) {
+            const bn: Record<string, Partial<MarketStore['coins'][CoinId]>> = {};
+            for (const t of arr as Array<Record<string, string>>) {
+              const id = UNIVERSE_BINANCE_ONLY[t.symbol];
+              if (!id) continue;
+              const f = binancePriceFactor(id);
+              const price = parseFloat(t.lastPrice ?? '') * f;
+              if (!Number.isFinite(price) || price <= 0) continue;
+              const pct = parseFloat(t.priceChangePercent ?? '');
+              bn[id] = {
+                price,
+                perpPrice: price,
+                ...(Number.isFinite(pct) ? { change: pct } : {}),
+                high:  parseFloat(t.highPrice || '0') * f,
+                low:   parseFloat(t.lowPrice  || '0') * f,
+                vol24: parseFloat(t.quoteVolume || '0'),
+              };
+            }
+            updateCoins(bn);
+          }
+        } catch { /* a missed cycle keeps the last values; the next poll retries */ }
+      }
     } catch { /* */ }
   }, [updateCoin, updateCoins]);
 
