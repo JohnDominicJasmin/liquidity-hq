@@ -228,6 +228,10 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
           : /Loading market data/i.test(t) ? 'STILL-LOADING'
           : `OTHER: ${JSON.stringify(t.replace(/\s+/g, ' ').slice(0, 240))}`;
         console.log(`[briefing-row] rows=${await rows.count()} state=${state}`);
+        /* MEASURED (run 43288972812): rows=0, ALL-QUIET - the stubbed market yields zero setups, so /briefing has no coin rows to
+           click. That is the harness's DATA, not the link: skip with the reason on record, and C1b below makes the same claim
+           (a coin link opens THAT coin on a warm client-side navigation) through the dashboard, whose cards always render. */
+        test.skip(state.startsWith('ALL-QUIET'), 'the stubbed market produces zero briefing setups (All quiet), so /briefing has no coin rows; C1b covers the same claim through the dashboard cards');
       }
       await expect(rows.first(), 'no /briefing coin rows rendered, so there is nothing to click').toBeVisible({ timeout: 60_000 });
       const hrefs = await rows.evaluateAll((els) =>
@@ -247,6 +251,34 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
       expect(stable, `the query string never stopped changing in 25s (last: '${search}'), so nothing below is a read of a settled state`).toBe(true);
       expect(tf, `WITNESS: tf must be the stubbed ${STUB_TF} - if it is '15m' the seed effect never ran in this load and the coin result below proves nothing`).toBe(STUB_TF);
       expect(coin, `the row promised coin=${target} and the saved default was ${STUB_COIN}`).toBe(target);
+      await assertNoUnstubbedPaidAi(page);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  /* C1b: C1's claim through the DASHBOARD cards (`a.scc-card`, href /arena?coin=<id>), which render whatever the market does. A warm
+     client-side navigation from a link to a coin that differs from the saved default must open THAT coin (#2150). */
+  test('C1b: clicking a dashboard coin card whose coin differs from the saved default opens THAT coin', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'a');
+    const page = await ctx.newPage();
+    await installSyntheticSocket(page);
+    await installPaidAiFence(page);
+    await stubSavedSettings(page);
+    try {
+      await gotoSignedIn(page, '/dashboard');
+      const cards = page.locator('a.scc-card[href^="/arena?coin="]');
+      await expect(cards.first(), 'no dashboard coin cards rendered, so there is nothing to click').toBeVisible({ timeout: 60_000 });
+      const hrefs = await cards.evaluateAll((els) => els.map((el) => (el as HTMLAnchorElement).getAttribute('href') ?? ''));
+      const candidates = hrefs.map((h) => new URLSearchParams(h.split('?')[1] ?? '').get('coin')).filter((c): c is string => !!c && c !== STUB_COIN);
+      expect(candidates.length, `every dashboard card was '${STUB_COIN}', so no card can discriminate`).toBeGreaterThan(0);
+      const target = candidates[0];
+      await cards.nth(hrefs.findIndex((h) => h.includes(`coin=${target}`))).click();
+      await page.waitForURL(/\/arena/, { timeout: 60_000 });
+      const { coin, tf, stable, search } = await settledCoinAndTf(page);
+      expect(stable, `the query string never stopped changing (last: '${search}')`).toBe(true);
+      expect(tf, `WITNESS: tf must be the stubbed ${STUB_TF}`).toBe(STUB_TF);
+      expect(coin, `the card promised coin=${target} and the saved default was ${STUB_COIN}`).toBe(target);
       await assertNoUnstubbedPaidAi(page);
     } finally {
       await ctx.close();
