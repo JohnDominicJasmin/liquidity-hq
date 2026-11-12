@@ -88,7 +88,7 @@ const basePrice = (symbol: string): number => (symbol === 'BTCUSDT' ? world.btc 
 function candleRows(symbol: string, ivMs: number, limit: number) {
   const now = Date.now(); const forming = Math.floor(now / ivMs) * ivMs; const p = basePrice(symbol);
   return Array.from({ length: limit }, (_, i) => {
-    const t = forming - i * ivMs; const c = p * (1 + 0.002 * Math.sin(t / ivMs)); const o = p * (1 + 0.002 * Math.sin(t / ivMs - 1));
+    const t = forming - i * ivMs; const c = p * (1 + 0.002 * Math.sin(i)); const o = p * (1 + 0.002 * Math.sin(i + 1));   // by INDEX, not by wall-clock time: the same candles on every run and every tree
     return { t, o, h: Math.max(o, c) * 1.001, l: Math.min(o, c) * 0.999, c, v: 100 + (i % 7) };
   });
 }
