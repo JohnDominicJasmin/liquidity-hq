@@ -313,7 +313,20 @@ export async function installMarketFixtures(
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...json, data }) });
     });
   }
-  await page.route('**/api/market/snapshot**', r => fulfil(r, 'lhq-market-snapshot'));
+  /* THE SNAPSHOT SEED IS WHAT SETS THE FIRST ON-SCREEN PRICE, so the sentinel has to ride it too.
+     `MarketProvider` seeds `coins[id].price` from THIS response's `ticker` at mount (before the
+     socket or restPoll), and its `price == null` guard means once seeded, nothing else - including
+     restPoll's sentinel on proxy-binance-24hr - ever overwrites it. So rewriting only the 24hr proxy
+     left the recorded snapshot price winning and the sentinel never showed. Rewrite the snapshot's
+     own ticker prices for the sentinel scenario as well, through the SAME path that sets the price. */
+  await page.route('**/api/market/snapshot**', r => fulfil(r, 'lhq-market-snapshot',
+    scenario === 'price-sentinel'
+      ? (b) => {
+          const body = b as { ticker?: Record<string, { price?: number } | null> };
+          for (const v of Object.values(body.ticker ?? {})) if (v && v.price != null) v.price = Number(SENTINEL_PRICE);
+          return body;
+        }
+      : undefined));
   await page.route('**fapi.binance.com/fapi/v1/fundingRate**', r =>
     fulfil(r, 'binance-fundingRate', sign ? (b) => binanceFundingSigned(b as BinanceFundingRow[], sign) : undefined));
   await page.route('**fapi.binance.com/fapi/v1/premiumIndex**', r =>

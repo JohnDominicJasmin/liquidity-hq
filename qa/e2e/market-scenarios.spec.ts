@@ -54,7 +54,13 @@ test.describe('market data scenarios', () => {
   test('coin prices on screen come from the fixture, not the live market', async ({ page }) => {
     test.setTimeout(180_000);
     const served = await installMarketFixtures(page, 'price-sentinel');
-    await gotoGuarded(page, '/arena', { waitUntil: 'domcontentloaded' });
+    /* THE LANDING PAGE, NOT /arena (2026-11-12). The Arena redesign stopped printing a coin's price as
+       DOM text: the chart price is canvas, and the only dollar figures left are ribbon averages COMPUTED
+       from klines. A dispatched run (43250017723) dumped the whole /arena text and found no price field
+       at all, so the sentinel could not appear there however well the fixture worked. The landing
+       ticker (components/LandingTicker.tsx) renders `store.coins[id].price` as text, so it is the page
+       where "does coin data come from the fixture" is observable. The assertion is unchanged. */
+    await gotoGuarded(page, '/', { waitUntil: 'domcontentloaded' });
 
     /* WAIT ON THE ROUTE, NOT ON THE UI STRING.
      *

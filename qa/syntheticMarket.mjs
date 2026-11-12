@@ -80,6 +80,21 @@ export const synthUpstream = (url) => {
   if (/openInterestHist$/.test(p)) {
     return JSON.stringify(bars.map(b => ({ symbol: sym, sumOpenInterest: (b.vol * 100).toPrecision(10), sumOpenInterestValue: (b.vol * 100 * b.c).toPrecision(10), timestamp: b.t })));
   }
+  // Fear & Greed history (api.alternative.me/fng/?limit=N): `limit` daily readings, newest first,
+  // in alternative.me's own shape. Deterministic 0-100 value keyed on the day.
+  if (/\/fng\/?$/.test(p) || u.host === 'api.alternative.me') {
+    const days = Math.max(1, Math.min(365, Number(q.get('limit') || 30)));
+    const DAY = 86400000;
+    const dayStart = Math.floor(nowMs / DAY) * DAY;
+    const classify = (v) => v < 25 ? 'Extreme Fear' : v < 45 ? 'Fear' : v < 55 ? 'Neutral' : v < 75 ? 'Greed' : 'Extreme Greed';
+    const data = [];
+    for (let i = 0; i < days; i++) {
+      const t = dayStart - i * DAY;
+      const v = Math.round(50 + Math.sin(t / DAY / 9) * 35); // 15..85, smooth
+      data.push({ value: String(v), value_classification: classify(v), timestamp: String(Math.floor(t / 1000)), time_until_update: '3600' });
+    }
+    return JSON.stringify({ name: 'Fear and Greed Index', data, metadata: { error: null } });
+  }
   return null;
 };
 

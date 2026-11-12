@@ -1,49 +1,38 @@
 'use client';
-/* The Arena strategy panel (#930), built from the owner-approved layout.
+/* The Arena strategy panel (#930, redesigned to the owner-approved artboards #1263).
  *
- * WHAT THIS IS NOT, YET. It owns the selection and nothing else. The four
- * consumers the selection eventually feeds - chart overlays, QUICK, DEEP and
- * ASK AI - are a separate change on purpose: one selection driving a chart and
- * three AI actions is the part that goes wrong quietly, and it should not land
- * inside a layout diff. `onRun` is the seam.
+ * WHAT THIS OWNS. The indicator selection and nothing else. The consumers the selection feeds -
+ * chart markers, QUICK, DEEP, ASK AI - live outside this component and read `selected` as a prop.
+ * `onRun` is the seam.
  *
- * STYLING LIVES IN globals.css, not here - by rule 1 of #663 a constant has
- * no second design to serve and belongs in a stylesheet. Was also
- * self-gated to terminal only (`if (design !== 'terminal') return null`);
- * that guard is gone as of #1111's Pattern-E slice - terminal is now the
- * only design that exists, so the check had nothing left to check for. See
- * #1111 for why this could be removed with an empty render diff: this
- * component was already unreachable under current design in practice
- * (near-zero population, bounded by measurement), and it is reachable from
- * `app/arena/page.tsx`'s shared rail, which the check confirms is unchanged.
+ * TWO SECTIONS, DELIBERATELY SEPARATE (the redesign). INDICATORS are the things a read weighs and a
+ * trader picks: SMA, PSAR, MACD, Bollinger. CHART LAYERS are drawn on the chart and do NOT use an
+ * indicator slot: the EMA ribbon, the RSI pane and GEX are always on, and S/R and Liquidation
+ * clusters are real switches synced to the chart toolbar. RSI is a LAYER here, not a selectable
+ * indicator - it is advisory and always drawn, so it is not in the selectable set (if a saved
+ * selection still carries `RSI`, the page filters it out before it reaches this panel).
  *
- * COPY IS HARDCODED ENGLISH AND THAT IS TEMPORARY. The approved design also
- * replaces trader jargon with plain language ("Crowded long" over "+0.0132%"),
- * which is a labels change - useLabels(), DB-driven - and is being filed
- * separately. Adding keys here would put them in lib/labelDefaults.en.json,
- * which `npm run labels:regen` rewrites wholesale, so they would not survive.
- */
+ * PRO AND TRIAL ARE UNLIMITED (owner): every indicator can be on at once, with no counter. FREE is
+ * one at a time - tapping another SWAPS it, and a persistent callout invites the upgrade. The limit
+ * lives in lib/strategyRegistry.ts (`indicatorLimit`), Infinity for Pro, 1 for Free.
+ *
+ * STYLING LIVES IN globals.css, not here (rule 1 of #663 - a constant has no second design to serve).
+ *
+ * COPY IS HARDCODED ENGLISH, matching the rest of this file and the file it replaced; the plain-words
+ * labels pass is a separate DB-driven change. The one exception is the params verdict note, which
+ * carries the owner's exact wording through a real label key. */
 
-import { useState, useMemo, useId } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { Lock } from './icons';
 import { useAuth } from './AuthProvider';
 import { SkeletonBar } from './Skeleton';
 import { EntitlementUnknownCard } from './UpgradeGateModal';
 import type { SettingsLoadStatus } from '@/lib/settings';
-// #1347 item 12: first real useLabels() call in this file. The header
-// comment above claims a key added here "would not survive labels:regen" -
-// that premise is false for a PROPER key (declared in lib/labelKeys.ts,
-// with DB rows), which is exactly what this is; the premise was only ever
-// true of hand-editing the JSON snapshot directly. Rest of this file's
-// copy stays hardcoded pending item 17's single-pass conversion - this key
-// alone needed the owner's sign-off on its exact wording, which a hardcoded
-// string can't carry.
 import { useLabels } from '@/lib/labels';
 import {
-  GROUPS, GROUP_LABEL, INDICATORS, STRATEGY_SETS,
-  AUTO_SET_ID, CUSTOM_SET_ID,
-  byGroup, findIndicator, indicatorLimit, defaultParams, canRender, slottedIds, strategyPlanLabel,
+  INDICATORS, STRATEGY_SETS, AUTO_SET_ID, CUSTOM_SET_ID,
+  findIndicator, indicatorLimit, defaultParams, canRender, slottedIds, strategyPlanLabel,
+  SELECTABLE_INDICATORS, SELECTABLE_INDICATOR_IDS,
   type IndicatorEntry, type ParamSpec, type OverlayState,
 } from '@/lib/strategyRegistry';
 
@@ -51,53 +40,24 @@ export type RunKind = 'quick' | 'deep' | 'ask';
 
 interface Props {
   /** What each chart overlay is doing right now, from strategyRegistry's overlayStates() - the same values the chart draws from.
-   *  Absent = the old behaviour (every overlay chip reads as always on). */
+   *  Absent = every layer reads as always on. */
   overlays?: Record<'EMA_RIBBON' | 'SR' | 'LIQ_CLUSTERS' | 'GEX', OverlayState>;
   /** Flip the chart's S/R or Liq layer: the same switch as the chart toolbar. */
   onOverlayToggle?: (id: 'SR' | 'LIQ_CLUSTERS') => void;
-  /** #1246/#1347: whether the caller's saved selection has actually been
-   *  read from the server (or confirmed there is none - a signed-out
-   *  visitor). Until 'ready', `selected` is NOT the user's real answer, just
-   *  whatever local state happened to start as - so this component must not
-   *  accept input that would write it out as if it were. A genuinely new
-   *  setup and a load that just hasn't landed yet both start as an empty
-   *  `selected`, which is exactly why this is a separate status rather than
-   *  inferred from `selected.length === 0`. 'error' is its own state, not
-   *  folded into 'loading': a failed read must render as a real error with a
-   *  retry, never as either a permanent skeleton (item 8) or a confirmed
-   *  empty selection that the next chip click would persist over the user's
-   *  real saved one (item 2 - the finding this whole type exists for). */
+  /** Whether the caller's saved selection has been read (or confirmed absent). Until 'ready',
+   *  `selected` is not the user's real answer, so no click may persist over it (#1246/#1347). */
   status: SettingsLoadStatus;
-  /** Retry action for the 'error' state - SettingsProvider's `refresh()`.
-   *  Returns a Promise (refresh() already is async) so this component can
-   *  show a pending state for the round trip - a click that changes nothing
-   *  on screen is indistinguishable from a click that didn't register. */
+  /** Retry for the 'error' state - SettingsProvider's refresh(). */
   onRetry: () => Promise<void>;
-  /** The current selection. CONTROLLED, and that is the point of this change:
-   *  the chart, QUICK, DEEP and ASK AI all need to know what is selected, and
-   *  three of those live outside this component. State that two consumers read
-   *  belongs above both of them. */
+  /** The current selection, CONTROLLED (the chart, QUICK, DEEP, ASK all read it). Ordered, not a Set. */
   selected: readonly string[];
   onSelectedChange: (next: readonly string[]) => void;
-  /** Per-indicator edited parameter values, keyed by indicator id then param
-   *  key. CONTROLLED, same reasoning as `selected` (#1008): the chart is the
-   *  other consumer, and it lives outside this component. An indicator with
-   *  no entry here yet falls back to `defaultParams`. */
+  /** Per-indicator edited parameters, CONTROLLED (#1008). */
   params: Record<string, Record<string, string | number | boolean>>;
   onParamsChange: (next: Record<string, Record<string, string | number | boolean>>) => void;
-  /** Fired when a run button is pressed. The page owns what running means.
-   *  Required, not optional (#996): QUICK/DEEP/ASK AI are the panel's own
-   *  reason to have run buttons at all, and an optional prop called as
-   *  `onRun?.(...)` is a well-formed no-op when nothing is passed - no type
-   *  error, no runtime error, just three dead buttons, which is exactly how
-   *  this went unnoticed until QA hit it by hand. Required turns a future
-   *  instance of the same mistake into a compile error instead. */
+  /** Fired when a run button is pressed. Required (#996). */
   onRun: (kind: RunKind, selection: readonly string[]) => void;
-  /** #1309 item 24: whether a Quick/Deep/Ask read is already in flight.
-   *  Disables all three run buttons while true - onRun's own guard
-   *  (readMarket bails early on a concurrent call) stops a second paid AI
-   *  call either way, but a click that visibly does nothing is still a
-   *  worse experience than a greyed-out button. */
+  /** Whether a read is already in flight - disables the run buttons (#1309 item 24). */
   running?: boolean;
 }
 
@@ -111,13 +71,7 @@ function ParamRow({ spec, value, readOnly, onChange }: {
     return (
       <div className="strat-prow">
         <span>{spec.label}</span>
-        <select
-          className="strat-pv"
-          value={String(value)}
-          disabled={readOnly}
-          aria-label={spec.label}
-          onChange={e => onChange(e.target.value)}
-        >
+        <select className="strat-pv" value={String(value)} disabled={readOnly} aria-label={spec.label} onChange={e => onChange(e.target.value)}>
           {spec.options.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       </div>
@@ -127,14 +81,7 @@ function ParamRow({ spec, value, readOnly, onChange }: {
     return (
       <div className="strat-prow">
         <span>{spec.label}</span>
-        <input
-          className="strat-pv"
-          type="checkbox"
-          checked={Boolean(value)}
-          disabled={readOnly}
-          aria-label={spec.label}
-          onChange={e => onChange(e.target.checked ? 1 : 0)}
-        />
+        <input className="strat-pv" type="checkbox" checked={Boolean(value)} disabled={readOnly} aria-label={spec.label} onChange={e => onChange(e.target.checked ? 1 : 0)} />
       </div>
     );
   }
@@ -142,17 +89,43 @@ function ParamRow({ spec, value, readOnly, onChange }: {
     <div className="strat-prow">
       <span>{spec.label}</span>
       <input
-        className="strat-pv"
-        type="number"
-        inputMode="numeric"
-        value={String(value)}
-        min={spec.min}
-        max={spec.max}
-        step={spec.kind === 'float' ? spec.step : (spec.step ?? 1)}
-        disabled={readOnly}
-        aria-label={spec.label}
-        onChange={e => onChange(Number(e.target.value))}
+        className="strat-pv" type="number" inputMode="numeric" value={String(value)}
+        min={spec.min} max={spec.max} step={spec.kind === 'float' ? spec.step : (spec.step ?? 1)}
+        disabled={readOnly} aria-label={spec.label} onChange={e => onChange(Number(e.target.value))}
       />
+    </div>
+  );
+}
+
+/* One always-on CHART LAYERS row: a name and a right-aligned status word, no control. */
+function LayerRow({ name, status }: { name: string; status: string }) {
+  return (
+    <div className="strat-layer">
+      <span className="strat-layer-name">{name}</span>
+      <span className="strat-layer-state">{status}</span>
+    </div>
+  );
+}
+
+/* A CHART LAYERS switch (S/R, Liq): a real role="switch" button synced to the chart toolbar.
+   `unavailable` (a coin with no such layer) shows an off, disabled switch rather than hiding it. */
+function LayerSwitch({ name, on, unavailable, onToggle }: { name: string; on: boolean; unavailable: boolean; onToggle: () => void }) {
+  const { t } = useLabels();
+  return (
+    <div className="strat-layer">
+      <span className="strat-layer-name">{name}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label={name}
+        disabled={unavailable}
+        className={`strat-switch${on ? ' on' : ''}`}
+        title={unavailable ? t('STRATEGY_PANEL_LAYER_UNAVAILABLE') : undefined}
+        onClick={onToggle}
+      >
+        <span className="strat-switch-knob" aria-hidden="true" />
+      </button>
     </div>
   );
 }
@@ -162,126 +135,77 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
   const { user, loading: authLoading, entitlementStatus, retryEntitlements } = useAuth();
   const planLabel = strategyPlanLabel({ signedIn: !!user, authLoading, entitlementStatus });
   const entitled = entitlementStatus === 'entitled';
-  // #1347 item 6: `entitled` (used for `limit`/`atLimit`/`readOnly` below)
-  // collapses 'not_entitled' and 'unknown' into the same false - so a Pro
-  // user whose entitlements read hadn't resolved yet was capped at the
-  // free-tier limit=1 and shown a read-only params box, a confident "you
-  // are on free" the owner's #1119 ruling forbids asserting. The selection
-  // UI itself is replaced with EntitlementUnknownCard below while unknown -
-  // same component and Retry action arena/page.tsx already uses for its
-  // Confluence card (:2524-2534), not a second implementation of the same
-  // three states.
   const entitlementUnknown = entitlementStatus === 'unknown';
   const { t } = useLabels();
-  // #1347: local, not global - a USER-initiated retry gets its own pending
-  // state so the button visibly does something, without reintroducing the
-  // flash `refresh()` deliberately skips for a background poll. Cleared in
-  // a finally so a rejected refresh() (network throw, not just a reported
-  // 'error' status) still releases the button rather than leaving it
-  // permanently disabled.
+
   const [retrying, setRetrying] = useState(false);
   const handleRetry = async () => {
     setRetrying(true);
     try { await onRetry(); } finally { setRetrying(false); }
   };
-  const limitNoteId = useId();
-  const limit = indicatorLimit(entitled);
 
+  const limit = indicatorLimit(entitled);
   const [setId, setSetId] = useState<string>(AUTO_SET_ID);
-  /* `selected` is a prop now, not state - see Props. It is still an ORDERED
-     list rather than a Set: the chip badge shows the position in the selection,
-     which the artifact draws as 1 and 2, so order is data and a Set would throw
-     it away. */
-  /* `params` is a prop too, as of #1008 - see Props. */
-  /* Which indicator's parameters the box is showing. The artifact draws one
-     params box, not one per selected indicator. */
+  /* Which indicator's parameters the box shows. One box, not one per selection. */
   const [focused, setFocused] = useState<string | null>(null);
-  /* How many of a preset's indicators this tier could not take. Shown, never
-     silent: dropping two of three without saying so is worse than the error
-     this truncation exists to avoid. */
   const [dropped, setDropped] = useState(0);
 
   const paramsFor = (entry: IndicatorEntry) => params[entry.id] ?? defaultParams(entry);
   const focusedEntry = focused ? findIndicator(focused) : undefined;
-  /* The cap counts only entries that take an indicator slot. The chart overlays (EMA ribbon, S/R, Liq clusters, GEX) are
-     layers the chart draws on its own, so they never fill a slot and never read as "used". */
   const used = slottedIds(selected).length;
-  const atLimit = used >= limit;
 
   const applySet = (id: string) => {
-    // #1246: the pre-load blank state must be inert, not just look inert -
-    // see the `loaded` prop doc for why this can't be inferred from
-    // `selected` itself.
     if (!loaded) return;
     setSetId(id);
     const preset = STRATEGY_SETS.find(s => s.id === id);
     if (!preset || id === CUSTOM_SET_ID) { setDropped(0); return; }
-    /* A preset can name more indicators than this tier may combine. Truncate
-       rather than refuse - a free user picking "Liquidity Sweep" made a
-       reasonable choice, and erroring at them about a limit they did not set
-       punishes them for the tier. But say so: see `dropped`. */
-    /* Overlays are kept (they cost no slot); the rest are cut to what the plan may combine. */
+    /* A preset can name more indicators than Free may combine (Pro is unlimited). Overlays and the
+       always-on RSI are not selectable here, so keep only the preset's selectable ids, capped to the
+       plan. Truncate rather than refuse, and say so (`dropped`). */
     let room = limit;
-    const next = preset.indicators.filter(i => { if (findIndicator(i)?.source === 'overlay') return true; if (room > 0) { room--; return true; } return false; });
-    setDropped(preset.indicators.length - next.length);
+    const next = preset.indicators.filter(i => {
+      if (!SELECTABLE_INDICATOR_IDS.has(i)) return false;
+      if (room > 0) { room--; return true; }
+      return false;
+    });
+    setDropped(preset.indicators.filter(i => SELECTABLE_INDICATOR_IDS.has(i)).length - next.length);
     onSelectedChange(next);
     setFocused(next[0] ?? null);
   };
 
   const toggle = (entry: IndicatorEntry) => {
-    // #1246: same reasoning as applySet above - a click before the real
-    // selection has loaded must not write `[...emptyPreLoadState, entry.id]`
-    // over whatever the user actually saved.
-    if (!loaded) return;
-    /* An entry that cannot draw is not selectable. Accepting the click and
-       doing nothing is the silent-failure shape this project has spent a day
-       arguing against - it would look exactly like a working chip. */
-    if (!canRender(entry)) return;
-    /* A chart overlay is not a selection: its chip is the chart's own switch. S/R and Liq flip the toolbar toggle; the ribbon and
-       GEX are always drawn, and a coin that has no such layer has nothing to flip. */
-    if (entry.source === 'overlay') {
-      if (entry.id === 'SR' || entry.id === 'LIQ_CLUSTERS') {
-        if ((overlays?.[entry.id] ?? 'on') !== 'none') onOverlayToggle?.(entry.id);
-      }
-      return;
-    }
-    if (selected.includes(entry.id)) {
-      /* #1027 - with 2+ selected, clicking an EARLIER chip meant "show its
-         params again", not "remove it". The two gestures only look the same
-         with exactly one selected (where the clicked chip is always already
-         the focused one, so this branch and the old unconditional-remove
-         behavior agree). Only deselect when re-clicking the chip that is
-         ALREADY showing its params - the explicit "I'm done with this one"
-         gesture - otherwise just bring its params back into view. */
-      if (focused !== entry.id && selected.length > 1) {
-        setFocused(entry.id);
-      } else {
-        const next = selected.filter(id => id !== entry.id);
-        setFocused(next[next.length - 1] ?? null);
-        onSelectedChange(next);
-      }
-    } else if (used < limit) {
-      setFocused(entry.id);
-      onSelectedChange([...selected, entry.id]);
-    }
-    /* Touching a chip makes it a custom set on its own. Requiring the dropdown
-       to be changed first would make the obvious gesture do nothing. */
+    if (!loaded || !canRender(entry)) return;
     setSetId(CUSTOM_SET_ID);
     setDropped(0);
+    if (selected.includes(entry.id)) {
+      /* #1027: with 2+ on, clicking an earlier chip re-shows its params; only the chip already
+         showing its params deselects. With Pro unlimited this is the common path. */
+      if (focused !== entry.id && selected.length > 1) { setFocused(entry.id); return; }
+      const next = selected.filter(id => id !== entry.id);
+      setFocused(next[next.length - 1] ?? null);
+      onSelectedChange(next);
+      return;
+    }
+    if (entitled || used < limit) {
+      setFocused(entry.id);
+      onSelectedChange([...selected, entry.id]);
+      return;
+    }
+    /* FREE, AT THE CAP: tap-to-SWAP, not refuse (the redesign). The new pick replaces the old one,
+       which is the obvious gesture for a one-at-a-time control - refusing it made the chip look
+       dead. `limit` is 1 on Free, so the new selection is exactly this one indicator. */
+    setFocused(entry.id);
+    onSelectedChange([entry.id]);
   };
 
-  const groups = useMemo(() => GROUPS.map(g => ({ id: g, entries: byGroup(g) })), []);
+  const layer = (id: 'EMA_RIBBON' | 'SR' | 'LIQ_CLUSTERS' | 'GEX'): OverlayState => overlays?.[id] ?? 'always';
   const isAuto = loaded && setId === AUTO_SET_ID && selected.length === 0;
 
   return (
     <div className="strat-panel">
       <div className="strat-head">
         <span>Strategy</span>
-        {/* #1119: 'unknown' must not read as a confident "FREE" - that is
-            exactly the false assertion the owner's ruling forbids, on the one
-            line in this file that names a plan tier instead of just
-            disabling something. Hardcoded English, same as the rest of this
-            file's copy (see the file-header comment on why). */}
+        {/* #1119: 'unknown' must not read as a confident plan tier. */}
         <span className="strat-aux" title={entitlementStatus === 'unknown' ? "Couldn't verify your plan" : undefined}>
           {planLabel.head}
         </span>
@@ -293,58 +217,47 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
       <>
       <div className="strat-sect">
         <div className="strat-lbl">
-          <span>Strategy set</span>
+          <span>{t('STRATEGY_PANEL_SECTION_SET')}</span>
           {entitled && <span className="strat-cap">Edit · Save as</span>}
         </div>
-        <select
-          className="strat-sel"
-          value={setId}
-          disabled={!loaded}
-          aria-label="Strategy set"
-          onChange={e => applySet(e.target.value)}
-        >
+        <select className="strat-sel" value={setId} disabled={!loaded} aria-label={t('STRATEGY_PANEL_SECTION_SET')} onChange={e => applySet(e.target.value)}>
           {STRATEGY_SETS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
       </div>
 
       <div className="strat-sect">
         <div className="strat-lbl">
-          <span>Indicators</span>
-          {/* The ceiling is visible before it is reached rather than announced
-              as a rejection afterwards. Withheld while unloaded too - "0 of 3"
-              reads as a real count, and it isn't one yet. */}
-          {/* A chip, not grey caption text (owner, 2026-10-07): the plan, how many are used and the real cap (LIMITS: Free 1,
-              Pro 3). It turns accent when the cap is reached. */}
-          {loaded && <span className={`strat-count${atLimit ? ' full' : ''}`}>{planLabel.countPrefix}{used} of {limit} used</span>}
+          <span>{t('STRATEGY_PANEL_SECTION_INDICATORS')}</span>
+          {/* Pro/trial: how many are on, no "of N" - there is no cap. Free: the one-at-a-time rule. */}
+          {loaded && (
+            entitled
+              ? <span className="strat-count">{t('STRATEGY_PANEL_ON_COUNT', { n: used })}</span>
+              : <span className="strat-count">{t('STRATEGY_PANEL_FREE_LIMIT')}</span>
+          )}
         </div>
 
-        {/* #1246: a neutral loading state, not an empty one. The pre-load
-            selection is genuinely unknown, not genuinely zero - showing every
-            chip unselected asserts the second when only the first is true,
-            the same "unknown shown as a definite answer" class as #1119/#1201. */}
+        {/* Pro note vs Free note, from the artboard. The Pro line is now TRUE (the read receives the
+            selected indicators' values, #1631/#2161). */}
+        {loaded && (
+          <p className="strat-ind-note">
+            {entitled
+              ? t('STRATEGY_PANEL_NOTE_PRO')
+              : t('STRATEGY_PANEL_NOTE_FREE')}
+          </p>
+        )}
+
         {status === 'loading' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} role="status" aria-live="polite">
             <span className="sr-only">Loading your saved strategy…</span>
-            {[0, 1, 2].map(i => (
-              <SkeletonBar key={i} height={28} radius={8} style={{ opacity: 1 - i * 0.18 }} />
-            ))}
+            {[0, 1, 2].map(i => <SkeletonBar key={i} height={40} radius={8} style={{ opacity: 1 - i * 0.18 }} />)}
           </div>
         )}
 
-        {/* #1347 item 2/8: a failed read is its own state, not "still
-            loading" (item 8's permanent-skeleton symptom) or "confirmed
-            empty" (item 2's data-loss symptom - the chip guards above stay
-            closed via `loaded`, this is just what the user sees while
-            they're closed). Hardcoded English, matching every other string
-            in this panel today (see file header) - converts with the rest
-            in item 17's single pass rather than holding this fix behind a
-            copy sign-off. */}
         {status === 'error' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }} role="alert">
             <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>Couldn&apos;t load your saved indicators.</span>
             <button
-              onClick={handleRetry}
-              disabled={retrying}
+              onClick={handleRetry} disabled={retrying}
               style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '2px 8px', cursor: retrying ? 'default' : 'pointer', opacity: retrying ? 0.6 : 1 }}
             >
               {retrying ? 'Retrying…' : 'Retry'}
@@ -352,155 +265,50 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
           </div>
         )}
 
-        {loaded && groups.map(({ id, entries }) => (
-          <div key={id} className="strat-grp">
-            <div className="strat-gname">{GROUP_LABEL[id]}</div>
-            <div className="strat-chips">
-              {/* UNWIRED INDICATORS ARE HIDDEN, NOT DIMMED (owner, 2026-11-10). This supersedes
-                  #967's "show them dimmed" ruling: 13 of the 24 registry entries are
-                  `source: 'new'`, so more than half the panel advertised things that draw nothing,
-                  and the note underneath had to apologise for them. A chip comes back when it works.
-
-                  `canRender(entry)` ONLY, deliberately NOT the wider `usable` computed below.
-                  `usable` is also false when a real overlay is simply not drawn on THIS coin's
-                  chart (`ovState === 'none'`), and that one is wired, working and coin-dependent -
-                  hiding it would make a working feature vanish depending on which coin is
-                  selected. That case keeps its dimming and its own "Not drawn on this coin's
-                  chart" tooltip.
-
-                  The strategy logic is untouched: the registry still carries these entries,
-                  `canRender` still answers for them, and nothing about selection or limits
-                  changed. Only the panel stops showing what does not exist yet. */}
-              {entries.filter(canRender).map(entry => {
-                const isOverlay = entry.source === 'overlay';
-                const ovState: OverlayState | null = isOverlay ? ((overlays as Record<string, OverlayState> | undefined)?.[entry.id] ?? 'always') : null;
-                const pos = isOverlay ? -1 : selected.indexOf(entry.id);
-                /* An overlay chip is on when the chart is drawing it (always, or its toggle is on); an indicator chip when it is selected. */
-                const on = isOverlay ? (ovState === 'always' || ovState === 'on') : pos >= 0;
-                const usable = canRender(entry) && ovState !== 'none';
-                const blocked = usable && !isOverlay && !on && atLimit;
-                const fixedOn = ovState === 'always';
-                return (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    className={`strat-chip${on ? ' on' : ''}${fixedOn ? ' always' : ''}${blocked ? ' blocked' : ''}${usable ? '' : ' notyet'}`}
-                    aria-pressed={usable ? on : undefined}
-                    /* Blocked (past the limit) is disabled to assistive tech too, while
-                       staying focusable (see onClick below) - PM/DevOps, #1495. */
-                    aria-disabled={usable && !blocked && !fixedOn ? undefined : true}
-                    /* The reason is in the NAME, not a title. A dimmed chip that
-                       announces identically to a working one is the mouse-only
-                       `title` problem again, one screen over - and `title` is
-                       what clobbered every blocked chip's name on #959. */
-                    /* "Not available yet" reads as a plan question - upgrade
-                       and it appears. It never does: canRender is keyed on
-                       `source`, not on entitlement, so this is identical on
-                       every plan. Naming that explicitly here too, not just
-                       in the visible note, since a screen reader user only
-                       ever gets this string. */
-                    aria-label={ovState === 'none' ? `${entry.label} - not drawn on this coin's chart` : fixedOn ? `${entry.label} - always on the chart, does not use an indicator slot` : usable ? undefined : `${entry.label} - not wired up to the chart yet, same on every plan`}
-                    /* The reason is a DESCRIPTION, and it points at the visible
-                       line below rather than at hidden text or a `title`.
-
-                       NO `title` HERE, and that is a fix rather than a
-                       simplification. QA measured it live: with `title` on this
-                       button, every blocked chip's accessible NAME came back as
-                       "Deselect one first - 3 at a time" instead of "Ichimoku",
-                       for all of them alike. Isolated in both directions on the
-                       running page - removing `title` from one chip restored
-                       its name; removing `aria-describedby` from another and
-                       leaving `title` did not. So `title` was clobbering
-                       name-from-content, and the first fix traded "the keyboard
-                       learns nothing" for "the keyboard cannot tell the chips
-                       apart". Second gap, not a closed one.
-
-                       A description does not participate in the name, so this
-                       shape cannot repeat the trade. */
-                    aria-describedby={blocked ? limitNoteId : undefined}
-                    /* Not wired to the chart: a short mouse tooltip. The accessible name is the aria-label above, so this does not
-                       touch it (the #959 clobbering was a title on a blocked chip with no aria-label). No lock: this is not a plan
-                       limit and upgrading does not change it. */
-                    title={ovState === 'none' ? "Not drawn on this coin's chart" : fixedOn ? 'Always shown on the chart' : entry.id === 'RSI' ? 'The RSI-14 pane is always on the chart. Selecting RSI adds it to your read; it draws nothing extra.' : usable ? undefined : 'Not on the chart yet'}
-                    /* A chip past the limit stays focusable. Making it
-                       `disabled` would drop it out of the tab order and leave a
-                       keyboard user unable to find out what stopped them. */
-                    onClick={() => toggle(entry)}
-                  >
-                    {on && !isOverlay && <span className="strat-n" aria-hidden="true">{pos + 1}</span>}
-                    {entry.label}
-                    {fixedOn && <span className="strat-chip-tag" aria-hidden="true">always on</span>}
-                    {/* The chart always draws an RSI-14 pane and a volume pane, whatever is selected (they are the chart's default look).
-                        RSI stays a real, counted choice - selecting it puts RSI in your read, and nothing more - so the chip carries a
-                        visible tag saying the plain pane is there either way (and it is the ONLY RSI pane: selecting the chip draws no second one). Volume has no chip. */}
-                    {entry.id === 'RSI' && <span className="strat-chip-tag" aria-hidden="true">pane always on</span>}
-                    {/* The same lock Settings puts on a locked timeframe: text alone
-                        could not tell a blocked chip from an enabled one once both
-                        were raised to --txt3 for contrast (#1495). */}
-                    {/* The lock slot is always in a selectable chip's layout and only shown when it is blocked, so reaching the cap does
-                        not change any chip's width and re-wrap the list. The shared Lock icon (components/icons.tsx), not an emoji. */}
-                    {usable && !isOverlay && <Lock size={12} style={{ visibility: blocked ? 'visible' : 'hidden' }} />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-
-        {/* VISIBLE, not screen-reader-only, and only while it is true.
-
-            The first version hid this text and left a `title` for mouse users,
-            which is two channels carrying one sentence and one of them
-            clobbering the chip names. One visible line serves everybody: a
-            sighted mouse user reads it without hovering, and it is what the
-            blocked chips point their description at.
-
-            One element for every blocked chip rather than one each - the
-            sentence is identical, and twenty copies of it in the accessibility
-            tree is its own defect. */}
-        {/* One line for the dimmed chips, visible rather than hidden, for the
-            same reason the limit note is: a sighted user should not have to
-            hover to find out why a third of the list is greyed out.
-
-            "Not available yet" was the original wording and it is wrong in a
-            freemium panel: sitting next to the PRO/FREE tag above, a Free
-            reader takes it as "upgrade to unlock" and a Pro reader takes it
-            as "something's broken, I paid for this". Neither is true -
-            canRender is keyed on `source` (whether the indicator is wired
-            into the chart at all), not on entitlement, so it is identical
-            for every plan. Saying so directly removes the misread instead
-            of relying on the reader not to make it. */}
         {loaded && (
-          <div className="strat-notyet-note" data-testid="overlay-note">
-            EMA ribbon, S/R, Liq clusters and GEX are chart layers, not indicators, so they don&apos;t use a slot: the ribbon and GEX are always on, and S/R and Liq follow the chart toolbar. The RSI and volume panes are always shown too.
+          <div className="strat-ind-grid">
+            {SELECTABLE_INDICATORS.map(entry => {
+              const on = selected.includes(entry.id);
+              const pos = selected.indexOf(entry.id);
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  className={`strat-ind-chip${on ? ' on' : ''}`}
+                  aria-pressed={on}
+                  data-testid={`strategy-indicator-${entry.id}`}
+                  onClick={() => toggle(entry)}
+                >
+                  <span className="strat-ind-box" aria-hidden="true">
+                    {on && (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 6.2l2.3 2.3 4.7-5" /></svg>
+                    )}
+                  </span>
+                  <span className="strat-ind-text">
+                    <span className="strat-ind-name">{on && selected.length > 1 && <span className="strat-n" aria-hidden="true">{pos + 1}</span>}{entry.label}</span>
+                    {entry.blurbKey && <span className="strat-ind-desc">{t(entry.blurbKey)}</span>}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
-        {/* THE "DIMMED INDICATORS AREN'T WIRED UP" NOTE IS GONE (owner, 2026-11-10), and it had to
-            go with the chips rather than after them: the unwired entries are no longer rendered, so
-            the note described nothing. Worse, it would have been actively WRONG for the dimming
-            that remains - an overlay that is simply not drawn on this coin's chart IS wired up, and
-            that case has its own "Not drawn on this coin's chart" tooltip and accessible name. */}
 
-        {atLimit && (
-          <div id={limitNoteId} className="strat-limit" role="status">
-            {entitled
-              ? `Deselect one first - ${limit} at a time`
-              : <>{`Limit reached${planLabel.plan === 'free' ? ' on Free' : ''} (${limit} indicator${limit === 1 ? '' : 's'}). `}<Link href="/upgrade" className="strat-limit-link" data-testid="strategy-limit-upgrade">Upgrade</Link>{' for more.'}</>}
+        {/* FREE ONLY: the persistent upgrade callout, present even with nothing selected (it is an
+            invitation, not a limit warning). Pro never sees it - Pro has every indicator already. */}
+        {loaded && !entitled && (
+          <div className="strat-callout" role="note">
+            <span>{t('STRATEGY_PANEL_PRO_CALLOUT')}</span>
+            <Link href="/upgrade" className="strat-callout-link" data-testid="strategy-pro-callout">{t('STRATEGY_PANEL_PRO_CALLOUT_LINK')}</Link>
           </div>
         )}
 
         {isAuto && (
-          <div className="strat-auto">
-            The read picks the indicators that fit this coin and timeframe.
-          </div>
+          <div className="strat-auto">{t('STRATEGY_PANEL_AUTO_NOTE')}</div>
         )}
 
         {dropped > 0 && (
           <div className="strat-trunc" role="status">
-            {/* Tier-neutral wording on purpose. The limit is 1 on free and 3 on
-                Pro, and a preset can outgrow either - saying "free" here would
-                be wrong for a Pro user the first time a four-indicator set
-                exists. */}
             {dropped === 1
               ? `1 indicator in this set is beyond your limit - showing the first ${limit}.`
               : `${dropped} indicators in this set are beyond your limit - showing the first ${limit}.`}
@@ -515,35 +323,46 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
                 key={spec.key}
                 spec={spec}
                 value={paramsFor(focusedEntry)[spec.key]}
-                /* Free keeps the defaults and can see them. Hiding the values
-                   would make the tier difference look like missing data. */
                 readOnly={!entitled}
-                onChange={v => onParamsChange({
-                  ...params,
-                  [focusedEntry.id]: { ...paramsFor(focusedEntry), [spec.key]: v },
-                })}
+                onChange={v => onParamsChange({ ...params, [focusedEntry.id]: { ...paramsFor(focusedEntry), [spec.key]: v } })}
               />
             ))}
             {!entitled && <div className="strat-ro">Defaults on free · editable on Pro</div>}
-            {/* #1347 item 12, owner-approved wording: a Pro user who edits a
-                param sees the chart line move but not the verdict card,
-                which still gates on the registry's default values
-                (lib/useEMAStrategy.ts) - owner ruling on #1347 accepted
-                this as a real limitation, provided it's labelled here where
-                the editing happens. */}
             {entitled && <div className="strat-ro">{t('STRATEGY_PANEL_PARAMS_VERDICT_NOTE')}</div>}
           </div>
         )}
       </div>
+
+      {/* CHART LAYERS: drawn on the chart on every plan, never using an indicator slot. */}
+      {loaded && (
+        <div className="strat-sect">
+          <div className="strat-lbl"><span>{t('STRATEGY_PANEL_SECTION_LAYERS')}</span></div>
+          <p className="strat-ind-note">{t('STRATEGY_PANEL_LAYERS_NOTE')}</p>
+          <div className="strat-layers">
+            <LayerRow name={t('STRATEGY_PANEL_LAYER_EMA')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON')} />
+            <LayerRow name={t('STRATEGY_PANEL_LAYER_RSI')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON')} />
+            <LayerRow name={t('STRATEGY_PANEL_LAYER_GEX')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON_BTC')} />
+            <LayerSwitch
+              name={t('STRATEGY_PANEL_LAYER_SR')}
+              on={layer('SR') === 'on' || layer('SR') === 'always'}
+              unavailable={layer('SR') === 'none'}
+              onToggle={() => onOverlayToggle?.('SR')}
+            />
+            <LayerSwitch
+              name={t('STRATEGY_PANEL_LAYER_LIQ')}
+              on={layer('LIQ_CLUSTERS') === 'on' || layer('LIQ_CLUSTERS') === 'always'}
+              unavailable={layer('LIQ_CLUSTERS') === 'none'}
+              onToggle={() => onOverlayToggle?.('LIQ_CLUSTERS')}
+            />
+          </div>
+        </div>
+      )}
       </>
       )}
 
       <div className="strat-sect">
-        <div className="strat-lbl"><span>Run the read</span></div>
+        <div className="strat-lbl"><span>{t('STRATEGY_PANEL_SECTION_RUN')}</span></div>
         <div className="strat-actions">
-          {/* Never gated on a selection. Zero indicators is the default state and
-              all three actions work in it - that is what "let the read choose"
-              means. */}
           <button type="button" className="strat-btn pri" disabled={running} onClick={() => onRun('quick', selected)}>QUICK</button>
           <button type="button" className="strat-btn" disabled={running} onClick={() => onRun('deep', selected)}>DEEP</button>
           <button type="button" className="strat-btn" onClick={() => onRun('ask', selected)}>ASK AI</button>
@@ -553,12 +372,16 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
   );
 }
 
-/** Exported for the unit test: the registry and the limit together decide what a
- *  tier may hold, and that rule should be checkable without rendering React. */
+/** Exported for the unit test: the registry and the limit together decide what a tier may hold,
+ *  checkable without rendering React. On Free (limit 1) a second pick swaps rather than stacks;
+ *  Pro is unlimited. */
 export function nextSelection(prev: readonly string[], id: string, limit: number): readonly string[] {
   if (prev.includes(id)) return prev.filter(x => x !== id);
-  /* Only entries that take a slot count toward the cap; a chart overlay is never refused for it. */
-  if (slottedIds([id]).length > 0 && slottedIds(prev).length >= limit) return prev;
+  if (slottedIds([id]).length > 0 && slottedIds(prev).length >= limit) {
+    /* At the cap with a one-slot limit (Free): swap to the new pick rather than refuse. For limit > 1
+       this keeps the old refuse-at-cap behaviour. */
+    return limit === 1 ? [id] : prev;
+  }
   return [...prev, id];
 }
 

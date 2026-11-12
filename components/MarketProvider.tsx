@@ -4,7 +4,7 @@ import {
   MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
   BINANCE_SYMS, BYBIT_SYMS, UNIVERSE_SYM_TO_COIN,
 } from '@/lib/marketStore';
-import { bybitPriceFactor, BINANCE_SPOT_SYMS } from '@/lib/coins';
+import { bybitPriceFactor, binancePriceFactor, BINANCE_SPOT_SYMS, UNIVERSE_BINANCE_ONLY } from '@/lib/coins';
 import { computeRSI14 } from '@/lib/rsi';
 import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
@@ -291,9 +291,19 @@ export default function MarketProvider(
         startWSRef.current();
       }, delay);
 
-      /* The REST backup still waits for the quick attempts to be spent, deliberately: a two-second
-         blip should not spin up a 45-symbol poll. */
-      if (retriesRef.current <= 5) return;
+      /* The REST backup waits for the quick socket attempts to be spent, deliberately: a two-second
+         blip mid-session should not spin up a 45-symbol poll when prices are already on screen.
+
+         THE EXCEPTION IS A COLD LOAD (#1651). On first load prices come only from the socket, so
+         until it delivers, no coin has a price and the whole page sits on a skeleton. If the first
+         connect is slow or fails (Render cold start), waiting out five capped-backoff retries left
+         that skeleton up for ~36 s. So when NO coin has a price yet, don't wait - run the REST
+         backup on the first close, which fills prices in one request. `storeRef` lags render by a
+         tick, which is harmless here: it can only be stale in the direction of "a price just
+         arrived", and starting the backup a close early when prices already exist costs one poll,
+         not a blank page. */
+      const noPriceYet = !Object.values(storeRef.current.coins).some(c => Number.isFinite(c?.price));
+      if (retriesRef.current <= 5 && !noPriceYet) return;
 
       /* ── REST fallback ──
          This used to poll every 5 seconds, forever, and never retry the
@@ -330,10 +340,49 @@ export default function MarketProvider(
   useEffect(() => { startWSRef.current = startWS; }, [startWS]);
 
   /* ── Bybit: all coins - single bulk fetch instead of per-symbol calls ── */
+  /* ── FUNDING FROM BINANCE, WHEN THE BYBIT READ FAILS (#1651, the funding chip's single venue) ──
+   *
+   * The chip's `fundingRate` came from ONE source: Bybit's bulk ticker, above. A Bybit blip left it null
+   * and the chip said "unavailable" beside a healthy `/api/funding`, which has a Binance fallback of its own.
+   * Binance's premium index (already polled every 30s for the next-funding estimate) carries
+   * `lastFundingRate` for the same perps, so a failed Bybit read is backed by it.
+   *
+   * RULES, each one deliberate:
+   *   - ONLY WHEN THE BYBIT READ FAILED (non-OK, a throw, or no list at all). A Bybit read that answered
+   *     but carries no figure for some coin is NOT a failure and does not call this - same rule as the
+   *     1h open-interest fallback (#2149).
+   *   - NEVER OVERWRITE A FIGURE WE ALREADY HOLD. Funding differs a little between venues, and swapping
+   *     the chip between two venues cycle to cycle would read as the rate moving. It only fills a coin
+   *     that has none.
+   *   - NOT WHEN THE PROXY ANSWERED FROM BYBIT. `/api/proxy` falls back to Bybit if Binance is down
+   *     (X-Data-Source: bybit-fallback); that is the venue that just failed, so it is skipped.
+   *   - A missing or unparseable figure stays UNKNOWN (the key is left out), never 0. */
+  const fundingFromBinance = useCallback(async () => {
+    try {
+      const res = await fetch('/api/proxy?type=premium-index', { cache: 'no-store' });
+      if (!res.ok || res.headers.get('X-Data-Source') === 'bybit-fallback') return;
+      const data = await res.json() as Array<{ symbol: string; lastFundingRate?: string }>;
+      if (!Array.isArray(data)) return;
+      for (const item of data) {
+        const id = SYM_MAP[item.symbol];
+        if (!id || storeRef.current.coins[id]?.fundingRate != null) continue;
+        const fr = parseFloat(item.lastFundingRate ?? '');
+        if (Number.isFinite(fr)) updateCoin(id, { fundingRate: fr });
+      }
+    } catch { /* both venues down: the chip stays unknown, which is true */ }
+  }, [updateCoin]);
+
   const fetchBybit = useCallback(async () => {
     try {
-      const res = await fetch('/api/proxy?type=bybit-tickers');
-      const d = await res.json();
+      /* A non-OK answer or a throw is a FAILED read, handled by the Binance fallback below - not an empty
+         one. (A non-OK body used to be parsed and silently yield no rows, which looked like "no data".) */
+      const d = await (async () => {
+        try {
+          const res = await fetch('/api/proxy?type=bybit-tickers');
+          return res.ok ? await res.json() : null;
+        } catch { return null; }
+      })();
+      if (!d || !Array.isArray(d.result?.list)) { await fundingFromBinance(); return; }
       // Build symbol → ticker map for O(1) lookup
       const bySymbol: Record<string, Record<string, string>> = {};
       for (const t of (d.result?.list ?? [])) bySymbol[t.symbol] = t;
@@ -434,8 +483,43 @@ export default function MarketProvider(
         };
       }
       updateCoins(extra);
+
+      /* ── UNIVERSE ROWS BYBIT DOES NOT LIST (Binance-only TradFi) ────────────────────────────
+       *
+       * The Bybit bulk response above prices every other universe coin, so these 18 (pre-IPO
+       * references, a few commodities, the Hong Kong shares) would sit at "-" with no source. One
+       * small request names exactly them. Same rule as above: price and 24h change only, no funding
+       * or open interest, and a failed or empty answer leaves the previous values rather than
+       * blanking them. `priceChangePercent` is already a percent (Bybit's is a fraction). */
+      const bnOnly = Object.keys(UNIVERSE_BINANCE_ONLY);
+      if (bnOnly.length > 0) {
+        try {
+          const r = await fetch('/api/proxy?type=binance-futures-24hr&symbols=' + encodeURIComponent(JSON.stringify(bnOnly)));
+          const arr: unknown = r.ok ? await r.json() : null;
+          if (Array.isArray(arr)) {
+            const bn: Record<string, Partial<MarketStore['coins'][CoinId]>> = {};
+            for (const t of arr as Array<Record<string, string>>) {
+              const id = UNIVERSE_BINANCE_ONLY[t.symbol];
+              if (!id) continue;
+              const f = binancePriceFactor(id);
+              const price = parseFloat(t.lastPrice ?? '') * f;
+              if (!Number.isFinite(price) || price <= 0) continue;
+              const pct = parseFloat(t.priceChangePercent ?? '');
+              bn[id] = {
+                price,
+                perpPrice: price,
+                ...(Number.isFinite(pct) ? { change: pct } : {}),
+                high:  parseFloat(t.highPrice || '0') * f,
+                low:   parseFloat(t.lowPrice  || '0') * f,
+                vol24: parseFloat(t.quoteVolume || '0'),
+              };
+            }
+            updateCoins(bn);
+          }
+        } catch { /* a missed cycle keeps the last values; the next poll retries */ }
+      }
     } catch { /* */ }
-  }, [updateCoin, updateCoins]);
+  }, [updateCoin, updateCoins, fundingFromBinance]);
 
   /* ── Bybit + Binance LSR ── */
   const fetchLSR = useCallback(async () => {
@@ -488,9 +572,13 @@ export default function MarketProvider(
      response actually carried, so a partial or missing response leaves the
      previous values on screen rather than blanking them. */
   const fetchSnapshot = useCallback(async () => {
+    /* ok is sticky and failed never overwrites it - see MarketStore.snapshotStatus. Returns the same
+       object when nothing changes, so a steady poll does not re-render every consumer. */
+    const mark = (st: 'ok' | 'failed') =>
+      setStore(s => (s.snapshotStatus === st || (st === 'failed' && s.snapshotStatus === 'ok')) ? s : { ...s, snapshotStatus: st });
     try {
       const res = await fetch('/api/market/snapshot');
-      if (!res.ok) return;
+      if (!res.ok) { mark('failed'); return; }
       const body = await res.json() as {
         ticker?: Record<string, { price: number; change: number; high: number; low: number; vol24: number }>;
         klines?: Record<string, Record<string, unknown>>;
@@ -526,7 +614,8 @@ export default function MarketProvider(
       for (const [coin, r] of Object.entries(body.lsr ?? {})) {
         if (r && Object.keys(r).length) updateCoin(coin as CoinId, r as Partial<CoinData>);
       }
-    } catch { /* */ }
+      mark('ok');
+    } catch { mark('failed'); }
   }, [updateCoin]);
 
   /* ── Bybit klines for Bybit-only coins (HYPE, PEPE, BONK, XAU, SPX, …) ── */

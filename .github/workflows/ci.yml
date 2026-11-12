@@ -689,13 +689,18 @@ jobs:
     # fixture B's `profile_complete` while a suite was mid-flight would have rendered the
     # onboarding wizard in place of every page the later specs assert on.
     #
-    # DISPATCHES SERIALISE WITH EACH OTHER. The release gate keeps its per-project lanes, because
-    # the matrix exists precisely so mobile stops starving behind desktop at the 120-minute cap,
-    # and collapsing them into one lane would hand that problem back. Gate legs therefore still
-    # share the fixtures with each other, exactly as they do today — narrowing that is a separate
-    # change with its own trade-off, not a side effect of this one.
+    # ONLY FIXTURE-RESET DISPATCHES SERIALISE. A dispatch that resets fixture B shares one lane, so
+    # two of them cannot fight over that account's state. A dispatch that does NOT reset (a signed-out
+    # visual run, the landing-flash probe) gets its OWN per-branch lane, because it touches no shared
+    # fixture - and lumping all dispatches into one lane is what cancelled three runs that were fired
+    # together: GitHub keeps only ONE pending run per group and cancels the previously-pending one,
+    # EVEN with cancel-in-progress: false. The release gate keeps its per-project lanes (the matrix
+    # exists so mobile stops starving behind desktop at the cap); gate legs still share the fixtures.
     concurrency:
-      group: ${{ github.event_name == 'workflow_dispatch' && 'e2e-fixtures-dev-db' || format('e2e-gate-{0}-{1}', github.ref_name, matrix.project) }}
+      group: >-
+        ${{ (github.event_name == 'workflow_dispatch' && inputs.fixture_reset) && 'e2e-fixtures-dev-db'
+            || (github.event_name == 'workflow_dispatch' && format('e2e-dispatch-{0}-{1}', github.ref_name, matrix.project))
+            || format('e2e-gate-{0}-{1}', github.ref_name, matrix.project) }}
       cancel-in-progress: false
     # Without a cap, a genuinely hung run burns to GitHub's 6-hour default, and
     # a stuck run looks identical to a slow one - which happened while this
@@ -1045,8 +1050,14 @@ jobs:
           set -euo pipefail
           if [ -n "${QA_SPEC:-}" ]; then
             case "$QA_SPEC" in
-              *[!A-Za-z0-9_./@:=-]*)
-                echo "::error::spec input rejected: letters, digits and _ . / @ : = - only, and no spaces (use --grep=Pattern)"
+              *[!A-Za-z0-9_./@:=\|-]*)
+                # `|` is allowed so ONE dispatch can name several specs as a regex (Playwright treats
+                # positional filters as regexes: `reconnect-|audit-001`). It must be ESCAPED here:
+                # unescaped, bash reads it as the case-pattern separator, splits this into two
+                # alternatives, and the whole allowlist silently accepts everything (measured).
+                # The value reaches Playwright quoted, so `|` is inert in the shell.
+                # __tests__/ciSpecAllowlist.test.mts runs THIS pattern against the reject cases.
+                echo "::error::spec input rejected: letters, digits and _ . / @ : = | - only, and no spaces (use --grep=Pattern)"
                 exit 1 ;;
             esac
             echo "targeted run: $QA_SPEC (workers=1, trace=off, project=${{ matrix.project }})"
@@ -1440,6 +1451,11 @@ jobs:
           path: qa/.shots/
           retention-days: 1
           if-no-files-found: ignore
+          # ⚠️ `qa/.shots` IS A HIDDEN DIRECTORY (leading dot), and upload-artifact@v4 defaults
+          # include-hidden-files to false - so without this the whole folder is excluded and the
+          # artifact comes out EMPTY even though the spec wrote six PNGs (measured on run
+          # 43230915872). The shots carry no secrets; the spec masks any email before writing.
+          include-hidden-files: true
 
       # always(), NOT success(). The number is most interesting precisely when
       # the run went badly - a suite that tripped a rate limit is the case #114

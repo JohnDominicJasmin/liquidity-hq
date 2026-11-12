@@ -145,6 +145,11 @@ const PASSTHROUGH: Record<string, PassEntry> = {
                        params: ['symbol', 'limit', 'startTime', 'endTime'], fixed: { category: 'linear' }, ttlMs: 900_000 },
 
   /* Binance spot and futures */
+  /* FUTURES 24h ticker for a NAMED LIST of symbols - the universe rows Bybit does not list (Binance-only
+   * TradFi). Always call it WITH `symbols`: unfiltered it returns the whole futures market, about 330 KB.
+   * The only caller (components/MarketProvider.tsx) sends the 18 symbols from UNIVERSE_BINANCE_ONLY. */
+  'binance-futures-24hr': { url: 'https://fapi.binance.com/fapi/v1/ticker/24hr',
+                       params: ['symbols'], ttlMs: 30_000 },
   'binance-24hr':    { url: 'https://api.binance.com/api/v3/ticker/24hr',
                        params: ['symbols', 'symbol'], ttlMs: 30_000,
                        bybitFallback: {
