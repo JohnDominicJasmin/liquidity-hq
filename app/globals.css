@@ -9085,8 +9085,12 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .strat-ind-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 [data-design="terminal"] .strat-ind-name {
   display: inline-flex; align-items: center; gap: 5px;
+  /* NOT UPPERCASE. The approved panel design shows the names as written - "SMA", "Parabolic SAR",
+     "MACD", "Bollinger Bands" - and the owner has objected to all-caps jargon before. This rule used to
+     capitalise them, which turned "Bollinger Bands" into "BOLLINGER BANDS". Only the chip NAME is
+     affected; the section labels above keep their own uppercase style. */
   font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: .04em;
-  text-transform: uppercase; color: var(--txt); font-weight: 600;
+  color: var(--txt); font-weight: 600;
 }
 [data-design="terminal"] .strat-ind-desc { font-size: 10.5px; line-height: 1.3; color: var(--txt3); } /* 4.71 / 5.07 on --bg1 */
 
