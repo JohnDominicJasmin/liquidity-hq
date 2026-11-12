@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { installSyntheticSocket } from './_fixtures';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL, FIXTURES } from './_auth';
 import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
 
@@ -181,6 +182,7 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
     test.fail();
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
     await installPaidAiFence(page);
     const servedCount = await stubSavedSettings(page);
     try {
@@ -209,6 +211,7 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
   test('C1: clicking a briefing row whose coin differs from the saved default opens THAT coin', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
     await installPaidAiFence(page);
     await stubSavedSettings(page);
     try {
@@ -277,6 +280,7 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
     test.fail();
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
     await installPaidAiFence(page);
     const saved: Array<{ default_coin?: string; default_tf?: string }> = [];
     page.on('response', async (res) => {
