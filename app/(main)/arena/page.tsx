@@ -230,9 +230,38 @@ function ArenaContent() {
   const { user, loading: authLoading, entitlementStatus, entitlementsLoading, retryEntitlements, isPro } = useAuth();
   const { settings, settingsLoadStatus, update, refresh: refreshSettings } = useSettings();
   const searchParams = useSearchParams();
+  /* THE WHOLE UNIVERSE IS VALID IN THE URL, not just the rendered 50 (#1263).
+
+     This validated against `COINS`, so `/arena?coin=cyber` silently landed on BTC - and so did a
+     RELOAD on a non-core coin, because the URL-sync effect below writes the selected coin into the
+     URL. The reader saw BTC's chart under no explanation at all. Since #2127, #2129 and #2133 a
+     non-core coin charts, scores and shows open interest, and the selector has offered all 463
+     since the owner asked for the whole market - so the URL was the last surface that disagreed.
+
+     NO UNKNOWN-YET CASE TO DESIGN FOR, which PM asked about: `UNIVERSE_COINS` is a module-level
+     array derived from the generated coin file (`lib/coins.ts:39`), not something fetched, so it is
+     complete on the first render - the same render this initialiser runs in. Holding an
+     unrecognised id pending would be machinery for a state that cannot occur.
+
+     AN ID WE DO NOT RECOGNISE STILL FALLS BACK TO BTC, because a URL is user input and there is no
+     honest way to show a coin that does not exist. That is a different case from the one this fixes:
+     `cyber` was always a real coin we simply refused to accept.
+
+     `COIN_DEC` and `coinLabel()` already cover the universe - the first is built from the generated
+     rows, the second falls back to the uppercased id and its comment names "a URL parameter" as a
+     call site - so nothing downstream needs widening with this. What a non-core coin still lacks is
+     the AI READ, the liquidation feed, the perp-vs-spot reading and the snapshot-derived
+     figures. The read is named first because it is the one a deep link most likely disappoints
+     (QA on #2150): `/api/grok` refuses any coin outside `COINS` before it looks at a plan, and
+     `READABLE_COINS` (`:147`) is built from that same list, so the refusal holds FOR EVERY
+     TIER - a Pro subscriber opening `/arena?coin=cyber` now gets the chart and every panel the
+     other #1263 fixes widened, and still no read. That is COVERAGE, not entitlement, which is
+     why no plan upgrade changes it; the comment on the two sets above says the same thing from
+     the other end. Each of these absences is stated on screen after #2125 and #2131 rather
+     than showing a wrong number. */
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
     const c = searchParams.get('coin')?.toLowerCase() ?? '';
-    return (COINS as string[]).includes(c) ? c as CoinId : 'btc';
+    return (UNIVERSE_COINS as string[]).includes(c) ? c as CoinId : 'btc';
   });
   const [readTf, setReadTf] = useState<ChartTf>(() => {
     const tf = searchParams.get('tf') ?? '';
