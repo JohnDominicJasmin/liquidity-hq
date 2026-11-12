@@ -22,7 +22,13 @@ import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
 
-const TF_TO_PERIOD: Record<string, Period> = {
+/* TOTAL OVER ChartTf, NOT Record<string, Period> (#1263).
+ *
+ * This was keyed by `string`, so adding a timeframe to `ChartTf` and forgetting a row here was not a
+ * compile error - it was `undefined` reaching klinecharts. Typed as a total Record, the type system is
+ * what guarantees every chart timeframe has a period, and that in turn is what makes the two
+ * converters below exhaustive: the only Periods this chart ever constructs are the values here. */
+const TF_TO_PERIOD: Record<ChartTf, Period> = {
   '1m':  { type: 'minute', span: 1  },
   '5m':  { type: 'minute', span: 5  },
   '15m': { type: 'minute', span: 15 },
@@ -31,20 +37,45 @@ const TF_TO_PERIOD: Record<string, Period> = {
   '2h':  { type: 'hour',   span: 2  },
   '4h':  { type: 'hour',   span: 4  },
   '1d':  { type: 'day',    span: 1  },
+  '1w':  { type: 'week',   span: 1  },
+  '1M':  { type: 'month',  span: 1  },
 };
 
+/* THE FALL-THROUGH USED TO BE A 15-MINUTE DEFAULT, AND IT WAS A FAIL-OPEN (#1263).
+ *
+ * `periodToBybitInterval` handled minute/hour/day and then `return '15'`; `periodToBnInterval` also
+ * handled week and then `return '15m'`. So a MONTHLY period asked both venues for 15-MINUTE candles,
+ * and the chart drew them under a monthly label - correct-looking candles at the wrong interval, which
+ * no gate can see and which a reader cannot tell from real data. Six call sites inherited it, the
+ * scroll-back pages among them.
+ *
+ * Exhaustive now, and the default THROWS rather than guessing. It is unreachable while TF_TO_PERIOD
+ * above is a total `Record<ChartTf, Period>`, because that map is the only place this component
+ * constructs a Period - so the throw is a tripwire for a future type change, not a runtime path. A
+ * thrown error surfaces as a failed history load, which says something is wrong; a 15-minute candle
+ * labelled 1M says nothing at all.
+ *
+ * `PeriodType` also has 'second' and 'year' (node_modules/klinecharts/dist/index.d.ts:479). Neither is
+ * in TF_TO_PERIOD, so neither can arrive here, and neither is guessed at. */
 function periodToBnInterval(p: Period): string {
-  if (p.type === 'minute') return `${p.span}m`;
-  if (p.type === 'hour')   return `${p.span}h`;
-  if (p.type === 'day')    return `${p.span}d`;
-  if (p.type === 'week')   return `${p.span}w`;
-  return '15m';
+  switch (p.type) {
+    case 'minute': return `${p.span}m`;
+    case 'hour':   return `${p.span}h`;
+    case 'day':    return `${p.span}d`;
+    case 'week':   return `${p.span}w`;
+    case 'month':  return `${p.span}M`;
+    default:       throw new Error(`periodToBnInterval: no Binance interval for ${p.type}/${p.span}`);
+  }
 }
 function periodToBybitInterval(p: Period): string {
-  if (p.type === 'minute') return String(p.span);
-  if (p.type === 'hour')   return String(p.span * 60);
-  if (p.type === 'day')    return 'D';
-  return '15';
+  switch (p.type) {
+    case 'minute': return String(p.span);
+    case 'hour':   return String(p.span * 60);
+    case 'day':    return 'D';
+    case 'week':   return 'W';
+    case 'month':  return 'M';
+    default:       throw new Error(`periodToBybitInterval: no Bybit interval for ${p.type}/${p.span}`);
+  }
 }
 
 // ── Drawing tools ─────────────────────────────────────────────────────────
@@ -304,7 +335,14 @@ function paletteFor(dark: boolean): Record<string, unknown> {
 
 // ── Component ─────────────────────────────────────────────────────────────
 
-export type ChartTf = '1m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '1d';
+/* WEEKLY AND MONTHLY ADDED 2026-11-12 (#1263, owner request). 6M and 1Y were considered and are NOT
+   approved - do not add them here.
+
+   ADDING ONE IS NOT A ONE-LINE CHANGE, and the compiler says so: `lib/limits.ts` asserts CHART_TFS and
+   this type are exactly equal, TF_TO_PERIOD above is a total Record over it, and ARENA_TFS (the
+   analysis timeframes, <= 1d) is asserted to be a SUBSET. The last of those is the one that carries
+   the design: the chart may offer a timeframe the AI read, the EMA panel and Draw Structure do not. */
+export type ChartTf = '1m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '1d' | '1w' | '1M';
 
 export interface ChartAlert {
   id:           string;
@@ -373,7 +411,7 @@ interface Props {
   indicatorParams?: Record<string, Record<string, string | number | boolean>>;
 }
 
-const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d'];
+const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d','1w','1M'];
 
 let emaSignalOverlayRegistered = false;
 let emaRibbonLineRegistered = false;
@@ -819,6 +857,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
   // ── Candle-close countdown ───────────────────────────────────────────
   useEffect(() => {
+    /* NO ROW FOR '1w' OR '1M', DELIBERATELY (#1263). The countdown below is `periodMs - (now % periodMs)`,
+       which assumes the interval divides the epoch. A week does not: `Date.now() % 604800000` counts from
+       the epoch's Thursday, not the venue's Monday weekly open, so a weekly countdown would be confidently
+       several days wrong. A month has no fixed length at all. `if (!periodMs) return` below leaves the
+       countdown absent on both, which is the same reason `intervalToMs` in lib/candles.ts returns null for
+       W and M rather than computing a boundary it cannot know. */
     const MS: Record<string, number> = {
       '1m': 60_000, '5m': 300_000, '15m': 900_000, '30m': 1_800_000,
       '1h': 3_600_000, '2h': 7_200_000, '4h': 14_400_000, '1d': 86_400_000,
@@ -3542,7 +3586,7 @@ function fmtLiqUsd(n: number): string {
 }
 
 // ── Helper ────────────────────────────────────────────────────────────────
-function setChartSymbolPeriod(chart: KChart, coin: CoinId, tf: string) {
+function setChartSymbolPeriod(chart: KChart, coin: CoinId, tf: ChartTf) {
   /* venueSymbols, not the editorial maps: Arena offers the whole universe (#1263). */
   const { binance: bnSym, bybit: bybitSym } = venueSymbols(coin);
   chart.setSymbol({ ticker: chartDisplaySymbol(coin), shortName: chartDisplaySymbol(coin), pricePrecision: COIN_DEC[coin] ?? 2 });

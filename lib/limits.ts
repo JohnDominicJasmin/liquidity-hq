@@ -45,9 +45,28 @@ export function isGatedTf(tf: string): boolean {
 export const ARENA_TFS = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'] as const;
 export type ArenaTf = (typeof ARENA_TFS)[number];
 
+/* TWO LISTS SINCE #1263, AND THE DIFFERENCE IS THE FEATURE.
+ *
+ * CHART_TFS is every timeframe the CHART offers; ARENA_TFS above is every timeframe the ANALYSIS
+ * surfaces accept - the AI read (via isArenaTf in lib/arenaContext.ts), the Settings default-timeframe
+ * chips and onboarding's style default. Weekly and monthly chart; they are not read, scored or drawn
+ * through, so they are in the first list and not the second.
+ *
+ * THE ASSERTION BELOW USED TO BE BIDIRECTIONAL - ExactTf<ArenaTf, ChartTf> - which made adding a chart
+ * timeframe fail the build until ARENA_TFS grew too, and widening ARENA_TFS would have admitted 1w/1M
+ * to every analysis surface silently. The protection it bought is kept, just aimed at the right list:
+ * CHART_TFS is still asserted EXACTLY equal to ChartTf, so the chart can never offer a timeframe no
+ * allowlist knows, and ArenaTf is asserted to be a SUBSET of it, so an analysis timeframe the chart
+ * cannot draw is still a compile error. */
+export const CHART_TFS = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d', '1w', '1M'] as const;
+export type ChartTfName = (typeof CHART_TFS)[number];
+
 type ExactTf<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
-const _tfsMatchChart: ExactTf<ArenaTf, import('../components/KLineProChart.tsx').ChartTf> = true;
-void _tfsMatchChart;
+type SubsetOf<A, B> = [A] extends [B] ? true : never;
+const _chartTfsMatchChart: ExactTf<ChartTfName, import('../components/KLineProChart.tsx').ChartTf> = true;
+const _arenaTfsAreChartTfs: SubsetOf<ArenaTf, ChartTfName> = true;
+void _chartTfsMatchChart;
+void _arenaTfsAreChartTfs;
 
 /** An exact, known timeframe. Case and spacing are NOT normalised: a value that is not already one of the
  *  app's own strings is refused rather than repaired, because repairing it is what creates the gap between
