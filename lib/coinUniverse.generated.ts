@@ -9,8 +9,8 @@
  * memecoin listings. `dec` comes from the exchange tick size. `oneVenue` marks an instrument
  * with no failover.
  *
- * Generated: 2026-11-12T15:34:28.624Z
- * Instruments: 698 (21 single-venue)
+ * Generated: 2026-11-12T15:43:14.416Z
+ * Instruments: 694 (15 single-venue)
  */
 
 export interface CoinRow {
@@ -28,7 +28,7 @@ export interface CoinRow {
   readonly oneVenue: boolean;
   /** TRADFI ONLY (stocks, funds, commodities, FX, pre-IPO references). Absent on crypto rows, except
    *  the curated gold row which Bybit types as a commodity. */
-  readonly kind?: 'stock' | 'etf' | 'commodity' | 'fx' | 'preipo';
+  readonly kind?: 'stock' | 'etf' | 'commodity' | 'fx' | 'preipo' | 'asset';
   /** The name to DISPLAY when it is not `id.toUpperCase()` - set on every TradFi row, because a
    *  ticker that clashes with a crypto base gets a suffixed id (`catstock`) but is still CAT. */
   readonly ticker?: string;
@@ -222,7 +222,7 @@ export const COIN_UNIVERSE: readonly CoinRow[] = [
   { id: 'dell', bybit: 'DELLUSDT', binance: 'DELLUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'DELL' },
   { id: 'dexe', bybit: 'DEXEUSDT', binance: 'DEXEUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 3, oneVenue: false },
   { id: 'dia', bybit: 'DIAUSDT', binance: 'DIAUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
-  { id: 'dis', bybit: null, binance: 'DISUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'stock', ticker: 'DIS' },
+  { id: 'dis', bybit: null, binance: 'DISUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'asset', ticker: 'DIS' },
   { id: 'djt', bybit: 'DJTUSDT', binance: 'DJTUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 3, oneVenue: false, kind: 'stock', ticker: 'DJT' },
   { id: 'dkng', bybit: 'DKNGUSDT', binance: 'DKNGUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'DKNG' },
   { id: 'doge', bybit: 'DOGEUSDT', binance: 'DOGEUSDT', okx: 'DOGE-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
@@ -279,14 +279,14 @@ export const COIN_UNIVERSE: readonly CoinRow[] = [
   { id: 'fogo', bybit: 'FOGOUSDT', binance: 'FOGOUSDT', okx: 'FOGO-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 6, oneVenue: false },
   { id: 'folks', bybit: 'FOLKSUSDT', binance: 'FOLKSUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 4, oneVenue: false },
   { id: 'form', bybit: 'FORMUSDT', binance: 'FORMUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 4, oneVenue: false },
-  { id: 'frhc', bybit: null, binance: 'FRHCUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'stock', ticker: 'FRHC' },
+  { id: 'frhc', bybit: null, binance: 'FRHCUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'asset', ticker: 'FRHC' },
   { id: 'fwdi', bybit: 'FWDIUSDT', binance: 'FWDIUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 3, oneVenue: false, kind: 'stock', ticker: 'FWDI' },
   { id: 'gala', bybit: 'GALAUSDT', binance: 'GALAUSDT', okx: 'GALA-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 6, oneVenue: false },
   { id: 'gas', bybit: 'GASUSDT', binance: 'GASUSDT', okx: 'GAS-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 4, oneVenue: false },
   { id: 'gdx', bybit: 'GDXUSDT', binance: 'GDXUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'etf', ticker: 'GDX' },
   { id: 'genius', bybit: 'GENIUSUSDT', binance: 'GENIUSUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 4, oneVenue: false },
   { id: 'gev', bybit: 'GEVUSDT', binance: 'GEVUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'GEV' },
-  { id: 'gigadev', bybit: null, binance: 'GIGADEVUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'stock', ticker: 'GIGADEV' },
+  { id: 'gigadev', bybit: 'GIGADEVICEUSDT', binance: 'GIGADEVUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'GIGADEV' },
   { id: 'giggle', bybit: 'GIGGLEUSDT', binance: 'GIGGLEUSDT', okx: 'GIGGLE-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false },
   { id: 'glm', bybit: 'GLMUSDT', binance: 'GLMUSDT', okx: 'GLM-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'glw', bybit: 'GLWUSDT', binance: 'GLWUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'GLW' },
@@ -316,10 +316,6 @@ export const COIN_UNIVERSE: readonly CoinRow[] = [
   { id: 'hemi', bybit: 'HEMIUSDT', binance: 'HEMIUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 6, oneVenue: false },
   { id: 'hims', bybit: 'HIMSUSDT', binance: 'HIMSUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'HIMS' },
   { id: 'hive', bybit: 'HIVEUSDT', binance: 'HIVEUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
-  { id: 'hk0625', bybit: null, binance: 'HK0625USDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'stock', ticker: 'HK0625' },
-  { id: 'hk0700', bybit: null, binance: 'HK0700USDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'stock', ticker: 'HK0700' },
-  { id: 'hk0992', bybit: null, binance: 'HK0992USDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'stock', ticker: 'HK0992' },
-  { id: 'hk1810', bybit: null, binance: 'HK1810USDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'stock', ticker: 'HK1810' },
   { id: 'hmstr', bybit: 'HMSTRUSDT', binance: 'HMSTRUSDT', okx: 'HMSTR-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 7, oneVenue: false },
   { id: 'holo', bybit: 'HOLOUSDT', binance: 'HOLOUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'home', bybit: 'HOMEUSDT', binance: 'HOMEUSDT', okx: 'HOME-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 6, oneVenue: false },
@@ -457,7 +453,7 @@ export const COIN_UNIVERSE: readonly CoinRow[] = [
   { id: 'nil', bybit: 'NILUSDT', binance: 'NILUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'nke', bybit: 'NKEUSDT', binance: 'NKEUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'NKE' },
   { id: 'nmr', bybit: 'NMRUSDT', binance: 'NMRUSDT', okx: 'NMR-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 3, oneVenue: false },
-  { id: 'nok', bybit: null, binance: 'NOKUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'stock', ticker: 'NOK' },
+  { id: 'nok', bybit: 'NOKIAUSDT', binance: 'NOKUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 3, oneVenue: false, kind: 'stock', ticker: 'NOK' },
   { id: 'nom', bybit: 'NOMUSDT', binance: 'NOMUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 6, oneVenue: false },
   { id: 'not', bybit: 'NOTUSDT', binance: 'NOTUSDT', okx: 'NOT-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 7, oneVenue: false },
   { id: 'now', bybit: 'NOWUSDT', binance: 'NOWUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'NOW' },
@@ -490,7 +486,7 @@ export const COIN_UNIVERSE: readonly CoinRow[] = [
   { id: 'parti', bybit: 'PARTIUSDT', binance: 'PARTIUSDT', okx: 'PARTI-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'path', bybit: 'PATHUSDT', binance: 'PATHUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'PATH' },
   { id: 'paxg', bybit: 'PAXGUSDT', binance: 'PAXGUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false },
-  { id: 'payp', bybit: null, binance: 'PAYPUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'stock', ticker: 'PAYP' },
+  { id: 'payp', bybit: null, binance: 'PAYPUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'asset', ticker: 'PAYP' },
   { id: 'pdd', bybit: 'PDDUSDT', binance: 'PDDUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'PDD' },
   { id: 'pendle', bybit: 'PENDLEUSDT', binance: 'PENDLEUSDT', okx: 'PENDLE-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 4, oneVenue: false },
   { id: 'peng', bybit: 'PENGSTOCKUSDT', binance: 'PENGUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'PENG' },
@@ -605,7 +601,7 @@ export const COIN_UNIVERSE: readonly CoinRow[] = [
   { id: 'steem', bybit: 'STEEMUSDT', binance: 'STEEMUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'stm', bybit: 'STMUSDT', binance: 'STMUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'STM' },
   { id: 'sto', bybit: 'STOUSDT', binance: 'STOUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
-  { id: 'strc', bybit: null, binance: 'STRCUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'stock', ticker: 'STRC' },
+  { id: 'strc', bybit: null, binance: 'STRCUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'asset', ticker: 'STRC' },
   { id: 'strk', bybit: 'STRKUSDT', binance: 'STRKUSDT', okx: 'STRK-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'stx', bybit: 'STXUSDT', binance: 'STXUSDT', okx: 'STX-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 4, oneVenue: false },
   { id: 'stxx', bybit: 'STXXUSDT', binance: 'STXXUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'STXX' },

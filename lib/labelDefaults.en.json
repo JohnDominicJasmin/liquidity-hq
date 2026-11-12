@@ -665,6 +665,7 @@
   "ARENA_CAT_ETFS": "ETFs",
   "ARENA_CAT_COMMODITIES": "Commodities & FX",
   "ARENA_KIND_STOCK": "Tokenized stock",
+  "ARENA_KIND_ASSET": "Tokenized asset",
   "ARENA_KIND_ETF": "ETF",
   "ARENA_KIND_COMMODITY": "Commodity",
   "ARENA_KIND_FX": "FX",
