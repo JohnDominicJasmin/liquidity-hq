@@ -208,8 +208,17 @@ async function walkWizard(browser: Browser, mode: boolean | 'retry') {
     if (mode === 'retry') {
       /* THE RETRY: the first press failed, the wizard must still be open, and pressing the same button again re-sends the save. */
       mid = await readRows(sb, uid);
-      await expect(nextBtn(), 'after a failed save the wizard must still offer the last step button so the user can press it again').toBeVisible({ timeout: 15_000 });
-      await nextBtn().click();
+      /* WHAT THE WIZARD SHOWS AFTER THE FAILED SAVE, logged before anything is asserted: run 43302763554 found no button.obw-btn-next here,
+         so say what IS there (headline, every wizard button's class and text, any alert/status line) instead of guessing the control. */
+      const state = await p.evaluate(() => ({
+        headline: (document.querySelector('.obw-headline') as HTMLElement | null)?.innerText.slice(0, 80) ?? null,
+        buttons: Array.from(document.querySelectorAll('.obw-root button')).map(b => `${(b as HTMLElement).className.split(' ').slice(0, 2).join('.')}|${(b as HTMLElement).innerText.replace(/s+/g, ' ').slice(0, 30)}|${(b as HTMLButtonElement).disabled ? 'disabled' : 'enabled'}`),
+        alerts: Array.from(document.querySelectorAll('.obw-root [role="alert"], .obw-root [role="status"], .obw-root .obw-error, .obw-root .obw-err')).map(e => (e as HTMLElement).innerText.replace(/s+/g, ' ').slice(0, 120)),
+      }));
+      console.log('RETRY wizard state after the failed press:', JSON.stringify(state));
+      const again = p.locator('.obw-root button.obw-btn-next, .obw-root button.obw-btn-finish, .obw-root button.obw-btn-primary').first();
+      await expect(again, 'after a failed save the wizard must still offer a button to press again (see the logged wizard state)').toBeVisible({ timeout: 15_000 });
+      await again.click();
       await p.waitForTimeout(8_000);
       await shot(p, 'onb-07-after-retry');
       wizardStillShown = await p.locator('.obw-headline').first().isVisible().catch(() => false);
