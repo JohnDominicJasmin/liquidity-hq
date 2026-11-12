@@ -77,7 +77,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
        so say it failed rather than return silently and leave it there. The
        patch goes back into lastFailedRef: retrySave() emptied it, and without
        it the next "Try again" would send nothing and the change is lost (QA). */
-    if (!user) { if (lastFailedRef.current === null && retryingRef.current) { retryingRef.current = false; lastFailedRef.current = partial; setSaveStatus('error'); settleToIdle(3000); } return; }
+    if (!user) { if (lastFailedRef.current === null && retryingRef.current) { retryingRef.current = false; lastFailedRef.current = partial; setSaveStatus('error'); settleToIdle(3000); } return false; }
     retryingRef.current = false;
     lastFailedRef.current = null;
     if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null; }
@@ -174,7 +174,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       // silently, but also not as a failure the user would think to retry.
       setSaveStatus(result.rejected.length > 0 ? 'conflict' : 'saved');
       settleToIdle(result.rejected.length > 0 ? 3000 : 2000);
-      return;
+      return true; // saved, or saved with a field the server kept from a newer write (#1285): either way the request landed
     }
     /* Every attempt failed. `saveStatus: 'error'` is #1188 part 2's signal -
        SettingsSaveToast.tsx renders it from anywhere, not just /settings.
@@ -185,6 +185,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     lastFailedRef.current = partial;
     setSaveStatus('error');
     settleToIdle(3000);
+    return false;
   // settleToIdle only touches refs and a state setter, both stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -442,14 +443,35 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     }, 800);
   }, [flushToDb, user?.id]);
 
+  /* SAVE AND WAIT (onboarding, #1113). `update()` returns at once and saves 800ms later, so a caller that must not
+     act until the write has LANDED had nothing to wait on. This does exactly what `update()` does to local state and to
+     the unconfirmed marker, then flushes now (taking along anything `update()` had batched and not yet sent) and
+     resolves true when the server accepted the save, false when every attempt failed. A failed save stays in
+     `lastFailedRef`, so the save toast's "Try again" still works. Signed out: false, there is no account to save to. */
+  const saveNow = useCallback(async (partial: Partial<UserSettings>): Promise<boolean> => {
+    setSettings(prev => {
+      const next = { ...prev, ...partial };
+      saveLocalSettings(next);
+      return next;
+    });
+    const unconfirmedUserId = user?.id ?? 'anon';
+    const unconfirmed = loadUnconfirmed(unconfirmedUserId);
+    for (const [key, val] of Object.entries(partial)) unconfirmed[key] = val;
+    saveUnconfirmed(unconfirmedUserId, unconfirmed);
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    const batch = { ...(pendingRef.current ?? {}), ...partial };
+    pendingRef.current = null;
+    return flushToDb(batch);
+  }, [flushToDb, user?.id]);
+
   // Memoized for the same reason LabelsProvider's is: this provider wraps the
   // whole app, so a fresh object literal here re-rendered every useSettings()
   // consumer on every render of this component, regardless of whether any
   // setting actually changed. update/refresh/flushToDb are already useCallback'd,
   // so the identity is stable until the values genuinely move.
   const value = useMemo(
-    () => ({ settings, loading, settingsLoadStatus, saveStatus, update, refresh, retrySave }),
-    [settings, loading, settingsLoadStatus, saveStatus, update, refresh, retrySave],
+    () => ({ settings, loading, settingsLoadStatus, saveStatus, update, saveNow, refresh, retrySave }),
+    [settings, loading, settingsLoadStatus, saveStatus, update, saveNow, refresh, retrySave],
   );
 
   return (

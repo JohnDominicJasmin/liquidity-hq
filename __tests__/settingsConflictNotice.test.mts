@@ -56,7 +56,7 @@ test('S3b. ONE pending idle timer: settleToIdle replaces the previous one, and a
 });
 
 test('S3c. a toast retry while signed out ends in error (not "Saving…" left on screen) and puts the failed change BACK, so a second "Try again" still has it to send; an ordinary signed-out save still returns quietly', () => {
-  anchorOnce(provider, "if (!user) { if (lastFailedRef.current === null && retryingRef.current) { retryingRef.current = false; lastFailedRef.current = partial; setSaveStatus('error'); settleToIdle(3000); } return; }", 'the signed-out branch');
+  anchorOnce(provider, "if (!user) { if (lastFailedRef.current === null && retryingRef.current) { retryingRef.current = false; lastFailedRef.current = partial; setSaveStatus('error'); settleToIdle(3000); } return false; }", 'the signed-out branch (it returns false since #2213, because saveNow reports whether the save landed)');
   anchorOnce(provider, 'retryingRef.current = true;\n    void flushToDb(failed);', 'retrySave marks the retry before flushing');
 });
 
@@ -129,7 +129,7 @@ test('S8d. the provider keeps the failed patch and retrySave re-sends exactly th
   anchorOnce(provider, "lastFailedRef.current = partial;\n    setSaveStatus('error');", 'the failed patch is kept before the failure status');
   anchorOnce(provider, 'void flushToDb(failed);', 'retrySave re-sends the failed patch');
   anchorOnce(settingsLib, 'retrySave:  () => void;', 'the context type');
-  assert.match(provider, /\[settings, loading, settingsLoadStatus, saveStatus, update, refresh, retrySave\]/, 'retrySave is missing from the context value\'s deps');
+  assert.match(provider, /\[settings, loading, settingsLoadStatus, saveStatus, update, saveNow, refresh, retrySave\]/, 'retrySave (or saveNow, added by #2213) is missing from the context value\'s deps');
 });
 
 /* ══ CSS: the amber class, and its contrast ══════════════════════════════════════════════════════════ */
