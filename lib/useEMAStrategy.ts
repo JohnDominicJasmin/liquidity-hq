@@ -612,9 +612,9 @@ export function useEMAStrategy(
         if (macdSelected && macdLast != null && isFinite(macdLast.dif) && isFinite(macdLast.dea)) {
           selectedReadings.push({ id: 'MACD', text: `MACD DIF ${fvNum(macdLast.dif)} / DEA ${fvNum(macdLast.dea)}, DIF ${macdLast.dif >= macdLast.dea ? 'above (bullish)' : 'below (bearish)'} DEA` });
         }
-        if (rsiSelected && rsiLast != null && isFinite(rsiLast)) {
-          selectedReadings.push({ id: 'RSI', text: `RSI(14) ${rsiLast.toFixed(1)}, ${rsiLast >= 50 ? 'above 50 (bullish lean)' : 'below 50 (bearish lean)'}` });
-        }
+        /* NO RSI READING (#1263): RSI is a chart layer now, not a selectable indicator, so `selection`
+           never contains it and a reading here would be dead. `rsiSelected`/`rsiLast` stay - the RSI
+           advisory CONDITION below still uses them (it can never move the verdict, see :109). */
 
         // SL / TP (0.5% buffer beyond 50 EMA)
         const BUF = 0.005;
