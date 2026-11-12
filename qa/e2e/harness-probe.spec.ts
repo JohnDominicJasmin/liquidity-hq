@@ -85,3 +85,34 @@ test('PROBE 3 - reconnect: does a routed close() reach the page, with and withou
   await page.waitForTimeout(8_000);
   console.log('[PROBE3] close calls:', JSON.stringify(results), '| page events after:', JSON.stringify(await read()));
 });
+
+test('PROBE 4 - every socket the PAGE sees (Playwright page.on websocket), before and after a routed kill', async ({ page, context }) => {
+  const seen: Array<{ url: string; opened: number; closed: number | null }> = [];
+  const t0 = Date.now();
+  page.on('websocket', (ws) => {
+    const rec = { url: ws.url().slice(0, 70), opened: Date.now() - t0, closed: null as number | null };
+    seen.push(rec);
+    ws.on('close', () => { rec.closed = Date.now() - t0; });
+  });
+  const live: Array<{ close: (o?: { code?: number }) => void; url: () => string }> = [];
+  let blocked = false;
+  await context.routeWebSocket(/stream\.binance\.com|fstream\.binance\.com|stream\.bybit\.com|stream\.bytick\.com/, (ws) => {
+    if (blocked) { void ws.close({ code: 1006 }); return; }
+    live.push(ws);
+    if (/binance/.test(ws.url())) {
+      const streams = (() => { try { return new URL(ws.url()).searchParams.get('streams') ?? ''; } catch { return ''; } })();
+      const syms = streams.split('/').filter(x => x.includes('@ticker')).map(x => x.split('@')[0].toUpperCase());
+      const emit = () => { for (const s of (syms.length ? syms : ['BTCUSDT'])) { try { ws.send(synthCombinedFrame(s)); } catch { /* closed */ } } };
+      emit(); setInterval(emit, 1000);
+    }
+  });
+  await gotoGuarded(page, '/arena');
+  await page.waitForTimeout(15_000);
+  console.log('[PROBE4] sockets the page has opened after 15s:', JSON.stringify(seen), '| routed live:', JSON.stringify(live.map(w => w.url().slice(0, 60))));
+  blocked = true;
+  for (const w of [...live]) { try { w.close({ code: 1006 }); } catch { /* gone */ } }
+  await page.waitForTimeout(12_000);
+  blocked = false;
+  await page.waitForTimeout(60_000);
+  console.log('[PROBE4] sockets after kill + 12s outage + 60s recovery:', JSON.stringify(seen));
+});
