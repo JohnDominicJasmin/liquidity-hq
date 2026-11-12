@@ -807,6 +807,8 @@
   "STRATEGY_BLURB_SAR": "Dots that flip with the trend",
   "STRATEGY_BLURB_MACD": "Momentum crossovers",
   "STRATEGY_BLURB_BOLL": "Volatility bands",
+  "EMA_SIGNAL_ABOVE_CEILING": "Signals, the AI read and Draw Structure cover up to the 1D chart. The {tf} chart is for context - switch to 1D or lower to run them.",
+  "ARENA_ANALYSIS_CEILING_TITLE": "Covers up to the 1D chart - switch to 1D or lower to run this",
   "MARKETS_SIGNAL_LONGS_OVERCROWDED": "Longs overcrowded",
   "MARKETS_SIGNAL_SHORTS_SQUEEZED": "Shorts squeezed",
   "MARKETS_SIGNAL_SMART_BUYERS": "Smart buyers active",

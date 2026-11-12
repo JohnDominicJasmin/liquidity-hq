@@ -112,7 +112,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
       <div data-testid="signal-above-ceiling" style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 10, padding: '12px 14px', marginBottom: 10 }}>
         <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>EMA Ribbon Strategy</div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.5 }}>
-          Signals, the AI read and Draw Structure cover up to the 1D chart. The {tf.toUpperCase()} chart is for context - switch to 1D or lower to run them.
+          {t('EMA_SIGNAL_ABOVE_CEILING', { tf: tf.toUpperCase() })}
         </div>
       </div>
     );

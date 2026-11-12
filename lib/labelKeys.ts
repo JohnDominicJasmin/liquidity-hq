@@ -537,6 +537,9 @@ export const LABEL_KEYS = [
   'STRATEGY_BLURB_SAR',
   'STRATEGY_BLURB_MACD',
   'STRATEGY_BLURB_BOLL',
+  // The 1W/1M analysis-ceiling messages (#2157): the EMA card's explanation and the disabled-button tooltip.
+  'EMA_SIGNAL_ABOVE_CEILING',
+  'ARENA_ANALYSIS_CEILING_TITLE',
 
   // Markets
   'MARKETS_SIGNAL_LONGS_OVERCROWDED', 'MARKETS_SIGNAL_SHORTS_SQUEEZED',
