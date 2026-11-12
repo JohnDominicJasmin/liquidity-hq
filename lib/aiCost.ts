@@ -30,7 +30,14 @@ export const XAI_RATES_BY_MODEL: Record<string, { input: number; cachedInput: nu
  * writes at $8 - the usage object does not split them on the older API shape, so the 5m rate is the
  * floor and a report built on it is a lower bound on write cost, which is stated where it is used. */
 export const ANTHROPIC_RATES_BY_MODEL: Record<string, { input: number; cacheRead: number; cacheWrite: number; output: number }> = {
-  'claude-opus-5-5': { input: 4.00, cacheRead: 0.20, cacheWrite: 5.00, output: 20.00 },
+  'claude-opus-5-5':   { input: 4.00, cacheRead: 0.20, cacheWrite: 5.00,  output: 20.00 },
+  'claude-sonnet-5-5': { input: 2.00, cacheRead: 0.10, cacheWrite: 2.50,  output: 10.00 },
+  /* HAIKU AT THE <=100K-TOKEN TIER - the quick-read band this switch is for (#1631). Over 100K,
+     Haiku 5.5 is input 0.50 / cacheRead 0.05 / cacheWrite 0.625 / output 2.50; the reads this
+     engine serves are well under that, and a report that ever crosses it states the tier. Haiku is
+     the only Claude model that lands under the $0.0085 quick-read ceiling, so it is the one the
+     owner is most likely to pick. */
+  'claude-haiku-5-5':  { input: 0.10, cacheRead: 0.01, cacheWrite: 0.125, output: 0.50 },
 };
 
 // The model every call site pins today. A new model shipped before this table
