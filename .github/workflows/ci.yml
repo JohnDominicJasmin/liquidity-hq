@@ -699,7 +699,7 @@ jobs:
     concurrency:
       group: >-
         ${{ (github.event_name == 'workflow_dispatch' && inputs.fixture_reset) && 'e2e-fixtures-dev-db'
-            || (github.event_name == 'workflow_dispatch' && format('e2e-dispatch-{0}', github.ref_name))
+            || (github.event_name == 'workflow_dispatch' && format('e2e-dispatch-{0}-{1}', github.ref_name, matrix.project))
             || format('e2e-gate-{0}-{1}', github.ref_name, matrix.project) }}
       cancel-in-progress: false
     # Without a cap, a genuinely hung run burns to GitHub's 6-hour default, and
