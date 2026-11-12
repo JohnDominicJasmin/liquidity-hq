@@ -957,8 +957,14 @@ function parseCombinedResponse(text: string, tf: string, session: string, nowMs:
   for (const line of patSect.split('\n')) {
     const m = line.match(/^-\s*(.+)/);
     if (m) {
-      const p = stripMd(m[1]);
-      if (p && p.toLowerCase() !== 'none detected' && p.toLowerCase() !== 'none') patterns.push(p);
+      /* ONE BULLET CAN NAME SEVERAL PATTERNS ("- Double top; Tight consolidation", seen on a Deep run, #1631), and the
+         card shows one pill per entry, so a semicolon-joined bullet read as a single pattern with a semicolon in it.
+         Split on the semicolon and apply the "none" check to each part. Commas are left alone: they appear INSIDE
+         one pattern's own description ("Bear flag, 4h"). */
+      for (const part of stripMd(m[1]).split(/\s*;\s*/)) {
+        const p = part.trim();
+        if (p && p.toLowerCase() !== 'none detected' && p.toLowerCase() !== 'none') patterns.push(p);
+      }
     }
   }
 
