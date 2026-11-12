@@ -38,7 +38,7 @@ import { computeDistributionScore, distributionColor, DistributionInputs } from 
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
-import { describeSelection, overlayStates } from '@/lib/strategyRegistry';
+import { describeSelection, overlayStates, selectableIds } from '@/lib/strategyRegistry';
 import { coinLockedForUnpaid, gateSignal, signalPlanFor } from '@/lib/signalCoinGate';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
@@ -780,7 +780,11 @@ function ArenaContent() {
     // refuses to run before settingsLoadStatus is 'ready' (see above), so
     // there is no path for the user to have touched strategy selection
     // before this effect's own check passes.
-    if (settings.strategy_selection) setStrategySelection(settings.strategy_selection);
+    // #1263: a saved set from before the panel redesign can still carry `RSI` (now an always-on
+    // chart layer, not a selectable indicator) or a since-removed id. Filter the loaded selection to
+    // what the panel can actually offer, so a stale id neither counts in the panel, labels the read,
+    // nor pushes `selection` into buildArenaPrompt's non-empty weighting branch.
+    if (settings.strategy_selection) setStrategySelection(selectableIds(settings.strategy_selection));
     if (settings.strategy_params) setStrategyParams(settings.strategy_params);
     setSelectionSeeded(true); // an account with no saved selection is seeded too: empty is then the real answer
   }, [settingsLoadStatus, settings.default_coin, settings.default_tf, settings.strategy_selection, settings.strategy_params]); // eslint-disable-line react-hooks/exhaustive-deps

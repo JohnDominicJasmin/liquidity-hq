@@ -62,6 +62,10 @@ export interface IndicatorEntry {
   id: string;
   /** What the chip reads. Uppercased by CSS, so written here in natural case. */
   label: string;
+  /** One plain line under the chip name (#1263 panel redesign), for a trader who does not know the
+   *  indicator by name. Selectable indicators carry it; overlays and the not-yet-wired entries do
+   *  not need it (overlays live in the CHART LAYERS section, the rest are hidden). */
+  blurb?: string;
   group: Group;
   source: Source;
   /** Own pane, or drawn over the candles. See the Y-axis note above. */
@@ -85,7 +89,7 @@ export const INDICATORS: readonly IndicatorEntry[] = [
         + 'indicator pipeline reinstates the axis bug at KLineProChart.tsx:997.',
   },
   {
-    id: 'SMA', label: 'SMA', group: 'trend', source: 'builtin', pane: 'candle',
+    id: 'SMA', label: 'SMA', blurb: 'Simple moving average', group: 'trend', source: 'builtin', pane: 'candle',
     paramSchema: [period('length', 'Length', 12), period('weight', 'Weight', 2, 1, 10)],
     // id is correctly 'SMA' - klinecharts does ship an indicator by that
     // name (unlike ADX/STOCH, this is not a basis mismatch). What klinecharts'
@@ -131,7 +135,7 @@ export const INDICATORS: readonly IndicatorEntry[] = [
     note: 'Not a klinecharts builtin.',
   },
   {
-    id: 'SAR', label: 'PSAR', group: 'trend', source: 'builtin', pane: 'candle',
+    id: 'SAR', label: 'PSAR', blurb: 'Dots that flip with the trend', group: 'trend', source: 'builtin', pane: 'candle',
     paramSchema: [
       { kind: 'float', key: 'start', label: 'Start', min: 0.001, max: 1, step: 0.001, default: 0.02 },
       { kind: 'float', key: 'step',  label: 'Step',  min: 0.001, max: 1, step: 0.001, default: 0.02 },
@@ -155,7 +159,7 @@ export const INDICATORS: readonly IndicatorEntry[] = [
         + 'period marketStore uses everywhere else: rsi14/rsi1h/rsi4h/rsiDaily). Selecting this chip draws nothing extra: it only adds RSI to the verdict.',
   },
   {
-    id: 'MACD', label: 'MACD', group: 'momentum', source: 'builtin', pane: 'own',
+    id: 'MACD', label: 'MACD', blurb: 'Momentum crossovers', group: 'momentum', source: 'builtin', pane: 'own',
     paramSchema: [period('fast', 'Fast', 12), period('slow', 'Slow', 26), period('signal', 'Signal', 9)],
     // #1007 resolved the GATING half of this collision (SMA's verdict
     // condition no longer uses SMA(12,2)=EMA(12) - see the SMA entry above).
@@ -192,7 +196,7 @@ export const INDICATORS: readonly IndicatorEntry[] = [
 
   /* -- Volatility -------------------------------------------------------- */
   {
-    id: 'BOLL', label: 'Bollinger', group: 'volatility', source: 'builtin', pane: 'candle',
+    id: 'BOLL', label: 'Bollinger', blurb: 'Volatility bands', group: 'volatility', source: 'builtin', pane: 'candle',
     paramSchema: [
       period('length', 'Length', 20),
       { kind: 'float', key: 'mult', label: 'Std dev', min: 0.5, max: 5, step: 0.1, default: 2 },
@@ -262,7 +266,16 @@ export const INDICATORS: readonly IndicatorEntry[] = [
  *
  *  Free gets one rather than none so the control is usable rather than a locked
  *  card - the read still runs, it just cannot combine. */
-export const LIMITS = { pro: 3, free: 1 } as const;
+/* PRO (AND TRIAL) ARE UNLIMITED SINCE #1263, owner-approved: Pro turns on every indicator together,
+ * with no counter. The cap now applies only to Free (one at a time, tap-to-swap). The data says so
+ * in ONE place - `pro: Infinity` - rather than leaving `pro: 3` with a comment explaining it is no
+ * longer the cap, which is the "true on one axis, stale on the other" trap. `Infinity` is the honest
+ * encoding of "no cap": `used >= Infinity` is always false, so an entitled account is never at the
+ * limit and the panel shows "{n} on" rather than "n of m used".
+ *
+ * NOTE TO QA: `indicatorLimit(true)` and `LIMITS.pro` are now Infinity, not 3 - the assertions that
+ * pinned either to 3 (strategyRegistry.test.mts, strategyChipsOneSource.test.mts) need re-deriving. */
+export const LIMITS = { pro: Infinity, free: 1 } as const;
 
 export function indicatorLimit(entitled: boolean): number {
   return entitled ? LIMITS.pro : LIMITS.free;
@@ -278,6 +291,22 @@ export function isOverlayId(id: string): boolean {
 /** The ids in a selection that use an indicator slot (everything except the chart overlays). */
 export function slottedIds(ids: readonly string[]): readonly string[] {
   return ids.filter(id => !isOverlayId(id));
+}
+
+/* THE SELECTABLE INDICATORS (#1263): the builtins that draw AND are not the always-on RSI pane -
+ * SMA, PSAR, MACD, Bollinger. RSI is a chart layer now, not a selectable chip, so it is excluded
+ * here even though it is a `builtin`. The panel renders this array; the page filters a saved
+ * selection to these ids so a stale RSI (or a since-removed id) from an old saved set neither counts,
+ * labels, nor reaches the read's non-empty weighting branch. `canRender` is a hoisted function
+ * declaration, so it is callable at this module-init point though it is defined below. */
+export const SELECTABLE_INDICATORS: readonly IndicatorEntry[] =
+  INDICATORS.filter(e => e.source === 'builtin' && canRender(e) && e.id !== 'RSI');
+export const SELECTABLE_INDICATOR_IDS: ReadonlySet<string> = new Set(SELECTABLE_INDICATORS.map(e => e.id));
+
+/** Keep only the ids this panel can actually offer as selectable indicators (drops a stale RSI or a
+ *  removed id from an old saved selection). Order preserved. */
+export function selectableIds(ids: readonly string[]): readonly string[] {
+  return ids.filter(id => SELECTABLE_INDICATOR_IDS.has(id));
 }
 
 /* What each overlay chip shows, derived from the SAME values the chart draws from, so the two cannot drift:
