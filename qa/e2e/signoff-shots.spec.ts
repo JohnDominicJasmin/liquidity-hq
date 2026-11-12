@@ -1,0 +1,121 @@
+/* Visual sign-off evidence for the combined group-1..4 release, captured on a GitHub runner against
+ * the deployed qa site (never the owner's laptop). PM reviews the PNGs.
+ *
+ *   gh workflow run ci.yml --ref <branch> -f e2e=true -f spec=qa/e2e/signoff-shots.spec.ts \
+ *     -f base_url=https://liquidity-hq-qa.onrender.com -f screenshots=true -f project=desktop
+ *
+ * PUBLIC ARTIFACT RULES: it is signed in as fixtures A (Pro) and B (Free), so the account email is
+ * BLURRED (a stylesheet in _auth.ts) AND masked on every shot, and only /arena is shot - never an
+ * account or settings page. Draw Structure is served a stubbed proposal so no AI call is billed.
+ *
+ * WHAT IT CANNOT PROVE: layout correctness. It produces images; PM judges them. Where a state cannot
+ * be forced deterministically (the landing "N of 3 signals" partial), the spec logs what the Setup
+ * row actually said instead of claiming the state. */
+import { test, type Page } from '@playwright/test';
+import { mkdirSync } from 'node:fs';
+import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
+
+const DIR = 'qa/.shots';
+const themes = ['dark', 'light'] as const;
+const mask = (p: Page) => [p.locator('.tnav-drop-email'), p.locator('text=/@/')];
+const shot = async (p: Page, name: string) => {
+  mkdirSync(DIR, { recursive: true });
+  await p.screenshot({ path: `${DIR}/${name}.png`, mask: mask(p), maskColor: '#000000' });
+};
+const tf = async (p: Page, label: string) => {
+  const b = p.getByRole('button', { name: new RegExp(`^${label}$`) }).first();
+  if (await b.count()) { await b.click({ timeout: 10_000 }).catch(() => {}); await p.waitForTimeout(6_000); return true; }
+  return false;
+};
+
+test.describe('sign-off shots', () => {
+  test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+  test.describe.configure({ timeout: 180_000 });
+
+  /* Landing hero: signed out, 4 widths x 2 themes. Logs the Setup row text so the partial state is
+     reported, not assumed. */
+  for (const theme of themes) {
+    for (const width of [390, 768, 1024, 1280]) {
+      test(`landing hero ${width}px ${theme}`, async ({ browser }) => {
+        const ctx = await browser.newContext({ viewport: { width, height: width < 500 ? 844 : 900 } });
+        await ctx.addInitScript((t) => { try { localStorage.setItem('theme', t); } catch { /* private */ } }, theme);
+        const p = await ctx.newPage();
+        await p.goto('/', { waitUntil: 'domcontentloaded' });
+        await p.locator('.lp-hero-h1').first().waitFor({ state: 'visible', timeout: 30_000 }).catch(() => {});
+        await p.waitForTimeout(4_000);
+        const setup = await p.evaluate(() => {
+          const t = document.body.innerText.replace(/\s+/g, ' ');
+          const m = t.match(/Setup[^A-Za-z]{0,6}[0-9]+[^.]{0,40}/i);
+          return { setup: m ? m[0] : 'no Setup row text found', nOf3: /\d of 3 signals/i.test(t) };
+        });
+        console.log(`[landing ${width} ${theme}] ${JSON.stringify(setup)}`);
+        await shot(p, `landing-${width}-${theme}`);
+        await ctx.close();
+      });
+    }
+  }
+
+  /* Arena Strategy panel, Free (B) and Pro (A), both themes. */
+  for (const who of ['a', 'b'] as const) {
+    for (const theme of themes) {
+      test(`arena strategy panel ${who === 'a' ? 'Pro' : 'Free'} ${theme}`, async ({ browser }) => {
+        const ctx = await signedInContext(browser, who, { viewport: { width: 1280, height: 1000 }, theme });
+        const p = await ctx.newPage();
+        await installPaidAiFence(p);
+        await gotoSignedIn(p, '/arena');
+        await p.locator('.strat-panel').first().waitFor({ state: 'visible', timeout: 30_000 }).catch(() => {});
+        await p.waitForTimeout(4_000);
+        await shot(p, `strategy-${who === 'a' ? 'pro' : 'free'}-${theme}`);
+        await ctx.close();
+      });
+    }
+  }
+
+  /* Weekly and monthly chart (Pro), with whatever note the page shows above 1d. */
+  for (const label of ['1W', '1M']) {
+    test(`arena chart ${label}`, async ({ browser }) => {
+      const ctx = await signedInContext(browser, 'a', { viewport: { width: 1280, height: 1000 }, theme: 'dark' });
+      const p = await ctx.newPage();
+      await installPaidAiFence(p);
+      await gotoSignedIn(p, '/arena');
+      await p.waitForTimeout(6_000);
+      const clicked = await tf(p, label);
+      console.log(`[chart ${label}] timeframe button found and clicked: ${clicked}`);
+      await shot(p, `chart-${label.toLowerCase()}`);
+      await ctx.close();
+    });
+  }
+
+  /* Draw Structure labels, both themes, with a STUBBED proposal (nothing billed). */
+  for (const theme of themes) {
+    test(`draw structure labels ${theme}`, async ({ browser }) => {
+      const ctx = await signedInContext(browser, 'a', { viewport: { width: 1280, height: 1000 }, theme });
+      const p = await ctx.newPage();
+      await installPaidAiFence(p);
+      let intercepted = 0;
+      await p.route('**/api/draw-structure', async (route) => {
+        intercepted += 1;
+        const now = Date.now();
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({
+            structures: ['trendline', 'channel'].map((type, n) => ({
+              type, touches: 3,
+              from: { timestamp: now - (200 - n * 30) * 3_600_000, price: 100 },
+              to: { timestamp: now - 20 * 3_600_000, price: 110 },
+            })),
+          }),
+        });
+      });
+      await gotoSignedIn(p, '/arena');
+      await p.waitForTimeout(6_000);
+      await tf(p, '1h');
+      const btn = p.getByRole('button', { name: /Draw Structure/i }).first();
+      if (await btn.count()) { await btn.click({ timeout: 10_000 }).catch(() => {}); await p.waitForTimeout(5_000); }
+      console.log(`[draw structure ${theme}] stub intercepted ${intercepted} call(s)`);
+      await shot(p, `draw-structure-${theme}`);
+      await ctx.close();
+    });
+  }
+});
