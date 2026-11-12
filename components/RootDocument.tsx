@@ -140,9 +140,25 @@ export default function RootDocument({ lang, children }: { lang: string; childre
             (lib/authSession.ts). Without it this redirected a visitor the app was about to sign out:
             no loop - /arena renders signed-out with features locked rather than bouncing back - but
             they landed on a locked Arena instead of the page they asked for. An absent timestamp does
-            not block, matching isSessionExpired's "first visit or cleared - let Supabase decide". */}
+            not block, matching isSessionExpired's "first visit or cleared - let Supabase decide".
+
+            A REFRESHABLE SESSION COUNTS AS SIGNED IN, AND THIS IS THE FLASH THE OWNER ACTUALLY SEES
+            (#1173, PM audit). The first version of this gated the redirect on the ACCESS token being
+            live by >90s. But a returning visitor after an hour has an EXPIRED access token and a
+            VALID refresh token - supabase-js refreshes it on load - so the gate returned early and
+            React spent 1-2s doing that refresh on the marketing page: exactly the report. A session
+            with a refresh_token is a signed-in visitor, whatever the access token's state, so its
+            presence is what triggers the redirect now; the >90s access-token test is kept only as a
+            second way in for the rare session that somehow has no refresh_token. /arena handles even
+            a fully dead session without looping (it renders signed-out), so erring toward redirect is
+            safe. supabase-js (@supabase/auth-js 2.106.2) stores the whole session - access AND
+            refresh tokens, expires_at - as ONE JSON value at the base '-auth-token' key for the
+            localStorage adapter (setItemAsync -> storage.setItem, no chunking); the '.0'/'.1' chunk
+            keys authTokenKeys also matches are a cookie/SSR artifact, not something written here, so
+            there is no chunk-only session to reassemble. The per-key parse with `continue` stays as
+            the guard for a stray chunk key from some other context. */}
         <Script id="landing-signed-in-redirect" strategy="beforeInteractive">
-          {`(function(){try{var p=location.pathname.replace(/\\/+$/,'')||'/';if(${landingPathsJs}.indexOf(p)<0)return;var ls=window.localStorage;var la=null;try{la=ls.getItem(${JSON.stringify(LAST_ACTIVE_KEY)});}catch(e){}if(la!==null&&Date.now()-Number(la)>${INACTIVITY_MS})return;for(var i=0;i<ls.length;i++){var k=ls.key(i);if(!k||k.slice(0,3)!=='sb-'||k.indexOf('-auth-token')<0)continue;var e=null;try{var s=JSON.parse(ls.getItem(k)||'null');e=s&&s.expires_at;}catch(err){continue;}if(typeof e==='number'&&e*1000-Date.now()>90000){location.replace('/arena');return;}}}catch(e){}})();`}
+          {`(function(){try{var p=location.pathname.replace(/\\/+$/,'')||'/';if(${landingPathsJs}.indexOf(p)<0)return;var ls=window.localStorage;var la=null;try{la=ls.getItem(${JSON.stringify(LAST_ACTIVE_KEY)});}catch(e){}if(la!==null&&Date.now()-Number(la)>${INACTIVITY_MS})return;for(var i=0;i<ls.length;i++){var k=ls.key(i);if(!k||k.slice(0,3)!=='sb-'||k.indexOf('-auth-token')<0)continue;var s=null;try{s=JSON.parse(ls.getItem(k)||'null');}catch(err){continue;}if(!s)continue;var hasRefresh=typeof s.refresh_token==='string'&&s.refresh_token.length>0;var liveAccess=typeof s.expires_at==='number'&&s.expires_at*1000-Date.now()>90000;if(hasRefresh||liveAccess){location.replace('/arena');return;}}}catch(e){}})();`}
         </Script>
         {/* CONSENT DECIDED BEFORE HYDRATION (#337), with the #326 net behind it.
             body.consent-pending hides the Ask AI FAB outright and was removed only by a useEffect in
