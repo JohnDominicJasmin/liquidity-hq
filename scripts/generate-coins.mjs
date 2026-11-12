@@ -127,29 +127,32 @@ const BYBIT_TRADFI_TYPES = new Set(['stock', 'ETF', 'commodity', 'forex']);
  *  entry is checked every run (target must exist, prices must agree) and printed, never silent. */
 const TRADFI_SAME_AS_CURATED = new Map([['XAU', 'xau']]);
 
-/* HELD OUT, WITH THE REASON - NOT DROPPED QUIETLY. Binance quotes four Hong Kong listings by their exchange
- * code (HK0700, HK1810, HK0992, HK0625) and every other equity by company name (TENCENT, MEITUAN, ...). The
- * company-named ones are priced in USD; the code-named ones are in HONG KONG DOLLARS: Binance's HK0700 is
- * 396.09 against its own TENCENT at 50.54, a ratio of 7.84 - the HKD/USD rate - for the same company.
- * Shown as "$396" that is wrong by a currency, and a Binance-only row has no second venue to catch it.
- * HK0700 is MEASURED (the ratio above, printed every run); the other three are held on the same naming
- * pattern, which is evidence of a shared convention and not a measurement of each.
+/* SIX ROWS ARE INCLUDED WITH A CAVEAT (owner, 2026-11-13: "show the 6 held rows anyway, with a warning label").
  *
- * TWO PRE-IPO REFERENCES ARE HELD FOR A DIFFERENT REASON: Binance's ANTHROPIC and OPENAI do not agree with
- * OKX's contract of the same name (about 13x and 9.9x apart; the other two pre-IPO rows, MOONSHOT and
- * OURA, agree to 0.5%). The ratio is not a round factor, so it is two different reference definitions,
- * not a unit; Binance's value is consistent with Binance's own index, and nobody here can say which is
- * "per share". PM's call (2026-11-12): hold both until the definition is confirmed. The numbers are
- * printed every run so the entry can be re-read against live data.
+ * They were HELD OUT earlier (PM's option B) and the owner overrode that, knowing the price risk. The rows are
+ * kept, flagged on the row as `caveat`, and the app shows a warning for each. The MEASUREMENTS THAT JUSTIFIED THE
+ * WARNING ARE STILL PRINTED EVERY RUN, so a caveat can be re-read against live data and removed when it stops
+ * being true:
+ *
+ *   'hkd'       Binance quotes four Hong Kong listings by exchange code (HK0700, HK1810, HK0992, HK0625) and
+ *               in HONG KONG DOLLARS: HK0700 is 396.09 against Binance's own TENCENT at 50.54, a ratio of
+ *               7.84, the HKD/USD rate, for the same company. The app never prints "$" for these - it prints
+ *               "HK$" and says so. HK0700 is MEASURED; the other three share the naming pattern, which is
+ *               evidence of a convention and not a measurement of each.
+ *   'disputed'  Binance's ANTHROPIC and OPENAI do not agree with OKX's contract of the same name (about 13x and
+ *               9.9x). The ratio is not a round factor, so it is two different reference definitions, not a
+ *               unit; Binance's value is consistent with Binance's own index, and nobody here can say which is
+ *               "per share". Shown with "Exchanges disagree on this price - treat it as a rough reference."
+ *               (MOONSHOT and OURA agree with OKX within 0.5% and carry no caveat.)
  *
  * Remove an entry only after the row's unit or definition has been confirmed. */
-const TRADFI_HOLD = new Map([
-  ['HK0700', { why: 'HKD-quoted', versus: 'TENCENT' }],
-  ['HK1810', { why: 'HKD-quoted, by naming pattern' }],
-  ['HK0992', { why: 'HKD-quoted, by naming pattern' }],
-  ['HK0625', { why: 'HKD-quoted, by naming pattern' }],
-  ['ANTHROPIC', { why: 'pre-IPO price definition unconfirmed', okx: true }],
-  ['OPENAI', { why: 'pre-IPO price definition unconfirmed', okx: true }],
+const TRADFI_CAVEAT = new Map([
+  ['HK0700', { caveat: 'hkd', versus: 'TENCENT' }],
+  ['HK1810', { caveat: 'hkd' }],
+  ['HK0992', { caveat: 'hkd' }],
+  ['HK0625', { caveat: 'hkd' }],
+  ['ANTHROPIC', { caveat: 'disputed', okx: true }],
+  ['OPENAI', { caveat: 'disputed', okx: true }],
 ]);
 
 /* SAME ASSET, DIFFERENT NAME ON THE TWO VENUES. Found by matching Binance-only prices against Bybit's
@@ -432,7 +435,7 @@ const tradfiRows = [];
 const tradfiRenamed = [];        // ticker -> id, where the ticker clashed with a crypto base
 const tradfiBybitSuffix = [];    // matched only under Bybit's <ticker>STOCK name
 const tradfiAlias = [];          // skipped because the same instrument is already a curated row
-const tradfiHeld = [];           // held out on purpose, with the reason (TRADFI_HOLD)
+const tradfiCaveat = [];         // included with a warning, with the measurement behind it (TRADFI_CAVEAT)
 const tradfiBybitAlias = [];     // matched to a differently-named Bybit instrument (BYBIT_NAME_ALIAS)
 const tradfiKindMismatch = [];   // Bybit and Binance disagree on what the instrument is
 for (const [base, n] of [...bnTradfi.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
@@ -454,19 +457,19 @@ for (const [base, n] of [...bnTradfi.entries()].sort((a, b) => (a[0] < b[0] ? -1
     continue;
   }
 
-  if (TRADFI_HOLD.has(base)) {
-    const h = TRADFI_HOLD.get(base);
+  /* A CAVEAT ROW IS NOT SKIPPED. Its numbers are computed and printed so the warning stays auditable. */
+  const cav = TRADFI_CAVEAT.get(base);
+  if (cav) {
     const mine = bnLast.get(n.symbol) ?? 0;
-    let detail = h.why;
-    if (h.versus) {
-      const ref = bnLast.get(bnTradfi.get(h.versus)?.symbol) ?? 0;
-      if (ref > 0) detail += `: x${(mine / ref).toFixed(2)} vs ${h.versus}`;
-    } else if (h.okx) {
+    let detail = cav.caveat;
+    if (cav.versus) {
+      const ref = bnLast.get(bnTradfi.get(cav.versus)?.symbol) ?? 0;
+      if (ref > 0) detail += `: x${(mine / ref).toFixed(2)} vs ${cav.versus}`;
+    } else if (cav.okx) {
       const o = okxLast.get(base.toLowerCase()) ?? 0;
       if (o > 0) detail += `: Binance ${mine} vs OKX ${o} = x${(mine / o).toFixed(1)}`;
     }
-    tradfiHeld.push(`${base} (${detail})`);
-    continue;
+    tradfiCaveat.push(`${base} (${detail})`);
   }
   const by = bybitTradfi.get(base) ?? bybitTradfi.get(base + 'STOCK')
     ?? (BYBIT_NAME_ALIAS.has(base) ? bybitTradfi.get(BYBIT_NAME_ALIAS.get(base)) : undefined) ?? null;
@@ -495,6 +498,7 @@ for (const [base, n] of [...bnTradfi.entries()].sort((a, b) => (a[0] < b[0] ? -1
   }
   tradfiRows.push({
     id, ticker: base, kind,
+    caveat: cav?.caveat,
     bybit: by?.symbol ?? null,
     binance: n.symbol,
     okx: null,
@@ -875,10 +879,13 @@ export interface CoinRow {
   /** The name to DISPLAY when it is not \`id.toUpperCase()\` - set on every TradFi row, because a
    *  ticker that clashes with a crypto base gets a suffixed id (\`catstock\`) but is still CAT. */
   readonly ticker?: string;
+  /** TRADFI ONLY. A warning the app must show for this row: 'hkd' = the price is in Hong Kong dollars (never
+   *  print "$"), 'disputed' = two exchanges quote different definitions of the price. */
+  readonly caveat?: 'hkd' | 'disputed';
 }
 
 export const COIN_UNIVERSE: readonly CoinRow[] = [
-${rows.map(r => `  { id: '${r.id}', bybit: ${r.bybit ? `'${r.bybit}'` : 'null'}, binance: ${r.binance ? `'${r.binance}'` : 'null'}, okx: ${r.okx ? `'${r.okx}'` : 'null'}, bybitMult: ${r.bybitMult}, binanceMult: ${r.binanceMult}, dec: ${r.dec}, oneVenue: ${r.oneVenue}${r.kind ? `, kind: '${r.kind}'` : ''}${r.ticker ? `, ticker: '${r.ticker}'` : ''} },`).join('\n')}
+${rows.map(r => `  { id: '${r.id}', bybit: ${r.bybit ? `'${r.bybit}'` : 'null'}, binance: ${r.binance ? `'${r.binance}'` : 'null'}, okx: ${r.okx ? `'${r.okx}'` : 'null'}, bybitMult: ${r.bybitMult}, binanceMult: ${r.binanceMult}, dec: ${r.dec}, oneVenue: ${r.oneVenue}${r.kind ? `, kind: '${r.kind}'` : ''}${r.ticker ? `, ticker: '${r.ticker}'` : ''}${r.caveat ? `, caveat: '${r.caveat}'` : ''} },`).join('\n')}
 ];
 `;
 
@@ -896,7 +903,7 @@ ${rows.map(r => `  { id: '${r.id}', bybit: ${r.bybit ? `'${r.bybit}'` : 'null'},
   for (const a of tradfiAlias) console.log(`  not added, already a curated row: ${a}`);
   if (unclassified.length) console.log(`  UNCLASSIFIED underlying, defaulted to stock: ${unclassified.join(', ')}`);
   if (tradfiKindMismatch.length) console.log(`  kind disagreement between venues (check): ${tradfiKindMismatch.join(' | ')}`);
-  if (tradfiHeld.length) console.log(`  HELD OUT (${tradfiHeld.length}): ${tradfiHeld.join(', ')}`);
+  if (tradfiCaveat.length) console.log(`  CAVEAT rows, shown with a warning (${tradfiCaveat.length}): ${tradfiCaveat.join(', ')}`);
   const assetRows = tradfiRows.filter(r => r.kind === 'asset').map(r => r.ticker);
   if (assetRows.length) console.log(`  neutral kind 'asset' (equity with no Bybit twin, so stock-vs-fund is unknown): ${assetRows.join(' ')}`);
 }

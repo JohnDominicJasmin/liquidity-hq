@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { CoinId, venueSymbols } from './marketStore.ts';
 import { OKX_SYMS } from './coins.ts';
 import { okxBarForBinanceInterval } from './okx.ts';
-import { symbolDenominationFactor } from './coins.ts';
+import { symbolDenominationFactor, currencyPrefix } from './coins.ts';
 import { fundingDetail } from './fundingDetail.ts';
 import {
   emaArr, smaArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
@@ -638,6 +638,8 @@ export function useEMAStrategy(
 
         // Conditions checklist
         const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+        /* "$" for dollars, "HK$" for a Hong Kong dollar row - see currencyPrefix in lib/coins.ts. */
+        const cur = currencyPrefix(coin);
         const conditions: StrategyCondition[] = [
           {
             label: '200 SMA Filter (Daily)',
@@ -645,8 +647,8 @@ export function useEMAStrategy(
             detail: !have200D
               ? 'Insufficient daily history - ribbon used as trend proxy'
               : above200D
-                ? `Price $${fmt(priceD)} above Daily 200 SMA $${sma200 !== null ? fmt(sma200) : '-'} - ${counterTrend ? 'against a short' : 'favours longs'}`
-                : `Price $${fmt(priceD)} below Daily 200 SMA $${sma200 !== null ? fmt(sma200) : '-'} - ${counterTrend ? 'against a long' : 'favours shorts'}`,
+                ? `Price ${cur}${fmt(priceD)} above Daily 200 SMA ${cur}${sma200 !== null ? fmt(sma200) : '-'} - ${counterTrend ? 'against a short' : 'favours longs'}`
+                : `Price ${cur}${fmt(priceD)} below Daily 200 SMA ${cur}${sma200 !== null ? fmt(sma200) : '-'} - ${counterTrend ? 'against a long' : 'favours shorts'}`,
           },
           ...(counterTrend ? [{
             label: 'Counter-trend',
@@ -679,11 +681,11 @@ export function useEMAStrategy(
             pass:  judgeLong ? price > ema50 : price < ema50,
             detail: judgeLong
               ? (price > ema50
-                ? `Close $${fmt(price)} above EMA50 $${fmt(ema50)} - long entry confirmed`
-                : `Close $${fmt(price)} below EMA50 $${fmt(ema50)} - wait for candle close above EMA 50`)
+                ? `Close ${cur}${fmt(price)} above EMA50 ${cur}${fmt(ema50)} - long entry confirmed`
+                : `Close ${cur}${fmt(price)} below EMA50 ${cur}${fmt(ema50)} - wait for candle close above EMA 50`)
               : (price < ema50
-                ? `Close $${fmt(price)} below EMA50 $${fmt(ema50)} - short entry confirmed`
-                : `Close $${fmt(price)} above EMA50 $${fmt(ema50)} - wait for candle close below EMA 50`),
+                ? `Close ${cur}${fmt(price)} below EMA50 ${cur}${fmt(ema50)} - short entry confirmed`
+                : `Close ${cur}${fmt(price)} above EMA50 ${cur}${fmt(ema50)} - wait for candle close below EMA 50`),
           },
           {
             label: 'Price in Value Zone',

@@ -1,6 +1,7 @@
 'use client';
 import { StrategySignal, StrategyVerdict, SIGNAL_OLD_BARS } from '@/lib/useEMAStrategy';
 import { CoinId } from '@/lib/marketStore';
+import { currencyPrefix } from '@/lib/coins';
 import { ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtestEngine';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -45,7 +46,7 @@ function buildSignalPrompt(signal: StrategySignal, coin: CoinId, tf: string, cfg
     ...failing.map(c  => `  ✗ ${c.label}: ${c.detail}`),
   ].join('\n');
   const sltp = signal.sl && signal.tp
-    ? `Stop loss: $${fmt(signal.sl)} · Take profit: $${fmt(signal.tp)}`
+    ? `Stop loss: ${currencyPrefix(coin)}${fmt(signal.sl)} · Take profit: ${currencyPrefix(coin)}${fmt(signal.tp)}`
     : '';
 
   return [

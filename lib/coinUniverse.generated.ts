@@ -9,8 +9,8 @@
  * memecoin listings. `dec` comes from the exchange tick size. `oneVenue` marks an instrument
  * with no failover.
  *
- * Generated: 2026-11-12T15:48:47.812Z
- * Instruments: 692 (13 single-venue)
+ * Generated: 2026-11-12T16:59:15.978Z
+ * Instruments: 698 (19 single-venue)
  */
 
 export interface CoinRow {
@@ -32,6 +32,9 @@ export interface CoinRow {
   /** The name to DISPLAY when it is not `id.toUpperCase()` - set on every TradFi row, because a
    *  ticker that clashes with a crypto base gets a suffixed id (`catstock`) but is still CAT. */
   readonly ticker?: string;
+  /** TRADFI ONLY. A warning the app must show for this row: 'hkd' = the price is in Hong Kong dollars (never
+   *  print "$"), 'disputed' = two exchanges quote different definitions of the price. */
+  readonly caveat?: 'hkd' | 'disputed';
 }
 
 export const COIN_UNIVERSE: readonly CoinRow[] = [
@@ -76,6 +79,7 @@ export const COIN_UNIVERSE: readonly CoinRow[] = [
   { id: 'anet', bybit: 'ANETUSDT', binance: 'ANETUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'ANET' },
   { id: 'anime', bybit: 'ANIMEUSDT', binance: 'ANIMEUSDT', okx: 'ANIME-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 6, oneVenue: false },
   { id: 'ankr', bybit: 'ANKRUSDT', binance: 'ANKRUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 6, oneVenue: false },
+  { id: 'anthropic', bybit: null, binance: 'ANTHROPICUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'preipo', ticker: 'ANTHROPIC', caveat: 'disputed' },
   { id: 'ape', bybit: 'APEUSDT', binance: 'APEUSDT', okx: 'APE-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'api3', bybit: 'API3USDT', binance: 'API3USDT', okx: 'API3-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 4, oneVenue: false },
   { id: 'apld', bybit: 'APLDUSDT', binance: 'APLDUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'APLD' },
@@ -315,6 +319,10 @@ export const COIN_UNIVERSE: readonly CoinRow[] = [
   { id: 'hemi', bybit: 'HEMIUSDT', binance: 'HEMIUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 6, oneVenue: false },
   { id: 'hims', bybit: 'HIMSUSDT', binance: 'HIMSUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'HIMS' },
   { id: 'hive', bybit: 'HIVEUSDT', binance: 'HIVEUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
+  { id: 'hk0625', bybit: null, binance: 'HK0625USDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'asset', ticker: 'HK0625', caveat: 'hkd' },
+  { id: 'hk0700', bybit: null, binance: 'HK0700USDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'asset', ticker: 'HK0700', caveat: 'hkd' },
+  { id: 'hk0992', bybit: null, binance: 'HK0992USDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'asset', ticker: 'HK0992', caveat: 'hkd' },
+  { id: 'hk1810', bybit: null, binance: 'HK1810USDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'asset', ticker: 'HK1810', caveat: 'hkd' },
   { id: 'hmstr', bybit: 'HMSTRUSDT', binance: 'HMSTRUSDT', okx: 'HMSTR-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 7, oneVenue: false },
   { id: 'holo', bybit: 'HOLOUSDT', binance: 'HOLOUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'home', bybit: 'HOMEUSDT', binance: 'HOMEUSDT', okx: 'HOME-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 6, oneVenue: false },
@@ -472,6 +480,7 @@ export const COIN_UNIVERSE: readonly CoinRow[] = [
   { id: 'ont', bybit: 'ONTUSDT', binance: 'ONTUSDT', okx: 'ONT-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'op', bybit: 'OPUSDT', binance: 'OPUSDT', okx: 'OP-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'open', bybit: 'OPENUSDT', binance: 'OPENUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
+  { id: 'openai', bybit: null, binance: 'OPENAIUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'preipo', ticker: 'OPENAI', caveat: 'disputed' },
   { id: 'opg', bybit: 'OPGUSDT', binance: 'OPGUSDT', okx: 'OPG-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'opn', bybit: 'OPNUSDT', binance: 'OPNUSDT', okx: 'OPN-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'orca', bybit: 'ORCAUSDT', binance: 'ORCAUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 4, oneVenue: false },

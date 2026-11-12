@@ -666,6 +666,8 @@
   "ARENA_CAT_COMMODITIES": "Commodities & FX",
   "ARENA_KIND_STOCK": "Tokenized stock",
   "ARENA_KIND_ASSET": "Tokenized asset",
+  "ARENA_CAVEAT_HKD": "Priced in Hong Kong dollars (HK$), not US dollars.",
+  "ARENA_CAVEAT_DISPUTED": "Exchanges disagree on this price - treat it as a rough reference.",
   "ARENA_KIND_ETF": "ETF",
   "ARENA_KIND_COMMODITY": "Commodity",
   "ARENA_KIND_FX": "FX",

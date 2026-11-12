@@ -156,6 +156,21 @@ export function coinKind(coin: string): CoinKind | undefined {
   return BY_ID.get(coin)?.kind;
 }
 
+/** A warning the app must show for this row (see the generator's TRADFI_CAVEAT), or undefined. */
+export type CoinCaveat = NonNullable<CoinRow['caveat']>;
+export function coinCaveat(coin: string): CoinCaveat | undefined {
+  return BY_ID.get(coin)?.caveat;
+}
+
+/* THE CURRENCY SIGN FOR A COIN'S PRICE. Everything is quoted in dollars except the Hong Kong listings Binance
+ * quotes in Hong Kong dollars, which print "HK$". A price for one of those rows must NEVER carry a bare "$":
+ * 396 HK$ read as $396 is wrong by a currency (HK0700 is 7.84x its own USD-quoted TENCENT). Every surface that
+ * writes a literal "$" in front of a selected coin's price goes through this; a surface that does not is a
+ * defect on those four rows. */
+export function currencyPrefix(coin: string): string {
+  return BY_ID.get(coin)?.caveat === 'hkd' ? 'HK$' : '$';
+}
+
 const idsOfKind = (kinds: readonly CoinKind[]): CoinId[] =>
   COIN_UNIVERSE.filter(r => r.kind && kinds.includes(r.kind)).map(r => r.id);
 

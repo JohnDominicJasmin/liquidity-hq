@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { COIN_DEC, CoinId, useMarket, computeSqueezeScore, venueSymbols } from '@/lib/marketStore';
-import { chartDisplaySymbol } from '@/lib/coins';
+import { chartDisplaySymbol, currencyPrefix } from '@/lib/coins';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
@@ -1464,7 +1464,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               },
               {
                 type: 'text',
-                attrs: { x: rightX - 6, y: labelY, text: `${srType === 'resistance' ? 'R' : 'S'} $${fmtPx(price)}`, align: 'right', baseline: 'bottom' },
+                attrs: { x: rightX - 6, y: labelY, text: `${srType === 'resistance' ? 'R' : 'S'} ${currencyPrefix(coinRef.current)}${fmtPx(price)}`, align: 'right', baseline: 'bottom' },
                 // #598 D1 residual, QA pixel-sampled: no backgroundColor meant
                 // klinecharts filled the label with its own default primary
                 // (#1677ff) instead of anything from this file's palette -
@@ -1521,7 +1521,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               },
               {
                 type: 'text',
-                attrs: { x: 6, y: labelY, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
+                attrs: { x: 6, y: labelY, text: `${label} ${currencyPrefix(coinRef.current)}${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
                 styles: {
                   color: ink.text, size: 9, weight: '700',
                   paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
@@ -1641,7 +1641,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               },
               {
                 type: 'text',
-                attrs: { x: 6, y: y - 3, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
+                attrs: { x: 6, y: y - 3, text: `${label} ${currencyPrefix(coinRef.current)}${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
                 styles: { color, size: 10, weight: '700' },
               },
             ];
