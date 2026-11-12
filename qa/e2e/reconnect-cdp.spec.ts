@@ -50,10 +50,10 @@ test.describe('chart reconnects after a socket drop', () => {
        killed nothing the page was using ("the drop did not reach the page"). Route Bybit too. A Bybit
        socket is held open and silent: the claim here is that every dropped socket REOPENS, not what it
        carries, and the Binance branch below still serves generated frames. */
-    await context.routeWebSocket(/stream\.binance\.com|fstream\.binance\.com|stream\.bybit\.com/, (ws) => {
+    await context.routeWebSocket(/stream\.binance\.com|fstream\.binance\.com|stream\.(bybit|bytick)\.com/, (ws) => {
       if (blocked) { void ws.close({ code: 1006 }); return; }
       live.push(ws);
-      if (/bybit/.test(ws.url())) { ws.onClose(() => { const at = live.indexOf(ws); if (at >= 0) live.splice(at, 1); }); return; }
+      if (/bybit|bytick/.test(ws.url())) { ws.onClose(() => { const at = live.indexOf(ws); if (at >= 0) live.splice(at, 1); }); return; }
       const streams = (() => { try { return new URL(ws.url()).searchParams.get('streams') ?? ''; } catch { return ''; } })();
       const syms = streams.split('/').filter(x => x.includes('@ticker')).map(x => x.split('@')[0].toUpperCase());
       const emit = () => { for (const sym of (syms.length ? syms : ['BTCUSDT'])) { try { ws.send(synthCombinedFrame(sym)); } catch { /* closed */ } } };
@@ -86,9 +86,21 @@ test.describe('chart reconnects after a socket drop', () => {
     const dropped = [...new Set(closes.map(c => c.url))];
     const dropAt = new Map(closes.map(c => [c.url, c.t]));
     const host = (u: string) => { try { return new URL(u).host; } catch { return u; } };
+    /* A SOCKET IS RECOVERED WHEN ITS FEED IS BACK, NOT WHEN THE SAME URL REOPENS. MarketProvider's Bybit
+       liquidation feed (connectBB) reconnects after 5s to the ALTERNATE host (stream.bytick.com), by design,
+       so a per-URL check can never pass for it (run 43250355802: 1 dropped URL, 0 reopened - the Bybit
+       one). The family is the venue: every Bybit host counts as one feed. Binance and Supabase keep
+       their own host, so nothing is loosened for them. */
+    const family = (u: string) => (/stream\.(bybit|bytick)\.com/.test(u) ? 'bybit-linear' : u);
     const reopened = async () => {
       const now = await read();
-      return dropped.filter(u => now.some(e => e.kind === 'open' && e.url === u && e.t > (dropAt.get(u) ?? 0)));
+      return dropped.filter(u => now.some(e => e.kind === 'open' && family(e.url) === family(u) && e.t > (dropAt.get(u) ?? 0)));
+    };
+    const summary = async () => {
+      const now = await read();
+      const by: Record<string, string> = {};
+      for (const e of now) { const h = host(e.url); by[h] = (by[h] ?? '') + (e.kind === 'open' ? 'O' : 'C'); }
+      return JSON.stringify(by);
     };
 
     /* PER-URL: every socket that dropped must reopen. Poll so a fast recovery does not cost the budget. */
@@ -98,6 +110,7 @@ test.describe('chart reconnects after a socket drop', () => {
       message: 'not every dropped ticker socket reopened after the outage lifted',
     }).toBe(dropped.length);
 
+    console.log('[reconnect-cdp] events by host (O=open C=close, in order): ' + await summary());
     const recovered = await reopened();
     const stillDown = dropped.filter(u => !recovered.includes(u));
     // eslint-disable-next-line no-console
