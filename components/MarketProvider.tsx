@@ -498,9 +498,13 @@ export default function MarketProvider(
      response actually carried, so a partial or missing response leaves the
      previous values on screen rather than blanking them. */
   const fetchSnapshot = useCallback(async () => {
+    /* ok is sticky and failed never overwrites it - see MarketStore.snapshotStatus. Returns the same
+       object when nothing changes, so a steady poll does not re-render every consumer. */
+    const mark = (st: 'ok' | 'failed') =>
+      setStore(s => (s.snapshotStatus === st || (st === 'failed' && s.snapshotStatus === 'ok')) ? s : { ...s, snapshotStatus: st });
     try {
       const res = await fetch('/api/market/snapshot');
-      if (!res.ok) return;
+      if (!res.ok) { mark('failed'); return; }
       const body = await res.json() as {
         ticker?: Record<string, { price: number; change: number; high: number; low: number; vol24: number }>;
         klines?: Record<string, Record<string, unknown>>;
@@ -536,7 +540,8 @@ export default function MarketProvider(
       for (const [coin, r] of Object.entries(body.lsr ?? {})) {
         if (r && Object.keys(r).length) updateCoin(coin as CoinId, r as Partial<CoinData>);
       }
-    } catch { /* */ }
+      mark('ok');
+    } catch { mark('failed'); }
   }, [updateCoin]);
 
   /* ── Bybit klines for Bybit-only coins (HYPE, PEPE, BONK, XAU, SPX, …) ── */
