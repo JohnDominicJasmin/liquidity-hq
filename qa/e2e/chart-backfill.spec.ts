@@ -26,13 +26,48 @@ import { gotoGuarded } from './_shared';
  * THE CONTROL stays: with no close, no backfill. Without it a build that refetched history on a timer would satisfy the cell
  * while doing nothing about outages. */
 
-const BACKFILL_HTTP = /\/api\/market\/klines\?[^"]*limit=500|type=bybit-kline[^"]*limit=500|v5\/market\/kline[^"]*limit=500/;
-const KLINE_SOCKET = /@kline_/i;
+const BACKFILL_HTTP = /\/api\/market\/klines\?[^"]*limit=500/;
 
+/* WHICH BRANCH THE CHART TAKES, MEASURED (run 43293183391): on /arena the chart opened NO @kline_ Binance socket; its live feed is
+   the BYBIT branch of KLineProChart (wss://stream.bybit.com/v5/public/linear, host alternating to stream.bytick.com on every
+   reconnect). That socket is told apart from the other Bybit socket the page opens (the liquidation feed) by what the page SENDS
+   on it: { op: 'subscribe', args: ['kline.<interval>.<symbol>'] }. The backfill is fetchBybitKlinesRetry:
+   /api/market/klines?source=bybit&symbol=..&interval=..&limit=500. */
 const ivMs = (iv: string) => {
-  const n = parseInt(iv, 10) || 1;
-  return n * ({ m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 }[iv.slice(-1)] ?? 60_000);
+  if (/^\d+$/.test(iv)) return parseInt(iv, 10) * 60_000;
+  return ({ D: 86_400_000, W: 604_800_000, M: 2_592_000_000 } as Record<string, number>)[iv] ?? 60_000;
 };
+
+type Connect = { t: number; url: string; topic: string };
+
+/** A fake Bybit server for the chart's kline socket: answers the subscribe, then streams one frame a second. */
+async function routeBybit(page: import('@playwright/test').Page, onKline: (c: Connect, close: () => void) => void, otherFeeds: string[]) {
+  await page.routeWebSocket(/stream\.(bybit|bytick)\.com/, (ws) => {
+    const url = ws.url();
+    let subscribed = false;
+    ws.onMessage((m) => {
+      const text = typeof m === 'string' ? m : m.toString();
+      if (/"op":"ping"/.test(text)) { try { ws.send(JSON.stringify({ op: 'pong' })); } catch { /* closed */ } return; }
+      const topic = text.match(/"(kline\.[^"]+)"/)?.[1];
+      if (subscribed || !/"op":"subscribe"/.test(text) || !topic) { if (!topic && !subscribed) otherFeeds.push(url); return; }
+      subscribed = true;
+      try { ws.send(JSON.stringify({ op: 'subscribe', success: true })); } catch { /* closed */ }
+      const iv = topic.split('.')[1] ?? '1';
+      const emit = () => {
+        const start = Math.floor(Date.now() / ivMs(iv)) * ivMs(iv);
+        try {
+          ws.send(JSON.stringify({ topic, type: 'snapshot', ts: Date.now(), data: [{
+            start, end: start + ivMs(iv) - 1, interval: iv, open: '60000', close: '60010', high: '60020', low: '59990',
+            volume: '10', turnover: '600000', confirm: false, timestamp: Date.now() }] }));
+        } catch { /* closed */ }
+      };
+      emit();
+      const timer = setInterval(emit, 1000);
+      ws.onClose(() => clearInterval(timer));
+      onKline({ t: Date.now(), url, topic }, () => { try { void ws.close({ code: 1000 }); } catch { /* gone */ } });
+    });
+  });
+}
 
 test.describe('chart backfills candles missed during an outage', () => {
   test('a reconnect after a dropped kline socket fetches the gap', async ({ page }) => {
@@ -41,55 +76,36 @@ test.describe('chart backfills candles missed during an outage', () => {
     const backfills: Array<{ url: string; t: number }> = [];
     page.on('request', r => { if (BACKFILL_HTTP.test(r.url())) backfills.push({ url: r.url(), t: Date.now() }); });
 
-    const klineConnects: Array<{ url: string; t: number }> = [];
+    const klineConnects: Connect[] = [];
+    const closers: Array<() => void> = [];
     const otherFeeds: string[] = [];
-    const live: Array<{ close: () => void }> = [];
-    await page.routeWebSocket(/@kline_|stream\.binance\.com|fstream\.binance\.com|stream\.(bybit|bytick)\.com/, (ws) => {
-      const url = ws.url();
-      if (!KLINE_SOCKET.test(url)) { otherFeeds.push(url.replace(/\?.*/, '')); return; }   // held open and silent
-      klineConnects.push({ url, t: Date.now() });
-      const iv = url.match(/@kline_(\w+)/)?.[1] ?? '1m';
-      const entry = { close: () => { try { void ws.close({ code: 1000 }); } catch { /* gone */ } } };
-      live.push(entry);
-      const emit = () => {
-        const open = Math.floor(Date.now() / ivMs(iv)) * ivMs(iv);
-        try {
-          ws.send(JSON.stringify({ e: 'kline', k: { t: open, T: open + ivMs(iv) - 1, s: 'BTCUSDT', i: iv, o: '60000', c: '60010', h: '60020', l: '59990', v: '10', x: false } }));
-        } catch { /* closed */ }
-      };
-      emit();
-      const timer = setInterval(emit, 1000);
-      ws.onClose(() => { clearInterval(timer); const at = live.indexOf(entry); if (at >= 0) live.splice(at, 1); });
-    });
+    await routeBybit(page, (c, close) => { klineConnects.push(c); closers.push(close); }, otherFeeds);
 
     await gotoGuarded(page, '/arena');
     await page.waitForTimeout(20_000);
 
-    /* INSTRUMENT CHECK, as a FAILURE with the evidence, not a skip: the chart must have opened a kline socket through the
-       route. If it did not, the chart is on a feed this spec does not cover (Bybit) and the message says which sockets it did open. */
     // eslint-disable-next-line no-console
-    console.log(`[backfill] kline sockets=${klineConnects.length} (${klineConnects.map(c => c.url.replace(/^wss:\/\//, '')).join(', ')}) other feeds=${JSON.stringify([...new Set(otherFeeds)])}`);
+    console.log(`[backfill] kline subscriptions=${klineConnects.length} (${klineConnects.map(c => c.topic + '@' + c.url.replace(/^wss:\/\//, '')).join(', ')}) other bybit sockets=${otherFeeds.length}`);
     expect(klineConnects.length,
-      `the chart opened no Binance kline socket through the route. Other sockets it opened: ${JSON.stringify([...new Set(otherFeeds)])}. ` +
-      'If this is a Bybit-only chart on this build, this spec does not cover that branch - say so rather than skipping.').toBeGreaterThan(0);
+      'the chart never subscribed to a Bybit kline topic through the route, so there is no kline socket to drop: it is on a feed this spec does not cover').toBeGreaterThan(0);
 
     const beforeKill = backfills.length;
     const connectsBefore = klineConnects.length;
 
-    /* 2 - the server closes every live kline socket. */
-    for (const s of [...live]) s.close();
+    /* 2 - the server closes the kline socket. */
     const killedAt = Date.now();
+    for (const close of closers.splice(0)) close();
 
-    /* 3 - the chart reconnects by itself (backoff 1s first). Proven from the handler, not from the page. */
+    /* 3 - the chart reconnects by itself (backoff 1s, alternate host). Proven from the handler: a NEW kline subscription. */
     await expect.poll(() => klineConnects.filter(c => c.t > killedAt).length, {
       timeout: 60_000, intervals: [1_000],
-      message: 'the chart never reopened its kline socket after the server closed it - the close did not reach the app, or the reconnect is broken',
+      message: 'the chart never re-subscribed to a kline topic after the server closed its socket - the close did not reach the app, or the reconnect is broken',
     }).toBeGreaterThan(0);
 
     /* 4 - the gap backfill follows the reconnect. */
     await expect.poll(() => backfills.filter(b => b.t > killedAt).length, {
       timeout: 45_000, intervals: [1_000],
-      message: `the chart reconnected (${klineConnects.length - connectsBefore} new kline socket(s)) but no backfill fetch followed. The bars closed during the gap are never requested: #313 as reported. Expected a klines request with limit=500.`,
+      message: `the chart reconnected (${klineConnects.length - connectsBefore} new kline subscription(s)) but no backfill fetch followed. The bars closed during the gap are never requested: #313 as reported. Expected /api/market/klines with limit=500.`,
     }).toBeGreaterThan(0);
 
     // eslint-disable-next-line no-console
@@ -102,30 +118,19 @@ test.describe('chart backfills candles missed during an outage', () => {
     const backfills: string[] = [];
     page.on('request', r => { if (BACKFILL_HTTP.test(r.url())) backfills.push(r.url()); });
     let connects = 0;
-    await page.routeWebSocket(/@kline_/i, (ws) => {
-      connects += 1;
-      const iv = ws.url().match(/@kline_(\w+)/)?.[1] ?? '1m';
-      const emit = () => {
-        const open = Math.floor(Date.now() / ivMs(iv)) * ivMs(iv);
-        try { ws.send(JSON.stringify({ e: 'kline', k: { t: open, T: open + ivMs(iv) - 1, s: 'BTCUSDT', i: iv, o: '60000', c: '60010', h: '60020', l: '59990', v: '10', x: false } })); } catch { /* closed */ }
-      };
-      emit();
-      const timer = setInterval(emit, 1000);
-      ws.onClose(() => clearInterval(timer));
-    });
+    await routeBybit(page, () => { connects += 1; }, []);
 
     await gotoGuarded(page, '/arena');
     await page.waitForTimeout(20_000);
     const settled = backfills.length;
     const connectsSettled = connects;
-    expect(connectsSettled, 'no kline socket opened, so this control would pass for any build').toBeGreaterThan(0);
+    expect(connectsSettled, 'no kline subscription opened, so this control would pass for any build').toBeGreaterThan(0);
 
     await page.waitForTimeout(60_000);       // same kind of elapsed time, the socket is never closed
 
-    expect(connects, 'the chart reconnected although the server never closed the socket').toBe(connectsSettled);
+    expect(connects, 'the chart re-subscribed although the server never closed the socket').toBe(connectsSettled);
     expect(backfills.length,
-      `${backfills.length - settled} backfill fetch(es) fired with no reconnect. The backfill is supposed to be triggered by recovery, ` +
-      `not by a timer - re-polling history on a schedule is the waste the KLineProChart comment says it avoids.`)
+      `${backfills.length - settled} backfill fetch(es) fired with no reconnect. The backfill is supposed to be triggered by recovery, not by a timer - re-polling history on a schedule is the waste the KLineProChart comment says it avoids.`)
       .toEqual(settled);
   });
 });
