@@ -5,6 +5,8 @@ import '../app/globals.css';
 import AppShell from './AppShell';
 import StructuredData from './StructuredData';
 import { organizationGraph } from '@/lib/structuredData';
+import { SUPPORTED_LOCALES } from '@/lib/i18n/dictionaries';
+import { INACTIVITY_MS, LAST_ACTIVE_KEY } from '@/lib/authSession';
 
 /* THE ONE <html>/<body> FOR THE WHOLE APP, shared by both root layouts (#1740 item 2).
  *
@@ -79,6 +81,10 @@ export const rootViewport: Viewport = {
 export const ROOT_METADATA_BASE = new URL('https://liquidity-hq.com');
 
 export default function RootDocument({ lang, children }: { lang: string; children: React.ReactNode }) {
+  /* The landing routes, as a JS array literal for the pre-paint script below. Built here so the
+     script shares one source of truth with the router: `app/(intl)/[locale]/page.tsx` generates its
+     static params from this same list. */
+  const landingPathsJs = JSON.stringify(['/'].concat(SUPPORTED_LOCALES.map(l => '/' + l)));
   /* data-design is a static attribute on <html> (#1111). It used to be resolved from ?design= and
      localStorage by an inline script and by DesignModeProvider; with the current-design markup deleted
      from every page, the only thing that switch could still do was strip the terminal tokens off
@@ -116,10 +122,27 @@ export default function RootDocument({ lang, children }: { lang: string; childre
             locked rather than bouncing back. CRAWLERS ARE UNAFFECTED - no localStorage token means no
             redirect - which is what protects #1740.
 
-            ONLY THE THREE LANDING ROUTES. /about, /faq and the rest have no such redirect and must not
-            gain one. */}
+            ONLY THE LANDING ROUTES, AND THE LIST IS DERIVED (#1173). It was three hand-typed paths -
+            '/', '/ko', '/zh' - and `ru` was switched on afterwards, so a signed-in visitor on /ru kept
+            the full flash this script exists to remove. Nothing failed and nothing could: a missing
+            path means the script returns early, which is indistinguishable from a visitor who is not
+            signed in. The list now comes from SUPPORTED_LOCALES, so the next locale is covered by
+            adding it there and nowhere else. /about, /faq and the rest still have no such redirect and
+            must not gain one.
+
+            ONE KEY'S PARSE FAILURE NO LONGER ABORTS THE SCAN. A big session is stored CHUNKED -
+            `...-auth-token.0`, `.1` - which lib/authSession.ts's authTokenKeys documents and matches on
+            purpose. Those chunks hold JSON fragments, so `JSON.parse` throws on them; the try/catch
+            used to wrap the whole loop, so one chunk key silently ended the search for every other key
+            and the visitor saw the flash. The parse is now per key, with `continue`.
+
+            THE 7-DAY INACTIVITY WINDOW IS CHECKED TOO, from the same constant AuthProvider enforces
+            (lib/authSession.ts). Without it this redirected a visitor the app was about to sign out:
+            no loop - /arena renders signed-out with features locked rather than bouncing back - but
+            they landed on a locked Arena instead of the page they asked for. An absent timestamp does
+            not block, matching isSessionExpired's "first visit or cleared - let Supabase decide". */}
         <Script id="landing-signed-in-redirect" strategy="beforeInteractive">
-          {`(function(){try{var p=location.pathname.replace(/\\/+$/,'')||'/';if(p!=='/'&&p!=='/ko'&&p!=='/zh')return;var ls=window.localStorage;for(var i=0;i<ls.length;i++){var k=ls.key(i);if(!k||k.slice(0,3)!=='sb-'||k.indexOf('-auth-token')<0)continue;var s=JSON.parse(ls.getItem(k)||'null');var e=s&&s.expires_at;if(typeof e==='number'&&e*1000-Date.now()>90000){location.replace('/arena');return;}}}catch(e){}})();`}
+          {`(function(){try{var p=location.pathname.replace(/\\/+$/,'')||'/';if(${landingPathsJs}.indexOf(p)<0)return;var ls=window.localStorage;var la=null;try{la=ls.getItem(${JSON.stringify(LAST_ACTIVE_KEY)});}catch(e){}if(la!==null&&Date.now()-Number(la)>${INACTIVITY_MS})return;for(var i=0;i<ls.length;i++){var k=ls.key(i);if(!k||k.slice(0,3)!=='sb-'||k.indexOf('-auth-token')<0)continue;var e=null;try{var s=JSON.parse(ls.getItem(k)||'null');e=s&&s.expires_at;}catch(err){continue;}if(typeof e==='number'&&e*1000-Date.now()>90000){location.replace('/arena');return;}}}catch(e){}})();`}
         </Script>
         {/* CONSENT DECIDED BEFORE HYDRATION (#337), with the #326 net behind it.
             body.consent-pending hides the Ask AI FAB outright and was removed only by a useEffect in

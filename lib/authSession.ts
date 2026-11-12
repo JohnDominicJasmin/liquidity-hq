@@ -15,6 +15,21 @@ export function authTokenKeys(keys: readonly string[]): string[] {
   return keys.filter(k => k.startsWith('sb-') && k.includes('-auth-token'));
 }
 
+/* THE INACTIVITY WINDOW HAS TWO READERS NOW, so it lives here rather than in AuthProvider (#1173).
+ *
+ * AuthProvider enforces it (isSessionExpired -> forceSignOut), and the pre-paint landing redirect in
+ * components/RootDocument.tsx has to apply the SAME window before it sends a visitor to /arena -
+ * otherwise it redirects someone this app is about to sign out, who then lands on a signed-out Arena
+ * instead of the page they asked for.
+ *
+ * A SECOND LITERAL IS THE FAILURE THIS PREVENTS. The script cannot import at runtime, so the value is
+ * interpolated into it at build time from here. Typing `7 * 24 * 60 * 60 * 1000` in both places would
+ * let the two drift silently, and the symptom - a visitor redirected a day before or after the app
+ * would have expired them - is invisible from either file alone. */
+export const INACTIVITY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+/** Where the last-activity timestamp is stored. Read by AuthProvider and by the pre-paint script. */
+export const LAST_ACTIVE_KEY = 'lhq_last_active';
+
 /* One sign-out that survives a failed logout call, for EVERY caller (#304).
  *
  * The first pass at #304 fixed AuthProvider.signOut and nothing else, which QA
