@@ -572,6 +572,11 @@ function ArenaContent() {
      coin's lines stayed drawn on the new coin's chart at the old coin's prices. */
   const chartAlertsCoinRef = useRef<string | null>(null);
 
+  /* PRICE ALERTS COVER THE CURATED COINS ONLY: the alert cron prices nothing else, so an alert on any other coin is
+     accepted and never fires. The server refuses it too (app/api/price-alerts/route.ts); this keeps the button from
+     offering what would be refused. */
+  const alertCoinCovered = (COINS as string[]).includes(selectedCoin);
+
   function openAlertForm() {
     const price = store.coins[selectedCoin]?.price;
     setAlertPrice(price ? String(price) : '');
@@ -582,7 +587,7 @@ function ArenaContent() {
   }
 
   async function saveArenaAlert() {
-    if (!alertPrice || isNaN(parseFloat(alertPrice)) || !user) return;
+    if (!alertPrice || isNaN(parseFloat(alertPrice)) || !user || !alertCoinCovered) return;
     setAlertSaving(true);
     setAlertError('');
     try {
@@ -2426,12 +2431,19 @@ function ArenaContent() {
         {user && (
           <button
             className="arena-ask-grok-btn"
-            style={{ width: 'auto', marginBottom: 0, background: alertFormOpen ? 'rgba(26,122,255,0.15)' : undefined }}
+            style={{ width: 'auto', marginBottom: 0, background: alertFormOpen && alertCoinCovered ? 'rgba(26,122,255,0.15)' : undefined }}
             onClick={() => alertFormOpen ? setAlertFormOpen(false) : openAlertForm()}
-            title={t('ARENA_SET_ALERT_TITLE')}
+            disabled={!alertCoinCovered}
+            title={alertCoinCovered ? t('ARENA_SET_ALERT_TITLE') : t('ARENA_ALERT_MAIN_COINS_ONLY')}
           >
             {t('ARENA_SET_ALERT_BUTTON')}
           </button>
+        )}
+        {/* The reason, in plain sight: a disabled control with its explanation only in a tooltip is a silent no. */}
+        {user && !alertCoinCovered && (
+          <span data-testid="alert-main-coins-only" role="note" style={{ alignSelf: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
+            {t('ARENA_ALERT_MAIN_COINS_ONLY')}
+          </span>
         )}
 
         <button
@@ -2456,7 +2468,7 @@ function ArenaContent() {
       </div>
 
       {/* ── Price alert inline form - buy/sell-panel styling ── */}
-      {alertFormOpen && user && (
+      {alertFormOpen && user && alertCoinCovered && (
         <div style={{
           margin: '8px 0', padding: 16, borderRadius: 14,
           border: '0.5px solid var(--bdr)', background: 'var(--bg2)',

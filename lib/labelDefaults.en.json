@@ -709,6 +709,7 @@
   "ARENA_DEEP_RESEARCH_BUTTON": "Deep Research",
   "ARENA_SET_ALERT_TITLE": "Set a price alert for this coin",
   "ARENA_SET_ALERT_BUTTON": "Set Alert",
+  "ARENA_ALERT_MAIN_COINS_ONLY": "Price alerts cover the main coins only.",
   "ARENA_CHAT_PROMPT_WITH_RESULT": "I just ran a full market read on {coin}: {signal} signal at {confidence}% confidence. {reasoning} What should I watch out for, and are there any scenarios that would invalidate this signal?",
   "ARENA_CHAT_PROMPT_NO_RESULT": "Give me a complete analysis of {coin}/USDT right now. What's the trend, key levels, directional bias, best entry if any, and should I trade or wait?",
   "ARENA_ASK_LIQUIDITYAI_BUTTON": "Ask LiquidityAI",
