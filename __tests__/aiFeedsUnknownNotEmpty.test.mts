@@ -258,6 +258,39 @@ test('N2. a read that succeeds marks the feed loaded, empty or not, with rows in
   assert.deepEqual(r.ingested, [{ dedup_key: 'old' }, { dedup_key: 'new' }]);
 });
 
+test('N5. the failure flag is set on an error, CLEARED on success, and cleared ALONGSIDE the loaded flag', async () => {
+  /* #2125 gave the provider an explicit `alertsFailed`, and #2126 added the recording spy for it
+     without asserting anything - deliberately, because the assertions would have been red on `dev`
+     until #2125 landed. It has landed, so this is that follow-up.
+     ITS OWN CELL rather than extra lines in N1/N2: those two own the loaded/ingested contract, and
+     "N5 failed" should mean the failure flag rather than sending a reader to re-read three cells. */
+
+  /* 1. an errored read sets it. Without this the All tab shows a skeleton for as long as the feed
+        stays down - the defect #2125 exists to remove. */
+  for (const data of [null, []]) {
+    const r = await hydrate({ data, error: { code: '57014', message: 'canceling statement due to statement timeout' } });
+    assert.deepEqual(r.failed, [true], `data=${JSON.stringify(data)}: an errored read must set alertsFailed`);
+  }
+
+  /* 2. a successful read CLEARS it. A failure that never clears strands an error over a feed that has
+        since recovered - wrong about working, which is worse than wrong about broken. */
+  const ok = await hydrate({ data: [{ dedup_key: 'x' }], error: null });
+  assert.deepEqual(ok.failed, [false], 'a successful read must clear alertsFailed');
+
+  /* 3. AND it clears ALONGSIDE the loaded flag, not instead of it. This is the assertion the other
+        two cannot make: a refactor that swapped `setAlertsFailed(false)` for `setAlertsLoaded(true)`
+        would satisfy both checks above while leaving the feed in a state no render branch matches -
+        not failed, not loaded, so the All tab falls through to its skeleton for ever. */
+  assert.deepEqual(ok.loaded, [true], 'the successful read must ALSO mark the feed loaded');
+  assert.equal(ok.failed.length + ok.loaded.length, 2,
+    'exactly two setter calls expected on the success path - one clearing failed, one marking loaded; '
+    + `got failed=${JSON.stringify(ok.failed)} loaded=${JSON.stringify(ok.loaded)}`);
+
+  /* And the error path must NOT mark it loaded, which is the pairing in the other direction. */
+  const bad = await hydrate({ data: null, error: { code: 'PGRST002', message: 'schema cache' } });
+  assert.deepEqual(bad.loaded, [], 'an errored read must not mark the feed loaded');
+});
+
 test('N3. no Supabase client means no news was read: that early return does not mark the feed loaded', () => {
   const noClient = providerOnce(/if \(!sb\) \{([^}]*)\}/, 'the no-client early return')[1];
   assert.doesNotMatch(noClient, /setAlertsLoaded\(\s*true\s*\)/, 'a host with no client tells the AI the news feed is quiet');

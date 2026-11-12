@@ -104,39 +104,6 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const verdictCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt2)';
   const verdictText = sq.dir === 'SHORT_SQ' ? 'BULLISH' : sq.dir === 'LONG_LIQ' ? 'BEARISH' : 'NO READ';
   const hasConfidence = sq.dir !== 'NEUTRAL';
-  /* THE SCORE IS A READING ONLY ONCE EVERY DIRECTION INPUT HAS ARRIVED (#2119, #2142, #2143 follow-up).
-
-     #2119 gated on `d`. #2142 gated on ANY ONE input, and argued that funding present and sitting
-     between the bands was a measured zero. **That was wrong, and QA caught it: 8 of 15 cold loads
-     still showed "Setup 0 - Balanced".** The score is a SUM over three independent signals, so one
-     input is not the reading - it is a partial sum presented as final. Driven through the real
-     function with funding arriving first, which is the order QA reports:
-
-         d only                     -> hidden
-         + funding, between bands    -> "0"  "Balanced"      <- #2142 showed this; it was never the score
-         + the long/short pair       -> "40" "Balanced"
-
-     The 0 and the 40 are the same quantity measured over different input sets. A reader cannot tell
-     which they are looking at, so neither may be shown until the set is complete.
-
-     ALL THREE, and the asymmetry with `volRatio` still holds: it is a bonus multiplier the function
-     only applies once a direction already scores above 10, so it is not part of readiness.
-
-     IF A FEED NEVER ARRIVES, THIS STAYS A DASH, and that is the honest outcome rather than a
-     regression: we never have the score, and #2125 settled that an absence is stated rather than
-     filled in. Showing the score from a partial set once the fetches have SETTLED would need a
-     settled flag on the store, and there is none today - `lib/marketStore.ts` exposes no
-     loaded/settled signal for these feeds. That is the follow-up if PM wants a partial score after
-     settling; it is provider surgery, not a gate change.
-
-     THE THREE INPUTS COME FROM THREE DIFFERENT FEEDS, which is why the window is wide enough to see:
-     funding from the ticker pass, the long/short pair from its own endpoint (MarketProvider ~:458),
-     and takerBuy computed from klines (~:633). This predicate restates the function's input list, so
-     a fourth signal added there would not reach it - QA's source-reading cell is the guard. */
-  const sqReady = d != null
-    && d.fundingRate != null
-    && d.longRatio != null && d.shortRatio != null
-    && d.takerBuyRatio != null;
 
   const price = d?.price ?? null;
   const vwap  = d?.vwap ?? null;
@@ -181,7 +148,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
        KEYED ON DATA PRESENCE, NOT ON `dir`: a real NEUTRAL reading with data behind it is a
        legitimate score and must still show. The big score and its bar below are already guarded by
        `hasConfidence`, so they were never part of this. */
-    { label: 'Setup',   value: sqReady ? String(sq.score) : null, note: sqReady ? sq.label : '', col: sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)' },
+    { label: 'Setup',   value: d ? String(sq.score) : null, note: sq.label, col: sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)' },
   ];
 
   return (
