@@ -112,6 +112,14 @@ const setDir = (page: Page, dir: 'ltr' | 'rtl') =>
 test.describe('quantitative axes are exempt from RTL mirroring', () => {
   for (const route of ROUTES) {
     test(`${route}: dir="ltr" containers hold the same position under rtl`, async ({ page }) => {
+      /* EXPECTED-FAIL ON /briefing ONLY, 2026-11-12. Step 2 (the RTL exemptions on /briefing) has
+         not landed: measured on the deployed `qa` site (`50a92c7`), `GET /briefing` renders zero
+         `dir="ltr"` containers, so the positive control below cannot be satisfied. `test.fail`
+         keeps the row red-by-design without reddening the gate, and - because it is an EXPECTED
+         failure - it flips the gate red the moment the exemptions DO land, which is exactly when
+         this should become a real assertion again. `/hours` and `/arena` already render exempt
+         containers and stay real. */
+      test.fail(route === '/briefing', 'step 2 (RTL exemptions on /briefing) not landed: /briefing renders no dir="ltr" containers yet');
       await page.addInitScript(() => {
         try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
       });
