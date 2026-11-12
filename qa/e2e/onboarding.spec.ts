@@ -271,8 +271,14 @@ test.describe('#1113 onboarding, end to end', () => {
       'the wizard was dismissed even though the save failed - the user is past onboarding with nothing stored').toBe(true);
   });
 
-  test('restores the fixture to exactly what it was', async () => {
-    expect(existsSync(SNAP), 'no snapshot — the reset test must run first').toBeTruthy();
+  /* AN afterAll, NOT A TEST. As the last test it was SKIPPED whenever the walk failed (a serial
+     describe skips what follows a failure), which left fixture B with profile_complete=false - and
+     OnboardingGate then blocked /arena for every other spec that signs in as B (strategy-panel:135
+     failed on exactly that in run 43241934159, and the next snapshot captured the already-reset
+     state). A hook runs whatever happened above. If the reset test never ran there is no snapshot and
+     nothing was changed, so there is nothing to restore. */
+  test.afterAll(async () => {
+    if (!RESET_OK || !existsSync(SNAP)) return;
     const prev = JSON.parse(readFileSync(SNAP, 'utf8')) as { onboarding: Record<string, unknown> | null; settings: Record<string, unknown> | null };
     const { sb, uid } = await fixtureDb();
     if (prev.onboarding) {
