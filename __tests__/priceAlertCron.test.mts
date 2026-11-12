@@ -63,6 +63,9 @@ const world = {
   switchedOff: [] as number[][],                             // ids in each "active: false" write
   upstream: [] as string[],                                  // every call the route made to a PRICE source (not Telegram, not Supabase)
   prices: {} as Record<string, number>,
+  omit: [] as string[],                                      // symbols the bulk TICKERS answer leaves out (a coin the bulk price map does not carry)
+  fail: false,                                               // price endpoints answer 502 (a failed bulk or klines answer)
+  oiSyms: [] as string[],                                    // the symbol of every open-interest request, to count requests per coin
   realistic: false,                                          // serve real klines / tickers / open-interest instead of empty lists (see `realistic` below)                      // extra spot prices by symbol, e.g. ETHUSDT, for the multi-coin cells
 };
 /* ── A STAND-IN THAT SERVES REAL ANSWERS (QA, after Dev's #2218 review: the plain stand-in answers [] to everything it does not know, so every klines read
@@ -91,6 +94,9 @@ function candleRows(symbol: string, ivMs: number, limit: number) {
 }
 async function realistic(url: URL): Promise<Response | null> {
   const sym = url.searchParams.get('symbol') ?? '';
+  if (world.fail && url.host === 'api.bybit.com' && (url.pathname === '/v5/market/tickers' || url.pathname === '/v5/market/kline')) return json(502, { retCode: 10016, retMsg: 'stand-in: bulk or klines answer refused' });
+  if (world.fail && url.host === 'api.binance.com') return json(502, { msg: 'stand-in: refused' });
+  if (url.host === 'api.bybit.com' && url.pathname === '/v5/market/open-interest') world.oiSyms.push(sym);
   const limit = Number(url.searchParams.get('limit') ?? '200');
   if (url.host === 'api.bybit.com' && url.pathname === '/v5/market/kline') {
     const rows = candleRows(sym, ivMsOf(url.searchParams.get('interval') ?? '1'), limit);
@@ -107,7 +113,7 @@ async function realistic(url: URL): Promise<Response | null> {
   }
   if (url.host === 'api.bybit.com' && url.pathname === '/v5/market/tickers') {
     const { BYBIT_SYMS } = await coinsP;
-    const syms = new Set<string>(['BTCUSDT', ...Object.values(BYBIT_SYMS), ...Object.keys(world.prices)]);
+    const syms = new Set<string>(['BTCUSDT', ...Object.values(BYBIT_SYMS), ...Object.keys(world.prices)].filter(x => !world.omit.includes(x)));
     return json(200, { retCode: 0, result: { list: [...syms].map(symbol => ({ symbol, lastPrice: String(basePrice(symbol)) })) } });
   }
   return null;
@@ -326,4 +332,134 @@ test('B0r. realistic upstream: cold pass then warm pass in the same hour, tallie
     assert.deepEqual(world.alerts.filter(a => a.active).map(a => a.id).sort(), [301, 303, 304, 305], 'the four uncrossed alerts must stay active');
     assert.ok(warmTotal <= coldTotal, `the warm pass made MORE calls (${warmTotal}) than the cold one (${coldTotal})`);
   } finally { world.realistic = false; }
+});
+
+
+/* ══ #2218 BEHAVIOUR CELLS (B1, B4, B5, B6, B7, B8) ═══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * "ALERT BEHAVIOUR IS MEANT TO BE IDENTICAL" is a claim about OUTCOMES, so each scenario logs its OUTCOME as one line,
+ *     [out] <name> {"sent":[..],"consumed":[..],"active":[..]}
+ * and the same file is run on the unchanged dev tree and on #2218's head; the two lines for a scenario must be equal. Inside a cell the
+ * invariants that must hold on EITHER tree are asserted; the properties only #2218 has (its counters bybitKlineCalls / candleCacheHits, one
+ * open-interest request per coin) are asserted when the counters are present and only LOGGED on a tree without them. The clock is aligned
+ * to a minute start before each scenario so the passes fall in one minute and one hour (see B0r). */
+const alignClock = () => { const now = Date.now(); const intoHour = now % 3_600_000; tick(intoHour > 3_000_000 ? 3_600_000 - intoHour + 5_000 : 60_000 - (now % 60_000) + 5_000); };
+const norm = (t: string) => t.replace(/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?Z?/g, '<time>').replace(/\d{1,2}:\d{2}(:\d{2})?\s?(AM|PM|UTC)?/gi, '<time>').replace(/\s+/g, ' ').trim();
+const outcome = (name: string, sentBefore: number, switchedBefore: number) => {
+  const o = {
+    sent: world.priceAlertMessages.slice(sentBefore).map(norm),
+    consumed: world.switchedOff.slice(switchedBefore).flat().sort((a, b) => a - b),
+    active: world.alerts.filter(a => a.active).map(a => a.id).sort((a, b) => a - b),
+  };
+  // eslint-disable-next-line no-console
+  console.log('[out] ' + name + ' ' + JSON.stringify(o));
+  return o;
+};
+const five = (base: number): Alert[] => {
+  const mk = (id: number, coin: string, target: number): Alert => ({ ...alert(id), coin, target_price: target, direction: 'above' });
+  return [mk(base + 1, 'eth', 3100), mk(base + 2, 'sol', 140), mk(base + 3, 'xrp', 0.7), mk(base + 4, 'doge', 0.2), mk(base + 5, 'ada', 0.5)];
+};
+const setWorld = () => { world.realistic = true; world.omit = []; world.fail = false; world.prices = { ETHUSDT: 3000, SOLUSDT: 150, XRPUSDT: 0.6, DOGEUSDT: 0.1, ADAUSDT: 0.4 }; };
+const resetWorld = () => { world.realistic = false; world.omit = []; world.fail = false; world.prices = {}; };
+const counters = (b: unknown) => b as { bybitKlineCalls?: number; candleCacheHits?: number };
+const tallyOf = (re: RegExp) => world.upstream.filter(k => re.test(k)).length;
+
+test('B1. a crossing fires the SAME alert, once, and consumes only that alert (outcome logged for the cross-tree comparison)', async () => {
+  try {
+    setWorld(); alignClock(); world.alerts = five(400);
+    const s0 = world.priceAlertMessages.length, w0 = world.switchedOff.length;
+    const r = await run();
+    const o = outcome('B1', s0, w0);
+    assert.equal(r.status, 200);
+    assert.equal(o.sent.length, 1, 'exactly the one crossed alert is delivered');
+    assert.match(o.sent[0], /SOL/i); assert.match(o.sent[0], /150/, 'the message states the price the bulk map gave');
+    assert.deepEqual(o.consumed, [402]); assert.deepEqual(o.active, [401, 403, 404, 405]);
+  } finally { resetWorld(); }
+});
+
+test('B4. a coin the bulk tickers answer does NOT carry still evaluates, the other coins still do, and nothing is lost', async () => {
+  try {
+    setWorld(); world.omit = ['SOLUSDT']; alignClock(); world.alerts = five(410);
+    const s0 = world.priceAlertMessages.length, w0 = world.switchedOff.length;
+    const r = await run();
+    const o = outcome('B4', s0, w0);
+    assert.equal(r.status, 200, 'a coin missing from the bulk map must not fail the pass');
+    for (const id of [411, 413, 414, 415]) assert.ok(o.active.includes(id), 'alert ' + id + ' (an uncrossed coin) must stay active');
+    assert.ok(o.sent.length <= 1, 'more than one message went out: a false crossing');
+    // SOL is the coin missing from the bulk map: either it is priced through the per-coin read and fires (consumed [412]), or it is left unevaluated and stays active. Never lost.
+    assert.ok(o.consumed.length === 0 || (o.consumed.length === 1 && o.consumed[0] === 412), 'a different alert was consumed: ' + JSON.stringify(o.consumed));
+    assert.ok(o.consumed.includes(412) || o.active.includes(412), 'the alert on the missing coin vanished: neither fired nor active');
+  } finally { resetWorld(); }
+});
+
+test('B5. a failed bulk or klines answer consumes nothing and loses no alert, the pass still answers 200, and the next pass fires the crossing', async () => {
+  try {
+    setWorld(); alignClock(); world.alerts = five(420);
+    world.fail = true;
+    const s0 = world.priceAlertMessages.length, w0 = world.switchedOff.length;
+    const failed = await run();
+    const o1 = outcome('B5-failed', s0, w0);
+    assert.equal(failed.status, 200, 'the route must still answer 200 with its normal tally when upstream is down');
+    assert.deepEqual(o1.consumed, [], 'an alert was consumed while every price answer was refused');
+    assert.equal(o1.sent.length, 0, 'a message went out with no price to justify it');
+    assert.deepEqual(o1.active, [421, 422, 423, 424, 425], 'an alert was lost');
+    world.fail = false; tick(5 * MIN);                         // the next cron period
+    const s1 = world.priceAlertMessages.length, w1 = world.switchedOff.length;
+    await run();
+    const o2 = outcome('B5-retry', s1, w1);
+    assert.equal(o2.sent.length, 1, 'the retry pass must fire the crossing exactly once');
+    assert.deepEqual(o2.consumed, [422]);
+  } finally { resetWorld(); }
+});
+
+test('B6. a 1000x futures symbol is priced PER TOKEN, never as another coin: 1000PEPE at 0.0152 per 1000 is 0.0000152 per PEPE', async () => {
+  try {
+    setWorld(); alignClock();
+    world.prices = { ...world.prices, '1000PEPEUSDT': 0.0152, '1000BONKUSDT': 20 };   // per 1000 tokens, as Bybit quotes them
+    const mk = (id: number, coin: string, target: number): Alert => ({ ...alert(id), coin, target_price: target, direction: 'above' });
+    world.alerts = [mk(431, 'pepe', 0.000014), mk(432, 'bonk', 0.5), mk(433, 'doge', 0.2)];   // pepe crossed (1.52e-5 > 1.4e-5); bonk 0.02 < 0.5; doge 0.1 < 0.2
+    const s0 = world.priceAlertMessages.length, w0 = world.switchedOff.length;
+    const r = await run();
+    const o = outcome('B6', s0, w0);
+    assert.equal(r.status, 200);
+    assert.equal(o.sent.length, 1, 'exactly one alert is crossed (PEPE per token)');
+    assert.match(o.sent[0], /PEPE/i);
+    assert.doesNotMatch(o.sent[0], /0\.0152(?!\d)/, 'the message prints the per-1000 price as if it were per token');
+    assert.deepEqual(o.consumed, [431]); assert.deepEqual(o.active, [432, 433], 'BONK (0.02 per token) or DOGE was priced as another coin and fired');
+  } finally { resetWorld(); }
+});
+
+test('B7. open-interest: one request per coin per pass on #2218 (logged on a tree without the counters)', async () => {
+  try {
+    setWorld(); alignClock(); world.alerts = five(440);
+    world.oiSyms.length = 0; world.upstream.length = 0;
+    const r = await run();
+    const per: Record<string, number> = {}; for (const x of world.oiSyms) per[x] = (per[x] ?? 0) + 1;
+    const max = Math.max(...Object.values(per), 0), coins = Object.keys(per).length;
+    // eslint-disable-next-line no-console
+    console.log('[B7] open-interest requests=' + world.oiSyms.length + ' coins=' + coins + ' max per coin=' + max + ' counters=' + JSON.stringify({ k: counters(r.body).bybitKlineCalls ?? null, h: counters(r.body).candleCacheHits ?? null }));
+    assert.equal(r.status, 200);
+    if (typeof counters(r.body).candleCacheHits === 'number') assert.equal(max, 1, 'a coin was asked for its open interest more than once in one pass (the shared request is not shared)');
+  } finally { resetWorld(); }
+});
+
+test('B8. the hour boundary: after it, the next pass refetches the closed hourly candles once per coin; before it a warm pass does not', async () => {
+  try {
+    setWorld(); alignClock(); world.alerts = five(450);
+    await run();                                               // cold
+    tick(20_000); world.upstream.length = 0;
+    const warm = await run();
+    const warm300 = tallyOf(/kline\?category=spot&interval=60&limit=300/);
+    const intoHour = Date.now() % 3_600_000;
+    tick(3_600_000 - intoHour + 5_000); world.upstream.length = 0;   // past the next hour boundary
+    const after = await run();
+    const after300 = tallyOf(/kline\?category=spot&interval=60&limit=300/);
+    // eslint-disable-next-line no-console
+    console.log('[B8] spot 60/300 reads: warm same hour=' + warm300 + ' after the hour boundary=' + after300 + ' counters warm=' + JSON.stringify({ k: counters(warm.body).bybitKlineCalls ?? null, h: counters(warm.body).candleCacheHits ?? null }) + ' after=' + JSON.stringify({ k: counters(after.body).bybitKlineCalls ?? null, h: counters(after.body).candleCacheHits ?? null }));
+    assert.equal(warm.status, 200); assert.equal(after.status, 200);
+    if (typeof counters(warm.body).candleCacheHits === 'number') {
+      assert.ok(warm300 <= 2, 'a warm pass in the same hour re-read the hourly series (' + warm300 + ' reads)');
+      assert.ok(after300 >= 40, 'after the hour boundary the series was not refetched once per coin (' + after300 + ' reads): stale candles would be served');
+    }
+  } finally { resetWorld(); }
 });
