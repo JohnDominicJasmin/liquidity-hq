@@ -131,6 +131,8 @@ test.describe('sign-off shots', () => {
       await p.waitForTimeout(6_000);
       await tf(p, '1h');
       const btn = p.getByRole('button', { name: /Draw Structure/i }).first();
+      await btn.scrollIntoViewIfNeeded({ timeout: 10_000 }).catch(() => {});
+      console.log(`[draw structure ${width} ${theme}] button count=${await btn.count()} box=${JSON.stringify(await btn.boundingBox().catch(() => null))}`);
       if (await btn.count()) { await btn.click({ timeout: 10_000 }).catch(() => {}); await p.waitForTimeout(5_000); }
       console.log(`[draw structure ${width} ${theme}] stub intercepted ${intercepted} call(s)`);
       /* A proposal label must be on screen BEFORE the shot, otherwise the image proves nothing about
@@ -139,14 +141,15 @@ test.describe('sign-off shots', () => {
         'no structure label rendered - the stub was rejected (see the response shape) or the call never fired').toBeVisible({ timeout: 15_000 });
       const sfx = width === 1280 ? '' : `-${width}`;
       await shot(p, `draw-structure${sfx}-${theme}`);
-      /* MENU CLOSED (PM, 2026-11-13): with the menu open the drawn lines cannot be told apart from the
-         EMAs. Close it, assert it is really gone, then shoot the chart with the proposal lines on it. */
-      const menu = p.locator('.klc-draw-item').first();
-      await p.keyboard.press('Escape');
-      if (await menu.isVisible().catch(() => false)) await p.mouse.click(5, 5);
-      await expect(menu, 'the Draw Structure menu did not close, so the closed-menu shot would repeat the open one').toBeHidden({ timeout: 5_000 });
+      /* MENU HIDDEN (PM, 2026-11-13): with the menu open the drawn lines cannot be told apart from the EMAs.
+         THE APP HAS NO WAY TO CLOSE IT: the menu renders whenever proposals exist (KLineProChart.tsx, the
+         "klc-draw-menu" block) and its only control is Clear, which removes the lines too. Run 43254885841
+         pressed Escape and clicked away and the menu stayed. So this shot hides the menu with a style the TEST
+         injects - the image shows where the lines sit, and is NOT a state a user can reach. Said in the file name. */
+      await p.addStyleTag({ content: '.klc-draw-menu{display:none !important}' });
+      await expect(p.locator('.klc-draw-item').first()).toBeHidden({ timeout: 5_000 });
       await p.waitForTimeout(1_500);
-      await shot(p, `draw-structure-closed${sfx}-${theme}`);
+      await shot(p, `draw-structure-menu-hidden${sfx}-${theme}`);
       await ctx.close();
     });
   }
