@@ -61,6 +61,8 @@ const world = {
   sendingOff: false,                                         // the /ops kill switch (feature flag "telegram")
   priceAlertMessages: [] as string[],                        // every price-alert message Telegram was asked to send
   switchedOff: [] as number[][],                             // ids in each "active: false" write
+  upstream: [] as string[],                                  // every call the route made to a PRICE source (not Telegram, not Supabase)
+  prices: {} as Record<string, number>,                      // extra spot prices by symbol, e.g. ETHUSDT, for the multi-coin cells
 };
 const realFetch = globalThis.fetch;
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -71,8 +73,10 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (body.text.includes('Price Alert Triggered')) world.priceAlertMessages.push(body.text);
     return world.telegram === 'ok' ? json(200, { ok: true }) : json(403, { ok: false, description: 'Forbidden: bot was blocked by the user' });
   }
+  if (url.origin !== SUPABASE) world.upstream.push(`${url.host}${url.pathname}${url.search ? '?' + [...url.searchParams.keys()].sort().map(k => `${k}=${k === 'symbol' || k === 'category' ? url.searchParams.get(k) : '*'}`).join('&') : ''}`);
   if (url.host === 'api.bybit.com' && url.pathname === '/v5/market/tickers') {
-    return json(200, { retCode: 0, result: { list: url.searchParams.get('category') === 'spot' ? [{ symbol: 'BTCUSDT', lastPrice: String(world.btc) }] : [] } });
+    const spot = [{ symbol: 'BTCUSDT', lastPrice: String(world.btc) }, ...Object.entries(world.prices).map(([symbol, p]) => ({ symbol, lastPrice: String(p) }))];
+    return json(200, { retCode: 0, result: { list: url.searchParams.get('category') === 'spot' ? spot : [] } });
   }
   if (url.origin !== SUPABASE) return new Response('unavailable in the QA stand-in', { status: 503 });
   const p = url.pathname, m = req.method;
@@ -198,4 +202,32 @@ test('A7. a hold older than a day is dropped and the alert judged afresh: below 
   const r = await run();
   assert.deepEqual(sentSince(n), [], 'a day-old hold was still resent although price is back below target');
   assert.equal(r.body.delivery?.priceAlertsHeld, 0);
+});
+
+/* ── #1651: THE NUMBER OF UPSTREAM PRICE CALLS ONE RUN MAKES, ON RECORD BEFORE AND AFTER THE BULK-CALL CHANGE ──────────────────────────────
+ *
+ * B0 is the BASELINE. Five alerts on five different coins, one of them crossed. It logs every call the route made to a price source (the
+ * stand-in records them in `world.upstream`) and asserts the part that must not change whatever the call count becomes: the crossed alert is
+ * delivered once and consumed once, the other four stay active and unfired. The count is printed, not asserted here: on the dev tree it is
+ * the "before"; B2 (written when Dev's change exists) asserts the "after" is smaller and B3 that the answer is identical. */
+test('B0. five alerts on five coins: the crossing fires once, the others stay, and the upstream price calls are logged', async () => {
+  world.alerts = [];
+  world.prices = { ETHUSDT: 3000, SOLUSDT: 150, XRPUSDT: 0.6, DOGEUSDT: 0.1, ADAUSDT: 0.4 };
+  const mk = (id: number, coin: string, target: number): Alert => ({ ...alert(id), coin, target_price: target, direction: 'above' });
+  world.alerts = [mk(201, 'eth', 3100), mk(202, 'sol', 140), mk(203, 'xrp', 0.7), mk(204, 'doge', 0.2), mk(205, 'ada', 0.5)];
+  const sentBefore = world.priceAlertMessages.length;
+  const switchedBefore = world.switchedOff.length;
+  world.upstream.length = 0;
+  const { status } = await run();
+  const kinds = world.upstream.map(u => u.replace(/\?.*/, ''));
+  const tally: Record<string, number> = {};
+  for (const k of kinds) tally[k] = (tally[k] ?? 0) + 1;
+  // eslint-disable-next-line no-console
+  console.log(`[alert] upstream calls=${world.upstream.length} by endpoint=${JSON.stringify(tally)}`);
+  assert.equal(status, 200);
+  const sent = sentSince(sentBefore);
+  assert.equal(sent.length, 1, `exactly one alert was crossed, so exactly one message must go out; got ${sent.length}`);
+  assert.match(sent[0], /SOL/i, 'the delivered message is not about the crossed coin (SOL)');
+  assert.deepEqual(world.switchedOff.slice(switchedBefore), [[202]], 'only the crossed alert (id 202) may be consumed');
+  assert.deepEqual(world.alerts.filter(a => a.active).map(a => a.id).sort(), [201, 203, 204, 205], 'the four uncrossed alerts must stay active');
 });
