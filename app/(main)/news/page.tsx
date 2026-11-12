@@ -550,18 +550,18 @@ export default function NewsPage() {
             <LoadingState message={t('NEWS_LOADING_FEEDS')} />
           )}
 
-          /* THE GATING HERE IS CORRECT AND WAS NOT THE BUG (#1651). `alertsLoaded` already keeps
-             this branch off a feed that has not answered - #2119 and #2125 did that work. What was
-             wrong was the COPY: `NEWS_FORYOU_EMPTY_TITLE` read "Scanning for catalysts…" and it
-             renders only once the feed HAS finished, so a reader watching a settled empty feed was
-             told work was still in progress. The title now states the finished state, matching the
-             house phrasing already used by the fallback banner above.
+          {/* THE GATING HERE IS CORRECT AND WAS NOT THE BUG (#1651). `alertsLoaded` already keeps
+              this branch off a feed that has not answered - #2119 and #2125 did that work. What was
+              wrong was the COPY: `NEWS_FORYOU_EMPTY_TITLE` read "Scanning for catalysts…" and it
+              renders only once the feed HAS finished, so a reader watching a settled empty feed was
+              told work was still in progress. The title now states the finished state, matching the
+              house phrasing already used by the fallback banner above.
 
-             A LABEL ROW BEATS THE SHIPPED DEFAULT, so this file change alone does NOT fix
-             production: `/api/labels` carries a row for this key whose value is the same old
-             "Scanning for catalysts…" string. Production needs that ROW updated, which is a write
-             to the shared database and therefore the owner's call, not ours. Until that happens
-             this fix reaches dev, qa and staging only. */
+              A LABEL ROW BEATS THE SHIPPED DEFAULT, so this file change alone does NOT fix
+              production: `/api/labels` carries a row for this key whose value is the same old
+              "Scanning for catalysts…" string. Production needs that ROW updated, which is a write
+              to the shared database and therefore the owner's call, not ours. Until that happens
+              this fix reaches dev, qa and staging only. */}
           {foryouEmpty && alertsLoaded && (
             <div className="nfeed-empty">
 
