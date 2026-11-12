@@ -2,122 +2,98 @@ import { test, expect } from '@playwright/test';
 import { gotoGuarded } from './_shared';
 import { synthCombinedFrame } from '../syntheticMarket.mjs';
 
-/* #306 / #309: after a real socket drop, does EACH ticker socket the page had come back?
+/* #306 / #309: after a real socket drop, does EACH feed the page had open come back?
  *
- * REWRITTEN 2026-11-12 (PM ruling, harness-five). This file used CDP `Network.emulateNetworkConditions`
- * to cut the real network, which (a) only produced an unclean close on about 1 run in 4, so it usually
- * skipped, and (b) needs a real Binance socket to exist at all - which a GitHub runner in the US
- * cannot open, so it failed outright there. The file's own conclusion named the fix: "a fixture WS
- * server the spec can hard-kill". `context.routeWebSocket` is that server. It serves generated
- * frames (qa/syntheticMarket.mjs), then kills every live socket with code 1006 and refuses new ones
- * for a window, so the drop happens on EVERY run and nothing depends on the venue.
+ * REWRITTEN 2026-11-12 (PM ruling, harness-five): CDP offline fired on about 1 run in 4 and needs a real
+ * Binance socket a US runner cannot open. `context.routeWebSocket` is the fixture server the old file asked
+ * for: it serves generated frames, then kills every live socket with code 1006 and refuses new ones for a
+ * window, so the drop happens on EVERY run and nothing depends on the venue.
  *
- * WHAT IS KEPT FROM THE ORIGINAL, because it is the point: recovery is judged PER URL, not by a total
- * open count. The first version asserted `opensAfter > opensBefore` and passed on 3 -> 4 when four
- * sockets dropped and one reopened; #306 is "the arena CHART stays frozen", so a different socket
- * recovering while the chart's stayed dead would have satisfied it. */
+ * REWRITTEN AGAIN 2026-11-13 - WHAT THE PAGE CAN AND CANNOT SEE. The first rewrite judged recovery from a
+ * `window.WebSocket` wrapper in the page. Runs 43250355802, 43257440819 and 43259920950 measured that this
+ * cannot work: with `routeWebSocket` installed, the routed sockets never reach a wrapper added by
+ * `addInitScript` (5 routed sockets were live, and the page's own log listed only Supabase). Playwright's
+ * route layer replaces the constructor for routed URLs. `page.on('websocket')` is blind to them too
+ * (probe 43253718616, PROBE 4). So a close or an open "seen by the page" is not observable for these
+ * sockets, and a test built on it measures the harness, not the app.
+ *
+ * WHAT IS OBSERVABLE, AND IS THE REAL CLAIM: the ROUTE HANDLER. It runs once per socket the page tries to
+ * open, so a new handler call after the outage lifts IS the page reconnecting. That is judged PER FEED
+ * (host + path), not per URL: MarketProvider's Bybit liquidation feed reconnects to the alternate host
+ * stream.bytick.com by design, so every Bybit host counts as one feed. Recovery is judged per feed, never by
+ * a total count, so one feed coming back cannot hide another that stayed dead (#306 is the chart's). */
 
-type WsEvent = { url: string; kind: 'open' | 'close'; code?: number; t: number };
+type Attempt = { feed: string; t: number; refused: boolean };
+
+const feedOf = (raw: string): string => {
+  try {
+    const u = new URL(raw);
+    if (/(^|\.)(bybit|bytick)\.com$/.test(u.hostname)) return 'bybit-linear';
+    return `${u.hostname}${u.pathname.replace(/\/$/, '')}${u.searchParams.has('streams') ? '?streams' : ''}`;
+  } catch { return raw; }
+};
 
 test.describe('chart reconnects after a socket drop', () => {
-  test('every dropped ticker socket reopens after the outage lifts', async ({ page, context }) => {
+  test('every feed the page had open reopens after the outage lifts', async ({ page, context }) => {
     const OUTAGE_MS = 12_000;
     const RECOVERY_BUDGET_MS = 90_000; // the quick-retry sequence alone takes ~30s to exhaust (#1260)
 
-    /* Record every socket the page opens and every close it receives - what the PAGE saw. */
-    await page.addInitScript(() => {
-      (window as unknown as { __ws: WsEvent[] }).__ws = [];
-      const Native = window.WebSocket;
-      class Wrapped extends Native {
-        constructor(url: string | URL, protocols?: string | string[]) {
-          super(url, protocols);
-          const log = (window as unknown as { __ws: WsEvent[] }).__ws;
-          const u = String(url);
-          this.addEventListener('open', () => log.push({ url: u, kind: 'open', t: Date.now() }));
-          this.addEventListener('close', (e) => log.push({ url: u, kind: 'close', code: (e as CloseEvent).code, t: Date.now() }));
-        }
-      }
-      window.WebSocket = Wrapped as unknown as typeof WebSocket;
-    });
-
     let blocked = false;
+    const attempts: Attempt[] = [];
     /* An array, not a Set: the read-only guard (qa/prod-readonly.ts) treats any `.delete(` as a write verb,
        and this spec is on the production-readonly allowlist - it only drives a routed socket. */
-    const live: Array<{ close: (o?: { code?: number }) => void }> = [];
-    /* BOTH VENUES. The probe on run 43247177035 showed the page's live sockets are Supabase realtime and
-       BYBIT (wss://stream.bybit.com/v5/public/linear) - which opens for real from a runner - while the
-       Binance sockets produced no page-side event at all. A route covering only Binance therefore
-       killed nothing the page was using ("the drop did not reach the page"). Route Bybit too. A Bybit
-       socket is held open and silent: the claim here is that every dropped socket REOPENS, not what it
-       carries, and the Binance branch below still serves generated frames. */
+    const live: Array<{ close: (o?: { code?: number }) => void; feed: string }> = [];
+
     await context.routeWebSocket(/stream\.binance\.com|fstream\.binance\.com|stream\.(bybit|bytick)\.com/, (ws) => {
+      const feed = feedOf(ws.url());
+      attempts.push({ feed, t: Date.now(), refused: blocked });
       if (blocked) { void ws.close({ code: 1006 }); return; }
-      live.push(ws);
-      if (/bybit|bytick/.test(ws.url())) { ws.onClose(() => { const at = live.indexOf(ws); if (at >= 0) live.splice(at, 1); }); return; }
+      const entry = { close: (o?: { code?: number }) => ws.close(o), feed };
+      live.push(entry);
+      const gone = () => { const at = live.indexOf(entry); if (at >= 0) live.splice(at, 1); };
+      if (/bybit|bytick/.test(ws.url())) { ws.onClose(gone); return; }   // held open and silent: the claim is the reopen
       const streams = (() => { try { return new URL(ws.url()).searchParams.get('streams') ?? ''; } catch { return ''; } })();
       const syms = streams.split('/').filter(x => x.includes('@ticker')).map(x => x.split('@')[0].toUpperCase());
       const emit = () => { for (const sym of (syms.length ? syms : ['BTCUSDT'])) { try { ws.send(synthCombinedFrame(sym)); } catch { /* closed */ } } };
       emit();
       const timer = setInterval(emit, 1000);
-      ws.onClose(() => { clearInterval(timer); const at = live.indexOf(ws); if (at >= 0) live.splice(at, 1); });
+      ws.onClose(() => { clearInterval(timer); gone(); });
     });
 
     await gotoGuarded(page, '/arena');
     await page.waitForTimeout(15_000); // let the page establish its feed
 
-    const read = () => page.evaluate(() => (window as unknown as { __ws: WsEvent[] }).__ws ?? []);
-    const before = await read();
-    expect(before.filter(e => e.kind === 'open').length,
-      'the page never opened a ticker WebSocket against the routed (synthetic) server, so there is nothing to drop. ' +
-      'The route pattern no longer matches what MarketProvider opens - a harness break, not a finding about reconnection.').toBeGreaterThan(0);
+    /* INSTRUMENT CHECK: the page opened sockets through the route at all, otherwise there is nothing to drop
+       and the route pattern no longer matches what MarketProvider opens - a harness break, not a finding. */
+    const feedsBefore = [...new Set(live.map(l => l.feed))];
+    // eslint-disable-next-line no-console
+    console.log(`[reconnect-cdp] feeds live before the drop: ${JSON.stringify(feedsBefore)} (${live.length} sockets)`);
+    expect(feedsBefore.length, 'the page opened no routed socket - the route pattern no longer matches what MarketProvider opens').toBeGreaterThan(0);
 
-    /* THE DROP: kill every live socket with 1006 and refuse new ones for the outage window. */
-    console.log('[reconnect-cdp] before the drop: routed live sockets=' + live.length + ' [' + live.map(w => { try { return new URL((w as unknown as { url(): string }).url()).host; } catch { return '?'; } }).join(', ') + '] page opens=' + JSON.stringify(before.filter(e => e.kind === 'open').map(e => { try { return new URL(e.url).host; } catch { return e.url; } })));
+    /* THE DROP: kill every live socket with 1006 and refuse new attempts for the outage window. */
     blocked = true;
     const killedAt = Date.now();
     for (const ws of [...live]) { try { ws.close({ code: 1006 }); } catch { /* already gone */ } }
     await page.waitForTimeout(OUTAGE_MS);
-
-    const during = await read();
-    const closes = during.filter(e => e.kind === 'close' && e.t >= killedAt - 1000);
-    console.log('[reconnect-cdp] after the kill: page closes=' + JSON.stringify(during.filter(e => e.kind === 'close').map(e => { try { return new URL(e.url).host + ':' + e.code; } catch { return e.url; } })) + ' routed live now=' + live.length);
-    expect(closes.length, 'the drop did not reach the page: no socket close was observed during the outage').toBeGreaterThan(0);
+    const retriesDuringOutage = attempts.filter(a => a.refused && a.t >= killedAt);
+    // eslint-disable-next-line no-console
+    console.log(`[reconnect-cdp] reconnect attempts refused during the outage: ${JSON.stringify(Object.fromEntries(feedsBefore.map(f => [f, retriesDuringOutage.filter(a => a.feed === f).length])))}`);
 
     /* Outage lifts. */
     blocked = false;
-    const dropped = [...new Set(closes.map(c => c.url))];
-    const dropAt = new Map(closes.map(c => [c.url, c.t]));
-    const host = (u: string) => { try { return new URL(u).host; } catch { return u; } };
-    /* A SOCKET IS RECOVERED WHEN ITS FEED IS BACK, NOT WHEN THE SAME URL REOPENS. MarketProvider's Bybit
-       liquidation feed (connectBB) reconnects after 5s to the ALTERNATE host (stream.bytick.com), by design,
-       so a per-URL check can never pass for it (run 43250355802: 1 dropped URL, 0 reopened - the Bybit
-       one). The family is the venue: every Bybit host counts as one feed. Binance and Supabase keep
-       their own host, so nothing is loosened for them. */
-    const family = (u: string) => (/stream\.(bybit|bytick)\.com/.test(u) ? 'bybit-linear' : u);
-    const reopened = async () => {
-      const now = await read();
-      return dropped.filter(u => now.some(e => e.kind === 'open' && family(e.url) === family(u) && e.t > (dropAt.get(u) ?? 0)));
-    };
-    const summary = async () => {
-      const now = await read();
-      const by: Record<string, string> = {};
-      for (const e of now) { const h = host(e.url); by[h] = (by[h] ?? '') + (e.kind === 'open' ? 'O' : 'C'); }
-      return JSON.stringify(by);
-    };
+    const liftedAt = Date.now();
+    const reopenedFeeds = () => feedsBefore.filter(f => attempts.some(a => a.feed === f && !a.refused && a.t >= liftedAt));
 
-    /* PER-URL: every socket that dropped must reopen. Poll so a fast recovery does not cost the budget. */
-    await expect.poll(async () => (await reopened()).length, {
+    /* PER FEED: every feed that was live must be re-opened. Poll so a fast recovery does not cost the budget. */
+    await expect.poll(() => reopenedFeeds().length, {
       timeout: RECOVERY_BUDGET_MS,
       intervals: [1_000],
-      message: 'not every dropped ticker socket reopened after the outage lifted',
-    }).toBe(dropped.length);
+      message: 'not every feed the page had open reopened after the outage lifted',
+    }).toBe(feedsBefore.length);
 
-    console.log('[reconnect-cdp] events by host (O=open C=close, in order): ' + await summary());
-    const recovered = await reopened();
-    const stillDown = dropped.filter(u => !recovered.includes(u));
+    const stillDown = feedsBefore.filter(f => !reopenedFeeds().includes(f));
     // eslint-disable-next-line no-console
-    console.log(`[reconnect-cdp] dropped=${dropped.length} recovered=${recovered.length} still down=[${stillDown.map(host).join(', ')}]`);
-    expect(stillDown, `${stillDown.length} of ${dropped.length} dropped socket(s) never came back: ${stillDown.map(host).join(', ')}. ` +
-      'A total open count would have hidden this - #306 is about the CHART socket specifically.').toEqual([]);
+    console.log(`[reconnect-cdp] feeds=${feedsBefore.length} reopened=${reopenedFeeds().length} still down=[${stillDown.join(', ')}]`);
+    expect(stillDown, `${stillDown.length} of ${feedsBefore.length} feed(s) never came back: ${stillDown.join(', ')}.`).toEqual([]);
   });
 });
