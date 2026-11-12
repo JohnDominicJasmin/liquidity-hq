@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
+import { chip } from './_shared';
 
 /* #1347 item 11, chart half (#1369, fix by Dev Team) - the strategy-indicator
  * sync effect in KLineProChart had silent failure paths, so the chart could
@@ -95,10 +96,10 @@ async function openArena(browser: import('@playwright/test').Browser, flagAtLoad
 }
 
 async function pick(page: Page, name: string) {
-  const chip = page.locator('button.strat-chip', { hasText: name });
-  await chip.click();
-  await expect(chip).toHaveAttribute('aria-pressed', 'true');
-  return chip;
+  const el = chip(page, name);
+  await el.click();
+  await expect(el).toHaveAttribute('aria-pressed', 'true');
+  return el;
 }
 
 test.describe('The chart says so when it cannot draw a selected indicator (#1347 item 11, #1369)', () => {
@@ -140,7 +141,7 @@ test.describe('The chart says so when it cannot draw a selected indicator (#1347
         // re-runs. SMA is not in the drawn map, so it is retried - and must
         // succeed. Deselecting SMA instead would clear the badge trivially.
         await setFlag(page, null);
-        await pick(page, 'RSI');
+        await pick(page, 'MACD');
         await expect(badge, 'the badge stuck after the failure stopped - the next successful sync must clear it').toHaveCount(0, { timeout: 10_000 });
         await expect(sma).toHaveAttribute('aria-pressed', 'true');
       } finally {
