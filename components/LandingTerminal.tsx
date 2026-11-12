@@ -82,6 +82,23 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const { store } = useMarket();
   const d = store.coins[LIVE_READ_COIN];
   const oi1h = useOI1h(LIVE_READ_COIN);
+
+  /* THE CLOCK IS THE CLIENT'S OR IT IS NOTHING (#1651).
+
+     `new Date()` in the markup runs on the SERVER during the initial render, so the first paint of
+     a public page carried the SERVER'S wall clock - and `suppressHydrationWarning` on that span
+     hid the mismatch rather than the cause. A visitor in Manila saw a London time for a moment and
+     had no way to know which it was.
+
+     A mounted flag rather than the data's as-of time, which would be the better label: the store
+     does not keep the snapshot's `ts` today, so that is provider plumbing and this is a low item.
+     Named here so the better fix is not re-derived from scratch.
+
+     The expression is unchanged, so it still refreshes whenever this component re-renders, which on
+     this page is whenever the store updates. No timer is added, because adding one would be a new
+     failure mode for a cosmetic line. */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const sq = computeSqueezeScore(d);
 
   const verdictCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt2)';
@@ -143,8 +160,8 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
         <span style={{ fontSize: 10, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--txt2)' }}>
           Live read · {LIVE_READ_COIN.toUpperCase()}
         </span>
-        <span style={{ marginLeft: 'auto', fontSize: 10, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt3)' }} suppressHydrationWarning>
-          {new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })}
+        <span style={{ marginLeft: 'auto', fontSize: 10, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt3)' }}>
+          {mounted ? new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false }) : ''}
         </span>
       </div>
 
