@@ -545,16 +545,22 @@ runs were killed five times); and the 22 old public test-report artifacts delete
   nothing left to fix. Then one final run on the `staging` → `main` release PR. **PM does not ask the
   owner "ship today?"**. The production go is asked for once, at that point.
 - **QA's browser tests run on GitHub's runners**, dispatched with the `spec` input against the
-  deployed `qa` site (`base_url`), with a `concurrency` group for fixture-using runs. **The laptop is
-  not used for browser tests.**
-- **Pre-merge `verify` may be a dispatched `e2e: false` run** while the laptop is busy, with the run
-  id posted on the PR as "verify via dispatched CI, not local".
+  deployed `qa` site (`base_url`). **Dispatched** e2e runs share one `concurrency` group so they never
+  fight over fixtures. The release gate keeps its per-project lanes on purpose, so its two legs still
+  share fixtures with each other. **The laptop is not used for browser tests.**
+- **A code PR's author runs `npm run verify` before it merges into `dev`**, either locally or, while the
+  laptop is busy, as a dispatched `e2e: false` run, with the run id on the PR as "verify via
+  dispatched CI, not local". It's still an obligation; only the place it runs changed.
 - **Still no `push:` or feature-PR triggers.** CI is free on a public repo with standard runners, but
   automatic triggers are how the November bill happened. Anything that spends his money still goes to
   him first.
 - **Artifacts are public** (any GitHub user can download them from a public repo). The release gate's
-  report keeps **3 days**, screenshots mask the account email, and ad-hoc screenshot artifacts are
-  deleted after download.
+  report keeps **3 days**. The account email is blurred in screenshots by a stylesheet `_auth.ts`
+  injects on `.tnav-drop-email`, **not** by Playwright's `mask:` (automatic failure screenshots don't
+  take one), so grepping for `mask:` finds nothing. Ad-hoc screenshot artifacts are deleted after
+  download. **As of this PR the retention and the blur are on QA's branch
+  `test/qa-browser-suite-on-github-runners`** (99b11d78, 6ef5c0f2), not yet in `dev`. They're true once
+  that merges. 22 older report artifacts were deleted on 2026-11-12 on the owner's word.
 
 **Everything below is the 2026-11-10 history that produced the original rule. It's kept because its
 reasons still apply.** Where it says "once" or "locally", the amendment above replaces it.

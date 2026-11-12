@@ -60,8 +60,9 @@ broken most often, in short — the full text and the rest are in that file:
   gets its own dispatched run (`e2e: true`) on its `qa` head before it enters `staging`**.
   Then one final run on the `staging` → `main` release PR. **Nothing goes to production
   until everything in scope is in `staging`, tested and audited.** QA's browser tests
-  run **on GitHub runners, not the owner's laptop** (`ci.yml` `spec` input). Pre-merge
-  `verify` may be a dispatched `e2e: false` run while the laptop is busy. Still **no**
+  run **on GitHub runners, not the owner's laptop** (`ci.yml` `spec` input). **A code
+  PR's author runs `npm run verify` before it merges into `dev`, either locally or as a
+  dispatched `e2e: false` run with the run id on the PR.** Still **no**
   push/PR triggers: re-adding one re-adds automatic spend. Anything that spends his
   money gets its cost put to him first. Full text: OWNER-RULES §17. Screenshots
   still come from a deployed URL.
