@@ -2905,6 +2905,34 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [dsNone, setDsNone] = useState(false);
   const proposalIds = useRef<string[]>([]);
 
+  /* THE DRAW STRUCTURE MENU HAS AN OPEN STATE (#1263). It used to render whenever there was something to
+     show - proposals, an error or "none" - and its only control was Clear, which also deletes the lines. So
+     after a read the menu covered the chart for good: Escape and a click elsewhere did nothing. The Draw menu
+     beside it already had the right shape (open flag, Escape, click-away), and this mirrors it.
+
+     THE LINES AND THE MENU ARE SEPARATE THINGS. Closing the menu never touches the overlays: they live in
+     PROPOSAL_GROUP and only `clearProposals` removes them. The menu opens by itself when a read finishes
+     (result, error or "none") and is closed by Escape or a click outside; the button reopens it while
+     proposals exist, WITHOUT a new request, so reopening spends no read.
+
+     `dsMenuShown` is what is actually on screen. The flag alone can be stale (Clear and the coin/timeframe
+     effect empty the content without touching it), and aria-expanded must describe the screen. */
+  const [dsMenuOpen, setDsMenuOpen] = useState(false);
+  const dsWrapRef = useRef<HTMLDivElement>(null);
+  const dsMenuShown = dsMenuOpen && (proposals.length > 0 || !!dsError || dsNone);
+  useEffect(() => {
+    if (!dsMenuShown) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setDsMenuOpen(false);
+      dsWrapRef.current?.querySelector<HTMLElement>('.klc-draw-btn')?.focus();
+    };
+    const onDown = (e: PointerEvent) => { if (!dsWrapRef.current?.contains(e.target as Node)) setDsMenuOpen(false); };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onDown);
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onDown); };
+  }, [dsMenuShown]);
+
   /* The two setState calls BAIL OUT when there is nothing to clear, returning the previous
      reference so React skips the re-render. This runs from an effect on every coin and
      timeframe change - which is most of what this chart does - and an unconditional
@@ -3036,6 +3064,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       setDsError(tl('DRAW_STRUCTURE_FAILED'));
     } finally {
       setDsLoading(false);
+      /* Every way a read ends leaves something to show - lines, an error or "none" - so it opens on all of
+         them. If nothing is there the render condition keeps it shut anyway. */
+      setDsMenuOpen(true);
     }
   }, [tf, tl, dsLoading, clearProposals, structureRowText]);
   /* NO acceptProposal / dropProposal ANY MORE (owner, 2026-11-10). Keep/Discard is gone, so the
@@ -3196,16 +3227,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         )}
 
         {drawStructureAvailable(tf) && entitlementStatus !== 'not_entitled' && (
-          <div className="klc-draw-wrap">
+          <div className="klc-draw-wrap" ref={dsWrapRef}>
             <button
               className={`klc-tool-btn klc-draw-btn${proposals.length ? ' on' : ''}`}
-              onClick={requestStructures}
+              /* WITH PROPOSALS ON THE CHART the button toggles the menu and makes NO request: the read is
+                 already paid for. With none, it requests exactly as it always did (also after an error or a
+                 "none" answer). To ask again with lines present, use Clear and then this button - the menu's
+                 own item, no new control. */
+              onClick={proposals.length > 0 ? () => setDsMenuOpen(v => !v) : requestStructures}
+              aria-expanded={dsMenuShown}
               disabled={dsLoading}
               title={tl('DRAW_STRUCTURE_BUTTON')}
             >
               {dsLoading ? tl('DRAW_STRUCTURE_LOADING') : tl('DRAW_STRUCTURE_BUTTON')}
             </button>
-            {(proposals.length > 0 || dsError || dsNone) && (
+            {dsMenuShown && (
               <div className="klc-draw-menu">
                 {dsError
                   ? <div className="klc-draw-item">{dsError}</div>
@@ -3245,7 +3281,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                           </div>
                         );
                       })}
-                      <button className="klc-draw-item klc-draw-clear" onClick={clearProposals}>
+                      <button className="klc-draw-item klc-draw-clear" onClick={() => { clearProposals(); setDsMenuOpen(false); }}>
                         {tl('DRAW_STRUCTURE_CLEAR')}
                       </button>
                     </>)}
