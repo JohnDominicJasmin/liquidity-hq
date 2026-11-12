@@ -262,6 +262,22 @@ export const CHANGELOG: ChangelogEntry[] = [
       'The 1-hour open interest card stays up when one exchange limits our requests: it falls back to the other exchange instead of going blank.',
       'If the live price connection fails when you first open the app, it now switches to its backup price feed straight away, so prices appear within seconds instead of a loading skeleton lasting about half a minute.',
       'When nothing in the news matches your coins, the For You tab now says "No catalysts right now" instead of looking like it is still loading.',
+      /* ADDED AFTER #2188, each tied to its pull request. Same rule as the lines above: each names a surface a reader
+         looks at and a difference they can see on it, and IF ANY OF THESE PRS DOES NOT REACH THE RELEASE ITS LINE COMES
+         OUT HERE.
+           price alerts: main coins only, with a note        #2197
+           Draw Structure on phones                          #2202
+           AI Arena opens on the saved coin and timeframe    #2205 (open when written: out if it does not merge)
+           Draw Structure menu closes, lines stay            #2192
+           chart tag overlap + stray asterisks, one line     #2200 #2206 (#2206 open when written: if it does not
+                                                              merge, the asterisks half comes out)
+         LEFT OUT ON PURPOSE: the Chart Layers spacing next to the Ask AI button (#2207), which is spacing, not a change
+         a reader would name. */
+      'Price alerts in AI Arena are now offered for the main coins only, and the Set Alert button says so, instead of letting you set an alert on a coin that could never trigger.',
+      'Draw Structure now works on phones. The button was hidden on narrow screens; it is back, with a menu that fits the screen.',
+      'AI Arena now opens on the coin and timeframe you saved in Settings when you load it fresh, instead of Bitcoin on 15 minutes.',
+      'The Draw Structure menu now closes with Escape or a tap outside it, and the lines it drew stay on the chart.',
+      'Two small chart fixes: the liquidation price tag at the chart edge is no longer drawn over a nearby support or resistance tag, and text an AI read puts between single asterisks now shows in italics instead of with stray asterisks.',
     ],
   },
   {
