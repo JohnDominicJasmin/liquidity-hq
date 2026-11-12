@@ -195,17 +195,16 @@ test.describe('#1881 panel strings, route intercepted so nothing is billed', () 
         'the /api/draw-structure intercept never fired: the click did not reach the route, or a real billed call escaped the stub',
       ).toBeGreaterThan(0);
 
-      /* SIX STRINGS RENDER IN THIS ONE PANEL, not the two Dev Team named. The success branch at
-         components/KLineProChart.tsx:2951-2965 emits the title, the hint, the structure TYPE label
-         for the stubbed trendline, and the per-proposal Keep / Discard plus Discard all. Asserting
-         all six costs the same single intercepted call as asserting two. */
+      /* KEEP / DISCARD / DISCARD-ALL AND THE HINT ARE GONE as of the owner's 2026-11-10 removal
+         (components/KLineProChart.tsx:2953 "NO acceptProposal / dropProposal ANY MORE … Keep/Discard
+         is gone"). `DRAW_STRUCTURE_HINT` still sits in lib/labelDefaults.en.json but has NO render
+         site anywhere in components/ or app/ - an orphaned default, not shipped copy. What the panel
+         emits now is the title, the structure TYPE label for each proposal, and (on a lower
+         timeframe) the lower-tf note. The stub below proposes one of each of the five types, so all
+         five type labels render. Asserting them costs the same single intercepted call. */
       for (const s of [
         'Proposed lines',
-        'Keep the ones you agree with. A line you keep becomes your own drawing.',
         'Trend line', 'Channel', 'Flag', 'Triangle', 'Horizontal',
-        'Keep',
-        'Discard',
-        'Discard all',
       ]) {
         expect(await page.getByText(s, { exact: false }).count(),
           `${JSON.stringify(s)} did not render in the panel even with a stubbed proposal, so this label value is not reaching the UI`,
