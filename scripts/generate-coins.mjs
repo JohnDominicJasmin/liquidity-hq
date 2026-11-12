@@ -133,13 +133,23 @@ const TRADFI_SAME_AS_CURATED = new Map([['XAU', 'xau']]);
  * 396.09 against its own TENCENT at 50.54, a ratio of 7.84 - the HKD/USD rate - for the same company.
  * Shown as "$396" that is wrong by a currency, and a Binance-only row has no second venue to catch it.
  * HK0700 is MEASURED (the ratio above, printed every run); the other three are held on the same naming
- * pattern, which is evidence of a shared convention and not a measurement of each. Remove an entry only
- * after the row's unit has been confirmed. */
+ * pattern, which is evidence of a shared convention and not a measurement of each.
+ *
+ * TWO PRE-IPO REFERENCES ARE HELD FOR A DIFFERENT REASON: Binance's ANTHROPIC and OPENAI do not agree with
+ * OKX's contract of the same name (about 13x and 9.9x apart; the other two pre-IPO rows, MOONSHOT and
+ * OURA, agree to 0.5%). The ratio is not a round factor, so it is two different reference definitions,
+ * not a unit; Binance's value is consistent with Binance's own index, and nobody here can say which is
+ * "per share". PM's call (2026-11-12): hold both until the definition is confirmed. The numbers are
+ * printed every run so the entry can be re-read against live data.
+ *
+ * Remove an entry only after the row's unit or definition has been confirmed. */
 const TRADFI_HOLD = new Map([
-  ['HK0700', { versus: 'TENCENT' }],
-  ['HK1810', {}],
-  ['HK0992', {}],
-  ['HK0625', {}],
+  ['HK0700', { why: 'HKD-quoted', versus: 'TENCENT' }],
+  ['HK1810', { why: 'HKD-quoted, by naming pattern' }],
+  ['HK0992', { why: 'HKD-quoted, by naming pattern' }],
+  ['HK0625', { why: 'HKD-quoted, by naming pattern' }],
+  ['ANTHROPIC', { why: 'pre-IPO price definition unconfirmed', okx: true }],
+  ['OPENAI', { why: 'pre-IPO price definition unconfirmed', okx: true }],
 ]);
 
 /* SAME ASSET, DIFFERENT NAME ON THE TWO VENUES. Found by matching Binance-only prices against Bybit's
@@ -445,10 +455,17 @@ for (const [base, n] of [...bnTradfi.entries()].sort((a, b) => (a[0] < b[0] ? -1
   }
 
   if (TRADFI_HOLD.has(base)) {
-    const v = TRADFI_HOLD.get(base).versus;
+    const h = TRADFI_HOLD.get(base);
     const mine = bnLast.get(n.symbol) ?? 0;
-    const ref = v ? (bnLast.get(bnTradfi.get(v)?.symbol) ?? 0) : 0;
-    tradfiHeld.push(v && ref > 0 ? `${base} (x${(mine / ref).toFixed(2)} vs ${v}: HKD-quoted)` : `${base} (HKD-quoted, by naming pattern)`);
+    let detail = h.why;
+    if (h.versus) {
+      const ref = bnLast.get(bnTradfi.get(h.versus)?.symbol) ?? 0;
+      if (ref > 0) detail += `: x${(mine / ref).toFixed(2)} vs ${h.versus}`;
+    } else if (h.okx) {
+      const o = okxLast.get(base.toLowerCase()) ?? 0;
+      if (o > 0) detail += `: Binance ${mine} vs OKX ${o} = x${(mine / o).toFixed(1)}`;
+    }
+    tradfiHeld.push(`${base} (${detail})`);
     continue;
   }
   const by = bybitTradfi.get(base) ?? bybitTradfi.get(base + 'STOCK')

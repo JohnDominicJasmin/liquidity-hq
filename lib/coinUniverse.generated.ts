@@ -9,8 +9,8 @@
  * memecoin listings. `dec` comes from the exchange tick size. `oneVenue` marks an instrument
  * with no failover.
  *
- * Generated: 2026-11-12T15:43:14.416Z
- * Instruments: 694 (15 single-venue)
+ * Generated: 2026-11-12T15:48:47.812Z
+ * Instruments: 692 (13 single-venue)
  */
 
 export interface CoinRow {
@@ -76,7 +76,6 @@ export const COIN_UNIVERSE: readonly CoinRow[] = [
   { id: 'anet', bybit: 'ANETUSDT', binance: 'ANETUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'ANET' },
   { id: 'anime', bybit: 'ANIMEUSDT', binance: 'ANIMEUSDT', okx: 'ANIME-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 6, oneVenue: false },
   { id: 'ankr', bybit: 'ANKRUSDT', binance: 'ANKRUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 6, oneVenue: false },
-  { id: 'anthropic', bybit: null, binance: 'ANTHROPICUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'preipo', ticker: 'ANTHROPIC' },
   { id: 'ape', bybit: 'APEUSDT', binance: 'APEUSDT', okx: 'APE-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'api3', bybit: 'API3USDT', binance: 'API3USDT', okx: 'API3-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 4, oneVenue: false },
   { id: 'apld', bybit: 'APLDUSDT', binance: 'APLDUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: false, kind: 'stock', ticker: 'APLD' },
@@ -473,7 +472,6 @@ export const COIN_UNIVERSE: readonly CoinRow[] = [
   { id: 'ont', bybit: 'ONTUSDT', binance: 'ONTUSDT', okx: 'ONT-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'op', bybit: 'OPUSDT', binance: 'OPUSDT', okx: 'OP-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'open', bybit: 'OPENUSDT', binance: 'OPENUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
-  { id: 'openai', bybit: null, binance: 'OPENAIUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 2, oneVenue: true, kind: 'preipo', ticker: 'OPENAI' },
   { id: 'opg', bybit: 'OPGUSDT', binance: 'OPGUSDT', okx: 'OPG-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'opn', bybit: 'OPNUSDT', binance: 'OPNUSDT', okx: 'OPN-USDT-SWAP', bybitMult: 1, binanceMult: 1, dec: 5, oneVenue: false },
   { id: 'orca', bybit: 'ORCAUSDT', binance: 'ORCAUSDT', okx: null, bybitMult: 1, binanceMult: 1, dec: 4, oneVenue: false },
