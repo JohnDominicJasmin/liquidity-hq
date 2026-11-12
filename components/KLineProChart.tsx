@@ -301,6 +301,9 @@ const OVERLAY_INK = {
     markerFill:  'rgba(245,158,11,0.1)',
     markerCore:  '#fcd34d',   // --amber-2, dark
     chevron:     '#fde68a',   // 16.86
+    structLabel:       '#e8e9ea',  // chip text, dark: 13.9:1 on #16191b (#1263)
+    structLabelBg:     '#16191b',  // the chart's own crosshair-label ground, dark
+    structLabelBorder: '#3a3f45',  // a quiet border, not klinecharts' #1677FF
   },
   light: {
     alertLine:   '#8F4508',   // 5.76 on #E8EAED
@@ -309,6 +312,9 @@ const OVERLAY_INK = {
     markerFill:  'rgba(124,45,18,0.10)',
     markerCore:  '#92400E',   // --amber-2, light
     chevron:     '#7c2d12',   // 7.77
+    structLabel:       '#1A1916',  // chip text, light: 13.3:1 on #E8EAED (#1263)
+    structLabelBg:     '#E8EAED',  // the chart's own light ground
+    structLabelBorder: '#B9BDC4',  // a quiet border, not klinecharts' #1677FF
   },
 } as const;
 
@@ -1141,11 +1147,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
            50px stalk and an arrowhead per annotation - that is a pointer, not a label, and four of
            them crowd the window it is trying to explain.
 
-           NO COLOUR AND NO STYLES, deliberately, for the same reason the segment itself sets none:
-           the chart's line ink differs per theme and a hardcoded colour here is how the last two
-           colour fixes regressed the other theme. A figure with no styles takes the chart's own
-           themed defaults, so this follows the theme by construction rather than by a pair of
-           values someone has to keep measured. */
+           STYLES ARE READ FROM overlayInk AT DRAW TIME (#1263). An earlier comment here claimed a
+           figure with no styles "takes the chart's own themed defaults, so this follows the theme by
+           construction" - wrong, and QA/PM caught it in two steps: klinecharts' `text()` figure is a
+           filled CHIP, defaulting to white text on a `#1677FF` ground with a `#1677FF` border. Setting
+           only `color` left the blue chip (and in light mode put dark text on it). So the chip's
+           background and border are set from overlayInk too, per theme, with the text at >=13:1 on its
+           ground in both - read at draw time exactly as the marker and alert overlays read overlayInk
+           (written by the theme-sync effect), so it still follows a theme flip on the next frame with
+           nothing to re-create, and it is now correct rather than accidentally blue. */
         (kc as any).registerOverlay({
           name: 'structureLabel',
           totalStep: 1,
@@ -1156,10 +1166,36 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const text = typeof overlay.extendData === 'string' ? overlay.extendData : '';
             if (!text || !coordinates.length) return [];
             /* Above and to the right of the line's start, so it does not sit on the line itself.
-               `baseline: 'bottom'` keeps it clear of the first candle the line touches. */
+               `baseline: 'bottom'` keeps it clear of the first candle the line touches.
+
+               PINNED TO x >= 6, AND y FOLLOWS THE SEGMENT TO THAT x (#1263, PM audit). A structure
+               line can START off the left edge - the swing it was drawn through scrolled out of view
+               - so `coordinates[0].x` is negative and the label ("... · 3 touches") was clipped off
+               the left. Clamping x to 6 pins it at the left edge like the sibling S/R labels. But the
+               y must move with it: holding the off-screen start's y floats the label at the wrong
+               height. With both endpoints now on this overlay, interpolate y along the segment at the
+               clamped x. A line that starts on-screen is unaffected (x + 4 is past 6, no clamp). */
+            const x0 = coordinates[0].x, y0 = coordinates[0].y;
+            const x = Math.max(6, x0 + 4);
+            let y = y0;
+            if (x > x0 + 4 && coordinates.length >= 2 && coordinates[1].x !== x0) {
+              const tt = (x - x0) / (coordinates[1].x - x0);
+              y = y0 + tt * (coordinates[1].y - y0);
+            }
+            /* THE BLUE WAS THE CHIP, NOT THE TEXT (#1263, PM audit). klinecharts' `text()` figure
+               defaults to a filled chip: white text on `#1677FF` with a `#1677FF` border. Setting
+               only `color` left that blue box, and in light mode put dark text on it - worse. So the
+               background and border are set from overlayInk too, per theme, with the text at >=13:1
+               on its ground in both. Read at draw time, so a theme flip is picked up on the next
+               frame with nothing to re-create. */
             return [{
               type: 'text',
-              attrs: { x: coordinates[0].x + 4, y: coordinates[0].y - 4, text, align: 'left', baseline: 'bottom' },
+              attrs: { x, y: y - 4, text, align: 'left', baseline: 'bottom' },
+              styles: {
+                color: overlayInk.structLabel, size: 10, weight: '700',
+                backgroundColor: overlayInk.structLabelBg, borderColor: overlayInk.structLabelBorder, borderSize: 1,
+                paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
+              },
             }];
           },
         });
@@ -2977,7 +3013,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           name: 'structureLabel',
           groupId: PROPOSAL_GROUP,
           lock: true,
-          points: [{ timestamp: s.from.timestamp, value: s.from.price }],
+          /* BOTH endpoints (#1263, PM audit), not just `from`. The label is drawn at the line's
+             start, but when that start has scrolled off the left edge the label pins to x=6 and must
+             take the line's HEIGHT at x=6 - which needs the second point to interpolate along the
+             segment. With only `from`, the clamp kept the off-screen start's y and the label floated
+             at the wrong height. */
+          points: [
+            { timestamp: s.from.timestamp, value: s.from.price },
+            { timestamp: s.to.timestamp, value: s.to.price },
+          ],
           extendData: structureRowText(s),
         } as OverlayCreate);
         if (typeof labelId === 'string') ids.push(labelId);
