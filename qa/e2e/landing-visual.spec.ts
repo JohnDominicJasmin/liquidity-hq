@@ -6,7 +6,7 @@
  *   gh workflow run ci.yml --ref <branch> -f e2e=true -f spec=qa/e2e/landing-visual.spec.ts \
  *     -f base_url=https://liquidity-hq-qa.onrender.com -f screenshots=true -f project=desktop
  */
-import { test } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 
 const SHOT_DIR = 'qa/.shots';
@@ -60,7 +60,7 @@ test.describe('group-2 landing visual evidence (signed out)', () => {
       await page.locator('.lp-hero-h1').first().waitFor({ state: 'visible', timeout: 30_000 }).catch(() => {});
       await page.waitForTimeout(2500);
       const box = await page.evaluate(() => {
-        const header = [...document.querySelectorAll('span')].find(s => /live read\s*·/i.test(s.textContent || ''));
+        const header = Array.from(document.querySelectorAll('span')).find(s => /live read\s*·/i.test(s.textContent || ''));
         if (!header) return null;
         // Walk up to the bordered panel container (the div that owns the 1px border).
         let el: HTMLElement | null = header as HTMLElement;
