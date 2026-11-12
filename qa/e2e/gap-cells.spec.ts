@@ -135,7 +135,8 @@ test.describe('gap cells (signed in, fixture A)', () => {
       console.log(`[gap G4] html=${JSON.stringify(html.slice(0, 200))} text=${JSON.stringify(text.slice(0, 120))}`);
       await shot(page, 'gap-why-line');
       expect(text, 'raw ** (bold markers) leaked into the why-line').not.toContain('**');
-      test.info().annotations.push({ type: 'finding', description: 'single-asterisk emphasis (*clean*) stays literal: ' + JSON.stringify(text.includes('*clean*')) });
+      expect(text, 'raw asterisks leaked into the why-line (single-asterisk emphasis must render as italic since #2206)').not.toMatch(/[*]/);
+      expect(await why.locator('em, i').first().innerText().catch(() => ''), 'the emphasised word is not rendered as italic').toBe('clean');
       expect(await why.locator('strong, b').count(), 'the bold part is not rendered as bold').toBeGreaterThan(0);
     } finally { await ctx.close(); }
   });
