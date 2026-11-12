@@ -9,8 +9,7 @@
  *   A2  #2197: POST /api/price-alerts for hk0700 answers 400 COIN_NOT_COVERED and the list is unchanged
  *   A3  #2197: POST for btc still saves (the row is removed again)
  *
- * NOT COVERED: #2197's fourth assertion (an open alert form closes when switching to a non-main coin) - the coin
- * switch needs a scanner-row click this spec does not drive. Said here rather than left out silently.
+ * A4  #2197: with the alert form open on BTC, switching to HK0700 via the scanner closes the form, sends no POST
  *
  * THE SCAN IS BY NUMBER, NOT BY "NO $ ON THE PAGE": the Arena legitimately prints "$" before notional values
  * (open interest, volume - Dev left those in USD on purpose). So it takes every figure printed after "HK$" and
@@ -126,6 +125,31 @@ test.describe('#2197 price alerts cover the main coins only', () => {
     expect(res.status).toBe(400);
     expect(res.json?.error).toBe('COIN_NOT_COVERED');
     expect(n(after), 'a row was created for a non-main coin').toBe(n(before));
+  });
+
+  run('A4. with the alert form open on BTC, switching to HK0700 closes the form and no alert request is sent', async (page) => {
+    await open(page, 'btc');
+    let posts = 0;
+    await page.route('**/api/price-alerts', (route) => {
+      if (route.request().method() === 'POST') posts += 1;
+      return route.fallback();
+    });
+    await page.getByRole('button', { name: /^Set Alert$/i }).first().click();
+    const cancel = page.getByRole('button', { name: /^Cancel$/i }).first();
+    await expect(cancel, 'the alert form did not open on BTC, so there is nothing to close').toBeVisible({ timeout: 10_000 });
+
+    /* Drive the scanner: it opens on hover, filters by the search box, and each row has a stable test id. */
+    await page.getByTestId('scanner-trigger').hover();
+    const search = page.locator('input.clipped-row-search').first();
+    await expect(search, 'the scanner flyout did not open').toBeVisible({ timeout: 10_000 });
+    await search.fill('hk0700');
+    await page.getByTestId('scanner-row-hk0700').click({ timeout: 10_000 });
+    await page.waitForTimeout(2_000);
+
+    await expect(page.getByText(/Priced in Hong Kong dollars/i).first(), 'the switch to HK0700 did not happen').toBeVisible({ timeout: 10_000 });
+    await expect(cancel, 'the alert form is still open on a non-main coin').toBeHidden();
+    await expect(page.getByRole('button', { name: /^Set Alert$/i }).first()).toBeDisabled();
+    expect(posts, 'an alert request was sent while switching').toBe(0);
   });
 
   run('A3. POST for btc still saves (and the row is removed again)', async (page) => {
