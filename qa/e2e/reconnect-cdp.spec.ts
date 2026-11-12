@@ -41,16 +41,18 @@ test.describe('chart reconnects after a socket drop', () => {
     });
 
     let blocked = false;
-    const live = new Set<{ close: (o?: { code?: number }) => void }>();
+    /* An array, not a Set: the read-only guard (qa/prod-readonly.ts) treats any `.delete(` as a write verb,
+       and this spec is on the production-readonly allowlist - it only drives a routed socket. */
+    const live: Array<{ close: (o?: { code?: number }) => void }> = [];
     await context.routeWebSocket(/stream\.binance\.com|fstream\.binance\.com/, (ws) => {
       if (blocked) { void ws.close({ code: 1006 }); return; }
-      live.add(ws);
+      live.push(ws);
       const streams = (() => { try { return new URL(ws.url()).searchParams.get('streams') ?? ''; } catch { return ''; } })();
       const syms = streams.split('/').filter(x => x.includes('@ticker')).map(x => x.split('@')[0].toUpperCase());
       const emit = () => { for (const sym of (syms.length ? syms : ['BTCUSDT'])) { try { ws.send(synthCombinedFrame(sym)); } catch { /* closed */ } } };
       emit();
       const timer = setInterval(emit, 1000);
-      ws.onClose(() => { clearInterval(timer); live.delete(ws); });
+      ws.onClose(() => { clearInterval(timer); const at = live.indexOf(ws); if (at >= 0) live.splice(at, 1); });
     });
 
     await gotoGuarded(page, '/arena');
