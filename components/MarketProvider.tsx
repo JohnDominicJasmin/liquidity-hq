@@ -291,9 +291,19 @@ export default function MarketProvider(
         startWSRef.current();
       }, delay);
 
-      /* The REST backup still waits for the quick attempts to be spent, deliberately: a two-second
-         blip should not spin up a 45-symbol poll. */
-      if (retriesRef.current <= 5) return;
+      /* The REST backup waits for the quick socket attempts to be spent, deliberately: a two-second
+         blip mid-session should not spin up a 45-symbol poll when prices are already on screen.
+
+         THE EXCEPTION IS A COLD LOAD (#1651). On first load prices come only from the socket, so
+         until it delivers, no coin has a price and the whole page sits on a skeleton. If the first
+         connect is slow or fails (Render cold start), waiting out five capped-backoff retries left
+         that skeleton up for ~36 s. So when NO coin has a price yet, don't wait - run the REST
+         backup on the first close, which fills prices in one request. `storeRef` lags render by a
+         tick, which is harmless here: it can only be stale in the direction of "a price just
+         arrived", and starting the backup a close early when prices already exist costs one poll,
+         not a blank page. */
+      const noPriceYet = !Object.values(storeRef.current.coins).some(c => Number.isFinite(c?.price));
+      if (retriesRef.current <= 5 && !noPriceYet) return;
 
       /* ── REST fallback ──
          This used to poll every 5 seconds, forever, and never retry the
