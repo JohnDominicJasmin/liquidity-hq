@@ -132,9 +132,17 @@ test('OS9. the indicator grid is plain on/off selectable chips; the always-on la
      (EMA ribbon, RSI pane, GEX "Always on · BTC only") and real role="switch" toggles for S/R and
      Liq, synced to the chart toolbar. */
   anchorOnce(PANEL, 'const on = selected.includes(entry.id);', 'a chip is on exactly when its id is in the selection');
-  anchorOnce(PANEL, '<LayerRow name="RSI pane" status="Always on" />', 'RSI pane is an always-on layer ROW, not a selectable chip');
-  anchorOnce(PANEL, '<LayerRow name="EMA ribbon" status="Always on" />', 'the EMA ribbon is an always-on layer row');
-  anchorOnce(PANEL, '<LayerRow name="Options levels (GEX)" status="Always on · BTC only" />', 'GEX is an always-on layer row, BTC only');
+  /* The strings moved behind t() (#2178), so the ROW is anchored by its keys and the WORDING is
+     pinned separately against the English defaults - the claim that RSI is a layer row "Always on",
+     and GEX is "Always on · BTC only", has not changed, only where the text lives. */
+  anchorOnce(PANEL, "<LayerRow name={t('STRATEGY_PANEL_LAYER_RSI')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON')} />", 'RSI pane is an always-on layer ROW, not a selectable chip');
+  anchorOnce(PANEL, "<LayerRow name={t('STRATEGY_PANEL_LAYER_EMA')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON')} />", 'the EMA ribbon is an always-on layer row');
+  anchorOnce(PANEL, "<LayerRow name={t('STRATEGY_PANEL_LAYER_GEX')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON_BTC')} />", 'GEX is an always-on layer row, BTC only');
+  const EN = JSON.parse(readFileSync(new URL('../lib/labelDefaults.en.json', import.meta.url), 'utf8')) as Record<string, string>;
+  assert.equal(EN.STRATEGY_PANEL_LAYER_RSI, 'RSI pane', 'the RSI row no longer reads "RSI pane"');
+  assert.equal(EN.STRATEGY_PANEL_LAYER_EMA, 'EMA ribbon', 'the EMA row no longer reads "EMA ribbon"');
+  assert.equal(EN.STRATEGY_PANEL_LAYER_ALWAYS_ON, 'Always on', 'the always-on status no longer reads "Always on"');
+  assert.equal(EN.STRATEGY_PANEL_LAYER_ALWAYS_ON_BTC, 'Always on · BTC only', 'the GEX status no longer reads "Always on · BTC only"');
   anchorOnce(PANEL, "onToggle={() => onOverlayToggle?.('SR')}", 'S/R is a switch synced to the chart toolbar');
   anchorOnce(PANEL, "onToggle={() => onOverlayToggle?.('LIQ_CLUSTERS')}", 'Liq is a switch synced to the chart toolbar');
   assert.ok(PANEL.includes('role="switch"'), 'the chart layers use a real switch role');
