@@ -184,8 +184,11 @@ test.describe('#1113 onboarding, end to end', () => {
     // one - the point is that whatever is chosen comes back out of the database unchanged.
     const chosen: string[] = [];
     for (let i = 0; i < 4; i += 1) {
-      await expect(rows().first()).toBeVisible({ timeout: 30_000 });
-      const first = rows().first();
+      /* Steps 2-4 are OptionRow buttons (obw-row); step 5 (Source) is optional and renders obw-chip
+         buttons instead - the obw-row locator found nothing there (run 43235725102). */
+      const optionRows = () => p.locator(i === 3 ? 'button.obw-chip' : 'button.obw-row');
+      await expect(optionRows().first()).toBeVisible({ timeout: 30_000 });
+      const first = optionRows().first();
       chosen.push((await first.innerText()).replace(/\s+/g, ' ').trim().slice(0, 40));
       await first.click();
       await p.waitForTimeout(400);
