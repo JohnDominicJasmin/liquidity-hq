@@ -141,15 +141,14 @@ test.describe('sign-off shots', () => {
         'no structure label rendered - the stub was rejected (see the response shape) or the call never fired').toBeVisible({ timeout: 15_000 });
       const sfx = width === 1280 ? '' : `-${width}`;
       await shot(p, `draw-structure${sfx}-${theme}`);
-      /* MENU HIDDEN (PM, 2026-11-13): with the menu open the drawn lines cannot be told apart from the EMAs.
-         THE APP HAS NO WAY TO CLOSE IT: the menu renders whenever proposals exist (KLineProChart.tsx, the
-         "klc-draw-menu" block) and its only control is Clear, which removes the lines too. Run 43254885841
-         pressed Escape and clicked away and the menu stayed. So this shot hides the menu with a style the TEST
-         injects - the image shows where the lines sit, and is NOT a state a user can reach. Said in the file name. */
-      await p.addStyleTag({ content: '.klc-draw-menu{display:none !important}' });
-      await expect(p.locator('.klc-draw-item').first()).toBeHidden({ timeout: 5_000 });
+      /* THE REAL DISMISS (#2192): Escape closes the menu, the lines stay. The button shows the lines are
+         still there (class "on" while proposals exist) and aria-expanded is false. */
+      await p.keyboard.press('Escape');
+      await expect(p.locator('.klc-draw-menu')).toBeHidden({ timeout: 5_000 });
+      await expect(btn, 'the lines are gone after Escape: the button is no longer "on"').toHaveClass(/\bon\b/);
+      await expect(btn).toHaveAttribute('aria-expanded', 'false');
       await p.waitForTimeout(1_500);
-      await shot(p, `draw-structure-menu-hidden${sfx}-${theme}`);
+      await shot(p, `draw-structure-closed${sfx}-${theme}`);
       await ctx.close();
     });
   }
@@ -177,6 +176,40 @@ test.describe('sign-off shots', () => {
       await panel.scrollIntoViewIfNeeded();
       mkdirSync(DIR, { recursive: true });
       await panel.screenshot({ path: `${DIR}/chips-${width}-${theme}.png`, mask: mask(p), maskColor: '#000000' });
+      await ctx.close();
+    });
+  }
+
+  /* FAB gutter (#2190): the Ask AI button against the Chart Layers rows at 390 and 768, both themes. Logs every
+     element inside the Strategy panel whose box intersects the FAB's box, so the 72px gutter is MEASURED, not
+     eyeballed, and shoots the viewport with Chart Layers in view. */
+  for (const theme of themes) for (const width of [390, 768]) {
+    test(`fab gutter ${width}px ${theme}`, async ({ browser }) => {
+      const ctx = await signedInContext(browser, 'a', { viewport: { width, height: 900 }, theme });
+      const p = await ctx.newPage();
+      await installPaidAiFence(p);
+      await gotoSignedIn(p, '/arena');
+      await p.locator('.strat-panel').first().waitFor({ state: 'visible', timeout: 30_000 });
+      await p.waitForTimeout(4_000);
+      const heading = p.getByText(/chart layers/i).first();
+      await heading.scrollIntoViewIfNeeded({ timeout: 10_000 }).catch(() => {});
+      await p.waitForTimeout(1_000);
+      const m = await p.evaluate(() => {
+        const fab = Array.from(document.querySelectorAll('button')).find(b => /ask ai/i.test(b.textContent ?? ''));
+        const fr = fab?.getBoundingClientRect();
+        if (!fab || !fr) return { fab: null, hits: [] as string[] };
+        const hits: string[] = [];
+        document.querySelectorAll('.strat-panel *').forEach(el => {
+          if (el.children.length > 0 && !(el as HTMLElement).innerText) return;
+          const t = (el.textContent ?? '').trim();
+          if (!t || el.children.length > 0) return;
+          const r = el.getBoundingClientRect();
+          if (r.width && r.height && r.left < fr.right && r.right > fr.left && r.top < fr.bottom && r.bottom > fr.top) hits.push(t.slice(0, 30));
+        });
+        return { fab: { l: Math.round(fr.left), t: Math.round(fr.top), w: Math.round(fr.width), h: Math.round(fr.height) }, hits };
+      });
+      console.log(`[fab ${width} ${theme}] fab=${JSON.stringify(m.fab)} overlappingText=${JSON.stringify(m.hits)}`);
+      await shot(p, `fab-gutter-${width}-${theme}`);
       await ctx.close();
     });
   }
