@@ -156,8 +156,12 @@ test.describe('#1113 onboarding, end to end', () => {
     await expect(name, 'step 1 should offer the display-name field').toBeVisible({ timeout: 30_000 });
     await name.fill('QA Onboarding');
 
-    const countryBtn = p.locator('button[aria-expanded]').first();
+    /* The country picker is `button.obw-select` (OnboardingFlow). `button[aria-expanded]` matched
+       the wrong/covered element and the click timed out at 30s - the button was visible but not the
+       actionable one. Scroll it into view and click its own class. */
+    const countryBtn = p.locator('button.obw-select').first();
     await expect(countryBtn, 'step 1 should offer the country picker').toBeVisible();
+    await countryBtn.scrollIntoViewIfNeeded();
     await countryBtn.click();
     const search = p.getByPlaceholder('Search country…');
     await expect(search, 'the country panel should open a search box').toBeVisible({ timeout: 15_000 });
