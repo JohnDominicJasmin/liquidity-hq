@@ -1440,6 +1440,11 @@ jobs:
           path: qa/.shots/
           retention-days: 1
           if-no-files-found: ignore
+          # ⚠️ `qa/.shots` IS A HIDDEN DIRECTORY (leading dot), and upload-artifact@v4 defaults
+          # include-hidden-files to false - so without this the whole folder is excluded and the
+          # artifact comes out EMPTY even though the spec wrote six PNGs (measured on run
+          # 43230915872). The shots carry no secrets; the spec masks any email before writing.
+          include-hidden-files: true
 
       # always(), NOT success(). The number is most interesting precisely when
       # the run went badly - a suite that tripped a rate limit is the case #114
