@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { COIN_DEC, CoinId, useMarket, computeSqueezeScore, venueSymbols } from '@/lib/marketStore';
+import { liftClearOfLevels } from '@/lib/chartLabelOffsets';
 import { chartDisplaySymbol, currencyPrefix } from '@/lib/coins';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
@@ -2704,7 +2705,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       .filter(l => Number.isFinite(l.price) && l.price > 0)
       .slice(0, LIQ_CLUSTER_LINES);
     const bands = mergeLiqBands(heaviest);
-    const labelOffsets = computeLabelOffsets(bands);
+    /* THE REALIZED TAG YIELDS TO A CLOSE S/R TAG (#1263). The two layers stack their own tags and never see each
+       other, so a band at nearly an S/R level's price was painted over it. S/R keeps its own offsets untouched;
+       only this tag lifts clear (see lib/chartLabelOffsets.ts). It follows the S/R layer only when that layer is
+       actually drawn. */
+    const bandOffsets = computeLabelOffsets(bands);
+    const labelOffsets = showSR && srLevels.length
+      ? liftClearOfLevels(bandOffsets, bands, srLevels, computeLabelOffsets(srLevels))
+      : bandOffsets;
     for (const b of bands) {
       const id = chart.createOverlay({
         name: 'liqClusterLine',
@@ -2715,7 +2723,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       } as OverlayCreate);
       if (typeof id === 'string') liqClusterIds.current.push(id);
     }
-  }, [liqClusters, showLiq, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [liqClusters, showLiq, chartReady, srLevels, showSR]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── The strategy selection's klinecharts indicators (#930) ─────────────────
    *
