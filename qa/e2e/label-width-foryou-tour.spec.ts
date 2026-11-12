@@ -143,24 +143,30 @@ test.describe('§7 phone-width: the two new label keys (#2203)', () => {
         });
         await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
         await expect(page.locator('.obw-headline').first(), 'the wizard did not render, so the onboarding read stub did not take').toBeVisible({ timeout: 60_000 });
+        /* EVERY ACTION IS TIME-BOUNDED AND NUMBERED: playwright's actionTimeout is 0 on a local build, so run 43290244973's tour cell sat
+           out the whole 180s test timeout with nothing saying which step it was on. A step that cannot act now fails by name in 15s. */
+        const T = { timeout: 15_000 };
+        const log = (m: string) => console.log(`[label-width] tour ${width}px: ${m}`);
         const next = () => page.locator('button.obw-btn-next');
-        await page.getByPlaceholder('e.g. trader_dom').fill('QA Width');
-        await page.locator('button[aria-expanded]').first().click();
-        await page.getByPlaceholder('Search country…').fill('Phil');
-        await page.locator('button').filter({ hasText: /philippines/i }).first().click();
-        await page.locator('button').filter({ hasText: '$1k - $5k' }).first().click();
-        await next().click();
+        log('wizard step 1: name'); await page.getByPlaceholder('e.g. trader_dom').fill('QA Width', T);
+        log('country picker'); await page.locator('button[aria-expanded]').first().click(T);
+        await page.getByPlaceholder('Search country…').fill('Phil', T);
+        await page.locator('button').filter({ hasText: /philippines/i }).first().click(T);
+        log('account range'); await page.locator('button').filter({ hasText: '$1k - $5k' }).first().click(T);
+        log('next'); await next().click(T);
         for (let i = 0; i < 4; i += 1) {
-          await expect(page.locator('button.obw-row').first()).toBeVisible({ timeout: 30_000 });
-          await page.locator('button.obw-row').first().click();
+          log(`wizard step ${i + 2}`);
+          await expect(page.locator('button.obw-row').first(), `wizard step ${i + 2} showed no options`).toBeVisible({ timeout: 30_000 });
+          await page.locator('button.obw-row').first().click(T);
           await page.waitForTimeout(400);
-          await next().click();
+          await next().click(T);
           await page.waitForTimeout(1_200);
         }
+        log('wizard done, waiting for the tour');
         /* The tour mounts on /dashboard and has two steps; one Next reaches step 5. Wait for its Next control by role. */
         const dialog = page.getByRole('dialog').first();
         await expect(dialog, 'the tour did not open after the wizard finished').toBeVisible({ timeout: 30_000 });
-        await dialog.getByRole('button', { name: /next|continue/i }).first().click();
+        await dialog.getByRole('button', { name: /next|continue/i }).first().click(T);
         await page.waitForTimeout(1_500);
         console.log(`[label-width] tour: onboarding reads=${reads} writes swallowed=${swallowed}`);
         mkdirSync(DIR, { recursive: true });
