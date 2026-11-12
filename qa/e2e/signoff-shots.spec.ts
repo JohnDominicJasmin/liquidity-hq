@@ -73,7 +73,9 @@ test.describe('sign-off shots', () => {
   }
 
   /* Weekly and monthly chart (Pro), with whatever note the page shows above 1d. */
-  for (const label of ['1W', '1M']) {
+  /* The timeframe buttons are labelled '1w' and '1M' (KLineProChart TFS). Matched case-SENSITIVELY and
+     exactly: '1W' found nothing, and a case-insensitive '1M' would also match '1m' (one minute). */
+  for (const label of ['1w', '1M']) {
     test(`arena chart ${label}`, async ({ browser }) => {
       const ctx = await signedInContext(browser, 'a', { viewport: { width: 1280, height: 1000 }, theme: 'dark' });
       const p = await ctx.newPage();
