@@ -1,5 +1,6 @@
 'use client';
 import { useMarket, COIN_DEC, fmtPrice, computeFibLevels } from '@/lib/marketStore';
+import { currencyPrefix } from '@/lib/coins';
 import type { CoinData, CoinId } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
 import { withAlpha } from '@/lib/color';
@@ -263,7 +264,7 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
                       color: isEntry ? 'var(--txt)' : col,
                       letterSpacing: '-.02em',
                     }}>
-                      ${fmtPrice(row.price, dec)}
+                      {currencyPrefix(coin)}{fmtPrice(row.price, dec)}
                     </div>
                   </div>
 

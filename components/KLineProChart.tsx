@@ -3349,9 +3349,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 key={alert.id}
                 className="klc-price-chip"
                 style={{ color: 'var(--amber)', background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.2)', cursor: 'default' }}
-                title={`Alert: ${alert.direction} $${fmtPx(alert.target_price)}${alert.label ? ` · ${alert.label}` : ''} - drag the dashed line to adjust`}
+                title={`Alert: ${alert.direction} ${currencyPrefix(coin)}${fmtPx(alert.target_price)}${alert.label ? ` · ${alert.label}` : ''} - drag the dashed line to adjust`}
               >
-                {alert.direction === 'above' ? '↑' : '↓'} ${fmtPx(alert.target_price)}
+                {alert.direction === 'above' ? '↑' : '↓'} {currencyPrefix(coin)}{fmtPx(alert.target_price)}
                 {alert.label ? <>&nbsp;·&nbsp;{alert.label}</> : null}
               </span>
             ))}
