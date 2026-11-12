@@ -321,6 +321,55 @@ on:
         type: boolean
         default: false
 
+      # ── `spec`, `project`, `screenshots` — QA's browser runs move off the laptop ──
+      #
+      # OWNER DECISION, 2026-11-12, relayed first-hand by PM/DevOps: QA's browser tests run on
+      # GitHub's servers and never on his laptop again. The three inputs below are what makes a
+      # single targeted run possible; the whole-suite behaviour above is untouched.
+      #
+      # WHY THESE LIVE IN THIS FILE RATHER THAN A NEW WORKFLOW: a `workflow_dispatch` workflow has
+      # to exist on the DEFAULT branch before it can be dispatched at all, and `main` is
+      # owner-gated. `ci.yml` is already there, and a dispatch with `--ref <branch>` reads THAT
+      # branch's copy — so new inputs work from a branch the moment they are pushed.
+      #
+      # COST, stated rather than assumed, because §17 of OWNER-RULES is a standing cost rule and
+      # this is the first thing to run outside the release PR since it was written: a targeted run
+      # is ONE spec against the already-deployed qa site with `base_url` set, so nothing is built
+      # and nothing is booted. That is a few minutes, not the 38-minute suite. The whole-suite
+      # paths are unchanged and still cost what they cost.
+      spec:
+        description: 'Run ONE spec (e.g. qa/e2e/onboarding.spec.ts) or a --grep pattern, instead of the whole suite. Forces --workers=1 and --trace=off.'
+        type: string
+        default: ''
+
+      # Only consulted when `spec` is set, so a full-suite dispatch still runs both legs exactly as
+      # it does today. A targeted run wants one browser, not two.
+      project:
+        description: 'Which Playwright project a `spec` run uses. Ignored unless `spec` is set.'
+        type: choice
+        options: [desktop, mobile, both]
+        default: desktop
+
+      # ⚠️ THE REPOSITORY IS PUBLIC (owner, 2026-11-10), SO AN ARTIFACT IS PUBLIC. Anyone with a
+      # GitHub account can download it while it exists. That is why this is off by default, why
+      # the upload keeps `retention-days: 1`, and why the spec that writes the files is
+      # responsible for masking the fixture email and never shooting an account or settings page.
+      # Whoever turns it on deletes the artifact through the API once it has been downloaded.
+      screenshots:
+        description: 'Upload screenshots written to qa/.shots (PUBLIC artifact, kept 1 day, masked pages only).'
+        type: boolean
+        default: false
+
+      # A SEPARATE TICK, NOT INFERRED FROM THE SPEC PATH. The onboarding spec rewrites a fixture
+      # account's own rows in the DEV database, and `qa` and `staging` both read that database — so
+      # a run with this on changes state other specs depend on. Deriving that from "the spec path
+      # contains onboarding" would mean a rename quietly turning a destructive step on or off.
+      # The spec skips loudly when this is unset, and says why in the skip reason.
+      fixture_reset:
+        description: 'Allow the onboarding spec to reset its fixture account (DEV database only). Off = that spec skips.'
+        type: boolean
+        default: false
+
 # Without this, every push to a PR stacked another run and the superseded one
 # carried on to completion. Nothing was ever cancelled. Costs no coverage.
 #
@@ -604,7 +653,27 @@ jobs:
     # check is not redundant: on a `pull_request` or `push` the `inputs` context
     # is empty, and leaning on `inputs.e2e` alone would make the clause depend
     # on an unset value evaluating falsey. State the event you mean.
-    if: github.base_ref == 'main' || (github.event_name == 'workflow_dispatch' && inputs.e2e)
+    # The second clause is the targeted-run filter and it is written so it CANNOT change the two
+    # existing paths: it only narrows when `inputs.spec` is non-empty, which is impossible outside
+    # a dispatch. A full-suite dispatch still runs desktop and mobile.
+    if: >-
+      (github.base_ref == 'main' || (github.event_name == 'workflow_dispatch' && inputs.e2e))
+      && (github.event_name != 'workflow_dispatch' || inputs.spec == '' || inputs.project == 'both' || inputs.project == matrix.project)
+    # ── ONE RUN AT A TIME OVER THE SHARED FIXTURES ───────────────────────────────────────────
+    #
+    # The fixtures live in the DEV database, which `qa` and `staging` both point at, so two runs
+    # signing in as the same account fight over its state. That is not hypothetical: resetting
+    # fixture B's `profile_complete` while a suite was mid-flight would have rendered the
+    # onboarding wizard in place of every page the later specs assert on.
+    #
+    # DISPATCHES SERIALISE WITH EACH OTHER. The release gate keeps its per-project lanes, because
+    # the matrix exists precisely so mobile stops starving behind desktop at the 120-minute cap,
+    # and collapsing them into one lane would hand that problem back. Gate legs therefore still
+    # share the fixtures with each other, exactly as they do today — narrowing that is a separate
+    # change with its own trade-off, not a side effect of this one.
+    concurrency:
+      group: ${{ github.event_name == 'workflow_dispatch' && 'e2e-fixtures-dev-db' || format('e2e-gate-{0}-{1}', github.ref_name, matrix.project) }}
+      cancel-in-progress: false
     # Without a cap, a genuinely hung run burns to GitHub's 6-hour default, and
     # a stuck run looks identical to a slow one - which happened while this
     # suite was being brought up. So the cap stays; the number moved.
@@ -930,7 +999,32 @@ jobs:
         # So the condition is "is this a run we actually care to see the end of", which both are.
         # The 25 branch is now unreachable and kept only so a future event that does fall through
         # inherits the bounded value rather than no cap at all.
-        run: npm run test:e2e -- --project=${{ matrix.project }} ${{ matrix.project == 'desktop' && ((github.base_ref == 'main' || github.event_name == 'workflow_dispatch') && '--max-failures=50' || '--max-failures=25') || '' }}
+        # ── `QA_SPEC` IS READ FROM THE ENVIRONMENT, NOT INTERPOLATED INTO THIS COMMAND ──────────
+        #
+        # `${{ inputs.spec }}` written inline would be pasted into the shell before bash sees it,
+        # so a dispatch input would be executing on the runner. Only collaborators can dispatch,
+        # which makes that a small door rather than no door — and a small door in a PUBLIC repo is
+        # still worth shutting. The value arrives as an env var, is checked against an allowlist of
+        # characters, and the run aborts if it does not match.
+        #
+        # SPACES ARE NOT ALLOWED, which is what lets the value stay quoted as a single argument.
+        # So a grep is written `--grep=Onboarding`, with the `=`, not `--grep Onboarding`. The
+        # allowlist has `-` LAST inside the bracket expression on purpose: anywhere else it would
+        # be read as a range endpoint rather than a literal hyphen, and the check would silently
+        # mean something other than it says.
+        run: |
+          set -euo pipefail
+          if [ -n "${QA_SPEC:-}" ]; then
+            case "$QA_SPEC" in
+              *[!A-Za-z0-9_./@:=-]*)
+                echo "::error::spec input rejected: letters, digits and _ . / @ : = - only, and no spaces (use --grep=Pattern)"
+                exit 1 ;;
+            esac
+            echo "targeted run: $QA_SPEC (workers=1, trace=off, project=${{ matrix.project }})"
+            npm run test:e2e -- --project=${{ matrix.project }} --workers=1 --trace=off "$QA_SPEC"
+          else
+            npm run test:e2e -- --project=${{ matrix.project }} ${{ matrix.project == 'desktop' && ((github.base_ref == 'main' || github.event_name == 'workflow_dispatch') && '--max-failures=50' || '--max-failures=25') || '' }}
+          fi
         # ── MOBILE IS NON-BLOCKING FOR ITS FIRST RUN. REVERT AFTER v2026.10.29c ──────
         #
         # ⚠️ TEMPORARY. Remove this line once the mobile leg has one completed run on
@@ -964,6 +1058,15 @@ jobs:
         continue-on-error: ${{ matrix.project == 'mobile' }}
         env:
           CI: true
+
+          # Empty outside a dispatch, which is what makes the `if [ -n ... ]` above resolve to the
+          # existing whole-suite command on the release gate.
+          QA_SPEC: ${{ inputs.spec }}
+
+          # '1' only when the dispatcher ticked it. Any other value, including empty, leaves the
+          # onboarding spec skipped.
+          QA_FIXTURE_RESET: ${{ (github.event_name == 'workflow_dispatch' && inputs.fixture_reset) && '1' || '' }}
+          QA_SHOTS: ${{ (github.event_name == 'workflow_dispatch' && inputs.screenshots) && '1' || '' }}
 
           # Empty on every automatic event, because the `inputs` context is empty
           # outside a dispatch - so the release gate keeps building the candidate's
@@ -1283,7 +1386,26 @@ jobs:
           # would fail on the upload instead of on its tests.
           name: playwright-report-${{ matrix.project }}-${{ github.run_attempt }}
           path: qa/e2e-report/
+          # ⚠️ 14 DAYS OF A PUBLIC ARTIFACT, and `playwright.config.ts` sets
+          # `screenshot: 'only-on-failure'` — so a failing authenticated spec puts a picture of a
+          # signed-in page in here, downloadable by any GitHub user for a fortnight. Raised with
+          # PM/DevOps rather than changed here: this is the release gate's evidence and shortening
+          # its life is a release decision, not a side effect of adding a QA input.
           retention-days: 14
+
+      # ── SCREENSHOTS FROM A TARGETED RUN ──────────────────────────────────────────────────────
+      #
+      # PUBLIC, so: one day, nothing from an account or settings page, fixture email masked by the
+      # spec that takes the shot, and deleted through the API once downloaded. `if-no-files-found:
+      # ignore` because a spec that took none is a normal outcome, not a failure to report.
+      - name: Screenshots (public artifact, 1 day)
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.screenshots }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-screenshots-${{ matrix.project }}-${{ github.run_attempt }}
+          path: qa/.shots/
+          retention-days: 1
+          if-no-files-found: ignore
 
       # always(), NOT success(). The number is most interesting precisely when
       # the run went badly - a suite that tripped a rate limit is the case #114
