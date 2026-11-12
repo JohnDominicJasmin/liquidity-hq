@@ -13,7 +13,8 @@ import { test, expect } from '@playwright/test';
 import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
 import { signedInContext, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
 
-const BASE = process.env.E2E_BASE_URL ?? '';
+/* RELATIVE URLS, NO E2E_BASE_URL GATE: the dispatched gate runs a local stubbed build, where BASE is unset. The first
+   version skipped on !BASE and both cells skipped on run 43256638066, proving nothing. baseURL comes from the config. */
 const PLAIN = /the AI could not give a clear verdict, so nothing is shown/i;
 const RAW_CRASH = /cannot read properties|undefined|TypeError|\[object|BAD_ANSWER|PRO_REQUIRED/i;
 
@@ -23,7 +24,7 @@ const ANSWERS: Array<[string, { status: number; body: string }]> = [
 ];
 
 test.describe('#1263 an unreadable AI answer leaves the Arena usable', () => {
-  test.skip(!BASE, 'E2E_BASE_URL required');
+
 
   for (const [name, answer] of ANSWERS) {
     test(name, async ({ browser }) => {
@@ -42,7 +43,7 @@ test.describe('#1263 an unreadable AI answer leaves the Arena usable', () => {
           await route.fulfill({ status: answer.status, contentType: 'application/json', body: answer.body });
         });
 
-        await page.goto(`${BASE}/arena?coin=btc&tf=1h`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+        await page.goto('/arena?coin=btc&tf=1h', { waitUntil: 'domcontentloaded', timeout: 120_000 });
         const quick = page.locator('button.arena-quick-btn');
         await expect(quick, 'the Quick button never became clickable, so no read was attempted').toBeEnabled({ timeout: 60_000 });
         await quick.click();
