@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { installSyntheticSocket } from './_fixtures';
 import { AUTH_READY, AUTH_SKIP_REASON, FIXTURES, SUPABASE_URL, SUPABASE_ANON } from './_auth';
 import { gotoGuarded } from './_shared';
 import { installPaidAiFence } from './_no-paid-ai';
@@ -30,6 +31,7 @@ test.describe('Antislop audit 001 - AS-F (#1309 items 23, 24, 25)', () => {
     const ref = new URL(SUPABASE_URL).hostname.split('.')[0];
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await ctx.newPage();
+    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
     try {
       await page.goto('/', { waitUntil: 'domcontentloaded' });
       await page.evaluate(([k, v]) => localStorage.setItem(k as string, v as string), [
@@ -65,6 +67,7 @@ test.describe('Antislop audit 001 - AS-F (#1309 items 23, 24, 25)', () => {
     const ref = new URL(SUPABASE_URL).hostname.split('.')[0];
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await ctx.newPage();
+    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
     const fngRequests: string[] = [];
     page.on('request', req => {
       const u = req.url();
@@ -137,6 +140,7 @@ test.describe('Antislop audit 001 - AS-F (#1309 items 23, 24, 25)', () => {
     const ref = new URL(SUPABASE_URL).hostname.split('.')[0];
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await ctx.newPage();
+    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
     let grokCalls = 0;
     // Intercepted and never actually sent to xAI - this is a real paid call
     // per click that reaches it, and the whole point of this test is that a
