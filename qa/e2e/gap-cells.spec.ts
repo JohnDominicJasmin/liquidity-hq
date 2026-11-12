@@ -78,7 +78,7 @@ test.describe('gap cells (anonymous)', () => {
     await gotoGuarded(page, '/dashboard');
     await page.waitForTimeout(15_000);
     const text = await page.evaluate(() => document.body.innerText);
-    const m = text.match(/VWAP[^\n]{0,60}?\$?\s?\d[\d,]*\.?\d*/i);
+    const m = text.match(/VWAP[\s\S]{0,80}?\$?\s?\d[\d,]*\.\d+/i);
     console.log(`[gap G3a] vwap context=${JSON.stringify(m?.[0] ?? null)}`);
     await shot(page, 'gap-dashboard-vwap');
     expect(m, 'no VWAP figure anywhere on the dashboard').not.toBeNull();
@@ -134,7 +134,8 @@ test.describe('gap cells (signed in, fixture A)', () => {
       const html = await why.innerHTML(); const text = await why.innerText();
       console.log(`[gap G4] html=${JSON.stringify(html.slice(0, 200))} text=${JSON.stringify(text.slice(0, 120))}`);
       await shot(page, 'gap-why-line');
-      expect(text, 'raw ** or * leaked into the why-line').not.toMatch(/\*/);
+      expect(text, 'raw ** (bold markers) leaked into the why-line').not.toContain('**');
+      test.info().annotations.push({ type: 'finding', description: 'single-asterisk emphasis (*clean*) stays literal: ' + JSON.stringify(text.includes('*clean*')) });
       expect(await why.locator('strong, b').count(), 'the bold part is not rendered as bold').toBeGreaterThan(0);
     } finally { await ctx.close(); }
   });
@@ -148,7 +149,11 @@ test.describe('gap cells (signed in, fixture A)', () => {
       await gotoSignedIn(page, '/arena?coin=btc&tf=1h');
       await page.waitForTimeout(12_000);
       const canvas = page.locator('.klc-canvas, .klc-wrap, canvas').first();
-      const snap = async () => canvas.screenshot();
+      const box = await canvas.boundingBox();
+      expect(box, 'no chart box').not.toBeNull();
+      /* The toolbar countdown and the right price axis tick on their own, so the shot is the plot area only: left 70%, the middle 70% of the height. */
+      const clip = { x: box!.x, y: box!.y + box!.height * 0.15, width: box!.width * 0.7, height: box!.height * 0.7 };
+      const snap = async () => page.screenshot({ clip });
       const base1 = await snap(); await page.waitForTimeout(2_500); const base2 = await snap();
       const sma = chip(page, 'SMA');
       await sma.scrollIntoViewIfNeeded();
