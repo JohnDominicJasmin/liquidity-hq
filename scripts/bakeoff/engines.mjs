@@ -33,16 +33,23 @@ const TIMEOUT = 180_000;
  *
  * ── CLAUDE RATE: the model actually called, priced from the docs ─────────────────────────────
  *
- * `callClaude` below uses `claude-opus-5-5`. The old row carried $5 / $25 - those are Claude Opus
- * 5's prices under Opus 5.5's id. Corrected to Opus 5.5's own list, cited from
- * platform.claude.com/docs/en/about-claude/pricing (read 2026-11-12): $4 input / $20 output per
- * MTok, cache read $0.20 (0.05x). STILL AN UPPER BOUND, not the running cost: prompt caching is OFF
- * on the account, and on a ~15,000-token input that is the single largest lever, so the number is
- * reported as a ceiling. */
+ * `callClaude` below uses `claude-opus-5-5`, but the table carries every Claude the engine switch
+ * (#1818) can route a call to, so a run against any of them prices instead of returning null. The
+ * old Opus row carried $5 / $25 - those are Claude Opus 5's prices under Opus 5.5's id. All four
+ * are cited from platform.claude.com/docs/en/about-claude/pricing (read 2026-11-12), $ per MTok:
+ *   opus 5.5    $4 in  / $20 out  (cache read $0.20)
+ *   sonnet 5.5  $2 in  / $10 out  (cache read $0.10; <=200K-token tier)
+ *   haiku 5.5   $0.10 in / $0.50 out (cache read $0.01; same rate at the >100K tier)
+ * EVERY CLAUDE ROW IS AN UPPER BOUND, not the running cost: prompt caching is OFF on the account,
+ * and on a ~15,000-token input that is the single largest lever, so each is reported as a ceiling.
+ * `costOf` prices the flat in/out only - the input here is ~15K tokens, well under any tier break,
+ * so the single-tier rate is the one that applies. */
 const GROK = XAI_RATES_BY_MODEL['grok-4.3'];
 const PRICING = {
-  'grok-4.3':       { in: GROK.input, out: GROK.output, readAt: 'from lib/aiCost.ts', note: 'single source: XAI_RATES_BY_MODEL (invoice-validated)' },
-  'claude-opus-5-5':{ in: 4.00, out: 20.00, readAt: '2026-11-12', note: 'Anthropic docs pricing page, Opus 5.5 list; caching OFF on this account, so a ceiling' },
+  'grok-4.3':         { in: GROK.input, out: GROK.output, readAt: 'from lib/aiCost.ts', note: 'single source: XAI_RATES_BY_MODEL (invoice-validated)' },
+  'claude-opus-5-5':  { in: 4.00, out: 20.00, readAt: '2026-11-12', note: 'Anthropic docs, Opus 5.5 list; caching OFF on this account, so a ceiling' },
+  'claude-sonnet-5-5':{ in: 2.00, out: 10.00, readAt: '2026-11-12', note: 'Anthropic docs, Sonnet 5.5 list (<=200K tier), cache read 0.10; caching OFF, so a ceiling' },
+  'claude-haiku-5-5': { in: 0.10, out: 0.50,  readAt: '2026-11-12', note: 'Anthropic docs, Haiku 5.5 list, cache read 0.01; same in/out at the >100K tier; caching OFF, so a ceiling' },
 };
 
 function costOf(model, usage) {
