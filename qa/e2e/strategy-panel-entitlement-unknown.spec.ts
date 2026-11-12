@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { installSyntheticSocket } from './_fixtures';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
 
@@ -67,7 +66,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
     const ctx = await signedInContext(browser, 'a');
     await ctx.addInitScript(forceEntitlementsFail);
     const page = await ctx.newPage();
-    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
+      page.on('response', async (res) => { const u = res.url(); if (u.includes('/api/market/snapshot') || (u.includes('/api/proxy') && u.includes('binance-24hr'))) { try { const b = await res.json(); const t = (b && (b.ticker || (b.body && b.body.ticker))) || {}; console.log('[PRICE-SRC]', u.slice(u.indexOf('/api'), u.indexOf('/api')+42), 'btc=' + (t.btc && t.btc.price)); } catch {} } });
     await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
@@ -99,7 +98,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
     const ctx = await signedInContext(browser, 'a');
     await ctx.addInitScript(forceEntitlementsFail);
     const page = await ctx.newPage();
-    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
+      page.on('response', async (res) => { const u = res.url(); if (u.includes('/api/market/snapshot') || (u.includes('/api/proxy') && u.includes('binance-24hr'))) { try { const b = await res.json(); const t = (b && (b.ticker || (b.body && b.body.ticker))) || {}; console.log('[PRICE-SRC]', u.slice(u.indexOf('/api'), u.indexOf('/api')+42), 'btc=' + (t.btc && t.btc.price)); } catch {} } });
     await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
@@ -135,7 +134,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
   test('CONTROL: a confirmed-FREE account (B) still sees the ordinary chip grid, not the unknown card', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'b');
     const page = await ctx.newPage();
-    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
+      page.on('response', async (res) => { const u = res.url(); if (u.includes('/api/market/snapshot') || (u.includes('/api/proxy') && u.includes('binance-24hr'))) { try { const b = await res.json(); const t = (b && (b.ticker || (b.body && b.body.ticker))) || {}; console.log('[PRICE-SRC]', u.slice(u.indexOf('/api'), u.indexOf('/api')+42), 'btc=' + (t.btc && t.btc.price)); } catch {} } });
     await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
@@ -152,7 +151,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
   test('CONTROL: a confirmed-PRO account (A) is unaffected', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
-    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
+      page.on('response', async (res) => { const u = res.url(); if (u.includes('/api/market/snapshot') || (u.includes('/api/proxy') && u.includes('binance-24hr'))) { try { const b = await res.json(); const t = (b && (b.ticker || (b.body && b.body.ticker))) || {}; console.log('[PRICE-SRC]', u.slice(u.indexOf('/api'), u.indexOf('/api')+42), 'btc=' + (t.btc && t.btc.price)); } catch {} } });
     await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
@@ -190,7 +189,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
   test('MEASUREMENT: what a Pro account\'s panel shows while the entitlements read is still in flight', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
-    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
+      page.on('response', async (res) => { const u = res.url(); if (u.includes('/api/market/snapshot') || (u.includes('/api/proxy') && u.includes('binance-24hr'))) { try { const b = await res.json(); const t = (b && (b.ticker || (b.body && b.body.ticker))) || {}; console.log('[PRICE-SRC]', u.slice(u.indexOf('/api'), u.indexOf('/api')+42), 'btc=' + (t.btc && t.btc.price)); } catch {} } });
     await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     const held: Array<import('@playwright/test').Route> = [];
     try {
