@@ -1050,8 +1050,14 @@ jobs:
           set -euo pipefail
           if [ -n "${QA_SPEC:-}" ]; then
             case "$QA_SPEC" in
-              *[!A-Za-z0-9_./@:=-]*)
-                echo "::error::spec input rejected: letters, digits and _ . / @ : = - only, and no spaces (use --grep=Pattern)"
+              *[!A-Za-z0-9_./@:=\|-]*)
+                # `|` is allowed so ONE dispatch can name several specs as a regex (Playwright treats
+                # positional filters as regexes: `reconnect-|audit-001`). It must be ESCAPED here:
+                # unescaped, bash reads it as the case-pattern separator, splits this into two
+                # alternatives, and the whole allowlist silently accepts everything (measured).
+                # The value reaches Playwright quoted, so `|` is inert in the shell.
+                # __tests__/ciSpecAllowlist.test.mts runs THIS pattern against the reject cases.
+                echo "::error::spec input rejected: letters, digits and _ . / @ : = | - only, and no spaces (use --grep=Pattern)"
                 exit 1 ;;
             esac
             echo "targeted run: $QA_SPEC (workers=1, trace=off, project=${{ matrix.project }})"
