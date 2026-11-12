@@ -1,5 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { synthUpstream } from "./syntheticMarket.mjs";
 
 /* Intercept the SERVER's outbound fetch, which `page.route` cannot reach.
  *
@@ -179,90 +180,9 @@ if (ENABLED) {
   };
 
 
-  /* ── SYNTHETIC, DETERMINISTIC MARKET DATA (option iii, PM 2026-11-12) ────────────────────────
-   *
-   * The blanket `[]` below removes egress but feeds no data, so every spec that needs a candle or a
-   * price fails against this stub - klines-route ("200 with ZERO candles"), anything pricing a coin.
-   * This function GENERATES the venue's own response shape from the request, so the real route code
-   * (parse, trim, denominate, cache) runs against plausible data and still makes zero network calls.
-   *
-   * DETERMINISTIC ON PURPOSE: no Math.random. Every value is a function of the symbol and the bar's
-   * timestamp, so two runs of the same request produce byte-identical candles and a flake cannot
-   * hide here. Timestamps are relative to `Date.now()` at request time, honour `limit`, `interval`
-   * and `start`/`end`, and prices are plausible per symbol, including 1000x-denominated contracts. */
-  const IV_MS = { '1m': 60000, '3m': 180000, '5m': 300000, '15m': 900000, '30m': 1800000, '1h': 3600000, '2h': 7200000, '4h': 14400000, '6h': 21600000, '12h': 43200000, '1d': 86400000, '1w': 604800000,
-    '1': 60000, '3': 180000, '5': 300000, '15': 900000, '30': 1800000, '60': 3600000, '120': 7200000, '240': 14400000, '360': 21600000, '720': 43200000, 'D': 86400000, 'W': 604800000 };
-  const KNOWN_PX = { BTC: 69000, ETH: 3500, SOL: 170, BNB: 600, XRP: 0.62, DOGE: 0.16, ADA: 0.45, AVAX: 35, LINK: 18, TON: 6.5, TRX: 0.13, DOT: 7, MATIC: 0.72, LTC: 90, BCH: 440, NEAR: 7, APT: 11, ARB: 1.1, OP: 2.3, SUI: 1.4, XAUT: 3900, CYBER: 6, PEPE: 0.0000082, BONK: 0.000022, SATS: 0.00000045, SHIB: 0.000024 };
-  const hashNum = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967295; };
-  /* Strip the quote and any venue count-prefix (1000PEPE, 10000SATS), remembering the prefix so the
-     synthetic price lands in the SAME order of magnitude the real contract trades at. */
-  const basePrice = (symRaw) => {
-    let core = String(symRaw || 'BTCUSDT').toUpperCase().replace(/[-_]/g, '').replace(/(USDT|USDC|USD|PERP)$/, '');
-    let prefix = 1;
-    const m = core.match(/^(\d{3,})(.+)$/);
-    if (m) { prefix = Number(m[1]); core = m[2]; }
-    const unit = KNOWN_PX[core] ?? (0.01 + hashNum(core) * 200); // plausible unit price for an unknown coin
-    return unit * prefix; // a 1000x contract quotes 1000 units, so its price is ~1000x the unit
-  };
-  const synthUpstream = (url) => {
-    let u; try { u = new URL(url); } catch { return null; }
-    const p = u.pathname, q = u.searchParams;
-    const sym = q.get('symbol') || 'BTCUSDT';
-    const base = basePrice(sym);
-    const nowMs = Date.now();
-    /* One deterministic candle: a smooth, bounded wobble around `base`, keyed on the bar time. */
-    const candle = (t, iv) => {
-      const phase = t / iv;
-      const drift = Math.sin(phase / 29) * 0.03 + Math.cos(phase / 11) * 0.015;
-      const o = base * (1 + drift);
-      const c = base * (1 + drift + Math.sin(phase / 5) * 0.004);
-      const hi = Math.max(o, c) * 1.0025, lo = Math.min(o, c) * 0.9975;
-      const vol = 500 + (Math.abs(Math.sin(phase / 7)) * 4500);
-      return { o, c, hi, lo, vol };
-    };
-    const limit = Math.max(1, Math.min(1500, Number(q.get('limit') || 200)));
-    const ivKey = q.get('interval') || '1h';
-    const iv = IV_MS[ivKey] || 3600000;
-    /* SNAP THE NEWEST BAR TO THE INTERVAL BOUNDARY. Without this the newest timestamp is `Date.now()`
-       at the moment of the call, so two requests milliseconds apart (a `limit=4` and the unsliced
-       reference klines-route compares it against) get DIFFERENT newest bars - the limited one looks
-       like a reversed slice ("4 candles whose newest is OLDER than the reference"). Flooring to the
-       interval makes every call within the same bar return the identical newest timestamp, so a
-       smaller limit is a true suffix of a larger one. A real exchange behaves the same way: the
-       newest closed candle is the interval boundary, not the wall clock. */
-    const endMs = Number(q.get('end') || q.get('endTime')) || (Math.floor(nowMs / iv) * iv);
-    const startBound = Number(q.get('start') || q.get('startTime')) || null;
-    const bars = [];
-    for (let i = limit - 1; i >= 0; i--) {
-      const t = endMs - i * iv;
-      if (startBound !== null && t < startBound) continue;
-      bars.push({ t, ...candle(t, iv) });
-    }
-    const f = (n) => n.toPrecision(10);
-    // Binance klines: array of 12-element arrays, oldest-first, strings.
-    if (/\/klines$/.test(p)) {
-      return JSON.stringify(bars.map(b => [b.t, f(b.o), f(b.hi), f(b.lo), f(b.c), f(b.vol), b.t + iv - 1, f(b.vol * b.c), 100, f(b.vol / 2), f(b.vol * b.c / 2), '0']));
-    }
-    // Bybit kline: { retCode:0, result:{ list:[7-element arrays], ... } }, NEWEST-first.
-    if (/\/v5\/market\/kline$/.test(p)) {
-      const list = bars.slice().reverse().map(b => [String(b.t), f(b.o), f(b.hi), f(b.lo), f(b.c), f(b.vol), f(b.vol * b.c)]);
-      return JSON.stringify({ retCode: 0, retMsg: 'OK', result: { category: q.get('category') || 'linear', symbol: sym, list } });
-    }
-    // Binance 24hr ticker: one object, or the whole-market array when no symbol.
-    if (/\/ticker\/24hr$/.test(p)) {
-      const one = (s) => { const bp = basePrice(s); return { symbol: s, lastPrice: bp.toPrecision(10), priceChangePercent: (Math.sin(hashNum(s) * 6) * 5).toFixed(2), quoteVolume: (bp * 1e6).toPrecision(10), openPrice: (bp * 0.99).toPrecision(10), highPrice: (bp * 1.02).toPrecision(10), lowPrice: (bp * 0.98).toPrecision(10), volume: '1000000' }; };
-      return JSON.stringify(sym && q.get('symbol') ? one(sym) : [one('BTCUSDT'), one('ETHUSDT')]);
-    }
-    // Bybit tickers: { retCode:0, result:{ list:[{symbol,lastPrice,...}] } }
-    if (/\/v5\/market\/tickers$/.test(p)) {
-      return JSON.stringify({ retCode: 0, retMsg: 'OK', result: { category: q.get('category') || 'linear', list: [{ symbol: sym, lastPrice: base.toPrecision(10), price24hPcnt: (Math.sin(hashNum(sym) * 6) * 0.05).toFixed(4), turnover24h: (base * 1e6).toPrecision(10), volume24h: '1000000', openInterest: '500000', fundingRate: '0.0001' }] } });
-    }
-    // Binance futures open-interest history: [{ symbol, sumOpenInterest, sumOpenInterestValue, timestamp }]
-    if (/openInterestHist$/.test(p)) {
-      return JSON.stringify(bars.map(b => ({ symbol: sym, sumOpenInterest: (b.vol * 100).toPrecision(10), sumOpenInterestValue: (b.vol * 100 * b.c).toPrecision(10), timestamp: b.t })));
-    }
-    return null; // an endpoint we do not synthesize falls through to the empty-array success below
-  };
+  /* The synthetic generator is shared with the browser side (qa/e2e/_fixtures.ts) so the two cannot
+     drift - see qa/syntheticMarket.mjs. It returns a venue-shaped body for a URL it knows, or null
+     for one it does not (the empty-array fallback below then serves []). */
 
   globalThis.fetch = async function qaInterceptingFetch(input, init) {
     let url = '';
