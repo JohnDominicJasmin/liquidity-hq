@@ -42,4 +42,43 @@ test.describe('group-2 landing visual evidence (signed out)', () => {
       });
     }
   }
+
+  /* The cell that would have caught the 768 clip (PM, 2026-11-12): the hero LIVE READ panel's right
+     edge was PAST the viewport at 768, which a page-level `scrollWidth` check cannot see - clipped
+     (overflow-hidden) content does not grow scrollWidth. So measure the panel's own bounding box and
+     assert it sits inside the viewport. The panel is an inline-styled div with no class, so it is
+     located by its "Live read ·" header text and walked up to its bordered container. */
+  for (const width of [768, 1024, 1280]) {
+    test(`the hero LIVE READ panel is not clipped at ${width}px`, async ({ browser }) => {
+      /* EXPECTED-FAIL AT 768 until Dev's fix lands (filed on #1185, group-2). The panel is clipped
+         at the right edge at 768; test.fail keeps it red-by-design and flips the gate the moment the
+         fix makes it pass, which is the cue to re-shoot. 1024 and 1280 are real assertions. */
+      test.fail(width === 768, 'known: the LIVE READ panel is clipped at 768 (#1185, Dev fixing)');
+      const ctx = await browser.newContext({ viewport: { width, height: 900 } });
+      const page = await ctx.newPage();
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      await page.locator('.lp-hero-h1').first().waitFor({ state: 'visible', timeout: 30_000 }).catch(() => {});
+      await page.waitForTimeout(2500);
+      const box = await page.evaluate(() => {
+        const header = [...document.querySelectorAll('span')].find(s => /live read\s*·/i.test(s.textContent || ''));
+        if (!header) return null;
+        // Walk up to the bordered panel container (the div that owns the 1px border).
+        let el: HTMLElement | null = header as HTMLElement;
+        for (let i = 0; i < 6 && el; i += 1) {
+          const cs = getComputedStyle(el);
+          if (cs.borderTopWidth !== '0px' && el.getBoundingClientRect().width > 200) break;
+          el = el.parentElement;
+        }
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { left: r.left, right: r.right, width: r.width, vw: window.innerWidth };
+      });
+      expect(box, `could not locate the LIVE READ panel at ${width}px`).not.toBeNull();
+      expect(box!.right,
+        `the LIVE READ panel's right edge (${Math.round(box!.right)}) is past the ${box!.vw}px viewport - it is clipped. `
+        + `left=${Math.round(box!.left)} width=${Math.round(box!.width)}. A page scrollWidth check cannot see this because the overflow is hidden.`)
+        .toBeLessThanOrEqual(box!.vw + 1);
+      await ctx.close();
+    });
+  }
 });
