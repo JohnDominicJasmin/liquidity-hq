@@ -676,12 +676,12 @@ jobs:
     # check is not redundant: on a `pull_request` or `push` the `inputs` context
     # is empty, and leaning on `inputs.e2e` alone would make the clause depend
     # on an unset value evaluating falsey. State the event you mean.
-    # The second clause is the targeted-run filter and it is written so it CANNOT change the two
-    # existing paths: it only narrows when `inputs.spec` is non-empty, which is impossible outside
-    # a dispatch. A full-suite dispatch still runs desktop and mobile.
-    if: >-
-      (github.base_ref == 'main' || (github.event_name == 'workflow_dispatch' && inputs.e2e))
-      && (github.event_name != 'workflow_dispatch' || inputs.spec == '' || inputs.project == 'both' || inputs.project == matrix.project)
+    # ⚠️ THIS `if:` MUST NOT REFERENCE `matrix` — it is a JOB-level condition, evaluated BEFORE the
+    # matrix is expanded, so `matrix.project` is out of scope here and the whole workflow fails to
+    # parse (`Unrecognized named-value: 'matrix'`), taking the release gate down with it. The
+    # project filter for a targeted `spec` run therefore lives on the Run E2E STEP below, where
+    # `matrix` IS in scope. This was wrong in the first draft and Dev caught it.
+    if: github.base_ref == 'main' || (github.event_name == 'workflow_dispatch' && inputs.e2e)
     # ── ONE RUN AT A TIME OVER THE SHARED FIXTURES ───────────────────────────────────────────
     #
     # The fixtures live in the DEV database, which `qa` and `staging` both point at, so two runs
@@ -962,6 +962,12 @@ jobs:
       # key only - never the service-role key. The anon key is public by design
       # and the dev project holds no real user data.
       - name: Run E2E
+        # THE PROJECT FILTER FOR A TARGETED `spec` RUN LIVES HERE, not on the job `if:` above,
+        # because `matrix` is only in scope at step level. When a dispatch sets `spec` and picks a
+        # single project, the other leg's job still spins up but this step is skipped, so it does no
+        # test work and the leg passes. A full-suite run and the release gate leave `spec` empty, so
+        # this condition is always true for them and both legs run exactly as before.
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.spec == '' || inputs.project == 'both' || inputs.project == matrix.project }}
         # `--project` is what makes a leg a leg. Without it each one would run
         # the whole 1274 and the split would double the bill for nothing.
         # `--max-failures` ON DESKTOP ONLY, and the asymmetry is the point.
