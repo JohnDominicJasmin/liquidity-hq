@@ -2678,7 +2678,13 @@ function ArenaContent() {
               </div>
             )}
 
-            {whyLine && <p className="av-why">{whyLine}</p>}
+            {/* THROUGH ReasoningText, not a bare {whyLine} (#1263). whyLine is the first sentences of
+                `result.reasoning`, which the model writes in markdown - so a bare render showed
+                `[label](url)` as literal text here while the lower card (:2779) rendered the same
+                prose with real, scheme-checked links. Same renderer now: bold and links resolve, and
+                an unsafe URL still falls back to plain label text (isSafeHttpUrl), so this cannot
+                become a clickable `javascript:` link either. */}
+            {whyLine && <p className="av-why"><ReasoningText text={whyLine} /></p>}
 
             {/* Factor chips - live signals behind the read */}
             <div className="av-factors">
