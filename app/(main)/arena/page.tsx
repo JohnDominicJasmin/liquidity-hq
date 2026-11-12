@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'rea
 import Link from 'next/link';
 import { useNow } from '@/lib/useNow';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
+import { REASONING_SPLIT, emphasisInner } from '@/lib/reasoningMarkup';
 import { plainSummary } from '@/lib/plainSummary';
 import { useSearchParams } from 'next/navigation';
 import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, venueSymbols, computeCoinHealth } from '@/lib/marketStore';
@@ -93,8 +94,8 @@ function fmtPrice(n: number): string {
 /* ── Reasoning markdown renderer ─────────────────────────────────────────── */
 function ReasoningText({ text }: { text: string }) {
   const { t } = useLabels();
-  // Split on **bold**, [text](url), [[n]](url), or newlines
-  const parts = text.split(/(\*\*[\s\S]*?\*\*|\[\[?[^\]]*\]?\]\([^)]+\)|\n)/g);
+  // Split on **bold**, *emphasis*, [text](url), [[n]](url), or newlines (lib/reasoningMarkup.ts, #2166)
+  const parts = text.split(REASONING_SPLIT);
   return (
     <>
       {parts.map((seg, i) => {
@@ -102,6 +103,8 @@ function ReasoningText({ text }: { text: string }) {
         if (seg === '\n') return <br key={i} />;
         if (seg.startsWith('**') && seg.endsWith('**') && seg.length > 4)
           return <strong key={i}>{seg.slice(2, -2)}</strong>;
+        const emphasis = emphasisInner(seg);
+        if (emphasis !== null) return <em key={i}>{emphasis}</em>;
         const link = seg.match(/^\[(\[?[^\]]*\]?)\]\(([^)]+)\)$/);
         if (link) {
           const label = link[1].replace(/^\[/, '').replace(/\]$/, '') || t('ARENA_REASONING_LINK_FALLBACK');
