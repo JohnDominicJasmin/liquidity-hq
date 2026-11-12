@@ -204,4 +204,12 @@ fi
 printf '[pre-push] typecheck\n'
 npx tsc --noEmit
 
-printf '[pre-push] typecheck passed. LINT, UNIT TESTS AND BUILD NOT RUN HERE - run `npm run verify` locally before the PR merges (OWNER-RULES §17: CI runs only on the release PR).\n'
+# THIS LINE TOLD PEOPLE TO RUN `npm run verify` LOCALLY UNTIL 2026-11-12, and it cited §17's
+# "CI runs only on the release PR" as the reason. Both halves are now wrong: the owner moved all
+# testing onto GitHub that day, and `ci.yml` runs the quick jobs on every PR into dev, qa and
+# staging. A hook that sends people back to their own machine is the opposite of that decision -
+# and on this machine it was costing the owner the memory his browser needs.
+#
+# The push itself is still gated by the typecheck above, because a PR check cannot stop a push to
+# a branch nobody opens a PR for.
+printf '[pre-push] typecheck passed. Lint, unit tests and build run as the PR automatic GitHub check (OWNER-RULES §17).\n'

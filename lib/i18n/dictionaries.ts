@@ -430,12 +430,20 @@ export const ar: LandingDict = {
   },
 };
 
-/* RUSSIAN, TRANSLATED FROM THE ENGLISH ABOVE AND NOT YET SWITCHED ON (#1740).
+/* RUSSIAN, TRANSLATED FROM THE ENGLISH ABOVE AND NOW LIVE (#1740).
  *
- * Held out of `SUPPORTED_LOCALES` and out of the `dictionaries` map below, exactly the way `ar` is, so
- * `/ru` still 404s until someone deliberately turns it on. The type is what enforces that: the map is
- * keyed by `Locale`, so adding `ru` here without also adding it to `SUPPORTED_LOCALES` is a compile
- * error rather than a half-released language.
+ * THIS PARAGRAPH SAID THE OPPOSITE UNTIL 2026-11-12, and it is corrected rather than deleted because
+ * the stale version is what caused a defect. `ru` is in `SUPPORTED_LOCALES` (line 25) and in the
+ * `dictionaries` map below, so `/ru` has been served for some time - but the pre-paint landing
+ * redirect in components/RootDocument.tsx was written against this comment's three languages and
+ * never gained /ru, so signed-in Russian visitors kept the flash it exists to remove (#1173). A
+ * comment describing a state that has ended is not harmless: it is what the next reader checks
+ * instead of the code.
+ *
+ * `ar` IS still held out, of both this map and `SUPPORTED_LOCALES`, and the type is what enforces it:
+ * the map is keyed by `Locale`, so adding a language here without adding it to `SUPPORTED_LOCALES` is
+ * a compile error rather than a half-released language. Adding one to `SUPPORTED_LOCALES` is what
+ * makes its landing route real - and now also what puts it in the redirect's path list.
  *
  * WHY IT IS DRAFTED AT ALL. Russian already works throughout the APP - 2,416 `lhq_labels` rows live
  * since 2026-08-03 - and only the landing page is missing, because the landing is a separate

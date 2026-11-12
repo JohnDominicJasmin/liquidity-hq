@@ -195,6 +195,7 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'grokchat-selection-without-arena-visit': 'writes on purpose: PATCHes strategy_selection',
   'indicator-param-canvas': 'writes on purpose: PATCHes indicator params',
   'offline': 'writes on purpose: POSTs while offline',
+  'onboarding': 'writes on purpose, and is the strongest exclusion here: it RESETS fixture B\'s lhq_dev_user_onboarding and lhq_dev_user_settings rows to a pre-onboarding state, walks the wizard, then restores them. Against production that would wipe and rewrite a real account\'s onboarding and profile. It is additionally self-fenced - the spec skips unless QA_FIXTURE_RESET is set, and the reset asserts the Supabase ref is the dev project (wdtjhrilakoitfcezxpx) and refuses any other - but it is listed here because the classification guard is the layer that does not depend on remembering either of those.',
   'onboarding-load-failure': 'writes on purpose: PATCHes onboarding state',
   'payments-webhook': 'writes on purpose: POSTs webhook payloads',
   'payments-write-path': 'writes on purpose: exercises the payment write path',

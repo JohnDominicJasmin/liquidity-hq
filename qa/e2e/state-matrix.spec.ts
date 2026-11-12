@@ -179,6 +179,17 @@ for (const { path, states } of PAGES) {
           }
 
           await installPaidAiFence(page);
+          /* STUBS AFTER THE FENCE (Playwright matches the most recently registered handler first, so
+             these win for the three paths and the fence still catches every other paid route).
+             /dashboard polls GET /api/macro-context on load (#1632), which the fence correctly
+             aborted - a spec reaching a route that costs money has a stub that no longer matches,
+             and the fix is the stub, never removing the fence. `{}` is enough: these widgets are not
+             what this matrix measures, and a widget that fails to render still leaves the overflow
+             and theme invariants measurable. Same pattern as label-length-390.spec.ts. */
+          for (const seg of ['macro-context', 'dry-powder', 'onchain']) {
+            await page.route(`**/api/${seg}**`, (route) =>
+              route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
+          }
 
           try {
             if (state.who) await gotoSignedIn(page, path);
