@@ -519,7 +519,7 @@ the scope rule above) — which keeps it out of his inbox without quietly re-del
 **The priority is getting users and revenue before the end of 2026.** Rank work by acquisition,
 then conversion, then retention. Anything else waits.
 
-## 17. CI RUNS WHEN DISPATCHED OR ON THE RELEASE — NEVER AUTOMATICALLY. (Amended 2026-11-12.)
+## 17. ALL TESTING RUNS ON GITHUB: QUICK CHECKS ON EVERY PR, THE BROWSER SUITE PER GROUP AND ON THE RELEASE. (Amended 2026-11-12.)
 
 ### The amendment, 2026-11-12, first-hand to PM. This section was CI-once until then.
 
@@ -548,12 +548,17 @@ runs were killed five times); and the 22 old public test-report artifacts delete
   deployed `qa` site (`base_url`). **Dispatched** e2e runs share one `concurrency` group so they never
   fight over fixtures. The release gate keeps its per-project lanes on purpose, so its two legs still
   share fixtures with each other. **The laptop is not used for browser tests.**
-- **A code PR's author runs `npm run verify` before it merges into `dev`**, either locally or, while the
-  laptop is busy, as a dispatched `e2e: false` run, with the run id on the PR as "verify via
-  dispatched CI, not local". It's still an obligation; only the place it runs changed.
-- **Still no `push:` or feature-PR triggers.** CI is free on a public repo with standard runners, but
-  automatic triggers are how the November bill happened. Anything that spends his money still goes to
-  him first.
+- **Every PR into `dev`/`qa`/`staging`/`main` runs the quick checks automatically** (classification,
+  lint, typecheck, unit tests, build; docs-only PRs skip the build). Owner, 2026-11-12, choosing from
+  options after *"put all the testing on the CI/CD of GitHub. Since it's free, then use all of it"*:
+  quick checks automatic, the **full browser suite only when dispatched** (per group) **or on the
+  release PR** (the e2e job's `if:` is unchanged). Live in `ci.yml` since #2156 (`b6398ea1`). **That
+  automatic check IS the pre-merge `verify`**: a code PR merges only on a green check on its head,
+  plus QA's word. Nothing runs on the owner's laptop.
+- **No `push:` trigger.** Promotions are fast-forward pushes, covered by the group's dispatched run.
+  **The PR trigger is the same one that produced 1,808 of November's 3,565 job-minutes.** It's free
+  only while the repo is public on standard runners. If the repo goes private, revert this trigger
+  first and put the number to the owner before anyone changes visibility.
 - **Artifacts are public** (any GitHub user can download them from a public repo). The release gate's
   report keeps **3 days**. The account email is blurred in screenshots by a stylesheet `_auth.ts`
   injects on `.tnav-drop-email`, **not** by Playwright's `mask:` (automatic failure screenshots don't
