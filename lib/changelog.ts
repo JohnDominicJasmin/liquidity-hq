@@ -201,6 +201,10 @@ export const CHANGELOG: ChangelogEntry[] = [
        to a reader: the feature is offered on more timeframes, each line it draws is now labelled,
        and a Free account can see it exists. Splitting them would describe our PRs rather than their
        experience. */
+    /* TODO(PM): the date and tag below are the PLAN. Set both to what the tag actually is when it is cut
+       (C1 accepts one release in flight; C2 checks the date one run after the tag exists, `git log -1
+       --format=%cs <tag>`). This entry now covers the COMBINED release - the first 14 lines below plus the
+       9 added after the group merge (see the mapping comment above the last nine). */
     date: '2026-11-12',
     tag: 'v2026.11.12',
     items: [
@@ -218,6 +222,28 @@ export const CHANGELOG: ChangelogEntry[] = [
       'The Strategy panel lists only indicators that are actually calculated. More than half its entries drew nothing.',
       'On tablets, the floating Ask AI button no longer sits on top of the bottom navigation bar or the playbook favourite star.',
       'The 30-day Fear & Greed trend no longer shows a blank space when a short cached history is in play.',
+      /* ADDED AFTER THE GROUP MERGE, each tied to its pull request. Every line names a surface a reader looks at
+         and a difference they can see on it; internal work in the same range (the label-key moves, the rate
+         tables, the engine-switch scaffolding that nothing reads yet, CI and tests) is left out on purpose.
+           TradFi universe + category tabs      #2182
+           Strategy panel redesign + chip names  #2162 #2184
+           1W / 1M timeframes                   #2157
+           markers follow the indicators         #2159
+           AI read gets the indicator values     #2161
+           landing hero on tablets               #2175
+           landing hero loading + partial score  #2167 #2185
+           funding rate fallback                 #2186
+           chart pattern pills                   #2187
+         IF ANY OF THOSE DOES NOT REACH THE RELEASE, ITS LINE COMES OUT HERE - copy says only what ships. */
+      'AI Arena now includes tokenized stocks, ETFs and commodities, plus a currency pair, under new Stocks, ETFs and Commodities & FX tabs. Each one says what it is, and a note explains that the contract trades around the clock while the market behind it keeps its own hours. AI reads are not offered for them.',
+      'The Strategy panel is simpler. Pro and trial accounts can switch on as many indicators as they like with no counter, and a Free account picks one at a time, tapping another to swap it in. Each indicator (SMA, Parabolic SAR, MACD, Bollinger Bands) has a one-line description, and the chart layers sit in their own section with on/off switches for support and resistance and for liquidation clusters.',
+      'The Arena chart now has 1W and 1M timeframes. Signals, the AI read and Draw Structure still cover up to the daily chart, and the weekly and monthly views say so.',
+      'The buy and sell markers on the Arena chart now follow the indicators you have switched on: a marker shows only where they agree with the EMA ribbon, and the chart says when your selection has filtered some out.',
+      'The AI read now receives the readings of the indicators you have selected, such as the SMA, Parabolic SAR, MACD and Bollinger values, instead of only knowing their names.',
+      'On tablets, the landing page no longer cuts off the live read panel (stop, target, the clock and the notes beneath it) or splits its buttons over two lines.',
+      'The landing page shows a dash while market data is still arriving, and says "Unavailable" or "No data" only once the read has finished or failed. Its Setup score now appears from the first signal with an "N of 3 signals" note, and gives a verdict only when all three are in.',
+      'The funding rate in AI Arena now falls back to a second exchange when the first does not answer, instead of showing unavailable.',
+      'When an AI read lists several chart patterns in one line, such as "Double top; Tight consolidation", they now show as separate labels.',
     ],
   },
   {
