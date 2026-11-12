@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Browser } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
-import { servedLabels } from './_shared';
+import { servedLabels, chip } from './_shared';
 import { installPaidAiFence } from './_no-paid-ai';
 
 /* #1347 item 4 (#1365, fix by Dev Team) - a read computed for one indicator
@@ -122,9 +122,9 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
 
   await page.locator('select.strat-sel').selectOption('custom');
   for (const name of firstPick) {
-    const chip = page.locator('button.strat-chip', { hasText: name });
-    await chip.click();
-    await expect(chip).toHaveAttribute('aria-pressed', 'true');
+    const el = chip(page, name);
+    await el.click();
+    await expect(el).toHaveAttribute('aria-pressed', 'true');
   }
 
   const quickBtn = page.getByRole('button', { name: 'QUICK', exact: true });
@@ -184,8 +184,8 @@ test.describe('A read computed for a different selection is marked wherever it i
     try {
       // Change the selection WITHOUT re-running - the read on screen is now
       // computed for a selection the trader no longer has.
-      await page.locator('button.strat-chip', { hasText: 'MACD' }).click();
-      const smaChip = page.locator('button.strat-chip', { hasText: 'SMA' });
+      await chip(page, 'MACD').click();
+      const smaChip = chip(page, 'SMA');
       await smaChip.click();
       await expect(smaChip).toHaveAttribute('aria-pressed', 'true');
 
@@ -201,8 +201,8 @@ test.describe('A read computed for a different selection is marked wherever it i
   test('ASK AI does not cite a stale read, and still carries the CURRENT selection', async ({ browser }) => {
     const { ctx, page, noResultPrefix, askAi } = await arrangeFreshRead(browser, ['MACD']);
     try {
-      await page.locator('button.strat-chip', { hasText: 'MACD' }).click();
-      const smaChip = page.locator('button.strat-chip', { hasText: 'SMA' });
+      await chip(page, 'MACD').click();
+      const smaChip = chip(page, 'SMA');
       await smaChip.click();
       await expect(smaChip).toHaveAttribute('aria-pressed', 'true');
 
@@ -222,8 +222,8 @@ test.describe('A read computed for a different selection is marked wherever it i
   test('re-selecting the same indicators in a different order is NOT a change - no notice', async ({ browser }) => {
     const { ctx, page, staleNotices } = await arrangeFreshRead(browser, ['MACD', 'SMA']);
     try {
-      const macd = page.locator('button.strat-chip', { hasText: 'MACD' });
-      const sma = page.locator('button.strat-chip', { hasText: 'SMA' });
+      const macd = chip(page, 'MACD');
+      const sma = chip(page, 'SMA');
       // With 2+ selected, clicking a chip that is NOT the focused one only
       // brings its params back into view - it does not deselect (#1027,
       // StrategyPanel `toggle`). Only re-clicking the FOCUSED chip removes

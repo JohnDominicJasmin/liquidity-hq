@@ -1,6 +1,7 @@
 'use client';
 import { StrategySignal, StrategyVerdict, SIGNAL_OLD_BARS } from '@/lib/useEMAStrategy';
 import { CoinId } from '@/lib/marketStore';
+import { currencyPrefix } from '@/lib/coins';
 import { ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtestEngine';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -45,7 +46,7 @@ function buildSignalPrompt(signal: StrategySignal, coin: CoinId, tf: string, cfg
     ...failing.map(c  => `  ✗ ${c.label}: ${c.detail}`),
   ].join('\n');
   const sltp = signal.sl && signal.tp
-    ? `Stop loss: $${fmt(signal.sl)} · Take profit: $${fmt(signal.tp)}`
+    ? `Stop loss: ${currencyPrefix(coin)}${fmt(signal.sl)} · Take profit: ${currencyPrefix(coin)}${fmt(signal.tp)}`
     : '';
 
   return [
@@ -138,9 +139,9 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
         <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 8 }}>EMA Ribbon Strategy</div>
         <LockedSignal lock={signal.signalLock} />
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10 }}>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: 'var(--amber)' }}>${fmt(signal.ema9_4h)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: 'var(--accent-2)' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: 'var(--txt2)' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: 'var(--amber)' }}>{currencyPrefix(coin)}{fmt(signal.ema9_4h)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: 'var(--accent-2)' }}>{currencyPrefix(coin)}{fmt(signal.ema20_4h ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: 'var(--txt2)' }}>{currencyPrefix(coin)}{fmt(signal.ema50_4h ?? null)}</b></span>
         </div>
       </div>
     );
@@ -346,7 +347,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
         }}>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginRight: 4 }}>Levels:</span>
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--red)' }}>
-            SL ${fmt(signal.sl)}
+            SL {currencyPrefix(coin)}{fmt(signal.sl)}
           </span>
           <span style={{ fontSize: '0.6875rem', color: 'var(--txt-dim)' }}>·</span>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
@@ -354,7 +355,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
           </span>
           <span style={{ fontSize: '0.6875rem', color: 'var(--txt-dim)' }}>·</span>
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--green-2)' }}>
-            TP ${fmt(signal.tp)} (2:1)
+            TP {currencyPrefix(coin)}{fmt(signal.tp)} (2:1)
           </span>
         </div>
       )}
@@ -367,8 +368,8 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
           paddingTop: 8,
           borderTop: '0.5px solid var(--bdr)',
         }}>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: 'var(--amber)' }}>${fmt(signal.ema9_4h)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: 'var(--accent-2)' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: 'var(--amber)' }}>{currencyPrefix(coin)}{fmt(signal.ema9_4h)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: 'var(--accent-2)' }}>{currencyPrefix(coin)}{fmt(signal.ema20_4h ?? null)}</b></span>
           {/* --txt2, not #f97316 (#638). This was the only literal in a row
               whose three siblings all use tokens, and a literal chosen against
               a dark ground: it measures 2.59:1 on terminal light and fails in
@@ -381,8 +382,8 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
               border-weight grey that fails as text on dark, and there is no
               governed orange in the terminal palette at all - #614 established
               that. */}
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: 'var(--txt2)' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Daily trend <b style={{ color: 'var(--accent)' }}>${fmt(signal.sma200_1d ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: 'var(--txt2)' }}>{currencyPrefix(coin)}{fmt(signal.ema50_4h ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Daily trend <b style={{ color: 'var(--accent)' }}>{currencyPrefix(coin)}{fmt(signal.sma200_1d ?? null)}</b></span>
         </div>
       )}
 

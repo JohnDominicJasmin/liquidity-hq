@@ -45,7 +45,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
-import { coinKind, coinLabel, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
+import { coinKind, coinLabel, coinCaveat, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF, CHART_TFS, ARENA_TFS } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
@@ -2310,7 +2310,7 @@ function ArenaContent() {
                   </div>
                   {/* Price */}
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: isActive ? 'var(--txt)' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
-                    {price ? '$' + fmtPrice(price) : '-'}
+                    {price ? currencyPrefix(c) + fmtPrice(price) : '-'}
                   </span>
                   {/* 24h % */}
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? 'var(--txt3)' : change >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
@@ -2369,6 +2369,13 @@ function ArenaContent() {
           <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>{t(KIND_LABEL_KEYS[coinKind(selectedCoin) as CoinKind])}</span>
           {' · '}
           {coinKind(selectedCoin) === 'preipo' ? t('ARENA_TRADFI_NOTE_PREIPO') : t('ARENA_TRADFI_NOTE')}
+        </p>
+      )}
+      {/* THE WARNING, under the kind line (owner, 2026-11-13). 'hkd': the price is in Hong Kong dollars and every
+          figure is printed with "HK$". 'disputed': two exchanges quote different definitions of this price. */}
+      {coinCaveat(selectedCoin) && (
+        <p data-testid="tradfi-caveat" role="note" style={{ margin: '0 0 10px', fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--amber)', lineHeight: 1.45 }}>
+          {t(coinCaveat(selectedCoin) === 'hkd' ? 'ARENA_CAVEAT_HKD' : 'ARENA_CAVEAT_DISPUTED')}
         </p>
       )}
 

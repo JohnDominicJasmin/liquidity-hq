@@ -225,7 +225,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       /* ADDED AFTER THE GROUP MERGE, each tied to its pull request. Every line names a surface a reader looks at
          and a difference they can see on it; internal work in the same range (the label-key moves, the rate
          tables, the engine-switch scaffolding that nothing reads yet, CI and tests) is left out on purpose.
-           TradFi universe + category tabs      #2182
+           TradFi universe + category tabs      #2182, and the warning sentence on it, #2196
            Strategy panel redesign + chip names  #2162 #2184
            1W / 1M timeframes                   #2157
            markers follow the indicators         #2159
@@ -247,7 +247,7 @@ export const CHANGELOG: ChangelogEntry[] = [
          right now", five locales) first-hand to PM on 2026-11-13, and PM applies it at release time after the render
          check. IF THE ROWS ARE NOT APPLIED BEFORE THE TAG, THIS LINE COMES OUT - copy says only what a user can see.
          IF ANY OF THESE DOES NOT REACH THE RELEASE, ITS LINE COMES OUT HERE - copy says only what ships. */
-      'AI Arena now includes tokenized stocks, ETFs and commodities, plus a currency pair, under new Stocks, ETFs and Commodities & FX tabs. Each one says what it is, and a note explains that the contract trades around the clock while the market behind it keeps its own hours. AI reads are not offered for them.',
+      'AI Arena now includes tokenized stocks, ETFs and commodities, plus a currency pair, under new Stocks, ETFs and Commodities & FX tabs. Each one says what it is, and a note explains that the contract trades around the clock while the market behind it keeps its own hours. A few carry a warning: Hong Kong listings are priced in HK$, and two pre-IPO references where exchanges disagree on the price. AI reads are not offered for them.',
       'The Strategy panel is simpler. Pro and trial accounts can switch on as many indicators as they like with no counter, and a Free account picks one at a time, tapping another to swap it in. Each indicator (SMA, Parabolic SAR, MACD, Bollinger Bands) has a one-line description, and the chart layers sit in their own section with on/off switches for support and resistance and for liquidation clusters.',
       'The Arena chart now has 1W and 1M timeframes. Signals, the AI read and Draw Structure still cover up to the daily chart, and the weekly and monthly views say so.',
       'The buy and sell markers on the Arena chart now follow the indicators you have switched on: a marker shows only where they agree with the EMA ribbon, and the chart says when your selection has filtered some out.',

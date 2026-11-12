@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { COIN_DEC, CoinId, useMarket, computeSqueezeScore, venueSymbols } from '@/lib/marketStore';
 import { liftClearOfLevels } from '@/lib/chartLabelOffsets';
-import { chartDisplaySymbol } from '@/lib/coins';
+import { chartDisplaySymbol, currencyPrefix } from '@/lib/coins';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
@@ -1465,7 +1465,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               },
               {
                 type: 'text',
-                attrs: { x: rightX - 6, y: labelY, text: `${srType === 'resistance' ? 'R' : 'S'} $${fmtPx(price)}`, align: 'right', baseline: 'bottom' },
+                attrs: { x: rightX - 6, y: labelY, text: `${srType === 'resistance' ? 'R' : 'S'} ${currencyPrefix(coinRef.current)}${fmtPx(price)}`, align: 'right', baseline: 'bottom' },
                 // #598 D1 residual, QA pixel-sampled: no backgroundColor meant
                 // klinecharts filled the label with its own default primary
                 // (#1677ff) instead of anything from this file's palette -
@@ -1522,7 +1522,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               },
               {
                 type: 'text',
-                attrs: { x: 6, y: labelY, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
+                attrs: { x: 6, y: labelY, text: `${label} ${currencyPrefix(coinRef.current)}${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
                 styles: {
                   color: ink.text, size: 9, weight: '700',
                   paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2,
@@ -1642,7 +1642,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               },
               {
                 type: 'text',
-                attrs: { x: 6, y: y - 3, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
+                attrs: { x: 6, y: y - 3, text: `${label} ${currencyPrefix(coinRef.current)}${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
                 styles: { color, size: 10, weight: '700' },
               },
             ];
@@ -3204,7 +3204,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             menu's classes so this adds no CSS - globals.css is a landing-gated file and this
             needs none of it. */}
         {drawStructureAvailable(tf) && entitlementStatus === 'not_entitled' && onUnlock && (
-          <div className="klc-draw-wrap">
+          <div className="klc-draw-wrap klc-ds-wrap">
             {/* NEVER `requestStructures` ON THIS BRANCH. The server already refuses a Free
                 account, but a call that is certain to be refused is a wasted round trip and, on
                 the AI path, a wasted quota check - so this button only opens the upsell.
@@ -3215,7 +3215,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 that it is locked or what tapping does. The Lock icon itself carries aria-hidden,
                 so it contributes nothing - the name has to come from the label. */}
             <button
-              className="klc-tool-btn klc-draw-btn"
+              className="klc-tool-btn klc-draw-btn klc-ds-btn"
               onClick={onUnlock}
               aria-label={tl('DRAW_STRUCTURE_LOCKED_ARIA')}
               title={tl('DRAW_STRUCTURE_LOCKED_ARIA')}
@@ -3235,9 +3235,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         )}
 
         {drawStructureAvailable(tf) && entitlementStatus !== 'not_entitled' && (
-          <div className="klc-draw-wrap" ref={dsWrapRef}>
+          <div className="klc-draw-wrap klc-ds-wrap" ref={dsWrapRef}>
             <button
-              className={`klc-tool-btn klc-draw-btn${proposals.length ? ' on' : ''}`}
+              className={`klc-tool-btn klc-draw-btn klc-ds-btn${proposals.length ? ' on' : ''}`}
               /* WITH PROPOSALS ON THE CHART the button toggles the menu and makes NO request: the read is
                  already paid for. With none, it requests exactly as it always did (also after an error or a
                  "none" answer). To ask again with lines present, use Clear and then this button - the menu's
@@ -3357,9 +3357,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 key={alert.id}
                 className="klc-price-chip"
                 style={{ color: 'var(--amber)', background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.2)', cursor: 'default' }}
-                title={`Alert: ${alert.direction} $${fmtPx(alert.target_price)}${alert.label ? ` · ${alert.label}` : ''} - drag the dashed line to adjust`}
+                title={`Alert: ${alert.direction} ${currencyPrefix(coin)}${fmtPx(alert.target_price)}${alert.label ? ` · ${alert.label}` : ''} - drag the dashed line to adjust`}
               >
-                {alert.direction === 'above' ? '↑' : '↓'} ${fmtPx(alert.target_price)}
+                {alert.direction === 'above' ? '↑' : '↓'} {currencyPrefix(coin)}{fmtPx(alert.target_price)}
                 {alert.label ? <>&nbsp;·&nbsp;{alert.label}</> : null}
               </span>
             ))}
