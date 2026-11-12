@@ -134,26 +134,41 @@ test.describe('#1113 onboarding, end to end', () => {
 
     /* The wizard replaces the app entirely (OnboardingGate), so its step counter is the proof it
        is up — not a heading, which the dashboard also has. */
-    const stepper = p.locator('.obw-step, [class*="obw"]').first();
+    const stepper = p.locator('.obw-headline').first();
     await expect(stepper, 'the wizard should render instead of the dashboard').toBeVisible({ timeout: 60_000 });
     await shot(p, 'onb-01-step1');
 
-    const nextBtn = () => p.locator('button:not([disabled])').filter({ hasText: /next|continue|finish|done|start/i }).last();
+    /* `obw-btn-next` IS THE CONTROL'S OWN CLASS, which beats matching "Continue →" by text: the
+       label is a database row and can be reworded or translated, and on the last step this button
+       is what calls `finish()`. `Skip this question →` is a different button and is deliberately
+       never clicked — it also finishes, but WITHOUT the answer, which is the opposite of what this
+       test is checking. */
+    const nextBtn = () => p.locator('button.obw-btn-next');
     const rows = () => p.locator('button.obw-row');
 
-    // Step 1 (Profile): display name, country, account size. `canAdvance` needs country and acct.
-    const name = p.locator('input[type="text"], input:not([type])').first();
-    if (await name.count()) await name.fill('QA Onboarding');
+    /* Step 1 (Profile). `canAdvance` for this step is `country !== '' && acct !== null`, so the
+       country and the account range are REQUIRED and the display name is not — but the name is the
+       one answer whose exact value can be asserted coming back out of the database, so it is
+       filled too. Each control is located by the string the app ships, and each is asserted
+       rather than skipped-if-absent: a missing control here means the wizard changed shape, and
+       silently continuing would produce a confusing failure three steps later. */
+    const name = p.getByPlaceholder('e.g. trader_dom');
+    await expect(name, 'step 1 should offer the display-name field').toBeVisible({ timeout: 30_000 });
+    await name.fill('QA Onboarding');
+
     const countryBtn = p.locator('button[aria-expanded]').first();
-    if (await countryBtn.count()) {
-      await countryBtn.click();
-      const search = p.locator('input[placeholder]').last();
-      await search.fill('Phil');
-      await p.waitForTimeout(600);
-      await p.locator('button').filter({ hasText: /philippines/i }).first().click();
-    }
-    const acct = p.locator('button').filter({ hasText: /\$/ }).first();
-    if (await acct.count()) await acct.click();
+    await expect(countryBtn, 'step 1 should offer the country picker').toBeVisible();
+    await countryBtn.click();
+    const search = p.getByPlaceholder('Search country…');
+    await expect(search, 'the country panel should open a search box').toBeVisible({ timeout: 15_000 });
+    await search.fill('Phil');
+    const country = p.locator('button').filter({ hasText: /philippines/i }).first();
+    await expect(country, 'searching "Phil" should offer Philippines').toBeVisible({ timeout: 15_000 });
+    await country.click();
+
+    const acct = p.locator('button').filter({ hasText: '$1k - $5k' }).first();
+    await expect(acct, 'step 1 should offer the account ranges').toBeVisible();
+    await acct.click();
     await shot(p, 'onb-02-step1-filled');
     await nextBtn().click();
 
@@ -193,6 +208,11 @@ test.describe('#1113 onboarding, end to end', () => {
     if (after.onboarding?.profile_complete === true) {
       expect(after.settings?.trading_experience, 'profile_complete is true, so the answers must be there too — true with NULL answers is the #1113 defect').not.toBeNull();
       expect(after.settings?.display_name, 'the display name typed into step 1 must have been stored').toBe('QA Onboarding');
+      /* `finish()` maps the chosen range through `acctMap`, so "$1k - $5k" is stored as the
+         midpoint 2500 rather than as the label. Asserting the mapped number is what proves the
+         answer travelled through the save path rather than a default surviving the reset — the
+         reset leaves this column at its schema default of 1000. */
+      expect(Number(after.settings?.account_size), '"$1k - $5k" should be stored as acctMap 2500, not the 1000 default').toBe(2500);
     }
     await ctx.close();
   });
