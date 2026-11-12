@@ -173,11 +173,16 @@ export function computeMacroRisk(
     }
   }
 
-  /* Only when NOTHING was found. A stale calendar that still surfaced a real
-     event has done its job for that event, and the USD/JPY factor above does not
-     come from the calendar at all - downgrading either to "unknown" would be
-     less informative, not more. */
-  const calendarUnknown = stale && level === 'none';
+  /* THE CALENDAR'S OWN FINDING decides this, not the band's level (#1651, QA's econ-staleness cells).
+     A stale calendar that still surfaced a real release has done its job for that release, so no note.
+     But the USD/JPY line and the real-yield line above do not come from the calendar at all, and this
+     used to wait for `level === 'none'`: ANY finding from those two hid the fact that the calendar
+     could not be checked. Measured on the deployed qa tree: a 48-hour-old calendar rendered only
+     "10Y real yield 2.78% (+12bp) - tighter conditions, headwind for risk", so the card said nothing
+     about releases it had no way of seeing, on the day the yield happened to be moving.
+     The note is now written whenever the calendar is stale and found nothing in the window. The LEVEL
+     is untouched by it, and `unknown` (the quiet-band flag) still needs the level to be 'none'. */
+  const calendarUnknown = stale && upcoming.length === 0;
   if (calendarUnknown) {
     reasons.push('Economic calendar is out of date - upcoming releases cannot be checked');
   }
