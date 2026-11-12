@@ -108,14 +108,21 @@ test.describe('sign-off shots', () => {
       let intercepted = 0;
       await p.route('**/api/draw-structure', async (route) => {
         intercepted += 1;
-        const now = Date.now();
+        /* THE REAL SHAPE (qa/e2e/draw-structure-labels-render.spec.ts, from lib/drawStructure.ts): every
+           proposal needs `side` and `touchTimestamps`, or the route's validator drops it and the panel
+           says "Could not read the chart" - which is what the first version of this shot showed, because
+           it sent only type/touches/from/to. Timestamps are hour-aligned and inside the last ~200 bars
+           so the lines actually land on the 1h chart. */
+        const HOUR = 3_600_000;
+        const t0 = Math.floor(Date.now() / HOUR) * HOUR - 120 * HOUR;
         await route.fulfill({
           status: 200, contentType: 'application/json',
           body: JSON.stringify({
-            structures: ['trendline', 'channel'].map((type, n) => ({
-              type, touches: 3,
-              from: { timestamp: now - (200 - n * 30) * 3_600_000, price: 100 },
-              to: { timestamp: now - 20 * 3_600_000, price: 110 },
+            structures: ['trendline', 'channel', 'horizontal'].map((type, n) => ({
+              type, side: n % 2 ? 'high' : 'low',
+              touchTimestamps: [t0 + n * 10 * HOUR, t0 + (n * 10 + 30) * HOUR, t0 + (n * 10 + 60) * HOUR],
+              from: { timestamp: t0 + n * 10 * HOUR, price: 100 + n },
+              to: { timestamp: t0 + (n * 10 + 60) * HOUR, price: 110 + n },
             })),
           }),
         });
@@ -126,6 +133,10 @@ test.describe('sign-off shots', () => {
       const btn = p.getByRole('button', { name: /Draw Structure/i }).first();
       if (await btn.count()) { await btn.click({ timeout: 10_000 }).catch(() => {}); await p.waitForTimeout(5_000); }
       console.log(`[draw structure ${theme}] stub intercepted ${intercepted} call(s)`);
+      /* A proposal label must be on screen BEFORE the shot, otherwise the image proves nothing about
+         #2165: "Could not read the chart" is a different state wearing the same screenshot. */
+      await expect(p.locator('.klc-draw-item', { hasText: /Trend line/i }).first(),
+        'no structure label rendered - the stub was rejected (see the response shape) or the call never fired').toBeVisible({ timeout: 15_000 });
       await shot(p, `draw-structure-${theme}`);
       await ctx.close();
     });
