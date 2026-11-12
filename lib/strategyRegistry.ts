@@ -137,7 +137,7 @@ export const INDICATORS: readonly IndicatorEntry[] = [
     note: 'Not a klinecharts builtin.',
   },
   {
-    id: 'SAR', label: 'PSAR', blurbKey: 'STRATEGY_BLURB_SAR', group: 'trend', source: 'builtin', pane: 'candle',
+    id: 'SAR', label: 'Parabolic SAR', blurbKey: 'STRATEGY_BLURB_SAR', group: 'trend', source: 'builtin', pane: 'candle',
     paramSchema: [
       { kind: 'float', key: 'start', label: 'Start', min: 0.001, max: 1, step: 0.001, default: 0.02 },
       { kind: 'float', key: 'step',  label: 'Step',  min: 0.001, max: 1, step: 0.001, default: 0.02 },
@@ -198,7 +198,7 @@ export const INDICATORS: readonly IndicatorEntry[] = [
 
   /* -- Volatility -------------------------------------------------------- */
   {
-    id: 'BOLL', label: 'Bollinger', blurbKey: 'STRATEGY_BLURB_BOLL', group: 'volatility', source: 'builtin', pane: 'candle',
+    id: 'BOLL', label: 'Bollinger Bands', blurbKey: 'STRATEGY_BLURB_BOLL', group: 'volatility', source: 'builtin', pane: 'candle',
     paramSchema: [
       period('length', 'Length', 20),
       { kind: 'float', key: 'mult', label: 'Std dev', min: 0.5, max: 5, step: 0.1, default: 2 },
