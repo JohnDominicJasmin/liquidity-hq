@@ -215,7 +215,7 @@ const GATED_TFS: readonly ChartTf[] = LIMIT_GATED_TFS as readonly ChartTf[];
 const FREE_FALLBACK_TF = LIMIT_FREE_FALLBACK_TF as ChartTf;
 /* The AI read, the EMA signal and Draw Structure cover up to the 1D chart (#1263). On a weekly or
    monthly chart their buttons are disabled with this tooltip rather than silently doing nothing. */
-const ANALYSIS_CEILING_TITLE = 'Covers up to the 1D chart - switch to 1D or lower to run this';
+// The tooltip text is the ARENA_ANALYSIS_CEILING_TITLE label (t() in the component, so it can be translated).
 const TF_FEATURE_LABEL_KEYS: Record<string, LabelKey> = {
   '1m': 'ARENA_TF_LABEL_1M', '5m': 'ARENA_TF_LABEL_5M', '15m': 'ARENA_TF_LABEL_15M',
 };
@@ -2354,7 +2354,7 @@ function ArenaContent() {
           disabled={aboveAnalysisCeiling || readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
           onClick={() => runStrategy('quick', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={aboveAnalysisCeiling ? ANALYSIS_CEILING_TITLE : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
+          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
         >
           {readLoading && readMode === 'quick' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -2372,7 +2372,7 @@ function ArenaContent() {
           disabled={aboveAnalysisCeiling || readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
           onClick={() => runStrategy('deep', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={aboveAnalysisCeiling ? ANALYSIS_CEILING_TITLE : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
+          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
         >
           {readLoading && readMode === 'deep' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -2399,7 +2399,7 @@ function ArenaContent() {
           className="arena-ask-grok-btn"
           style={{ width: 'auto', marginBottom: 0 }}
           disabled={aboveAnalysisCeiling}
-          title={aboveAnalysisCeiling ? ANALYSIS_CEILING_TITLE : undefined}
+          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : undefined}
           onClick={() => runStrategy('ask', strategySelection)}
         >
           {t('ARENA_ASK_LIQUIDITYAI_BUTTON')}

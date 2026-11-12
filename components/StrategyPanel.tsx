@@ -110,6 +110,7 @@ function LayerRow({ name, status }: { name: string; status: string }) {
 /* A CHART LAYERS switch (S/R, Liq): a real role="switch" button synced to the chart toolbar.
    `unavailable` (a coin with no such layer) shows an off, disabled switch rather than hiding it. */
 function LayerSwitch({ name, on, unavailable, onToggle }: { name: string; on: boolean; unavailable: boolean; onToggle: () => void }) {
+  const { t } = useLabels();
   return (
     <div className="strat-layer">
       <span className="strat-layer-name">{name}</span>
@@ -120,7 +121,7 @@ function LayerSwitch({ name, on, unavailable, onToggle }: { name: string; on: bo
         aria-label={name}
         disabled={unavailable}
         className={`strat-switch${on ? ' on' : ''}`}
-        title={unavailable ? "Not drawn on this coin's chart" : undefined}
+        title={unavailable ? t('STRATEGY_PANEL_LAYER_UNAVAILABLE') : undefined}
         onClick={onToggle}
       >
         <span className="strat-switch-knob" aria-hidden="true" />
@@ -216,22 +217,22 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
       <>
       <div className="strat-sect">
         <div className="strat-lbl">
-          <span>Strategy set</span>
+          <span>{t('STRATEGY_PANEL_SECTION_SET')}</span>
           {entitled && <span className="strat-cap">Edit · Save as</span>}
         </div>
-        <select className="strat-sel" value={setId} disabled={!loaded} aria-label="Strategy set" onChange={e => applySet(e.target.value)}>
+        <select className="strat-sel" value={setId} disabled={!loaded} aria-label={t('STRATEGY_PANEL_SECTION_SET')} onChange={e => applySet(e.target.value)}>
           {STRATEGY_SETS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
       </div>
 
       <div className="strat-sect">
         <div className="strat-lbl">
-          <span>Indicators</span>
+          <span>{t('STRATEGY_PANEL_SECTION_INDICATORS')}</span>
           {/* Pro/trial: how many are on, no "of N" - there is no cap. Free: the one-at-a-time rule. */}
           {loaded && (
             entitled
-              ? <span className="strat-count">{used} on</span>
-              : <span className="strat-count">Free: 1 at a time</span>
+              ? <span className="strat-count">{t('STRATEGY_PANEL_ON_COUNT', { n: used })}</span>
+              : <span className="strat-count">{t('STRATEGY_PANEL_FREE_LIMIT')}</span>
           )}
         </div>
 
@@ -240,8 +241,8 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
         {loaded && (
           <p className="strat-ind-note">
             {entitled
-              ? 'Turn on as many as you like. The AI read uses every one you pick.'
-              : 'Pick one. Tap another to swap it in.'}
+              ? t('STRATEGY_PANEL_NOTE_PRO')
+              : t('STRATEGY_PANEL_NOTE_FREE')}
           </p>
         )}
 
@@ -285,7 +286,7 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
                   </span>
                   <span className="strat-ind-text">
                     <span className="strat-ind-name">{on && selected.length > 1 && <span className="strat-n" aria-hidden="true">{pos + 1}</span>}{entry.label}</span>
-                    {entry.blurb && <span className="strat-ind-desc">{entry.blurb}</span>}
+                    {entry.blurbKey && <span className="strat-ind-desc">{t(entry.blurbKey)}</span>}
                   </span>
                 </button>
               );
@@ -297,13 +298,13 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
             invitation, not a limit warning). Pro never sees it - Pro has every indicator already. */}
         {loaded && !entitled && (
           <div className="strat-callout" role="note">
-            <span>Want more than one at once? Pro turns on every indicator together.</span>
-            <Link href="/upgrade" className="strat-callout-link" data-testid="strategy-pro-callout">See Pro</Link>
+            <span>{t('STRATEGY_PANEL_PRO_CALLOUT')}</span>
+            <Link href="/upgrade" className="strat-callout-link" data-testid="strategy-pro-callout">{t('STRATEGY_PANEL_PRO_CALLOUT_LINK')}</Link>
           </div>
         )}
 
         {isAuto && (
-          <div className="strat-auto">The read picks the indicators that fit this coin and timeframe.</div>
+          <div className="strat-auto">{t('STRATEGY_PANEL_AUTO_NOTE')}</div>
         )}
 
         {dropped > 0 && (
@@ -335,20 +336,20 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
       {/* CHART LAYERS: drawn on the chart on every plan, never using an indicator slot. */}
       {loaded && (
         <div className="strat-sect">
-          <div className="strat-lbl"><span>Chart layers</span></div>
-          <p className="strat-ind-note">Drawn on the chart. They don&apos;t count as indicators.</p>
+          <div className="strat-lbl"><span>{t('STRATEGY_PANEL_SECTION_LAYERS')}</span></div>
+          <p className="strat-ind-note">{t('STRATEGY_PANEL_LAYERS_NOTE')}</p>
           <div className="strat-layers">
-            <LayerRow name="EMA ribbon" status="Always on" />
-            <LayerRow name="RSI pane" status="Always on" />
-            <LayerRow name="Options levels (GEX)" status="Always on · BTC only" />
+            <LayerRow name={t('STRATEGY_PANEL_LAYER_EMA')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON')} />
+            <LayerRow name={t('STRATEGY_PANEL_LAYER_RSI')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON')} />
+            <LayerRow name={t('STRATEGY_PANEL_LAYER_GEX')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON_BTC')} />
             <LayerSwitch
-              name="Support and resistance"
+              name={t('STRATEGY_PANEL_LAYER_SR')}
               on={layer('SR') === 'on' || layer('SR') === 'always'}
               unavailable={layer('SR') === 'none'}
               onToggle={() => onOverlayToggle?.('SR')}
             />
             <LayerSwitch
-              name="Liquidation clusters"
+              name={t('STRATEGY_PANEL_LAYER_LIQ')}
               on={layer('LIQ_CLUSTERS') === 'on' || layer('LIQ_CLUSTERS') === 'always'}
               unavailable={layer('LIQ_CLUSTERS') === 'none'}
               onToggle={() => onOverlayToggle?.('LIQ_CLUSTERS')}
@@ -360,7 +361,7 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
       )}
 
       <div className="strat-sect">
-        <div className="strat-lbl"><span>Run the read</span></div>
+        <div className="strat-lbl"><span>{t('STRATEGY_PANEL_SECTION_RUN')}</span></div>
         <div className="strat-actions">
           <button type="button" className="strat-btn pri" disabled={running} onClick={() => onRun('quick', selected)}>QUICK</button>
           <button type="button" className="strat-btn" disabled={running} onClick={() => onRun('deep', selected)}>DEEP</button>

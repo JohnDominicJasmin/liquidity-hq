@@ -38,6 +38,8 @@
 /** The five groups the approved layout draws, in its order. Not six: an earlier
  *  proposal had `structure` and `liquidity` separately and the drawing collapses
  *  both into Levels. */
+import type { LabelKey } from './labelKeys.ts';
+
 export const GROUPS = ['trend', 'momentum', 'volatility', 'flow', 'levels'] as const;
 export type Group = (typeof GROUPS)[number];
 
@@ -65,7 +67,7 @@ export interface IndicatorEntry {
   /** One plain line under the chip name (#1263 panel redesign), for a trader who does not know the
    *  indicator by name. Selectable indicators carry it; overlays and the not-yet-wired entries do
    *  not need it (overlays live in the CHART LAYERS section, the rest are hidden). */
-  blurb?: string;
+  blurbKey?: LabelKey;
   group: Group;
   source: Source;
   /** Own pane, or drawn over the candles. See the Y-axis note above. */
@@ -89,7 +91,7 @@ export const INDICATORS: readonly IndicatorEntry[] = [
         + 'indicator pipeline reinstates the axis bug at KLineProChart.tsx:997.',
   },
   {
-    id: 'SMA', label: 'SMA', blurb: 'Simple moving average', group: 'trend', source: 'builtin', pane: 'candle',
+    id: 'SMA', label: 'SMA', blurbKey: 'STRATEGY_BLURB_SMA', group: 'trend', source: 'builtin', pane: 'candle',
     paramSchema: [period('length', 'Length', 12), period('weight', 'Weight', 2, 1, 10)],
     // id is correctly 'SMA' - klinecharts does ship an indicator by that
     // name (unlike ADX/STOCH, this is not a basis mismatch). What klinecharts'
@@ -135,7 +137,7 @@ export const INDICATORS: readonly IndicatorEntry[] = [
     note: 'Not a klinecharts builtin.',
   },
   {
-    id: 'SAR', label: 'PSAR', blurb: 'Dots that flip with the trend', group: 'trend', source: 'builtin', pane: 'candle',
+    id: 'SAR', label: 'PSAR', blurbKey: 'STRATEGY_BLURB_SAR', group: 'trend', source: 'builtin', pane: 'candle',
     paramSchema: [
       { kind: 'float', key: 'start', label: 'Start', min: 0.001, max: 1, step: 0.001, default: 0.02 },
       { kind: 'float', key: 'step',  label: 'Step',  min: 0.001, max: 1, step: 0.001, default: 0.02 },
@@ -159,7 +161,7 @@ export const INDICATORS: readonly IndicatorEntry[] = [
         + 'period marketStore uses everywhere else: rsi14/rsi1h/rsi4h/rsiDaily). Selecting this chip draws nothing extra: it only adds RSI to the verdict.',
   },
   {
-    id: 'MACD', label: 'MACD', blurb: 'Momentum crossovers', group: 'momentum', source: 'builtin', pane: 'own',
+    id: 'MACD', label: 'MACD', blurbKey: 'STRATEGY_BLURB_MACD', group: 'momentum', source: 'builtin', pane: 'own',
     paramSchema: [period('fast', 'Fast', 12), period('slow', 'Slow', 26), period('signal', 'Signal', 9)],
     // #1007 resolved the GATING half of this collision (SMA's verdict
     // condition no longer uses SMA(12,2)=EMA(12) - see the SMA entry above).
@@ -196,7 +198,7 @@ export const INDICATORS: readonly IndicatorEntry[] = [
 
   /* -- Volatility -------------------------------------------------------- */
   {
-    id: 'BOLL', label: 'Bollinger', blurb: 'Volatility bands', group: 'volatility', source: 'builtin', pane: 'candle',
+    id: 'BOLL', label: 'Bollinger', blurbKey: 'STRATEGY_BLURB_BOLL', group: 'volatility', source: 'builtin', pane: 'candle',
     paramSchema: [
       period('length', 'Length', 20),
       { kind: 'float', key: 'mult', label: 'Std dev', min: 0.5, max: 5, step: 0.1, default: 2 },
