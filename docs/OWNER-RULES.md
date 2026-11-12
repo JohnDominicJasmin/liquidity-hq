@@ -112,6 +112,12 @@ push without the gate - `--no-verify` is rule 11 - and do not run an eight-minut
 exception.** Before starting one he has allowed: read free memory, refuse below ~2.5 GB, and report the reading before and
 after. A gate that dies at minute six leaves an orphan on his machine, which is worse than not starting.
 
+**Low memory means GitHub runs the check — never wait for his laptop.** Owner, 2026-11-13, on reading that a push was held
+until his laptop had free memory: *"run it on github then"*. So `.githooks/pre-push` reads free memory first, and **below
+2.5 GB it skips the local typecheck and says so**. The pull request's `Lint + typecheck + test + build` check on GitHub is
+the gate, and **nothing merges until it is green**. If memory cannot be read, the typecheck runs as before; a failed
+reading never turns the gate off. This is not `--no-verify`. The hook decides, prints the reading, and nobody bypasses it.
+
 ---
 
 ## 5. NEVER SHOW WHICH AI MODEL WE USE
