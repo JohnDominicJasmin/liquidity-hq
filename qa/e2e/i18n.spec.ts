@@ -217,19 +217,23 @@ test.describe('i18n: locale offering and page language', () => {
     ).not.toContain('العربية');
   });
 
-  /* Documented, not aspirational. See the header: the ROOT layout is not
-   * locale-aware, so the first byte says `en` on every route and hydration
-   * corrects it. Asserted so that a change here is announced rather than
-   * discovered by someone reading view-source and filing a duplicate of #138. */
-  test('KNOWN: the server-rendered HTML still says lang="en" on /ko', async ({ request }) => {
+  /* INVERTED 2026-11-12 — the improvement this test's old message anticipated has landed.
+   *
+   * It used to assert the server-rendered HTML still said `lang="en"` on `/ko`, documenting the
+   * root layout not being locale-aware, and told the next reader: "if it is now ko … this test
+   * should be inverted to assert that - it is a genuine improvement." Measured on the deployed `qa`
+   * site (`50a92c7`): `GET /ko` now serves `<html lang="ko">`. So the hydration gap where assistive
+   * technology briefly saw the wrong language is gone, and this asserts the fixed behaviour rather
+   * than merely tolerating a known red. A regression back to `en` now fails loudly, which is the
+   * point of inverting rather than deleting. */
+  test('the server-rendered HTML says lang="ko" on /ko (locale-aware root layout)', async ({ request }) => {
     const html = await (await getGuarded(request, '/ko')).text();
     const m = /<html[^>]*\slang="([^"]*)"/.exec(html);
     expect(m, '/ko served no lang attribute at all - that is a real regression').toBeTruthy();
     expect(m![1],
-      'The served lang is no longer "en". If it is now "ko", app/layout.tsx has been made ' +
-      'locale-aware and this test should be inverted to assert that - it is a genuine ' +
-      'improvement, because it would remove the hydration gap where the page is briefly ' +
-      'the wrong language for assistive technology.',
-    ).toBe('en');
+      'The served lang on /ko is no longer "ko". If it is back to "en", the root layout has stopped '
+      + 'being locale-aware and the hydration-gap regression (#138) is back - a real regression for '
+      + 'assistive technology, not a formatting nit.',
+    ).toBe('ko');
   });
 });

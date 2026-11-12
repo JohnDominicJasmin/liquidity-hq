@@ -1,5 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { synthUpstream } from "./syntheticMarket.mjs";
 
 /* Intercept the SERVER's outbound fetch, which `page.route` cannot reach.
  *
@@ -178,6 +179,11 @@ if (ENABLED) {
     } catch { /* never break the app to record a measurement */ }
   };
 
+
+  /* The synthetic generator is shared with the browser side (qa/e2e/_fixtures.ts) so the two cannot
+     drift - see qa/syntheticMarket.mjs. It returns a venue-shaped body for a URL it knows, or null
+     for one it does not (the empty-array fallback below then serves []). */
+
   globalThis.fetch = async function qaInterceptingFetch(input, init) {
     let url = '';
     try {
@@ -245,19 +251,19 @@ if (ENABLED) {
     }
 
     served++;
-    log(`[intercept] stubbed ${host} (${served} stubbed / ${passed} passed through)`);
 
-    /* Deliberately an EMPTY-SHAPED success rather than recorded payloads.
-     *
-     * This module's job is to prove the seam works and to stop live egress. The
-     * recorded payloads already exist in qa/fixtures/ and are wired through
-     * `_fixtures.ts` for the browser side; pointing this at them is the next
-     * step, not this one.
-     *
-     * An empty array is the shape most of these handlers expect, and a handler
-     * that CRASHES on it is a finding rather than a problem with this file -
-     * `market-scenarios.spec.ts` already asserts an upstream 500 must not blank
-     * the page. */
+    /* SYNTHETIC BODY FIRST (option iii). If this URL is a venue endpoint we generate - klines,
+       tickers, open-interest - return deterministic data in that venue's own shape so the real
+       route parses real-looking candles with zero egress. An endpoint we do not synthesize falls
+       through to the empty-array success below, which is still the right answer for the handlers
+       that expect `[]` and the honest "a handler that crashes on it is a finding" case. */
+    const synth = synthUpstream(url);
+    if (synth !== null) {
+      log(`[intercept] stubbed ${host} (${served} stubbed / ${passed} passed through) [synthetic ${new URL(url).pathname}]`);
+      return new Response(synth, { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+
+    log(`[intercept] stubbed ${host} (${served} stubbed / ${passed} passed through) [empty]`);
     return new Response('[]', {
       status: 200,
       headers: { 'content-type': 'application/json' },
