@@ -292,6 +292,10 @@ test('B0. five alerts on five coins: the crossing fires once, the others stay, a
 test('B0r. realistic upstream: cold pass then warm pass in the same hour, tallied per endpoint', async () => {
   world.realistic = true;
   try {
+    /* ALIGN THE CLOCK so BOTH passes fall inside ONE minute and ONE hour. The 1-minute series expires at a minute boundary: two runs of this same cell on the
+       unchanged dev tree gave warm totals 687 and 637 (a difference of exactly the 47 + 3 one-minute reads) depending only on where the wall clock was. 5 s past
+       a minute start leaves ~50 s for the two passes; if the minute is past :50 of the hour, move to the next hour's first minute. */
+    { const now = Date.now(); const intoHour = now % 3_600_000; tick(intoHour > 3_000_000 ? 3_600_000 - intoHour + 5_000 : 60_000 - (now % 60_000) + 5_000); }
     world.alerts = [];
     world.prices = { ETHUSDT: 3000, SOLUSDT: 150, XRPUSDT: 0.6, DOGEUSDT: 0.1, ADAUSDT: 0.4 };
     const mk = (id: number, coin: string, target: number): Alert => ({ ...alert(id), coin, target_price: target, direction: 'above' });
