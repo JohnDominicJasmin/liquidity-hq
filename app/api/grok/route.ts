@@ -14,6 +14,7 @@ import { incrementUsageColumn, rateLimitMessage, refundUsageColumn, todayUtc } f
 import { apiError } from '@/lib/apiError';
 import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
 import { anonServerClient, userClient } from '@/lib/supabase-user';
+import { logDeep502 } from '@/lib/deep502Log';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -115,6 +116,7 @@ export async function GET(req: NextRequest) {
 
 // ── POST - run an analysis ──────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const t0 = Date.now(); // for the Deep-path 502 line (lib/deep502Log.ts)
   if (!(await isFeatureEnabled('grok'))) {
     return NextResponse.json({ error: 'AI Arena is temporarily unavailable.', code: 'FEATURE_DISABLED' }, { status: 503 });
   }
@@ -511,6 +513,7 @@ export async function POST(req: NextRequest) {
       /* LOGS, because a refusal that writes nothing is unmeasurable (#1631, QA). PM searched production for this failure and found
          silence - which meant nothing, since these two paths were plain NextResponse.json with no apiError, no console, no health
          report. Without a line here the eventual FIX is also unverifiable on prod: we would ship it and have no way to know. */
+      logDeep502({ route: '/api/grok', kind: 'grok-empty', upstream: 'xai', upstreamStatus: null, coin: String(coin), ms: Date.now() - t0 });
       console.error(`[grok] BAD_ANSWER empty-text type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=false`);
       const refunded = await refundUsageColumn(userId, column, reservedOn);
       return NextResponse.json({ error: GROK_EMPTY_ANSWER_MESSAGE, code: 'BAD_ANSWER', refunded: refunded !== null, usage: usageAfterRefund(refunded) }, { status: 502 });
@@ -519,6 +522,7 @@ export async function POST(req: NextRequest) {
     if (!v) {
       /* restated=true: the restatement attempt RAN and still produced no verdict - a different fault from an answer that arrived
          empty, and the distinction is the first thing anyone debugging this will want. */
+      logDeep502({ route: '/api/grok', kind: 'grok-unreadable', upstream: 'xai', upstreamStatus: null, coin: String(coin), ms: Date.now() - t0 });
       console.error(`[grok] BAD_ANSWER unreadable-verdict type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=true chars=${text.trim().length} head=${JSON.stringify(logHead(text.trim()))}`);
       const refunded = await refundUsageColumn(userId, column, reservedOn);
       return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', refunded: refunded !== null, usage: usageAfterRefund(refunded) }, { status: 502 });
@@ -541,6 +545,7 @@ export async function POST(req: NextRequest) {
        charge the user for a read it refused (the defect #1724 fixed) and write nothing to the log (the silence PM searched
        production for). `restated=${restated}` is the field that tells the two causes apart: false means the guard above let an
        answer through that this one rejected, which should be impossible and is the first thing worth knowing. */
+    logDeep502({ route: '/api/grok', kind: 'grok-strict-refused', upstream: 'xai', upstreamStatus: null, coin: String(coin), ms: Date.now() - t0 });
     console.error(`[grok] BAD_ANSWER strict-read-refused type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=${restated} chars=${text.trim().length} head=${JSON.stringify(logHead(text.trim()))}`);
     const refunded = await refundUsageColumn(userId, column, reservedOn);
     return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', refunded: refunded !== null, usage: usageAfterRefund(refunded) }, { status: 502 });

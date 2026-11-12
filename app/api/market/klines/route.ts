@@ -44,6 +44,7 @@ import { cached } from '@/lib/apiCache';
 import { intervalToMs, closedCandleKey, CLOSE_SKEW_MS } from '@/lib/candles';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
+import { logDeep502 } from '@/lib/deep502Log';
 import { reportHealth } from '@/lib/apiHealth';
 import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, OKX_SYMS, HL_SYMS, bybitPriceFactor } from '@/lib/coins';
 import { COIN_UNIVERSE } from '@/lib/coinUniverse.generated';
@@ -285,6 +286,7 @@ function sliceToLimit(source: Source, body: unknown, n: number): unknown {
 }
 
 export async function GET(req: NextRequest) {
+  const t0 = Date.now(); // for the Deep-path 502 line (lib/deep502Log.ts)
   /* 1200/min, not the 120 this shipped with.
    *
    * 120 was copied from routes a page calls a handful of times. This one is
@@ -741,6 +743,7 @@ export async function GET(req: NextRequest) {
     }
 
     reportHealth(`${source}:klines-proxy`, 'market', false, status ? `upstream ${status}` : String(e));
+    logDeep502({ route: '/api/market/klines', kind: 'klines-upstream', upstream: source, upstreamStatus: typeof status === 'number' ? status : null, coin: symbol, ms: Date.now() - t0 });
     /* 502 with the upstream status attached: "refused" must be distinguishable
        from "no candles", which is the whole of #228. */
     return apiError('market-klines', e, 502, status === 418 || status === 429
