@@ -41,7 +41,7 @@ function collisions(rows: readonly Pick<CoinRow, 'id' | 'binance' | 'bybit'>[]) 
 }
 
 test('U1. no two rows share an id, a Binance symbol or a Bybit symbol', () => {
-  assert.equal(COIN_UNIVERSE.length, 692, 'the universe size changed - update the PR counts deliberately, do not let it drift');
+  assert.equal(COIN_UNIVERSE.length, 698, 'the universe size changed - update the PR counts deliberately, do not let it drift');
   assert.deepEqual(collisions(COIN_UNIVERSE), { id: [], binance: [], bybit: [] });
 });
 
@@ -76,7 +76,6 @@ test('U4. every kind is one of six, TradFi rows are on Binance and never a 1000x
     assert.equal(r.binanceMult, 1, `${r.id}: a TradFi row carries a Binance denomination factor (1000x quote)`);
   }
   for (const r of tagged.filter(x => x.id !== 'xau' && x.id !== 'on')) {
-    assert.ok(!/^hk\d/i.test(r.id), `${r.id}: a held HKD-quoted listing is in the universe`);
     assert.ok(r.binance, `${r.id}: a TradFi row needs Binance`);
     assert.ok(r.ticker && /^[A-Z][A-Z0-9]*$/.test(r.ticker), `${r.id}: ticker ${r.ticker} is not [A-Z][A-Z0-9]*`);
   }
@@ -87,9 +86,10 @@ test('U4. every kind is one of six, TradFi rows are on Binance and never a 1000x
      Bybit's own type (`on` stock, `xau` commodity), so 231 - 2 = 229. 'asset' is the neutral kind for a
      Bybit twin that is neither an equity nor a fund (never a guess at 'stock'). */
   assert.deepEqual({ stock: by('stock'), etf: by('etf'), commodity: by('commodity'), fx: by('fx'), preipo: by('preipo'), asset: by('asset') },
-    { stock: 175, etf: 41, commodity: 8, fx: 1, preipo: 2, asset: 4 });
-  assert.equal(tagged.length - 2, 229, '229 new TradFi rows (692 - 463)');
-  assert.equal(COIN_UNIVERSE.length - 463, 229);
+    { stock: 175, etf: 41, commodity: 8, fx: 1, preipo: 4, asset: 8 });
+  /* 698 = 463 crypto + 235 new: the 229 above plus the six that were held and are shown again (owner, 2026-11-13). */
+  assert.equal(tagged.length - 2, 235, '235 new TradFi rows (698 - 463)');
+  assert.equal(COIN_UNIVERSE.length - 463, 235);
 });
 
 test('U5. the crypto-pipeline rows Bybit says are not crypto are tagged from Bybit, and are single-venue', () => {
@@ -125,24 +125,79 @@ test('S1. source pins: the generator hard-stops on a collision, an empty TradFi 
   assert.ok(/ARENA_TRADFI_NOTE_PREIPO/.test(arena) && /preipo/.test(arena), 'the Arena no longer chooses the pre-IPO note by kind');
 });
 
-test('H1. ANTHROPIC and OPENAI are HELD OUT with a printed reason, and MOONSHOT and OURA stay (PM, 2026-11-12)', () => {
-  const ids = new Set(COIN_UNIVERSE.map(r => r.id));
-  for (const held of ['anthropic', 'openai']) assert.equal(ids.has(held), false, `${held} is in the universe - its price definition is unconfirmed (Binance and OKX disagree 10-13x)`);
+test('H1. the six rows once held are SHOWN, each carrying a caveat, and no other row carries one (owner, 2026-11-13)', () => {
+  const want: Record<string, { caveat: 'hkd' | 'disputed'; kind: string }> = {
+    anthropic: { caveat: 'disputed', kind: 'preipo' }, openai: { caveat: 'disputed', kind: 'preipo' },
+    hk0700: { caveat: 'hkd', kind: 'asset' }, hk1810: { caveat: 'hkd', kind: 'asset' },
+    hk0992: { caveat: 'hkd', kind: 'asset' }, hk0625: { caveat: 'hkd', kind: 'asset' },
+  };
+  for (const [id, w] of Object.entries(want)) {
+    const r = COIN_UNIVERSE.find(x => x.id === id);
+    assert.ok(r, `${id} is missing from the universe - the owner decided to show it`);
+    assert.equal(r!.caveat, w.caveat, `${id} must carry caveat '${w.caveat}'`);
+    assert.equal(r!.kind, w.kind, `${id} should be kind ${w.kind}`);
+  }
+  const withCaveat = COIN_UNIVERSE.filter(r => r.caveat).map(r => r.id).sort();
+  assert.deepEqual(withCaveat, Object.keys(want).sort(), 'a caveat is on a row that is not one of the six (or one of the six lost it)');
   for (const stay of ['moonshot', 'oura']) {
     const r = COIN_UNIVERSE.find(x => x.id === stay);
-    assert.ok(r, `${stay} was dropped - only ANTHROPIC and OPENAI are held`);
-    assert.equal(r!.kind, 'preipo', `${stay} should still be a pre-IPO reference`);
+    assert.ok(r, `${stay} was dropped`);
+    assert.equal(r!.caveat, undefined, `${stay} agrees with OKX within 0.5% and must carry no caveat`);
   }
-  assert.equal(COIN_UNIVERSE.filter(r => r.kind === 'preipo').length, 2, 'the pre-IPO set is now exactly MOONSHOT and OURA');
+  assert.equal(COIN_UNIVERSE.filter(r => r.kind === 'preipo').length, 4, 'pre-IPO set: MOONSHOT, OURA, ANTHROPIC, OPENAI');
   const gen = read('scripts/generate-coins.mjs');
-  for (const b of ['ANTHROPIC', 'OPENAI']) {
-    assert.ok(gen.includes(`['${b}', { why: '`), `${b} is no longer in TRADFI_HOLD with a reason`);
+  for (const b of ['ANTHROPIC', 'OPENAI']) assert.ok(gen.includes(`['${b}', { caveat: 'disputed'`), `${b} is no longer in TRADFI_CAVEAT as disputed`);
+  for (const b of ['HK0700', 'HK1810', 'HK0992', 'HK0625']) assert.ok(gen.includes(`['${b}', { caveat: 'hkd'`), `${b} is no longer in TRADFI_CAVEAT as hkd`);
+  const live = gen.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert.ok(!live.includes('TRADFI_HOLD'), 'TRADFI_HOLD is still referenced in live code - the rows would be dropped again');
+  assert.ok(gen.includes('CAVEAT rows, shown with a warning (${tradfiCaveat.length})'), 'the generator no longer prints the caveat list');
+  assert.ok(gen.includes('Binance ${mine} vs OKX ${o} = x'), 'the OKX disagreement is no longer printed for a disputed row - the warning would be unauditable');
+  assert.ok(gen.includes('x${(mine / ref).toFixed(2)} vs ${cav.versus}'), 'the HKD ratio against the USD-quoted twin is no longer printed');
+});
+
+test('H2. the warning copy: HKD says HK$ and not US dollars, disputed says rough reference; keys registered; the Arena shows by caveat', () => {
+  const EN = JSON.parse(read('lib/labelDefaults.en.json')) as Record<string, string>;
+  const KEYS = read('lib/labelKeys.ts');
+  for (const k of ['ARENA_CAVEAT_HKD', 'ARENA_CAVEAT_DISPUTED']) {
+    assert.ok(KEYS.includes(`'${k}'`), `${k} is not a registered label key`);
+    assert.ok(typeof EN[k] === 'string' && EN[k].length > 0, `${k} has no English default`);
   }
-  assert.ok(/HELD OUT \(\$\{tradfiHeld\.length\}\)/.test(gen), 'the generator no longer prints the held-out list with its reasons');
-  assert.ok(/Binance \$\{mine\} vs OKX \$\{o\} = x/.test(gen), 'the OKX disagreement is no longer printed for a held row - the reason would be unauditable');
+  assert.ok(EN.ARENA_CAVEAT_HKD.includes('HK$'), 'the HKD warning must name HK$');
+  assert.match(EN.ARENA_CAVEAT_HKD, /not US dollars/i, 'the HKD warning must say it is not US dollars');
+  assert.match(EN.ARENA_CAVEAT_DISPUTED, /exchanges disagree/i);
+  assert.match(EN.ARENA_CAVEAT_DISPUTED, /rough reference/i);
+  assert.doesNotMatch(EN.ARENA_CAVEAT_HKD + EN.ARENA_CAVEAT_DISPUTED, /grok|xai|claude|gpt/i, 'a warning names an AI vendor (the UI says "AI")');
+  const arena = read('app/(main)/arena/page.tsx');
+  assert.ok(arena.includes('coinCaveat(selectedCoin)') && arena.includes('ARENA_CAVEAT_HKD') && arena.includes('ARENA_CAVEAT_DISPUTED'), 'the Arena no longer shows a warning by caveat');
+});
+
+test('H3. currencyPrefix is HK$ for the four hkd rows and $ for everything else, including a disputed row', async () => {
+  const { currencyPrefix, coinCaveat } = await import('../lib/coins.ts');
+  for (const id of ['hk0700', 'hk1810', 'hk0992', 'hk0625']) assert.equal(currencyPrefix(id as never), 'HK$', `${id} must print HK$`);
+  for (const id of ['btc', 'nvda', 'anthropic', 'openai', 'moonshot']) assert.equal(currencyPrefix(id as never), '$', `${id} must print a plain $`);
+  assert.equal(coinCaveat('hk0700' as never), 'hkd');
+  assert.equal(coinCaveat('anthropic' as never), 'disputed');
+  assert.equal(coinCaveat('btc' as never), undefined);
+});
+
+test('H4. the files that print a selected coin\'s price write no literal "$" straight before a formatted price, except the three known AI-prompt lines', () => {
+  /* A SOURCE SCAN, so a site Dev missed shows up before a browser finds it on an HK row.
+     THE THREE ALLOWED LINES are in the Arena's `marketStructure` field ("Last: ... @ $x", "SH $x", "SL $x"), which is text for the
+     AI READ. The AI read is not offered for any TradFi row (#2182), so an HK row never reaches it. They are pinned by COUNT, not
+     skipped: a fourth literal "$" in the Arena page, or one in any other file, fails here. If the AI read is ever offered for these
+     rows, those three become defects and this count goes to 0. */
+  const BAD = /\$\$\{\s*(?:fmt|fmtPx|fmtPrice)\(/g;
+  const count = (file: string) =>
+    (read(file).split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n').match(BAD) ?? []).length;
+  assert.equal(count('app/(main)/arena/page.tsx'), 3, 'the Arena page has a different number of literal-$ formatted prices than the three AI-prompt lines');
+  /* KLineProChart.tsx WAS A KNOWN MISS (the price-alert marker's hover title, "Alert: above $x", line 3352) pinned at 1; Dev routed
+     it through currencyPrefix on #2196 head eca4eb8c, so all four files are pinned at 0 now. */
+  for (const file of ['components/KLineProChart.tsx', 'lib/useEMAStrategy.ts', 'components/EMASignal.tsx']) {
+    assert.equal(count(file), 0, `${file} writes a literal $ before a formatted price - it must go through currencyPrefix`);
+  }
 });
 
 test('A1. the neutral `asset` kind: exactly the four Bybit twins that are neither stock nor fund, and none is guessed as a stock', () => {
-  assert.deepEqual(COIN_UNIVERSE.filter(r => r.kind === 'asset').map(r => r.id).sort(), ['dis', 'frhc', 'payp', 'strc']);
+  assert.deepEqual(COIN_UNIVERSE.filter(r => r.kind === 'asset').map(r => r.id).sort(), ['dis', 'frhc', 'hk0625', 'hk0700', 'hk0992', 'hk1810', 'payp', 'strc']);
   assert.ok(/stock', 'asset', 'preipo'/.test(read('lib/coins.ts')), 'the Stocks tab no longer includes the asset kind');
 });

@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS, venueSymbols } from '@/lib/marketStore';
+import { currencyPrefix } from '@/lib/coins';
 import { symbolDenominationFactor } from '@/lib/coins';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -255,7 +256,7 @@ export default function MarketStructure({ coin, onData }: Props) {
                     {le.type} <span className="ms-dir-glyph" aria-hidden="true">{le.dir === 'bullish' ? '▲' : '▼'}</span>
                   </span>
           </span>
-          <span className="ms-ev-price">${fmtP(le.price)}</span>
+          <span className="ms-ev-price">{currencyPrefix(coin)}{fmtP(le.price)}</span>
           <span className="ms-ev-ago">{fmtAge(le.candlesAgo)}</span>
           {le.type === 'CHoCH' && (
             <span style={{ fontSize: 'var(--fs-caption)', color: evCol(le), fontWeight: 700, marginLeft: 4 }}>{t('MARKET_STRUCTURE_FLIP_TAG')}</span>
@@ -268,13 +269,13 @@ export default function MarketStructure({ coin, onData }: Props) {
         {d.lastSwingHigh != null && (
           <div className="ms-level">
             <span className="ms-level-lbl">{t('MARKET_STRUCTURE_SWING_HIGH_LABEL')}</span>
-            <span className="ms-level-val" style={{ color: 'var(--red)' }}>${fmtP(d.lastSwingHigh)}</span>
+            <span className="ms-level-val" style={{ color: 'var(--red)' }}>{currencyPrefix(coin)}{fmtP(d.lastSwingHigh)}</span>
           </div>
         )}
         {d.lastSwingLow != null && (
           <div className="ms-level">
             <span className="ms-level-lbl">{t('MARKET_STRUCTURE_SWING_LOW_LABEL')}</span>
-            <span className="ms-level-val" style={{ color: 'var(--green-2)' }}>${fmtP(d.lastSwingLow)}</span>
+            <span className="ms-level-val" style={{ color: 'var(--green-2)' }}>{currencyPrefix(coin)}{fmtP(d.lastSwingLow)}</span>
           </div>
         )}
       </div>
@@ -289,7 +290,7 @@ export default function MarketStructure({ coin, onData }: Props) {
                     {ev.type} <span className="ms-dir-glyph" aria-hidden="true">{ev.dir === 'bullish' ? '▲' : '▼'}</span>
                   </span>
               </span>
-              <span className="ms-hist-price">${fmtP(ev.price)}</span>
+              <span className="ms-hist-price">{currencyPrefix(coin)}{fmtP(ev.price)}</span>
               <span className="ms-hist-ago">{fmtAge(ev.candlesAgo)}</span>
             </div>
           ))}
