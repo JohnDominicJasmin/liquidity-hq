@@ -190,20 +190,12 @@ test('H4. the files that print a selected coin\'s price write no literal "$" str
   const count = (file: string) =>
     (read(file).split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n').match(BAD) ?? []).length;
   assert.equal(count('app/(main)/arena/page.tsx'), 3, 'the Arena page has a different number of literal-$ formatted prices than the three AI-prompt lines');
-  /* KLineProChart.tsx:3352 is a KNOWN MISS, pinned at 1 so a SECOND one fails here: the price-alert marker's hover title
-     ("Alert: above $x") prints a bare $ on an HK row. H4b below states the clean target and is `todo` until Dev fixes it. */
-  assert.equal(count('components/KLineProChart.tsx'), 1, 'KLineProChart.tsx has a different number of literal-$ formatted prices than the one known alert-title miss');
-  for (const file of ['lib/useEMAStrategy.ts', 'components/EMASignal.tsx']) {
+  /* KLineProChart.tsx WAS A KNOWN MISS (the price-alert marker's hover title, "Alert: above $x", line 3352) pinned at 1; Dev routed
+     it through currencyPrefix on #2196 head eca4eb8c, so all four files are pinned at 0 now. */
+  for (const file of ['components/KLineProChart.tsx', 'lib/useEMAStrategy.ts', 'components/EMASignal.tsx']) {
     assert.equal(count(file), 0, `${file} writes a literal $ before a formatted price - it must go through currencyPrefix`);
   }
 });
-
-test('H4b. TARGET: no file writes a literal $ before a formatted price except the three AI-prompt lines', { todo: 'Dev: KLineProChart.tsx:3352 - the price-alert marker title prints a bare $ on an HK row' }, () => {
-  const BAD = /\$\$\{\s*(?:fmt|fmtPx|fmtPrice)\(/g;
-  const src = read('components/KLineProChart.tsx').split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
-  assert.equal((src.match(BAD) ?? []).length, 0, 'KLineProChart.tsx still writes a literal $ before a formatted price');
-});
-
 
 test('A1. the neutral `asset` kind: exactly the four Bybit twins that are neither stock nor fund, and none is guessed as a stock', () => {
   assert.deepEqual(COIN_UNIVERSE.filter(r => r.kind === 'asset').map(r => r.id).sort(), ['dis', 'frhc', 'hk0625', 'hk0700', 'hk0992', 'hk1810', 'payp', 'strc']);
