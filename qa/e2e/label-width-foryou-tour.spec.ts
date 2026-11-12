@@ -149,10 +149,10 @@ test.describe('§7 phone-width: the two new label keys (#2203)', () => {
         const log = (m: string) => console.log(`[label-width] tour ${width}px: ${m}`);
         const next = () => page.locator('button.obw-btn-next');
         log('wizard step 1: name'); await page.getByPlaceholder('e.g. trader_dom').fill('QA Width', T);
-        log('country picker'); await page.locator('button[aria-expanded]').first().click(T);
+        log('country picker'); await page.locator('.obw-root button[aria-expanded]').first().click(T);
         await page.getByPlaceholder('Search country…').fill('Phil', T);
-        await page.locator('button').filter({ hasText: /philippines/i }).first().click(T);
-        log('account range'); await page.locator('button').filter({ hasText: '$1k - $5k' }).first().click(T);
+        await page.locator('.obw-root button').filter({ hasText: /philippines/i }).first().click(T);
+        log('account range'); await page.locator('.obw-root button').filter({ hasText: '$1k - $5k' }).first().click(T);
         log('next'); await next().click(T);
         for (let i = 0; i < 4; i += 1) {
           log(`wizard step ${i + 2}`);
