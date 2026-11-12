@@ -221,6 +221,17 @@ test.describe('a /briefing coin row opens Arena on that coin, not on the saved d
          own href and not against a coin chosen by this test. A row whose coin equals STUB_COIN
          would pass no matter which branch won, so those are excluded. */
       const rows = page.locator('a[href^="/arena?coin="]');
+      /* WHICH STATE IS THE PAGE IN when no row shows? Gate 43264183678 and chip run 43284494769 both failed here with no rows.
+         "All quiet" means the briefing computed ZERO setups from the stubbed market (a data condition of this harness, not
+         a defect in the row link); "Loading" means it never finished; anything else is printed. Logged either way. */
+      await rows.first().waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
+      {
+        const t = await page.evaluate(() => document.body.innerText);
+        const state = /All quiet - no extreme signals/i.test(t) ? 'ALL-QUIET (zero setups from the stubbed data)'
+          : /Loading market data/i.test(t) ? 'STILL-LOADING'
+          : `OTHER: ${JSON.stringify(t.replace(/\s+/g, ' ').slice(0, 240))}`;
+        console.log(`[briefing-row] rows=${await rows.count()} state=${state}`);
+      }
       await expect(rows.first(), 'no /briefing coin rows rendered, so there is nothing to click').toBeVisible({ timeout: 60_000 });
       const hrefs = await rows.evaluateAll((els) =>
         els.map((el) => (el as HTMLAnchorElement).getAttribute('href') ?? ''));
