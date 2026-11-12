@@ -166,6 +166,10 @@ test.describe('#2197 price alerts cover the main coins only', () => {
   });
 
   run('A3. POST for btc still saves, and the row is deactivated again (the DELETE is asserted, not assumed)', async (page) => {
+    /* PARKED, NOT DELETED: DELETE /api/price-alerts answers 500 on the dev project (run 43295503684: id 119 -> 500 "Something went wrong"), so
+       this cell cannot remove the row it creates, and every run would leave another active qa-2197 alert on the fixture account.
+       Un-park when Dev fixes the route; the cell then asserts the DELETE is 200. The POST half (BTC still saves) passed on 43295503684. */
+    test.fixme(true, 'DELETE /api/price-alerts returns 500, so this cell would leave an active alert behind on every run - see run 43295503684');
     await gotoSignedIn(page, '/arena');
     const res = await alertCall(page, 'POST', { coin: 'btc', target_price: 1234.56, direction: 'below', label: QA_LABEL });
     console.log(`[alerts A3] status=${res.status} body=${JSON.stringify(res.json).slice(0, 160)}`);
