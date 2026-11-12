@@ -12,8 +12,8 @@
  * THE LINE:  [deep502] {"evt":"deep502","route":…,"kind":…,"upstream":…,"upstreamStatus":…,"coin":…,"ms":…}
  * FIXED FIELD SET, NO FREE TEXT. Every value is clamped here, not trusted from the caller: `route` and `kind` are closed
  * unions, `upstream` and `coin` are cut to a safe character set and length, `upstreamStatus` is an integer or null, `ms` is
- * a non-negative integer. No user id, email, token, request body, prompt or model text can reach it because there is no
- * field to carry one. `coin` is a public market symbol or coin id. `ms` is time since the handler started. */
+ * a non-negative integer. No user id, email, token, request body, prompt or model text can reach it: there is no field to carry
+ * one, and `upstream` and `coin` must be the SHAPE of a source name or a market symbol or they are written as 'unknown'. `coin` is a public market symbol or coin id. `ms` is time since the handler started. */
 export type Deep502Route = '/api/market/klines' | '/api/grok';
 export type Deep502Kind = 'klines-upstream' | 'grok-empty' | 'grok-unreadable' | 'grok-strict-refused';
 
@@ -26,8 +26,17 @@ export interface Deep502Fields {
   ms: number;
 }
 
-const clamp = (v: unknown, max: number): string =>
-  String(v ?? 'unknown').replace(/[^A-Za-z0-9_.:-]/g, '').slice(0, max) || 'unknown';
+/* A SHAPE, NOT A CHARACTER SET (QA, #2219 L3e). The first version stripped everything outside [A-Za-z0-9_.:-] and cut the rest to a length,
+   but a UUID or a base64url token is made of exactly those characters, so a caller that ever passed a user id or a token as `coin` or
+   `upstream` would have got its first 24 or 16 characters into the line. A value that is not the shape of a market symbol or a source name
+   now becomes 'unknown' whole, instead of being trimmed into something that still looks like data. Today's callers pass a coin id or symbol
+   (`btc`, `BTCUSDT`, `1000PEPEUSDT`, one hyphen allowed for BTC-USDT style) and a source name (`binance`, `binance-futures`, `bybit`, `hyperliquid`, `xai`), all of which fit. */
+const SAFE_COIN = /^[A-Za-z0-9]{1,20}(-[A-Za-z0-9]{1,12})?$/;
+const SAFE_UPSTREAM = /^[a-z]{1,12}(-[a-z]{1,12})?$/;
+const pick = (v: unknown, shape: RegExp): string => {
+  const s = typeof v === 'string' ? v : '';
+  return shape.test(s) ? s : 'unknown';
+};
 
 export function deep502Line(f: Deep502Fields): string {
   const status = typeof f.upstreamStatus === 'number' && Number.isFinite(f.upstreamStatus) ? Math.trunc(f.upstreamStatus) : null;
@@ -36,9 +45,9 @@ export function deep502Line(f: Deep502Fields): string {
     evt: 'deep502',
     route: f.route,
     kind: f.kind,
-    upstream: clamp(f.upstream, 16),
+    upstream: pick(f.upstream, SAFE_UPSTREAM),
     upstreamStatus: status,
-    coin: clamp(f.coin, 24),
+    coin: pick(f.coin, SAFE_COIN),
     ms,
   });
 }
