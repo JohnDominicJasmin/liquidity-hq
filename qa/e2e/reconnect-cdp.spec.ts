@@ -44,9 +44,16 @@ test.describe('chart reconnects after a socket drop', () => {
     /* An array, not a Set: the read-only guard (qa/prod-readonly.ts) treats any `.delete(` as a write verb,
        and this spec is on the production-readonly allowlist - it only drives a routed socket. */
     const live: Array<{ close: (o?: { code?: number }) => void }> = [];
-    await context.routeWebSocket(/stream\.binance\.com|fstream\.binance\.com/, (ws) => {
+    /* BOTH VENUES. The probe on run 43247177035 showed the page's live sockets are Supabase realtime and
+       BYBIT (wss://stream.bybit.com/v5/public/linear) - which opens for real from a runner - while the
+       Binance sockets produced no page-side event at all. A route covering only Binance therefore
+       killed nothing the page was using ("the drop did not reach the page"). Route Bybit too. A Bybit
+       socket is held open and silent: the claim here is that every dropped socket REOPENS, not what it
+       carries, and the Binance branch below still serves generated frames. */
+    await context.routeWebSocket(/stream\.binance\.com|fstream\.binance\.com|stream\.bybit\.com/, (ws) => {
       if (blocked) { void ws.close({ code: 1006 }); return; }
       live.push(ws);
+      if (/bybit/.test(ws.url())) { ws.onClose(() => { const at = live.indexOf(ws); if (at >= 0) live.splice(at, 1); }); return; }
       const streams = (() => { try { return new URL(ws.url()).searchParams.get('streams') ?? ''; } catch { return ''; } })();
       const syms = streams.split('/').filter(x => x.includes('@ticker')).map(x => x.split('@')[0].toUpperCase());
       const emit = () => { for (const sym of (syms.length ? syms : ['BTCUSDT'])) { try { ws.send(synthCombinedFrame(sym)); } catch { /* closed */ } } };
