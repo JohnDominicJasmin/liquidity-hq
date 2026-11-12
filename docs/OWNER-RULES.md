@@ -519,7 +519,47 @@ the scope rule above) — which keeps it out of his inbox without quietly re-del
 **The priority is getting users and revenue before the end of 2026.** Rank work by acquisition,
 then conversion, then retention. Anything else waits.
 
-## 17. CI RUNS ONCE, ON THE RELEASE. NOT ON EVERY CHANGE.
+## 17. CI RUNS WHEN DISPATCHED OR ON THE RELEASE — NEVER AUTOMATICALLY. (Amended 2026-11-12.)
+
+### The amendment, 2026-11-12, first-hand to PM. This section was CI-once until then.
+
+The owner changed the rule himself:
+
+> *"All pendings and backlogs must be finished before shipping."*
+> *"This small task put it in a group where it's related to each other. And run testing into it... for
+> arena page... put it in one group, run a test, in CI, the actions in GitHub, before going to staging."*
+
+He then chose, from clickable options: per-group runs; scope = the launch list plus every fix found
+(exchange-data rights, cross-browser and testimonials stay parked); five groups; **QA's browser tests
+move to GitHub runners** (the laptop sat at 0.8-3.4 GB free all day with his browser open, and QA's
+runs were killed five times); and the 22 old public test-report artifacts deleted.
+
+**The rule now:**
+
+- **Work moves in five groups:** Arena; Landing + onboarding; News + alerts; AI; Payments. Everything
+  new merges into `dev` **one group at a time**, in that order after group 2, which is the owner's
+  priority. Then `dev` → `qa`, QA tests the group, **PM dispatches `ci.yml` with `e2e: true` on the
+  `qa` head**, and on green QA promotes `qa` → `staging`. The 146 commits already on `qa` on 11-12 were
+  interleaved, so they get group-labelled runs, not group-cut promotions (#1413, comment 6819136198).
+- **Nothing goes to production until everything in scope is in `staging`**, tested, audited, with
+  nothing left to fix. Then one final run on the `staging` → `main` release PR. **PM does not ask the
+  owner "ship today?"**. The production go is asked for once, at that point.
+- **QA's browser tests run on GitHub's runners**, dispatched with the `spec` input against the
+  deployed `qa` site (`base_url`), with a `concurrency` group for fixture-using runs. **The laptop is
+  not used for browser tests.**
+- **Pre-merge `verify` may be a dispatched `e2e: false` run** while the laptop is busy, with the run
+  id posted on the PR as "verify via dispatched CI, not local".
+- **Still no `push:` or feature-PR triggers.** CI is free on a public repo with standard runners, but
+  automatic triggers are how the November bill happened. Anything that spends his money still goes to
+  him first.
+- **Artifacts are public** (any GitHub user can download them from a public repo). The release gate's
+  report keeps **3 days**, screenshots mask the account email, and ad-hoc screenshot artifacts are
+  deleted after download.
+
+**Everything below is the 2026-11-10 history that produced the original rule. It's kept because its
+reasons still apply.** Where it says "once" or "locally", the amendment above replaces it.
+
+### The original rule, 2026-11-10
 
 Owner, 2026-11-10, furious, after the GitHub Actions budget stopped every run on day 10 of November:
 
@@ -567,14 +607,14 @@ a PR or a file.** The only other key-shaped string in history is the Standard We
 vector in `lib/whop.ts`, which is harmless. GitHub secret scanning and push protection were switched
 on the same hour, so a key pushed from now on is refused before it lands.
 
-**THE RULE STANDS EVEN THOUGH CI IS NOW FREE.** A public repo pays nothing for standard runners, so
-the $22 reason no longer produces a bill. The rule is not up for re-deciding on cost grounds: the
-owner's reasons were also time and focus (*"a waste of time, waste of resources"*), and he gave it as
-an instruction, not as a budget fix. Changing it goes to him.
+**THE RULE STOOD EVEN THOUGH CI WAS NOW FREE, until he changed it himself on 2026-11-12** (see the
+amendment at the top). A public repo pays nothing for standard runners, so the $22 reason no longer
+produced a bill. The rule was not up for re-deciding on cost grounds, because the owner's reasons were
+also time and focus (*"a waste of time, waste of resources"*). **Changing it went to him, and he did.**
 
-**What this rule leaves as the only path to any automated test:** someone opening the release PR by
-hand (`RELEASE_PR_PAUSED` is still `1`). **Zero workflow runs between releases is the rule working,
-not an outage.** That mis-diagnosis has been made twice here.
+**Automated test runs happen only when someone dispatches them** (per-group runs, QA's `spec` runs,
+dispatched verify) **or when the release PR is opened by hand** (`RELEASE_PR_PAUSED` is still `1`).
+**No run on a push is the rule working, not an outage.** That mis-diagnosis has been made twice here.
 
 **The mobile browser leg cannot fail the gate.** `continue-on-error` is set for `mobile`, and
 `gate` only asserts `e2e == success`, so a red mobile leg still passes. Kept on purpose, because the
