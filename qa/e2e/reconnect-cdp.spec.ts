@@ -72,6 +72,7 @@ test.describe('chart reconnects after a socket drop', () => {
       'The route pattern no longer matches what MarketProvider opens - a harness break, not a finding about reconnection.').toBeGreaterThan(0);
 
     /* THE DROP: kill every live socket with 1006 and refuse new ones for the outage window. */
+    console.log('[reconnect-cdp] before the drop: routed live sockets=' + live.length + ' [' + live.map(w => { try { return new URL((w as unknown as { url(): string }).url()).host; } catch { return '?'; } }).join(', ') + '] page opens=' + JSON.stringify(before.filter(e => e.kind === 'open').map(e => { try { return new URL(e.url).host; } catch { return e.url; } })));
     blocked = true;
     const killedAt = Date.now();
     for (const ws of [...live]) { try { ws.close({ code: 1006 }); } catch { /* already gone */ } }
@@ -79,6 +80,7 @@ test.describe('chart reconnects after a socket drop', () => {
 
     const during = await read();
     const closes = during.filter(e => e.kind === 'close' && e.t >= killedAt - 1000);
+    console.log('[reconnect-cdp] after the kill: page closes=' + JSON.stringify(during.filter(e => e.kind === 'close').map(e => { try { return new URL(e.url).host + ':' + e.code; } catch { return e.url; } })) + ' routed live now=' + live.length);
     expect(closes.length, 'the drop did not reach the page: no socket close was observed during the outage').toBeGreaterThan(0);
 
     /* Outage lifts. */
