@@ -230,7 +230,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   const { t }                       = useLabels();
   const { user }                    = useAuth();
   const { state, loaded, markDone } = useOnboarding();
-  const { update }                  = useSettings();
+  const { saveNow }                 = useSettings();
 
   const [step,        setStep]       = useState(0);
   const [saving,      setSaving]     = useState(false);
@@ -341,18 +341,31 @@ export default function OnboardingFlow({ onStartTour }: Props) {
     const acctMap: Record<Acct, number> = {
       '1k5k': 2500, '5k25k': 10000, '25k100k': 50000, '100kplus': 150000,
     };
-    update({
-      beginner_mode:      beginner,
-      display_name:       displayName || null,
-      country:            country     || null,
-      trading_experience: exp         ?? null,
-      trading_style:      tradeStyle  ?? null,
-      trading_challenge:  challenge   ?? null,
-      how_heard:          heard       ?? null,
-      ...(acct       ? { account_size: acctMap[acct]      } : {}),
-      ...(tradeStyle ? { default_tf:   tfMap[tradeStyle]  } : {}),
-    });
+    /* THE ANSWERS ARE SAVED FIRST, AND THE PROFILE IS MARKED COMPLETE ONLY IF THAT SUCCEEDED (#1113, QA).
+       This used to call `update()`, which returns at once and saves 800ms later, and then wrote `profile_complete: true` straight away.
+       So a failed settings save left the account marked done with every answer missing: the wizard never came back and the answers
+       were gone, with nothing said. `saveNow` waits for the save to land. If it fails, nothing is marked complete, the wizard stays on
+       this step with the "Couldn't save your answers" line, and pressing the button again re-sends the same answers. */
     const sb = getSupabase();
+    if (sb && user) {
+      const saved = await saveNow({
+        beginner_mode:      beginner,
+        display_name:       displayName || null,
+        country:            country     || null,
+        trading_experience: exp         ?? null,
+        trading_style:      tradeStyle  ?? null,
+        trading_challenge:  challenge   ?? null,
+        how_heard:          heard       ?? null,
+        ...(acct       ? { account_size: acctMap[acct]      } : {}),
+        ...(tradeStyle ? { default_tf:   tfMap[tradeStyle]  } : {}),
+      });
+      if (!saved) {
+        console.error('[onboarding] settings save failed, profile not marked complete');
+        setSaveError(true);
+        setSaving(false);
+        return;
+      }
+    }
     if (sb && user) {
       try {
         const { error } = await sb.from(T.user_onboarding).upsert(
