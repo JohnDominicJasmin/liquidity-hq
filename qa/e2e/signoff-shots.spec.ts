@@ -11,7 +11,7 @@
  * WHAT IT CANNOT PROVE: layout correctness. It produces images; PM judges them. Where a state cannot
  * be forced deterministically (the landing "N of 3 signals" partial), the spec logs what the Setup
  * row actually said instead of claiming the state. */
-import { test, type Page } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
@@ -82,6 +82,16 @@ test.describe('sign-off shots', () => {
       await p.waitForTimeout(6_000);
       const clicked = await tf(p, label);
       console.log(`[chart ${label}] timeframe button found and clicked: ${clicked}`);
+      expect(clicked, `the ${label} timeframe button was not found, so nothing below was measured`).toBe(true);
+      /* The ceiling note and the disabled run buttons (PM, 2026-11-12). Signals, the AI read and Draw
+         Structure cover up to 1D; above it the chart is context only. Three claims: the note is
+         visible, it says so, and Quick and Deep cannot be run (title "Covers up to the 1D chart ...",
+         arena/page.tsx:218). */
+      const note = p.getByTestId('signal-above-ceiling').first();
+      await expect(note, `the above-1D note (data-testid=signal-above-ceiling) is not visible on ${label}`).toBeVisible({ timeout: 15_000 });
+      await expect(note, 'the note should say the features cover up to the 1D chart').toContainText(/cover up to the 1D chart/i);
+      await expect(p.locator('button.arena-quick-btn').first(), `Quick must be disabled on ${label}`).toBeDisabled();
+      await expect(p.getByRole('button', { name: /Deep Research/i }).first(), `Deep must be disabled on ${label}`).toBeDisabled();
       await shot(p, `chart-${label.toLowerCase()}`);
       await ctx.close();
     });
