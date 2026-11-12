@@ -83,11 +83,14 @@ test('numeric defaults sit inside their own min/max', () => {
   }
 });
 
-test('free gets one indicator and pro gets three', () => {
+test('free gets one indicator and pro/trial is unlimited', () => {
   assert.equal(indicatorLimit(false), 1);
-  assert.equal(indicatorLimit(true), 3);
+  /* Infinity, not 3, as of the Strategy-panel redesign (owner-approved; PM ruling 2026-11-12).
+     `Infinity` is the honest encoding of "no cap": `used >= Infinity` is always false, so an
+     entitled account is never at the limit, and there is no stale `3` left to drift. */
+  assert.equal(indicatorLimit(true), Infinity);
   assert.equal(LIMITS.free, 1);
-  assert.equal(LIMITS.pro, 3);
+  assert.equal(LIMITS.pro, Infinity);
 });
 
 test('"Let the read choose" is first, is empty, and Custom is last', () => {
