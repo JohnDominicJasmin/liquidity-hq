@@ -51,6 +51,18 @@ test.describe('#2196 shown TradFi rows carry their warning and the right currenc
     for (const n of new Set(hk)) {
       expect(new RegExp(`(?<!HK)\\$\\s?${esc(n)}`).test(text), `the figure ${n} is printed with HK$ AND with a bare $ - a surface skipped currencyPrefix`).toBe(false);
     }
+
+    /* PM's STRICT RULE (2026-11-13): no "$" directly before a digit on the HK0700 view - EMA card, Market Structure,
+       Stop Loss Zone, scanner row, chart header. The only matches allowed are notional amounts with a magnitude suffix
+       ("$1.2B", "$350M"), which Dev left in USD on purpose; a PRICE never carries one. The panels are checked present
+       first, so a missing panel cannot make the scan pass by seeing nothing. */
+    const panels = { ema: /EMA/i.test(text), marketStructure: /market structure/i.test(text), stopLoss: /stop loss/i.test(text), scanner: /HK0700/i.test(text) };
+    console.log(`[tradfi T1] panels present=${JSON.stringify(panels)}`);
+    expect(panels.ema && panels.scanner, `the scan saw too little of the page to mean anything: ${JSON.stringify(panels)}`).toBe(true);
+    const offenders = [...text.matchAll(/(?<!HK)\$\s?\d[\d,]*(?:\.\d+)?\s?([KMBT]\b)?/g)]
+      .filter(m => !m[1])
+      .map(m => text.slice(Math.max(0, (m.index ?? 0) - 40), (m.index ?? 0) + m[0].length + 10).replace(/\s+/g, ' '));
+    expect(offenders, `a bare $ sits directly before a price on the HK0700 view:\n${offenders.join('\n')}`).toEqual([]);
   });
 
   run('T1b. CONTROL: NVDA shows a bare $ price, so the scan can find one', async (page) => {
