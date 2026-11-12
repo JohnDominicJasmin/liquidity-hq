@@ -18,7 +18,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { INDICATORS, LIMITS, isOverlayId, overlayStates, slottedIds, indicatorLimit } from '../lib/strategyRegistry.ts';
+import { INDICATORS, LIMITS, isOverlayId, overlayStates, slottedIds, indicatorLimit, selectableIds, SELECTABLE_INDICATOR_IDS } from '../lib/strategyRegistry.ts';
 import { appPath } from './_appPath.mts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
@@ -64,10 +64,28 @@ test('OS3. slottedIds drops exactly the overlays, so the counter and the cap nev
   assert.deepEqual(slottedIds([]), []);
 });
 
-test('OS4. the plan caps are Free 1 and Pro 3, and a chip selection of overlays alone can never fill them', () => {
-  assert.equal(LIMITS.free, 1); assert.equal(LIMITS.pro, 3);
-  assert.equal(indicatorLimit(false), 1); assert.equal(indicatorLimit(true), 3);
+test('OS4. the plan caps are Free 1 and Pro unlimited, and a chip selection of overlays alone can never fill them', () => {
+  assert.equal(LIMITS.free, 1); assert.equal(LIMITS.pro, Infinity);
+  assert.equal(indicatorLimit(false), 1); assert.equal(indicatorLimit(true), Infinity);
   assert.equal(slottedIds(['EMA_RIBBON', 'SR', 'LIQ_CLUSTERS', 'GEX']).length, 0, 'four overlays used a slot');
+});
+
+test('OS4b. RSI is a chart layer, not a selectable chip, so a stale saved RSI neither counts, labels, nor reaches the weighting branch', () => {
+  /* The Strategy-panel redesign made RSI an always-on chart layer and removed it from the selectable
+     set. The hazard is an OLD saved selection that still contains 'RSI' (and the general case, a
+     since-removed id): it must not use a slot, must not appear as a chip, and must not make an
+     otherwise-empty selection look non-empty to the read's weighting branch. `selectableIds` is the
+     filter the page applies, so this pins its behaviour from the registry side. */
+  assert.equal(SELECTABLE_INDICATOR_IDS.has('RSI'), false, 'RSI must not be offered as a selectable indicator');
+
+  // A stale RSI is dropped; the real selectable survives, order preserved.
+  assert.deepEqual(selectableIds(['RSI', 'SMA']), ['SMA'], 'a saved RSI must be filtered out, SMA kept');
+  // A selection of ONLY RSI collapses to empty - so the read sees no indicators, not one.
+  assert.deepEqual(selectableIds(['RSI']), [], 'a selection of only RSI is empty after filtering, so it never reaches the non-empty weighting branch');
+  // The general case the comment names: a since-removed / unknown id is dropped the same way.
+  assert.deepEqual(selectableIds(['RSI', 'NOT_A_REAL_ID', 'MACD']), ['MACD'], 'both a stale RSI and an unknown id are dropped');
+  // And it does not invent entries or reorder the survivors.
+  assert.deepEqual(selectableIds(['SMA', 'MACD']), ['SMA', 'MACD'], 'two real selectables pass through unchanged and in order');
 });
 
 /* ── structure ─────────────────────────────────────────────────────────────────────────────────────────── */
