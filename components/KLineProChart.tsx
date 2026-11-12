@@ -3586,7 +3586,7 @@ function fmtLiqUsd(n: number): string {
 }
 
 // ── Helper ────────────────────────────────────────────────────────────────
-function setChartSymbolPeriod(chart: KChart, coin: CoinId, tf: string) {
+function setChartSymbolPeriod(chart: KChart, coin: CoinId, tf: ChartTf) {
   /* venueSymbols, not the editorial maps: Arena offers the whole universe (#1263). */
   const { binance: bnSym, bybit: bybitSym } = venueSymbols(coin);
   chart.setSymbol({ ticker: chartDisplaySymbol(coin), shortName: chartDisplaySymbol(coin), pricePrecision: COIN_DEC[coin] ?? 2 });
