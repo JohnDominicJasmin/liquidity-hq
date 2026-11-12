@@ -133,7 +133,11 @@ test('B5. the seed marks the selection known in the same effect run that sets it
   assert.deepEqual(calls, ['setSelectionSeeded(true)'],
     'setSelectionSeeded is called somewhere other than the seed, or not at all - without it the banner can never show; with a second call it can show before the seed');
   const gate = anchorOnce(src, "if (settingsLoadStatus !== 'ready') return;\n    if (arenaInitRef.current) return;", 'the seed effect\'s ready gate');
-  const seedSel = anchorOnce(src, 'if (settings.strategy_selection) setStrategySelection(settings.strategy_selection);', 'the selection seed');
+  /* The seed now FILTERS the saved selection through selectableIds (the redesign removed RSI and
+     the overlays from the selectable set, so a stale saved id must not seed a chip that no longer
+     exists). B5's intent - that the seed happens inside the ready-gated effect, before
+     setSelectionSeeded(true) - is unchanged; only the seed call's shape moved. */
+  const seedSel = anchorOnce(src, 'if (settings.strategy_selection) setStrategySelection(selectableIds(settings.strategy_selection));', 'the selection seed filters through selectableIds');
   const seeded = src.indexOf('setSelectionSeeded(true)');
   const deps = anchorOnce(src, '}, [settingsLoadStatus, settings.default_coin, settings.default_tf, settings.strategy_selection, settings.strategy_params]);', 'the seed effect\'s deps');
   assert.ok(gate < seedSel && seedSel < seeded && seeded < deps,
