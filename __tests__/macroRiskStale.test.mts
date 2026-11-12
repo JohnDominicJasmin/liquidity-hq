@@ -149,3 +149,32 @@ test('THE CONDITION OF APPROVAL: the real yield never moves the score', () => {
       `score moved after a ${bp}bp real-yield reading`);
   }
 });
+
+/* ── #2223: the calendar's own note is not hidden by a yield or yen line (QA, econ-staleness cells) ───────────────────────────────────────────── */
+const STALE_NOTE = /Economic calendar is out of date/;
+
+test('Y1. a stale calendar with a TIGHTENING real yield still says the calendar cannot be checked, and the level stays caution', () => {
+  const r = computeMacroRisk([], null, NOW, true, ry(+14));
+  assert.equal(r.level, 'caution', 'the note must not move the level');
+  assert.ok(r.reasons.some(x => STALE_NOTE.test(x)), 'the yield line hid the stale-calendar note: ' + JSON.stringify(r.reasons));
+  assert.ok(r.reasons.some(x => /real yield/.test(x)), 'the yield line itself must still show');
+  assert.notEqual(r.unknown, true, 'unknown is the quiet-band flag and needs level none');
+});
+
+test('Y2. a stale calendar with USD/JPY at 159 still says the calendar cannot be checked, and the level stays caution', () => {
+  const r = computeMacroRisk([], 159, NOW, true);
+  assert.equal(r.level, 'caution');
+  assert.ok(r.reasons.some(x => STALE_NOTE.test(x)), JSON.stringify(r.reasons));
+  assert.ok(r.reasons.some(x => /USD.JPY 159/.test(x)));
+});
+
+test('Y3. CONTROL: a stale calendar that still found a real release gets no note (that release is the finding)', () => {
+  const r = computeMacroRisk([at(10 * 60_000)], null, NOW, true, ry(+14));
+  assert.equal(r.level, 'danger');
+  assert.ok(!r.reasons.some(x => STALE_NOTE.test(x)), JSON.stringify(r.reasons));
+});
+
+test('Y4. CONTROL: a FRESH calendar with a tightening yield says nothing about the calendar', () => {
+  const r = computeMacroRisk([], null, NOW, false, ry(+14));
+  assert.ok(!r.reasons.some(x => STALE_NOTE.test(x)), JSON.stringify(r.reasons));
+});
