@@ -250,8 +250,15 @@ function ArenaContent() {
      `COIN_DEC` and `coinLabel()` already cover the universe - the first is built from the generated
      rows, the second falls back to the uppercased id and its comment names "a URL parameter" as a
      call site - so nothing downstream needs widening with this. What a non-core coin still lacks is
-     the liquidation feed, the perp-vs-spot reading and the snapshot-derived figures, each of which
-     states its own absence after #2125 and #2131 rather than showing a wrong number. */
+     the AI READ, the liquidation feed, the perp-vs-spot reading and the snapshot-derived
+     figures. The read is named first because it is the one a deep link most likely disappoints
+     (QA on #2150): `/api/grok` refuses any coin outside `COINS` before it looks at a plan, and
+     `READABLE_COINS` (`:147`) is built from that same list, so the refusal holds FOR EVERY
+     TIER - a Pro subscriber opening `/arena?coin=cyber` now gets the chart and every panel the
+     other #1263 fixes widened, and still no read. That is COVERAGE, not entitlement, which is
+     why no plan upgrade changes it; the comment on the two sets above says the same thing from
+     the other end. Each of these absences is stated on screen after #2125 and #2131 rather
+     than showing a wrong number. */
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
     const c = searchParams.get('coin')?.toLowerCase() ?? '';
     return (UNIVERSE_COINS as string[]).includes(c) ? c as CoinId : 'btc';
