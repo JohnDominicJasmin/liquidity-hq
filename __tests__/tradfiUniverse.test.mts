@@ -28,7 +28,7 @@ import { readFileSync } from 'node:fs';
 import { COIN_UNIVERSE, type CoinRow } from '../lib/coinUniverse.generated.ts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
-const KINDS = ['stock', 'etf', 'commodity', 'fx', 'preipo'] as const;
+const KINDS = ['stock', 'etf', 'commodity', 'fx', 'preipo', 'asset'] as const;
 
 /** Every shared value is a defect: ids, Binance symbols and Bybit symbols are each a primary key. */
 function collisions(rows: readonly Pick<CoinRow, 'id' | 'binance' | 'bybit'>[]) {
@@ -41,7 +41,7 @@ function collisions(rows: readonly Pick<CoinRow, 'id' | 'binance' | 'bybit'>[]) 
 }
 
 test('U1. no two rows share an id, a Binance symbol or a Bybit symbol', () => {
-  assert.equal(COIN_UNIVERSE.length, 698, 'the universe size changed - update the PR counts deliberately, do not let it drift');
+  assert.equal(COIN_UNIVERSE.length, 692, 'the universe size changed - update the PR counts deliberately, do not let it drift');
   assert.deepEqual(collisions(COIN_UNIVERSE), { id: [], binance: [], bybit: [] });
 });
 
@@ -68,7 +68,7 @@ test('U3. a ticker that clashes with a crypto base takes <ticker>stock, keeps it
   assert.equal(cat?.bybit, 'CATSTOCKUSDT');
 });
 
-test('U4. every kind is one of five, TradFi rows are on Binance and never a 1000x quote, and the counts reconcile with the PR', () => {
+test('U4. every kind is one of six, TradFi rows are on Binance and never a 1000x quote, and the counts reconcile with the PR', () => {
   const tagged = COIN_UNIVERSE.filter(r => r.kind);
   for (const r of tagged) {
     assert.ok((KINDS as readonly string[]).includes(r.kind!), `${r.id}: unknown kind ${r.kind}`);
@@ -76,16 +76,20 @@ test('U4. every kind is one of five, TradFi rows are on Binance and never a 1000
     assert.equal(r.binanceMult, 1, `${r.id}: a TradFi row carries a Binance denomination factor (1000x quote)`);
   }
   for (const r of tagged.filter(x => x.id !== 'xau' && x.id !== 'on')) {
+    assert.ok(!/^hk\d/i.test(r.id), `${r.id}: a held HKD-quoted listing is in the universe`);
     assert.ok(r.binance, `${r.id}: a TradFi row needs Binance`);
     assert.ok(r.ticker && /^[A-Z][A-Z0-9]*$/.test(r.ticker), `${r.id}: ticker ${r.ticker} is not [A-Z][A-Z0-9]*`);
   }
   const by = (k: string) => tagged.filter(r => r.kind === k).length;
   /* 183 and 8 include the two crypto-pipeline rows retagged from Bybit's own type (U5): 182 + `on`,
      7 + `xau`. 235 new rows = 237 tagged - those two. */
-  assert.deepEqual({ stock: by('stock'), etf: by('etf'), commodity: by('commodity'), fx: by('fx'), preipo: by('preipo') },
-    { stock: 183, etf: 41, commodity: 8, fx: 1, preipo: 4 });
-  assert.equal(tagged.length - 2, 235, '235 new TradFi rows (698 - 463)');
-  assert.equal(COIN_UNIVERSE.length - 463, 235);
+  /* 692 = 463 crypto + 229 new. The 231 tagged rows include the two crypto-pipeline rows retagged from
+     Bybit's own type (`on` stock, `xau` commodity), so 231 - 2 = 229. 'asset' is the neutral kind for a
+     Bybit twin that is neither an equity nor a fund (never a guess at 'stock'). */
+  assert.deepEqual({ stock: by('stock'), etf: by('etf'), commodity: by('commodity'), fx: by('fx'), preipo: by('preipo'), asset: by('asset') },
+    { stock: 175, etf: 41, commodity: 8, fx: 1, preipo: 2, asset: 4 });
+  assert.equal(tagged.length - 2, 229, '229 new TradFi rows (692 - 463)');
+  assert.equal(COIN_UNIVERSE.length - 463, 229);
 });
 
 test('U5. the crypto-pipeline rows Bybit says are not crypto are tagged from Bybit, and are single-venue', () => {
@@ -119,4 +123,26 @@ test('S1. source pins: the generator hard-stops on a collision, an empty TradFi 
   assert.ok(hardStops >= 3, `expected at least 3 hard stops (empty set, digit base, collision), found ${hardStops}`);
   const arena = read('app/(main)/arena/page.tsx');
   assert.ok(/ARENA_TRADFI_NOTE_PREIPO/.test(arena) && /preipo/.test(arena), 'the Arena no longer chooses the pre-IPO note by kind');
+});
+
+test('H1. ANTHROPIC and OPENAI are HELD OUT with a printed reason, and MOONSHOT and OURA stay (PM, 2026-11-12)', () => {
+  const ids = new Set(COIN_UNIVERSE.map(r => r.id));
+  for (const held of ['anthropic', 'openai']) assert.equal(ids.has(held), false, `${held} is in the universe - its price definition is unconfirmed (Binance and OKX disagree 10-13x)`);
+  for (const stay of ['moonshot', 'oura']) {
+    const r = COIN_UNIVERSE.find(x => x.id === stay);
+    assert.ok(r, `${stay} was dropped - only ANTHROPIC and OPENAI are held`);
+    assert.equal(r!.kind, 'preipo', `${stay} should still be a pre-IPO reference`);
+  }
+  assert.equal(COIN_UNIVERSE.filter(r => r.kind === 'preipo').length, 2, 'the pre-IPO set is now exactly MOONSHOT and OURA');
+  const gen = read('scripts/generate-coins.mjs');
+  for (const b of ['ANTHROPIC', 'OPENAI']) {
+    assert.ok(gen.includes(`['${b}', { why: '`), `${b} is no longer in TRADFI_HOLD with a reason`);
+  }
+  assert.ok(/HELD OUT \(\$\{tradfiHeld\.length\}\)/.test(gen), 'the generator no longer prints the held-out list with its reasons');
+  assert.ok(/Binance \$\{mine\} vs OKX \$\{o\} = x/.test(gen), 'the OKX disagreement is no longer printed for a held row - the reason would be unauditable');
+});
+
+test('A1. the neutral `asset` kind: exactly the four Bybit twins that are neither stock nor fund, and none is guessed as a stock', () => {
+  assert.deepEqual(COIN_UNIVERSE.filter(r => r.kind === 'asset').map(r => r.id).sort(), ['dis', 'frhc', 'payp', 'strc']);
+  assert.ok(/stock', 'asset', 'preipo'/.test(read('lib/coins.ts')), 'the Stocks tab no longer includes the asset kind');
 });
