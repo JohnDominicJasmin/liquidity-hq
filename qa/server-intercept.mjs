@@ -223,7 +223,14 @@ if (ENABLED) {
     const limit = Math.max(1, Math.min(1500, Number(q.get('limit') || 200)));
     const ivKey = q.get('interval') || '1h';
     const iv = IV_MS[ivKey] || 3600000;
-    const endMs = Number(q.get('end') || q.get('endTime')) || nowMs;
+    /* SNAP THE NEWEST BAR TO THE INTERVAL BOUNDARY. Without this the newest timestamp is `Date.now()`
+       at the moment of the call, so two requests milliseconds apart (a `limit=4` and the unsliced
+       reference klines-route compares it against) get DIFFERENT newest bars - the limited one looks
+       like a reversed slice ("4 candles whose newest is OLDER than the reference"). Flooring to the
+       interval makes every call within the same bar return the identical newest timestamp, so a
+       smaller limit is a true suffix of a larger one. A real exchange behaves the same way: the
+       newest closed candle is the interval boundary, not the wall clock. */
+    const endMs = Number(q.get('end') || q.get('endTime')) || (Math.floor(nowMs / iv) * iv);
     const startBound = Number(q.get('start') || q.get('startTime')) || null;
     const bars = [];
     for (let i = limit - 1; i >= 0; i--) {
