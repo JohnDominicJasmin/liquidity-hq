@@ -242,6 +242,21 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
       )}
 
+      {/* MARKERS, SEPARATELY FROM THE VERDICT (#1263/#985). Keyed on markersFilteredBySelection, NOT
+          selectionLabel: an RSI-only selection sets a label (RSI is weighed in the read) but filters
+          no markers (RSI is advisory and never participates), so keying this on the label would claim
+          a filtering that did not happen. Says the same thing the chart caption does, from the panel. */}
+      {!signal.loading && signal.verdict !== 'LOADING' && signal.markersFilteredBySelection && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 'var(--fs-micro)', color: 'var(--txt2)',
+          marginBottom: 10, lineHeight: 1.4,
+        }}>
+          <span aria-hidden style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--txt3)', flexShrink: 0 }} />
+          <span>The chart&apos;s BUY/SELL markers show only the bars where your selected indicators agree with the ribbon.</span>
+        </div>
+      )}
+
       {/* Conditions grid - each chip clickable to explain */}
       {signal.conditions.length > 0 && (
         <div style={{
