@@ -118,6 +118,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'klines-route', needs: 'none', note: 'calls a data route: spends upstream quota' },
   { spec: 'layout', needs: 'none', note: 'route sweep' },
   { spec: 'funding-chip-fallback', needs: 'none', note: 'stubs the two funding routes, signed out, nothing written' },
+  { spec: 'chart-layers-fab', needs: 'pro', note: 'reads layout only, nothing written or billed' },
   { spec: 'market-scenarios', needs: 'none' },
   { spec: 'mobile-input-zoom', needs: 'none' },
   { spec: 'news-feed-fixture', needs: 'none' },
