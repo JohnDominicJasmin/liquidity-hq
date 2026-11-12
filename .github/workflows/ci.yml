@@ -1386,12 +1386,17 @@ jobs:
           # would fail on the upload instead of on its tests.
           name: playwright-report-${{ matrix.project }}-${{ github.run_attempt }}
           path: qa/e2e-report/
-          # ⚠️ 14 DAYS OF A PUBLIC ARTIFACT, and `playwright.config.ts` sets
-          # `screenshot: 'only-on-failure'` — so a failing authenticated spec puts a picture of a
-          # signed-in page in here, downloadable by any GitHub user for a fortnight. Raised with
-          # PM/DevOps rather than changed here: this is the release gate's evidence and shortening
-          # its life is a release decision, not a side effect of adding a QA input.
-          retention-days: 14
+          # 14 -> 3 ON PM/DevOps'S CALL, 2026-11-12. The repo is public, `playwright.config.ts`
+          # sets `screenshot: 'only-on-failure'`, and this artifact is how a failing authenticated
+          # spec's screenshots reach anyone with a GitHub account. Three days is enough to read a
+          # failed release run and short enough that the window closes on its own.
+          #
+          # The other half of that fix is in `qa/e2e/_auth.ts`, which blurs the one element that
+          # renders the fixture email. PM checked the matching hazard in traces: the password
+          # exchange is a Node `fetch` (`_auth.ts`), not a browser or `request` call, so traces
+          # never held passwords. Access tokens can appear in browser request headers and expire
+          # in about an hour.
+          retention-days: 3
 
       # ── SCREENSHOTS FROM A TARGETED RUN ──────────────────────────────────────────────────────
       #
