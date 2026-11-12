@@ -638,6 +638,29 @@ async function fetchSpotPrices(skipCounts: SkipCounts): Promise<Record<string, n
   return out;
 }
 
+/* #1651, FASTER ALERT CHECKING: A CLOSED CANDLE CANNOT CHANGE, SO IT IS ASKED FOR ONCE.
+ *
+ * checkRSI reads 300 hourly candles per coin and checkRapidMove 25 candles per coin per frame, every five minutes, from one IP,
+ * whether or not anyone is looking. Bybit has no bulk klines endpoint (its bulk tickers call already carries every coin's price,
+ * and fetchSpotPrices uses it), so the saving is in not re-asking for what is final: only the candle still FORMING moves, and that
+ * candle's price is already in the bulk `prices` map. lib/ribbonCandles.ts does the same for the EMA and structure scans.
+ *
+ * The cache holds the CLOSED candles of one (category, symbol, interval) until the forming candle's own end time, then lapses and
+ * the next read refetches. It lives in this process's memory: a restart empties it and the next pass simply asks again, so it can
+ * only make a pass slower, never wrong. Concurrent readers of one key share a single request. A failed read is never cached.
+ *
+ * COUNTERS, reset at the start of every pass and reported in the log line and the JSON response (`bybitKlineCalls`,
+ * `candleCacheHits`): klines requests actually made to Bybit this pass, and reads served from the cache. */
+const runCounters = { bybitKlineCalls: 0, candleCacheHits: 0 };
+/* One request per coin per pass for Bybit's 5-minute open-interest series: checkOISpike and checkDistribution asked for the same URL
+   (same symbol, intervalTime=5min, limit=13) independently. Cleared with the counters at the start of every pass. */
+const bybitOi5mThisPass = new Map<string, Promise<{ result?: { list?: Array<Record<string, unknown>> } } | null>>();
+function resetRunCounters(): void {
+  runCounters.bybitKlineCalls = 0;
+  runCounters.candleCacheHits = 0;
+  bybitOi5mThisPass.clear();
+}
+
 /* ── Bybit klines helper (newest-first → reversed to oldest-first) ──
  * `category` defaults to 'linear' for the original callers (hype and other
  * Bybit-only coins, which have no spot listing to speak of here anyway).
@@ -656,6 +679,7 @@ async function fetchBybitCandles(
   skipCounts?: SkipCounts, category: 'linear' | 'spot' = 'linear',
 ): Promise<BybitCandle[]> {
   const url = `https://api.bybit.com/v5/market/kline?category=${category}&symbol=${symbol}&interval=${interval}&limit=${limit}`;
+  runCounters.bybitKlineCalls += 1;
   const res = skipCounts
     ? await fetchOrSkip(url, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'bybit')
     : await exchangeFetch(url, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }).then(r => (r.ok ? r : null)).catch(() => null);
@@ -687,6 +711,55 @@ async function fetchBybitKlines(
   return candles.map(c => c.c);
 }
 
+interface ClosedCandleEntry { closed: BybitCandle[]; validUntilMs: number }
+const closedCandleCache = new Map<string, ClosedCandleEntry>();
+const closedCandleInflight = new Map<string, Promise<BybitCandle[]>>();
+/** How many candles to ask for per interval: the hourly RSI needs 300 and the other frames 25. One number per interval keeps every caller of a key on the same cached list. */
+const closedCandleWant = (bybitInterval: string): number => (bybitInterval === '60' ? 300 : 25);
+const candleIntervalMs = (bybitInterval: string): number => (/^\d+$/.test(bybitInterval) ? parseInt(bybitInterval, 10) * 60_000 : 0);
+
+/** The CLOSED candles (oldest-first, the forming one dropped) for one market and interval: from the cache while the forming candle is
+ *  still the same one, otherwise one klines request. An empty array means the read failed, exactly as fetchBybitCandles reports it. */
+async function fetchClosedCandles(
+  symbol: string, bybitInterval: string, category: 'linear' | 'spot', skipCounts: SkipCounts,
+): Promise<BybitCandle[]> {
+  const ms = candleIntervalMs(bybitInterval);
+  const key = `${category}:${symbol}:${bybitInterval}`;
+  const hit = closedCandleCache.get(key);
+  if (ms > 0 && hit && Date.now() < hit.validUntilMs) { runCounters.candleCacheHits += 1; return hit.closed; }
+  const pending = closedCandleInflight.get(key);
+  if (pending) return pending;
+  const p = (async () => {
+    const candles = await fetchBybitCandles(symbol, bybitInterval, closedCandleWant(bybitInterval), skipCounts, category);
+    if (candles.length < 2) return [];
+    const forming = candles[candles.length - 1];
+    const closed = candles.slice(0, -1);
+    const validUntilMs = forming.t + ms;
+    // A payload whose newest candle has already ended is stale: use it this once, do not keep it.
+    if (ms > 0 && validUntilMs > Date.now()) closedCandleCache.set(key, { closed, validUntilMs });
+    return closed;
+  })().finally(() => { closedCandleInflight.delete(key); });
+  closedCandleInflight.set(key, p);
+  return p;
+}
+
+/** Bybit's 5-minute open-interest series for one linear symbol, requested ONCE per pass however many checks read it. Resolves to the
+ *  parsed body, or null when the request failed (a skip is noted once, by whichever check asked first). */
+function fetchBybitOi5m(bybitSym: string, skipCounts: SkipCounts): Promise<{ result?: { list?: Array<Record<string, unknown>> } } | null> {
+  const hit = bybitOi5mThisPass.get(bybitSym);
+  if (hit) return hit;
+  const p = (async () => {
+    const res = await fetchOrSkip(
+      `https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${bybitSym}&intervalTime=5min&limit=13`,
+      { cache: 'no-store', signal: AbortSignal.timeout(8_000) }, skipCounts, 'bybit',
+    );
+    if (!res) return null;
+    try { return await res.json() as { result?: { list?: Array<Record<string, unknown>> } }; } catch { return null; }
+  })();
+  bybitOi5mThisPass.set(bybitSym, p);
+  return p;
+}
+
 /* ════════════════════════════════════════
    3. RSI (extremes)
    ════════════════════════════════════════ */
@@ -695,7 +768,7 @@ function computeRSI(closes: number[], period = 14): number {
   return wilderRsi(closes, period) ?? 50;
 }
 
-async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipient[], thresholdsByUser: Map<string, UserThresholds>, skipCounts: SkipCounts): Promise<string[]> {
+async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipient[], thresholdsByUser: Map<string, UserThresholds>, skipCounts: SkipCounts, prices: Record<string, number>): Promise<string[]> {
   const fired: string[] = [];
   // Loosest (most sensitive) threshold across current recipients - a push
   // happens whenever ANYONE would want it; exact per-recipient delivery is
@@ -714,22 +787,28 @@ async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipie
       // TradingView/Bybit show - 20 candles only gives ~5 smoothing
       // iterations past the initial seed, nowhere near enough. 300 matches
       // what the Arena chart reader uses for the same calculation.
-      let closes: number[];
-      const target = bybitSpotOrLinear(coin);
-      if (target) {
-        closes = await fetchBybitKlines(target.symbol, '60', 300, skipCounts, target.category);
-        if (closes.length === 0) return;
-      } else if (BYBIT_KLINE_SYMS[coin]) {
-        closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], '60', 300, skipCounts);
-        if (closes.length === 0) return;
-      } else {
-        return;
-      }
+      const market = bybitSpotOrLinear(coin) ?? (BYBIT_KLINE_SYMS[coin] ? { category: 'linear' as const, symbol: BYBIT_KLINE_SYMS[coin] } : null);
+      if (!market) return;
       // #1626 C: CLOSED candles only - the last one Bybit returns is still forming.
-      const rsi    = computeRSI(closes.slice(0, -1));
+      /* #1651: the closed hourly candles come from the cache (they cannot change within the hour) and the price from the bulk tickers
+         already fetched this pass. A coin the bulk answer does not carry takes the original path, one full read per pass. */
+      let closedCloses: number[];
+      let price: number;
+      const live = prices[coin];
+      if (live !== undefined && Number.isFinite(live) && live > 0) {
+        const closed = await fetchClosedCandles(market.symbol, '60', market.category, skipCounts);
+        if (closed.length === 0) return;
+        closedCloses = closed.map(c => c.c);
+        price = live;
+      } else {
+        const all = await fetchBybitKlines(market.symbol, '60', 300, skipCounts, market.category);
+        if (all.length === 0) return;
+        closedCloses = all.slice(0, -1);
+        price = all[all.length - 1];
+      }
+      const rsi    = computeRSI(closedCloses);
       const r      = rsi.toFixed(1);
       const label  = LABELS[coin];
-      const price  = closes[closes.length - 1];
       if (rsi >= loosestOb && !onCooldown(`rsi_ob_${coin}`, CD.rsi)) {
         queue.push({
           coin, dir: 'short', ruleKey: 'rsi', name: `${label} RSI overbought (${r})`, price,
@@ -756,7 +835,7 @@ async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipie
 /* ════════════════════════════════════════
    3c. RAPID PRICE MOVE (5m / 1H / 4H)
    ════════════════════════════════════════ */
-async function checkRapidMove(stamp: string, queue: SignalEntry[], skipCounts: SkipCounts): Promise<string[]> {
+async function checkRapidMove(stamp: string, queue: SignalEntry[], skipCounts: SkipCounts, prices: Record<string, number>): Promise<string[]> {
   const fired: string[] = [];
   const FRAMES = [
     { interval: '5m',  bybitInterval: '5',   threshold: 4,  cd: 'move5m', tfLabel: '5m' },
@@ -770,6 +849,21 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[], skipCounts: S
         try {
           let prevClose: number, currClose: number;
           let patternStr = '';
+          /* #1651: THE 1H AND 4H FRAMES ARE PRE-CHECKED WITHOUT A KLINES CALL. The percent below is the forming candle against the previous
+             CLOSED candle's close. That close is cached until the frame's boundary and the forming price is already in the bulk `prices` map,
+             so the same percent is computed from what this pass already holds. Only a coin that reaches the threshold continues into the
+             original read below (25 candles, pattern, message), so what fires and what it says are unchanged. The 5m frame is not
+             pre-checked: its previous close changes at the cron's own cadence, so there is nothing to keep. A coin the bulk answer does not
+             carry, or a cache that could not be filled, falls through to the original read. */
+          if (interval !== '5m') {
+            const market = bybitSpotOrLinear(coin) ?? (BYBIT_KLINE_SYMS[coin] ? { category: 'linear' as const, symbol: BYBIT_KLINE_SYMS[coin] } : null);
+            const live = prices[coin];
+            if (market && live !== undefined && Number.isFinite(live) && live > 0) {
+              const closed = await fetchClosedCandles(market.symbol, bybitInterval, market.category, skipCounts);
+              const prev = closed.length ? closed[closed.length - 1].c : 0;
+              if (prev > 0 && Math.abs((live - prev) / prev * 100) < threshold) return;
+            }
+          }
           // #1266 step 2: moved off Binance - see bybitSpotOrLinear's own
           // comment. Bybit's kline gives full OHLC same as Binance's did, so
           // pattern detection is preserved for every migrated coin, not just
@@ -998,13 +1092,11 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
      * this one was NOT carrying a field-name bug). BYBIT_SYMS covers every
      * migrated coin plus the pre-existing Bybit-only ones. */
     ...Object.entries(BYBIT_SYMS).map(([coin, sym]) => async () => {
-      const res = await fetchOrSkip(
-        `https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${sym}&intervalTime=5min&limit=13`,
-        { cache: 'no-store', signal: AbortSignal.timeout(7_000) }, skipCounts, 'bybit',
-      );
-      if (!res) return;
+      /* #1651: one request per coin per pass, shared with checkDistribution (same URL). */
+      const body = await fetchBybitOi5m(sym, skipCounts);
+      if (!body) return;
       try {
-        const data = await res.json() as { result?: { list?: Array<{ openInterest: string }> } };
+        const data = body as { result?: { list?: Array<{ openInterest: string }> } };
         const list = data.result?.list ?? [];
         if (list.length < 12) return;
         // Bybit returns newest-first
@@ -1703,8 +1795,7 @@ async function checkDistribution(
             { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
           exchangeFetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${sym}&period=1h&limit=1`,
             { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
-          bySym ? exchangeFetch(`https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${bySym}&intervalTime=5min&limit=13`,
-            { cache: 'no-store', signal: AbortSignal.timeout(8_000) }) : Promise.resolve(null),
+          bySym ? fetchBybitOi5m(bySym, skipCounts) : Promise.resolve(null), // #1651: shared with checkOISpike, one request per coin per pass
           bySym ? exchangeFetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bySym}&interval=5&limit=20`,
             { cache: 'no-store', signal: AbortSignal.timeout(8_000) }) : Promise.resolve(null),
         ]);
@@ -1746,8 +1837,8 @@ async function checkDistribution(
            Bybit quotes some symbols per 1000 tokens, which cannot matter here: OI and price are both Bybit's own and the trend is a pair of
            percentage changes, so a constant factor cancels. */
         let oiTrend: DistributionInputs['oiTrend'] = null;
-        if (byOiRes.status === 'fulfilled' && byOiRes.value?.ok && byKlRes.status === 'fulfilled' && byKlRes.value?.ok) {
-          const oiJson = await byOiRes.value.json() as { result?: { list?: Array<{ openInterest?: unknown; timestamp?: unknown }> } };
+        if (byOiRes.status === 'fulfilled' && byOiRes.value && byKlRes.status === 'fulfilled' && byKlRes.value?.ok) {
+          const oiJson = byOiRes.value as { result?: { list?: Array<{ openInterest?: unknown; timestamp?: unknown }> } };
           const klJson = await byKlRes.value.json() as { result?: { list?: string[][] } };
           const readings = bootstrapReadings(oiJson.result?.list, klJson.result?.list);
           if (readings) oiTrend = trendBetween(readings[0], readings[1]);
@@ -2443,6 +2534,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // check below that talks to Binance directly - see its own declaration for
   // why a shared object rather than each function returning its own count.
   const skipCounts: SkipCounts = {};
+  resetRunCounters(); // #1651: klines requests made, cache reads and the per-pass open-interest memo
 
   // Fetch shared data once (+ per-user muted alert groups + threshold settings)
   const [frMap, prices, lsMap, mutedByUser, thresholdsByUser] = await Promise.all([
@@ -2495,8 +2587,8 @@ async function runAlerts(token: string): Promise<NextResponse> {
   const signalQueue: SignalEntry[] = [];
 
   const results = await Promise.allSettled([
-    checkRSI(stamp, signalQueue, recipients, thresholdsByUser, skipCounts),
-    checkRapidMove(stamp, signalQueue, skipCounts),
+    checkRSI(stamp, signalQueue, recipients, thresholdsByUser, skipCounts, prices),
+    checkRapidMove(stamp, signalQueue, skipCounts, prices),
     checkWhales(stamp, signalQueue, skipCounts),
     checkNews(token, recipients, mutedByUser, stamp),                     // global - sends directly
     checkFearGreed(token, recipients, mutedByUser, stamp),                // global - sends directly
@@ -2639,6 +2731,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     recipients: recipients.length,
     skipped:    skipCounts,
   }));
+  console.log(`[alert] bybit_kline_calls=${runCounters.bybitKlineCalls} candle_cache_hits=${runCounters.candleCacheHits}`);
 
   /* #1651: A PASS THAT SKIPPED IS NOT A QUIET MARKET, AND UNTIL NOW THEY LOOKED THE SAME.
    *
@@ -2678,6 +2771,8 @@ async function runAlerts(token: string): Promise<NextResponse> {
     mutedUsers: mutedUsersStored,
     delivery: { queued: signalQueue.length, eligible, sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons], priceAlertsHeld: PRICE_ALERT_PENDING.size },
     skipped: skipCounts,
+    bybitKlineCalls: runCounters.bybitKlineCalls,
+    candleCacheHits: runCounters.candleCacheHits,
     checked: [
       'RSI', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD',
       'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'Distribution',
