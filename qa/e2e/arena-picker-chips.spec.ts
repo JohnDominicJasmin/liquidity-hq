@@ -121,7 +121,8 @@ test.describe('#2244 category chips inside the coin picker', () => {
       await page.screenshot({ path: `${DIR}/p4-empty.png` });
       expect(empty, 'no "No match in X. N in Y." line for Majors + nv: ' + text.slice(0, 200)).not.toBeNull();
       const sw = page.locator('.scanner-flyout button').filter({ hasText: /^\s*(Show|Switch|See|Go)|in (All|Stocks)|\bStocks\b.*\d|\bAll\b.*\d/i }).filter({ hasNot: page.locator('.scanner-cat-chip') }).first();
-      const sb = page.locator('.scanner-flyout button:not(.scanner-cat-chip):not([data-testid^="scanner-row-"])').filter({ hasText: /\w/ });
+      /* the empty state's switch button carries the chip class too (class scanner-cat-chip, no data-cat), so it is the chip WITHOUT a data-cat */
+      const sb = page.locator('.scanner-flyout .scanner-cat-chip:not([data-cat])');
       const cands = await sb.allInnerTexts(); console.log('[P4] non-chip buttons in the flyout: ' + JSON.stringify(cands.slice(0, 6)));
       expect(cands.length, 'no switch button in the empty state').toBeGreaterThan(0);
       void sw;
