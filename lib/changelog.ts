@@ -278,13 +278,11 @@ export const CHANGELOG: ChangelogEntry[] = [
            whale BUY/SELL + Research stacks on phones   #2228 (4b, 6b)
            nothing sits under the Ask AI button          #2228 (playbook star), #2229 (dashboard new play), #2238 (liquidation map Total)
            slow account load says so sooner              #2241 (OPEN when written: out if it does not merge)
-           error reports carry less browser detail       #2239 (OPEN when written: out if it does not merge)
-         LEFT OUT ON PURPOSE: the chart feed dot's accessible name and the darker /funding chip colour inside #2228, which are small
+         LEFT OUT ON PURPOSE: the error-report privacy tightening in #2239 (internal, and too technical for a reader), the chart feed dot's accessible name and the darker /funding chip colour inside #2228, which are small
          accessibility and contrast changes a reader would not name. */
       'The whale feed now says BUY or SELL on every large trade, and the Research page stacks its first two cards on phones so no number is cut off.',
       'The floating Ask AI button no longer sits on top of the playbook favourite star, the dashboard "new play" button on phones, or the Total column of the liquidation map clusters table.',
       'If your account details are slow to load after you sign in, the app now says so sooner instead of waiting out two timeouts back to back.',
-      'Error reports sent to us now carry less browser detail, and no longer include text your browser prints to its console.',
     ],
   },
   {
