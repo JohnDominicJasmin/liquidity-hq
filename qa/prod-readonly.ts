@@ -145,6 +145,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'alerts-mute-load-timeout-state', needs: 'pro', note: 'the alerts page may seed default mutes on a first visit: that account\'s own rows' },
   { spec: 'arena-authloading-lock-icon', needs: 'pro' },
   { spec: 'arena-read-card', needs: 'pro' },
+  { spec: 'alert-outcomes-since', needs: 'pro', note: 'the Alert Track Record since-date (#2276); the fires are stubbed at the REST layer, reads only; needs the performance-stats flag on the build' },
   { spec: 'econ-staleness', needs: 'pro' },
   { spec: 'grok-header-meta', needs: 'pro' },
   { spec: 'grokchat-page-coin-handoff', needs: 'pro', note: 'reads only: a hard page load of /arena?coin=xrp, then the chat opened from the launcher. The answer is stubbed in the browser, so no AI credit is spent, and it PATCHes nothing (unlike its sibling grokchat-selection-without-arena-visit, which resets strategy_selection and is excluded)' },
