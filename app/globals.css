@@ -1605,7 +1605,8 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 }
 .scanner-flyout { animation: scannerFadeIn 0.15s ease-out forwards; }
 @media (max-width: 480px) {
-  .scanner-flyout-grid { grid-template-columns: 1fr 65px 40px 60px 28px !important; }
+  /* The 24h column is 54 px (was 40): when a coin has a price but no 24h change, that cell says "Нет данных" in plain words (no abbreviation), and "данных" does not fit 40 px (QA, #2253 N2). */
+  .scanner-flyout-grid { grid-template-columns: 1fr 65px 54px 60px 28px !important; }
   .scanner-flyout-vsbtc { display: none !important; }
 }
 /* Arena coin picker: category chips live inside the list, under the search box (#1263). One line that scrolls sideways, never wrapping onto two or three. */
