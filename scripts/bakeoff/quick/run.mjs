@@ -109,7 +109,16 @@ for (let r = 0; r < RUNS; r++) {
       } catch (e) {
         const status = typeof e?.status === 'number' ? e.status : null;
         if (!(status !== null && status >= 400 && status < 500 && status !== 408 && status !== 429)) spent += wc;   // a clean 4xx was not billed
-        const cls = status !== null ? 'HTTP_' + status : 'ERROR';
+        /* A FIXED CODE, never the error's own text: the message is only INSPECTED here, and what is printed is chosen from this list. */
+        const msg = String(e?.error?.error?.message ?? e?.message ?? '');
+        const why = /credit|billing|balance/i.test(msg) ? '_CREDIT'
+          : /not_found|model/i.test(msg) ? '_MODEL'
+          : /api[_ -]?key|authentic|permission/i.test(msg) ? '_AUTH'
+          : /max_tokens/i.test(msg) ? '_MAX_TOKENS'
+          : /system/i.test(msg) ? '_SYSTEM'
+          : /temperature|top_p|thinking/i.test(msg) ? '_SAMPLING'
+          : /messages|content|role/i.test(msg) ? '_MESSAGES' : '';
+        const cls = status !== null ? 'HTTP_' + status + why : 'ERROR';
         st.fail.set(cls, (st.fail.get(cls) ?? 0) + 1);
       }
     }
