@@ -633,11 +633,11 @@ also time and focus (*"a waste of time, waste of resources"*). **Changing it wen
 dispatched verify) **or when the release PR is opened by hand** (`RELEASE_PR_PAUSED` is still `1`).
 **No run on a push is the rule working, not an outage.** That mis-diagnosis has been made twice here.
 
-**The mobile browser leg cannot fail the gate.** `continue-on-error` is set for `mobile`, and
-`gate` only asserts `e2e == success`, so a red mobile leg still passes. Kept on purpose, because the
-375px leg has never once completed in CI (#1814). With one run per release, **QA reads the desktop
-and mobile legs separately in the release verdict** and reports mobile failures, rather than trusting
-the run's overall conclusion.
+**The mobile browser leg blocks the gate again since #2240 (2026-11-13).** Until then
+`continue-on-error` was set for `mobile` because the 375px leg had never completed in CI (#1814), so
+a red mobile leg still passed; that paragraph was stale for a day after #2240 merged. With one run per
+release, **QA still reads the desktop and mobile legs separately in the release verdict** rather than
+trusting the run's overall conclusion.
 
 ## 18. BEFORE ANY ISSUE: REREAD THE DOCS FIRST
 
