@@ -28,7 +28,7 @@ test.describe('batch 2 2026-11-14', () => {
       const m = await page.evaluate(() => {
         const t = (document.body.innerText || '').replace(/\s+/g, ' ');
         const zeros = (t.match(/(^|[\s(])[+\-]?0\.00%/g) || []).length;
-        return { zeros, noData: (t.match(/No data/g) || []).length, has12: /1\.2%/.test(t), hasSol: /1\.5%/.test(t) };
+        return { zeros, noData: (t.match(/No data/g) || []).length, has12: /1\.20%/.test(t), hasSol: /1\.50%/.test(t) };
       });
       console.log(`[F1] ${JSON.stringify(m)}`);
       expect(m.noData, 'no coin says No data: the refusal did not reach the page, nothing measured').toBeGreaterThan(0);
