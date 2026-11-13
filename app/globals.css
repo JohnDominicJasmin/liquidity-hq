@@ -5482,7 +5482,21 @@ body.landing {
 @media (max-width: 480px) {
   /* Give the SIGNAL column ~1.7x the coin column and let it wrap to 2 lines
      instead of truncating to "..." (was 1fr + nowrap → every signal clipped). */
-  .mkt-row, .mkt-hdr-row { grid-template-columns: 28px 0.9fr 92px 54px 1.7fr !important; align-items: center; }
+  /* /markets at 390 (#1185, QA run 43495290194): the 28 px grade column was narrower than its own head ("GRADE" ran into "COIN"), the coin column was narrower than icon + name ("PEPE" ran into the price), and a cell wider than its track pushed some rows past the edge so their divider stopped short. Wider grade and price columns, a coin column with a floor, every cell allowed to shrink (min-width: 0) and every head clipped inside its own cell. */
+  .mkt-row, .mkt-hdr-row { grid-template-columns: 56px minmax(72px, 0.9fr) 76px 62px minmax(0, 1.4fr) !important; column-gap: 2px; /* grade 56 px: its head is the word plus the 24 px info icon (QA shots21: the icon sat on the C of COIN at 40 px); the 16 px come from the price column and the gaps, so the signal column keeps its width */ align-items: center; min-width: 0; }
+  .mkt-row > *, .mkt-hdr-row > * { min-width: 0; }
+  /* HEADS STAY ON ONE LINE AND ARE NOT CLIPPED (QA shots19, shots20): clipping cut '24 HOURS' to '24 HO...', and wrapping anywhere stacked GRADE and SIGNAL letter by letter in a 40 px cell. One line, tighter tracking (.02em), nothing hidden: every head fits its column in English, and the columns above were widened for it. */
+  .mkt-hdr-row > * { white-space: nowrap; overflow-wrap: normal; line-height: 1.15; letter-spacing: .02em; }
+  .mkt-hdr-row > :last-child { padding-left: 6px !important; }
+  /* THE ROW DIVIDER IS ONE FULL LINE (QA shots19): the visible "divider" under each row was the buy-pressure accent line, whose width is the buy share, so it stopped short (about half for a 49% coin). The pressure column is hidden here, so the accent goes too and the row's own border, which was nearly invisible, is drawn in the normal border colour. */
+  .mkt-accent { display: none; }
+  .mkt-row { border-bottom-color: var(--bdr) !important; }
+  /* The title row wraps and the bull/bear/neutral counters take their own line: in Russian the three counters pushed the page to 401 px at 390. */
+  .mkt-top { flex-wrap: wrap; }
+  .mkt-counts { margin-left: 0 !important; width: 100%; flex-wrap: wrap; gap: 4px 12px !important; }
+  .mkt-coin-cell { padding-left: 6px !important; }
+  .mkt-price { white-space: nowrap; }
+  .mkt-price-long { font-size: var(--fs-micro) !important; }
   .mkt-col-spark, .mkt-col-pressure { display: none !important; }
   .mkt-signal {
     white-space: normal !important; overflow: visible !important; text-overflow: clip !important;
@@ -6298,6 +6312,8 @@ html[lang="ar"] .lp-h1-accent {
    selector, so the values that used to sit here (24px / 94px) never applied on
    any screen. The live values are the later ones, which put the pill in the
    same row as the Ask AI FAB, clear of the mobile tab bar. */
+/* DESKTOP TOO (#1185, QA at ~1200 px: the collapsed pill floated at bottom: 140 over the settings card). Same row as the FAB, just to its left: the FAB is 64 px at right: 20, bottom: 24, the pill about 36 px tall, so bottom 38 centres it on the FAB and right 94 clears it by 10. The phone rule below still wins at 640 px and under. */
+.ob-checklist.ob-checklist-mini { bottom: 38px; right: 94px; }
 .ob-cl-mini-text { font-size: var(--fs-caption); font-weight: 600; color: var(--txt2); white-space: nowrap; }
 .ob-cl-mini-track {
   width: 56px; height: 3px; border-radius: 2px;

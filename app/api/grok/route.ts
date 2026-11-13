@@ -5,6 +5,8 @@ import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMP
 import { arenaContextCoinId, COIN_NOT_TRACKED, parseArenaChart, parseArenaContext, parseSelection } from '@/lib/arenaContext';
 import { arenaServerNumbers } from '@/lib/arenaServerNumbers';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
+import { chartFromCandles } from '@/lib/arenaChartServer';
+import { EMA_SIGNAL_TFS, fetchRibbonCandles, type EMASignalTF } from '@/lib/ribbonCandles';
 import { T } from '@/lib/tables';
 import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
 import { aiCoinAllowed, normalizeCoinId } from '@/lib/signalCoinGate';
@@ -334,7 +336,21 @@ export async function POST(req: NextRequest) {
      NO COUNT IN THIS SENTENCE, DELIBERATELY. It said "the twelve fields" and went stale within the
      hour, when `longShortRatio` was sourced and the list became thirteen - the same count-is-a-copy
      mistake #1889 fixed in three signpost comments. Naming the list cannot drift from it. */
-  const prompt = buildArenaPrompt({ ...ctx, ...gathered.fields }, chart, type, selection);
+  /* THE CANDLES THE MODEL SEES, READ BY THE SERVER WHEN THE FLAG IS ON (#1605). Off by default: the browser's `chart` is used exactly as before, and
+     nothing changes until QA has measured the two against each other on a live coin. With `GROK_SERVER_CHART=1` the chart half is rebuilt from the
+     exchange's candles for the DECLARED coin and timeframe (lib/arenaChartServer.ts mirrors the browser's maths), so a hand-made request can no longer
+     describe candles of its own. It FAILS OPEN to the browser's chart (any fetch error, a timeframe the shared fetch does not cover, too few candles):
+     a read the user paid for is not refused because the exchange was slow, and the fixed log line says which path ran. */
+  let promptChart = chart;
+  if (process.env.GROK_SERVER_CHART === '1' && coin && (EMA_SIGNAL_TFS as readonly string[]).includes(tf)) {
+    try {
+      const built = chartFromCandles(tf, await fetchRibbonCandles(coin, tf as EMASignalTF));
+      if (built) promptChart = built; else console.warn(`[grok] server chart: too few candles for ${logTag(coin)}/${tf}, keeping the browser's`);
+    } catch {
+      console.warn(`[grok] server chart: candle fetch failed for ${logTag(coin)}/${tf}, keeping the browser's`);
+    }
+  }
+  const prompt = buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, selection);
 
   /* The second bound. The server's fields are short formatted strings, so this cannot realistically
      fire once the first bound passed - which is why it is worth having: if it ever does, the gather

@@ -38,7 +38,8 @@ const SORT_LABEL_KEYS: Record<SortKey, LabelKey> = {
 
 const GRADE_ORDER: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, F: 4, '-': 5 };
 const PAGE_SIZE = 20;
-const ROW_COLS = '48px 1fr 40px 96px 58px 92px 1fr';
+/* The grade column is 66 px, not 48 (#1185, QA/PM at 1280): its head is the word GRADE plus the 24 px info icon, and at 48 px the icon touched COIN. The two 1fr columns give the 18 px back. */
+const ROW_COLS = '66px 1fr 40px 96px 58px 92px 1fr';
 
 export default function MarketsTerminal() {
   const { t } = useLabels();
@@ -131,7 +132,7 @@ export default function MarketsTerminal() {
         <h1 className="sr-only">{t('MARKETS_PAGE_TITLE')}</h1>
 
         {/* Header */}
-        <div style={{
+        <div className="mkt-top" style={{
           display: 'flex', alignItems: 'center', gap: 10,
           padding: '12px 0 10px',
           borderBottom: '0.5px solid var(--bdr)',
@@ -156,7 +157,7 @@ export default function MarketsTerminal() {
               {t('MARKETS_COINS_LIVE_SUFFIX', { count: COINS.length })}
             </div>
           </div>
-          <div className="mkt-mono" style={{ marginLeft: 'auto', display: 'flex', gap: 14, fontSize: 'var(--fs-caption)' }}>
+          <div className="mkt-mono mkt-counts" style={{ marginLeft: 'auto', display: 'flex', gap: 14, fontSize: 'var(--fs-caption)' }}>
             <span style={{ color: 'var(--green-2)' }}>{t('MARKETS_BULLISH_COUNT', { count: bullCount })}</span>
             <span style={{ color: 'var(--red)' }}>{t('MARKETS_BEARISH_COUNT', { count: bearCount })}</span>
             <span style={{ color: 'var(--txt3)' }}>{t('MARKETS_NEUTRAL_COUNT', { count: COINS.length - bullCount - bearCount })}</span>
@@ -207,7 +208,7 @@ export default function MarketsTerminal() {
           <div>
             <Tip width={250} text={t('MARKETS_GRADE_TIP')}>{t('MARKETS_GRADE_COL_LABEL')}</Tip>
           </div>
-          <div style={{ paddingLeft: 10 }}>{t('MARKETS_COIN_COL_LABEL')}</div>
+          <div className="mkt-coin-cell" style={{ paddingLeft: 10 }}>{t('MARKETS_COIN_COL_LABEL')}</div>
           <div className="mkt-col-spark" />
           <div style={{ textAlign: 'right' }}>{t('MARKETS_PRICE_COL_LABEL')}</div>
           <div style={{ textAlign: 'right' }}>{t('MARKETS_24H_COL_LABEL')}</div>
@@ -252,7 +253,8 @@ export default function MarketsTerminal() {
                 gridTemplateColumns: ROW_COLS,
                 alignItems: 'center',
                 padding: '8px 10px',
-                borderBottom: '0.5px solid rgba(255,255,255,0.03)',
+                /* THE ROW LINE IS DRAWN (#1185): at rgba .03 it was invisible, so the only line under a row was the buy-pressure accent below, whose width is the buy share - which read as a divider stopping at about half the table. The accent stays as an accent over a full line. */
+                borderBottom: '0.5px solid var(--bdr)',
                 cursor: 'pointer',
                 position: 'relative',
               }}
@@ -269,7 +271,7 @@ export default function MarketsTerminal() {
               </div>
 
               {/* Coin badge + name */}
-              <div style={{ paddingLeft: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+              <div className="mkt-coin-cell" style={{ paddingLeft: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                 <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
                 {/* THE COIN NAME IS THE CONTROL, not the row (#943).
 
@@ -297,8 +299,9 @@ export default function MarketsTerminal() {
               </div>
 
               {/* Price */}
-              <div className="mkt-mono" style={{ textAlign: 'right', fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt2)' }}>
-                {d?.price ? '$' + fmtPrice(d.price, dec) : '-'}
+              <div className={`mkt-mono mkt-price${d?.price && ('$' + fmtPrice(d.price, dec)).length > 9 ? ' mkt-price-long' : ''}`} style={{ textAlign: 'right', fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt2)' }}>
+                {/* A MISSING QUOTE SAYS WHICH KIND OF MISSING (#1651, PM): an ellipsis while the first read is still coming, the scanner's own word once it is not - not a bare dash. */}
+                {d?.price ? '$' + fmtPrice(d.price, dec) : store.scannerFeed.universe === 'pending' ? '…' : t('ARENA_SCANNER_UNAVAILABLE_NARROW')}
               </div>
 
               {/* Change */}
@@ -315,7 +318,7 @@ export default function MarketsTerminal() {
                   <div style={{ height: '100%', width: (tbp ?? 0) + '%', background: barCol, borderRadius: 0, transition: 'width 0.5s' }} />
                 </div>
                 <div className="mkt-mono" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>
-                  {tbp == null ? '-' : t('MARKETS_BUY_PCT_SUFFIX', { pct: tbp })}
+                  {tbp == null ? (store.scannerFeed.universe === 'pending' ? '…' : t('ARENA_SCANNER_UNAVAILABLE_NARROW')) : t('MARKETS_BUY_PCT_SUFFIX', { pct: tbp })}
                 </div>
               </div>
 
@@ -329,7 +332,7 @@ export default function MarketsTerminal() {
               </div>
 
               {/* Bottom accent line = buy pressure */}
-              <div style={{
+              <div className="mkt-accent" style={{
                 position: 'absolute', bottom: 0, left: 0,
                 width: (tbp ?? 0) + '%', height: 1,
                 background: barCol, opacity: 0.2,
