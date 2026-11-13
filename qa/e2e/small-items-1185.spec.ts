@@ -126,21 +126,27 @@ test.describe('#2228 small items', () => {
     } finally { await ctx.close(); }
   });
 
-  test('S5. a MEGA / WHALE row writes BUY or SELL', async ({ browser }) => {
+  test('S5. a MEGA and a WHALE row write BUY and SELL beside the tier label (the feed is injected: one MEGA buy, one WHALE sell)', async ({ browser }) => {
     const { ctx, page } = await newPage(browser, 1280, 'dark');
     try {
-      let found: string[] = [];
-      for (const path of ['/liq', '/live-tracking', '/dashboard']) {
-        await gotoGuarded(page, path);
-        await page.waitForTimeout(12_000);
-        found = await page.locator('.wf-row-side').allInnerTexts();
-        if (found.length) { console.log(`[S5] ${path}: ${found.length} side badges`); break; }
-      }
-      console.log(`[S5] badges=${JSON.stringify(found.slice(0, 12))}`);
-      test.skip(found.length === 0, 'the whale feed showed no trade on any page: this cell measured nothing, UNPROVEN');
-      const big = found.filter(t => /mega|whale/i.test(t));
-      test.skip(big.length === 0, 'no MEGA or WHALE trade on screen in this window: UNPROVEN');
-      for (const t of big) expect(t, 'a big trade shows no side in words').toMatch(/buy|sell/i);
+      /* The runner sees no real whale trade, so the feed's own Binance aggTrade socket is answered with two known prints:
+         BTC 11 x 100,000 = 1.1M (MEGA, buyer is taker: BUY) and ETH 100 x 3,000 = 300K (WHALE, buyer is maker: SELL). */
+      const frame = (s: string, p: number, q: number, m: boolean) => JSON.stringify({ stream: s.toLowerCase() + '@aggTrade', data: { e: 'aggTrade', s, p: String(p), q: String(q), m } });
+      await page.routeWebSocket(/fstream.binance.com/, (ws) => {
+        const send = () => { try { ws.send(frame('BTCUSDT', 100000, 11, false)); ws.send(frame('ETHUSDT', 3000, 100, true)); } catch { /* closed */ } };
+        setTimeout(send, 1500); setTimeout(send, 4000); setTimeout(send, 8000);
+      });
+      await gotoGuarded(page, '/liq');
+      await page.waitForTimeout(14_000);
+      const badges = await page.locator('.wf-row-side').allInnerTexts();
+      console.log('[S5] badges=' + JSON.stringify(badges.slice(0, 12)));
+      await shot(page, 's5-whale-feed');
+      expect(badges.length, 'the injected trades never rendered: nothing was measured').toBeGreaterThan(0);
+      const mega = badges.filter(t => /mega/i.test(t)); const whale = badges.filter(t => /whale/i.test(t));
+      expect(mega.length, 'no MEGA row rendered').toBeGreaterThan(0);
+      expect(whale.length, 'no WHALE row rendered').toBeGreaterThan(0);
+      for (const t of mega) expect(t, 'the MEGA row does not say BUY').toMatch(/buy/i);
+      for (const t of whale) expect(t, 'the WHALE row does not say SELL').toMatch(/sell/i);
     } finally { await ctx.close(); }
   });
 });
