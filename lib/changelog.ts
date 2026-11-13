@@ -285,10 +285,11 @@ export const CHANGELOG: ChangelogEntry[] = [
            coin list: loading / Unavailable / prices that were blank   #2245 (merged)
            landing ticker and Live Read card states, Coinbase premium   #2246 (OPEN when written: out if it does not merge)
            link to a coin we do not list says so                          #2247 (OPEN when written: out if it does not merge)
-         LEFT OUT ON PURPOSE: the Deep read's "No catalysts cited in this read." line (#2248, open), which PM did not list; add it here if it merges and PM wants it named. */
+         #2248 (open when written: out if it does not merge): a Deep read that cites no catalysts says so.  */
       'In the AI Arena coin list, a price that has not arrived shows a loading mark, and one that cannot be found says "Unavailable", instead of a dash that could mean either. HYPE, FET and several commodities now show a price even when one exchange cannot be reached, and coins with no signals say "No signals" instead of "n/a".',
       'On the landing page, the price ticker and the Live Read card now say "Unavailable" or show a loading mark instead of a bare dash, and the card shows the Coinbase premium.',
       'An AI Arena link to a coin we do not list now says so and opens Bitcoin, instead of switching to Bitcoin without a word.',
+      'A Deep read that gives price levels but cites no catalysts now says so, instead of leaving a gap.',
     ],
   },
   {
