@@ -73,6 +73,8 @@ export interface LandingDict {
     free: { name: string; sub: string; features: Record<string, string>; cta: string };
     pro: { badge: string; name: string; sub: string; features: Record<string, string>; cta: string };
   };
+  /* The top price ticker's words for a missing quote (#1263). In the dictionary and NOT the label table, because the landing page does not read the label table (#1889). */
+  ticker: { loading: string; unavailable: string; failedNote: string; noneNote: string };
   finalCta: { h2: string; sub: string; cta: string };
   footer: {
     brandDesc: string;
@@ -89,6 +91,7 @@ export interface LandingDict {
 }
 
 export const en: LandingDict = {
+  ticker: { loading: 'Loading', unavailable: 'n/a', failedNote: 'The exchange did not answer. Retrying.', noneNote: 'No price for this instrument from our sources.' },
   nav: { signIn: 'Sign In', getStarted: 'Get Started Free' },
   hero: {
     badge: '50 markets · Signals + alerts',
@@ -182,6 +185,7 @@ export const en: LandingDict = {
 };
 
 export const ko: LandingDict = {
+  ticker: { loading: '불러오는 중', unavailable: 'N/A', failedNote: '거래소가 응답하지 않았습니다. 다시 시도하는 중입니다.', noneNote: '저희 데이터 소스에는 이 상품의 가격이 없습니다.' },
   nav: { signIn: '로그인', getStarted: '무료로 시작하기' },
   hero: {
     badge: '50개 마켓 · 신호 + 알림',
@@ -265,6 +269,7 @@ export const ko: LandingDict = {
 };
 
 export const zh: LandingDict = {
+  ticker: { loading: '加载中', unavailable: 'N/A', failedNote: '交易所未响应，正在重试。', noneNote: '我们的数据源没有该品种的价格。' },
   nav: { signIn: '登录', getStarted: '免费开始使用' },
   hero: {
     badge: '50个市场 · 信号 + 提醒',
@@ -348,6 +353,7 @@ export const zh: LandingDict = {
 };
 
 export const ar: LandingDict = {
+  ticker: { loading: 'جارٍ التحميل', unavailable: 'غ/م', failedNote: 'لم تستجب البورصة. نعيد المحاولة.', noneNote: 'لا يتوفر سعر لهذه الأداة من مصادرنا.' },
   nav: { signIn: 'تسجيل الدخول', getStarted: 'ابدأ مجانًا' },
   hero: {
     badge: 'مباشر · 50 عملة · إشارات لحظية',
@@ -463,6 +469,7 @@ export const ar: LandingDict = {
  * Latin left as-is where Russian traders use it that way and the Korean dictionary does the same:
  * LiquidityHQ, AI, Telegram, Binance, Bybit, BTC, DXY, S&P 500, ETF, GEX, CVD, RSI, EMA, FR, L/S. */
 export const ru: LandingDict = {
+  ticker: { loading: 'Загрузка', unavailable: 'н/д', failedNote: 'Биржа не ответила. Повторяем попытку.', noneNote: 'В наших источниках нет цены для этого инструмента.' },
   nav: { signIn: 'Войти', getStarted: 'Начать бесплатно' },
   hero: {
     badge: '50 рынков · Сигналы + оповещения',

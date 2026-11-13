@@ -402,6 +402,21 @@ export const HL_SYMS: Record<string, string> = Object.fromEntries(
     .filter(([, name]) => typeof name === 'string' && hlMultiplier(name as string) !== null),
 );
 
+/* SECOND PRICE SOURCE FOR ROWS THE PRIMARY FEEDS CAN LEAVE EMPTY (#1263, owner: the scanner showed a bare dash).
+ *
+ * Hyperliquid, price and 24h change only, ONLY for rows where its instrument is the SAME asset at the SAME unit as the row's own venue.
+ * Each name below was checked against Binance's last price on 2026-11-13: one sample per row, NOT a time series.
+ *     fet    FET               +0.08%        copper  xyz:COPPER    -0.21%     natgas xyz:NATGAS    -0.12%
+ *     xpd    xyz:PALLADIUM     -0.18%        xpt     xyz:PLATINUM  -0.17%     oura   xyz:OURA      +0.11%
+ *     strc   xyz:STRC          -0.16%
+ * All inside 0.5%. A row not listed here has no proven second source and says "Unavailable" when its own feed fails. Rows that were
+ * looked at and left out: anthropic, openai, moonshot (Bybit's quote differs by 0.55-1.3% and nothing says it is the same reference),
+ * dis, frhc, payp, hk0625, hk0700, hk0992, hk1810 (no Hyperliquid instrument). Adding a row needs the same proof first.
+ * The server route (app/api/market/price-backup) is the only reader of this map. */
+export const HL_PRICE_BACKUP: Record<string, string> = {
+  fet: 'FET', copper: 'xyz:COPPER', natgas: 'xyz:NATGAS', xpd: 'xyz:PALLADIUM', xpt: 'xyz:PLATINUM', oura: 'xyz:OURA', strc: 'xyz:STRC',
+};
+
 /* Names listed here but dropped by the refusal filter above - empty today, and exported so the
    generator and a test can assert that a refusal actually removes something rather than trusting
    that it would. An entry here is not a bug; it is the filter working, and worth seeing. */
