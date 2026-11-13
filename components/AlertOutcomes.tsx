@@ -42,7 +42,7 @@ function ruleLabel(t: (key: any) => string, key: string): string {
 export default function AlertOutcomes() {
   const [rows, setRows]       = useState<FireRow[] | null>(null);
   const [error, setError]     = useState<string | null>(null);
-  const { t } = useLabels();
+  const { t, locale } = useLabels();
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +88,9 @@ export default function AlertOutcomes() {
     );
   }
 
+  /* THE WINDOW IS STATED, COMPUTED FROM THE DATA (#1651): the query takes the newest 500 fires, not a period, so the subtitle names the date of the OLDEST fire it read. Rows come newest-first, so that is the last one. */
+  const oldest = rows.length ? new Date(rows[rows.length - 1].fired_at) : null;
+  const since = oldest && Number.isFinite(oldest.getTime()) ? oldest.toLocaleDateString(locale, { month: 'short', day: 'numeric' }) : null;
   const resolved = rows.filter(r => r.resolved_24h && r.outcome_pct_24h != null);
   const byRule = RULE_ORDER.map(key => {
     const rr = resolved.filter(r => r.rule_key === key);
@@ -104,7 +107,7 @@ export default function AlertOutcomes() {
         <div className="lbl" style={{ margin: 0 }}>
           <Tip width={260} text={t('ALERT_OUTCOMES_TOOLTIP')}>{t('ALERT_OUTCOMES_TITLE')}</Tip>
         </div>
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ALERT_OUTCOMES_SUBTITLE')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{since ? t('ALERT_OUTCOMES_SUBTITLE_SINCE', { date: since }) : t('ALERT_OUTCOMES_SUBTITLE')}</span>
       </div>
 
       {byRule.length === 0 ? (
