@@ -7,6 +7,9 @@
  * WHY A ROUTE AND NOT A BROWSER CALL: the exchange guard (lib/exchangeGuard.ts) already knows Hyperliquid - one place holds its cooldown and concurrency -
  * and the answer is shared: one cached read serves every visitor for 30 s instead of one call per tab.
  *
+ * NO CACHE-CONTROL HEADER ON PURPOSE: the shared cache below already serves every visitor, and this route is not one of the polled-header routes the stale-while-revalidate
+ * pin (closedCandleAndPolledCache B2/B3) walks, so it sets no shared-cache header without being listed there.
+ *
  * `cached()` stores successes only, and a failure is held 30 s (failTtlMs) so a refused upstream is not called again on every visitor's request. The page
  * treats a non-OK answer as "no backup" and keeps whatever its cell already says.
  */
@@ -18,7 +21,6 @@ import { reportHealth } from '@/lib/apiHealth';
 import { HL_PRICE_BACKUP } from '@/lib/coins';
 import { HL_INFO_URL } from '@/lib/hyperliquid';
 import { exchangeFetch } from '@/lib/exchangeGuard';
-import { polledCacheControl } from '@/lib/cacheHeaders';
 
 const TTL_MS = 30_000;
 
@@ -76,7 +78,7 @@ export async function GET(req: NextRequest) {
       if (q) body[id] = q;
     }
     reportHealth('hyperliquid:price-backup', 'market', true, `${Object.keys(body).length}/${asked.length}`);
-    return NextResponse.json(body, { headers: { 'Cache-Control': polledCacheControl(TTL_MS / 1000) } });
+    return NextResponse.json(body);
   } catch (e) {
     reportHealth('hyperliquid:price-backup', 'market', false, e instanceof Error ? e.message.slice(0, 120) : 'failed');
     return apiError('price-backup', e, 502, 'Price backup unavailable.');
