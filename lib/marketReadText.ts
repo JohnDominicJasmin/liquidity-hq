@@ -1,4 +1,4 @@
-import type { LabelKey } from './labelKeys';
+import type { LabelKey } from './labelKeys.ts';
 
 /* THE MARKET READ'S AND THE SESSION BADGE'S ENGLISH, TRANSLATED AT THE POINT OF DISPLAY (#1185, PM 2026-11-13: /ru dashboard still showed "Decent conditions - be selective", "High greed", "Friday",
  * "Long-heavy", "Leaning bear", "NY Session"). `lib/marketRead.ts` and `lib/session.ts` compute with English strings, and the AI-prompt builders read those same strings, so they are NOT changed; the
