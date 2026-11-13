@@ -4,6 +4,7 @@ import { useMarket } from '@/lib/marketStore';
 import { computeMarketRead, type FundingSide } from '@/lib/marketRead';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
+import { trText } from '@/lib/marketReadText';
 
 // The dashboard's answer-first hero. Replaces the RaidMeter + Smart Money Score
 // + Sentiment Extremes stack with one plain-language verdict (see lib/marketRead
@@ -62,8 +63,8 @@ export default function MarketRead() {
 
       <div className="mr-top">
         <div className="mr-lead">
-          <div suppressHydrationWarning className="mr-verdict">{read.verdict}</div>
-          <p suppressHydrationWarning className="mr-sub">{read.sub}</p>
+          <div suppressHydrationWarning className="mr-verdict">{trText(t, read.verdict)}</div>
+          <p suppressHydrationWarning className="mr-sub">{trText(t, read.sub)}</p>
         </div>
         <div className="mr-score-block">
           <div className="mr-score-label">{t('MARKET_READ_CONDITIONS_LABEL')}</div>
@@ -99,9 +100,9 @@ export default function MarketRead() {
       <div className="mr-factors">
         {read.factors.map(f => (
           <div key={f.key} className="mr-factor">
-            <div className="mr-factor-k">{f.label}</div>
-            <div suppressHydrationWarning className="mr-factor-v">{f.key === 'day' && !mounted ? '-' : f.value}</div>
-            {f.sub && <div suppressHydrationWarning className="mr-factor-s">{f.sub}</div>}
+            <div className="mr-factor-k">{trText(t, f.label)}</div>
+            <div suppressHydrationWarning className="mr-factor-v">{f.key === 'day' && !mounted ? '-' : trText(t, f.value)}</div>
+            {f.sub && <div suppressHydrationWarning className="mr-factor-s">{trText(t, f.sub)}</div>}
           </div>
         ))}
       </div>
@@ -109,7 +110,7 @@ export default function MarketRead() {
       {c && (
         <div suppressHydrationWarning className={`mr-flag mr-flag-${c.dir}`}>
           <span className="mr-flag-tag">{c.dir === 'bull' ? t('MARKET_READ_FLAG_BULLISH') : t('MARKET_READ_FLAG_CAUTION')}</span>
-          <span className="mr-flag-body"><b>{c.label}</b> · {c.count}/3 · {c.desc}</span>
+          <span className="mr-flag-body"><b>{trText(t, c.label)}</b> · {c.count}/3 · {trText(t, c.desc)}</span>
         </div>
       )}
 
