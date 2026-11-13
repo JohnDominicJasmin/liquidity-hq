@@ -63,7 +63,11 @@ test.describe('#2239 monitoring envelope (browser, fake ingest host)', () => {
       await page.waitForTimeout(4_000);
       const marker = 'qa-sentry-envelope-' + Date.now();
       /* a console line carrying the sentinels BEFORE the throw: SDK 11's default Console integration records console output as breadcrumbs, and breadcrumbs ride along on the event */
-      await page.evaluate(() => { console.log('qa-breadcrumb typed.sentinel@example.com COOKIE-SENTINEL-8841'); console.warn('qa-breadcrumb token=TOKEN-SENTINEL-7730'); });
+      await page.evaluate(() => {
+        console.log('qa-breadcrumb typed.sentinel@example.com COOKIE-SENTINEL-8841');
+        console.warn('qa-breadcrumb token=TOKEN-SENTINEL-7730');
+        console.log('qa-breadcrumb-object', { email: 'typed.sentinel@example.com', note: 'COOKIE-SENTINEL-8841', nested: { token: 'TOKEN-SENTINEL-7730' } });   // an OBJECT argument: the raw arguments are the v10 leak Dev found
+      });
       await page.evaluate((m) => { setTimeout(() => { throw new Error(m + ' typed.sentinel@example.com'); }, 0); }, marker);
       await expect.poll(() => bodies.filter(b => b.includes(marker.slice(0, 20))).length, { timeout: 30_000, message: 'no envelope with the thrown error arrived at the ingest host (monitoring on? CSP?)' }).toBeGreaterThan(0);
       const env = bodies.find(b => b.includes(marker.slice(0, 20)))!;
@@ -78,6 +82,18 @@ test.describe('#2239 monitoring envelope (browser, fake ingest host)', () => {
       console.log(`[E1] envelope items=${payloads.length} exception frames=${frames.length} first=${JSON.stringify(frames[frames.length - 1] ?? null).slice(0, 160)} environment=${event.environment} release=${event.release ?? 'none'}`);
       expect(frames.length, 'the event has no stack frames').toBeGreaterThan(0);
       expect(frames.some((f: { filename?: string; abs_path?: string }) => !!(f.filename || f.abs_path)), 'no frame names a file').toBe(true);
+
+      /* BREADCRUMBS, judged on their own fields. The certain assertion first: console breadcrumbs must EXIST, or a pass here proves nothing about them. */
+      const crumbs: { category?: string; message?: string; data?: unknown }[] = event.breadcrumbs ?? [];
+      const consoleCrumbs = crumbs.filter(c => c.category === 'console');
+      console.log(`[E3] breadcrumbs=${crumbs.length} console=${consoleCrumbs.length} categories=${JSON.stringify([...new Set(crumbs.map(c => c.category))])}`);
+      expect(consoleCrumbs.length, 'no console breadcrumb in the event, so nothing was measured about them').toBeGreaterThan(0);
+      const crumbLeaks = crumbs.flatMap((c, i) => ['message', 'data'].flatMap(k => {
+        const v = JSON.stringify((c as Record<string, unknown>)[k] ?? '');
+        return SENTINELS.filter(s => v.includes(s)).map(s => `crumb ${i} ${k} carries ${s}`);
+      }));
+      console.log(`[E3] breadcrumb leaks=${JSON.stringify(crumbLeaks)} consoleData=${JSON.stringify(consoleCrumbs.map(c => c.data)).replace(/(sentinel[^\s"]*)/gi, '<sentinel>').slice(0, 300)}`);
+      expect(crumbLeaks, 'a console breadcrumb carries something about the person').toEqual([]);
 
       const found = leaks(env);
       console.log(`[E2] leaks=${JSON.stringify(found)} request=${JSON.stringify(event.request ?? null).slice(0, 300)} user=${JSON.stringify(event.user ?? null)} sdk=${JSON.stringify(event.sdk ?? null).slice(0, 120)}`);
