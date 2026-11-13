@@ -201,12 +201,8 @@ export const CHANGELOG: ChangelogEntry[] = [
        to a reader: the feature is offered on more timeframes, each line it draws is now labelled,
        and a Free account can see it exists. Splitting them would describe our PRs rather than their
        experience. */
-    /* TODO(PM): the date and tag below are the PLAN. Set both to what the tag actually is when it is cut
-       (C1 accepts one release in flight; C2 checks the date one run after the tag exists, `git log -1
-       --format=%cs <tag>`). This entry now covers the COMBINED release - the first 14 lines below plus the
-       15 added after the group merge (see the mapping comment above them). */
-    date: '2026-11-12',
-    tag: 'v2026.11.12',
+    date: '2026-11-13',
+    tag: 'v2026.11.13',
     items: [
       'The chart, the scanner and open interest in AI Arena now work for every coin it offers, not just the main list: pick something like XMR, CYBER or XAUT and the chart draws candles, the scanner shows a signal and a score, and open interest shows a figure - where before the chart sat on "Loading" and the signal columns read "n/a".',
       'The Arena chart loads older candles as you scroll left, instead of stopping at the batch it opened with.',
