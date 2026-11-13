@@ -62,6 +62,8 @@ test.describe('#2239 monitoring envelope (browser, fake ingest host)', () => {
       await gotoGuarded(page, '/?token=TOKEN-SENTINEL-7730&email=qa.sentinel%40example.com');
       await page.waitForTimeout(4_000);
       const marker = 'qa-sentry-envelope-' + Date.now();
+      /* a console line carrying the sentinels BEFORE the throw: SDK 11's default Console integration records console output as breadcrumbs, and breadcrumbs ride along on the event */
+      await page.evaluate(() => { console.log('qa-breadcrumb typed.sentinel@example.com COOKIE-SENTINEL-8841'); console.warn('qa-breadcrumb token=TOKEN-SENTINEL-7730'); });
       await page.evaluate((m) => { setTimeout(() => { throw new Error(m + ' typed.sentinel@example.com'); }, 0); }, marker);
       await expect.poll(() => bodies.filter(b => b.includes(marker.slice(0, 20))).length, { timeout: 30_000, message: 'no envelope with the thrown error arrived at the ingest host (monitoring on? CSP?)' }).toBeGreaterThan(0);
       const env = bodies.find(b => b.includes(marker.slice(0, 20)))!;
