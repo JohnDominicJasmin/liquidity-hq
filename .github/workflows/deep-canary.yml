@@ -150,11 +150,14 @@ jobs:
         id: probe
         env:
           CANARY_BASE_URL:           ${{ github.event.inputs.url || 'https://liquidity-hq-staging.onrender.com' }}
-          CANARY_SUPABASE_URL:       ${{ secrets.CANARY_SUPABASE_URL }}
-          CANARY_SUPABASE_ANON_KEY:  ${{ secrets.CANARY_SUPABASE_ANON_KEY }}
-          CANARY_FIXTURE_EMAIL:      ${{ secrets.CANARY_FIXTURE_EMAIL }}
-          CANARY_FIXTURE_PASSWORD:   ${{ secrets.CANARY_FIXTURE_PASSWORD }}
-          CANARY_FIXTURE_USER_ID:    ${{ vars.CANARY_FIXTURE_USER_ID }}
+          # THE CANARY USES THE DEV PROJECT'S EXISTING E2E FIXTURES, so the owner sets no new secret (owner decision 2026-11-13).
+          # Which fixture is the repo variable CANARY_FIXTURE: 'A' (default) or 'B'. It must be the Pro account with NO END DATE (see the header).
+          # The old CANARY_* secrets and the CANARY_FIXTURE_USER_ID variable still win if someone sets them.
+          CANARY_SUPABASE_URL:       ${{ secrets.CANARY_SUPABASE_URL || secrets.E2E_SUPABASE_URL }}
+          CANARY_SUPABASE_ANON_KEY:  ${{ secrets.CANARY_SUPABASE_ANON_KEY || secrets.E2E_SUPABASE_ANON_KEY }}
+          CANARY_FIXTURE_EMAIL:      ${{ secrets.CANARY_FIXTURE_EMAIL || (vars.CANARY_FIXTURE == 'B' && secrets.E2E_USER_B_EMAIL || secrets.E2E_USER_A_EMAIL) }}
+          CANARY_FIXTURE_PASSWORD:   ${{ secrets.CANARY_FIXTURE_PASSWORD || (vars.CANARY_FIXTURE == 'B' && secrets.E2E_USER_B_PASSWORD || secrets.E2E_USER_A_PASSWORD) }}
+          CANARY_FIXTURE_USER_ID:    ${{ vars.CANARY_FIXTURE_USER_ID || (vars.CANARY_FIXTURE == 'B' && secrets.E2E_USER_B_ID || secrets.E2E_USER_A_ID) }}
           CANARY_LOG_FILE:           /tmp/canary.log
         # `|| true`: FAIL exits non-zero so a human running this locally sees a red exit, but the issue
         # step below must still run - it is what reports the failure. The state is read from the output,
