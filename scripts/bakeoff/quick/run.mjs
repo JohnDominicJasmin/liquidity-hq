@@ -98,9 +98,12 @@ let stopped = false;
 outer:
 for (let r = 0; r < RUNS; r++) {
   for (let i = 0; i < prompts.length; i++) {
-    for (const eng of active) {
+    /* THE ENGINES RUN IN PARALLEL for one input (one slow model no longer serialises the rest), so the cap is checked against the SUM of every engine's
+       worst case for this input BEFORE any of them is called. */
+    const batch = active.reduce((a, e) => a + worstCase(e, prompts[i]), 0);
+    if (spent + batch > CAP) { stopped = true; break outer; }
+    await Promise.all(active.map(async (eng) => {
       const wc = worstCase(eng, prompts[i]);
-      if (spent + wc > CAP) { stopped = true; break outer; }
       const st = stats.get(eng.id);
       try {
         const out = await callOne(eng, prompts[i]);
@@ -139,7 +142,8 @@ for (let r = 0; r < RUNS; r++) {
         const cls = status !== null ? 'HTTP_' + status + why + typeWord : 'ERROR';
         st.fail.set(cls, (st.fail.get(cls) ?? 0) + 1);
       }
-    }
+    }));
+    if ((i + 1) % 10 === 0) say('PROGRESS run=', r + 1, 'input=', i + 1, 'spent_usd=', spent);
   }
 }
 
