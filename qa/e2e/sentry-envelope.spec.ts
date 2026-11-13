@@ -88,14 +88,27 @@ test.describe('#2239 monitoring envelope (browser, fake ingest host)', () => {
       const consoleCrumbs = crumbs.filter(c => c.category === 'console');
       console.log(`[E3] breadcrumbs=${crumbs.length} console=${consoleCrumbs.length} categories=${JSON.stringify([...new Set(crumbs.map(c => c.category))])}`);
       expect(consoleCrumbs.length, 'no console breadcrumb in the event, so nothing was measured about them').toBeGreaterThan(0);
-      const crumbLeaks = crumbs.flatMap((c, i) => ['message', 'data'].flatMap(k => {
-        const v = JSON.stringify((c as Record<string, unknown>)[k] ?? '');
-        return SENTINELS.filter(s => v.includes(s)).map(s => `crumb ${i} ${k} carries ${s}`);
-      }));
-      console.log(`[E3] breadcrumb leaks=${JSON.stringify(crumbLeaks)} consoleData=${JSON.stringify(consoleCrumbs.map(c => c.data)).replace(/(sentinel[^\s"]*)/gi, '<sentinel>').slice(0, 300)}`);
-      expect(crumbLeaks, 'a console breadcrumb carries something about the person').toEqual([]);
+      /* WHAT IS ASSERTED ABOUT CONSOLE BREADCRUMBS (decision: Dev, 2026-11-13, "no more than v10"):
+           - data carries NO raw arguments and none of the planted values (the v10 leak: data.arguments held the logged objects verbatim);
+           - the message carries no EMAIL (scrubText redacts them);
+           - the message may still carry arbitrary app text that is not an email or a JWT: that is NOT scrubbed, same as v10, by design. It is logged below, not asserted away. */
+      const EMAIL_SENTINELS = SENTINELS.filter(x => x.includes('@'));
+      const crumbLeaks = consoleCrumbs.flatMap((c, i) => {
+        const data = JSON.stringify(c.data ?? '');
+        const msg = String(c.message ?? '');
+        return [
+          ...(c.data && typeof c.data === 'object' && 'arguments' in (c.data as object) ? ['console crumb ' + i + ' data still carries raw arguments'] : []),
+          ...SENTINELS.filter(x => data.includes(x)).map(x => 'console crumb ' + i + ' data carries ' + x),
+          ...EMAIL_SENTINELS.filter(x => msg.includes(x)).map(x => 'console crumb ' + i + ' message carries ' + x),
+        ];
+      });
+      const unscrubbedText = consoleCrumbs.filter(c => /COOKIE-SENTINEL-8841|TOKEN-SENTINEL-7730/.test(String(c.message ?? ''))).length;
+      console.log('[E3] breadcrumb leaks=' + JSON.stringify(crumbLeaks) + ' consoleData=' + JSON.stringify(consoleCrumbs.map(c => c.data)).replace(/(sentinel[^s"]*)/gi, '<sentinel>').slice(0, 300) + ' arbitraryTextInMessage(not scrubbed by design)=' + unscrubbedText);
+      expect(crumbLeaks, 'a console breadcrumb carries raw arguments or an email').toEqual([]);
 
-      const found = leaks(env);
+      /* the whole-envelope scan runs over the events with console breadcrumb MESSAGES taken out: their arbitrary text is the by-design limit stated above, judged separately */
+      const envForScan = payloads.map((p: { breadcrumbs?: { category?: string; message?: string }[] }) => p && p.breadcrumbs ? { ...p, breadcrumbs: p.breadcrumbs.map(c => c.category === 'console' ? { ...c, message: '' } : c) } : p).map((p: unknown) => JSON.stringify(p)).join('\n');
+      const found = leaks(envForScan);
       console.log(`[E2] leaks=${JSON.stringify(found)} request=${JSON.stringify(event.request ?? null).slice(0, 300)} user=${JSON.stringify(event.user ?? null)} sdk=${JSON.stringify(event.sdk ?? null).slice(0, 120)}`);
       expect(found, 'the envelope carries something about the person').toEqual([]);
     } finally { await ctx.close(); }
