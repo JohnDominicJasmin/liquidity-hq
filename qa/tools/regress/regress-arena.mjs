@@ -34,15 +34,14 @@ async function load(acct, url, extra = {}) {
 const canvases = (page) => page.evaluate(() => [...document.querySelectorAll('canvas')].filter((c) => c.getBoundingClientRect().height > 40).length);
 const tfBtn = (page, tf) => page.locator('button').filter({ hasText: new RegExp(`^${tf}$`) }).first();
 // The scanner trigger in the page body (NOT the top-nav "Scanners" menu): a button with aria-expanded whose text starts with a coin ticker.
-// Anchored on the category tabs: the scanner wrapper is the element right after the tabs row (app/arena/page.tsx, "COIN CATEGORY TABS" then "SQUEEZE SCANNER").
-const scannerBtn = (page) => page.locator('xpath=//button[normalize-space(.)="Meme"]/../following-sibling::div[1]//button[@aria-expanded]').first();
+// Anchored on the scanner wrapper's test id (#2244 moved the category chips INSIDE the list and removed the tab row this used to hang off).
+const scannerBtn = (page) => page.locator('[data-testid="scanner-trigger"] button[aria-expanded]').first();
 async function openScannerList(page) {
   const b = scannerBtn(page); if (!(await b.count())) return null;
   /* The list also opens on HOVER (Bybit-style flyout), and moving the mouse to click it can open it first, so the click then closes it again:
      click until aria-expanded reads true, at most twice. */
   const read = () => page.evaluate(() => {
-    const meme = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').trim() === 'Meme');
-    const box = meme && meme.parentElement ? meme.parentElement.nextElementSibling : null; // the scanner wrapper: trigger bar + flyout (probe-scanner2.mjs)
+    const box = document.querySelector('[data-testid="scanner-trigger"]'); // the scanner wrapper: trigger bar + flyout (#2244: no tab row to anchor on any more)
     const trig = box ? box.querySelector('button[aria-expanded]') : null;
     if (!trig) return { rows: [], expanded: null };
     const rows = [...box.querySelectorAll('button, [role="button"], [role="option"], a')].filter((x) => x !== trig && !trig.contains(x) && x.getBoundingClientRect().height > 0)

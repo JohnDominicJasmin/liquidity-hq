@@ -181,6 +181,14 @@ const CAT_FILTER_COINS: Record<CoinCategory, readonly CoinId[]> = {
   commodities: TRADFI_CATEGORY_COINS.commodities,
 };
 
+/* The category filter lives INSIDE the coin picker (owner, 2026-11-13, #1263): one place to type and narrow. Sets, so the live
+   count on each chip is a lookup per coin rather than an array scan per coin per chip. */
+const CAT_SETS: Record<CoinCategory, ReadonlySet<CoinId>> = Object.fromEntries(
+  COIN_CATEGORIES.map(k => [k, new Set<CoinId>(CAT_FILTER_COINS[k])]),
+) as unknown as Record<CoinCategory, ReadonlySet<CoinId>>;
+/* Per-viewer convenience only: the chosen category survives closing and reopening the list. Every access is wrapped; blocked storage means All. */
+const SCANNER_CAT_KEY = 'lhq_arena_scanner_cat';
+
 
 
 /* ── Result cache ── */
@@ -530,6 +538,16 @@ function ArenaContent() {
   const [scannerSearch, setScannerSearch] = useState('');
   const scannerSearchRef = useRef<HTMLInputElement>(null);
   const [coinCat, setCoinCat]           = useState<CoinCategory>('all');
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(SCANNER_CAT_KEY);
+      if (v && (COIN_CATEGORIES as readonly string[]).includes(v)) setCoinCat(v as CoinCategory);
+    } catch { /* blocked storage: the list opens on All */ }
+  }, []);
+  const chooseCat = (c: CoinCategory) => {
+    setCoinCat(c);
+    try { window.localStorage.setItem(SCANNER_CAT_KEY, c); } catch { /* not remembered; still applied */ }
+  };
   const [copiedKey, setCopiedKey]           = useState<string | null>(null);
   const [jpyUsd, setJpyUsd]                 = useState<number | null>(null);
   /* Perps vs spot (#340) - the same reading the dashboard card shows, from the
@@ -775,7 +793,9 @@ function ArenaContent() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         openedByHover.current = false;
+        const wasInside = !!scannerRef.current && scannerRef.current.contains(document.activeElement);
         setScannerOpen(false);
+        if (wasInside) scannerRef.current?.querySelector<HTMLElement>('button[aria-expanded]')?.focus(); // the real trigger button; data-testid=scanner-trigger is on the (unfocusable) wrapper
       }
     };
     document.addEventListener('keydown', onKey);
@@ -1992,9 +2012,37 @@ function ArenaContent() {
     }).sort((a, b) => (b.vol24 ?? 0) - (a.vol24 ?? 0));
   const sqzCount   = scannerRows.filter(x => x.sq.dir === 'SHORT_SQ'  && x.sq.score >= 30).length;
   const flushCount = scannerRows.filter(x => x.sq.dir === 'LONG_LIQ'  && x.sq.score >= 30).length;
-  const visibleScannerRows = scannerSearch
-    ? scannerRows.filter(r => r.c.toLowerCase().includes(scannerSearch.toLowerCase()))
-    : scannerRows;
+  /* SEARCH AND CATEGORY COMBINE. `scannerRows` is already narrowed to the active category; the search narrows it further. Typing never touches the
+     category and choosing a category never touches the search. The name a trader sees (NVDA) is matched as well as the id. */
+  const scannerQ = scannerSearch.trim().toLowerCase();
+  const scannerMatches = (c: CoinId) => !scannerQ || c.toLowerCase().includes(scannerQ) || displayCoin(c).toLowerCase().includes(scannerQ);
+  const visibleScannerRows = scannerQ ? scannerRows.filter(r => scannerMatches(r.c)) : scannerRows;
+  /* Live count per chip for the CURRENT search, so the trader sees where the matches are. Only while the list is open. */
+  const catCounts: Record<CoinCategory, number> | null = scannerOpen
+    ? (Object.fromEntries(COIN_CATEGORIES.map(k => [k, UNIVERSE_COINS.reduce((n, c) => n + (CAT_SETS[k].has(c) && scannerMatches(c) ? 1 : 0), 0)])) as Record<CoinCategory, number>)
+    : null;
+  /* Chip row keyboard: one tab stop (the active chip), arrows move between chips, and a typed character goes to the search box so the trader can keep typing. */
+  const onCatKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const chips = Array.from(e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('button[data-cat]') ?? []);
+    const i = chips.indexOf(e.currentTarget);
+    const go = (j: number) => { const b = chips[(j + chips.length) % chips.length]; if (b) { b.focus(); try { b.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch { /* old browser */ } } };
+    if (e.key === 'ArrowRight') { e.preventDefault(); go(i + 1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); go(i - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); go(0); }
+    else if (e.key === 'End') { e.preventDefault(); go(chips.length - 1); }
+    else if (e.key === 'Backspace') { e.preventDefault(); setScannerSearch(v => v.slice(0, -1)); scannerSearchRef.current?.focus(); }
+    else if (e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); const ch = e.key; setScannerSearch(v => v + ch); scannerSearchRef.current?.focus(); }
+  };
+  /* Arrow keys between the search box and the rows. */
+  const focusRow = (from: HTMLElement | null, delta: number) => {
+    const rows = Array.from(scannerRef.current?.querySelectorAll<HTMLElement>('[data-testid^="scanner-row-"]') ?? []);
+    if (!rows.length) return;
+    const i = from ? rows.indexOf(from) : -1;
+    const j = i + delta;
+    if (j < 0) { scannerSearchRef.current?.focus(); return; }
+    const next = rows[Math.min(j, rows.length - 1)];
+    next.focus(); try { next.scrollIntoView({ block: 'nearest' }); } catch { /* old browser */ }
+  };
 
   return (
     <div className="arena-term-wrap">
@@ -2016,33 +2064,6 @@ function ArenaContent() {
         title={t('ARENA_HINT_TITLE')}
         body={t('ARENA_HINT_BODY')}
       />
-
-      {/* ── COIN CATEGORY TABS ── */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
-        {COIN_CATEGORIES.map(c => (
-          <button
-            key={c}
-            type="button"
-            /* #1263 (WCAG 4.1.2): these five signalled the selected category with COLOUR ALONE - the
-               `.on` class changes background, text and border and nothing else. Every one of them
-               announced identically, so a screen-reader user could not tell which category was
-               active, and neither could anyone who cannot separate the purple from the grey.
-
-               `aria-pressed` is the right control rather than `aria-current` or a radio group: these
-               are toggle buttons that filter a list in place, which is exactly what the pressed state
-               describes. It also costs nothing visually, so the approved design is untouched.
-
-               The strategy chips already do this (components/StrategyPanel.tsx:373); this group was
-               missed because it is in the page rather than in that component. */
-            aria-pressed={coinCat === c}
-            className={`gsc-tf-btn${coinCat === c ? ' on' : ''}`}
-            style={{ padding: '3px 9px', fontSize: 'var(--fs-caption)', textTransform: 'capitalize' }}
-            onClick={() => setCoinCat(c)}
-          >
-            {t(CAT_LABEL_KEYS[c])}
-          </button>
-        ))}
-      </div>
 
       {/* ── SQUEEZE SCANNER - hover flyout (Bybit-style watchlist) ── */}
       <div
@@ -2221,11 +2242,38 @@ function ArenaContent() {
                 placeholder={t('ARENA_SCANNER_SEARCH_PLACEHOLDER')}
                 value={scannerSearch}
                 onChange={e => setScannerSearch(e.target.value)}
+                onKeyDown={e => { if (e.key === 'ArrowDown') { e.preventDefault(); focusRow(null, 1); } }}
                 style={{ flex: 1, background: 'transparent', border: 'none', padding: '7px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
               />
               {scannerSearch && (
                 <button onClick={() => setScannerSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label={t('ARENA_SCANNER_CLEAR_SEARCH_ARIA')}>×</button>
               )}
+            </div>
+
+            {/* Category chips, INSIDE the list under the search box (owner, 2026-11-13). The search bar and this row sit above the scrolling rows, so they
+                stay in view while the rows scroll. The active chip says so with a check and a heavier weight as well as colour (aria-pressed for assistive tech). */}
+            <div className="scanner-cat-row" role="group" aria-label={t('ARENA_SCANNER_CAT_GROUP_ARIA')} style={{ borderBottom: '0.5px solid var(--bdr)' }}>
+              {COIN_CATEGORIES.map(k => {
+                const n = catCounts ? catCounts[k] : 0;
+                const on = coinCat === k;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    data-cat={k}
+                    aria-pressed={on}
+                    aria-label={t('ARENA_SCANNER_CAT_COUNT_ARIA', { category: t(CAT_LABEL_KEYS[k]), n })}
+                    tabIndex={on ? 0 : -1}
+                    className={`gsc-tf-btn scanner-cat-chip${on ? ' on' : ''}`}
+                    style={{ fontWeight: on ? 700 : 500 }}
+                    data-empty={n === 0 && !on ? 'true' : undefined}
+                    onClick={e => { chooseCat(k); try { e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch { /* old browser */ } }}
+                    onKeyDown={onCatKey}
+                  >
+                    {on && <span aria-hidden="true">{'\u2713 '}</span>}{t(CAT_LABEL_KEYS[k])}<span aria-hidden="true" className="scanner-cat-n">{n}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Column header */}
@@ -2248,9 +2296,26 @@ function ArenaContent() {
             </div>
 
             {/* Coin rows */}
-            <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+            <div className="scanner-flyout-rows">
             {visibleScannerRows.length === 0 ? (
-              <div style={{ padding: '12px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>{t('ARENA_SCANNER_NO_MATCH', { search: scannerSearch })}</div>
+              <div style={{ padding: '12px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                {(() => {
+                  /* The matches exist, just not in this category: offer the category that holds most of them (All if none of the others does), keeping the search text. */
+                  const others = COIN_CATEGORIES.filter(k => k !== coinCat && k !== 'all' && (catCounts?.[k] ?? 0) > 0).sort((x, y) => (catCounts?.[y] ?? 0) - (catCounts?.[x] ?? 0));
+                  const target: CoinCategory = others[0] ?? 'all';
+                  const found = catCounts?.[target] ?? 0;
+                  if (scannerQ && coinCat !== 'all' && found > 0) {
+                    return (<>
+                      <span>{t('ARENA_SCANNER_EMPTY_IN_CAT', { category: t(CAT_LABEL_KEYS[coinCat]), n: found, other: t(CAT_LABEL_KEYS[target]) })}</span>
+                      <button type="button" className="gsc-tf-btn on scanner-cat-chip" onClick={() => chooseCat(target)}>{t('ARENA_SCANNER_EMPTY_SWITCH', { other: t(CAT_LABEL_KEYS[target]) })}</button>
+                    </>);
+                  }
+                  return (<>
+                    <span>{t('ARENA_SCANNER_NO_MATCH', { search: scannerSearch })}</span>
+                    {scannerSearch && <button type="button" className="gsc-tf-btn scanner-cat-chip" onClick={() => { setScannerSearch(''); scannerSearchRef.current?.focus(); }}>{t('ARENA_SCANNER_CLEAR_SEARCH_ARIA')}</button>}
+                  </>);
+                })()}
+              </div>
             ) : visibleScannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges, hasSignals, canRead }) => {
               const isSelected  = c === selectedCoin;
               /* A row with no funding and no OI can never be active - and must not read as a
@@ -2272,6 +2337,10 @@ function ArenaContent() {
                      changes. Keyed by the coin ID, which is what the search box filters on. */
                   data-testid={`scanner-row-${c}`}
                   className="scanner-flyout-grid"
+                  onKeyDown={e => {
+                    if (e.key === 'ArrowDown') { e.preventDefault(); focusRow(e.currentTarget, 1); }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); focusRow(e.currentTarget, -1); }
+                  }}
                   onClick={() => {
                     coinTouchedRef.current = true;
                     setSelectedCoin(c); setScannerOpen(false); setScannerSearch(''); window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'coins' }));
