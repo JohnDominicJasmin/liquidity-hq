@@ -44,6 +44,10 @@ const realNow = Date.now.bind(Date);
 let offset = 0;
 Date.now = () => realNow() + offset;
 const tick = (ms: number) => { offset += ms; };
+/* new Date() with no argument does NOT read Date.now, so the daily-summary window (a recipient's local 07:00-07:10) could not be reached by tick(). A subclass that reads the shifted clock fixes that. */
+const RealDate = Date;
+globalThis.Date = class extends RealDate { constructor(...args: unknown[]) { if (args.length === 0) super(realNow() + offset); else super(...(args as [number])); } } as unknown as DateConstructor;
+Date.now = () => realNow() + offset;
 
 const SUPABASE = 'http://supabase.invalid';
 process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE; process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'placeholder-anon'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'placeholder-service';
@@ -59,6 +63,7 @@ const world = {
   btc: 101_000,
   telegram: 'ok' as 'ok' | 'blocked',
   sendingOff: false,                                         // the /ops kill switch (feature flag "telegram")
+  dailyMessages: [] as string[],                             // every daily-summary message Telegram was asked to send
   priceAlertMessages: [] as string[],                        // every price-alert message Telegram was asked to send
   switchedOff: [] as number[][],                             // ids in each "active: false" write
   upstream: [] as string[],                                  // every call the route made to a PRICE source (not Telegram, not Supabase)
@@ -125,6 +130,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   if (url.host === 'api.telegram.org') {
     const body = JSON.parse(await req.text()) as { text: string };
     if (body.text.includes('Price Alert Triggered')) world.priceAlertMessages.push(body.text);
+    if (body.text.includes('Active Price Alerts')) world.dailyMessages.push(body.text);
     return world.telegram === 'ok' ? json(200, { ok: true }) : json(403, { ok: false, description: 'Forbidden: bot was blocked by the user' });
   }
   if (world.realistic && url.origin !== SUPABASE && url.host !== 'api.telegram.org') { if (url.origin !== SUPABASE) world.upstream.push(`${url.host}${url.pathname}${url.search ? '?' + [...url.searchParams.keys()].sort().map(k => `${k}=${['category', 'interval', 'limit', 'period', 'intervalTime'].includes(k) ? url.searchParams.get(k) : '*'}`).join('&') : ''}`); const r = await realistic(url); if (r) return r; }
@@ -461,5 +467,69 @@ test('B8. the hour boundary: after it, the next pass refetches the closed hourly
       assert.ok(warm300 <= 2, 'a warm pass in the same hour re-read the hourly series (' + warm300 + ' reads)');
       assert.ok(after300 >= 40, 'after the hour boundary the series was not refetched once per coin (' + after300 + ' reads): stale candles would be served');
     }
+  } finally { resetWorld(); }
+});
+
+/* ══ #2222 CELLS: a price in an alert message is the real price, never "$0" ═════════════════════════════════════════════════════════════════════ */
+const mkA = (id: number, coin: string, target: number, dir: 'above' | 'below' = 'above'): Alert => ({ ...alert(id), coin, target_price: target, direction: dir });
+
+test('P1. PEPE crossing 0.000014 at 0.0000152 reads $0.000014 and $0.0000152, never $0', async () => {
+  try {
+    setWorld(); alignClock();
+    world.prices = { ...world.prices, '1000PEPEUSDT': 0.0152 };
+    world.alerts = [mkA(501, 'pepe', 0.000014)];
+    const s0 = world.priceAlertMessages.length;
+    await run();
+    const m = world.priceAlertMessages.slice(s0)[0] ?? '';
+    assert.ok(m, 'no message went out');
+    assert.match(m, /Crossed Above <b>\$0\.000014<\/b>/, 'the target is not printed as the user typed it: ' + m);
+    assert.match(m, /\$0\.0000152/, 'the price is not printed: ' + m);
+    assert.doesNotMatch(m, /\$0(?![.\d])/, 'a bare $0 is in the message: ' + m);
+  } finally { resetWorld(); }
+});
+
+test('P2. BTC at 64,250.5 keeps its comma grouping and its decimal, exactly as before the fix', async () => {
+  try {
+    setWorld(); alignClock(); world.btc = 64_250.5;
+    world.alerts = [mkA(511, 'btc', 64_000)];
+    const s0 = world.priceAlertMessages.length;
+    await run();
+    const m = world.priceAlertMessages.slice(s0)[0] ?? '';
+    assert.ok(m, 'no message went out');
+    assert.match(m, /Crossed Above <b>\$64,000<\/b>/, m);
+    assert.match(m, /\$64,250\.5(?!\d)/, 'the BTC price changed shape: ' + m);
+  } finally { resetWorld(); }
+});
+
+test('P3. a target of 0.5 reads $0.5 and the price 0.6 reads $0.6', async () => {
+  try {
+    setWorld(); alignClock();
+    world.prices = { ...world.prices, ADAUSDT: 0.6 };
+    world.alerts = [mkA(521, 'ada', 0.5)];
+    const s0 = world.priceAlertMessages.length;
+    await run();
+    const m = world.priceAlertMessages.slice(s0)[0] ?? '';
+    assert.ok(m, 'no message went out');
+    assert.match(m, /Crossed Above <b>\$0\.5<\/b>/, m);
+    assert.match(m, /\$0\.6(?!\d)/, m);
+  } finally { resetWorld(); }
+});
+
+test('P4. the daily summary lists a sub-cent target as typed (PEPE 0.000014) and keeps BTC 64,000', async () => {
+  try {
+    setWorld();
+    // move the clock to 07:03 UTC (a recipient with no known zone is read in UTC), the daily-summary window
+    const now = Date.now(); const dayMs = 86_400_000; const into = now % dayMs; const want = 7 * 3_600_000 + 3 * MIN;
+    tick(into <= want ? want - into : dayMs - into + want);
+    world.btc = 60_000;                                        // below 64,000: neither alert fires, both stay in the list
+    world.alerts = [mkA(531, 'pepe', 0.000014, 'below'), mkA(532, 'btc', 64_000)];
+    world.prices = { ...world.prices, '1000PEPEUSDT': 0.0152 };
+    const d0 = world.dailyMessages.length;
+    await run();
+    const m = world.dailyMessages.slice(d0)[0] ?? '';
+    assert.ok(m, 'no daily-summary message with an Active Price Alerts block went out');
+    assert.match(m, /PEPE .{1,3} \$0\.000014(?!\d)/, 'the PEPE target is not listed as typed: ' + m);
+    assert.match(m, /BTC .{1,3} \$64,000/, m);
+    assert.doesNotMatch(m, /PEPE .{1,3} \$0(?![.\d])/, 'PEPE listed as $0: ' + m);
   } finally { resetWorld(); }
 });
