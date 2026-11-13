@@ -253,6 +253,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // callback is created once inside the effect with `[]` deps, so `user`
   // itself would be permanently stale there.
   const userIdRef = useRef<string | null>(null);
+  /* #1173: how long the first session read took. The entitlements read that follows spends the SAME wait the person is sitting through, so its budget is
+     what is left of ENTITLEMENTS_OVERALL_BUDGET_MS, never a fresh 22 s on top (QA measured 37 s from navigation with a 6.5 s-held session read). Cleared once
+     entitlements settle, so a later re-fetch gets the full budget. */
+  const sessionReadMsRef = useRef(0);
   useEffect(() => { userIdRef.current = user?.id ?? null; }, [user]);
 
   useEffect(() => {
@@ -295,7 +299,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
      * The deadline is taken once, so `loading` resolves within
      * SESSION_RESOLVE_MS of the effect starting no matter how the time is split
      * between the two calls. */
-    const deadline = Date.now() + SESSION_RESOLVE_MS;
+    const readStartedAt = Date.now();
+    const deadline = readStartedAt + SESSION_RESOLVE_MS;
     const withTimeout = <T,>(p: PromiseLike<T>): Promise<T | null> =>
       Promise.race([
         Promise.resolve(p),
@@ -304,6 +309,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       ]);
 
     withTimeout(sb.auth.getSession()).then(async (res) => {
+      sessionReadMsRef.current = Math.min(SESSION_RESOLVE_MS, Date.now() - readStartedAt);
       const data = res?.data;
       const sessionUser = data?.session?.user ?? null;
       if (sessionUser && isSessionExpired()) {
@@ -538,9 +544,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         maxAttempts: ENTITLEMENTS_MAX_ATTEMPTS,
         backoffMs: ENTITLEMENTS_RETRY_BACKOFF_MS,
         isCancelled: () => cancelled,
-        overallBudgetMs: ENTITLEMENTS_OVERALL_BUDGET_MS,
+        // Shared deadline (#1173): the wait already spent on the session read counts, but one full per-attempt read (15 s) always stays possible.
+        overallBudgetMs: Math.max(ENTITLEMENTS_FETCH_MS, ENTITLEMENTS_OVERALL_BUDGET_MS - sessionReadMsRef.current),
       });
       if (bailedEarly) return;
+      sessionReadMsRef.current = 0;
       const { data, failed } = result;
 
       if (!failed) {
