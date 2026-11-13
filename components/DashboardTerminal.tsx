@@ -90,10 +90,11 @@ function TMarketPulseStrip() {
   const domNote = dom == null ? '' : dom >= 60 ? t('DASH_PULSE_NOTE_BTC_LEADS') : dom >= 55 ? t('DASH_PULSE_NOTE_ELEVATED') : dom >= 48 ? t('DASH_PULSE_NOTE_NORMAL') : t('DASH_PULSE_NOTE_ALT_SEASON');
   const altNote = alt == null ? '' : alt >= 75 ? t('DASH_PULSE_NOTE_ALT_SEASON') : alt >= 50 ? t('DASH_PULSE_NOTE_LEAN_ALTS') : alt >= 25 ? t('DASH_PULSE_NOTE_BTC_LEADS') : t('DASH_PULSE_NOTE_BTC_SEASON');
 
-  type Chip = { label: string; value: string; note: string; color: string };
+  type Chip = { label: string; value: React.ReactNode; note: string; color: string };
   const chips: Chip[] = [
-    { label: t('DASH_PULSE_BTC_DOM_LABEL'), value: dom != null ? dom.toFixed(1) + '%' : '-', note: domNote, color: 'var(--txt)' },
-    { label: t('DASH_PULSE_ALT_LABEL'), value: alt != null ? String(alt) : '-', note: altNote, color: altColor },
+    /* A MISSING READING SAYS WHICH KIND OF MISSING (#1651, PM): an ellipsis while the CoinMarketCap read is still coming, the plain word once it is not. */
+    { label: t('DASH_PULSE_BTC_DOM_LABEL'), value: dom != null ? dom.toFixed(1) + '%' : <ReadingGap loading={store.btcDomStatus === 'pending'} />, note: domNote, color: 'var(--txt)' },
+    { label: t('DASH_PULSE_ALT_LABEL'), value: alt != null ? String(alt) : <ReadingGap loading={store.altSeasonStatus === 'pending'} />, note: altNote, color: altColor },
     ...(volLabel ? [{ label: t('DASH_PULSE_VOL_LABEL'), value: volLabel.replace(' Vol', ''), note: t('DASH_PULSE_VOL_NOTE'), color: volColor }] : []),
   ];
 

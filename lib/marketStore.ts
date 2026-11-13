@@ -156,6 +156,9 @@ export type MarketStore = {
   btcDomHistory: number[];
   ethDom: number | null;            // ETH market dominance % (from CMC)
   altSeasonScore: number | null;    // 0–100: % of top-50 alts outperforming BTC (90d)
+  /** The state of the two CoinMarketCap reads behind the dashboard's BTC.D and ALT cells (#1651): 'pending' until the first answer, 'ok', or 'failed'; 'ok' is kept through a later blip. */
+  btcDomStatus: ScannerFeedState;
+  altSeasonStatus: ScannerFeedState;
   wsStatus: string;
   /** A PRICE READ FAILED AND NOTHING ARRIVED, which is a different fact from 'still loading'.
    *  Panels that gate on `coins[id].price != null` cannot tell those apart on their own, so they
@@ -241,6 +244,8 @@ export const defaultStore: MarketStore = {
   btcDomHistory: [],
   ethDom: null,
   altSeasonScore: null,
+  btcDomStatus: 'pending',
+  altSeasonStatus: 'pending',
   wsStatus: 'Connecting...',
   pricesFailed: false,
   scannerFeed: { universe: 'pending', binanceOnly: 'pending' },
