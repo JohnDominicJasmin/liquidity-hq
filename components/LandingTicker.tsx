@@ -16,21 +16,21 @@
  * question (flagged to QA, not resolved here) - this file only answers it
  * for landing, where the spec is explicit. */
 import { useMarket, COINS, COIN_DEC, coinLabel, fmtPrice } from '@/lib/marketStore';
-import { useLabels } from '@/lib/labels';
+import type { LandingDict } from '@/lib/i18n/dictionaries';
 
-export default function LandingTicker({ mobile, dir }: { mobile: boolean; dir: 'ltr' | 'rtl' }) {
+export default function LandingTicker({ mobile, dir, words }: { mobile: boolean; dir: 'ltr' | 'rtl'; words: LandingDict['ticker'] }) {
   const { store } = useMarket();
-  const { t } = useLabels();
-  /* A MISSING QUOTE SAYS WHICH KIND OF MISSING (#1263): an ellipsis while the bulk read is still in flight, otherwise a word with a title, never a bare dash. Falls back to English if
-     the label provider is absent (its default `t` returns the key itself). */
-  const word = (key: 'ARENA_SCANNER_UNAVAILABLE_SHORT' | 'ARENA_SCANNER_LOADING_TITLE' | 'ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE' | 'ARENA_SCANNER_UNAVAILABLE_NONE_TITLE', en: string) => {
-    const v = t(key);
-    return v === key ? en : v;
-  };
+  /* A MISSING QUOTE SAYS WHICH KIND OF MISSING (#1263): an ellipsis while the bulk read is still in flight, otherwise "n/a" with a hover note, never a bare dash.
+     THE WORDS COME FROM THE LANDING DICTIONARY (the `words` prop), not the label table: the landing page does not read the label table (landingReadsNoLabels, #1889), so this
+     component must not call useLabels. */
+  const LOADING = words.loading;
+  const FAILED = words.failedNote;
+  const NONE = words.noneNote;
   const feed = store.scannerFeed.universe;
   const gap = () => feed === 'pending'
-    ? <span role="img" aria-label={word('ARENA_SCANNER_LOADING_TITLE', 'Loading')} title={word('ARENA_SCANNER_LOADING_TITLE', 'Loading')}>{'\u2026'}</span>
-    : <span title={feed === 'failed' ? word('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE', 'The exchange did not answer. Retrying.') : word('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE', 'No price for this instrument from our sources.')}>{word('ARENA_SCANNER_UNAVAILABLE_SHORT', 'n/a')}</span>;
+    ? <span role="img" aria-label={LOADING} title={LOADING}>{'…'}</span>
+    : <span title={feed === 'failed' ? FAILED : NONE}>{words.unavailable}</span>;
+
   // landing.md line 518: the fade is direction-dependent - under RTL the
   // gradient must mirror to 270deg, or it hides the first cell instead of
   // the last (#592 review).

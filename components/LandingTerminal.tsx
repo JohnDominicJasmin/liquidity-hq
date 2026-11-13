@@ -310,7 +310,7 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
       </nav>
 
       {/* ── TICKER ── */}
-      <LandingTicker mobile={!isDesktop} dir={dir} />
+      <LandingTicker mobile={!isDesktop} dir={dir} words={dict.ticker} />
 
       {/* ── HERO — glow/beams intentionally kept, see file header ── */}
       <section style={{ position: 'relative', padding: heroWide ? '76px 40px 64px' : '34px 18px 30px' }}>
