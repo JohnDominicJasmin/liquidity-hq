@@ -7,6 +7,8 @@ const OPTIONS: Array<{ code: Locale; label: string; href: string }> = [
   { code: 'en', label: 'English',  href: '/' },
   { code: 'ko', label: '한국어',    href: '/ko' },
   { code: 'zh', label: '中文',      href: '/zh' },
+  /* Russian has a live landing (/ru, SUPPORTED_LOCALES and AVAILABLE_LOCALES) and was missing here, so on /ru the picker read 'English' / 'EN' and never offered it (#1185, PM 2026-11-13). */
+  { code: 'ru', label: 'Русский',   href: '/ru' },
   // العربية was here. Removed 2026-08-08 (#138): the translation is complete
   // but the layout does not mirror, so choosing it produced Arabic text in a
   // left-to-right layout. The dictionary is kept in lib/i18n/dictionaries.ts -
