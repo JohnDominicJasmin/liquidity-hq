@@ -292,7 +292,7 @@ export const CHANGELOG: ChangelogEntry[] = [
            missing figures say loading or No data, never a dash (dashboard cards, BTC dominance and alt-season cells, coin prices, funding table; a price change that is not known draws nothing)   #2256 #2261 #2262 #2263 (open when written)
            card notes and market-read tiles wrap instead of ending in an ellipsis                                    #2255 #2264 (open when written)
            dashboard, market read, session clock and holidays, Ask AI chat and funding in ko/zh/ru; Russian in the home page menu, and the short words (funding, setup, Fear & Greed, chart patterns) follow the language (Arabic is not offered in any picker, so it is not named)   #2257 #2258 #2259 #2260 #2266 (open when written)
-           coin names easier to tap on phones                                                                       #2254 (merged)
+           coin names easier to tap on phones (KEEP ONLY IF QA's /markets 24 px measurement lands after the promotion; funding and dashboard are measured)   #2254 (merged)
          NOTE: the stale "n/a" wording of the #2245 line is corrected below to match what #2253 shipped ("No data"). */
       'In the AI Arena coin list, a price that has not arrived shows a loading mark, and one that cannot be found says "No data" in plain words, instead of a dash that could mean either. HYPE, FET and several commodities now show a price even when one exchange cannot be reached, and coins with no signals say "No signals" instead of "n/a".',
       'On the landing page, the price ticker and the Live Read card now say "Unavailable" or show a loading mark instead of a bare dash, and the card shows the Coinbase premium.',
@@ -300,9 +300,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       'A Deep read that gives price levels but cites no catalysts now says so, instead of leaving a gap.',
       'The Korean, Chinese and Russian home pages are now fully in their language: the start button, the Live Read card and the cookie notice. The legal text at the bottom stays in English.',
       'On phones, the AI Arena coin list says "No data" in plain words when a price is missing, instead of a dash, and the Russian page no longer scrolls sideways.',
-      'Missing figures now say "Loading" or "No data" in plain words instead of a dash: the dashboard cards and coin prices, and the funding table. A price change that is not known no longer shows as +0.00%.',
+      'Missing figures now show a loading mark, "Unavailable" or "No data" in plain words instead of a dash: the dashboard cards, coin prices and the funding table. A price change that is not known no longer shows as +0.00%.',
       'Card titles, the notes under card values and the market-read tiles now wrap onto a second line instead of being cut off with "...".',
-      'The dashboard, the market read, the session clock and market holidays, the Ask AI chat and the funding page, with their short words such as funding, Fear & Greed and chart patterns, now speak Korean, Chinese and Russian, and Russian is offered in the home page language menu.',
+      'Most of the dashboard, the market read, the session clock and market holidays, the Ask AI chat, with their short words such as funding, Fear & Greed and chart patterns, now speak Korean, Chinese and Russian, and Russian is offered in the home page language menu.',
       'Coin names on the funding, markets and dashboard pages are easier to tap on phones.',
     ],
   },
