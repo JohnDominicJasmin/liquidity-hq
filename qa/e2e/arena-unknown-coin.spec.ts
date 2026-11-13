@@ -75,8 +75,14 @@ test.describe('#2247 unknown coin link note', () => {
       const page = await ctx.newPage();
       await page.route('**/api/labels*', async (route) => { let res; try { res = await route.fetch(); } catch { try { await route.continue(); } catch { /* gone */ } return; } let body: unknown; try { body = await res.json(); } catch { await route.fulfill({ response: res }); return; } const pl = body as Record<string, unknown>; const labels = (pl.labels ?? pl) as Record<string, unknown>; labels.ARENA_UNKNOWN_COIN_NOTE = rows[loc]; await route.fulfill({ response: res, json: pl }); });
       try {
+        // baseline: the same locale and width with NO note, so a sideways scroll can be told apart from the note's own
+        await gotoGuarded(page, '/arena?coin=btc'); await page.waitForTimeout(8_000);
+        const base = await page.evaluate(() => ({ docSw: document.documentElement.scrollWidth, vw: window.innerWidth, wide: Array.from(document.querySelectorAll('body *')).filter(e => e.getBoundingClientRect().right > window.innerWidth + 1).slice(0, 4).map(e => (e.tagName + '.' + String(e.className).slice(0, 40) + ' r=' + Math.round(e.getBoundingClientRect().right))) }));
+        console.log(`[U5-baseline] ${loc} ${JSON.stringify(base)}`);
         await gotoGuarded(page, '/arena?coin=zzzz'); await page.waitForTimeout(8_000);
         const g = await page.evaluate(() => { const s = Array.from(document.querySelectorAll('[role="status"]')).find(e => /ZZZZ/.test(e.textContent || '')) as HTMLElement | undefined; if (!s) return null; const b = s.getBoundingClientRect(); const r = document.createRange(); r.selectNodeContents(s); const lines = new Set(Array.from(r.getClientRects()).filter(x => x.width > 0).map(x => Math.round(x.top))).size; return { text: (s.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120), lines, overflows: s.scrollWidth > s.clientWidth + 1, right: Math.round(b.right), vw: window.innerWidth, docSw: document.documentElement.scrollWidth }; });
+        const wideNote = await page.evaluate(() => Array.from(document.querySelectorAll('body *')).filter(e => e.getBoundingClientRect().right > window.innerWidth + 1).slice(0, 4).map(e => (e.tagName + '.' + String(e.className).slice(0, 40) + ' r=' + Math.round(e.getBoundingClientRect().right))));
+        console.log(`[U5-wide] ${loc} ${JSON.stringify(wideNote)}`);
         console.log(`[U5] ${loc} ${JSON.stringify(g)}`); await page.screenshot({ path: `qa/.shots/u5-${loc}.png` });
         expect(g, 'the note did not render in ' + loc).not.toBeNull();
         expect(g!.overflows, 'the note overflows its box').toBe(false); expect(g!.right, 'the note runs past the viewport').toBeLessThanOrEqual(g!.vw); expect(g!.docSw, 'the page scrolls sideways').toBeLessThanOrEqual(g!.vw);
