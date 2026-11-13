@@ -30,6 +30,7 @@
     }
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@marsidev/react-turnstile": "^1.5.3",
     "@sentry/nextjs": "^10.75.2",
     "@supabase/supabase-js": "^2.106.2",
