@@ -106,6 +106,8 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
      GlobalMacroContext and DryPowder return early on `!user`. */
   { spec: 'category-chips-aria-pressed', needs: 'none', note: 'the eight chips inside the coin picker (#2244); anonymous, reads only' },
   { spec: 'arena-picker-chips', needs: 'none', note: 'the picker chips, search, keyboard and sign-off shots (#2244); anonymous; writes only its own browser localStorage' },
+  { spec: 'honest-states-batch', needs: 'none', note: 'the 2026-11-14 dashboard, funding and picker batch (#2255 #2256 #2260 #2261); anonymous; market reads stubbed' },
+  { spec: 'dashboard-localized', needs: 'none', note: 'the dashboard market read, card titles and Ask AI button in ru, ko, zh, ar (#2257); anonymous; label rows injected in the browser, nothing written' },
   { spec: 'chart-backfill', needs: 'none' },
   { spec: 'checkout-config-agrees', needs: 'none', note: 'asserts /api/version flags: production differs from dev, expect a triage pass' },
   { spec: 'clock', needs: 'none' },
