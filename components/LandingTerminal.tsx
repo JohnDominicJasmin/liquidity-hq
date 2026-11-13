@@ -160,16 +160,19 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const { txt: oi1hTxt, col: oi1hColRaw } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
   const oi1hCol = oi1h.pct == null ? 'var(--txt2)' : oi1hColRaw;
 
-  const evidence: { label: string; value: string | null; note: string; col: string; title?: string }[] = [
+  /* A MISSING READING SAYS WHICH KIND OF MISSING (#1651): an ellipsis while it is still coming, the localized word once it is not, never a bare dash. The words are the landing
+     dictionary's, not the label table's (#1889). Entry/Stop/Target keep the design's em dash: they are not a feed. */
+  const feedPending = store.scannerFeed.universe === 'pending' || snapshotLoading;
+  const evidence: { label: string; value: string | null; note: string; col: string; title?: string; state?: 'loading' | 'unavailable' }[] = [
     /* THE VWAP, not the price (#1263). This row printed `price` under a "VWAP" label on the PUBLIC
        hero - a signed-out visitor's first impression of the product - for every coin. Measured: all
        49 coins in the snapshot carry a real vwap, so this shows a number rather than a dash; the
        'Unavailable' note is reachable only if that feed fails or the coin is outside it. */
     { label: 'VWAP',    value: vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[LIVE_READ_COIN]) : null, note: vwap == null ? (snapshotLoading ? '' : 'Unavailable') : vwapAbove == null ? '' : vwapAbove ? 'Above' : 'Below', col: vwapCol },
-    { label: 'OI trend', value: oiRow ? oiRow.txt : null, note: '', col: oiRow ? oiRow.col : 'var(--txt2)' },
+    { label: 'OI trend', value: oiRow ? oiRow.txt : null, note: '', col: oiRow ? oiRow.col : 'var(--txt2)', state: oiRow ? undefined : (feedPending ? 'loading' : 'unavailable') },
     { label: 'Funding', value: fr != null ? (fr * 100 >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : null, note: frInfo ? frInfo.label : '', col: frCol },
-    { label: 'CB prem', value: null, note: '', col: 'var(--txt2)' /* no source wired - see LABELS in spec, always em dash */ },
-    { label: 'OI 1h',   value: oi1h.loading ? null : (oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : null), note: oi1h.loading ? '' : oi1hTxt, col: oi1hCol },
+    { label: 'CB prem', value: cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(2) + '%' : null, note: '', col: cbCol, state: cbPct != null ? undefined : (store.cbPremiumStatus === 'pending' ? 'loading' : 'unavailable') },
+    { label: 'OI 1h',   value: oi1h.loading ? null : (oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : null), note: oi1h.loading || oi1h.pct == null ? '' : oi1hTxt, col: oi1hCol, state: oi1h.loading ? 'loading' : (oi1h.pct == null ? 'unavailable' : undefined) },
     /* `null` WHEN THERE IS NO COIN DATA, not the score (#1185). `computeSqueezeScore` returns
        `{ score: 0, dir: 'NEUTRAL', label: 'No data' }` for a missing coin, so this row printed a
        confident "0" next to its own "No data" note - on the PUBLIC landing hero, which is the first
@@ -239,7 +242,10 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
               <span style={{ width: 2, height: 18, flexShrink: 0, background: row.value == null ? 'var(--mark-idle)' : row.col }} />
               <span style={{ width: 76, flexShrink: 0, fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.1em', color: 'var(--txt3)' }}>{row.label}</span>
               <span style={{ fontSize: 12.5, fontFamily: 'var(--font-mono), monospace', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: row.value == null ? 'var(--txt2)' : row.col }}>
-                {row.value == null ? <EmptyValue /> : row.value}
+                {row.value != null ? row.value
+                  : row.state === 'loading' ? <span role="img" aria-label={dict.ticker.loading} title={dict.ticker.loading}>{'\u2026'}</span>
+                  : row.state === 'unavailable' ? <span style={{ color: 'var(--txt2)' }}>{dict.ticker.unavailable}</span>
+                  : <EmptyValue />}
               </span>
               {row.note && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--txt3)' }}>{row.note}</span>}
             </div>
