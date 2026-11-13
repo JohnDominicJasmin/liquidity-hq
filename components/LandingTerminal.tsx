@@ -171,7 +171,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
     { label: 'VWAP',    value: vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[LIVE_READ_COIN]) : null, note: vwap == null ? (snapshotLoading ? '' : 'Unavailable') : vwapAbove == null ? '' : vwapAbove ? 'Above' : 'Below', col: vwapCol },
     { label: 'OI trend', value: oiRow ? oiRow.txt : null, note: '', col: oiRow ? oiRow.col : 'var(--txt2)', state: oiRow ? undefined : (feedPending ? 'loading' : 'unavailable') },
     { label: 'Funding', value: fr != null ? (fr * 100 >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : null, note: frInfo ? frInfo.label : '', col: frCol },
-    { label: 'CB prem', value: cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(2) + '%' : null, note: '', col: cbCol, state: cbPct != null ? undefined : (store.cbPremiumStatus === 'pending' ? 'loading' : 'unavailable') },
+    { label: 'CB prem', value: cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : null, note: '', col: cbCol, state: cbPct != null ? undefined : (store.cbPremiumStatus === 'pending' ? 'loading' : 'unavailable') },
     { label: 'OI 1h',   value: oi1h.loading ? null : (oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : null), note: oi1h.loading || oi1h.pct == null ? '' : oi1hTxt, col: oi1hCol, state: oi1h.loading ? 'loading' : (oi1h.pct == null ? 'unavailable' : undefined) },
     /* `null` WHEN THERE IS NO COIN DATA, not the score (#1185). `computeSqueezeScore` returns
        `{ score: 0, dir: 'NEUTRAL', label: 'No data' }` for a missing coin, so this row printed a
