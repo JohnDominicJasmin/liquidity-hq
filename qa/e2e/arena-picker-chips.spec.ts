@@ -208,6 +208,28 @@ test.describe('#2244 category chips inside the coin picker', () => {
   });
 });
 
+test.describe('#2244 Esc returns focus to the trigger from every place focus can be', () => {
+  test.describe.configure({ timeout: 120_000 });
+  for (const from of ['search', 'row', 'chip'] as const) {
+    test(`P7-${from}. Esc pressed with focus on the ${from} closes the list and puts focus on the trigger`, async ({ browser }) => {
+      const ctx = await ctxFor(browser, 1280); const page = await ctx.newPage();
+      try {
+        await open(page);
+        if (from === 'search') await page.locator('input.clipped-row-search').first().focus();
+        else if (from === 'row') { await page.locator('input.clipped-row-search').first().focus(); await page.keyboard.press('ArrowDown'); }
+        else await chip(page, 'majors').focus();
+        const before = await page.evaluate(() => (document.activeElement as HTMLElement | null)?.tagName ?? '');
+        await page.keyboard.press('Escape'); await page.waitForTimeout(500);
+        const closed = !(await page.locator('.scanner-flyout').isVisible().catch(() => false));
+        const after = await page.evaluate(() => { const a = document.activeElement as HTMLElement | null; return { tag: a?.tagName ?? '', inTrigger: !!a?.closest('[data-testid="scanner-trigger"]') && !a?.closest('.scanner-flyout'), cls: (a?.className ?? '').toString().slice(0, 40) }; });
+        console.log(`[P7-${from}] focus before Esc=${before} closed=${closed} focus after=${JSON.stringify(after)}`);
+        expect(closed, 'Esc did not close the list').toBe(true);
+        expect(after.inTrigger, 'focus is not on the trigger after Esc (it is on ' + after.tag + ')').toBe(true);
+      } finally { await ctx.close(); }
+    });
+  }
+});
+
 test.describe('#2244 sign-off shots', () => {
   test.describe.configure({ timeout: 240_000 });
   for (const theme of ['dark', 'light'] as const) for (const width of [390, 768, 1280]) {
