@@ -69,7 +69,7 @@ test.describe('#2258 / #2259 localized', () => {
       const { ctx, page } = await open(browser, loc, '/hours', 390);
       try {
         const t = await text(page); const left = SESS.filter(p => t.includes(p.en)); const sw = await page.evaluate(() => ({ s: document.documentElement.scrollWidth, w: window.innerWidth }));
-        console.log(`[H2] ${loc} left=${JSON.stringify(left.map(p => p.k + '=' + p.en))} sw=${JSON.stringify(sw)}`);
+        console.log(`[H2] ${loc} left=${JSON.stringify(left.map(p => p.k + '=' + p.en))} sw=${JSON.stringify(sw)} context=${JSON.stringify(left.map(p => { const i = t.indexOf(p.en); return t.slice(Math.max(0, i - 40), i + p.en.length + 40); }))}`);
         expect(left.map(p => p.k + ' = "' + p.en + '"'), `English still on /hours in ${loc}`).toEqual([]);
         expect(sw.s, 'page scrolls sideways').toBeLessThanOrEqual(sw.w);
         await page.screenshot({ path: `qa/.shots/hours-${loc}-390.png`, fullPage: true });
