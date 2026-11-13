@@ -63,7 +63,7 @@ for (const loc of LOCALES) {
     test(`R1. picker empty state and switch button in ${loc}`, async ({ browser }) => {
       const ctx = await browser.newContext({ viewport: { width: 390, height: 900 } });
       await ctx.addInitScript((l) => { try { localStorage.setItem('lhq_lang_v1', l); } catch { /* private */ } }, loc);
-      const page = await ctx.newPage(); await inject(page, loc);
+      const page = await ctx.newPage(); await inject(page, loc); await refuseBinance(page);
       try {
         await gotoGuarded(page, '/arena'); await page.waitForTimeout(9_000); await openList(page);
         await page.locator('input.clipped-row-search').first().fill('nv');
