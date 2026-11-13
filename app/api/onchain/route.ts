@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
-import { searchTools, searchWindow } from '@/lib/xaiAnswer';
+import { answerWasCutOff, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
@@ -175,7 +175,8 @@ export async function GET(req: NextRequest) {
       let parsed: Record<string, unknown> | null = null;
       const m = raw.match(/\{[\s\S]*\}/);
       if (m) { try { parsed = JSON.parse(m[0]) as Record<string, unknown>; } catch { /* fall through */ } }
-      if (!parsed) throw new Error('Could not parse AI response');
+      /* A cut-off answer is named as one (#1631): the cap, not the model, is what to fix. */
+      if (!parsed) throw new Error(answerWasCutOff(d) ? 'AI answer cut off at the output cap (status incomplete)' : 'Could not parse AI response');
 
       return { ...parsed, blockchain_stats: stats ?? undefined, timestamp: new Date().toISOString() };
     });
