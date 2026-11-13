@@ -6,6 +6,7 @@ import { utcWindowToLocalRange, localZoneAbbr } from '@/lib/resetTime';
 import SessionCountdown from '@/components/SessionCountdown';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
+import { fmtDuration } from '@/lib/durationText';
 import type { LabelKey } from '@/lib/labelKeys';
 import { readableOn } from '@/lib/readableOn';
 import PageHint from '@/components/PageHint';
@@ -73,7 +74,7 @@ export default function BestHours() {
   // and the client's first render agree on showing none of them, then swap
   // in the live state right after mount (client-only, nothing for hydration
   // to compare against).
-  const { t } = useLabels();
+  const { t, locale } = useLabels();
   const [mounted, setMounted] = useState(false);
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -175,11 +176,11 @@ export default function BestHours() {
             build DATE until the day changed. A dashed placeholder holds the same
             line until mount. */}
         <div suppressHydrationWarning style={{ fontSize: '2.25rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--txt)', letterSpacing: -1 }}>
-          {mounted ? <>{pad(h12)}:{pad(m)}:{pad(s)}</> : '--:--:--'}
+          {mounted ? <>{locale === 'en' ? pad(h12) : pad(h)}:{pad(m)}:{pad(s)}</> : '--:--:--'}
           {/* The clock has always shown the VIEWER'S own time (getLocalNow() is
               just new Date()), but the label named a single fixed zone - so a trader in
               London read their own 9am under someone else's label. Show the real zone. */}
-          {mounted && <span suppressHydrationWarning style={{ fontSize: 'var(--fs-body)', color: 'var(--txt3)', marginLeft: 8 }}>{ampm} {localZoneAbbr()}</span>}
+          {mounted && <span suppressHydrationWarning style={{ fontSize: 'var(--fs-body)', color: 'var(--txt3)', marginLeft: 8 }}>{locale === 'en' ? ampm + ' ' : ''}{localZoneAbbr()}</span>}
         </div>
         <div suppressHydrationWarning style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', marginTop: 4 }}>
           {mounted ? <>{days[pht.getDay()]}, {months[pht.getMonth()]} {pht.getDate()} {pht.getFullYear()}</> : ' '}
@@ -340,7 +341,7 @@ export default function BestHours() {
 
         {/* Current position label */}
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>
-          {t('HOURS_NOW_PREFIX')}<span suppressHydrationWarning style={{ color: 'var(--txt2)', fontWeight: 600 }}>{mounted ? <>{pad(h12)}:{pad(m)} {ampm} {localZoneAbbr()}</> : '--:--'}</span>
+          {t('HOURS_NOW_PREFIX')}<span suppressHydrationWarning style={{ color: 'var(--txt2)', fontWeight: 600 }}>{mounted ? <>{locale === 'en' ? <>{pad(h12)}:{pad(m)} {ampm}</> : <>{pad(h)}:{pad(m)}</>} {localZoneAbbr()}</> : '--:--'}</span>
           {mounted && win && <span className="hours-now-win" style={{ marginLeft: 8, color: win.color, fontWeight: 600 }}>{t('HOURS_DOT_SEPARATOR')} {win.name}</span>}
           {mounted && dead && <span style={{ marginLeft: 8, color: 'var(--red)', fontWeight: 600 }}>{t('HOURS_DOT_DEAD_ZONE')}</span>}
         </div>
@@ -365,10 +366,10 @@ export default function BestHours() {
             {upcoming.map((u, i) => (
               <div key={i} className="nw-row">
                 <div>
-                  <div className="nw-name" style={{ color: u.win.color }}>{u.win.name}</div>
-                  <div className="nw-time">{u.win.label}</div>
+                  <div className="nw-name" style={{ color: u.win.color }}>{trText(t, u.win.name)}</div>
+                  <div className="nw-time">{trText(t, u.win.label)}</div>
                 </div>
-                <div className="nw-countdown" style={{ color: u.win.color }}>{u.countdown}</div>
+                <div className="nw-countdown" style={{ color: u.win.color }}>{t('HOURS_COUNTDOWN_AWAY', { time: fmtDuration(t, Math.floor(u.diffMs / 1000), false) })}</div>
               </div>
             ))}
           </div>
@@ -386,7 +387,7 @@ export default function BestHours() {
             {/* Client-only: formatting depends on the viewer's timezone, which the
                 prerendered HTML (always UTC) would get wrong. */}
             <div suppressHydrationWarning style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-              {mounted ? utcWindowToLocalRange(...w.utc) : ''}
+              {mounted ? utcWindowToLocalRange(w.utc[0], w.utc[1], w.utc[2], w.utc[3], w.utc[4], locale) : ''}
             </div>
           </div>
           <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.6 }}>{t(w.descKey)}</div>

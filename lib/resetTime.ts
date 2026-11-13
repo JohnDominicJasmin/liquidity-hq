@@ -47,6 +47,8 @@ export function utcWindowToLocalRange(
   startHour: number, startMin: number,
   endHour: number, endMin: number,
   utcDay?: number,
+  /** The SITE language (not the browser's). When it is not English the range reads in the 24-hour form with that language's own weekday names, the same shape the daily session line already has (#1185, PM); English keeps the browser's own format. */
+  locale?: string,
 ): string {
   const now = new Date();
   const base = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -59,12 +61,15 @@ export function utcWindowToLocalRange(
   // 23:00-03:00), so the end belongs to the following day.
   if (end.getTime() <= start.getTime()) end.setUTCDate(end.getUTCDate() + 1);
 
-  const time = (d: Date, withZone: boolean) => d.toLocaleTimeString(undefined, {
-    hour: 'numeric', minute: '2-digit', ...(withZone ? { timeZoneName: 'short' as const } : {}),
-  });
+  const siteLocale = locale && locale !== 'en' ? locale : undefined;
+  /* The zone is appended by hand outside English: Chinese's own pattern puts it BEFORE the time ("UTC 19:00"), which read as two clocks. */
+  const zoneOf = (d: Date) => new Intl.DateTimeFormat(siteLocale, { timeZoneName: 'short' }).formatToParts(d).find(p => p.type === 'timeZoneName')?.value ?? '';
+  const time = (d: Date, withZone: boolean) => siteLocale
+    ? d.toLocaleTimeString(siteLocale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) + (withZone ? ' ' + zoneOf(d) : '')
+    : d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', ...(withZone ? { timeZoneName: 'short' as const } : {}) });
   const showDay = utcDay !== undefined
     || start.toLocaleDateString(undefined) !== end.toLocaleDateString(undefined);
-  const day = (d: Date) => d.toLocaleDateString(undefined, { weekday: 'short' });
+  const day = (d: Date) => d.toLocaleDateString(siteLocale, { weekday: 'short' });
 
   const from = showDay ? `${day(start)} ${time(start, false)}` : time(start, false);
   const to   = showDay ? `${day(end)} ${time(end, true)}`      : time(end, true);
