@@ -169,7 +169,8 @@ export function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; c
 
       <div style={{
         display: 'grid', gridTemplateColumns: '80px 1fr 60px 24px',
-        padding: '6px 14px 4px',
+        /* RIGHT GUTTER 72px (#1185): the fixed Ask AI button owns the rightmost 84px of the viewport and the Total column sat under it ("$76..." clipped at 1280). Same remedy as the Chart Layers list (#2190, #2207); the header and the rows share it so the columns stay aligned. */
+        padding: '6px 72px 4px 14px',
         gap: 8,
       }}>
         {([[t('LIQ_CLUSTERS_COL_PRICE'), 'left'], [t('LIQ_CLUSTERS_COL_VOLUME'), 'left'], [t('LIQ_CLUSTERS_COL_TOTAL'), 'right'], ['', 'right']] as [string, string][]).map(([h, a]) => (
@@ -177,7 +178,7 @@ export function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; c
         ))}
       </div>
 
-      <div style={{ padding: '0 14px 10px' }}>
+      <div style={{ padding: '0 72px 10px 14px' }}>
         {sorted.map(c => {
           const longPct  = maxTotal > 0 ? (c.longUsd  / maxTotal) * 100 : 0;
           const shortPct = maxTotal > 0 ? (c.shortUsd / maxTotal) * 100 : 0;
