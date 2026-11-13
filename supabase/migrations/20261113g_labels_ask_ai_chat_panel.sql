@@ -1,7 +1,7 @@
 -- NOT YET APPLIED TO ANY DATABASE. Apply ONE block per project: the PROD block on prod (qdpwhnvmhqgzijuwopso) by PM/DevOps with the release; the DEV block on dev (wdtjhrilakoitfcezxpx, shared by dev/qa/staging).
 --
 -- The Ask AI chat panel's own text (#1185, PM 2026-11-13): header buttons, history, mode switch (Fast / Live), quota lines, sign-in prompts, placeholders, quick-question chips, rate-limit text.
--- 53 new keys (CHAT_*). English ships in lib/labelDefaults.en.json and needs no row. Placeholders {n}, {time}, {quota}, {what} and {coin} must survive translation unchanged.
+-- 55 new keys (CHAT_*). English ships in lib/labelDefaults.en.json and needs no row. Placeholders {n}, {time}, {quota}, {what} and {coin} must survive translation unchanged.
 --
 -- THE NON-ENGLISH ROWS ARE AI-DRAFTED AND NOT NATIVE-REVIEWED, under the owner's 2026-11-13 ruling to ship AI-drafted translations for this release (20261113b-f). Treat them as drafts until a native reader
 -- has been through them. Upserts by (key, locale): re-running is safe, and no row for any other key is touched.
@@ -220,6 +220,15 @@ insert into lhq_labels (key, locale, value) values
 ('CHAT_QUICK_6','ar','هل هناك نشاط للحيتان؟'),
 ('CHAT_QUICK_7','ar','ما مستويات التصفية؟'),
 ('CHAT_QUICK_8','ar','ما اتجاه السوق؟')
+,
+('CHAT_AI_LABEL','ko','AI'),
+('CHAT_THINKING','ko','생각 중'),
+('CHAT_AI_LABEL','zh','AI'),
+('CHAT_THINKING','zh','思考中'),
+('CHAT_AI_LABEL','ru','ИИ'),
+('CHAT_THINKING','ru','думает'),
+('CHAT_AI_LABEL','ar','الذكاء الاصطناعي'),
+('CHAT_THINKING','ar','يفكر')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 
 -- ============ DEV (shared by dev/qa/staging, wdtjhrilakoitfcezxpx) ============
@@ -436,4 +445,13 @@ insert into lhq_dev_labels (key, locale, value) values
 ('CHAT_QUICK_6','ar','هل هناك نشاط للحيتان؟'),
 ('CHAT_QUICK_7','ar','ما مستويات التصفية؟'),
 ('CHAT_QUICK_8','ar','ما اتجاه السوق؟')
+,
+('CHAT_AI_LABEL','ko','AI'),
+('CHAT_THINKING','ko','생각 중'),
+('CHAT_AI_LABEL','zh','AI'),
+('CHAT_THINKING','zh','思考中'),
+('CHAT_AI_LABEL','ru','ИИ'),
+('CHAT_THINKING','ru','думает'),
+('CHAT_AI_LABEL','ar','الذكاء الاصطناعي'),
+('CHAT_THINKING','ar','يفكر')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();

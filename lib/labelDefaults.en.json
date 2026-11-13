@@ -679,6 +679,8 @@
   "ARENA_ALERTS_ENABLE_TITLE": "Enable browser alerts",
   "ARENA_SCANNER_SEARCH_PLACEHOLDER": "Search coins…",
   "ARENA_SCANNER_CLEAR_SEARCH_ARIA": "Clear search",
+  "CHAT_AI_LABEL": "AI",
+  "CHAT_THINKING": "thinking",
   "CHAT_MODE_FAST": "Fast",
   "CHAT_MODE_FAST_TITLE": "Fast - answers from data already loaded. Spends your daily chat messages.",
   "CHAT_MODE_LIVE": "Live",

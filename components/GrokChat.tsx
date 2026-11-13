@@ -37,6 +37,8 @@ interface Msg {
   role: 'user' | 'assistant';
   content: string;
   ts: string;
+  /** What the user's own bubble SHOWS when it differs from what is sent (a quick-question chip: the label is in the visitor's language, `content` is the English question the server matches on). */
+  display?: string;
   followUps?: string[];  // suggested follow-up question chips
 }
 
@@ -402,7 +404,7 @@ export default function GrokChat() {
   }, [open, histView]);
 
   /* ── Send message ── */
-  const sendMsg = useCallback(async (text: string, coinOverride?: CoinId) => {
+  const sendMsg = useCallback(async (text: string, coinOverride?: CoinId, display?: string) => {
     /* ── Auth gate: show login modal if not signed in ── */
     // #1342: wait for auth to resolve before deciding. Branching on `!user`
     // alone bounced a signed-in user to the login modal if a send (or the
@@ -421,7 +423,7 @@ export default function GrokChat() {
     const activeCoin = coinOverride ?? coin;
     const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const userMsg: Msg = { role: 'user', content: text, ts };
+    const userMsg: Msg = { role: 'user', content: text, ts, ...(display ? { display } : {}) };
     const history = [...msgs, userMsg];
     setMsgs(history);
     setInput('');
@@ -1018,7 +1020,7 @@ export default function GrokChat() {
               {msgs.map((m, i) => (
                 <div key={i} className={`gchat-msg gchat-msg-${m.role}`}>
                   {m.role === 'assistant' && (
-                    <div className="gchat-grok-label">GROK · {m.ts}</div>
+                    <div className="gchat-grok-label">{t('CHAT_AI_LABEL')} · {m.ts}</div>
                   )}
 
                   {/* Bubble */}
@@ -1028,7 +1030,7 @@ export default function GrokChat() {
                       dangerouslySetInnerHTML={{ __html: renderMd(m.content) }}
                     />
                   ) : (
-                    <div className="gchat-bubble">{m.content}</div>
+                    <div className="gchat-bubble">{m.display ?? m.content}</div>
                   )}
 
                   {m.role === 'user' && (
@@ -1054,7 +1056,7 @@ export default function GrokChat() {
 
               {loading && (
                 <div className="gchat-msg gchat-msg-assistant">
-                  <div className="gchat-grok-label">GROK · thinking</div>
+                  <div className="gchat-grok-label">{t('CHAT_AI_LABEL')} · {t('CHAT_THINKING')}</div>
                   <div className="gchat-bubble gchat-thinking">
                     <span className="gchat-dot" />
                     <span className="gchat-dot" />
@@ -1074,7 +1076,7 @@ export default function GrokChat() {
                   <button
                     key={q}
                     className="gchat-quick"
-                    onClick={() => !loading && sendMsg(q)}
+                    onClick={() => !loading && sendMsg(q, undefined, t(QUICK_KEYS[qi]))}
                     disabled={loading}
                   >
                     {t(QUICK_KEYS[qi])}
