@@ -1463,8 +1463,11 @@ export default function MarketProvider(
         // #1192: real dominance data means this attempt did not miss - the
         // 12s retry below only needs to fire when this never happens.
         cmcOkRef.current = true;
+        setStore(s => ({ ...s, btcDomStatus: 'ok' }));
+      } else {
+        setStore(s => ({ ...s, btcDomStatus: s.btcDomStatus === 'ok' ? 'ok' : 'failed' }));
       }
-    } catch { /* */ }
+    } catch { setStore(s => ({ ...s, btcDomStatus: s.btcDomStatus === 'ok' ? 'ok' : 'failed' })); }
   }, []);
 
   /* ── Alt Season Index (top-50 alts vs BTC, 90-day) ── */
@@ -1488,8 +1491,9 @@ export default function MarketProvider(
         quote?: { USD?: { percent_change_90d?: number } };
       }>;
 
+      const markAltFailed = () => setStore(s => ({ ...s, altSeasonStatus: s.altSeasonStatus === 'ok' ? 'ok' : 'failed' }));
       const btc   = coins.find(c => c.symbol === 'BTC');
-      if (!btc) return;
+      if (!btc) { markAltFailed(); return; }
       const btc90 = btc.quote?.USD?.percent_change_90d ?? 0;
 
       const eligible = coins
@@ -1502,13 +1506,13 @@ export default function MarketProvider(
         )
         .slice(0, 50);
 
-      if (!eligible.length) return;
+      if (!eligible.length) { markAltFailed(); return; }
 
       const beat  = eligible.filter(c => (c.quote?.USD?.percent_change_90d ?? -Infinity) > btc90).length;
       const score = Math.round((beat / eligible.length) * 100);
 
-      setStore(s => ({ ...s, altSeasonScore: score }));
-    } catch { /* */ }
+      setStore(s => ({ ...s, altSeasonScore: score, altSeasonStatus: 'ok' }));
+    } catch { setStore(s => ({ ...s, altSeasonStatus: s.altSeasonStatus === 'ok' ? 'ok' : 'failed' })); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
