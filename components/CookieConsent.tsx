@@ -1,7 +1,9 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useLabels } from '@/lib/labels';
+import { CONSENT_WORDS, landingLocaleOf } from '@/lib/i18n/consentWords';
 import { readConsent, writeConsent } from '@/lib/consent';
 
 // Consent banner for analytics + session replay. Shown only while the stored
@@ -11,7 +13,14 @@ import { readConsent, writeConsent } from '@/lib/consent';
 // visibly harder than acceptance is the classic dark pattern that consent
 // rules single out, and it would undercut the reason this component exists.
 export default function CookieConsent() {
-  const { t } = useLabels();
+  const { t: tLabel } = useLabels();
+  /* On a locale-prefixed landing page (/ru, /ko, /zh) the label table is not read (#1889), so the bar would show English: use the landing's own words there. */
+  const landingLocale = landingLocaleOf(usePathname());
+  const words = landingLocale ? CONSENT_WORDS[landingLocale] : undefined;
+  const t = (key: 'CONSENT_ARIA_LABEL' | 'CONSENT_BODY' | 'CONSENT_PRIVACY_LINK' | 'CONSENT_DECLINE' | 'CONSENT_ACCEPT'): string => {
+    if (!words) return tLabel(key);
+    return key === 'CONSENT_ARIA_LABEL' ? words.aria : key === 'CONSENT_BODY' ? words.body : key === 'CONSENT_PRIVACY_LINK' ? words.privacy : key === 'CONSENT_DECLINE' ? words.decline : words.accept;
+  };
   const [show, setShow] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
 

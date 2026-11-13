@@ -129,7 +129,8 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const setupPartial = d != null && sq.signalsPresent >= 1 && !setupComplete;
   const shownDir = setupComplete ? sq.dir : 'NEUTRAL';
   const verdictCol = shownDir === 'SHORT_SQ' ? 'var(--green)' : shownDir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt2)';
-  const verdictText = shownDir === 'SHORT_SQ' ? 'BULLISH' : shownDir === 'LONG_LIQ' ? 'BEARISH' : 'NO READ';
+  const lr = dict.liveRead;
+  const verdictText = shownDir === 'SHORT_SQ' ? lr.verdict.bullish : shownDir === 'LONG_LIQ' ? lr.verdict.bearish : lr.verdict.noRead;
   const hasConfidence = shownDir !== 'NEUTRAL';
 
   /* LOADING IS NOT A READING (#1651). Until the snapshot read has answered, a missing figure is simply
@@ -142,10 +143,10 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const vwapCol = vwapAbove === null ? 'var(--txt)' : vwapAbove ? 'var(--green)' : 'var(--red)';
 
   const oiTrendTxt: Record<string, { txt: string; col: string }> = {
-    strong_up:   { txt: 'Strong up',   col: 'var(--green)' },
-    strong_down: { txt: 'Strong down', col: 'var(--red)' },
-    weak_up:     { txt: 'Weak up',     col: 'var(--txt)' },
-    weak_down:   { txt: 'Weak down',   col: 'var(--txt)' },
+    strong_up:   { txt: lr.oiTrend.strong_up,   col: 'var(--green)' },
+    strong_down: { txt: lr.oiTrend.strong_down, col: 'var(--red)' },
+    weak_up:     { txt: lr.oiTrend.weak_up,     col: 'var(--txt)' },
+    weak_down:   { txt: lr.oiTrend.weak_down,   col: 'var(--txt)' },
   };
   const oiRow = d?.oiTrend ? oiTrendTxt[d.oiTrend] : null;
 
@@ -157,7 +158,15 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const cbCol = cbPct == null ? 'var(--txt)' : cbPct >= 0.05 ? 'var(--green)' : cbPct <= -0.05 ? 'var(--red)' : 'var(--txt)';
 
   /* #1613: the trend text must come from the SAME hour as the % beside it, so it is derived from the 1h samples, not from the store's oiTrend (another window). */
-  const { txt: oi1hTxt, col: oi1hColRaw } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
+  const oi1hTrendKey = oiTrend1h(oi1h.pct, oi1h.pricePct);
+  const { col: oi1hColRaw } = oi1hSignal(oi1h.pct, oi1hTrendKey);
+  /* The note beside the OI 1h figure, in the visitor's language: the same decision tree as `oi1hSignal` (lib/useOI1h.ts), keyed to the dictionary instead of its English strings. */
+  const oi1hTxt = oi1h.pct == null ? '' : (() => {
+    const trendTxt = oi1hTrendKey === 'strong_up' ? lr.oi1h.newLongs : oi1hTrendKey === 'strong_down' ? lr.oi1h.newShorts : oi1hTrendKey === 'weak_up' ? lr.oi1h.shortCover : oi1hTrendKey === 'weak_down' ? lr.oi1h.longExits : null;
+    const pos = oi1h.pct > 0;
+    if (Math.abs(oi1h.pct) >= 10) return trendTxt ?? (pos ? lr.oi1h.spikeUp : lr.oi1h.spikeDown);
+    return trendTxt ?? (Math.abs(oi1h.pct) < 2 ? lr.oi1h.stable : pos ? lr.oi1h.rising : lr.oi1h.unwinding);
+  })();
   const oi1hCol = oi1h.pct == null ? 'var(--txt2)' : oi1hColRaw;
 
   /* A MISSING READING SAYS WHICH KIND OF MISSING (#1651): an ellipsis while it is still coming, the localized word once it is not, never a bare dash. The words are the landing
@@ -168,11 +177,11 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
        hero - a signed-out visitor's first impression of the product - for every coin. Measured: all
        49 coins in the snapshot carry a real vwap, so this shows a number rather than a dash; the
        'Unavailable' note is reachable only if that feed fails or the coin is outside it. */
-    { label: 'VWAP',    value: vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[LIVE_READ_COIN]) : null, note: vwap == null ? (snapshotLoading ? '' : 'Unavailable') : vwapAbove == null ? '' : vwapAbove ? 'Above' : 'Below', col: vwapCol },
-    { label: 'OI trend', value: oiRow ? oiRow.txt : null, note: '', col: oiRow ? oiRow.col : 'var(--txt2)', state: oiRow ? undefined : (feedPending ? 'loading' : 'unavailable') },
-    { label: 'Funding', value: fr != null ? (fr * 100 >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : null, note: frInfo ? frInfo.label : '', col: frCol },
-    { label: 'CB prem', value: cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : null, note: '', col: cbCol, state: cbPct != null ? undefined : (store.cbPremiumStatus === 'pending' ? 'loading' : 'unavailable') },
-    { label: 'OI 1h',   value: oi1h.loading ? null : (oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : null), note: oi1h.loading || oi1h.pct == null ? '' : oi1hTxt, col: oi1hCol, state: oi1h.loading ? 'loading' : (oi1h.pct == null ? 'unavailable' : undefined) },
+    { label: lr.rows.vwap,    value: vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[LIVE_READ_COIN]) : null, note: vwap == null ? (snapshotLoading ? '' : dict.ticker.unavailable) : vwapAbove == null ? '' : vwapAbove ? lr.notes.above : lr.notes.below, col: vwapCol },
+    { label: lr.rows.oiTrend, value: oiRow ? oiRow.txt : null, note: '', col: oiRow ? oiRow.col : 'var(--txt2)', state: oiRow ? undefined : (feedPending ? 'loading' : 'unavailable') },
+    { label: lr.rows.funding, value: fr != null ? (fr * 100 >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : null, note: frInfo ? lr.funding[frInfo.band] : '', col: frCol },
+    { label: lr.rows.cbPrem, value: cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : null, note: '', col: cbCol, state: cbPct != null ? undefined : (store.cbPremiumStatus === 'pending' ? 'loading' : 'unavailable') },
+    { label: lr.rows.oi1h,   value: oi1h.loading ? null : (oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : null), note: oi1h.loading || oi1h.pct == null ? '' : oi1hTxt, col: oi1hCol, state: oi1h.loading ? 'loading' : (oi1h.pct == null ? 'unavailable' : undefined) },
     /* `null` WHEN THERE IS NO COIN DATA, not the score (#1185). `computeSqueezeScore` returns
        `{ score: 0, dir: 'NEUTRAL', label: 'No data' }` for a missing coin, so this row printed a
        confident "0" next to its own "No data" note - on the PUBLIC landing hero, which is the first
@@ -187,9 +196,9 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
        wait until all three inputs are in. While partial the note is "N of 3 signals" and the value
        stays neutral, so the number reads as a partial sum in progress, not a final call; a tooltip
        names which signals are in. */
-    { label: 'Setup',
+    { label: lr.rows.setup,
       value: (d && sq.signalsPresent >= 1) ? String(sq.score) : null,
-      note: setupComplete ? sq.label : (d ? `${sq.signalsPresent} of 3 signals` : (snapshotLoading ? '' : sq.label)),
+      note: setupComplete ? (sq.dir === 'SHORT_SQ' ? lr.setup.squeeze : sq.dir === 'LONG_LIQ' ? lr.setup.flush : lr.setup.balanced) : (d ? lr.notes.nOf3.replace('{n}', String(sq.signalsPresent)) : (snapshotLoading ? '' : lr.setup.noData)),
       col: setupComplete ? (sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)') : 'var(--txt)',
       title: sq.present.length ? `Signals in: ${sq.present.join(', ')}` : undefined },
   ];
@@ -201,7 +210,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
       <div style={{ height: 34, display: 'flex', alignItems: 'center', padding: '0 14px', gap: 9, borderBottom: '1px solid var(--bdr)' }}>
         <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
         <span style={{ fontSize: 10, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--txt2)' }}>
-          Live read · {LIVE_READ_COIN.toUpperCase()}
+          {dict.liveRead.title} · {LIVE_READ_COIN.toUpperCase()}
         </span>
         <span style={{ marginLeft: 'auto', fontSize: 10, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt3)' }}>
           {mounted ? new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false }) : ''}
@@ -220,13 +229,13 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
             </div>
             <div style={{ marginTop: 6, display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline', gap: 6 }}>
               <span style={{ fontSize: 13, fontFamily: 'var(--font-mono), monospace', fontWeight: 700, color: 'var(--txt)' }}>{sq.score}</span>
-              <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.12em', color: 'var(--txt3)' }}>CONF</span>
+              <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.12em', color: 'var(--txt3)' }}>{dict.liveRead.conf}</span>
             </div>
           </div>
         )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, background: 'var(--bdr)', marginTop: 16 }}>
-          {(['Entry', 'Stop', 'Target'] as const).map(label => (
+          {([lr.levels.entry, lr.levels.stop, lr.levels.target]).map(label => (
             <div key={label} style={{ background: 'var(--bg1)', padding: mobile ? '9px 10px' : '11px 12px' }}>
               <div style={{ fontSize: 9, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--txt3)' }}>{label}</div>
               <div style={{ fontSize: mobile ? 12.5 : 13.5, fontFamily: 'var(--font-mono), monospace', fontWeight: 600, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums', marginTop: 5 }}>
@@ -240,7 +249,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
           {evidence.map(row => (
             <div key={row.label} title={row.title} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 14px', borderBottom: '1px solid var(--bdr2)' }}>
               <span style={{ width: 2, height: 18, flexShrink: 0, background: row.value == null ? 'var(--mark-idle)' : row.col }} />
-              <span style={{ width: 76, flexShrink: 0, fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.1em', color: 'var(--txt3)' }}>{row.label}</span>
+              <span style={{ minWidth: 76, flexShrink: 0, fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.1em', color: 'var(--txt3)' }}>{row.label}</span>
               <span style={{ fontSize: 12.5, fontFamily: 'var(--font-mono), monospace', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: row.value == null ? 'var(--txt2)' : row.col }}>
                 {row.value != null ? row.value
                   : row.state === 'loading' ? <span role="img" aria-label={dict.ticker.loading} title={dict.ticker.loading}>{'\u2026'}</span>
@@ -311,7 +320,7 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
           padding: isDesktop ? '10px 18px' : '10px 12px',
           textDecoration: 'none', textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0,
         }}>
-          {isDesktop ? dict.nav.getStarted : 'START'}
+          {isDesktop ? dict.nav.getStarted : dict.liveRead.start}
         </Link>
       </nav>
 
