@@ -103,7 +103,7 @@ for (const loc of LOCALES) {
           expect(v!.overflows, `${k} overflows its cell in ${loc}: ${JSON.stringify(v)}`).toBe(false);
           if (k !== 'h24' && k !== 'vsbtc') expect(v!.clippedBy, `${k} is clipped by ${v!.clippedBy} in ${loc}`).toBe('');
           if (k === 'h24' || k === 'vsbtc') expect(v!.text, `${k} should be empty when the price is gone, in ${loc}`).toBe('');
-          else { expect(v!.text, `${k} is empty in ${loc}`).not.toBe(''); expect(v!.lines, `${k} wraps onto ${v!.lines} lines in ${loc}: "${v!.text}"`).toBeLessThanOrEqual(2); }
+          else { expect(v!.text, `${k} is empty in ${loc}`).not.toBe(''); expect(v!.h, `${k} is taller than two rows in ${loc}: "${v!.text}" h=${v!.h} (text tops counted ${v!.lines} because the sizes differ)`).toBeLessThanOrEqual(40); }
         }
       } finally { await ctx.close(); }
     });
