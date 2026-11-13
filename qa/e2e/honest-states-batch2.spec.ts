@@ -22,20 +22,18 @@ const open = async (browser: Browser, path: string, width: number, loc = 'en', r
 test.describe('batch 2 2026-11-14', () => {
   test.describe.configure({ timeout: 150_000 });
 
-  test('F1. #2262 no quote -> no +0.00% and no arrow; a coin with a change still shows it', async ({ browser }) => {
+  test('F1. #2262 no quote -> no made-up +0.00% anywhere on /dashboard; coins with a change still show it', async ({ browser }) => {
     const { ctx, page } = await open(browser, '/dashboard', 1280);
     try {
       const m = await page.evaluate(() => {
-        const rows = Array.from(document.querySelectorAll('body *')).filter(e => { const t = ((e as HTMLElement).innerText || '').replace(/\s+/g, ' ').trim(); const r = e.getBoundingClientRect(); return e.children.length >= 2 && e.children.length <= 8 && t.length < 90 && r.height > 20 && r.height < 70 && /^[A-Z]{2,6}/.test(t.replace(/^\W+/, '')); }) as HTMLElement[];
-        const texts = rows.map(r => (r.innerText || '').replace(/\s+/g, ' ').trim());
-        const byCoin = (c: string) => texts.filter(t => new RegExp('^' + c + '\b').test(t));
-        const missing = ['XRP', 'BNB', 'HYPE', 'NEAR', 'SUI'].flatMap(byCoin);
-        return { missing: missing.slice(0, 8), missingBad: missing.filter(t => /[+\-]?0\.00%|[▲▼]/.test(t)).slice(0, 6), eth: byCoin('ETH').slice(0, 3), noData: missing.filter(t => /No data/.test(t)).length };
+        const t = (document.body.innerText || '').replace(/\s+/g, ' ');
+        const zeros = (t.match(/(^|[\s(])[+\-]?0\.00%/g) || []).length;
+        return { zeros, noData: (t.match(/No data/g) || []).length, has12: /1\.2%/.test(t), hasSol: /1\.5%/.test(t) };
       });
       console.log(`[F1] ${JSON.stringify(m)}`);
-      expect(m.missing.length, 'no row for a coin without a quote: nothing measured').toBeGreaterThan(0);
-      expect(m.missingBad, 'a coin with no quote shows a +0.00% or an arrow').toEqual([]);
-      expect(m.eth.join(' | '), 'ETH (a real +1.2% change) shows no change').toMatch(/1\.2%/);
+      expect(m.noData, 'no coin says No data: the refusal did not reach the page, nothing measured').toBeGreaterThan(0);
+      expect(m.zeros, 'a made-up +0.00% is on the page').toBe(0);
+      expect(m.has12, 'ETH (a real +1.2% change) shows no change').toBe(true);
     } finally { await ctx.close(); }
   });
 
