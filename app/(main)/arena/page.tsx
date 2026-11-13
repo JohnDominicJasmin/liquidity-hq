@@ -46,7 +46,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
-import { coinKind, coinLabel, coinCaveat, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
+import { coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF, CHART_TFS, ARENA_TFS } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
@@ -1964,6 +1964,17 @@ function ArenaContent() {
 
   /* ── Squeeze scanner data - sorted by 24h volume descending (BTC → ETH → ...) ── */
   const btcChange = store.coins['btc']?.change ?? null;
+  /* A MISSING QUOTE SAYS WHICH KIND OF MISSING (#1263, owner: a bare dash could mean loading or an error). The read that prices this row is still in flight: an
+     ellipsis. It answered and this row has no quote, or it failed: the word, with a hover/assistive title naming which. Never a bare dash. */
+  const quoteGap = (c: CoinId, short: boolean) => {
+    const feed = coinRow(c)?.bybit ? store.scannerFeed.universe : store.scannerFeed.binanceOnly;
+    if (feed === 'pending') return <span role="img" aria-label={t('ARENA_SCANNER_LOADING_TITLE')} title={t('ARENA_SCANNER_LOADING_TITLE')}>{'\u2026'}</span>;
+    return (
+      <span title={feed === 'failed' ? t('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE') : t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE')} style={{ fontSize: 'var(--fs-micro)', fontWeight: 500 }}>
+        {t(short ? 'ARENA_SCANNER_UNAVAILABLE_SHORT' : 'ARENA_SCANNER_UNAVAILABLE')}
+      </span>
+    );
+  };
   const scannerRows = UNIVERSE_COINS
     .filter(c => coinCat === 'all' || (CAT_FILTER_COINS[coinCat] as readonly CoinId[]).includes(c))
     .map(c => {
@@ -2325,15 +2336,15 @@ function ArenaContent() {
                   </div>
                   {/* Price */}
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: isActive ? 'var(--txt)' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
-                    {price ? currencyPrefix(c) + fmtPrice(price) : '-'}
+                    {price ? currencyPrefix(c) + fmtPrice(price) : quoteGap(c, false)}
                   </span>
                   {/* 24h % */}
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? 'var(--txt3)' : change >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
-                    {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : '-'}
+                    {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : quoteGap(c, true)}
                   </span>
                   {/* vs BTC */}
                   <span className="scanner-flyout-vsbtc" style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: vsBtcColor }}>
-                    {vsBtc != null ? (vsBtc >= 0 ? '+' : '') + vsBtc.toFixed(1) + '%' : c === 'btc' ? '-' : '-'}
+                    {vsBtc != null ? (vsBtc >= 0 ? '+' : '') + vsBtc.toFixed(1) + '%' : c === 'btc' ? '-' : quoteGap(c, true)}
                   </span>
                   {/* Status */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
@@ -2360,7 +2371,7 @@ function ArenaContent() {
                     style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isActive ? rowSq.color : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}
                     title={hasSignals ? undefined : t('ARENA_SCANNER_NO_SIGNALS_TITLE')}
                   >
-                    {hasSignals ? rowSq.score : t('ARENA_SCANNER_NO_SIGNALS')}
+                    {hasSignals ? rowSq.score : '\u2013'}
                   </span>
                 </button>
               );

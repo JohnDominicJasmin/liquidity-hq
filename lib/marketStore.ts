@@ -144,6 +144,8 @@ export function classifyFunding(rate: number): FundingClass {
   return { label: 'Neutral', cls: 'fund-neu', rpm: 'neu', band: 'neutral', note: 'No extreme positioning. Lower raid probability. Trade with caution.' };
 }
 
+export type ScannerFeedState = 'pending' | 'ok' | 'failed';
+
 export type MarketStore = {
   coins: Partial<Record<CoinId, CoinData>>;
   selectedCoin: CoinId;
@@ -161,6 +163,11 @@ export type MarketStore = {
    *  any source - the WebSocket or the REST fallback - delivers a price, so a recovery heals the
    *  display without a reload. */
   pricesFailed: boolean;
+  /** THE STATE OF THE TWO READS THAT PRICE THE SCANNER'S NON-CURATED ROWS (#1263), so a cell can say loading, failed or no-quote instead of a bare dash.
+   *  universe    - the Bybit bulk ticker (every instrument Bybit lists).
+   *  binanceOnly - the small Binance request for the rows Bybit does not list.
+   *  'pending' until the first answer; 'ok' = it answered (a row still empty then has no quote there); 'failed' = it errored. */
+  scannerFeed: { universe: ScannerFeedState; binanceOnly: ScannerFeedState };
   /** THE STATE OF THE ONE BULK SNAPSHOT READ (`/api/market/snapshot`), which is what supplies the first
    *  VWAP, RSI and long/short figures on a cold load.
    *    'loading' - no answer yet. A figure that depends on it is simply not here YET, and a surface must
@@ -234,6 +241,7 @@ export const defaultStore: MarketStore = {
   altSeasonScore: null,
   wsStatus: 'Connecting...',
   pricesFailed: false,
+  scannerFeed: { universe: 'pending', binanceOnly: 'pending' },
   snapshotStatus: 'loading',
   newsCache: [],
   oilPrice: null,

@@ -4,7 +4,7 @@ import {
   MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
   BINANCE_SYMS, BYBIT_SYMS, UNIVERSE_SYM_TO_COIN,
 } from '@/lib/marketStore';
-import { bybitPriceFactor, binancePriceFactor, BINANCE_SPOT_SYMS, UNIVERSE_BINANCE_ONLY } from '@/lib/coins';
+import { bybitPriceFactor, binancePriceFactor, BINANCE_SPOT_SYMS, UNIVERSE_BINANCE_ONLY, HL_PRICE_BACKUP } from '@/lib/coins';
 import { computeRSI14 } from '@/lib/rsi';
 import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
@@ -197,6 +197,49 @@ export default function MarketProvider(
     });
   }, []);
 
+  /* A SEED, NOT A STOMP (#1263). Writes only to coins that have NO price yet, so a live socket price is never overwritten by an older REST read. This is what
+     lets a REST source fill a coin whose own socket never connected (Binance blocked this address) without ever ticking a live price backwards. */
+  const seedPrices = useCallback((patches: Record<string, Partial<MarketStore['coins'][CoinId]>>) => {
+    const ids = Object.keys(patches);
+    if (!ids.length) return;
+    setStore(s => {
+      const coins = { ...s.coins };
+      let any = false;
+      for (const id of ids) {
+        if (coins[id as CoinId]?.price == null && Number.isFinite(patches[id]?.price)) {
+          coins[id as CoinId] = { ...coins[id as CoinId], ...patches[id] } as MarketStore['coins'][CoinId];
+          any = true;
+        }
+      }
+      return any ? { ...s, coins, pricesFailed: false } : s;
+    });
+  }, []);
+  const setScannerFeed = useCallback((patch: Partial<MarketStore['scannerFeed']>) => {
+    setStore(s => ({ ...s, scannerFeed: { ...s.scannerFeed, ...patch } }));
+  }, []);
+  /* A FAILED FIRST READ IS RETRIED, BUT CAPPED: at most two retries, 30 s then 60 s apart, so a refused address (Binance 429) is never hammered. After that the
+     normal 8-minute poll is the only retry. Reset by the first pass that answers. */
+  const scannerRetryRef = useRef(0);
+  const scannerRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /* Hyperliquid, price and 24h change only, for the few rows with a proven same-asset quote (HL_PRICE_BACKUP). Asked for only the coins that still have no price
+     six seconds after the main read, so a healthy load (socket and REST both answering) never makes this call for a coin that has a price. */
+  const fetchPriceBackup = useCallback(async () => {
+    const need = Object.keys(HL_PRICE_BACKUP).filter(id => storeRef.current.coins[id as CoinId]?.price == null);
+    if (!need.length) return;
+    try {
+      const r = await fetch('/api/market/price-backup?coins=' + need.join(','));
+      if (!r.ok) return;
+      const body: unknown = await r.json();
+      if (!body || typeof body !== 'object') return;
+      const seed: Record<string, Partial<MarketStore['coins'][CoinId]>> = {};
+      for (const [id, v] of Object.entries(body as Record<string, { price?: number; change?: number | null; vol24?: number | null }>)) {
+        if (!need.includes(id) || !v || !Number.isFinite(v.price) || (v.price as number) <= 0) continue;
+        seed[id] = { price: v.price, perpPrice: v.price, ...(Number.isFinite(v.change) ? { change: v.change as number } : {}), ...(Number.isFinite(v.vol24) ? { vol24: v.vol24 as number } : {}) };
+      }
+      seedPrices(seed);
+    } catch { /* the cell keeps saying what it said; the next poll retries */ }
+  }, [seedPrices]);
+
   const selectCoin = useCallback((c: CoinId) => {
     setStore(s => ({ ...s, selectedCoin: c }));
   }, []);
@@ -382,11 +425,21 @@ export default function MarketProvider(
           return res.ok ? await res.json() : null;
         } catch { return null; }
       })();
-      if (!d || !Array.isArray(d.result?.list)) { await fundingFromBinance(); return; }
+      if (!d || !Array.isArray(d.result?.list)) {
+        setScannerFeed({ universe: 'failed', binanceOnly: 'failed' });
+        if (scannerRetryRef.current < 2 && !scannerRetryTimer.current) {
+          scannerRetryRef.current += 1;
+          scannerRetryTimer.current = setTimeout(() => { scannerRetryTimer.current = null; fetchBybit(); }, 30_000 * scannerRetryRef.current);
+        }
+        setTimeout(() => { fetchPriceBackup(); }, 6000);
+        await fundingFromBinance();
+        return;
+      }
       // Build symbol → ticker map for O(1) lookup
       const bySymbol: Record<string, Record<string, string>> = {};
       for (const t of (d.result?.list ?? [])) bySymbol[t.symbol] = t;
 
+      const seedCurated: Record<string, Partial<MarketStore['coins'][CoinId]>> = {};
       for (const coin of Object.keys(BYBIT_SYMS)) {
         const item = bySymbol[BYBIT_SYMS[coin]];
         if (!item) continue;
@@ -436,9 +489,21 @@ export default function MarketProvider(
           patch.high   = parseFloat(item.highPrice24h || '0');
           patch.low    = parseFloat(item.lowPrice24h  || '0');
           patch.vol24  = parseFloat(item.turnover24h  || '0');
+        } else if (Number.isFinite(curPrice) && curPrice > 0) {
+          /* A dual-listed coin leaves price to the Binance socket, and that is exactly the coin that went blank (HYPE) when the socket never connected on a
+             refused address. Bybit has the quote in this very response, so it is offered as a SEED: used only while the coin has no price. */
+          const pct = parseFloat(item.price24hPcnt ?? '');
+          seedCurated[coin] = {
+            price: curPrice,
+            ...(Number.isFinite(pct) ? { change: pct * 100 } : {}),
+            high: parseFloat(item.highPrice24h || '0') * bybitPriceFactor(coin),
+            low:  parseFloat(item.lowPrice24h  || '0') * bybitPriceFactor(coin),
+            vol24: parseFloat(item.turnover24h || '0'),
+          };
         }
         updateCoin(coin as CoinId, patch);
       }
+      seedPrices(seedCurated);
 
       /* ── THE REST OF THE UNIVERSE: PRICE AND 24H CHANGE ONLY ──────────────────────────────
        *
@@ -483,6 +548,7 @@ export default function MarketProvider(
         };
       }
       updateCoins(extra);
+      setScannerFeed({ universe: 'ok' });
 
       /* ── UNIVERSE ROWS BYBIT DOES NOT LIST (Binance-only TradFi) ────────────────────────────
        *
@@ -492,6 +558,7 @@ export default function MarketProvider(
        * or open interest, and a failed or empty answer leaves the previous values rather than
        * blanking them. `priceChangePercent` is already a percent (Bybit's is a fraction). */
       const bnOnly = Object.keys(UNIVERSE_BINANCE_ONLY);
+      let bnAnswered = bnOnly.length === 0;
       if (bnOnly.length > 0) {
         try {
           const r = await fetch('/api/proxy?type=binance-futures-24hr&symbols=' + encodeURIComponent(JSON.stringify(bnOnly)));
@@ -515,11 +582,19 @@ export default function MarketProvider(
               };
             }
             updateCoins(bn);
+            bnAnswered = true;
           }
         } catch { /* a missed cycle keeps the last values; the next poll retries */ }
       }
+      setScannerFeed({ binanceOnly: bnAnswered ? 'ok' : 'failed' });
+      if (bnAnswered) scannerRetryRef.current = 0;
+      else if (scannerRetryRef.current < 2 && !scannerRetryTimer.current) {
+        scannerRetryRef.current += 1;
+        scannerRetryTimer.current = setTimeout(() => { scannerRetryTimer.current = null; fetchBybit(); }, 30_000 * scannerRetryRef.current);
+      }
+      setTimeout(() => { fetchPriceBackup(); }, 6000);
     } catch { /* */ }
-  }, [updateCoin, updateCoins, fundingFromBinance]);
+  }, [updateCoin, updateCoins, fundingFromBinance, seedPrices, setScannerFeed, fetchPriceBackup]);
 
   /* ── Bybit + Binance LSR ── */
   const fetchLSR = useCallback(async () => {
@@ -1767,6 +1842,7 @@ export default function MarketProvider(
     ];
 
     return () => {
+      if (scannerRetryTimer.current) { clearTimeout(scannerRetryTimer.current); scannerRetryTimer.current = null; }
       intervals.forEach(clearInterval);
       /* Detach onclose before closing. Otherwise unmounting fires the handler
          above, which starts the REST fallback and the socket-retry timer for a
