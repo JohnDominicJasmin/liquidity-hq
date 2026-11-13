@@ -294,10 +294,9 @@ export const CHANGELOG: ChangelogEntry[] = [
            dashboard, market read, session clock and holidays, Ask AI chat and funding in ko/zh/ru; Russian in the home page menu, and the short words (funding, setup, Fear & Greed, chart patterns) follow the language (Arabic is not offered in any picker, so it is not named)   #2257 #2258 #2259 #2260 #2266 (open when written)
            coin names easier to tap on phones (KEEP ONLY IF QA's /markets 24 px measurement lands after the promotion; funding and dashboard are measured)   #2254 (merged)
            Best Hours shows 24-hour times and local weekday names in Korean, Chinese and Russian; its ranges and axis fit on phones   #2267 #2268 (both merged)
-           SECOND BATCH (PM 2026-11-14), each line out if its PR does not reach the release; #2270, #2273, #2274, #2275, #2277, #2278 and #2280 get no line because a visitor cannot see them (#2273 only changes a server log message):
+           SECOND BATCH (PM 2026-11-14), each line out if its PR does not reach the release; #2270, #2273, #2274, #2275, #2277, #2278 and #2280 get no line because a visitor cannot see them (#2273 only changes a server log message), and #2276 (the Alert Track Record states how far back it reaches) gets none because that card only shows with SHOW_PERFORMANCE_STATS, which is off by the owner's order (#1574), so no user sees it:
              the selected coin in the Arena list is marked beyond colour   #2271 (open when written)
              on desktop the collapsed Setup button sits beside the Ask AI button   #2272 (open when written)
-             the Alert Track Record says how far back it reaches   #2276 (open when written; its label row is 20261113k)
              Hong Kong stock prices show HK$ everywhere on the coin page   #2281 (open when written)
          NOTE: the stale "n/a" wording of the #2245 line is corrected below to match what #2253 shipped ("No data"). */
       'In the AI Arena coin list, a price that has not arrived shows a loading mark, and one that cannot be found says "No data" in plain words, instead of a dash that could mean either. HYPE, FET and several commodities now show a price even when one exchange cannot be reached, and coins with no signals say "No signals" instead of "n/a".',
@@ -313,7 +312,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Best Hours now shows 24-hour times and weekday names in your own language in Korean, Chinese and Russian, and its time ranges and chart axis fit on a phone.',
       'The selected coin in the Arena coin list is now marked with a bar as well as a colour.',
       'On desktop the collapsed Setup button now sits beside the Ask AI button instead of over the page.',
-      'The Alert Track Record now says how far back its results reach.',
       'Prices of Hong Kong stocks now show HK$ everywhere on the coin page, including the VWAP card and the EMA entry line.',
     ],
   },
