@@ -145,6 +145,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'alerts-mute-load-timeout-state', needs: 'pro', note: 'the alerts page may seed default mutes on a first visit: that account\'s own rows' },
   { spec: 'arena-authloading-lock-icon', needs: 'pro' },
   { spec: 'arena-read-card', needs: 'pro' },
+  { spec: 'arena-no-catalysts', needs: 'pro', note: 'the Deep read no-catalysts line (#2248); every AI and candle call is stubbed behind the paid-AI fence, nothing is billed' },
   { spec: 'econ-staleness', needs: 'pro' },
   { spec: 'grok-header-meta', needs: 'pro' },
   { spec: 'grokchat-page-coin-handoff', needs: 'pro', note: 'reads only: a hard page load of /arena?coin=xrp, then the chat opened from the launcher. The answer is stubbed in the browser, so no AI credit is spent, and it PATCHes nothing (unlike its sibling grokchat-selection-without-arena-visit, which resets strategy_selection and is excluded)' },
