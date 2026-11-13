@@ -128,9 +128,8 @@ export const CANDIDATES: LabelCandidate[] = [
     key: 'ARENA_SCANNER_COL_24H',
     now: '24 hours', was: '24h',
     path: '/arena',
-    note: 'flyout column header, 40px fixed track at <=480px, uppercase + .07em tracking',
+    note: 'flyout column header at <=480px, uppercase + .07em tracking; the track was 40px (overflowed, hence the revert) and is 54px since #2253, where it fits, so the cell now asserts it does not overflow',
     opener: 'scannerFlyout',
-    expectOverflow: true,
   },
 ];
 

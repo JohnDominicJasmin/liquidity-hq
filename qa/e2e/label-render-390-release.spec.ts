@@ -97,11 +97,13 @@ for (const loc of LOCALES) {
         for (const n of ['price', 'h24', 'vsbtc', 'status']) g[n] = await geom(page, `[data-qa-${n}="1"]`);
         console.log(`[R2] ${loc} ${JSON.stringify(g)}`);
         await page.screenshot({ path: `qa/.shots/r2-${loc}.png` });
+        // since #2253 (price AND 24h gone): the price cell carries the one narrow word (two plain words may wrap on their space), the 24h and vs-BTC cells are EMPTY by design
         for (const [k, v] of Object.entries(g)) {
           expect(v, `${k} cell not found (row anthropic/nvda missing?)`).not.toBeNull();
           expect(v!.overflows, `${k} overflows its cell in ${loc}: ${JSON.stringify(v)}`).toBe(false);
           expect(v!.clippedBy, `${k} is clipped by ${v!.clippedBy} in ${loc}`).toBe('');
-          expect(v!.lines, `${k} wraps onto ${v!.lines} lines in ${loc}: "${v!.text}"`).toBe(1);
+          if (k === 'h24' || k === 'vsbtc') expect(v!.text, `${k} should be empty when the price is gone, in ${loc}`).toBe('');
+          else { expect(v!.text, `${k} is empty in ${loc}`).not.toBe(''); expect(v!.lines, `${k} wraps onto ${v!.lines} lines in ${loc}: "${v!.text}"`).toBeLessThanOrEqual(2); }
         }
       } finally { await ctx.close(); }
     });
@@ -117,7 +119,9 @@ for (const loc of LOCALES) {
         console.log(`[R3] ${loc} ${JSON.stringify(t)} url=${page.url()}`);
         await page.screenshot({ path: `qa/.shots/r3-${loc}.png`, clip: { x: 0, y: 0, width: 390, height: 140 } });
         expect(t, 'the ticker cell was not found').not.toBeNull();
-        expect(t!.lines, `the ticker cell wraps in ${loc}: ${JSON.stringify(t)}`).toBe(1);
+        // one ROW: the symbol and the word have different font sizes, so counting distinct text tops (lines) reads 2-3 for a single row; the cell height is the honest measure
+        expect(t!.h, `the ticker cell is taller than one row in ${loc}: ${JSON.stringify(t)}`).toBeLessThanOrEqual(36);
+        expect(t!.overflows, `the ticker cell overflows its box in ${loc}`).toBe(false);
         expect(t!.docSw, 'the page scrolls sideways').toBeLessThanOrEqual(t!.vw);
       } finally { await ctx.close(); }
     });
