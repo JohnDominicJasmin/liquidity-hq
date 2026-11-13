@@ -318,7 +318,7 @@ export default function MarketsTerminal() {
                   <div style={{ height: '100%', width: (tbp ?? 0) + '%', background: barCol, borderRadius: 0, transition: 'width 0.5s' }} />
                 </div>
                 <div className="mkt-mono" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>
-                  {tbp == null ? '-' : t('MARKETS_BUY_PCT_SUFFIX', { pct: tbp })}
+                  {tbp == null ? (store.scannerFeed.universe === 'pending' ? '…' : t('ARENA_SCANNER_UNAVAILABLE_NARROW')) : t('MARKETS_BUY_PCT_SUFFIX', { pct: tbp })}
                 </div>
               </div>
 
