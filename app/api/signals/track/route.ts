@@ -86,7 +86,8 @@ async function runTracking(): Promise<{ logged: string[]; resolved: string[]; er
     for (const tf of TRACKED_TFS) {
       try {
         const candles = await fetchOHLCV(coin, tf, 500);
-        if (candles.length < 60) continue;
+        /* TOO FEW CANDLES IS UNKNOWN, NOT 'NO SIGNAL' (#1651): a venue that answers with an empty or short list used to fall through here exactly like a market with nothing to report, so the health row read healthy. It is counted as a failure of the pass for that coin/timeframe. */
+        if (candles.length < 60) { errors.push(`${coin}/${tf}: only ${candles.length} candles, no read`); continue; }
         const { signalLongs, signalShorts } = detectEMASignals(candles, tf, DEFAULT_FILTER_PARAMS);
         const latest = [...signalLongs, ...signalShorts].sort((a, b) => b.timestamp - a.timestamp)[0];
         if (!latest) continue;
@@ -111,10 +112,12 @@ async function runTracking(): Promise<{ logged: string[]; resolved: string[]; er
   }
 
   // 2. Resolve open signals against current price action
-  const { data: openSignals } = await admin
+  const { data: openSignals, error: openErr } = await admin
     .from(T.live_signals)
     .select('id, coin, tf, dir, entry_price, sl, tp, signal_time')
     .eq('outcome', 'open');
+  // A failed read of the open signals is not 'no open signals' either: nothing was resolved because nothing could be read.
+  if (openErr) errors.push(`open signals: ${healthError(openErr.message)}`);
 
   // Each signal resolves independently (different coin/tf/id) - run them
   // concurrently instead of one sequential DB round-trip after another.
@@ -182,7 +185,11 @@ export async function GET(req: Request) {
   // Telegram alert route.
   let timerId: ReturnType<typeof setTimeout>;
   const timeout = new Promise<NextResponse>(res => {
-    timerId = setTimeout(() => res(NextResponse.json({ ok: true, note: 'timeout - some checks skipped' })), 28_000);
+    timerId = setTimeout(() => {
+      // A pass cut off at the ceiling is an unknown pass, not a clean one: say so on /ops (the HTTP body stays as it was for the scheduler).
+      reportHealth('signals-track', 'market', false, 'pass hit the 28 s ceiling, some checks skipped');
+      res(NextResponse.json({ ok: true, note: 'timeout - some checks skipped' }));
+    }, 28_000);
   });
   const result = await Promise.race([runTracking(), timeout]);
   clearTimeout(timerId!);
