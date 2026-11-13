@@ -795,7 +795,7 @@ function ArenaContent() {
         openedByHover.current = false;
         const wasInside = !!scannerRef.current && scannerRef.current.contains(document.activeElement);
         setScannerOpen(false);
-        if (wasInside) scannerRef.current?.querySelector<HTMLElement>('[data-testid="scanner-trigger"]')?.focus();
+        if (wasInside) scannerRef.current?.querySelector<HTMLElement>('button[aria-expanded]')?.focus(); // the real trigger button; data-testid=scanner-trigger is on the (unfocusable) wrapper
       }
     };
     document.addEventListener('keydown', onKey);
@@ -2265,11 +2265,12 @@ function ArenaContent() {
                     aria-label={t('ARENA_SCANNER_CAT_COUNT_ARIA', { category: t(CAT_LABEL_KEYS[k]), n })}
                     tabIndex={on ? 0 : -1}
                     className={`gsc-tf-btn scanner-cat-chip${on ? ' on' : ''}`}
-                    style={{ fontWeight: on ? 700 : 500, opacity: n === 0 && !on ? 0.45 : 1 }}
+                    style={{ fontWeight: on ? 700 : 500 }}
+                    data-empty={n === 0 && !on ? 'true' : undefined}
                     onClick={e => { chooseCat(k); try { e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch { /* old browser */ } }}
                     onKeyDown={onCatKey}
                   >
-                    {on && <span aria-hidden="true">{'\u2713 '}</span>}{t(CAT_LABEL_KEYS[k])} <span aria-hidden="true" style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--txt3)' }}>{n}</span>
+                    {on && <span aria-hidden="true">{'\u2713 '}</span>}{t(CAT_LABEL_KEYS[k])}<span aria-hidden="true" className="scanner-cat-n">{n}</span>
                   </button>
                 );
               })}
