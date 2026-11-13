@@ -178,7 +178,7 @@ test('B3. nothing uses the polled header without being listed - the direction B2
      mirror, and it is derivable: a route that imports polledCacheControl is a polled route. */
   const users = appFiles()
     .filter((f) => /\/route\.ts$/.test(f))
-    .filter((f) => /\bpolledCacheControl\b/.test(read(f)))
+    .filter((f) => /\bpolledCacheControl\b/.test(stripTsComments(read(f))))   // CODE ONLY: a route whose COMMENT names the helper (to say it does not use it, #2245) is not a user of it
     .sort();
   assert.ok(users.length >= 13, `only ${users.length} routes import polledCacheControl - the scan is broken, so the comparison below would be a false pass`);
 
