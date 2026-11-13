@@ -7,7 +7,6 @@
 --   ARENA_SCANNER_NO_SIGNALS               EXISTING key. Its default changes from "n/a" to "No signals", so production's existing rows (all five locales) must be rewritten or the old text stays.
 --   ARENA_SCANNER_LOADING_TITLE            "Loading"                                        (hover/assistive name of the loading ellipsis)
 --   ARENA_SCANNER_UNAVAILABLE              "Unavailable"                                    (price cell: this instrument has no quote right now)
---   ARENA_SCANNER_UNAVAILABLE_SHORT        "n/a"                                            (the narrow 24h and vs-BTC cells, same meaning)
 --   ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE "The exchange did not answer. Retrying."
 --   ARENA_SCANNER_UNAVAILABLE_NONE_TITLE   "No price for this instrument from our sources."
 --   ARENA_SCANNER_UNAVAILABLE_NARROW       "No data"                                         (the price cell at 480 px and below, in plain words that wrap; never an abbreviation)
@@ -31,10 +30,6 @@ insert into lhq_labels (key, locale, value) values
 ('ARENA_SCANNER_UNAVAILABLE','zh','不可用'),
 ('ARENA_SCANNER_UNAVAILABLE','ru','Недоступно'),
 ('ARENA_SCANNER_UNAVAILABLE','ar','غير متاح'),
-('ARENA_SCANNER_UNAVAILABLE_SHORT','ko','N/A'),
-('ARENA_SCANNER_UNAVAILABLE_SHORT','zh','N/A'),
-('ARENA_SCANNER_UNAVAILABLE_SHORT','ru','н/д'),
-('ARENA_SCANNER_UNAVAILABLE_SHORT','ar','غ/م'),
 ('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE','ko','거래소가 응답하지 않았습니다. 다시 시도하는 중입니다.'),
 ('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE','zh','交易所未响应，正在重试。'),
 ('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE','ru','Биржа не ответила. Повторяем попытку.'),
@@ -64,10 +59,6 @@ insert into lhq_dev_labels (key, locale, value) values
 ('ARENA_SCANNER_UNAVAILABLE','zh','不可用'),
 ('ARENA_SCANNER_UNAVAILABLE','ru','Недоступно'),
 ('ARENA_SCANNER_UNAVAILABLE','ar','غير متاح'),
-('ARENA_SCANNER_UNAVAILABLE_SHORT','ko','N/A'),
-('ARENA_SCANNER_UNAVAILABLE_SHORT','zh','N/A'),
-('ARENA_SCANNER_UNAVAILABLE_SHORT','ru','н/д'),
-('ARENA_SCANNER_UNAVAILABLE_SHORT','ar','غ/م'),
 ('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE','ko','거래소가 응답하지 않았습니다. 다시 시도하는 중입니다.'),
 ('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE','zh','交易所未响应，正在重试。'),
 ('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE','ru','Биржа не ответила. Повторяем попытку.'),
