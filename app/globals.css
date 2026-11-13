@@ -1608,6 +1608,16 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
   .scanner-flyout-grid { grid-template-columns: 1fr 65px 40px 60px 28px !important; }
   .scanner-flyout-vsbtc { display: none !important; }
 }
+/* Arena coin picker: category chips live inside the list, under the search box (#1263). One line that scrolls sideways, never wrapping onto two or three. */
+.scanner-cat-row { display: flex; flex-wrap: nowrap; gap: 4px; padding: 6px 12px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.scanner-cat-row::-webkit-scrollbar { display: none; }
+.scanner-cat-chip { flex: 0 0 auto; white-space: nowrap; min-height: 32px; padding: 3px 10px; font-size: var(--fs-caption); }
+.scanner-flyout-rows { max-height: 380px; overflow-y: auto; }
+@media (max-width: 640px) {
+  /* A soft fade at the right edge says there is more to scroll to. */
+  .scanner-cat-row { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+  .scanner-flyout-rows { max-height: 60vh; }
+}
 
 .scanner-fund-box { background: var(--bg2); border-radius: var(--radius-card); padding: 10px 12px; margin-bottom: 10px; border: 0.5px solid var(--bdr); }
 .scanner-fund-coin  { font-size: var(--fs-micro); color: var(--txt3); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
