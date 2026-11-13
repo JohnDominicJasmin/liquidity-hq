@@ -216,6 +216,8 @@ export type MarketStore = {
   /* Coinbase Premium Index */
   cbPremium: number | null;    // Coinbase BTC/USD − exchange BTC/USDT converted to USD (#1631 C)
   cbPremiumPct: number | null; // as % of the exchange price in USD
+  /** The state of the Coinbase premium read, so a surface can say loading or unavailable instead of a bare dash (#1651). 'ok' is kept through a later blip. */
+  cbPremiumStatus: ScannerFeedState;
   /* GEX - Gamma Exposure from Deribit options */
   btcNetGex: number | null;    // total net GEX in $ (positive = dealers long gamma)
   btcGexFlip: number | null;   // zero-gamma strike - cross = regime change
@@ -265,7 +267,7 @@ export const defaultStore: MarketStore = {
   real10y: null,
   spx: null, spxChg: null,
   gold: null, goldChg: null,
-  cbPremium: null, cbPremiumPct: null,
+  cbPremium: null, cbPremiumPct: null, cbPremiumStatus: 'pending',
   btcNetGex: null,
   btcGexFlip: null,
   btcGexLevels: [],

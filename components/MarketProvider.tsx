@@ -1288,10 +1288,11 @@ export default function MarketProvider(
   /* ── Coinbase Premium Index (Coinbase BTC − Bybit BTC) ── */
   const fetchCoinbasePremium = useCallback(async () => {
     try {
+      const markCb = (status: 'ok' | 'failed') => setStore(s => ({ ...s, cbPremiumStatus: s.cbPremiumStatus === 'ok' ? 'ok' : status }));
       const res = await fetch('/api/coinbase-price', { cache: 'no-store' });
-      if (!res.ok) return;
+      if (!res.ok) { markCb('failed'); return; }
       const { price: cbPrice, usdtUsd } = await res.json() as { price: number; usdtUsd?: number | null };
-      if (!cbPrice || isNaN(cbPrice)) return;
+      if (!cbPrice || isNaN(cbPrice)) { markCb('failed'); return; }
       setStore(s => {
         const bybitPrice = s.coins.btc?.price;
         /* #1631 C: Coinbase quotes USD, the exchange price is USDT. Converted to USD first; without the USDT rate the premium is
@@ -1300,9 +1301,9 @@ export default function MarketProvider(
         const bybitUsd   = bybitPrice * usdtUsd;
         const premium    = cbPrice - bybitUsd;
         const premiumPct = (premium / bybitUsd) * 100;
-        return { ...s, cbPremium: premium, cbPremiumPct: premiumPct };
+        return { ...s, cbPremium: premium, cbPremiumPct: premiumPct, cbPremiumStatus: 'ok' };
       });
-    } catch { /* fail silently */ }
+    } catch { setStore(s => ({ ...s, cbPremiumStatus: s.cbPremiumStatus === 'ok' ? 'ok' : 'failed' })); }
   }, []);
 
   /* ── Binance premium index → next FR estimate (Binance perps) ── */
