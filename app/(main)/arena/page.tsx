@@ -2242,7 +2242,7 @@ function ArenaContent() {
                 placeholder={t('ARENA_SCANNER_SEARCH_PLACEHOLDER')}
                 value={scannerSearch}
                 onChange={e => setScannerSearch(e.target.value)}
-                onKeyDown={e => { if (e.key === 'ArrowDown') { e.preventDefault(); focusRow(null, 0); } }}
+                onKeyDown={e => { if (e.key === 'ArrowDown') { e.preventDefault(); focusRow(null, 1); } }}
                 style={{ flex: 1, background: 'transparent', border: 'none', padding: '7px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
               />
               {scannerSearch && (
