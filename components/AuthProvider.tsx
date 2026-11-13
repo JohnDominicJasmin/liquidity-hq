@@ -257,6 +257,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
      what is left of ENTITLEMENTS_OVERALL_BUDGET_MS, never a fresh 22 s on top (QA measured 37 s from navigation with a 6.5 s-held session read). Cleared once
      entitlements settle, so a later re-fetch gets the full budget. */
   const sessionReadMsRef = useRef(0);
+  /* The entitlements effect can start from the auth-state event (SIGNED_IN / INITIAL_SESSION) BEFORE the getSession read below settles, so the read's own
+     duration is not yet known when the budget is computed (QA measured the leg at the full 22 s). The first entitlements fetch therefore measures from when this
+     provider mounted - what the person has actually waited - and later re-fetches get the full budget. */
+  const authMountedAtRef = useRef(Date.now());
+  const firstEntitlementsRef = useRef(true);
   useEffect(() => { userIdRef.current = user?.id ?? null; }, [user]);
 
   useEffect(() => {
@@ -539,6 +544,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       }
     }
 
+    if (firstEntitlementsRef.current) {
+      /* Only a start within the session-read window counts as the same wait: someone who sits on the login page and signs in later has waited for nothing yet. */
+      const sinceMount = Date.now() - authMountedAtRef.current;
+      sessionReadMsRef.current = sinceMount <= SESSION_RESOLVE_MS ? sinceMount : 0;
+    }
     (async () => {
       const { result, cancelled: bailedEarly } = await retryWithBackoff(attempt, {
         maxAttempts: ENTITLEMENTS_MAX_ATTEMPTS,
@@ -549,6 +559,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       });
       if (bailedEarly) return;
       sessionReadMsRef.current = 0;
+      firstEntitlementsRef.current = false;
       const { data, failed } = result;
 
       if (!failed) {
