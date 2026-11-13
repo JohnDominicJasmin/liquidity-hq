@@ -12,6 +12,7 @@ test.describe('#2254 tap-target shots', () => {
     test(`S. ${p.name} at 390 ${theme}`, async ({ browser }) => {
       const ctx = await browser.newContext({ viewport: { width: 390, height: 900 } });
       await ctx.addInitScript((t) => { try { localStorage.setItem('theme', t); } catch { /* private */ } }, theme);
+      await ctx.routeWebSocket(/binance.com/, () => { /* accept and stay silent: the page reads the socket as Live, so /markets draws its rows */ });
       const page = await ctx.newPage();
       try {
         await gotoGuarded(page, p.path); await page.waitForTimeout(12_000);
