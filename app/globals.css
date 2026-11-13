@@ -2816,7 +2816,8 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    still gets its 14px. */
 .edge-card-value.is-label { font-size: var(--fs-label); }
 .edge-card-sub   { font-size: var(--fs-caption); color: var(--txt3); margin-top: 2px; line-height: 1.4; }
-.edge-card-signal { font-size: var(--fs-caption); font-weight: 600; margin-top: 2px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The note under a card value WRAPS, it is not cut off with an ellipsis (PM, #1185: "Выше VWAP - бычи…", en "Lower highs + lower …" at 390), the same rule the card titles follow. */
+.edge-card-signal { font-size: var(--fs-caption); font-weight: 600; margin-top: 2px; line-height: 1.25; white-space: normal; overflow-wrap: break-word; }
 
 
 /* ── Taker Buy/Sell Ratio table ── */
