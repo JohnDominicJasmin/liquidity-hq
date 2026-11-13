@@ -16,7 +16,7 @@ import { nextResetLocalTime } from '@/lib/resetTime';
 import { withAlpha } from '@/lib/color';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
-import { needsLiveSearch, quotaLabel } from '@/lib/searchTriggers';
+import { needsLiveSearch } from '@/lib/searchTriggers';
 import { describeSelection } from '@/lib/strategyRegistry';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import CoinMultiSelect from './CoinMultiSelect';
@@ -32,15 +32,13 @@ import AiDisclaimer from '@/components/AiDisclaimer';
 // usage meter beside it still showed quota remaining.
 // The reset time only makes sense for a personal cap; a breaker trip clears
 // when overall load drops, not at midnight, and its message says so itself.
-function rateLimitText(serverMsg: unknown, fallback: string): string {
-  if (typeof serverMsg === 'string' && serverMsg.trim()) return serverMsg;
-  return `${fallback} - resets at ${nextResetLocalTime()}.`;
-}
 
 interface Msg {
   role: 'user' | 'assistant';
   content: string;
   ts: string;
+  /** What the user's own bubble SHOWS when it differs from what is sent (a quick-question chip: the label is in the visitor's language, `content` is the English question the server matches on). */
+  display?: string;
   followUps?: string[];  // suggested follow-up question chips
 }
 
@@ -57,8 +55,8 @@ interface SavedConvo {
  * action - and it was styled lighter than the coin chips 8px below it, so it did
  * not read as interactive at all. */
 const MODES = [
-  { id: 'fast', live: false, label: 'Fast', title: 'Fast - answers from data already loaded. Spends your daily chat messages.' },
-  { id: 'live', live: true,  label: 'Live', title: 'Live - searches the web and X. Spends your daily live searches.' },
+  { id: 'fast', live: false, labelKey: 'CHAT_MODE_FAST', titleKey: 'CHAT_MODE_FAST_TITLE' },
+  { id: 'live', live: true,  labelKey: 'CHAT_MODE_LIVE', titleKey: 'CHAT_MODE_LIVE_TITLE' },
 ] as const;
 
 /* ── localStorage helpers ──────────────────────────────────────── */
@@ -144,6 +142,7 @@ function isEducational(text: string): boolean {
 }
 
 /* ── Quick prompts ─────────────────────────────────────────────── */
+const QUICK_KEYS = ['CHAT_QUICK_1', 'CHAT_QUICK_2', 'CHAT_QUICK_3', 'CHAT_QUICK_4', 'CHAT_QUICK_5', 'CHAT_QUICK_6', 'CHAT_QUICK_7', 'CHAT_QUICK_8'] as const;
 const QUICK = [
   'Full analysis now',
   'Best entry zone?',
@@ -405,7 +404,7 @@ export default function GrokChat() {
   }, [open, histView]);
 
   /* ── Send message ── */
-  const sendMsg = useCallback(async (text: string, coinOverride?: CoinId) => {
+  const sendMsg = useCallback(async (text: string, coinOverride?: CoinId, display?: string) => {
     /* ── Auth gate: show login modal if not signed in ── */
     // #1342: wait for auth to resolve before deciding. Branching on `!user`
     // alone bounced a signed-in user to the login modal if a send (or the
@@ -424,7 +423,7 @@ export default function GrokChat() {
     const activeCoin = coinOverride ?? coin;
     const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const userMsg: Msg = { role: 'user', content: text, ts };
+    const userMsg: Msg = { role: 'user', content: text, ts, ...(display ? { display } : {}) };
     const history = [...msgs, userMsg];
     setMsgs(history);
     setInput('');
@@ -469,7 +468,7 @@ export default function GrokChat() {
           const u = j.usage;
           if (u && usage) setUsage({ ...usage, ...u });
           setRateLimited(true);
-          setError(rateLimitText(j?.error, useSearch ? 'No live searches left today' : 'No chat messages left today'));
+          setError(typeof j?.error === 'string' && j.error.trim() ? j.error : t('CHAT_RATE_LIMIT_RESETS', { what: useSearch ? t('CHAT_NO_LIVE_SEARCHES_TODAY') : t('CHAT_NO_MESSAGES_TODAY'), time: nextResetLocalTime() }));
           setLoading(false);
           return;
         }
@@ -484,7 +483,7 @@ export default function GrokChat() {
         : [];
       setMsgs(prev => [...prev, { role: 'assistant', content: reply, ts: replyTs, ...(followUps.length ? { followUps } : {}) }]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unknown error');
+      setError(e instanceof Error ? e.message : t('CHAT_UNKNOWN_ERROR'));
     } finally {
       setLoading(false);
       setPendingText(null);
@@ -623,11 +622,17 @@ export default function GrokChat() {
   const pricedText      = pendingText ?? input;
   const willSearch      = liveActive || needsLiveSearch(pricedText);
   const activeRemaining = willSearch ? searchRemaining : chatRemaining;
+  /* The quota line in the visitor's language. No plural noun: Russian and Arabic need the count first ("Осталось сообщений: 3"), so each language has one form for any n, and 0 and 1 have their own lines (the same cases `quotaLabel` makes). */
+  const quotaText = (n: number, search: boolean): string => {
+    if (n <= 0) return t(search ? 'CHAT_QUOTA_SEARCH_NONE' : 'CHAT_QUOTA_MSG_NONE');
+    if (n === 1) return t(search ? 'CHAT_QUOTA_SEARCH_ONE' : 'CHAT_QUOTA_MSG_ONE');
+    return t(search ? 'CHAT_QUOTA_SEARCH_MANY' : 'CHAT_QUOTA_MSG_MANY', { n });
+  };
   const counterText     = activeRemaining === null
     ? null
     : activeRemaining <= 0
-      ? `${quotaLabel(activeRemaining, willSearch)} · resets ${nextResetLocalTime()}`
-      : quotaLabel(activeRemaining, willSearch);
+      ? t('CHAT_QUOTA_WITH_RESET', { quota: quotaText(activeRemaining, willSearch), time: nextResetLocalTime() })
+      : quotaText(activeRemaining, willSearch);
 
   const selectMode = (live: boolean) => {
     if (live && searchExhausted) return;
@@ -667,7 +672,7 @@ export default function GrokChat() {
         className={`gchat-fab${open ? ' gchat-fab-open' : ''}${!fabVisible ? ' gchat-fab-scrolling' : ''}`}
         onClick={() => { setOpen(v => !v); if (open) { setExpanded(false); setShowLoginModal(false); } }}
         title={t('GROK_FAB_LABEL')}
-        aria-label="Open AI chat"
+        aria-label={t('CHAT_OPEN_AI_CHAT')}
       >
         <span style={{ lineHeight: 0 }}>
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -700,20 +705,20 @@ export default function GrokChat() {
             <button
               className="gchat-login-close"
               onClick={() => setShowLoginModal(false)}
-              aria-label="Close"
+              aria-label={t('CHAT_CLOSE')}
             >✕</button>
             <div style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt)' }}>
-              Sign in to use Grok
+              {t('CHAT_SIGNIN_USE')}
             </div>
             <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', lineHeight: 1.65, maxWidth: 240 }}>
-              AI analysis uses API credits. Create a free account to unlock Grok chat and arena analysis.
+              {t('CHAT_LOGIN_BODY')}
             </div>
             <Link
               href="/login"
               className="auth-gate-btn"
               onClick={() => setShowLoginModal(false)}
             >
-              Sign In
+              {t('CHAT_SIGN_IN')}
             </Link>
           </div>
         )}
@@ -722,17 +727,17 @@ export default function GrokChat() {
         <div className="gchat-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {histView ? (
-              <button className="gchat-icon-btn" onClick={() => setHistView(false)} title="Back to chat" aria-label="Back to chat" style={{ fontSize: '1rem', padding: '2px 4px' }}>←</button>
+              <button className="gchat-icon-btn" onClick={() => setHistView(false)} title={t('CHAT_BACK')} aria-label={t('CHAT_BACK')} style={{ fontSize: '1rem', padding: '2px 4px' }}>←</button>
             ) : null}
             <span style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)' }}>
-              {histView ? 'Conversations' : 'LiquidityAI'}
+              {histView ? t('CHAT_TITLE_CONVOS') : 'LiquidityAI'}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {!histView && (
               <>
                 {msgs.length > 0 && (
-                  <button className="gchat-icon-btn" onClick={clearChat} title="Clear chat" aria-label="Clear chat">
+                  <button className="gchat-icon-btn" onClick={clearChat} title={t('CHAT_CLEAR')} aria-label={t('CHAT_CLEAR')}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
                       <path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                     </svg>
@@ -744,16 +749,16 @@ export default function GrokChat() {
               <button
                 className="gchat-new-chat-btn"
                 onClick={newChat}
-                title="Start a new chat"
+                title={t('CHAT_NEW')}
               >
-                + New
+                {t('CHAT_NEW_SHORT')}
               </button>
             )}
             <button
               className={`gchat-icon-btn${histView ? ' gchat-hist-active' : ''}`}
               onClick={() => setHistView(v => !v)}
-              title={histView ? 'Back to chat' : 'Conversation history'}
-              aria-label={histView ? 'Back to chat' : 'Conversation history'}
+              title={histView ? t('CHAT_BACK') : t('CHAT_HISTORY')}
+              aria-label={histView ? t('CHAT_BACK') : t('CHAT_HISTORY')}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
                 <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
@@ -762,12 +767,12 @@ export default function GrokChat() {
             <button
               className="gchat-icon-btn"
               onClick={toggleExpand}
-              title={expanded ? 'Collapse' : 'Expand'}
-              aria-label={expanded ? 'Collapse' : 'Expand'}
+              title={expanded ? t('CHAT_COLLAPSE') : t('CHAT_EXPAND')}
+              aria-label={expanded ? t('CHAT_COLLAPSE') : t('CHAT_EXPAND')}
             >
               {expanded ? '⊡' : '⊞'}
             </button>
-            <button className="gchat-icon-btn" onClick={closeAll} title="Close" aria-label="Close">✕</button>
+            <button className="gchat-icon-btn" onClick={closeAll} title={t('CHAT_CLOSE')} aria-label={t('CHAT_CLOSE')}>✕</button>
           </div>
         </div>
 
@@ -776,10 +781,10 @@ export default function GrokChat() {
           <div className="gchat-hist-view">
             {convos.length === 0 ? (
               <div className="gchat-hist-empty">
-                <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>No saved conversations yet</div>
-                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 4 }}>Conversations are saved automatically</div>
+                <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('CHAT_NO_SAVED')}</div>
+                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 4 }}>{t('CHAT_AUTOSAVE')}</div>
                 <button className="gchat-new-chat-btn" style={{ marginTop: 16, padding: '8px 20px' }} onClick={newChat}>
-                  + Start a new chat
+                  {t('CHAT_START_NEW')}
                 </button>
               </div>
             ) : (
@@ -819,8 +824,8 @@ export default function GrokChat() {
                     <button
                       className="gchat-hist-del"
                       onClick={(e) => deleteConvo(c.id, e)}
-                      title="Delete conversation"
-                      aria-label="Delete conversation"
+                      title={t('CHAT_DELETE')}
+                      aria-label={t('CHAT_DELETE')}
                     >
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
                         <path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -846,7 +851,7 @@ export default function GrokChat() {
                 own strip instead of a shared one. */}
             <div className="gchat-meta-strip">
               <div className="gchat-meta-row">
-                <div className="gchat-mode" role="radiogroup" aria-label="Response mode" onKeyDown={onModeKeys}>
+                <div className="gchat-mode" role="radiogroup" aria-label={t('CHAT_RESPONSE_MODE')} onKeyDown={onModeKeys}>
                   {MODES.map((m, i) => {
                     const selected = m.live === liveActive;
                     const disabled = m.live && searchExhausted;
@@ -861,9 +866,9 @@ export default function GrokChat() {
                         data-testid={`grok-mode-${m.id}`}
                         className={`gchat-mode-opt${m.live ? ' live' : ''}${selected ? ' on' : ''}${disabled ? ' off' : ''}`}
                         onClick={() => selectMode(m.live)}
-                        title={disabled ? `No searches left - resets ${nextResetLocalTime()}` : m.title}
+                        title={disabled ? t('CHAT_NO_SEARCHES_TITLE', { time: nextResetLocalTime() }) : t(m.titleKey)}
                       >
-                        {m.label}
+                        {t(m.labelKey)}
                       </button>
                     );
                   })}
@@ -883,13 +888,13 @@ export default function GrokChat() {
                   the message is still editable rather than after the 429. */}
               {!liveActive && willSearch && (
                 <span className="gchat-mode-note" data-testid="grok-auto-search">
-                  This question uses a live search
+                  {t('CHAT_WILL_SEARCH')}
                 </span>
               )}
               {/* Why the Live half is dead. A control that is present and
                   explains itself beats one that silently refuses. */}
               {searchExhausted && !liveActive && !willSearch && (
-                <span className="gchat-mode-note">No searches left · resets {nextResetLocalTime()}</span>
+                <span className="gchat-mode-note">{t('CHAT_NO_SEARCHES_RESETS', { time: nextResetLocalTime() })}</span>
               )}
             </div>
             {/* DROPDOWN ONLY (#746). Owner: "this coin selection it should be
@@ -926,7 +931,7 @@ export default function GrokChat() {
                 <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red-soft)', display: 'flex', alignItems: 'center', gap: 5 }}><Warn size={12} /> {error}</div>
                 {rateLimited && (
                   <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--accent-2)', textDecoration: 'underline' }}>
-                    Upgrade to Pro for higher limits →
+                    {t('CHAT_UPGRADE_LIMITS')}
                   </Link>
                 )}
               </div>
@@ -967,20 +972,20 @@ export default function GrokChat() {
                       "Sign in" branch, which would flash at a signed-in user whose
                       token hasn't landed yet (same class as runStrategy #1335). */}
                   {authLoading ? (
-                    <span className="login-spinner" aria-label="Loading" />
+                    <span className="login-spinner" aria-label={t('ARENA_SCANNER_LOADING_TITLE')} />
                   ) : user ? (
                     <>
-                      <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt-dim)' }}>Ask anything about</div>
+                      <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt-dim)' }}>{t('CHAT_ASK_ABOUT')}</div>
                       <div style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--accent-2)', margin: '2px 0 6px' }}>
                         {coin.toUpperCase()}/USDT
                       </div>
                       <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
-                        {liveActive ? 'Live search ON' : 'Fast mode · toggle Live for web search'}
+                        {liveActive ? t('CHAT_LIVE_ON') : t('CHAT_FAST_HINT')}
                       </div>
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt3)' }}>Sign in to use LiquidityAI</div>
+                      <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt3)' }}>{t('CHAT_SIGNIN_USE')}</div>
                       <button
                         /* Border derived from the same token as the text
                            (#647): it was `#5aa3ff44`, the current design's
@@ -1003,9 +1008,9 @@ export default function GrokChat() {
                            aria-label as well as visible text, so the accessible
                            name is right regardless of how a checker computes
                            it. */
-                        aria-label="Sign in to chat"
+                        aria-label={t('CHAT_SIGNIN_CHAT_ARIA')}
                       >
-                        Sign in to chat →
+                        {t('CHAT_SIGNIN_CHAT')}
                       </button>
                     </>
                   )}
@@ -1015,7 +1020,7 @@ export default function GrokChat() {
               {msgs.map((m, i) => (
                 <div key={i} className={`gchat-msg gchat-msg-${m.role}`}>
                   {m.role === 'assistant' && (
-                    <div className="gchat-grok-label">GROK · {m.ts}</div>
+                    <div className="gchat-grok-label">{t('CHAT_AI_LABEL')} · {m.ts}</div>
                   )}
 
                   {/* Bubble */}
@@ -1025,7 +1030,7 @@ export default function GrokChat() {
                       dangerouslySetInnerHTML={{ __html: renderMd(m.content) }}
                     />
                   ) : (
-                    <div className="gchat-bubble">{m.content}</div>
+                    <div className="gchat-bubble">{m.display ?? m.content}</div>
                   )}
 
                   {m.role === 'user' && (
@@ -1051,7 +1056,7 @@ export default function GrokChat() {
 
               {loading && (
                 <div className="gchat-msg gchat-msg-assistant">
-                  <div className="gchat-grok-label">GROK · thinking</div>
+                  <div className="gchat-grok-label">{t('CHAT_AI_LABEL')} · {t('CHAT_THINKING')}</div>
                   <div className="gchat-bubble gchat-thinking">
                     <span className="gchat-dot" />
                     <span className="gchat-dot" />
@@ -1066,14 +1071,15 @@ export default function GrokChat() {
             {/* Quick prompts */}
             <div className="hscroll-fade-outer">
               <div className="gchat-quick-row">
-                {QUICK.map(q => (
+                {QUICK.map((q, qi) => (
+                  /* The chip's LABEL is in the visitor's language; the question it sends stays the English `q`, because the server's live-search triggers and the chat prompt match English words. */
                   <button
                     key={q}
                     className="gchat-quick"
-                    onClick={() => !loading && sendMsg(q)}
+                    onClick={() => !loading && sendMsg(q, undefined, t(QUICK_KEYS[qi]))}
                     disabled={loading}
                   >
-                    {q}
+                    {t(QUICK_KEYS[qi])}
                   </button>
                 ))}
               </div>
@@ -1085,7 +1091,7 @@ export default function GrokChat() {
               <textarea
                 ref={inputRef}
                 className="gchat-input"
-                aria-label="Ask LiquidityAI"
+                aria-label={t('CHAT_ASK_ARIA')}
                 rows={1}
                 value={input}
                 onChange={e => {
@@ -1096,15 +1102,15 @@ export default function GrokChat() {
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
                 }}
-                placeholder={user ? `Ask about ${coin.toUpperCase()}…` : 'Sign in to use LiquidityAI'}
+                placeholder={user ? t('CHAT_PLACEHOLDER', { coin: coin.toUpperCase() }) : t('CHAT_SIGNIN_USE')}
                 disabled={loading}
               />
               <button
                 className="gchat-send"
                 onClick={handleSend}
                 disabled={loading || !input.trim()}
-                title="Send"
-                aria-label="Send"
+                title={t('CHAT_SEND')}
+                aria-label={t('CHAT_SEND')}
               >↑</button>
             </div>
             {/* #1631: ONCE per thread, under the input where it stays visible without scrolling - not under every bubble. PM's call
