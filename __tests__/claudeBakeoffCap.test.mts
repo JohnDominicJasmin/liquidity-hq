@@ -9,19 +9,19 @@ import { spawnSync } from 'node:child_process';
 const SENTINEL = 'QA-SENTINEL-ERRTEXT-9918';
 const run = (mode: 'ok' | 'fail') => spawnSync(process.execPath, ['--import', './qa/alias-register.mjs', '--import', './qa/bakeoff-standin.mjs', 'scripts/bakeoff/quick/run.mjs'], {
   encoding: 'utf8', timeout: 240_000,
-  env: { ...process.env, ANTHROPIC_API_KEY: 'sk-ant-qa-standin-not-a-key', GROK_API_KEY: 'qa-standin-not-a-key', BAKEOFF_CAP_USD: '0.05', BAKEOFF_GROK_CAP_USD: '0.01',
-    BAKEOFF_ENGINES: 'claude-haiku-5-5,grok-4.3', BAKEOFF_INPUTS: '8', BAKEOFF_RUNS: '2', BAKEOFF_SEQUENTIAL: '1', QA_STANDIN_MODE: mode, QA_STANDIN_SENTINEL: SENTINEL },
+  env: { ...process.env, ANTHROPIC_API_KEY: 'sk-ant-qa-standin-not-a-key', GROK_API_KEY: 'qa-standin-not-a-key', BAKEOFF_CAP_USD: '0.01', BAKEOFF_GROK_CAP_USD: '0.01',
+    BAKEOFF_ENGINES: 'claude-haiku-5-5,grok-4.3', BAKEOFF_INPUTS: '30', BAKEOFF_RUNS: '3', BAKEOFF_SEQUENTIAL: '1', QA_STANDIN_MODE: mode, QA_STANDIN_SENTINEL: SENTINEL },
 });
 const num = (out: string, key: string) => { const m = out.match(new RegExp(key + '=\s*([0-9.eE+-]+)')); return m ? Number(m[1]) : NaN; };
 const FIXED = /^[A-Za-z_=0-9.$%: ()/<>-]+$/;
 
-test('H1. with a $0.05 cap the run stops at the cap and the spend never exceeds it', () => {
+test('H1. with a $0.01 cap the run stops at the cap and the spend never exceeds it', () => {
   const r = run('ok');
   assert.equal(r.status, 0, 'the harness exited ' + r.status + ' stderr tail: ' + String(r.stderr).slice(-300));
   const out = String(r.stdout);
   assert.match(out, /STOPPED_AT_CAP/, 'it did not stop at the cap: ' + out.slice(-400));
   const spent = num(out, 'SPENT_CLAUDE_USD'); assert.ok(Number.isFinite(spent), 'no SPENT_CLAUDE_USD line');
-  assert.ok(spent <= 0.05 + 1e-9, 'Claude spend ' + spent + ' passed the $0.05 cap');
+  assert.ok(spent <= 0.01 + 1e-9, 'Claude spend ' + spent + ' passed the $0.01 cap');
   const grok = num(out, 'SPENT_GROK_USD'); assert.ok(grok <= 0.01 + 1e-9, 'Grok spend ' + grok + ' passed its $0.01 cap');
   assert.ok(/claude-haiku-5-5 calls= [1-9]/.test(out), 'the control failed: not one Claude call completed, so the cap was never exercised: ' + out.slice(0, 400));
 });
@@ -41,7 +41,7 @@ test('H3. when EVERY call fails with a planted sentinel in the error, the sentin
   const out = String(r.stdout);
   assert.ok(out.split('\n').filter(Boolean).every(l => FIXED.test(l)), 'a line left the fixed-words set on the failure path');
   assert.match(out, /failed HTTP_500/, 'failures were not counted by class: ' + out.slice(-300));
-  const spent = num(out, 'SPENT_CLAUDE_USD'); assert.ok(spent > 0, 'a failed call was charged nothing (it must be charged its worst case): ' + spent);
-  assert.ok(spent <= 0.05 + 1e-9, 'failed calls pushed spend past the cap: ' + spent);
+  const spent = num(out, 'SPENT_CLAUDE_USD'); assert.ok(spent > 0, 'a failed call was charged nothing (it must be charged its worst case): ' + spent + ' | output tail: ' + out.slice(-500));
+  assert.ok(spent <= 0.01 + 1e-9, 'failed calls pushed spend past the cap: ' + spent);
   assert.match(out, /STOPPED_AT_CAP/);
 });
