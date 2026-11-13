@@ -1989,9 +1989,20 @@ function ArenaContent() {
   const quoteGap = (c: CoinId, short: boolean) => {
     const feed = coinRow(c)?.bybit ? store.scannerFeed.universe : store.scannerFeed.binanceOnly;
     if (feed === 'pending') return <span role="img" aria-label={t('ARENA_SCANNER_LOADING_TITLE')} title={t('ARENA_SCANNER_LOADING_TITLE')}>{'\u2026'}</span>;
+    const why = feed === 'failed' ? t('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE') : t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE');
+    /* THE PRICE CELL CARRIES BOTH WORDS and CSS picks one: at 480 px and below the price column is 65 px, and the full word ("Недоступно", 10 letters, in Russian) is wider than its box.
+       The short word fits every language; the title says why in full either way. */
+    if (!short) {
+      return (
+        <span title={why} style={{ fontSize: 'var(--fs-micro)', fontWeight: 500 }}>
+          <span className="scanner-gap-long">{t('ARENA_SCANNER_UNAVAILABLE')}</span>
+          <span className="scanner-gap-short">{t('ARENA_SCANNER_UNAVAILABLE_SHORT')}</span>
+        </span>
+      );
+    }
     return (
-      <span title={feed === 'failed' ? t('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE') : t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE')} style={{ fontSize: 'var(--fs-micro)', fontWeight: 500 }}>
-        {t(short ? 'ARENA_SCANNER_UNAVAILABLE_SHORT' : 'ARENA_SCANNER_UNAVAILABLE')}
+      <span title={why} style={{ fontSize: 'var(--fs-micro)', fontWeight: 500 }}>
+        {t('ARENA_SCANNER_UNAVAILABLE_SHORT')}
       </span>
     );
   };

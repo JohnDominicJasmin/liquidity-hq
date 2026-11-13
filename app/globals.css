@@ -1618,6 +1618,13 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .scanner-cat-chip[data-empty="true"] { opacity: 0.5; color: var(--txt3); }
 /* The header and the rows share one column gap, so STATUS and SCORE do not touch at 390. */
 .scanner-flyout-grid { column-gap: 6px; }
+/* A grid item's min-width is `auto`, so a long unbreakable word in one column can widen a `1fr` track past the screen (Russian at 390). Items may shrink; the cell text wraps or clips inside its own column. */
+.scanner-flyout-grid > * { min-width: 0; }
+.scanner-gap-short { display: none; }
+@media (max-width: 480px) {
+  .scanner-gap-long { display: none; }
+  .scanner-gap-short { display: inline; }
+}
 @media (max-width: 640px) {
   /* A soft fade at the right edge says there is more to scroll to. */
   .scanner-cat-row { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
