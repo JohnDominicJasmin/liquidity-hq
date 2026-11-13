@@ -37,11 +37,11 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 
 const ANSWER = [
   'SIGNAL: BULLISH', 'CONFIDENCE: 82',
-  'COUNTED: bullish: 2 (RSI divergence, ETF inflow) | bearish 1 (funding)',
+  'COUNTED: bullish: 4 (RSI divergence, ETF inflow, funding, OI) | bearish 0',
   'CATALYSTS:', '- None in input',
   'CHART_ANALYSIS: higher lows', 'REASONING: momentum turning.',
 ].join('\n');
-const CLAUDE_ANSWER = ANSWER.replace('SIGNAL: BULLISH', 'SIGNAL: BEARISH').replace('CONFIDENCE: 82', 'CONFIDENCE: 71');   // a DIFFERENT verdict, so the response shows which engine wrote it
+const CLAUDE_ANSWER = ANSWER.replace('SIGNAL: BULLISH', 'SIGNAL: BEARISH').replace('CONFIDENCE: 82', 'CONFIDENCE: 71').replace('bullish: 4 (RSI divergence, ETF inflow, funding, OI) | bearish 0', 'bullish: 0 | bearish 4 (RSI divergence, ETF outflow, funding, OI)');   // a DIFFERENT verdict, so the response shows which engine wrote it
 const UNREADABLE = 'I cannot say which way this goes.';
 const REPAIR_OK = 'SIGNAL: BEARISH\nCONFIDENCE: 60';
 const SENTINEL = 'QA-SENTINEL-ERRTEXT-4471';
