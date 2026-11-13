@@ -65,8 +65,8 @@ function say(...parts) {
 const haveClaude = !!process.env.ANTHROPIC_API_KEY;
 const haveGrok = !!process.env.GROK_API_KEY;
 const active = ENGINES.filter((e) => (e.kind === 'claude' ? haveClaude : haveGrok)).filter((e) => ONLY.length === 0 || ONLY.includes(e.id));
-if (!haveClaude) say('NOTICE: no ANTHROPIC_API_KEY, claude engines skipped');
-if (!haveGrok) say('NOTICE: no GROK_API_KEY, grok skipped');
+if (!haveClaude) say('NOTICE: no ANTHROPIC_API_KEY - claude engines skipped');
+if (!haveGrok) say('NOTICE: no GROK_API_KEY - grok skipped');
 if (active.length === 0) { say('NOTHING_TO_RUN'); process.exit(1); }
 
 // The workspace id is sent only when set (a key not scoped to a workspace needs it; a workspace-scoped key does not). It is not a credential.
