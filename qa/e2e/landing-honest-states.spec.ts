@@ -81,7 +81,10 @@ test.describe('#2246 landing honest states', () => {
     try {
       await gotoGuarded(page, '/'); await page.waitForTimeout(18_000);
       const r = await rows(page); console.log('[L4] CB prem=' + JSON.stringify(r['CB prem']));
-      expect(r['CB prem'], 'CB prem does not show a signed percentage').toMatch(/^[+−-]?\d+\.\d\d%/);
+      expect(r['CB prem'], 'CB prem does not show a signed percentage with three decimals (the dashboard format)').toMatch(/^[+−-]?\d+\.\d{3}%/);
+      /* Coinbase answers 69010 against a Bybit-seeded BTC of 69000: a premium of about +0.014%. The exact digits depend on which BTC price the app compares against, so the value is bounded, not pinned. */
+      const v = Number((r['CB prem'] ?? '').replace('−', '-').match(/[+-]?\d+\.\d+/)?.[0] ?? 'NaN');
+      expect(Math.abs(v), `CB prem is ${v}, far from the ~0.014% the stubbed prices imply`).toBeLessThan(0.1);
     } finally { await ctx.close(); }
   });
 
