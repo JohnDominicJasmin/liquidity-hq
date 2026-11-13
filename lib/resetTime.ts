@@ -62,9 +62,11 @@ export function utcWindowToLocalRange(
   if (end.getTime() <= start.getTime()) end.setUTCDate(end.getUTCDate() + 1);
 
   const siteLocale = locale && locale !== 'en' ? locale : undefined;
-  const time = (d: Date, withZone: boolean) => d.toLocaleTimeString(siteLocale, {
-    hour: siteLocale ? '2-digit' : 'numeric', minute: '2-digit', ...(siteLocale ? { hourCycle: 'h23' as const } : {}), ...(withZone ? { timeZoneName: 'short' as const } : {}),
-  });
+  /* The zone is appended by hand outside English: Chinese's own pattern puts it BEFORE the time ("UTC 19:00"), which read as two clocks. */
+  const zoneOf = (d: Date) => new Intl.DateTimeFormat(siteLocale, { timeZoneName: 'short' }).formatToParts(d).find(p => p.type === 'timeZoneName')?.value ?? '';
+  const time = (d: Date, withZone: boolean) => siteLocale
+    ? d.toLocaleTimeString(siteLocale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) + (withZone ? ' ' + zoneOf(d) : '')
+    : d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', ...(withZone ? { timeZoneName: 'short' as const } : {}) });
   const showDay = utcDay !== undefined
     || start.toLocaleDateString(undefined) !== end.toLocaleDateString(undefined);
   const day = (d: Date) => d.toLocaleDateString(siteLocale, { weekday: 'short' });
