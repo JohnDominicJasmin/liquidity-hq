@@ -38,7 +38,8 @@ const SORT_LABEL_KEYS: Record<SortKey, LabelKey> = {
 
 const GRADE_ORDER: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, F: 4, '-': 5 };
 const PAGE_SIZE = 20;
-const ROW_COLS = '48px 1fr 40px 96px 58px 92px 1fr';
+/* The grade column is 66 px, not 48 (#1185, QA/PM at 1280): its head is the word GRADE plus the 24 px info icon, and at 48 px the icon touched COIN. The two 1fr columns give the 18 px back. */
+const ROW_COLS = '66px 1fr 40px 96px 58px 92px 1fr';
 
 export default function MarketsTerminal() {
   const { t } = useLabels();
@@ -252,7 +253,8 @@ export default function MarketsTerminal() {
                 gridTemplateColumns: ROW_COLS,
                 alignItems: 'center',
                 padding: '8px 10px',
-                borderBottom: '0.5px solid rgba(255,255,255,0.03)',
+                /* THE ROW LINE IS DRAWN (#1185): at rgba .03 it was invisible, so the only line under a row was the buy-pressure accent below, whose width is the buy share - which read as a divider stopping at about half the table. The accent stays as an accent over a full line. */
+                borderBottom: '0.5px solid var(--bdr)',
                 cursor: 'pointer',
                 position: 'relative',
               }}
@@ -298,7 +300,8 @@ export default function MarketsTerminal() {
 
               {/* Price */}
               <div className={`mkt-mono mkt-price${d?.price && ('$' + fmtPrice(d.price, dec)).length > 9 ? ' mkt-price-long' : ''}`} style={{ textAlign: 'right', fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt2)' }}>
-                {d?.price ? '$' + fmtPrice(d.price, dec) : '-'}
+                {/* A MISSING QUOTE SAYS WHICH KIND OF MISSING (#1651, PM): an ellipsis while the first read is still coming, the scanner's own word once it is not - not a bare dash. */}
+                {d?.price ? '$' + fmtPrice(d.price, dec) : store.scannerFeed.universe === 'pending' ? '…' : t('ARENA_SCANNER_UNAVAILABLE_NARROW')}
               </div>
 
               {/* Change */}
@@ -315,7 +318,7 @@ export default function MarketsTerminal() {
                   <div style={{ height: '100%', width: (tbp ?? 0) + '%', background: barCol, borderRadius: 0, transition: 'width 0.5s' }} />
                 </div>
                 <div className="mkt-mono" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>
-                  {tbp == null ? '-' : t('MARKETS_BUY_PCT_SUFFIX', { pct: tbp })}
+                  {tbp == null ? (store.scannerFeed.universe === 'pending' ? '…' : t('ARENA_SCANNER_UNAVAILABLE_NARROW')) : t('MARKETS_BUY_PCT_SUFFIX', { pct: tbp })}
                 </div>
               </div>
 

@@ -6312,6 +6312,8 @@ html[lang="ar"] .lp-h1-accent {
    selector, so the values that used to sit here (24px / 94px) never applied on
    any screen. The live values are the later ones, which put the pill in the
    same row as the Ask AI FAB, clear of the mobile tab bar. */
+/* DESKTOP TOO (#1185, QA at ~1200 px: the collapsed pill floated at bottom: 140 over the settings card). Same row as the FAB, just to its left: the FAB is 64 px at right: 20, bottom: 24, the pill about 36 px tall, so bottom 38 centres it on the FAB and right 94 clears it by 10. The phone rule below still wins at 640 px and under. */
+.ob-checklist.ob-checklist-mini { bottom: 38px; right: 94px; }
 .ob-cl-mini-text { font-size: var(--fs-caption); font-weight: 600; color: var(--txt2); white-space: nowrap; }
 .ob-cl-mini-track {
   width: 56px; height: 3px; border-radius: 2px;
