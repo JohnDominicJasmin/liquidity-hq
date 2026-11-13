@@ -288,9 +288,13 @@ test('monitoring quota settings', async (t) => {
 
   await t.test('the integrations filter removes BrowserSession', () => {
     const filter = monitoringOptions().integrations as (d: { name: string }[]) => { name: string }[];
+    const all = getDefaultIntegrations({}).map(i => i.name);
     const kept = filter(getDefaultIntegrations({})).map(i => i.name);
     assert.ok(!kept.includes('BrowserSession'), 'session tracking would still be on');
-    assert.ok(kept.includes('InboundFilters'), 'the filter removed more than it should have');
+    /* EXACTLY the defaults minus BrowserSession. This used to assert that one named integration (InboundFilters) survived, which SDK 11 broke by renaming it: a pin on a
+       specific other name fails on a rename that has nothing to do with the filter. Comparing the whole list says the same thing (it removed nothing else) and survives renames. */
+    assert.deepEqual(kept, all.filter(n => n !== 'BrowserSession'), 'the filter removed more than it should have, or kept something it should not');
+    assert.ok(kept.length > 0, 'no integrations left at all');
   });
 
   await t.test('transaction sampling stays at 0', () => {
