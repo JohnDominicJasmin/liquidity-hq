@@ -43,7 +43,8 @@ function mediaBlock(css: string, query: string): string | null {
 }
 
 const FAB_QUERY    = '(min-width: 641px) and (max-width: 767px)';
-const SECRET_QUERY = '(min-width: 641px) and (max-width: 1100px)';
+/* #2228 (#1185): the star's gutter now applies from 641 UP, with no 1100 ceiling (the button is in the right column at every width). The trailing brace makes this the open-ended block, not the 641-767 band above it. */
+const SECRET_QUERY = '(min-width: 641px) {';
 
 test('C1. the FAB has nav clearance in the 641-767 band (#2101)', () => {
   const block = mediaBlock(CSS, FAB_QUERY);
@@ -55,11 +56,11 @@ test('C1. the FAB has nav clearance in the 641-767 band (#2101)', () => {
     + 'clears the nav, and therefore the smallest graze of the card above it');
 });
 
-test('C2. the playbook star has a right gutter in the 641-1100 band (#2106)', () => {
+test('C2. the playbook star has a right gutter from 641 up, with no ceiling (#2106, #2228)', () => {
   const block = mediaBlock(CSS, SECRET_QUERY);
   assert.notEqual(block, null, `the ${SECRET_QUERY} media block is gone, so .secret loses its FAB gutter`);
   assert.match(block!, /\.secret\s*\{[^}]*padding-right:\s*70px/,
-    'the .secret right-hand gutter is missing from the 641-1100 band, which is what keeps the Ask AI '
+    'the .secret right-hand gutter is missing from the 641-and-up block, which is what keeps the Ask AI '
     + 'button off the favourite star on /playbook');
 });
 
