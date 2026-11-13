@@ -115,10 +115,10 @@ test.describe('#2268 / #2269 shots', () => {
 async function openMarkets(browser: Browser, width: number, loc: string, theme: 'dark' | 'light' = 'dark') {
   const ctx = await browser.newContext({ viewport: { width, height: 900 } });
   await ctx.addInitScript(([l, t]) => { try { localStorage.setItem('lhq_lang_v1', l); localStorage.setItem('theme', t); } catch { /* private */ } }, [loc, theme]);
-  await ctx.routeWebSocket(/binance.com/, () => { /* accept and stay silent */ });
-  await ctx.route(//api/proxy?.*type=recent-trade/, async (route) => {
+  await ctx.routeWebSocket(/binance\.com/, () => { /* accept and stay silent */ });
+  await ctx.route(/\/api\/proxy\?.*type=recent-trade/, async (route) => {
     const sym = new URL(route.request().url()).searchParams.get('symbol') ?? '';
-    const list = sym.startsWith('BTC') ? Array.from({ length: 100 }, (_, i) => ({ execId: 'e' + i, symbol: sym, price: '69000', size: i % 10 < 7 ? '1' : '1', side: i % 10 < 7 ? 'Buy' : 'Sell', time: String(Date.now() - i * 1000), isBlockTrade: false })) : [];
+    const list = sym.startsWith('BTC') ? Array.from({ length: 100 }, (_, i) => ({ execId: 'e' + i, symbol: sym, price: '69000', size: '1', side: i % 10 < 7 ? 'Buy' : 'Sell', time: String(Date.now() - i * 1000), isBlockTrade: false })) : [];
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ retCode: 0, retMsg: 'OK', result: { category: 'linear', list } }) });
   });
   const page = await ctx.newPage(); await gotoGuarded(page, '/markets'); await page.waitForTimeout(14_000);
@@ -130,30 +130,30 @@ for (const loc of ['en', 'ru']) for (const width of [1280, 390]) {
     const { ctx, page } = await openMarkets(browser, width, loc);
     try {
       const m = await page.evaluate(() => {
-        const vw = window.innerWidth;
         const hdr = document.querySelector('.mkt-hdr-row') as HTMLElement | null; const cells = hdr ? Array.from(hdr.children) as HTMLElement[] : [];
         const range = (el: Element) => { const r = document.createRange(); r.selectNodeContents(el); const rs = Array.from(r.getClientRects()).filter(x => x.width > 0); return rs.length ? { l: Math.min(...rs.map(x => x.left)), r: Math.max(...rs.map(x => x.right)) } : null; };
-        const grade = cells[0] ? cells[0].getBoundingClientRect() : null; const gradeIcon = cells[0]?.querySelector('svg, button, span');
+        const gradeIcon = cells[0] ? cells[0].querySelector('svg, button, span') : null;
         const iconR = gradeIcon ? gradeIcon.getBoundingClientRect() : null; const coin = cells[1] ? range(cells[1]) : null;
         const btns = Array.from(document.querySelectorAll('.mkt-row-btn')) as HTMLElement[];
         const rows = btns.map(b => b.closest('.mkt-coin-cell')?.parentElement as HTMLElement | null).filter(Boolean) as HTMLElement[];
-        const prices = rows.map(r => ({ sym: (r.querySelector('.mkt-row-btn')?.textContent || '').trim(), t: ((r.querySelector('.mkt-price') as HTMLElement | null)?.innerText || '').trim(), row: (r.innerText || '').replace(/s+/g, ' ') }));
+        const prices = rows.map(r => ({ sym: (r.querySelector('.mkt-row-btn')?.textContent || '').trim(), t: ((r.querySelector('.mkt-price') as HTMLElement | null)?.innerText || '').trim(), row: (r.innerText || '').replace(/\s+/g, ' ') }));
         const bareDash = prices.filter(p => /^[-–—]$/.test(p.t)).map(p => p.sym);
         const noData = prices.filter(p => /No data|Нет данных/.test(p.t)).length;
-        const borders = rows.map(r => { const cs = getComputedStyle(r); const mm = /rgba?(([^)]+))/.exec(cs.borderBottomColor); const a = mm ? (mm[1].split(',')[3] !== undefined ? parseFloat(mm[1].split(',')[3]) : 1) : 0; return parseFloat(cs.borderBottomWidth) >= 1 && a >= 0.06; });
+        const borders = rows.map(r => { const cs = getComputedStyle(r); const mm = /rgba?\(([^)]+)\)/.exec(cs.borderBottomColor); const parts = mm ? mm[1].split(',') : []; const a = parts.length > 3 ? parseFloat(parts[3]) : (mm ? 1 : 0); return parseFloat(cs.borderBottomWidth) >= 1 && a >= 0.06; });
         const widths = rows.map(r => Math.round(r.getBoundingClientRect().width));
-        const wide = window.innerWidth >= 1000; const pressure = rows.map(r => ((r.querySelector('.mkt-col-pressure') as HTMLElement | null)?.innerText || '').replace(/s+/g, ' ').trim());
-        return { nRows: rows.length, bareDash, noData, iconRight: iconR && Math.round(iconR.right), coinLeft: coin && Math.round(coin.l), faint: borders.filter(b => !b).length, widthSpread: Math.max(...widths) - Math.min(...widths), btcRow: prices.find(p => /^BTC/.test(p.sym))?.row ?? null, pressureSample: wide ? pressure.slice(0, 8) : null, docSw: document.documentElement.scrollWidth, vw };
+        const wide = window.innerWidth >= 1000; const pressure = rows.map(r => ((r.querySelector('.mkt-col-pressure') as HTMLElement | null)?.innerText || '').replace(/\s+/g, ' ').trim());
+        return { nRows: rows.length, bareDash, noData, iconRight: iconR && Math.round(iconR.right), coinLeft: coin && Math.round(coin.l), faint: borders.filter(b => !b).length, widthSpread: widths.length ? Math.max(...widths) - Math.min(...widths) : 0, btcRow: prices.find(p => /^BTC/.test(p.sym))?.row ?? null, pressureSample: wide ? pressure.slice(0, 8) : null, docSw: document.documentElement.scrollWidth, vw: window.innerWidth };
       });
       console.log(`[Y5] ${loc} ${width} ${JSON.stringify(m)}`);
       expect(m.nRows, 'no rows: nothing measured').toBeGreaterThan(5);
       expect(m.bareDash, `a no-quote coin shows a bare dash for its price: ${m.bareDash.join(',')}`).toEqual([]);
       expect(m.noData, 'no coin says No data').toBeGreaterThan(0);
+      expect(m.iconRight, 'no GRADE info icon found').not.toBeNull();
       expect(m.iconRight!, 'the GRADE info icon touches or overlaps COIN').toBeLessThanOrEqual(m.coinLeft! - 1);
       expect(m.faint, 'rows without their own visible divider').toBe(0);
       expect(m.widthSpread, 'rows differ in width').toBeLessThanOrEqual(1);
       expect(m.docSw, 'page scrolls sideways').toBeLessThanOrEqual(m.vw);
-      if (m.pressureSample) { expect(m.pressureSample.some(p => /^[-–—]$/.test(p)), `unknown buy pressure shows a bare dash: ${JSON.stringify(m.pressureSample)}`).toBe(false); }
+      if (m.pressureSample) expect(m.pressureSample.some(p => /^[-–—]$/.test(p)), `unknown buy pressure shows a bare dash: ${JSON.stringify(m.pressureSample)}`).toBe(false);
     } finally { await ctx.close(); }
   });
 }
