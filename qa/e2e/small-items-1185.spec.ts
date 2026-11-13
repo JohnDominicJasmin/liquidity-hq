@@ -140,7 +140,8 @@ test.describe('#2228 small items', () => {
       await page.waitForTimeout(14_000);
       const badges = await page.locator('.wf-row-side').allInnerTexts();
       console.log('[S5] badges=' + JSON.stringify(badges.slice(0, 12)));
-      await shot(page, 's5-whale-feed');
+      mkdirSync(DIR, { recursive: true });
+      await page.locator('.wf-wrap').first().screenshot({ path: DIR + '/s5-whale-feed.png' });   // the feed itself, not the page above it
       expect(badges.length, 'the injected trades never rendered: nothing was measured').toBeGreaterThan(0);
       const mega = badges.filter(t => /mega/i.test(t)); const whale = badges.filter(t => /whale/i.test(t));
       expect(mega.length, 'no MEGA row rendered').toBeGreaterThan(0);
@@ -218,6 +219,46 @@ test.describe('#1413 five extra pages', () => {
         console.log(`[P-links] ${path}: ${hrefs.length} same-origin links, bad=${JSON.stringify(bad)}`);
         expect(hrefs.length, 'the page has no same-origin link: nothing measured').toBeGreaterThan(0);
         expect(bad, 'a link is broken').toEqual([]);
+      } finally { await ctx.close(); }
+    });
+  }
+});
+
+test.describe('#1185 liquidation map: the Ask AI button does not cover a row total', () => {
+  test.describe.configure({ timeout: 120_000 });
+  for (const width of [1280, 1440]) {
+    test('S7. on /liq at ' + width + 'px no TOTAL cell sits under the Ask AI button as the rows scroll past it', async ({ browser }) => {
+      const { ctx, page } = await newPage(browser, width, 'dark', 900);
+      try {
+        await gotoGuarded(page, '/liq');
+        await page.waitForTimeout(8_000);
+        /* the TOTAL cell is the unclassed third child of each cluster row (grid 80px 1fr 60px 24px); find those by their grid */
+        const count = await page.evaluate(() => {
+          let n = 0;
+          document.querySelectorAll('div').forEach(d => {
+            const g = getComputedStyle(d).gridTemplateColumns.split(' ');
+            if (d.children.length === 4 && g.length === 4 && g[0] === '80px' && g[2] === '60px' && /^\$[0-9.]+[KMB]?$/.test((d.children[2].textContent || '').trim())) { d.setAttribute('data-qa-liq-row', String(n)); n++; }
+          });
+          return n;
+        });
+        expect(count, 'no liquidation cluster row rendered, so nothing was measured').toBeGreaterThan(0);
+        const fab = page.locator('.gchat-fab').first();
+        expect(await fab.count(), 'the Ask AI button is not on the page').toBeGreaterThan(0);
+        const fb = (await fab.boundingBox())!;
+        const bad: string[] = []; let measured = 0;
+        for (let i = 0; i < Math.min(count, 12); i++) {
+          const cell = page.locator('[data-qa-liq-row="' + i + '"] > :nth-child(3)').first();
+          await cell.scrollIntoViewIfNeeded();
+          const b0 = await cell.boundingBox(); if (!b0) continue;
+          await page.evaluate((d) => window.scrollBy(0, d), (b0.y + b0.height / 2) - (fb.y + fb.height / 2));
+          await page.waitForTimeout(250);
+          const cb = await cell.boundingBox(); const f2 = await fab.boundingBox();
+          if (cb && f2) { measured++; if (hits(cb, f2)) bad.push('row ' + i + ' ' + overlapPct(cb, f2) + '%'); }
+        }
+        console.log('[S7] ' + width + 'px rows=' + count + ' measured=' + measured + ' covered=' + JSON.stringify(bad));
+        await shot(page, 's7-liq-' + width);
+        expect(measured, 'no row was compared with the button').toBeGreaterThan(0);
+        expect(bad, 'the Ask AI button covers a TOTAL value').toEqual([]);
       } finally { await ctx.close(); }
     });
   }
