@@ -351,7 +351,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
           </span>
           <span style={{ fontSize: '0.6875rem', color: 'var(--txt-dim)' }}>·</span>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
-            Entry ~${fmt(signal.ema20_4h)} (20 EMA)
+            Entry ~{currencyPrefix(coin)}{fmt(signal.ema20_4h)} (20 EMA)
           </span>
           <span style={{ fontSize: '0.6875rem', color: 'var(--txt-dim)' }}>·</span>
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--green-2)' }}>
