@@ -1986,12 +1986,25 @@ function ArenaContent() {
   const btcChange = store.coins['btc']?.change ?? null;
   /* A MISSING QUOTE SAYS WHICH KIND OF MISSING (#1263, owner: a bare dash could mean loading or an error). The read that prices this row is still in flight: an
      ellipsis. It answered and this row has no quote, or it failed: the word, with a hover/assistive title naming which. Never a bare dash. */
-  const quoteGap = (c: CoinId, short: boolean) => {
+  /* ONE WORD PER ROW (PM, 2026-11-13): when the price AND the 24h change are both gone, the price cell says so once and the 24h and vs-BTC cells stay empty; when only the change is
+     missing, those cells say the narrow wording ("No data", plain words that wrap on their space). No abbreviation anywhere (owner). */
+  const quoteGap = (c: CoinId, mode: 'price' | 'narrow') => {
     const feed = coinRow(c)?.bybit ? store.scannerFeed.universe : store.scannerFeed.binanceOnly;
     if (feed === 'pending') return <span role="img" aria-label={t('ARENA_SCANNER_LOADING_TITLE')} title={t('ARENA_SCANNER_LOADING_TITLE')}>{'\u2026'}</span>;
+    const why = feed === 'failed' ? t('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE') : t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE');
+    /* THE PRICE CELL CARRIES BOTH WORDS and CSS picks one: at 480 px and below the price column is 65 px, and the full word ("Недоступно", 10 letters, in Russian) is wider than its box.
+       The narrow wording is plain words that wrap on their space ("Нет данных"), never an abbreviation (owner: no shorthand in trader labels); the title says why in full either way. */
+    if (mode === 'price') {
+      return (
+        <span title={why} style={{ fontSize: 'var(--fs-micro)', fontWeight: 500 }}>
+          <span className="scanner-gap-long">{t('ARENA_SCANNER_UNAVAILABLE')}</span>
+          <span className="scanner-gap-short">{t('ARENA_SCANNER_UNAVAILABLE_NARROW')}</span>
+        </span>
+      );
+    }
     return (
-      <span title={feed === 'failed' ? t('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE') : t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE')} style={{ fontSize: 'var(--fs-micro)', fontWeight: 500 }}>
-        {t(short ? 'ARENA_SCANNER_UNAVAILABLE_SHORT' : 'ARENA_SCANNER_UNAVAILABLE')}
+      <span title={why} style={{ fontSize: 'var(--fs-micro)', fontWeight: 500 }}>
+        {t('ARENA_SCANNER_UNAVAILABLE_NARROW')}
       </span>
     );
   };
@@ -2405,15 +2418,15 @@ function ArenaContent() {
                   </div>
                   {/* Price */}
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: isActive ? 'var(--txt)' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
-                    {price ? currencyPrefix(c) + fmtPrice(price) : quoteGap(c, false)}
+                    {price ? currencyPrefix(c) + fmtPrice(price) : quoteGap(c, 'price')}
                   </span>
                   {/* 24h % */}
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? 'var(--txt3)' : change >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
-                    {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : quoteGap(c, true)}
+                    {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : price ? quoteGap(c, 'narrow') : null}
                   </span>
                   {/* vs BTC */}
                   <span className="scanner-flyout-vsbtc" style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: vsBtcColor }}>
-                    {vsBtc != null ? (vsBtc >= 0 ? '+' : '') + vsBtc.toFixed(1) + '%' : c === 'btc' ? '-' : quoteGap(c, true)}
+                    {vsBtc != null ? (vsBtc >= 0 ? '+' : '') + vsBtc.toFixed(1) + '%' : c === 'btc' ? '-' : price ? quoteGap(c, 'narrow') : null}
                   </span>
                   {/* Status */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
