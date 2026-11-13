@@ -63,7 +63,10 @@ broken most often, in short — the full text and the rest are in that file:
   in **groups** (Arena, Landing+onboarding, News+alerts, AI, Payments), and **each group
   gets its own dispatched run (`e2e: true`) on its `qa` head before it enters `staging`**.
   Then one final run on the `staging` → `main` release PR. **Nothing goes to production
-  until everything in scope is in `staging`, tested and audited.** QA's browser tests
+  until everything in scope is in `staging`, tested and audited.** **And not even then
+  without zero open items and the owner's own go** (owner, 2026-11-13: *"We're not releasing
+  it unless I don't see any PRs or issues remaining... including the backlogs... then I will
+  give the go signal"*). A release PR may sit open with its CI run; it does not merge early. QA's browser tests
   run **on GitHub runners, not the owner's laptop** (`ci.yml` `spec` input). **A code
   PR merges into `dev` only on a green automatic check on its head** (that check is the
   pre-merge `verify`), plus QA's word. If the repo ever goes private again, the PR trigger
@@ -76,7 +79,8 @@ broken most often, in short — the full text and the rest are in that file:
   parts of `CONTRIBUTING.md` the work touches.** Owner, 2026-11-10: *"Before we
   start any type of issue, make sure to reread, review your documentation."* §18.
 - **The product UI never names the AI vendor or model.** It says "AI". Only the
-  three legal strings name the processor, because privacy law expects it.
+  FOUR legal strings name the processor (privacy law, and the trademark non-affiliation
+  notice) - OWNER-RULES §5 lists them.
 - **Short messages to him.** Under 80 words, bullets or a table, answer first.
   When asking him anything, give **clickable options with a recommendation**.
 

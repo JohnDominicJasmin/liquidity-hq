@@ -274,6 +274,13 @@ export const CHANGELOG: ChangelogEntry[] = [
       'AI Arena now opens on the coin and timeframe you saved in Settings when you load it fresh, instead of Bitcoin on 15 minutes.',
       'The Draw Structure menu now closes with Escape or a tap outside it, and the lines it drew stay on the chart.',
       'Two small chart fixes: the liquidation price tag at the chart edge is no longer drawn over a nearby support or resistance tag, and text an AI read puts between single asterisks now shows in italics instead of with stray asterisks.',
+      /* ADDED AFTER #2236, each tied to its pull request. Same rule as above: IF ANY OF THESE PRS DOES NOT REACH THE RELEASE ITS LINE COMES OUT HERE.
+           whale BUY/SELL + Research stacks on phones   #2228 (4b, 6b)
+           nothing sits under the Ask AI button          #2228 (playbook star), #2229 (dashboard new play), #2238 (liquidation map Total)
+         LEFT OUT ON PURPOSE: the shared sign-in deadline in #2241 (it stops waiting a few seconds sooner and shows nothing new, QA measured), the error-report privacy tightening in #2239 (internal, and too technical for a reader), the chart feed dot's accessible name and the darker /funding chip colour inside #2228, which are small
+         accessibility and contrast changes a reader would not name. */
+      'The whale feed now says BUY or SELL on every large trade, and the Research page stacks its first two cards on phones so no number is cut off.',
+      'The floating Ask AI button no longer sits on top of the playbook favourite star, the dashboard "new play" button on phones, or the Total column of the liquidation map clusters table.',
     ],
   },
   {
