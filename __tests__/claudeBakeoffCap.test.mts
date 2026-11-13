@@ -12,7 +12,7 @@ const run = (mode: 'ok' | 'fail') => spawnSync(process.execPath, ['--import', '.
   env: { ...process.env, ANTHROPIC_API_KEY: 'sk-ant-qa-standin-not-a-key', GROK_API_KEY: 'qa-standin-not-a-key', BAKEOFF_CAP_USD: '0.01', BAKEOFF_GROK_CAP_USD: '0.01',
     BAKEOFF_ENGINES: 'claude-haiku-5-5,grok-4.3', BAKEOFF_INPUTS: '30', BAKEOFF_RUNS: '3', BAKEOFF_SEQUENTIAL: '1', QA_STANDIN_MODE: mode, QA_STANDIN_SENTINEL: SENTINEL },
 });
-const num = (out: string, key: string) => { const m = out.match(new RegExp(key + '=\s*([0-9.eE+-]+)')); return m ? Number(m[1]) : NaN; };
+const num = (out: string, key: string) => { const m = out.match(new RegExp(key + '=\\s*([0-9.eE+-]+)')); return m ? Number(m[1]) : NaN; };
 const FIXED = /^[A-Za-z_=0-9.$%: ()/<>-]+$/;
 
 test('H1. with a $0.01 cap the run stops at the cap and the spend never exceeds it', () => {
