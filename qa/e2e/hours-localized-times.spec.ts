@@ -51,6 +51,7 @@ test.describe('#2267 hours localized times', () => {
       test.skip(!J[loc], 'migration 20261113j is not in this tree');
       const { ctx, page } = await open(browser, loc, 1280);
       try {
+        await page.screenshot({ path: `qa/.shots/hours-${loc}-1280.png`, fullPage: true });
         const t = await text(page); const hit = { ampm: (t.match(AMPM) || [''])[0], weekday: (t.match(WEEKDAY) || [''])[0], hms: (t.match(HMS) || [''])[0] };
         console.log(`[T1] ${loc} ${JSON.stringify(hit)} clockSample="${(t.match(/\d{1,2}:\d{2}:\d{2}[^.]{0,24}/) || [''])[0]}" away="${(t.match(/[^ ]{0,12}\d+[^ ]{0,4} [^ ]{0,10}\d+[^ ]{0,6}[^.]{0,16}/) || [''])[0]}"`);
         expect((t.match(BROKEN) || [""])[0], `a broken value is printed on /hours in ${loc}`).toBe(""); expect(hit.ampm, `AM/PM on /hours in ${loc}`).toBe(''); expect(hit.weekday, `English weekday on /hours in ${loc}`).toBe(''); expect(hit.hms, `an h/m countdown on /hours in ${loc}`).toBe('');
@@ -58,14 +59,14 @@ test.describe('#2267 hours localized times', () => {
     });
   }
 
-  test('T2. /hours in ru at 390: same checks, page 390 wide, shot written', async ({ browser }) => {
-    test.skip(!J.ru, 'migration 20261113j is not in this tree');
-    const { ctx, page } = await open(browser, 'ru', 390);
+  for (const loc of ['ru', 'ko', 'zh']) test(`T2. /hours in ${loc} at 390: same checks, page 390 wide, shot written`, async ({ browser }) => {
+    test.skip(!J[loc], 'migration 20261113j is not in this tree');
+    const { ctx, page } = await open(browser, loc, 390);
     try {
       const t = await text(page); const sw = await page.evaluate(() => ({ s: document.documentElement.scrollWidth, w: window.innerWidth }));
-      await page.screenshot({ path: 'qa/.shots/hours-ru-390.png', fullPage: true });
+      await page.screenshot({ path: `qa/.shots/hours-${loc}-390.png`, fullPage: true });
       console.log(`[T2] ${JSON.stringify({ ampm: AMPM.test(t), weekday: WEEKDAY.test(t), hms: HMS.test(t), sw })}`);
-      expect((t.match(BROKEN) || [""])[0], "a broken value is printed on /hours in ru at 390").toBe(""); expect(AMPM.test(t), 'AM/PM on /hours in ru').toBe(false); expect(WEEKDAY.test(t), 'English weekday on /hours in ru').toBe(false); expect(HMS.test(t), 'an h/m countdown on /hours in ru').toBe(false);
+      expect((t.match(BROKEN) || [""])[0], `a broken value is printed on /hours in ${loc} at 390`).toBe(""); expect(AMPM.test(t), 'AM/PM on /hours in ru').toBe(false); expect(WEEKDAY.test(t), 'English weekday on /hours in ru').toBe(false); expect(HMS.test(t), 'an h/m countdown on /hours in ru').toBe(false);
       expect(sw.s, 'page scrolls sideways').toBeLessThanOrEqual(sw.w);
     } finally { await ctx.close(); }
   });
