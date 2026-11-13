@@ -387,7 +387,7 @@ export default function BestHours() {
             {/* Client-only: formatting depends on the viewer's timezone, which the
                 prerendered HTML (always UTC) would get wrong. */}
             <div suppressHydrationWarning style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-              {mounted ? utcWindowToLocalRange(...w.utc, locale) : ''}
+              {mounted ? utcWindowToLocalRange(w.utc[0], w.utc[1], w.utc[2], w.utc[3], w.utc[4], locale) : ''}
             </div>
           </div>
           <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.6 }}>{t(w.descKey)}</div>
