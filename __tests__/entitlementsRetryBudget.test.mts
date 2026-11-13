@@ -158,6 +158,9 @@ test('AuthProvider entitlements: ENTITLEMENTS_OVERALL_BUDGET_MS is wired into re
   anchorOnce(source, 'const ENTITLEMENTS_OVERALL_BUDGET_MS = 22000;', 'the 22000ms overall budget constant');
   // #2241: the budget handed to retryWithBackoff is the 22s constant minus the wait the session read already spent, floored at one full per-attempt read. Dev edited this pin only because the old line no longer matches; QA to review or replace.
   anchorOnce(source, 'overallBudgetMs: Math.max(ENTITLEMENTS_FETCH_MS, ENTITLEMENTS_OVERALL_BUDGET_MS - sessionReadMsRef.current),', 'overallBudgetMs passed into retryWithBackoff\'s options');
+  /* QA (reviewed Dev's edit above and kept it): the other two halves of the shared deadline are pinned too, or the budget could be wired and never recorded or never reset (a later re-fetch would inherit a stale shortfall). */
+  anchorOnce(source, 'sessionReadMsRef.current = 0;', 'the session-read time is cleared when the entitlements settle');
+  anchorOnce(source, 'sessionReadMsRef.current = Math.min(SESSION_RESOLVE_MS, Date.now() - readStartedAt);', 'the session read time is recorded, capped at its own deadline');
   // The attempt signature must accept the remaining-budget 2nd arg, and use it - not just accept and ignore it
   // (which would silently keep the old ~48s worst case despite the option being wired above).
   anchorOnce(source, 'async function attempt(n: number, remainingBudgetMs: number)', 'attempt\'s updated signature (2nd arg: remainingBudgetMs)');
