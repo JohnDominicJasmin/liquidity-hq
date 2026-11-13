@@ -1024,9 +1024,10 @@ body::after {
 .mr-factor-k { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); letter-spacing: .1em;
   text-transform: uppercase; color: var(--txt3); }
 .mr-factor-v { font-size: var(--fs-caption); font-weight: 700; margin-top: 3px; letter-spacing: -.01em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* WRAP, NEVER CUT (#1651, PM): a translated value ("Преобладают лонги") is longer than the English token and was ending in an ellipsis. */
+  white-space: normal; overflow-wrap: anywhere; }
 .mr-factor-s { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); color: var(--txt3);
-  margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  margin-top: 1px; white-space: normal; overflow-wrap: anywhere; }
 .mr-flag { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 9px 11px;
   border-radius: 8px; font-size: var(--fs-caption); line-height: 1.45; }
 .mr-flag-bull { color: var(--green); background: rgba(52,211,153,.07); border: 0.5px solid rgba(52,211,153,.25); }
