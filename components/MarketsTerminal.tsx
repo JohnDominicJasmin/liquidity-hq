@@ -207,7 +207,7 @@ export default function MarketsTerminal() {
           <div>
             <Tip width={250} text={t('MARKETS_GRADE_TIP')}>{t('MARKETS_GRADE_COL_LABEL')}</Tip>
           </div>
-          <div style={{ paddingLeft: 10 }}>{t('MARKETS_COIN_COL_LABEL')}</div>
+          <div className="mkt-coin-cell" style={{ paddingLeft: 10 }}>{t('MARKETS_COIN_COL_LABEL')}</div>
           <div className="mkt-col-spark" />
           <div style={{ textAlign: 'right' }}>{t('MARKETS_PRICE_COL_LABEL')}</div>
           <div style={{ textAlign: 'right' }}>{t('MARKETS_24H_COL_LABEL')}</div>
@@ -269,7 +269,7 @@ export default function MarketsTerminal() {
               </div>
 
               {/* Coin badge + name */}
-              <div style={{ paddingLeft: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+              <div className="mkt-coin-cell" style={{ paddingLeft: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                 <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
                 {/* THE COIN NAME IS THE CONTROL, not the row (#943).
 
@@ -297,7 +297,7 @@ export default function MarketsTerminal() {
               </div>
 
               {/* Price */}
-              <div className="mkt-mono" style={{ textAlign: 'right', fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt2)' }}>
+              <div className={`mkt-mono mkt-price${d?.price && ('$' + fmtPrice(d.price, dec)).length > 9 ? ' mkt-price-long' : ''}`} style={{ textAlign: 'right', fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt2)' }}>
                 {d?.price ? '$' + fmtPrice(d.price, dec) : '-'}
               </div>
 

@@ -5480,7 +5480,13 @@ body.landing {
 @media (max-width: 480px) {
   /* Give the SIGNAL column ~1.7x the coin column and let it wrap to 2 lines
      instead of truncating to "..." (was 1fr + nowrap → every signal clipped). */
-  .mkt-row, .mkt-hdr-row { grid-template-columns: 28px 0.9fr 92px 54px 1.7fr !important; align-items: center; }
+  /* /markets at 390 (#1185, QA run 43495290194): the 28 px grade column was narrower than its own head ("GRADE" ran into "COIN"), the coin column was narrower than icon + name ("PEPE" ran into the price), and a cell wider than its track pushed some rows past the edge so their divider stopped short. Wider grade and price columns, a coin column with a floor, every cell allowed to shrink (min-width: 0) and every head clipped inside its own cell. */
+  .mkt-row, .mkt-hdr-row { grid-template-columns: 40px minmax(76px, 0.9fr) 88px 54px minmax(0, 1.5fr) !important; align-items: center; min-width: 0; }
+  .mkt-row > *, .mkt-hdr-row > * { min-width: 0; }
+  .mkt-hdr-row > * { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .mkt-coin-cell { padding-left: 6px !important; }
+  .mkt-price { white-space: nowrap; }
+  .mkt-price-long { font-size: var(--fs-micro) !important; }
   .mkt-col-spark, .mkt-col-pressure { display: none !important; }
   .mkt-signal {
     white-space: normal !important; overflow: visible !important; text-overflow: clip !important;
