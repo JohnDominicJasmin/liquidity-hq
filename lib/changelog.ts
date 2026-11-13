@@ -293,6 +293,7 @@ export const CHANGELOG: ChangelogEntry[] = [
            card notes and market-read tiles wrap instead of ending in an ellipsis                                    #2255 #2264 (open when written)
            dashboard, market read, session clock and holidays, Ask AI chat and funding in ko/zh/ru; Russian in the home page menu, and the short words (funding, setup, Fear & Greed, chart patterns) follow the language (Arabic is not offered in any picker, so it is not named)   #2257 #2258 #2259 #2260 #2266 (open when written)
            coin names easier to tap on phones (KEEP ONLY IF QA's /markets 24 px measurement lands after the promotion; funding and dashboard are measured)   #2254 (merged)
+           Best Hours shows 24-hour times and local weekday names in Korean, Chinese and Russian                         #2267 (open when written: out if it does not merge)
          NOTE: the stale "n/a" wording of the #2245 line is corrected below to match what #2253 shipped ("No data"). */
       'In the AI Arena coin list, a price that has not arrived shows a loading mark, and one that cannot be found says "No data" in plain words, instead of a dash that could mean either. HYPE, FET and several commodities now show a price even when one exchange cannot be reached, and coins with no signals say "No signals" instead of "n/a".',
       'On the landing page, the price ticker and the Live Read card now say "Unavailable" or show a loading mark instead of a bare dash, and the card shows the Coinbase premium.',
@@ -304,6 +305,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Card titles, the notes under card values and the market-read tiles now wrap onto a second line instead of being cut off with "...".',
       'Most of the dashboard, the market read, the session clock and market holidays, the Ask AI chat, with their short words such as funding, Fear & Greed and chart patterns, now speak Korean, Chinese and Russian, and Russian is offered in the home page language menu.',
       'Coin names on the funding, markets and dashboard pages are easier to tap on phones.',
+      'Best Hours now shows 24-hour times and weekday names in your own language in Korean, Chinese and Russian.',
     ],
   },
   {
