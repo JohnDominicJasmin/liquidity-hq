@@ -285,11 +285,15 @@ export const CHANGELOG: ChangelogEntry[] = [
            coin list: loading / Unavailable / prices that were blank   #2245 (merged)
            landing ticker and Live Read card states, Coinbase premium   #2246 (OPEN when written: out if it does not merge)
            link to a coin we do not list says so                          #2247 (OPEN when written: out if it does not merge)
-         #2248 (open when written: out if it does not merge): a Deep read that cites no catalysts says so.  */
+         #2248 (open when written: out if it does not merge): a Deep read that cites no catalysts says so.
+         #2252 (OPEN when written: out if it does not merge): the /ko /zh /ru home pages are fully in their language; the legal text stays English on purpose.
+         #2253 (OPEN when written: out if it does not merge): the scanner says "No data" in plain words on phones, and Russian no longer scrolls sideways. */
       'In the AI Arena coin list, a price that has not arrived shows a loading mark, and one that cannot be found says "Unavailable", instead of a dash that could mean either. HYPE, FET and several commodities now show a price even when one exchange cannot be reached, and coins with no signals say "No signals" instead of "n/a".',
       'On the landing page, the price ticker and the Live Read card now say "Unavailable" or show a loading mark instead of a bare dash, and the card shows the Coinbase premium.',
       'An AI Arena link to a coin we do not list now says so and opens Bitcoin, instead of switching to Bitcoin without a word.',
       'A Deep read that gives price levels but cites no catalysts now says so, instead of leaving a gap.',
+      'The Korean, Chinese and Russian home pages are now fully in their language: the start button, the Live Read card and the cookie notice. The legal text at the bottom stays in English.',
+      'On phones, the AI Arena coin list says "No data" in plain words when a price is missing, instead of a dash, and the Russian page no longer scrolls sideways.',
     ],
   },
   {
