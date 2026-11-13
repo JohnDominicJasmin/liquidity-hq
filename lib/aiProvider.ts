@@ -21,6 +21,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { AI_GUARDRAIL } from '@/lib/aiGuardrail';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { CLAUDE_MODELS } from '@/lib/aiEngine';
+import { claudeShape } from '@/lib/claudeRequest';
 
 const CLAUDE_SOURCE = 'anthropic:claude';
 const TIMEOUT_MS = 60_000;
@@ -71,15 +72,16 @@ export async function callClaude(opts: {
   if (!CLAUDE_MODELS.has(opts.model)) throw new Error('claude model not allowlisted');
   if (!claudeConfigured()) throw new Error('claude not configured');
   try {
-    const res = await getClient().messages.create(
-      {
-        model: opts.model,
-        max_tokens: opts.maxTokens,
-        system: opts.system ? `${AI_GUARDRAIL}\n\n${opts.system}` : AI_GUARDRAIL,
-        messages: [{ role: 'user', content: opts.user }],
-      },
-      opts.signal ? { signal: opts.signal } : undefined,
-    );
+    /* The per-model shape (lib/claudeRequest.ts): these models think by default and the thinking is counted against max_tokens, which left a bare request with an empty answer. */
+    const shape = claudeShape(opts.model, opts.maxTokens);
+    const body = {
+      model: opts.model,
+      max_tokens: shape.maxTokens,
+      system: opts.system ? `${AI_GUARDRAIL}\n\n${opts.system}` : AI_GUARDRAIL,
+      messages: [{ role: 'user', content: opts.user }],
+      ...shape.params,
+    } as unknown as Anthropic.MessageCreateParamsNonStreaming;
+    const res = await getClient().messages.create(body, opts.signal ? { signal: opts.signal } : undefined);
     reportHealth(CLAUDE_SOURCE, 'ai', true, 'ok');
     let text = '';
     for (const block of res.content) if (block.type === 'text') text += block.text;

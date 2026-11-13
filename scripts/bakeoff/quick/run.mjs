@@ -26,6 +26,7 @@ import { AI_GUARDRAIL } from '../../../lib/aiGuardrail.ts';
 import { ANTHROPIC_RATES_BY_MODEL, XAI_RATES_BY_MODEL, parseAiUsage } from '../../../lib/aiCost.ts';
 import { parseVerdict, parseCombinedRead } from '../../../lib/grok.ts';
 import { makePrompts } from './make-inputs.mjs';
+import { claudeShape } from '../../../lib/claudeRequest.ts';
 
 const HARD_CAP_USD = 15;
 const CEILING_USD = 0.0085;   // the owner's per-answer ceiling for the quick read
@@ -68,7 +69,8 @@ async function callOne(engine, prompt) {
   const t0 = Date.now();
   if (engine.kind === 'claude') {
     const r = await anthropic.messages.create({
-      model: engine.id, max_tokens: MAX_TOKENS, system: AI_GUARDRAIL, messages: [{ role: 'user', content: prompt }],
+      model: engine.id, max_tokens: claudeShape(engine.id, MAX_TOKENS).maxTokens, system: AI_GUARDRAIL, messages: [{ role: 'user', content: prompt }],
+      ...claudeShape(engine.id, MAX_TOKENS).params,   // the per-model shape production uses (lib/claudeRequest.ts)
     });
     let text = '';
     for (const b of r.content) if (b.type === 'text') text += b.text;
@@ -86,7 +88,7 @@ async function callOne(engine, prompt) {
 
 /** Worst case for ONE call: the prompt's tokens at 1 per 3 characters at the input rate, plus the whole max_tokens at the output rate. */
 const worstCase = (engine, prompt) =>
-  (Math.ceil(prompt.length / 3) * engine.rates.input + MAX_TOKENS * engine.rates.output) / 1e6;
+  (Math.ceil(prompt.length / 3) * engine.rates.input + (engine.kind === 'claude' ? claudeShape(engine.id, MAX_TOKENS).maxTokens : MAX_TOKENS) * engine.rates.output) / 1e6;
 
 const prompts = makePrompts(INPUTS);
 const stats = new Map(active.map((e) => [e.id, { done: 0, parsed: 0, lat: [], cost: [], fail: new Map(), verdictOk: 0, combinedOk: 0, truncated: 0, hasSignalWord: 0, outTok: [], chars: [] }]));
