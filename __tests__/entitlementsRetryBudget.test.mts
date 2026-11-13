@@ -156,7 +156,8 @@ test('retryWithBackoff overallBudgetMs (#1173)', async (t) => {
 test('AuthProvider entitlements: ENTITLEMENTS_OVERALL_BUDGET_MS is wired into retryWithBackoff and the per-attempt AbortSignal', () => {
   const source = stripComments(read('components/AuthProvider.tsx'));
   anchorOnce(source, 'const ENTITLEMENTS_OVERALL_BUDGET_MS = 22000;', 'the 22000ms overall budget constant');
-  anchorOnce(source, 'overallBudgetMs: ENTITLEMENTS_OVERALL_BUDGET_MS,', 'overallBudgetMs passed into retryWithBackoff\'s options');
+  // #2241: the budget handed to retryWithBackoff is the 22s constant minus the wait the session read already spent, floored at one full per-attempt read. Dev edited this pin only because the old line no longer matches; QA to review or replace.
+  anchorOnce(source, 'overallBudgetMs: Math.max(ENTITLEMENTS_FETCH_MS, ENTITLEMENTS_OVERALL_BUDGET_MS - sessionReadMsRef.current),', 'overallBudgetMs passed into retryWithBackoff\'s options');
   // The attempt signature must accept the remaining-budget 2nd arg, and use it - not just accept and ignore it
   // (which would silently keep the old ~48s worst case despite the option being wired above).
   anchorOnce(source, 'async function attempt(n: number, remainingBudgetMs: number)', 'attempt\'s updated signature (2nd arg: remainingBudgetMs)');
