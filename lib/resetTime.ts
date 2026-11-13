@@ -47,6 +47,8 @@ export function utcWindowToLocalRange(
   startHour: number, startMin: number,
   endHour: number, endMin: number,
   utcDay?: number,
+  /** The SITE language (not the browser's). When it is not English the range reads in the 24-hour form with that language's own weekday names, the same shape the daily session line already has (#1185, PM); English keeps the browser's own format. */
+  locale?: string,
 ): string {
   const now = new Date();
   const base = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -59,12 +61,13 @@ export function utcWindowToLocalRange(
   // 23:00-03:00), so the end belongs to the following day.
   if (end.getTime() <= start.getTime()) end.setUTCDate(end.getUTCDate() + 1);
 
-  const time = (d: Date, withZone: boolean) => d.toLocaleTimeString(undefined, {
-    hour: 'numeric', minute: '2-digit', ...(withZone ? { timeZoneName: 'short' as const } : {}),
+  const siteLocale = locale && locale !== 'en' ? locale : undefined;
+  const time = (d: Date, withZone: boolean) => d.toLocaleTimeString(siteLocale, {
+    hour: siteLocale ? '2-digit' : 'numeric', minute: '2-digit', ...(siteLocale ? { hourCycle: 'h23' as const } : {}), ...(withZone ? { timeZoneName: 'short' as const } : {}),
   });
   const showDay = utcDay !== undefined
     || start.toLocaleDateString(undefined) !== end.toLocaleDateString(undefined);
-  const day = (d: Date) => d.toLocaleDateString(undefined, { weekday: 'short' });
+  const day = (d: Date) => d.toLocaleDateString(siteLocale, { weekday: 'short' });
 
   const from = showDay ? `${day(start)} ${time(start, false)}` : time(start, false);
   const to   = showDay ? `${day(end)} ${time(end, true)}`      : time(end, true);

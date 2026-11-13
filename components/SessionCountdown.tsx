@@ -4,20 +4,11 @@ import { trText } from '@/lib/marketReadText';
 import { getCurrentWindow, isDead, getActiveHolidays, type Window as SessionWindow } from '@/lib/session';
 import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
+import { fmtDuration } from '@/lib/durationText';
 
 /* ── helpers ── */
 function pad(n: number) { return String(n).padStart(2, '0'); }
 
-function fmtMs(ms: number): string {
-  if (ms <= 0) return '0s';
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (h > 0) return `${h}h ${pad(m)}m ${pad(sec)}s`;
-  if (m > 0) return `${m}m ${pad(sec)}s`;
-  return `${sec}s`;
-}
 
 /* Scan forward (1-min steps) to find next session boundary - fast enough (<1ms).
    Skips the currently-active window so "Next" is never the session already running. */
@@ -105,7 +96,7 @@ export default function SessionCountdown() {
           <div className="sc-timer-block">
             <span className="sc-timer-label">{t('SESSION_COUNTDOWN_CLOSES_IN')}</span>
             <span suppressHydrationWarning className="sc-timer" style={{ color: current.color }}>
-              {fmtMs(endsInMs)}
+              {fmtDuration(t, Math.floor(endsInMs / 1000), true)}
             </span>
           </div>
         )}
@@ -127,7 +118,7 @@ export default function SessionCountdown() {
             {trText(t, next.win.name)}
           </span>
           <span className="sc-next-sep">{t('SESSION_COUNTDOWN_OPENS_IN')}</span>
-          <span suppressHydrationWarning className="sc-next-timer">{fmtMs(nextInMs)}</span>
+          <span suppressHydrationWarning className="sc-next-timer">{fmtDuration(t, Math.floor(nextInMs / 1000), true)}</span>
         </div>
       )}
 

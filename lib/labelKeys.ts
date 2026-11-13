@@ -769,6 +769,8 @@ export const LABEL_KEYS = [
 
   // Hours
   'HOURS_TITLE', 'HOURS_SUBTITLE', 'HOURS_AM', 'HOURS_PM',
+  // Duration units and the countdown line on /hours (#1185): were English letters and words in every language.
+  'DURATION_UNIT_H', 'DURATION_UNIT_M', 'DURATION_UNIT_S', 'HOURS_COUNTDOWN_AWAY',
   'HOURS_DAY_SUN', 'HOURS_DAY_MON', 'HOURS_DAY_TUE', 'HOURS_DAY_WED',
   'HOURS_DAY_THU', 'HOURS_DAY_FRI', 'HOURS_DAY_SAT',
   'HOURS_MONTH_JAN', 'HOURS_MONTH_FEB', 'HOURS_MONTH_MAR', 'HOURS_MONTH_APR',
