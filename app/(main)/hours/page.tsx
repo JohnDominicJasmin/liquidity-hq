@@ -317,7 +317,7 @@ export default function BestHours() {
         {/* Hour ticks */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(hr => (
-            <span key={hr} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontVariantNumeric: 'tabular-nums' }}>
+            <span key={hr} className={hr % 6 !== 0 ? 'hours-tick-minor' : undefined} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontVariantNumeric: 'tabular-nums' }}>
               {hr === 0 || hr === 24 ? t('HOURS_TICK_MIDNIGHT') : hr === 12 ? t('HOURS_TICK_NOON') : hr < 12 ? t('HOURS_TICK_AM', { hr }) : t('HOURS_TICK_PM', { hr: hr - 12 })}
             </span>
           ))}
@@ -382,11 +382,11 @@ export default function BestHours() {
       <div className="dash-section">{t('HOURS_ALL_WINDOWS')}</div>
       {WINDOWS.map((w, i) => (
         <div key={i} className="card" style={{ marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <div className={`window-pill ${w.cls}`}>{t(w.badgeKey)}</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+            <div className={`window-pill ${w.cls}`} style={{ minWidth: 0 }}>{t(w.badgeKey)}</div>
             {/* Client-only: formatting depends on the viewer's timezone, which the
                 prerendered HTML (always UTC) would get wrong. */}
-            <div suppressHydrationWarning style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
+            <div suppressHydrationWarning style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', whiteSpace: 'nowrap', flexShrink: 0 }}>
               {mounted ? utcWindowToLocalRange(w.utc[0], w.utc[1], w.utc[2], w.utc[3], w.utc[4], locale) : ''}
             </div>
           </div>
