@@ -291,7 +291,7 @@ export const CHANGELOG: ChangelogEntry[] = [
          ADDED AFTER #2254, grouped (each line comes out if ANY of its PRs does not reach the release; PM 2026-11-13; #2250 and #2251 get no line):
            missing figures say loading or No data, never a dash (dashboard cards and coin prices, funding table)   #2256 #2261 (open when written)
            card notes wrap instead of ending in an ellipsis                                                          #2255 (open when written)
-           dashboard, market read, session clock and holidays, Ask AI chat and funding in ko/zh/ru/ar; Russian in the home page menu   #2257 #2258 #2259 #2260 (open when written)
+           dashboard, market read, session clock and holidays, Ask AI chat and funding in ko/zh/ru; Russian in the home page menu (Arabic is not offered in any picker, so it is not named)   #2257 #2258 #2259 #2260 (open when written)
            coin names easier to tap on phones                                                                       #2254 (merged)
          NOTE: the stale "n/a" wording of the #2245 line is corrected below to match what #2253 shipped ("No data"). */
       'In the AI Arena coin list, a price that has not arrived shows a loading mark, and one that cannot be found says "No data" in plain words, instead of a dash that could mean either. HYPE, FET and several commodities now show a price even when one exchange cannot be reached, and coins with no signals say "No signals" instead of "n/a".',
@@ -302,7 +302,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'On phones, the AI Arena coin list says "No data" in plain words when a price is missing, instead of a dash, and the Russian page no longer scrolls sideways.',
       'Missing figures now say "Loading" or "No data" in plain words instead of a dash: the dashboard cards and coin prices, and the funding table.',
       'Card titles and the notes under card values now wrap onto a second line instead of being cut off with "...".',
-      'The dashboard, the market read, the session clock and market holidays, the Ask AI chat and the funding page now speak Korean, Chinese, Russian and Arabic, and Russian is offered in the home page language menu.',
+      'The dashboard, the market read, the session clock and market holidays, the Ask AI chat and the funding page now speak Korean, Chinese and Russian, and Russian is offered in the home page language menu.',
       'Coin names on the funding, markets and dashboard pages are easier to tap on phones.',
     ],
   },
