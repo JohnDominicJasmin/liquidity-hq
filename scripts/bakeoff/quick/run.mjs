@@ -60,7 +60,9 @@ if (!haveClaude) say('NOTICE: no ANTHROPIC_API_KEY, claude engines skipped');
 if (!haveGrok) say('NOTICE: no GROK_API_KEY, grok skipped');
 if (active.length === 0) { say('NOTHING_TO_RUN'); process.exit(1); }
 
-const anthropic = haveClaude ? new Anthropic({ timeout: 60_000, maxRetries: 1 }) : null;
+// The workspace id is sent only when set (a key not scoped to a workspace needs it; a workspace-scoped key does not). It is not a credential.
+const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
+const anthropic = haveClaude ? new Anthropic({ timeout: 60_000, maxRetries: 1, ...(workspaceId ? { defaultHeaders: { 'anthropic-workspace-id': workspaceId } } : {}) }) : null;
 
 async function callOne(engine, prompt) {
   const t0 = Date.now();

@@ -28,7 +28,10 @@ const TIMEOUT_MS = 60_000;
 let client: Anthropic | null = null;
 function getClient(): Anthropic {
   // maxRetries 1: the SDK's own retry covers a 429 or a 5xx once. A request that failed before the API accepted it is not billed.
-  if (!client) client = new Anthropic({ timeout: TIMEOUT_MS, maxRetries: 1 });
+  /* A KEY THAT IS NOT SCOPED TO A WORKSPACE needs the workspace named on every request (the API answers 400 "this request must include the anthropic-workspace-id header" otherwise;
+     measured on the bake-off smoke run, 2026-11-13). A workspace-scoped key needs nothing. So the header is sent only when ANTHROPIC_WORKSPACE_ID is set; the id is not a credential. */
+  const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
+  if (!client) client = new Anthropic({ timeout: TIMEOUT_MS, maxRetries: 1, ...(workspaceId ? { defaultHeaders: { 'anthropic-workspace-id': workspaceId } } : {}) });
   return client;
 }
 

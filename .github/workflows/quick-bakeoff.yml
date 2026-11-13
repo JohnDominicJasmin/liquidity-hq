@@ -55,6 +55,8 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
+          # Only if the key is NOT scoped to a workspace (set it as a secret or a variable; it is an id, not a credential).
+          ANTHROPIC_WORKSPACE_ID: ${{ secrets.ANTHROPIC_WORKSPACE_ID || vars.ANTHROPIC_WORKSPACE_ID }}
           BAKEOFF_CAP_USD: ${{ inputs.cap_usd }}
           BAKEOFF_RUNS: ${{ inputs.runs }}
           BAKEOFF_INPUTS: ${{ inputs.inputs }}
