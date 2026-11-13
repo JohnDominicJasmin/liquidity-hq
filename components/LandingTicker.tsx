@@ -51,6 +51,8 @@ export default function LandingTicker({ mobile, dir, words }: { mobile: boolean;
         const d = store.coins[id];
         const chg = d?.change ?? null;
         const up = chg != null && chg >= 0;
+        /* Price AND change both missing: say it ONCE, in the first slot that is rendered (the price on desktop, the change on mobile), not twice. */
+        const bothGone = !d?.price && chg == null;
         return (
           <div key={id} style={{
             display: 'flex', alignItems: 'center', gap: mobile ? 6 : 8,
@@ -83,7 +85,7 @@ export default function LandingTicker({ mobile, dir, words }: { mobile: boolean;
                  size or weight. */
               color: chg == null ? 'var(--txt2)' : (up ? 'var(--green)' : 'var(--red)'),
             }}>
-              {chg == null ? gap() : `${up ? '+' : '−'}${Math.abs(chg).toFixed(2)}%`}
+              {chg == null ? (bothGone && !mobile ? null : gap()) : `${up ? '+' : '−'}${Math.abs(chg).toFixed(2)}%`}
             </span>
           </div>
         );
