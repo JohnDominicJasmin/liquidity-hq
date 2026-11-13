@@ -72,7 +72,7 @@ async function callOne(engine, prompt) {
     });
     let text = '';
     for (const b of r.content) if (b.type === 'text') text += b.text;
-    return { text, usage: r.usage, ms: Date.now() - t0 };
+    return { text, usage: r.usage, ms: Date.now() - t0, stop: r.stop_reason ?? null };
   }
   const res = await fetch('https://api.x.ai/v1/chat/completions', {
     method: 'POST', signal: AbortSignal.timeout(120_000),
@@ -81,7 +81,7 @@ async function callOne(engine, prompt) {
   });
   if (!res.ok) { const e = new Error('http'); e.status = res.status; throw e; }
   const d = await res.json();
-  return { text: d?.choices?.[0]?.message?.content ?? '', usage: d?.usage, ms: Date.now() - t0 };
+  return { text: d?.choices?.[0]?.message?.content ?? '', usage: d?.usage, ms: Date.now() - t0, stop: d?.choices?.[0]?.finish_reason ?? null };
 }
 
 /** Worst case for ONE call: the prompt's tokens at 1 per 3 characters at the input rate, plus the whole max_tokens at the output rate. */
@@ -89,7 +89,7 @@ const worstCase = (engine, prompt) =>
   (Math.ceil(prompt.length / 3) * engine.rates.input + MAX_TOKENS * engine.rates.output) / 1e6;
 
 const prompts = makePrompts(INPUTS);
-const stats = new Map(active.map((e) => [e.id, { done: 0, parsed: 0, lat: [], cost: [], fail: new Map() }]));
+const stats = new Map(active.map((e) => [e.id, { done: 0, parsed: 0, lat: [], cost: [], fail: new Map(), verdictOk: 0, combinedOk: 0, truncated: 0, hasSignalWord: 0, outTok: [], chars: [] }]));
 let spent = 0;
 let stopped = false;
 
@@ -107,7 +107,18 @@ for (let r = 0; r < RUNS; r++) {
         st.done += 1;
         st.lat.push(out.ms);
         if (typeof cost === 'number') st.cost.push(cost);
-        if (parseVerdict(out.text) && parseCombinedRead(out.text, '15m', 'London')) st.parsed += 1;
+        /* DIAGNOSTICS, all numbers or booleans (no text): which of the two production parsers rejected the answer, whether it was cut off by the token limit,
+           whether the word SIGNAL appears at all, and how long the answer was. Enough to tell a format miss from a truncation without printing an answer. */
+        const vOk = !!parseVerdict(out.text);
+        const cOk = !!parseCombinedRead(out.text, '15m', 'London');
+        if (vOk) st.verdictOk += 1;
+        if (cOk) st.combinedOk += 1;
+        if (vOk && cOk) st.parsed += 1;
+        if (out.stop === 'max_tokens' || out.stop === 'length') st.truncated += 1;
+        if (/SIGNAL/i.test(out.text)) st.hasSignalWord += 1;
+        st.chars.push(out.text.length);
+        const ot = Number(out.usage?.output_tokens ?? out.usage?.completion_tokens);
+        if (Number.isFinite(ot)) st.outTok.push(ot);
       } catch (e) {
         const status = typeof e?.status === 'number' ? e.status : null;
         if (!(status !== null && status >= 400 && status < 500 && status !== 408 && status !== 429)) spent += wc;   // a clean 4xx was not billed
@@ -137,6 +148,8 @@ for (const e of active) {
   const mean = s.cost.length ? s.cost.reduce((a, b) => a + b, 0) / s.cost.length : NaN;
   say(e.id, 'calls=', s.done, 'parsed=', s.parsed, 'parse_rate=', s.done ? s.parsed / s.done : NaN,
     'p50_ms=', pct(s.lat, 50), 'p95_ms=', pct(s.lat, 95), 'mean_usd=', mean, mean <= CEILING_USD ? 'UNDER_CEILING' : 'OVER_CEILING');
+  const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN);
+  say(e.id, 'diag verdict_ok=', s.verdictOk, 'combined_ok=', s.combinedOk, 'truncated=', s.truncated, 'has_signal_word=', s.hasSignalWord, 'mean_out_tokens=', avg(s.outTok), 'mean_chars=', avg(s.chars));
   for (const [cls, n] of s.fail) say(e.id, 'failed', cls, n);
 }
 say('CEILING_USD=', CEILING_USD);
