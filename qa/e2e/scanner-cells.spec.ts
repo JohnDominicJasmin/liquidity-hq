@@ -42,6 +42,8 @@ test.describe('#2245 scanner cells with Binance refused', () => {
   test('K1+K2+K4. backed rows show a price; unproven rows say Unavailable; no bare dash; STATUS says No signals', async ({ browser }) => {
     const log = { bn: [] as number[], backup: [] as string[] };
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await refuseBinance(ctx, log);
+    /* THE BYBIT BULK READ IS STUBBED so HYPE's seed can be seen: in a locally built runner the server's own Bybit read is a synthetic stand-in that carries BTC and ETH only, so HYPE could never be priced from it. The body is the Bybit tickers shape the app reads (symbol, lastPrice, price24hPcnt, mark/index price, OI value). */
+    await ctx.route(/\/api\/proxy\?.*type=bybit-tickers/, async (route) => { const t = (symbol: string, last: string, pct: string) => ({ symbol, lastPrice: last, price24hPcnt: pct, markPrice: last, indexPrice: last, openInterestValue: '5000000', openInterest: '100000', fundingRate: '0.0001', turnover24h: '90000000', volume24h: '2000000', nextFundingTime: '0' }); await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ retCode: 0, retMsg: 'OK', result: { category: 'linear', list: [t('BTCUSDT', '69000', '0.01'), t('ETHUSDT', '3500', '0.012'), t('HYPEUSDT', '42.5', '0.021')] } }) }); });
     const page = await ctx.newPage();
     try {
       await gotoGuarded(page, '/arena'); await page.waitForTimeout(16_000); await openList(page);
