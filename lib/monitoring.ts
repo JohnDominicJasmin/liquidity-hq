@@ -402,13 +402,30 @@ export function monitoringOptions() {
        deliberately rather than by accident. */
     integrations: (defaults: { name: string }[]) =>
       defaults.filter(i => i.name !== 'BrowserSession'),
-    sendDefaultPii: false,
-    /* Passed by reference rather than wrapped in an arrow. `scrubEvent` is
+    /* SDK 11 REMOVED `sendDefaultPii` (migration guide, 10.x to 11.x, "`sendDefaultPii` is replaced by `dataCollection`"). Leaving the old line in place would be the
+       exact trap the comment above describes: an option that does NOTHING, with nothing to complain. And leaving `dataCollection` UNSET is worse than that: v11's default
+       collects cookies, request and response bodies, user info and database query data that v10's default did not. So the v10 restrictive baseline is stated here
+       explicitly, key by key, copied from the guide's "preserve the v10 default" block. `scrubEvent` below still runs on every error event as the second layer. */
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: {
+        request: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+        response: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+      },
+      httpBodies: [] as never[],   // empty = no bodies collected (the SDK types the element as a closed union)
+      urlQueryParams: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      graphQL: { document: false, variables: false },
+    },    /* Passed by reference rather than wrapped in an arrow. `scrubEvent` is
        generic in its argument, so it satisfies both hook signatures without
        importing `ErrorEvent`/`TransactionEvent` - the latter is not re-exported
        by @sentry/nextjs, and reaching into @sentry/core for a type would add an
        undeclared dependency on a transitive package. */
     beforeSend: scrubEvent,
+    // A NO-OP in SDK 11 (no transaction events exist there; tracesSampleRate is 0 anyway) and removed in v12. Kept so nothing about the pipeline changes until then.
     beforeSendTransaction: scrubEvent,
   };
 }
