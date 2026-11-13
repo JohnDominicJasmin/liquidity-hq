@@ -1,4 +1,4 @@
-import type { LabelKey } from './labelKeys';
+import type { LabelKey } from './labelKeys.ts';
 
 /* THE MARKET HOLIDAY NAMES, REGION NAMES AND SESSION TIME RANGES that `lib/session.ts` computes in English (#1185, PM 2026-11-13). `lib/session.ts` is not changed: the names are also what the
  * session logic compares, so the components that SHOW them translate at display through `trText` (lib/marketReadText.ts), which merges this table in. */
