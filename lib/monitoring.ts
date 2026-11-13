@@ -265,7 +265,7 @@ type StackFrame = {
 type ScrubbableEvent = {
   request?: { url?: string; headers?: Record<string, unknown>; query_string?: unknown; cookies?: unknown; data?: unknown };
   user?: Record<string, unknown>;
-  breadcrumbs?: ({ message?: string; data?: Record<string, unknown> } | undefined)[];
+  breadcrumbs?: ({ category?: string; message?: string; data?: Record<string, unknown> } | undefined)[];
   exception?: { values?: { value?: string; stacktrace?: { frames?: StackFrame[] } }[] };
   message?: string;
 };
@@ -342,6 +342,10 @@ export function scrubEvent<T>(event: T): T {
   for (const crumb of e.breadcrumbs ?? []) {
     if (!crumb) continue;
     if (typeof crumb.message === 'string') crumb.message = scrubText(crumb.message);
+    /* A CONSOLE BREADCRUMB CARRIES THE RAW ARGUMENTS TWICE: once as the formatted `message` (scrubbed above) and once as `data.arguments`, the untouched array. That array has been
+       attached since v10 (the browser breadcrumbs handler) and moved to the default Console integration in v11 (migration guide: "Console breadcrumbs now come from the default
+       consoleIntegration"); nothing scrubbed it, so an object or string passed to console.log reached the event as typed. Dropping it keeps the scrubbed message and removes the copy. */
+    if (crumb.category === 'console' && crumb.data) delete crumb.data.arguments;
     if (crumb.data && typeof crumb.data.url === 'string') crumb.data.url = scrubUrl(crumb.data.url);
     // Navigation breadcrumbs carry the path on `from`/`to`, not `url`.
     if (crumb.data && typeof crumb.data.from === 'string') crumb.data.from = scrubUrl(crumb.data.from);
