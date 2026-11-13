@@ -277,12 +277,10 @@ export const CHANGELOG: ChangelogEntry[] = [
       /* ADDED AFTER #2236, each tied to its pull request. Same rule as above: IF ANY OF THESE PRS DOES NOT REACH THE RELEASE ITS LINE COMES OUT HERE.
            whale BUY/SELL + Research stacks on phones   #2228 (4b, 6b)
            nothing sits under the Ask AI button          #2228 (playbook star), #2229 (dashboard new play), #2238 (liquidation map Total)
-           slow account load says so sooner              #2241 (OPEN when written: out if it does not merge)
-         LEFT OUT ON PURPOSE: the error-report privacy tightening in #2239 (internal, and too technical for a reader), the chart feed dot's accessible name and the darker /funding chip colour inside #2228, which are small
+         LEFT OUT ON PURPOSE: the shared sign-in deadline in #2241 (it stops waiting a few seconds sooner and shows nothing new, QA measured), the error-report privacy tightening in #2239 (internal, and too technical for a reader), the chart feed dot's accessible name and the darker /funding chip colour inside #2228, which are small
          accessibility and contrast changes a reader would not name. */
       'The whale feed now says BUY or SELL on every large trade, and the Research page stacks its first two cards on phones so no number is cut off.',
       'The floating Ask AI button no longer sits on top of the playbook favourite star, the dashboard "new play" button on phones, or the Total column of the liquidation map clusters table.',
-      'If your account details are slow to load after you sign in, the app now says so sooner instead of waiting out two timeouts back to back.',
     ],
   },
   {
