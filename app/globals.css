@@ -1647,6 +1647,8 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 
 /* ── HOURS ── */
 .window-pill { font-size: var(--fs-caption); font-weight: 700; padding: 4px 12px; border-radius: 20px; }
+/* /hours 24-hour axis: at phone width the nine labels crowd in Chinese (#1185, PM); keep every second one (0, 6, 12, 18, 24), which stay evenly spaced under space-between. */
+@media (max-width: 480px) { .hours-tick-minor { display: none; } }
 .wp-god    { background: var(--amber-bg);  color: var(--amber);  border: 0.5px solid var(--amber-bdr);  box-shadow: var(--glow-amber); }
 .wp-prime  { background: var(--green-bg);  color: var(--green);  border: 0.5px solid var(--green-bdr);  box-shadow: var(--glow-green); }
 .wp-london { background: var(--blue-bg);   color: var(--blue);   border: 0.5px solid var(--blue-bdr); }
