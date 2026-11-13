@@ -225,7 +225,8 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
     <div className="edge-card" style={{ marginBottom: 10 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-        <div>
+        {/* minWidth: 0 so a long title (Russian) can shrink and ellipsise instead of pushing the verdict badge past the screen at 390 px (QA's element dump: the badge ended at 459 px). */}
+        <div style={{ minWidth: 0, flex: '1 1 auto' }}>
           <div className="edge-card-label" style={{ marginBottom: 2 }}>
             <Tip width={240} text={t('MULTI_TF_ALIGNMENT_TOOLTIP')}>
               {t('MULTI_TF_ALIGNMENT_TITLE')}
