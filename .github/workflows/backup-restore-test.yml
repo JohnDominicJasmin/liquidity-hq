@@ -1,0 +1,140 @@
+# Backup restore test (#1413). A BACKUP NOBODY HAS RESTORED IS NOT A BACKUP.
+#
+# Restores the newest /api/backup dump into a THROWAWAY Postgres service container on the runner and prints,
+# per table, rows in the dump against rows restored. Free: GitHub's free CI on a public repo, and no Supabase
+# project (the free plan's two slots are dev and prod).
+#
+# ── THE LOG OF A RUN IS PUBLIC, SO THE GUARANTEE IS LAYERED (details in scripts/restore-test/run.mjs) ──────────
+#   1. One output channel: an allowlisted table name and integers; failures are fixed codes, never error text.
+#   2. stderr of every child process is discarded; no step echoes the environment or runs with `set -x`.
+#   3. No upload-artifact, no cache, `permissions: contents: read`; the dump stays on the runner's temp disk and
+#      is deleted at the end (`if: always()`).
+#   4. The real job uses the GitHub Environment `backup-restore` (main only, owner as required reviewer), so a pull
+#      request or a branch cannot reach the credential and a change to this file cannot use it unreviewed.
+#   5. PROVED FIRST with no secret and no real data: the `synthetic` job restores a generated dump full of planted
+#      `SENTINEL-` strings (and a spread of characters that break a naive COPY). QA greps the public log for
+#      `SENTINEL`: zero hits is the proof. `leaky_control` prints one sentinel on purpose; the same grep MUST
+#      find it, or the grep cannot be trusted. `dup_control` plants a repeated primary key; the run MUST fail.
+#
+# WHAT IT DOES NOT PROVE: the typed schema. The repository has no CREATE TABLE for five of the sixteen tables, so
+# rows are loaded as jsonb (row counts and primary-key uniqueness are what is checked). Said here and in the script.
+#
+# To run the real restore: dispatch with synthetic = false, AFTER a dump exists in the bucket and the Environment
+# is set up (names below). Environment secrets: BACKUP_S3_ACCESS_KEY_ID, BACKUP_S3_SECRET_ACCESS_KEY.
+# Environment variables: BACKUP_S3_ENDPOINT, BACKUP_S3_REGION, BACKUP_BUCKET.
+
+name: Backup restore test
+
+on:
+  workflow_dispatch:
+    inputs:
+      synthetic:
+        description: 'true = restore a generated dump with planted sentinels (no secrets). false = restore the real newest dump from the bucket (needs the backup-restore Environment).'
+        required: false
+        type: boolean
+        default: true
+      leaky_control:
+        description: 'Synthetic only: print one planted sentinel on purpose, so the log grep can be shown to catch it.'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-restore-test
+  cancel-in-progress: false
+
+jobs:
+  synthetic:
+    if: ${{ inputs.synthetic }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # Throwaway: an ephemeral container on this runner, not published anywhere, destroyed with the job.
+          POSTGRES_PASSWORD: restore-test-throwaway
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: restore-test-throwaway
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Restore the synthetic dump (must PASS)
+        run: node scripts/restore-test/run.mjs --synthetic ${{ inputs.leaky_control && '--leaky-control' || '' }}
+
+      - name: Control - a repeated primary key must FAIL the restore
+        run: |
+          if node scripts/restore-test/run.mjs --synthetic --dup-control; then
+            echo "CONTROL_FAILED the duplicate-key dump restored cleanly, so the uniqueness check cannot fail"
+            exit 1
+          fi
+          echo "CONTROL_OK the duplicate-key dump was rejected"
+
+  real:
+    if: ${{ !inputs.synthetic }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: backup-restore
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: restore-test-throwaway
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: restore-test-throwaway
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # Newest dump object (names are timestamps: backup-<UTC>.json) -> the runner's temp disk. Both aws calls
+      # have stderr discarded; only the object NAME (a timestamp) is echoed.
+      - name: Fetch the newest dump
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION }}
+          BACKUP_S3_ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          BACKUP_BUCKET: ${{ vars.BACKUP_BUCKET }}
+        run: |
+          aws configure set default.s3.addressing_style path
+          KEY=$(aws s3 ls "s3://${BACKUP_BUCKET}/" --endpoint-url "${BACKUP_S3_ENDPOINT}" 2>/dev/null | awk '{print $4}' | grep '^backup-' | sort | tail -1)
+          if [ -z "${KEY}" ]; then echo "RESTORE_TEST_FAILED NO_DUMP"; exit 1; fi
+          if ! aws s3 cp "s3://${BACKUP_BUCKET}/${KEY}" /tmp/dump.json --endpoint-url "${BACKUP_S3_ENDPOINT}" --only-show-errors 2>/dev/null; then
+            echo "RESTORE_TEST_FAILED DOWNLOAD"; exit 1
+          fi
+          echo "dump: ${KEY}"
+
+      - name: Restore it and report counts only
+        run: node scripts/restore-test/run.mjs --file /tmp/dump.json
+
+      - name: Delete the dump from the runner
+        if: ${{ always() }}
+        run: rm -f /tmp/dump.json
