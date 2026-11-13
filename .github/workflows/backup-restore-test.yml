@@ -9,6 +9,7 @@
 #   2. stderr of every child process is discarded; no step echoes the environment or runs with `set -x`.
 #   3. No upload-artifact, no cache, `permissions: contents: read`; the dump stays on the runner's temp disk and
 #      is deleted at the end (`if: always()`).
+#      CAVEAT: if anyone turns on Actions step debug logging (ACTIONS_STEP_DEBUG) the Postgres service container log can appear in the public log. Leave it off for this workflow.
 #   4. The real job uses the GitHub Environment `backup-restore` (main only, owner as required reviewer), so a pull
 #      request or a branch cannot reach the credential and a change to this file cannot use it unreviewed.
 #   5. PROVED FIRST with no secret and no real data: the `synthetic` job restores a generated dump full of planted
