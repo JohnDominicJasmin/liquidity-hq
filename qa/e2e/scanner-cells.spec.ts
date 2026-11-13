@@ -9,6 +9,7 @@
  *       Binance-allowed address); that stays a check on production after release.
  * Signed out, nothing written or billed. The Hyperliquid backup is the app's own server route calling a real public API. */
 import { test, expect, type Page, type BrowserContext } from '@playwright/test';
+import { mkdirSync } from 'node:fs';
 import { gotoGuarded } from './_shared';
 
 const BN_PROXY = /\/api\/proxy\?.*type=(binance-24hr|binance-futures-24hr|premium-index)/;
@@ -112,3 +113,33 @@ test.describe('#2245 scanner cells with Binance refused', () => {
     } finally { await ctx.close(); }
   });
 });
+
+/* K6 (Dev, #2245): the landing page's price ticker gets the same honest states. With Binance refused and the Bybit bulk answer stubbed (BTC, ETH, SOL, XRP, BNB), SOL, XRP and BNB
+ * show a value (a price at desktop width, the 24H change at phone width where the ticker omits the price), never a bare dash; and the whole ticker has no bare dash at all.
+ * The same page is shot at 390/768/1280 in light and dark for PM's landing sign-off. */
+const bybitBody = JSON.stringify({ retCode: 0, retMsg: 'OK', result: { category: 'linear', list: [['BTCUSDT', '69000', '0.01'], ['ETHUSDT', '3500', '0.012'], ['SOLUSDT', '150.5', '-0.015'], ['XRPUSDT', '0.62', '0.02'], ['BNBUSDT', '610.2', '0.005']].map(([symbol, last, pct]) => ({ symbol, lastPrice: last, price24hPcnt: pct, markPrice: last, indexPrice: last, openInterestValue: '5000000', openInterest: '100000', fundingRate: '0.0001', turnover24h: '90000000', volume24h: '2000000', nextFundingTime: '0' })) } });
+for (const theme of ['dark', 'light'] as const) for (const width of [390, 768, 1280]) {
+  test(`K6. landing ticker with Binance refused at ${width}px ${theme}: SOL, XRP and BNB show a value, no bare dash anywhere`, async ({ browser }) => {
+    test.setTimeout(150_000);
+    const ctx = await browser.newContext({ viewport: { width, height: 900 } }); await refuseBinance(ctx);
+    await ctx.addInitScript((t) => { try { localStorage.setItem('theme', t); } catch { /* private */ } }, theme);
+    await ctx.route(/\/api\/proxy\?.*type=bybit-tickers/, async (route) => { await route.fulfill({ status: 200, contentType: 'application/json', body: bybitBody }); });
+    const page = await ctx.newPage();
+    try {
+      await gotoGuarded(page, '/'); await page.waitForTimeout(16_000);
+      const m = await page.evaluate(() => {
+        const cells = Array.from(document.querySelectorAll('.lpt-ticker > div')) as HTMLElement[];
+        const txt = (c: HTMLElement) => (c.innerText || '').replace(/\s+/g, ' ').trim();
+        const all = cells.map(txt);
+        const pick = (l: string) => all.find(t => new RegExp('^' + l + '\b').test(t)) ?? null;
+        return { cells: all.length, sol: pick('SOL'), xrp: pick('XRP'), bnb: pick('BNB'), btc: pick('BTC'), bareDash: all.filter(t => /(^|\s)-(\s|$)/.test(t)).slice(0, 12), words: Array.from(new Set(all.flatMap(t => t.split(' ').filter(w => /^(n\/a|…|\.\.\.)$/.test(w))))) };
+      });
+      console.log(`[K6] ${width} ${theme} ${JSON.stringify(m)}`);
+      mkdirSync('qa/.shots', { recursive: true });
+      await page.screenshot({ path: `qa/.shots/k6-landing-${width}-${theme}.png` });
+      expect(m.cells, 'the ticker did not render').toBeGreaterThan(5);
+      for (const [k, v] of [['SOL', m.sol], ['XRP', m.xrp], ['BNB', m.bnb]] as const) expect(v && /\d/.test(v), `${k} shows no value in the ticker: "${v}"`).toBeTruthy();
+      expect(m.bareDash, 'a ticker cell holds a bare dash').toEqual([]);
+    } finally { await ctx.close(); }
+  });
+}
