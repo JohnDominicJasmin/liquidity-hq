@@ -139,8 +139,10 @@ function TCoinSidebar() {
       {visibleCoins.map(id => {
         const d      = store.coins[id];
         const dec    = COIN_DEC[id];
-        const chg    = d?.change ?? 0;
-        const up     = chg >= 0;
+        /* AN UNKNOWN CHANGE IS NOT ZERO (#1651, PM, data integrity). `?? 0` turned a coin with no quote into "+0.00%" with a green up arrow, a real-looking reading of a flat market. Null stays null and
+           draws NOTHING; the price cell beside it says why (No data, or the figure when there is one). */
+        const chg    = d?.change ?? null;
+        const up     = chg != null && chg >= 0;
         const sel    = store.selectedCoin === id;
         /* #1494 class: null, not 50. A coin whose taker ratio has not arrived used to draw this bar half-full,
            which is a real reading of balanced flow - the same picture a genuinely 50/50 coin gets. Unknown now
@@ -237,9 +239,11 @@ function TCoinSidebar() {
             </div>
 
             <div className="csb2-bottom" style={{ '--csb2-spark-w': `${SPARK_W}px` } as React.CSSProperties}>
-              <span className={`csb2-chg ${up ? 'chg-up' : 'chg-dn'}`}>
-                <span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}
-              </span>
+              {chg != null && (
+                <span className={`csb2-chg ${up ? 'chg-up' : 'chg-dn'}`}>
+                  <span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}
+                </span>
+              )}
               <Sparkline24h coin={id} width={SPARK_W} height={14} />
               {sig && (
                 <span className="csb2-sig" style={{ color: sig.col }}>
@@ -496,8 +500,8 @@ function TSelectedCoinCard() {
   const id  = store.selectedCoin;
   const d   = store.coins[id];
   const dec = COIN_DEC[id];
-  const chg = d?.change ?? 0;
-  const up  = chg >= 0;
+  const chg = d?.change ?? null;   // unknown stays null: never a real-looking +0.00% (#1651)
+  const up  = chg != null && chg >= 0;
   const badgeCol = coinBadgeColor(id);
   const oi = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
   const pattern = d?.chartPattern?.split(';')[0].split('(')[0].trim();
@@ -516,7 +520,7 @@ function TSelectedCoinCard() {
         <span className="scc-price">{d?.price ? '$' + fmtPrice(d.price, dec) : <QuoteGap coin={id} />}</span>
       </div>
       <div className="scc-meta">
-        <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}><span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}</span>
+        {chg != null && <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}><span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}</span>}
         <span className="scc-sig" style={{ color: sigCol }}>{sigText || <SkeletonBar width={80} height={11} radius={4} />}</span>
       </div>
       <span className="scc-arrow" aria-hidden="true">›</span>
