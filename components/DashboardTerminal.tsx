@@ -375,7 +375,7 @@ function TEdgeSignals() {
 
   return (
     <>
-      <div className="edge-grid">
+      <div className="edge-grid edge-grid-aligned">
         <div className="edge-card">
           <div className="edge-card-label">
             <Tip text={t('DASH_EDGE_VWAP_TIP')}>{t('DASH_EDGE_VWAP_LABEL', { coin: coin.toUpperCase() })}</Tip>
@@ -432,7 +432,7 @@ function TEdgeSignals() {
         </div>
       </div>
 
-      <div className="edge-grid" style={{ marginTop: 8 }}>
+      <div className="edge-grid edge-grid-aligned" style={{ marginTop: 8 }}>
         <div className="edge-card">
           <div className="edge-card-label">
             <Tip text={t('DASH_EDGE_CB_TIP')}>{t('DASH_EDGE_CB_LABEL')}</Tip>
