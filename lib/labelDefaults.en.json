@@ -679,6 +679,7 @@
   "ARENA_ALERTS_ENABLE_TITLE": "Enable browser alerts",
   "ARENA_SCANNER_SEARCH_PLACEHOLDER": "Search coins…",
   "ARENA_SCANNER_CLEAR_SEARCH_ARIA": "Clear search",
+  "ARENA_NO_CATALYSTS_CITED": "No catalysts cited in this read.",
   "ARENA_SCANNER_CAT_GROUP_ARIA": "Filter by category",
   "ARENA_SCANNER_CAT_COUNT_ARIA": "{category}, {n} instruments",
   "ARENA_SCANNER_EMPTY_IN_CAT": "No match in {category}. {n} in {other}.",

@@ -2895,6 +2895,13 @@ function ArenaContent() {
               </div>
             )}
 
+            {/* A DEEP read that gave levels but no catalysts says so (#1631, QA 2026-11-08: `catalysts: []` beside 3 levels): never an empty box, and never a silence a trader could read as a miss. */}
+            {cacheEntry?.mode === 'deep' && (!result.catalysts || result.catalysts.length === 0) && (result.levels?.length ?? 0) > 0 && (
+              <div style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 8, fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.5 }}>
+                {t('ARENA_NO_CATALYSTS_CITED')}
+              </div>
+            )}
+
             {/* Catalysts - top 3 bullets only */}
             {result.catalysts && result.catalysts.length > 0 && (
               <div style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 8 }}>
