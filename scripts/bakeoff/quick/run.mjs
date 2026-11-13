@@ -40,7 +40,13 @@ const ENGINES = [
 ];
 const NAMES = new Set(ENGINES.map((e) => e.id));
 
-const CAP = Math.min(HARD_CAP_USD, Number(process.env.BAKEOFF_CAP_USD) > 0 ? Number(process.env.BAKEOFF_CAP_USD) : HARD_CAP_USD);
+/* TWO SEPARATE CAPS (owner, 2026-11-13: the Anthropic budget is larger, the xAI budget is limited). Claude: at most $15. Grok: at most $0.25, and at most 5 inputs x 1 run, because
+   Grok's cost per quick read is already measured on production's own ledger (about $0.0117) and is here only a same-harness reference. Each can only be LOWERED by an input. */
+const CAP_CLAUDE = Math.min(HARD_CAP_USD, Number(process.env.BAKEOFF_CAP_USD) > 0 ? Number(process.env.BAKEOFF_CAP_USD) : HARD_CAP_USD);
+const GROK_HARD_CAP_USD = 0.25;
+const CAP_GROK = Math.min(GROK_HARD_CAP_USD, Number(process.env.BAKEOFF_GROK_CAP_USD) > 0 ? Number(process.env.BAKEOFF_GROK_CAP_USD) : GROK_HARD_CAP_USD);
+const GROK_MAX_INPUTS = 5;
+const CAP = CAP_CLAUDE;   // the Claude cap, printed as the headline cap
 const RUNS = Math.max(1, Math.min(5, Number(process.env.BAKEOFF_RUNS) || 3));
 const INPUTS = Math.max(1, Math.min(60, Number(process.env.BAKEOFF_INPUTS) || 30));
 
@@ -92,7 +98,8 @@ const worstCase = (engine, prompt) =>
 
 const prompts = makePrompts(INPUTS);
 const stats = new Map(active.map((e) => [e.id, { done: 0, parsed: 0, lat: [], cost: [], fail: new Map(), verdictOk: 0, combinedOk: 0, truncated: 0, hasSignalWord: 0, outTok: [], chars: [] }]));
-let spent = 0;
+let spent = 0;          // CLAUDE spend
+let spentGrok = 0;      // GROK spend, capped separately
 let stopped = false;
 
 outer:
@@ -100,15 +107,17 @@ for (let r = 0; r < RUNS; r++) {
   for (let i = 0; i < prompts.length; i++) {
     /* THE ENGINES RUN IN PARALLEL for one input (one slow model no longer serialises the rest), so the cap is checked against the SUM of every engine's
        worst case for this input BEFORE any of them is called. */
-    const batch = active.reduce((a, e) => a + worstCase(e, prompts[i]), 0);
-    if (spent + batch > CAP) { stopped = true; break outer; }
-    await Promise.all(active.map(async (eng) => {
+    /* Grok runs only on the first GROK_MAX_INPUTS inputs of the FIRST run, and only while its own cap holds. Claude's batch must fit the Claude cap. */
+    const engines = active.filter((e) => e.kind === 'claude' || (r === 0 && i < GROK_MAX_INPUTS && spentGrok + worstCase(e, prompts[i]) <= CAP_GROK));
+    const batch = engines.filter((e) => e.kind === 'claude').reduce((a, e) => a + worstCase(e, prompts[i]), 0);
+    if (spent + batch > CAP_CLAUDE) { stopped = true; break outer; }
+    await Promise.all(engines.map(async (eng) => {
       const wc = worstCase(eng, prompts[i]);
       const st = stats.get(eng.id);
       try {
         const out = await callOne(eng, prompts[i]);
         const cost = parseAiUsage(eng.id, out.usage).costUsd;
-        spent += typeof cost === 'number' && Number.isFinite(cost) ? cost : wc;   // an unmeasurable call is charged its worst case
+        { const add = typeof cost === 'number' && Number.isFinite(cost) ? cost : wc; if (eng.kind === 'grok') spentGrok += add; else spent += add; }   // an unmeasurable call is charged its worst case
         st.done += 1;
         st.lat.push(out.ms);
         if (typeof cost === 'number') st.cost.push(cost);
@@ -126,7 +135,7 @@ for (let r = 0; r < RUNS; r++) {
         if (Number.isFinite(ot)) st.outTok.push(ot);
       } catch (e) {
         const status = typeof e?.status === 'number' ? e.status : null;
-        if (!(status !== null && status >= 400 && status < 500 && status !== 408 && status !== 429)) spent += wc;   // a clean 4xx was not billed
+        if (!(status !== null && status >= 400 && status < 500 && status !== 408 && status !== 429)) { if (eng.kind === 'grok') spentGrok += wc; else spent += wc; }   // a clean 4xx was not billed
         /* A FIXED CODE, never the error's own text: the message is only INSPECTED here, and what is printed is chosen from this list. */
         const msg = String(e?.error?.error?.message ?? e?.message ?? '');
         const why = /credit|billing|balance/i.test(msg) ? '_CREDIT'
@@ -143,12 +152,12 @@ for (let r = 0; r < RUNS; r++) {
         st.fail.set(cls, (st.fail.get(cls) ?? 0) + 1);
       }
     }));
-    if ((i + 1) % 10 === 0) say('PROGRESS run=', r + 1, 'input=', i + 1, 'spent_usd=', spent);
+    if ((i + 1) % 10 === 0) say('PROGRESS run=', r + 1, 'input=', i + 1, 'spent_claude_usd=', spent, 'spent_grok_usd=', spentGrok);
   }
 }
 
 const pct = (a, p) => { if (!a.length) return NaN; const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor((p / 100) * s.length))]; };
-say('QUICK_READ_BAKEOFF inputs=', INPUTS, 'runs=', RUNS, 'cap_usd=', CAP);
+say('QUICK_READ_BAKEOFF inputs=', INPUTS, 'runs=', RUNS, 'cap_claude_usd=', CAP_CLAUDE, 'cap_grok_usd=', CAP_GROK, 'grok_inputs=', GROK_MAX_INPUTS);
 for (const e of active) {
   const s = stats.get(e.id);
   const mean = s.cost.length ? s.cost.reduce((a, b) => a + b, 0) / s.cost.length : NaN;
@@ -159,4 +168,6 @@ for (const e of active) {
   for (const [cls, n] of s.fail) say(e.id, 'failed', cls, n);
 }
 say('CEILING_USD=', CEILING_USD);
-say('SPENT_USD=', spent, 'CAP_USD=', CAP, stopped ? 'STOPPED_AT_CAP' : 'COMPLETED');
+say('SPENT_CLAUDE_USD=', spent, 'CAP_CLAUDE_USD=', CAP_CLAUDE);
+say('SPENT_GROK_USD=', spentGrok, 'CAP_GROK_USD=', CAP_GROK);
+say('SPENT_TOTAL_USD=', spent + spentGrok, stopped ? 'STOPPED_AT_CAP' : 'COMPLETED');
