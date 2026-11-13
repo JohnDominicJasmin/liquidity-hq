@@ -28,7 +28,8 @@ function leaks(envelope: string): string[] {
   if (/"(?:authorization|cookie|x-forwarded-for|x-real-ip)"\s*:/i.test(envelope)) out.push('a cookie, authorization or forwarding header');
   if (/"data"\s*:\s*(?:\{[^}]|"[^"])/.test(envelope) && /"request"\s*:/.test(envelope) && /"request"\s*:\s*\{[^}]*"data"/.test(envelope)) out.push('a request body');
   if (/"query_string"\s*:\s*(?:"[^"]+"|\{[^}]|\[[^\]])/.test(envelope)) out.push('a query string');
-  if (/"url"\s*:\s*"[^"]*\?[^"]*"/.test(envelope)) out.push('a URL carrying a query string');
+  /* the app's own scrubUrl leaves a bare "?<redacted>" in place of the query: the marker is the scrub working, so only a "?" followed by anything else is a leak */
+  if (/"url"\s*:\s*"[^"]*\?(?!<redacted>")[^"]*"/.test(envelope)) out.push('a URL carrying a query string');
   if (/"email"\s*:\s*"[^"]+"/.test(envelope)) out.push('an email field');
   return out;
 }
@@ -42,6 +43,8 @@ test.describe('#2239 monitoring envelope (browser, fake ingest host)', () => {
     expect(found.length, 'the checker found nothing in a deliberately dirty envelope: it cannot fail').toBeGreaterThanOrEqual(5);
     const clean = JSON.stringify({ exception: { values: [{ type: 'Error', value: 'qa', stacktrace: { frames: [{ filename: 'app:///_next/static/chunks/a.js', lineno: 1 }] } }] }, request: { url: 'https://liquidity-hq.com/' }, user: { ip_address: '{{auto}}' } });
     expect(leaks(clean), 'the checker flagged a clean envelope').toEqual([]);
+    expect(leaks('{"request":{"url":"http://localhost:3100/?<redacted>"}}'), 'a scrubbed query marker was flagged as a leak').toEqual([]);
+    expect(leaks('{"request":{"url":"http://localhost:3100/?a=1"}}'), 'a real query string was not flagged').toContain('a URL carrying a query string');
   });
 
   test('E1+E2. one thrown browser error arrives with stack frames and carries nothing about the person', async ({ browser }) => {
