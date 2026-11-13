@@ -35,6 +35,7 @@ async function open(browser: Browser, loc: string, width: number) {
 const text = (page: Page) => page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' '));
 const AMPM = /\b\d{1,2}:\d{2}(:\d{2})?\s?(AM|PM)\b|\b(AM|PM)\b/;
 const WEEKDAY = /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/;
+const BROKEN = /Invalid Date|\bNaN\b|\bundefined\b|\[object /;
 const HMS = /\b\d+h\s+\d+m\b|\b\d+h\s+\d+m\s+\d+s\b/;
 
 test.describe('#2267 hours localized times', () => {
@@ -42,7 +43,7 @@ test.describe('#2267 hours localized times', () => {
 
   test('T0. control: the English /hours has AM/PM, an English weekday or an h/m countdown', async ({ browser }) => {
     const { ctx, page } = await open(browser, 'en', 1280);
-    try { const t = await text(page); const hit = { ampm: AMPM.test(t), weekday: WEEKDAY.test(t), hms: HMS.test(t) }; console.log(`[T0] ${JSON.stringify(hit)} sample="${(t.match(/(\d+h \d+m[^.]{0,20}|\d{1,2}:\d{2}[^.]{0,30})/) || [''])[0]}"`); expect(hit.ampm || hit.weekday || hit.hms, 'the English page shows none of the patterns the localized cells forbid').toBe(true); } finally { await ctx.close(); }
+    try { const t = await text(page); const hit = { ampm: AMPM.test(t), weekday: WEEKDAY.test(t), hms: HMS.test(t) }; expect((t.match(BROKEN) || [""])[0], "the English page prints a broken value").toBe(""); console.log(`[T0] ${JSON.stringify(hit)} sample="${(t.match(/(\d+h \d+m[^.]{0,20}|\d{1,2}:\d{2}[^.]{0,30})/) || [''])[0]}"`); expect(hit.ampm || hit.weekday || hit.hms, 'the English page shows none of the patterns the localized cells forbid').toBe(true); } finally { await ctx.close(); }
   });
 
   for (const loc of ['ru', 'ko', 'zh']) {
@@ -52,7 +53,7 @@ test.describe('#2267 hours localized times', () => {
       try {
         const t = await text(page); const hit = { ampm: (t.match(AMPM) || [''])[0], weekday: (t.match(WEEKDAY) || [''])[0], hms: (t.match(HMS) || [''])[0] };
         console.log(`[T1] ${loc} ${JSON.stringify(hit)} clockSample="${(t.match(/\d{1,2}:\d{2}:\d{2}[^.]{0,24}/) || [''])[0]}" away="${(t.match(/[^ ]{0,12}\d+[^ ]{0,4} [^ ]{0,10}\d+[^ ]{0,6}[^.]{0,16}/) || [''])[0]}"`);
-        expect(hit.ampm, `AM/PM on /hours in ${loc}`).toBe(''); expect(hit.weekday, `English weekday on /hours in ${loc}`).toBe(''); expect(hit.hms, `an h/m countdown on /hours in ${loc}`).toBe('');
+        expect((t.match(BROKEN) || [""])[0], `a broken value is printed on /hours in ${loc}`).toBe(""); expect(hit.ampm, `AM/PM on /hours in ${loc}`).toBe(''); expect(hit.weekday, `English weekday on /hours in ${loc}`).toBe(''); expect(hit.hms, `an h/m countdown on /hours in ${loc}`).toBe('');
       } finally { await ctx.close(); }
     });
   }
@@ -64,7 +65,7 @@ test.describe('#2267 hours localized times', () => {
       const t = await text(page); const sw = await page.evaluate(() => ({ s: document.documentElement.scrollWidth, w: window.innerWidth }));
       await page.screenshot({ path: 'qa/.shots/hours-ru-390.png', fullPage: true });
       console.log(`[T2] ${JSON.stringify({ ampm: AMPM.test(t), weekday: WEEKDAY.test(t), hms: HMS.test(t), sw })}`);
-      expect(AMPM.test(t), 'AM/PM on /hours in ru').toBe(false); expect(WEEKDAY.test(t), 'English weekday on /hours in ru').toBe(false); expect(HMS.test(t), 'an h/m countdown on /hours in ru').toBe(false);
+      expect((t.match(BROKEN) || [""])[0], "a broken value is printed on /hours in ru at 390").toBe(""); expect(AMPM.test(t), 'AM/PM on /hours in ru').toBe(false); expect(WEEKDAY.test(t), 'English weekday on /hours in ru').toBe(false); expect(HMS.test(t), 'an h/m countdown on /hours in ru').toBe(false);
       expect(sw.s, 'page scrolls sideways').toBeLessThanOrEqual(sw.w);
     } finally { await ctx.close(); }
   });
