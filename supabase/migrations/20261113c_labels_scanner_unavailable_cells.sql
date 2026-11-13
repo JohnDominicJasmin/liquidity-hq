@@ -10,6 +10,7 @@
 --   ARENA_SCANNER_UNAVAILABLE_SHORT        "n/a"                                            (the narrow 24h and vs-BTC cells, same meaning)
 --   ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE "The exchange did not answer. Retrying."
 --   ARENA_SCANNER_UNAVAILABLE_NONE_TITLE   "No price for this instrument from our sources."
+--   ARENA_SCANNER_UNAVAILABLE_NARROW       "No data"                                         (the price cell at 480 px and below, in plain words that wrap; never an abbreviation)
 --
 -- THE NON-ENGLISH ROWS ARE MACHINE-DRAFTED AND NOT NATIVE-REVIEWED, AND THAT IS THE OWNER'S DECISION FOR THIS RELEASE: on 2026-11-13 the owner ruled first-hand, via PM, to ship AI-drafted
 -- translations for the picker labels (20261113b) and for the same-release scanner labels, the same choice as the tour text (20261113a). Each was re-read against the English; none names a vendor or model.
@@ -41,7 +42,11 @@ insert into lhq_labels (key, locale, value) values
 ('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE','ko','저희 데이터 소스에는 이 상품의 가격이 없습니다.'),
 ('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE','zh','我们的数据源没有该品种的价格。'),
 ('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE','ru','В наших источниках нет цены для этого инструмента.'),
-('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE','ar','لا يتوفر سعر لهذه الأداة من مصادرنا.')
+('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE','ar','لا يتوفر سعر لهذه الأداة من مصادرنا.'),
+('ARENA_SCANNER_UNAVAILABLE_NARROW','ko','데이터 없음'),
+('ARENA_SCANNER_UNAVAILABLE_NARROW','zh','无数据'),
+('ARENA_SCANNER_UNAVAILABLE_NARROW','ru','Нет данных'),
+('ARENA_SCANNER_UNAVAILABLE_NARROW','ar','لا بيانات')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 
 -- ============ DEV (shared by dev/qa/staging, wdtjhrilakoitfcezxpx) ============
@@ -70,5 +75,9 @@ insert into lhq_dev_labels (key, locale, value) values
 ('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE','ko','저희 데이터 소스에는 이 상품의 가격이 없습니다.'),
 ('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE','zh','我们的数据源没有该品种的价格。'),
 ('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE','ru','В наших источниках нет цены для этого инструмента.'),
-('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE','ar','لا يتوفر سعر لهذه الأداة من مصادرنا.')
+('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE','ar','لا يتوفر سعر لهذه الأداة من مصادرنا.'),
+('ARENA_SCANNER_UNAVAILABLE_NARROW','ko','데이터 없음'),
+('ARENA_SCANNER_UNAVAILABLE_NARROW','zh','无数据'),
+('ARENA_SCANNER_UNAVAILABLE_NARROW','ru','Нет данных'),
+('ARENA_SCANNER_UNAVAILABLE_NARROW','ar','لا بيانات')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
