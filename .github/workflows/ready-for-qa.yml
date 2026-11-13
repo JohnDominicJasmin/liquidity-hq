@@ -201,6 +201,9 @@ jobs:
               TITLE=$(gh pr view "$N" --repo "$REPO" --json title --jq .title 2>/dev/null || echo "(could not read PR)")
               echo "### #$N — $TITLE" >> /tmp/body.md
               echo >> /tmp/body.md
+              # THE PR IS ALREADY ON qa (#1413): its "How to test" often says to check out its branch, which is stale advice here.
+              echo "_This PR is already on `qa`: test it there, and skip any step below that says to check out its branch._" >> /tmp/body.md
+              echo >> /tmp/body.md
               # Pull the PR's own "How to test (QA)" section through verbatim.
               # That section is the dev->QA handoff and it is otherwise buried in
               # a closed PR by the time the work reaches you.
