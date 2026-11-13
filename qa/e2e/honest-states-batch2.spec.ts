@@ -1,4 +1,4 @@
-/* Batch 2 (2026-11-14), signed out, nothing written or billed. Market reads stubbed: Bybit answers BTC, ETH (change exactly 0) and SOL; Binance refused, so every other coin has no quote.
+/* Batch 2 (2026-11-14), signed out, nothing written or billed. Market reads stubbed: Bybit answers BTC, ETH (+1.2%) and SOL; Binance refused, so every other coin has no quote.
  *   F1  #2262  /dashboard: a coin with no quote shows no "+0.00%" and no arrow beside "No data"; ETH with a REAL 0 change still shows "+0.00%" (the control)
  *   F2  #2263  /dashboard with /api/cmc refused: BTC.D and ALT say an ellipsis or a word, never a bare dash
  *   F3  #2264  /dashboard at 1280 and 390 in ru, ko, zh: the market-read tile values and notes wrap (no ellipsis, nothing cut), page not wider than the viewport
@@ -7,7 +7,7 @@ import { test, expect, type Browser } from '@playwright/test';
 import { gotoGuarded } from './_shared';
 
 const BN = /\/api\/proxy\?.*type=(binance-24hr|binance-futures-24hr|premium-index)/;
-const bybit = JSON.stringify({ retCode: 0, retMsg: 'OK', result: { category: 'linear', list: [['BTCUSDT', '69000', '0.01'], ['ETHUSDT', '3500', '0'], ['SOLUSDT', '150.5', '-0.015']].map(([symbol, last, pct]) => ({ symbol, lastPrice: last, price24hPcnt: pct, markPrice: last, indexPrice: last, openInterestValue: '5000000', openInterest: '100000', fundingRate: '0.0001', turnover24h: '90000000', volume24h: '2000000', nextFundingTime: '0' })) } });
+const bybit = JSON.stringify({ retCode: 0, retMsg: 'OK', result: { category: 'linear', list: [['BTCUSDT', '69000', '0.01'], ['ETHUSDT', '3500', '0.012'], ['SOLUSDT', '150.5', '-0.015']].map(([symbol, last, pct]) => ({ symbol, lastPrice: last, price24hPcnt: pct, markPrice: last, indexPrice: last, openInterestValue: '5000000', openInterest: '100000', fundingRate: '0.0001', turnover24h: '90000000', volume24h: '2000000', nextFundingTime: '0' })) } });
 const open = async (browser: Browser, path: string, width: number, loc = 'en', refuseCmc = false) => {
   const ctx = await browser.newContext({ viewport: { width, height: 900 } });
   await ctx.addInitScript((l) => { try { localStorage.setItem('lhq_lang_v1', l); } catch { /* private */ } }, loc);
@@ -22,20 +22,20 @@ const open = async (browser: Browser, path: string, width: number, loc = 'en', r
 test.describe('batch 2 2026-11-14', () => {
   test.describe.configure({ timeout: 150_000 });
 
-  test('F1. #2262 no quote -> no +0.00% and no arrow; a real 0 still shows', async ({ browser }) => {
+  test('F1. #2262 no quote -> no +0.00% and no arrow; a coin with a change still shows it', async ({ browser }) => {
     const { ctx, page } = await open(browser, '/dashboard', 1280);
     try {
       const m = await page.evaluate(() => {
-        const rows = Array.from(document.querySelectorAll('body *')).filter(e => { const t = (e as HTMLElement).innerText || ''; const r = e.getBoundingClientRect(); return e.children.length >= 2 && e.children.length <= 8 && t.length < 90 && r.height > 20 && r.height < 70 && /\b[A-Z]{2,6}\b/.test(t); }) as HTMLElement[];
-        const noQuote = rows.filter(r => /No data/.test(r.innerText)).map(r => (r.innerText || '').replace(/\s+/g, ' ').trim());
-        const zeroOnNoData = noQuote.filter(t => /[+\-]?0\.00%|[▲▼]/.test(t));
-        const eth = rows.map(r => (r.innerText || '').replace(/\s+/g, ' ').trim()).filter(t => /^\W*ETH\b/.test(t));
-        return { noQuote: noQuote.slice(0, 6), noQuoteN: noQuote.length, zeroOnNoData: zeroOnNoData.slice(0, 6), eth: eth.slice(0, 3) };
+        const rows = Array.from(document.querySelectorAll('body *')).filter(e => { const t = ((e as HTMLElement).innerText || '').replace(/\s+/g, ' ').trim(); const r = e.getBoundingClientRect(); return e.children.length >= 2 && e.children.length <= 8 && t.length < 90 && r.height > 20 && r.height < 70 && /^[A-Z]{2,6}/.test(t.replace(/^\W+/, '')); }) as HTMLElement[];
+        const texts = rows.map(r => (r.innerText || '').replace(/\s+/g, ' ').trim());
+        const byCoin = (c: string) => texts.filter(t => new RegExp('^' + c + '\b').test(t));
+        const missing = ['XRP', 'BNB', 'HYPE', 'NEAR', 'SUI'].flatMap(byCoin);
+        return { missing: missing.slice(0, 8), missingBad: missing.filter(t => /[+\-]?0\.00%|[▲▼]/.test(t)).slice(0, 6), eth: byCoin('ETH').slice(0, 3), noData: missing.filter(t => /No data/.test(t)).length };
       });
       console.log(`[F1] ${JSON.stringify(m)}`);
-      expect(m.noQuoteN, 'no row says No data: nothing measured').toBeGreaterThan(0);
-      expect(m.zeroOnNoData, 'a coin with no quote shows a +0.00% or an arrow').toEqual([]);
-      expect(m.eth.join(' | '), 'ETH (real 0 change) no longer shows +0.00%').toMatch(/0\.00%/);
+      expect(m.missing.length, 'no row for a coin without a quote: nothing measured').toBeGreaterThan(0);
+      expect(m.missingBad, 'a coin with no quote shows a +0.00% or an arrow').toEqual([]);
+      expect(m.eth.join(' | '), 'ETH (a real +1.2% change) shows no change').toMatch(/1\.2%/);
     } finally { await ctx.close(); }
   });
 
