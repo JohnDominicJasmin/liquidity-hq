@@ -107,6 +107,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'category-chips-aria-pressed', needs: 'none', note: 'the eight chips inside the coin picker (#2244); anonymous, reads only' },
   { spec: 'arena-picker-chips', needs: 'none', note: 'the picker chips, search, keyboard and sign-off shots (#2244); anonymous; writes only its own browser localStorage' },
   { spec: 'arena-unknown-coin', needs: 'none', note: 'the unknown-coin link note and its dismissal (#2247); anonymous; labels for four locales injected in the browser, nothing written' },
+  { spec: 'arena-wide-elements', needs: 'none', note: 'a one-off dump of elements past the 390 viewport on arena; anonymous; reads only' },
   { spec: 'chart-backfill', needs: 'none' },
   { spec: 'checkout-config-agrees', needs: 'none', note: 'asserts /api/version flags: production differs from dev, expect a triage pass' },
   { spec: 'clock', needs: 'none' },
