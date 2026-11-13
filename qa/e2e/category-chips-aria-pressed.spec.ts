@@ -14,7 +14,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { gotoGuarded } from './_shared';
 
-const CHIP = '.scanner-cat-chip';
+const CHIP = '.scanner-cat-chip[data-cat]';   // by data-cat: the empty state's switch and clear buttons carry the chip class but no data-cat (Dev, #2244)
 const EXPECTED = ['all', 'majors', 'alts', 'defi', 'meme', 'stocks', 'etfs', 'commodities'];
 
 /* `page.$$eval` is Playwright's query-and-serialize API, NOT JavaScript's eval(): the callback is a function reference serialized to the page. */
