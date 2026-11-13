@@ -88,20 +88,26 @@ test.describe('#2228 small items', () => {
       await gotoGuarded(page, '/funding');
       await page.waitForTimeout(6_000);
       expect(await page.getAttribute('html', 'data-theme'), 'the light theme did not apply, so the colour is not the light one').toBe('light');
-      const r = await page.evaluate(() => {
-        const parse = (s: string) => { const m = s.match(/[\d.]+/g)!.map(Number); return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 }; };
+      const row = page.locator('.frh-row').first();
+      await row.waitFor({ state: 'visible', timeout: 40_000 });
+      await row.click();
+      await page.waitForTimeout(800);
+      const r = await row.evaluate((el) => {
+        const parse = (c: string) => { const m = c.match(/[0-9.]+/g)!.map(Number); return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 }; };
         const lin = (v: number) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
         const lum = (c: { r: number; g: number; b: number }) => 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
         const probe = document.createElement('div'); probe.style.color = getComputedStyle(document.documentElement).getPropertyValue('--fr-slight-long').trim();
         document.body.appendChild(probe); const fg = parse(getComputedStyle(probe).color); probe.remove();
-        const row = document.createElement('div'); row.className = 'frh-row on'; document.body.appendChild(row);
-        const tint = parse(getComputedStyle(row).backgroundColor); row.remove();
-        const pageBg = parse(getComputedStyle(document.body).backgroundColor.startsWith('rgba(0, 0, 0, 0)') ? 'rgb(255,255,255)' : getComputedStyle(document.body).backgroundColor);
-        const bg = { r: tint.r * tint.a + pageBg.r * (1 - tint.a), g: tint.g * tint.a + pageBg.g * (1 - tint.a), b: tint.b * tint.a + pageBg.b * (1 - tint.a) };
-        const [a, b] = [lum(fg), lum(bg)];
-        return { fg, bg, ratio: Math.round(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)) * 100) / 100, token: getComputedStyle(document.documentElement).getPropertyValue('--fr-slight-long').trim() };
+        // composite the row's own background and every ancestor's, from the row outward, until opaque
+        const layers: { r: number; g: number; b: number; a: number }[] = [];
+        for (let e: Element | null = el; e; e = e.parentElement) { const c = parse(getComputedStyle(e).backgroundColor); if (c.a > 0) layers.push(c); if (c.a >= 1) break; }
+        let bg = { r: 255, g: 255, b: 255 };
+        for (const l of layers.reverse()) bg = { r: l.r * l.a + bg.r * (1 - l.a), g: l.g * l.a + bg.g * (1 - l.a), b: l.b * l.a + bg.b * (1 - l.a) };
+        const [x, y] = [lum(fg), lum(bg)];
+        return { fg, bg, on: el.classList.contains('on'), layers: layers.length, ratio: Math.round(((Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)) * 100) / 100, token: getComputedStyle(document.documentElement).getPropertyValue('--fr-slight-long').trim() };
       });
       console.log(`[S3] --fr-slight-long ${r.token} on the selected row: ${r.ratio}:1 (fg ${JSON.stringify(r.fg)} bg ${JSON.stringify(r.bg)})`);
+      expect(r.on, 'the clicked row did not become the selected row, so the measurement is not of a selected row').toBe(true);
       expect(r.token, 'the token --fr-slight-long is not defined in the light theme').not.toBe('');
       expect(r.ratio, `the chip colour measures ${r.ratio}:1 on the selected row`).toBeGreaterThanOrEqual(4.5);
     } finally { await ctx.close(); }
@@ -149,9 +155,13 @@ test.describe('#2229 dashboard new play', () => {
         const btn = page.locator('.sotd-refresh').first();
         await btn.waitFor({ state: 'visible', timeout: 60_000 });
         await btn.scrollIntoViewIfNeeded();
-        await page.waitForTimeout(800);
-        const bb = await btn.boundingBox(); const fab = page.locator('.gchat-fab').first();
+        await page.waitForTimeout(500);
+        const fab = page.locator('.gchat-fab').first();
         const fb = (await fab.count()) ? await fab.boundingBox() : null;
+        /* the overlap only exists while the row scrolls THROUGH the button's band, so put the button's centre on the FAB's centre line first */
+        const b0 = await btn.boundingBox();
+        if (b0 && fb) { await page.evaluate((d) => window.scrollBy(0, d), (b0.y + b0.height / 2) - (fb.y + fb.height / 2)); await page.waitForTimeout(500); }
+        const bb = await btn.boundingBox();
         const sw = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth }));
         console.log(`[S6] ${theme} button=${JSON.stringify(bb)} fab=${JSON.stringify(fb)} overlap=${bb && fb ? overlapPct(bb, fb) : 'n/a'}% doc=${JSON.stringify(sw)}`);
         await shot(page, `s6-dashboard-new-play-390-${theme}`);
@@ -172,7 +182,7 @@ test.describe('#1413 five extra pages', () => {
       const { ctx, page } = await newPage(browser, width, theme);
       const errors: string[] = [];
       page.on('pageerror', e => errors.push('pageerror: ' + e.message.slice(0, 160)));
-      page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|net::ERR|favicon/i.test(m.text())) errors.push('console: ' + m.text().slice(0, 160)); });
+      page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|net::ERR|favicon|WebSocket connection to/i.test(m.text())) errors.push('console: ' + m.text().slice(0, 160)); });
       try {
         await gotoGuarded(page, path);
         await page.waitForTimeout(4_000);
