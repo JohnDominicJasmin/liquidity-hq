@@ -148,8 +148,10 @@ test.describe('Ask AI button visibility', () => {
 
     /* Close it again and give the restore far longer than it needs. */
     await page.keyboard.press('Escape');
-    const closeBtn = page.locator('.gchat-icon-btn').filter({ hasText: '✕' }).first();
-    if (await closeBtn.isVisible().catch(() => false)) await closeBtn.click();
+    /* The panel closes on Escape (since 2026-09-19) and is then pointer-events:none / opacity:0, which Playwright still counts as visible; a click on its
+       close button would land on whatever is underneath (the chart axis canvas) and wait out the whole test timeout. So press the button only while the panel is really open. */
+    const panelOpen = await page.evaluate(() => { const p = document.querySelector('[data-testid="grok-panel"], .gchat-panel') as HTMLElement | null; if (!p) return false; const cs = getComputedStyle(p); return cs.pointerEvents !== 'none' && Number(cs.opacity) > 0.1 && cs.visibility !== 'hidden'; });
+    if (panelOpen) { const closeBtn = page.locator('.gchat-icon-btn').filter({ hasText: '✕' }).first(); await closeBtn.click({ timeout: 3000 }).catch(() => {}); }
     await page.waitForTimeout(3000);
 
     const after = await fabState(page);
