@@ -13,7 +13,7 @@ const dump = () => {
   return { vw, docSw: document.documentElement.scrollWidth, count: out.length, other: notScrollRow.slice(0, 8) };
 };
 
-for (const loc of ['ru', 'ko']) {
+for (const loc of ['ru', 'ko', 'en']) {
   test.describe(`width sweep at 390 in ${loc}`, () => {
     test.describe.configure({ timeout: 200_000 });
     test(`P. ${loc}: every page`, async ({ browser }) => {
