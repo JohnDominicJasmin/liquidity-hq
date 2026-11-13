@@ -318,6 +318,14 @@ function ArenaContent() {
   // default and can no longer tell a real deep link apart from it.
   const [hadCoinParamAtMount] = useState(() => searchParams.has('coin'));
   const [hadTfParamAtMount]   = useState(() => searchParams.has('tf'));
+  /* A coin the link names that Arena does not offer (#1263, owner: it must say so, not swap to BTC silently). Captured ONCE at mount like the flags above, because the URL-sync
+     effect rewrites the address bar to the coin that actually opened. Sanitised and capped for display; React escapes it either way. */
+  const [unknownCoinParam, setUnknownCoinParam] = useState<string | null>(() => {
+    const raw = searchParams.get('coin');
+    if (!raw) return null;
+    if ((UNIVERSE_COINS as string[]).includes(raw.toLowerCase())) return null;
+    return raw.replace(/[^\w.\-]/g, '').slice(0, 16) || null;
+  });
   // Which Pro feature the user just tried to open (null = modal closed)
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
   const arenaInitRef  = useRef(false);
@@ -1986,12 +1994,25 @@ function ArenaContent() {
   const btcChange = store.coins['btc']?.change ?? null;
   /* A MISSING QUOTE SAYS WHICH KIND OF MISSING (#1263, owner: a bare dash could mean loading or an error). The read that prices this row is still in flight: an
      ellipsis. It answered and this row has no quote, or it failed: the word, with a hover/assistive title naming which. Never a bare dash. */
-  const quoteGap = (c: CoinId, short: boolean) => {
+  /* ONE WORD PER ROW (PM, 2026-11-13): when the price AND the 24h change are both gone, the price cell says so once and the 24h and vs-BTC cells stay empty; when only the change is
+     missing, those cells say the narrow wording ("No data", plain words that wrap on their space). No abbreviation anywhere (owner). */
+  const quoteGap = (c: CoinId, mode: 'price' | 'narrow') => {
     const feed = coinRow(c)?.bybit ? store.scannerFeed.universe : store.scannerFeed.binanceOnly;
     if (feed === 'pending') return <span role="img" aria-label={t('ARENA_SCANNER_LOADING_TITLE')} title={t('ARENA_SCANNER_LOADING_TITLE')}>{'\u2026'}</span>;
+    const why = feed === 'failed' ? t('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE') : t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE');
+    /* THE PRICE CELL CARRIES BOTH WORDS and CSS picks one: at 480 px and below the price column is 65 px, and the full word ("Недоступно", 10 letters, in Russian) is wider than its box.
+       The narrow wording is plain words that wrap on their space ("Нет данных"), never an abbreviation (owner: no shorthand in trader labels); the title says why in full either way. */
+    if (mode === 'price') {
+      return (
+        <span title={why} style={{ fontSize: 'var(--fs-micro)', fontWeight: 500 }}>
+          <span className="scanner-gap-long">{t('ARENA_SCANNER_UNAVAILABLE')}</span>
+          <span className="scanner-gap-short">{t('ARENA_SCANNER_UNAVAILABLE_NARROW')}</span>
+        </span>
+      );
+    }
     return (
-      <span title={feed === 'failed' ? t('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE') : t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE')} style={{ fontSize: 'var(--fs-micro)', fontWeight: 500 }}>
-        {t(short ? 'ARENA_SCANNER_UNAVAILABLE_SHORT' : 'ARENA_SCANNER_UNAVAILABLE')}
+      <span title={why} style={{ fontSize: 'var(--fs-micro)', fontWeight: 500 }}>
+        {t('ARENA_SCANNER_UNAVAILABLE_NARROW')}
       </span>
     );
   };
@@ -2075,6 +2096,13 @@ function ArenaContent() {
         title={t('ARENA_HINT_TITLE')}
         body={t('ARENA_HINT_BODY')}
       />
+
+      {unknownCoinParam && (
+        <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 8px', padding: '2px 4px 2px 12px', border: '0.5px solid var(--bdr)', background: 'var(--bg2)', fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
+          <span style={{ flex: 1 }}>{t('ARENA_UNKNOWN_COIN_NOTE', { coin: unknownCoinParam.toUpperCase() })}</span>
+          <button type="button" aria-label={t('SETTINGS_SAVE_DISMISS_ARIA')} onClick={() => setUnknownCoinParam(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', minWidth: 44, minHeight: 44, fontSize: '1rem' }}>{'\u00D7'}</button>
+        </div>
+      )}
 
       {/* ── SQUEEZE SCANNER - hover flyout (Bybit-style watchlist) ── */}
       <div
@@ -2405,15 +2433,15 @@ function ArenaContent() {
                   </div>
                   {/* Price */}
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: isActive ? 'var(--txt)' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
-                    {price ? currencyPrefix(c) + fmtPrice(price) : quoteGap(c, false)}
+                    {price ? currencyPrefix(c) + fmtPrice(price) : quoteGap(c, 'price')}
                   </span>
                   {/* 24h % */}
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? 'var(--txt3)' : change >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
-                    {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : quoteGap(c, true)}
+                    {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : price ? quoteGap(c, 'narrow') : null}
                   </span>
                   {/* vs BTC */}
                   <span className="scanner-flyout-vsbtc" style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: vsBtcColor }}>
-                    {vsBtc != null ? (vsBtc >= 0 ? '+' : '') + vsBtc.toFixed(1) + '%' : c === 'btc' ? '-' : quoteGap(c, true)}
+                    {vsBtc != null ? (vsBtc >= 0 ? '+' : '') + vsBtc.toFixed(1) + '%' : c === 'btc' ? '-' : price ? quoteGap(c, 'narrow') : null}
                   </span>
                   {/* Status */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>

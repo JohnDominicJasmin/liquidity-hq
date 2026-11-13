@@ -1605,7 +1605,8 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 }
 .scanner-flyout { animation: scannerFadeIn 0.15s ease-out forwards; }
 @media (max-width: 480px) {
-  .scanner-flyout-grid { grid-template-columns: 1fr 65px 40px 60px 28px !important; }
+  /* The 24h column is 54 px (was 40): when a coin has a price but no 24h change, that cell says "Нет данных" in plain words (no abbreviation), and "данных" does not fit 40 px (QA, #2253 N2). */
+  .scanner-flyout-grid { grid-template-columns: 1fr 65px 54px 60px 28px !important; }
   .scanner-flyout-vsbtc { display: none !important; }
 }
 /* Arena coin picker: category chips live inside the list, under the search box (#1263). One line that scrolls sideways, never wrapping onto two or three. */
@@ -1618,6 +1619,13 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .scanner-cat-chip[data-empty="true"] { opacity: 0.5; color: var(--txt3); }
 /* The header and the rows share one column gap, so STATUS and SCORE do not touch at 390. */
 .scanner-flyout-grid { column-gap: 6px; }
+/* A grid item's min-width is `auto`, so a long unbreakable word in one column can widen a `1fr` track past the screen (Russian at 390). Items may shrink; the cell text wraps or clips inside its own column. */
+.scanner-flyout-grid > * { min-width: 0; }
+.scanner-gap-short { display: none; }
+@media (max-width: 480px) {
+  .scanner-gap-long { display: none; }
+  .scanner-gap-short { display: inline; }
+}
 @media (max-width: 640px) {
   /* A soft fade at the right edge says there is more to scroll to. */
   .scanner-cat-row { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
@@ -2772,8 +2780,12 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    color lives on the values, Bloomberg/Coinglass convention. Tight 3-row cells
    (label / value / one-line context) at an equal, small height. */
 .edge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin-bottom: 8px; }
-.edge-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 10px; padding: 7px 10px; }
-.edge-card-label { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.edge-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 10px; padding: 7px 10px; display: flex; flex-direction: column; }
+.edge-card-label { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 3px; white-space: normal; overflow-wrap: break-word; }
+/* THE CARD TITLE WRAPS, IT IS NEVER CUT OFF (PM, 2026-11-13: a cut title hides what the card is, and it already cut in English). It was `nowrap` + ellipsis, and nowrap also made the label's min-content its full
+   width, which is what blew a track out in Russian. The terminal design already ran this route with `white-space: normal` ("labels are DB-driven"). Cards are flex columns, and the value block is pinned to the bottom
+   (`margin-top: auto`) so a two-line title in one card does not leave its neighbour's value higher than its own in the same grid row. */
+.edge-card > .edge-card-value { margin-top: auto; }
 /* min-height, so a card whose value uses a smaller font is still the same
    height as its neighbours (#244).
    QA measured three .edge-card in the Arena rail: VWAP and Funding 77px, Open
@@ -3912,7 +3924,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .frh-row.on .frh-coin { color: var(--purple) !important; }
 /* #1309 item 6: the coin cell's real button. Looks exactly like the bare text it replaced;
    the only visible difference is the focus ring, which is the point. */
-.frh-coin-btn { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; text-align: left; }
+.frh-coin-btn { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; text-align: left; min-height: 24px; }
+/* WCAG 2.5.8 (#1185, QA gate 43450549138): the funding coin name is the control and was ~17 px tall (50 of them on /funding). min-height gives the hit box 24 px without touching the row's padding or type. */
 .frh-coin-btn:disabled { cursor: default; }
 .frh-coin-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .frh-spark-th    { min-width: 120px; }
@@ -9205,6 +9218,8 @@ main.app-content[data-chrome="none"] {
   background: none; border: 0; padding: 0; margin: 0;
   font: inherit; color: inherit; letter-spacing: inherit;
   cursor: pointer; text-align: left;
+  /* WCAG 2.5.8 (#1185): the coin name carries the row's action and was under 24 px tall (20 on /markets, 8 on /dashboard). A 24 px hit box, text vertically centred, no change to padding or type. */
+  display: inline-flex; align-items: center; min-height: 24px;
 }
 .mkt-row-btn {
   font-size: var(--fs-caption); font-weight: 700;
