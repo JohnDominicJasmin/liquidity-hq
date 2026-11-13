@@ -318,6 +318,14 @@ function ArenaContent() {
   // default and can no longer tell a real deep link apart from it.
   const [hadCoinParamAtMount] = useState(() => searchParams.has('coin'));
   const [hadTfParamAtMount]   = useState(() => searchParams.has('tf'));
+  /* A coin the link names that Arena does not offer (#1263, owner: it must say so, not swap to BTC silently). Captured ONCE at mount like the flags above, because the URL-sync
+     effect rewrites the address bar to the coin that actually opened. Sanitised and capped for display; React escapes it either way. */
+  const [unknownCoinParam, setUnknownCoinParam] = useState<string | null>(() => {
+    const raw = searchParams.get('coin');
+    if (!raw) return null;
+    if ((UNIVERSE_COINS as string[]).includes(raw.toLowerCase())) return null;
+    return raw.replace(/[^\w.\-]/g, '').slice(0, 16) || null;
+  });
   // Which Pro feature the user just tried to open (null = modal closed)
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
   const arenaInitRef  = useRef(false);
@@ -2075,6 +2083,13 @@ function ArenaContent() {
         title={t('ARENA_HINT_TITLE')}
         body={t('ARENA_HINT_BODY')}
       />
+
+      {unknownCoinParam && (
+        <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 8px', padding: '2px 4px 2px 12px', border: '0.5px solid var(--bdr)', background: 'var(--bg2)', fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
+          <span style={{ flex: 1 }}>{t('ARENA_UNKNOWN_COIN_NOTE', { coin: unknownCoinParam.toUpperCase() })}</span>
+          <button type="button" aria-label={t('SETTINGS_SAVE_DISMISS_ARIA')} onClick={() => setUnknownCoinParam(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', minWidth: 44, minHeight: 44, fontSize: '1rem' }}>{'\u00D7'}</button>
+        </div>
+      )}
 
       {/* ── SQUEEZE SCANNER - hover flyout (Bybit-style watchlist) ── */}
       <div
