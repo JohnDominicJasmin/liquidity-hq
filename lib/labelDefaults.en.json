@@ -1747,6 +1747,7 @@
   "ALERT_OUTCOMES_TITLE": "Alert Track Record",
   "ALERT_OUTCOMES_TOOLTIP": "How this app's own directional alerts actually performed: the signed price move by 24h after each alert fired, misses included - not a backtest, the real record. Only alert types with a clear implied direction are scored (squeeze, EMA cross, distribution, RSI, whale trades).",
   "ALERT_OUTCOMES_SUBTITLE": "24h outcome · misses included",
+  "ALERT_OUTCOMES_SUBTITLE_SINCE": "24h outcome · misses included · since {date}",
   "ALERT_OUTCOMES_LOADING_SR": "Loading…",
   "ALERT_OUTCOMES_EMPTY_TITLE": "No resolved outcomes yet",
   "ALERT_OUTCOMES_EMPTY_SUB": "Outcomes fill in ~24h after each squeeze, EMA cross, distribution, RSI, or whale alert fires.",
