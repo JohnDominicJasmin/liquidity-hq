@@ -297,15 +297,23 @@ test('monitoring quota settings', async (t) => {
     assert.equal(monitoringOptions().tracesSampleRate, 0);
   });
 
-  /* SDK 11 REMOVED `sendDefaultPii`; the restrictive v10 baseline is now stated through `dataCollection` (see lib/monitoring.ts). This pin moved WITH the option and keeps
-     the same property: nothing about a person, a cookie or a request body is collected by default. QA: review this edit, it was made by Dev only because the old line no longer typechecks. */
-  await t.test('PII is not sent by default (dataCollection baseline, SDK 11)', () => {
-    const d = monitoringOptions().dataCollection;
-    assert.equal(d.userInfo, false);
-    assert.equal(d.cookies, false);
-    assert.deepEqual(d.httpBodies, []);
-    assert.deepEqual(d.genAI, { inputs: false, outputs: false });
-    assert.equal(d.databaseQueryData, false);
+  /* SDK 11 REMOVED `sendDefaultPii`; the restrictive v10 baseline is now stated through `dataCollection` (lib/monitoring.ts). Owned by QA (Dev moved it when the old line stopped
+     typechecking; QA reviewed it and replaced it with this). It pins the WHOLE object, key by key, not a hand-picked subset: v11's own default collects cookies, bodies, user info and
+     database query data, so a key added to the object later, or one dropped from it, must be a decision someone makes in this file, not a silent change in what leaves the building. */
+  await t.test('PII is not sent by default: the dataCollection baseline is exactly the restrictive v10 one (SDK 11)', () => {
+    const deny = ['forwarded', '-ip', 'remote-', 'via', '-user'];
+    assert.deepEqual(monitoringOptions().dataCollection, {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: { request: { deny }, response: { deny } },
+      httpBodies: [],
+      urlQueryParams: { deny },
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      graphQL: { document: false, variables: false },
+    });
+    assert.equal('sendDefaultPii' in monitoringOptions(), false, 'sendDefaultPii no longer exists in SDK 11; leaving it would do nothing and say nothing');
   });
 
   /* Both scrub hooks must stay wired. beforeSend is what makes PII scrubbing
