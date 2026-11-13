@@ -2380,6 +2380,7 @@ function ArenaContent() {
                     if (e.key === 'ArrowDown') { e.preventDefault(); focusRow(e.currentTarget, 1); }
                     else if (e.key === 'ArrowUp') { e.preventDefault(); focusRow(e.currentTarget, -1); }
                   }}
+                  aria-current={isSelected ? 'true' : undefined}
                   onClick={() => {
                     coinTouchedRef.current = true;
                     setSelectedCoin(c); setScannerOpen(false); setScannerSearch(''); window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'coins' }));
@@ -2387,9 +2388,11 @@ function ArenaContent() {
                   style={{
                     width: '100%', display: 'grid',
                     gridTemplateColumns: '1fr 78px 44px 44px 72px 32px',
-                    alignItems: 'center', padding: '7px 12px',
+                    alignItems: 'center', padding: '7px 12px 7px 9px',
                     background: isSelected ? 'color-mix(in srgb, var(--accent-2) 8%, transparent)' : 'transparent',
                     border: 'none',
+                    /* THE SELECTED ROW IS NOT SHOWN BY COLOUR ALONE (#1263, QA run: aria-current plus a 3 px start bar). Transparent when not selected, so no row shifts. */
+                    borderInlineStart: '3px solid ' + (isSelected ? 'var(--accent-2)' : 'transparent'),
                     borderBottom: '0.5px solid var(--bdr)',
                     cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s',
                   }}
