@@ -5,6 +5,7 @@ import {
   useMarket, CoinId, COINS, computeSqueezeScore, classifyFunding, BINANCE_SYMS, BYBIT_SYMS,
 } from '@/lib/marketStore';
 import { getSessionName } from '@/lib/session';
+import { useLabels } from '@/lib/labels';
 import { useNews, GeoEvent } from '@/components/NewsProvider';
 import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
@@ -200,6 +201,7 @@ export default function GrokChat() {
   const { latestHeadlines, geoEvents } = useNews();
   const { user, loading: authLoading } = useAuth();
   const { settings, settingsLoadStatus } = useSettings();
+  const { t } = useLabels();
 
   const [open,           setOpen]           = useState(false);
   const [expanded,       setExpanded]       = useState(false);
@@ -664,7 +666,7 @@ export default function GrokChat() {
         data-testid="grok-launcher"
         className={`gchat-fab${open ? ' gchat-fab-open' : ''}${!fabVisible ? ' gchat-fab-scrolling' : ''}`}
         onClick={() => { setOpen(v => !v); if (open) { setExpanded(false); setShowLoginModal(false); } }}
-        title="Ask AI"
+        title={t('GROK_FAB_LABEL')}
         aria-label="Open AI chat"
       >
         <span style={{ lineHeight: 0 }}>
@@ -673,7 +675,7 @@ export default function GrokChat() {
             <path d="M15.6 12.6C15.8 14 16.2 14.4 17.6 14.6 16.2 14.8 15.8 15.2 15.6 16.6 15.4 15.2 15 14.8 13.6 14.6 15 14.4 15.4 14 15.6 12.6Z" fill="currentColor" opacity="0.65" />
           </svg>
         </span>
-        <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '0.05em', color: 'inherit' }}>Ask AI</span>
+        <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '0.05em', color: 'inherit' }}>{t('GROK_FAB_LABEL')}</span>
       </button>
 
       {/* ── Chat panel ── */}

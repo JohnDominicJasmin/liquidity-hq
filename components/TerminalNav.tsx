@@ -54,6 +54,7 @@ import type { LabelKey } from '@/lib/labelKeys';
    how that gap reappears a month from now. */
 import { SCANNERS, TOOLS, PRIMARY, TAIL, TERMINAL_TABS as ITEMS, screenNameFor, isActive } from '@/lib/navRoutes';
 import { getCurrentWindow, getLocalNow } from '@/lib/session';
+import { trText } from '@/lib/marketReadText';
 import { useShowFreeUpgrade } from '@/components/UpgradePill';
 
 /* Icon paths transcribed from the frames' own ICON map (Dashboard
@@ -329,8 +330,8 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
             <span className="tnav-session" suppressHydrationWarning>
               <span className="tnav-session-dot" />
               {session.left != null
-                ? `${session.name} · ${formatRemaining(session.left)}`
-                : session.name}
+                ? `${trText(t, session.name)} · ${formatRemaining(session.left)}`
+                : trText(t, session.name)}
             </span>
           )}
           {/* No ⌘K chip - see the file header. */}
