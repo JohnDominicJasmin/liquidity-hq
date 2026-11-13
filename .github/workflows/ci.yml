@@ -393,6 +393,15 @@ on:
         type: boolean
         default: false
 
+      # QA, #2239 acceptance 4: a LOCAL build whose browser monitoring is ON and points at a FAKE ingest host that the spec route-intercepts.
+      # Empty (the default) changes nothing. Set = NEXT_PUBLIC_SENTRY_DSN is this value and NEXT_PUBLIC_APP_ENV is NOT 'dev' for that build,
+      # because monitoringDsn() suppresses every dev build (that is the point of #57), and the table prefix then selects lhq_ tables the E2E
+      # project does not have, so run ONLY the envelope spec this way.
+      sentry_dsn:
+        description: 'QA only: a FAKE DSN (https://k@ingest.invalid/1) for qa/e2e/sentry-envelope.spec.ts. Turns monitoring on in the local build. Empty = off.'
+        type: string
+        default: ''
+
 # Without this, every push to a PR stacked another run and the superseded one
 # carried on to completion. Nothing was ever cancelled. Costs no coverage.
 #
@@ -1237,7 +1246,10 @@ jobs:
           # Belongs in THIS step, not the build step: NEXT_PUBLIC_* is inlined at
           # build time, and playwright.config.ts's webServer runs
           # `npm run build && npm start` as a child of this step, inheriting env.
-          NEXT_PUBLIC_APP_ENV: dev
+          NEXT_PUBLIC_APP_ENV: ${{ inputs.sentry_dsn != '' && 'production' || 'dev' }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ inputs.sentry_dsn }}
+          QA_SENTRY_ENVELOPE: ${{ inputs.sentry_dsn != '' && '1' || '' }}
+          NEXT_PUBLIC_SENTRY_ENV: ${{ inputs.sentry_dsn != '' && 'qa-envelope-test' || '' }}
 
           # Authenticated fixtures for qa/e2e/bola.spec.ts - BOLA/IDOR, the one
           # spec that signs in. Two seeded accounts on the DEV Supabase project
