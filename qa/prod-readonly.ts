@@ -106,6 +106,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
      GlobalMacroContext and DryPowder return early on `!user`. */
   { spec: 'category-chips-aria-pressed', needs: 'none', note: 'the eight chips inside the coin picker (#2244); anonymous, reads only' },
   { spec: 'arena-picker-chips', needs: 'none', note: 'the picker chips, search, keyboard and sign-off shots (#2244); anonymous; writes only its own browser localStorage' },
+  { spec: 'chat-hours-localized', needs: 'none', note: 'the Ask AI panel and the hours page in ru, ko, zh, ar (#2258 #2259); anonymous; label rows injected in the browser, nothing written' },
   { spec: 'honest-states-batch2', needs: 'none', note: 'batch 2 of 2026-11-14: unknown change, BTC.D and ALT cells, market-read tiles (#2262 #2263 #2264); anonymous; market reads stubbed' },
   { spec: 'honest-states-batch', needs: 'none', note: 'the 2026-11-14 dashboard, funding and picker batch (#2255 #2256 #2260 #2261); anonymous; market reads stubbed' },
   { spec: 'dashboard-localized', needs: 'none', note: 'the dashboard market read, card titles and Ask AI button in ru, ko, zh, ar (#2257); anonymous; label rows injected in the browser, nothing written' },
