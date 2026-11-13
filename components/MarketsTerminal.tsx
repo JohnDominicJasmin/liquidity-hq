@@ -131,7 +131,7 @@ export default function MarketsTerminal() {
         <h1 className="sr-only">{t('MARKETS_PAGE_TITLE')}</h1>
 
         {/* Header */}
-        <div style={{
+        <div className="mkt-top" style={{
           display: 'flex', alignItems: 'center', gap: 10,
           padding: '12px 0 10px',
           borderBottom: '0.5px solid var(--bdr)',
@@ -156,7 +156,7 @@ export default function MarketsTerminal() {
               {t('MARKETS_COINS_LIVE_SUFFIX', { count: COINS.length })}
             </div>
           </div>
-          <div className="mkt-mono" style={{ marginLeft: 'auto', display: 'flex', gap: 14, fontSize: 'var(--fs-caption)' }}>
+          <div className="mkt-mono mkt-counts" style={{ marginLeft: 'auto', display: 'flex', gap: 14, fontSize: 'var(--fs-caption)' }}>
             <span style={{ color: 'var(--green-2)' }}>{t('MARKETS_BULLISH_COUNT', { count: bullCount })}</span>
             <span style={{ color: 'var(--red)' }}>{t('MARKETS_BEARISH_COUNT', { count: bearCount })}</span>
             <span style={{ color: 'var(--txt3)' }}>{t('MARKETS_NEUTRAL_COUNT', { count: COINS.length - bullCount - bearCount })}</span>
@@ -329,7 +329,7 @@ export default function MarketsTerminal() {
               </div>
 
               {/* Bottom accent line = buy pressure */}
-              <div style={{
+              <div className="mkt-accent" style={{
                 position: 'absolute', bottom: 0, left: 0,
                 width: (tbp ?? 0) + '%', height: 1,
                 background: barCol, opacity: 0.2,

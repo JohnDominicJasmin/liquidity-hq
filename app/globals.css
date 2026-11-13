@@ -5481,9 +5481,17 @@ body.landing {
   /* Give the SIGNAL column ~1.7x the coin column and let it wrap to 2 lines
      instead of truncating to "..." (was 1fr + nowrap → every signal clipped). */
   /* /markets at 390 (#1185, QA run 43495290194): the 28 px grade column was narrower than its own head ("GRADE" ran into "COIN"), the coin column was narrower than icon + name ("PEPE" ran into the price), and a cell wider than its track pushed some rows past the edge so their divider stopped short. Wider grade and price columns, a coin column with a floor, every cell allowed to shrink (min-width: 0) and every head clipped inside its own cell. */
-  .mkt-row, .mkt-hdr-row { grid-template-columns: 40px minmax(76px, 0.9fr) 88px 54px minmax(0, 1.5fr) !important; align-items: center; min-width: 0; }
+  .mkt-row, .mkt-hdr-row { grid-template-columns: 40px minmax(72px, 0.9fr) 80px 62px minmax(0, 1.4fr) !important; column-gap: 4px; align-items: center; min-width: 0; }
   .mkt-row > *, .mkt-hdr-row > * { min-width: 0; }
-  .mkt-hdr-row > * { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  /* HEADS WRAP, THEY ARE NOT CLIPPED (QA shots19: "24 HO..." and a clipped SIGNAL): a translated head needs two lines, a clipped one names nothing. */
+  .mkt-hdr-row > * { white-space: normal; overflow-wrap: anywhere; line-height: 1.15; letter-spacing: .04em; }
+  .mkt-hdr-row > :last-child { padding-left: 6px !important; }
+  /* THE ROW DIVIDER IS ONE FULL LINE (QA shots19): the visible "divider" under each row was the buy-pressure accent line, whose width is the buy share, so it stopped short (about half for a 49% coin). The pressure column is hidden here, so the accent goes too and the row's own border, which was nearly invisible, is drawn in the normal border colour. */
+  .mkt-accent { display: none; }
+  .mkt-row { border-bottom-color: var(--bdr) !important; }
+  /* The title row wraps and the bull/bear/neutral counters take their own line: in Russian the three counters pushed the page to 401 px at 390. */
+  .mkt-top { flex-wrap: wrap; }
+  .mkt-counts { margin-left: 0 !important; width: 100%; flex-wrap: wrap; gap: 4px 12px !important; }
   .mkt-coin-cell { padding-left: 6px !important; }
   .mkt-price { white-space: nowrap; }
   .mkt-price-long { font-size: var(--fs-micro) !important; }
