@@ -131,8 +131,8 @@ for (const theme of ['dark', 'light'] as const) for (const width of [390, 768, 1
         const cells = Array.from(document.querySelectorAll('.lpt-ticker > div')) as HTMLElement[];
         const txt = (c: HTMLElement) => (c.innerText || '').replace(/\s+/g, ' ').trim();
         const all = cells.map(txt);
-        const pick = (l: string) => all.find(t => new RegExp('^' + l + '\b').test(t)) ?? null;
-        return { cells: all.length, sol: pick('SOL'), xrp: pick('XRP'), bnb: pick('BNB'), btc: pick('BTC'), bareDash: all.filter(t => /(^|\s)-(\s|$)/.test(t)).slice(0, 12), words: Array.from(new Set(all.flatMap(t => t.split(' ').filter(w => /^(n\/a|…|\.\.\.)$/.test(w))))) };
+        const pick = (l: string) => all.find(t => t.split(' ').includes(l)) ?? null;
+        return { sample: all.slice(0, 6), cells: all.length, sol: pick('SOL'), xrp: pick('XRP'), bnb: pick('BNB'), btc: pick('BTC'), bareDash: all.filter(t => /(^|\s)-(\s|$)/.test(t)).slice(0, 12), words: Array.from(new Set(all.flatMap(t => t.split(' ').filter(w => /^(n\/a|…|\.\.\.)$/.test(w))))) };
       });
       console.log(`[K6] ${width} ${theme} ${JSON.stringify(m)}`);
       mkdirSync('qa/.shots', { recursive: true });
