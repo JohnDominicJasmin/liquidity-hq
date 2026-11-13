@@ -25,9 +25,9 @@ const dashes = (page: Page, scope: string) => page.evaluate((sel) => Array.from(
 test.describe('batch 2026-11-14', () => {
   test.describe.configure({ timeout: 150_000 });
 
-  for (const loc of ['en', 'ru']) {
-    test(`E1. #2255 /dashboard at 390 in ${loc}: card notes wrap and are not cut off, values level`, async ({ browser }) => {
-      const { ctx, page } = await open(browser, '/dashboard', 390, loc);
+  for (const loc of ['en', 'ru']) for (const width of [390, 1280]) {
+    test(`E1. #2255 /dashboard at ${width} in ${loc}: card notes wrap and are not cut off, values level`, async ({ browser }) => {
+      const { ctx, page } = await open(browser, '/dashboard', width, loc);
       try {
         const m = await page.evaluate(() => {
           const sig = Array.from(document.querySelectorAll('.edge-card-signal')) as HTMLElement[];
@@ -41,7 +41,7 @@ test.describe('batch 2026-11-14', () => {
         expect(m.n, 'no .edge-card-signal found: nothing measured').toBeGreaterThan(0);
         expect(m.bad, 'notes that do not wrap or are cut off').toEqual([]);
         expect(m.unlevel, 'cards in one row have values at different heights').toEqual([]);
-        expect(m.docSw, 'page scrolls sideways').toBeLessThanOrEqual(390);
+        expect(m.docSw, 'page scrolls sideways').toBeLessThanOrEqual(width);
       } finally { await ctx.close(); }
     });
   }
