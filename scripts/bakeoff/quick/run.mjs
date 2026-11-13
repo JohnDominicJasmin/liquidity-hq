@@ -118,7 +118,10 @@ for (let r = 0; r < RUNS; r++) {
           : /system/i.test(msg) ? '_SYSTEM'
           : /temperature|top_p|thinking/i.test(msg) ? '_SAMPLING'
           : /messages|content|role/i.test(msg) ? '_MESSAGES' : '';
-        const cls = status !== null ? 'HTTP_' + status + why : 'ERROR';
+        /* The API's own error TYPE is a closed vocabulary (not free text); it is printed only if it is one of these words. */
+        const apiType = String(e?.error?.error?.type ?? e?.error?.type ?? '');
+        const typeWord = ['invalid_request_error', 'authentication_error', 'permission_error', 'not_found_error', 'rate_limit_error', 'api_error', 'overloaded_error', 'billing_error'].includes(apiType) ? '_' + apiType.toUpperCase() : '';
+        const cls = status !== null ? 'HTTP_' + status + why + typeWord : 'ERROR';
         st.fail.set(cls, (st.fail.get(cls) ?? 0) + 1);
       }
     }
