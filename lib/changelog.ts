@@ -289,15 +289,15 @@ export const CHANGELOG: ChangelogEntry[] = [
          #2252 (merged): the /ko /zh /ru home pages are fully in their language; the legal text stays English on purpose.
          #2253 (merged): the scanner says "No data" in plain words on phones, card titles wrap, and Russian no longer scrolls sideways.
          ADDED AFTER #2254, grouped (each line comes out if ANY of its PRs does not reach the release; PM 2026-11-13; #2250 and #2251 get no line):
-           missing figures say loading or No data, never a dash (dashboard cards, BTC dominance and alt-season cells, coin prices, funding table; a price change that is not known draws nothing)   #2256 #2261 #2262 #2263 (open when written)
-           card notes and market-read tiles wrap instead of ending in an ellipsis; the Markets page's column heads, long prices and row lines fit on phones   #2255 #2264 #2269 (#2269 open when written)
+           missing figures say loading or No data, never a dash (dashboard cards, BTC dominance and alt-season cells, coin prices, funding table, Markets page prices and buy pressure; a price change that is not known draws nothing)   #2256 #2261 #2262 #2263 #2283 (merged)
+           card notes and market-read tiles wrap instead of ending in an ellipsis; the Markets page's column heads, long prices and row lines fit on phones   #2255 #2264 #2269 #2284 (all merged; KEEP the heads wording only because #2284 merged)
            dashboard, market read, session clock and holidays, Ask AI chat and funding in ko/zh/ru; Russian in the home page menu, and the short words (funding, setup, Fear & Greed, chart patterns) follow the language (Arabic is not offered in any picker, so it is not named)   #2257 #2258 #2259 #2260 #2266 (open when written)
            coin names easier to tap on phones (KEEP ONLY IF QA's /markets 24 px measurement lands after the promotion; funding and dashboard are measured)   #2254 (merged)
            Best Hours shows 24-hour times and local weekday names in Korean, Chinese and Russian; its ranges and axis fit on phones   #2267 #2268 (both merged)
            SECOND BATCH (PM 2026-11-14), each line out if its PR does not reach the release; #2270, #2273, #2274, #2275, #2277, #2278 and #2280 get no line because a visitor cannot see them (#2273 only changes a server log message), and #2276 (the Alert Track Record states how far back it reaches) gets none because that card only shows with SHOW_PERFORMANCE_STATS, which is off by the owner's order (#1574), so no user sees it:
              the selected coin in the Arena list is marked beyond colour   #2271 (open when written)
              on desktop the collapsed Setup button sits beside the Ask AI button   #2272 (open when written)
-             Hong Kong stock prices show HK$ everywhere on the coin page   #2281 (open when written)
+             Hong Kong stock prices show HK$ on the coin page, including the VWAP card and the EMA entry line   #2281 (merged)
          NOTE: the stale "n/a" wording of the #2245 line is corrected below to match what #2253 shipped ("No data"). */
       'In the AI Arena coin list, a price that has not arrived shows a loading mark, and one that cannot be found says "No data" in plain words, instead of a dash that could mean either. HYPE, FET and several commodities now show a price even when one exchange cannot be reached, and coins with no signals say "No signals" instead of "n/a".',
       'On the landing page, the price ticker and the Live Read card now say "Unavailable" or show a loading mark instead of a bare dash, and the card shows the Coinbase premium.',
@@ -305,14 +305,14 @@ export const CHANGELOG: ChangelogEntry[] = [
       'A Deep read that gives price levels but cites no catalysts now says so, instead of leaving a gap.',
       'The Korean, Chinese and Russian home pages are now fully in their language: the start button, the Live Read card and the cookie notice. The legal text at the bottom stays in English.',
       'On phones, the AI Arena coin list says "No data" in plain words when a price is missing, instead of a dash, and the Russian page no longer scrolls sideways.',
-      'Missing figures now show a loading mark, "Unavailable" or "No data" in plain words instead of a dash: the dashboard cards, coin prices and the funding table. A price change that is not known no longer shows as +0.00%.',
+      'Missing figures now show a loading mark, "Unavailable" or "No data" in plain words instead of a dash: the dashboard cards, coin prices, the Markets page prices and buy pressure, and the funding table. A price change that is not known no longer shows as +0.00%.',
       'Card titles, the notes under card values and the market-read tiles now wrap onto a second line instead of being cut off with "...", and the Markets page column heads, long prices and row lines fit on a phone.',
       'Most of the dashboard, the market read, the session clock and market holidays, the Ask AI chat, with their short words such as funding, Fear & Greed and chart patterns, now speak Korean, Chinese and Russian, and Russian is offered in the home page language menu.',
       'Coin names on the funding, markets and dashboard pages are easier to tap on phones.',
       'Best Hours now shows 24-hour times and weekday names in your own language in Korean, Chinese and Russian, and its time ranges and chart axis fit on a phone.',
       'The selected coin in the Arena coin list is now marked with a bar as well as a colour.',
       'On desktop the collapsed Setup button now sits beside the Ask AI button instead of over the page.',
-      'Prices of Hong Kong stocks now show HK$ everywhere on the coin page, including the VWAP card and the EMA entry line.',
+      'Prices of Hong Kong stocks now show HK$ on the coin page, including the VWAP card and the EMA entry line.',
     ],
   },
   {
