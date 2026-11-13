@@ -226,7 +226,7 @@ test.describe('#1413 five extra pages', () => {
 
 test.describe('#1185 liquidation map: the Ask AI button does not cover a row total', () => {
   test.describe.configure({ timeout: 120_000 });
-  for (const width of [1280, 1440]) {
+  for (const width of [1280, 1440, 1920]) {
     test('S7. on /liq at ' + width + 'px no TOTAL cell sits under the Ask AI button as the rows scroll past it', async ({ browser }) => {
       const { ctx, page } = await newPage(browser, width, 'dark', 900);
       try {
