@@ -297,8 +297,15 @@ test('monitoring quota settings', async (t) => {
     assert.equal(monitoringOptions().tracesSampleRate, 0);
   });
 
-  await t.test('PII is not sent by default', () => {
-    assert.equal(monitoringOptions().sendDefaultPii, false);
+  /* SDK 11 REMOVED `sendDefaultPii`; the restrictive v10 baseline is now stated through `dataCollection` (see lib/monitoring.ts). This pin moved WITH the option and keeps
+     the same property: nothing about a person, a cookie or a request body is collected by default. QA: review this edit, it was made by Dev only because the old line no longer typechecks. */
+  await t.test('PII is not sent by default (dataCollection baseline, SDK 11)', () => {
+    const d = monitoringOptions().dataCollection;
+    assert.equal(d.userInfo, false);
+    assert.equal(d.cookies, false);
+    assert.deepEqual(d.httpBodies, []);
+    assert.deepEqual(d.genAI, { inputs: false, outputs: false });
+    assert.equal(d.databaseQueryData, false);
   });
 
   /* Both scrub hooks must stay wired. beforeSend is what makes PII scrubbing
