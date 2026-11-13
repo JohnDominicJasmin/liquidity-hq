@@ -283,17 +283,27 @@ export const CHANGELOG: ChangelogEntry[] = [
       'The floating Ask AI button no longer sits on top of the playbook favourite star, the dashboard "new play" button on phones, or the Total column of the liquidation map clusters table.',
       /* ADDED AFTER #2245, each tied to its pull request. Same rule as above: IF ANY OF THESE PRS DOES NOT REACH THE RELEASE ITS LINE COMES OUT HERE.
            coin list: loading / Unavailable / prices that were blank   #2245 (merged)
-           landing ticker and Live Read card states, Coinbase premium   #2246 (OPEN when written: out if it does not merge)
-           link to a coin we do not list says so                          #2247 (OPEN when written: out if it does not merge)
+           landing ticker and Live Read card states, Coinbase premium   #2246 (merged)
+           link to a coin we do not list says so                          #2247 (merged)
          #2248 (open when written: out if it does not merge): a Deep read that cites no catalysts says so.
-         #2252 (OPEN when written: out if it does not merge): the /ko /zh /ru home pages are fully in their language; the legal text stays English on purpose.
-         #2253 (OPEN when written: out if it does not merge): the scanner says "No data" in plain words on phones, and Russian no longer scrolls sideways. */
-      'In the AI Arena coin list, a price that has not arrived shows a loading mark, and one that cannot be found says "Unavailable", instead of a dash that could mean either. HYPE, FET and several commodities now show a price even when one exchange cannot be reached, and coins with no signals say "No signals" instead of "n/a".',
+         #2252 (merged): the /ko /zh /ru home pages are fully in their language; the legal text stays English on purpose.
+         #2253 (merged): the scanner says "No data" in plain words on phones, card titles wrap, and Russian no longer scrolls sideways.
+         ADDED AFTER #2254, grouped (each line comes out if ANY of its PRs does not reach the release; PM 2026-11-13; #2250 and #2251 get no line):
+           missing figures say loading or No data, never a dash (dashboard cards and coin prices, funding table)   #2256 #2261 (open when written)
+           card notes wrap instead of ending in an ellipsis                                                          #2255 (open when written)
+           dashboard, market read, session clock and holidays, Ask AI chat and funding in ko/zh/ru/ar; Russian in the home page menu   #2257 #2258 #2259 #2260 (open when written)
+           coin names easier to tap on phones                                                                       #2254 (merged)
+         NOTE: the stale "n/a" wording of the #2245 line is corrected below to match what #2253 shipped ("No data"). */
+      'In the AI Arena coin list, a price that has not arrived shows a loading mark, and one that cannot be found says "No data" in plain words, instead of a dash that could mean either. HYPE, FET and several commodities now show a price even when one exchange cannot be reached, and coins with no signals say "No signals" instead of "n/a".',
       'On the landing page, the price ticker and the Live Read card now say "Unavailable" or show a loading mark instead of a bare dash, and the card shows the Coinbase premium.',
       'An AI Arena link to a coin we do not list now says so and opens Bitcoin, instead of switching to Bitcoin without a word.',
       'A Deep read that gives price levels but cites no catalysts now says so, instead of leaving a gap.',
       'The Korean, Chinese and Russian home pages are now fully in their language: the start button, the Live Read card and the cookie notice. The legal text at the bottom stays in English.',
       'On phones, the AI Arena coin list says "No data" in plain words when a price is missing, instead of a dash, and the Russian page no longer scrolls sideways.',
+      'Missing figures now say "Loading" or "No data" in plain words instead of a dash: the dashboard cards and coin prices, and the funding table.',
+      'Card titles and the notes under card values now wrap onto a second line instead of being cut off with "...".',
+      'The dashboard, the market read, the session clock and market holidays, the Ask AI chat and the funding page now speak Korean, Chinese, Russian and Arabic, and Russian is offered in the home page language menu.',
+      'Coin names on the funding, markets and dashboard pages are easier to tap on phones.',
     ],
   },
   {
