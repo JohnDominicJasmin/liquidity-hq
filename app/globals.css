@@ -2779,8 +2779,12 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    color lives on the values, Bloomberg/Coinglass convention. Tight 3-row cells
    (label / value / one-line context) at an equal, small height. */
 .edge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin-bottom: 8px; }
-.edge-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 10px; padding: 7px 10px; }
-.edge-card-label { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.edge-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 10px; padding: 7px 10px; display: flex; flex-direction: column; }
+.edge-card-label { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 3px; white-space: normal; overflow-wrap: break-word; }
+/* THE CARD TITLE WRAPS, IT IS NEVER CUT OFF (PM, 2026-11-13: a cut title hides what the card is, and it already cut in English). It was `nowrap` + ellipsis, and nowrap also made the label's min-content its full
+   width, which is what blew a track out in Russian. The terminal design already ran this route with `white-space: normal` ("labels are DB-driven"). Cards are flex columns, and the value block is pinned to the bottom
+   (`margin-top: auto`) so a two-line title in one card does not leave its neighbour's value higher than its own in the same grid row. */
+.edge-card > .edge-card-value { margin-top: auto; }
 /* min-height, so a card whose value uses a smaller font is still the same
    height as its neighbours (#244).
    QA measured three .edge-card in the Arena rail: VWAP and Funding 77px, Open
