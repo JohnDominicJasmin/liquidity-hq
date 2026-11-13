@@ -458,7 +458,8 @@ export async function POST(req: NextRequest) {
         const engine = await engineFor('quick');
         if (engine !== 'grok') {
           try {
-            const c = await callClaude({ model: engine, user: prompt, maxTokens: 800 });
+            /* 1,600, not the 800 Grok is given: Claude writes longer, and at 800 Haiku and Sonnet were cut off 46 of 50 and 49 of 49 times; at 1,600 Haiku was cut off 1 of 30 (bake-off follow-up, run 43411132215). */
+            const c = await callClaude({ model: engine, user: prompt, maxTokens: 1600 });
             spent.current = true; // 2xx: the tokens are billed from here
             await recordAiCall({ userId, callType: 'quick', model: c.model, usage: c.usage });
             claudeText = c.text;
