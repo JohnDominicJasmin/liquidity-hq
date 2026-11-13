@@ -20,7 +20,7 @@ export default function ResearchPage() {
         body={t('RESEARCH_HINT_BODY')}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+      <div className="research-pair">
         <div style={{ borderRadius: 10, overflow: 'hidden' }}><CycleDayCounter /></div>
         <div style={{ borderRadius: 10, overflow: 'hidden' }}><BtcRiskLevel /></div>
       </div>

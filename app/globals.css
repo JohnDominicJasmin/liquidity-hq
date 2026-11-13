@@ -1516,6 +1516,11 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .sotd-wrap::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: var(--txt3); opacity: 0.4; }
 .sotd-static-badge { font-size: var(--fs-caption); font-weight: 700; letter-spacing: .04em; color: var(--txt2); background: rgba(255,255,255,0.05); border: 0.5px solid var(--bdr2); border-radius: 20px; padding: 2px 8px; }
 .sotd-label { font-size: var(--fs-micro); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--txt3); margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+/* THE "new play" BUTTON CLEAR OF THE ASK AI BUTTON ON PHONES (#1185, PM un-parked it). `.gchat-fab` is fixed in the rightmost 84px (16px + 64px) and this
+   button sat at the right end of the label row, so it scrolled under it: 34% covered at 390. The FAB is NOT moved (at phone width that corner is shared with
+   the tab bar, the Setup pill, the PWA toast and the consent bar, so moving it is four collisions, not one). The row keeps a 72px gutter on its right instead,
+   the same remedy as the Chart Layers list, and wraps if the badge, the number and the button no longer fit beside it. */
+@media (max-width: 640px) { .sotd-label { flex-wrap: wrap; row-gap: 6px; padding-right: 72px; } }
 .sotd-refresh { font-size: var(--fs-caption); color: var(--txt3); cursor: pointer; padding: 2px 8px; border-radius: 8px; border: 0.5px solid var(--bdr); background: none; transition: all 0.15s; min-height: 36px; display: inline-flex; align-items: center; }
 .sotd-refresh:hover { color: var(--purple); border-color: var(--purple-bdr); }
 .sotd-num        { font-size: var(--fs-data); font-weight: 600; color: var(--txt3); margin-bottom: 4px; }
@@ -1682,10 +1687,10 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
  * every page at these widths, which is a far larger visual surface to verify. This moves the badge,
  * the star and the text column of the playbook list only.
  *
- * WHAT THIS DELIBERATELY DOES NOT COVER: 1101px and up. The star's inset is 35px at 1280 and
- * 1357 too, so it is 36% covered there on the same arithmetic. PM scoped this change to 641-1100,
- * so those widths stay open on #1185 rather than being quietly widened into here. */
-@media (min-width: 641px) and (max-width: 1100px) {
+ * 1101px AND UP WAS LEFT OUT AT FIRST, and is covered now (#1185, PM): the star's inset is 35px at 1280 and
+ * 1357 as well, so it was 36% covered there on the same arithmetic. The button is in the right column at every
+ * width, so the ceiling is gone and the gutter applies from 641 up. Phones (390) are unchanged: the star was 0% there. */
+@media (min-width: 641px) {
   .secret { padding-right: 70px; }   /* 14px base + the 56px derived above */
 }
 .cat-hunt  { background: var(--purple-bg); color: var(--purple); }
@@ -2237,7 +2242,7 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .klc-legend { display: flex; gap: 8px; align-items: center; }
 .klc-ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--txt3); flex-shrink: 0; }
 .klc-ws-dot.live { background: var(--green); box-shadow: 0 0 5px var(--green); }
-.klc-ws-dot.err  { background: var(--red); }
+.klc-ws-dot.err  { background: transparent; box-shadow: inset 0 0 0 1.5px var(--red); } /* a RING, not a filled dot: the state differs by shape too (#1185, not colour alone) */
 .sq-badge { display: inline-flex; align-items: center; }
 /* `.sq-info`, `.sq-tooltip`, `.sq-info:hover .sq-tooltip`, `.sq-tooltip::after`
    and `@keyframes sq-fade` were REMOVED here (#850), not left behind.
@@ -3012,7 +3017,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --amber-bdr: rgba(180,83,9,0.20);
   /* #559: same darkened-hue treatment as --amber/--orange above - #d4b483
      (the dark value) measures ~2:1 on white. */
-  --fr-slight-long: #7C5E2E;
+  --fr-slight-long: #6B4F22; /* darker (#1185): #7C5E2E measured 4.17-4.49:1 on the selected row's tint */
   /* #519: was #C2410C - 3.09:1 for the grade-D badge on a selected watchlist
      row, 3.85:1 normally, both below WCAG AA's 4.5:1 for 12px text. */
   --orange:     #7C2D12;
@@ -3778,7 +3783,10 @@ html[data-theme="light"] { background: var(--bg0); }
 .wf-row:last-child { border-bottom: none; }
 .wf-row-big     { background: rgba(255,255,255,.025); }
 .wf-row-coin    { font-size: var(--fs-caption); font-weight: 800; }
-.wf-row-side    { font-size: var(--fs-caption); font-weight: 700; letter-spacing: .04em; }
+/* /research top pair (#1185, #1309 item 29): two columns from 641 up; ONE column on phones, where the BTC risk card's 120px label + 72px value did not fit a ~174px cell and was clipped. */
+.research-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+@media (max-width: 640px) { .research-pair { grid-template-columns: 1fr; } }
+.wf-row-side    { font-size: var(--fs-caption); font-weight: 700; letter-spacing: .04em; white-space: nowrap; }
 .wf-row-side-buy  { color: var(--green); }
 .wf-row-side-sell { color: var(--red); }
 .wf-row-usd     { font-size: var(--fs-label); font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -6772,7 +6780,7 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   --on-accent: #ffffff;
   /* FundingTerminal's "slight long" signal state (#559) - reusing the
      current design's own light value rather than inventing a second one. */
-  --fr-slight-long: #7C5E2E;
+  --fr-slight-long: #6B4F22; /* darker (#1185): #7C5E2E measured 4.17-4.49:1 on the selected row's tint */
 
   /* Radius and typography are theme-invariant design-system rules, not
      colours - omitting them here would leave terminal+light with :root's
