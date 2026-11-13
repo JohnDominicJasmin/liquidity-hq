@@ -596,6 +596,11 @@ export default function FundingTerminal() {
                       const current = store.coins[id]?.fundingRate ?? null;
                       const pts     = (history[id] ?? []).slice(-rangeCount);
                       const noData  = pts.length < 2;
+                      /* A MISSING FIGURE SAYS WHICH KIND OF MISSING (#1651, PM): still coming (an ellipsis) or not available (the plain words, cause on hover), never a bare dash. ONE WORD PER ROW:
+                         the word is said once, in the cell of the figure that is missing first (the current rate); the signal, which is derived from the current rate, stays empty then. */
+                      const gap = store.scannerFeed.universe === 'pending'
+                        ? <span role="img" aria-label={t('ARENA_SCANNER_LOADING_TITLE')} title={t('ARENA_SCANNER_LOADING_TITLE')}>{'…'}</span>
+                        : <span title={t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE')}>{t('ARENA_SCANNER_UNAVAILABLE_NARROW')}</span>;
                       return (
                         <tr
                           key={id}
@@ -621,10 +626,10 @@ export default function FundingTerminal() {
                             </button>
                           </td>
                           <td style={{ color: current != null ? frColor(current) : 'var(--txt3)', fontWeight: 700 }}>
-                            {current != null ? frFmt(current) : '-'}
+                            {current != null ? frFmt(current) : gap}
                           </td>
                           <td style={{ color: stats ? frColor(stats.avg) : 'var(--txt3)' }}>
-                            {stats ? frFmt(stats.avg) : '-'}
+                            {stats ? frFmt(stats.avg) : current == null ? null : gap}
                           </td>
                           <td>
                             {current != null
@@ -637,7 +642,7 @@ export default function FundingTerminal() {
                                     </span>
                                   );
                                 })()
-                              : <span style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>-</span>
+                              : null
                             }
                           </td>
                           <td className="frh-spark-cell">
