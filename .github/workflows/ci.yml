@@ -1210,6 +1210,7 @@ jobs:
           # build time, and playwright.config.ts's webServer runs
           # `npm run build && npm start` as a child of this step, inheriting env.
           NEXT_PUBLIC_APP_ENV: dev
+          NEXT_PUBLIC_SHOW_PERFORMANCE_STATS: '1'
 
           # Authenticated fixtures for qa/e2e/bola.spec.ts - BOLA/IDOR, the one
           # spec that signs in. Two seeded accounts on the DEV Supabase project
