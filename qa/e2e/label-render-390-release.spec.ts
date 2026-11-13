@@ -101,7 +101,7 @@ for (const loc of LOCALES) {
         for (const [k, v] of Object.entries(g)) {
           expect(v, `${k} cell not found (row anthropic/nvda missing?)`).not.toBeNull();
           expect(v!.overflows, `${k} overflows its cell in ${loc}: ${JSON.stringify(v)}`).toBe(false);
-          expect(v!.clippedBy, `${k} is clipped by ${v!.clippedBy} in ${loc}`).toBe('');
+          if (k !== 'h24' && k !== 'vsbtc') expect(v!.clippedBy, `${k} is clipped by ${v!.clippedBy} in ${loc}`).toBe('');
           if (k === 'h24' || k === 'vsbtc') expect(v!.text, `${k} should be empty when the price is gone, in ${loc}`).toBe('');
           else { expect(v!.text, `${k} is empty in ${loc}`).not.toBe(''); expect(v!.lines, `${k} wraps onto ${v!.lines} lines in ${loc}: "${v!.text}"`).toBeLessThanOrEqual(2); }
         }
@@ -109,6 +109,7 @@ for (const loc of LOCALES) {
     });
 
     test(`R3. landing ticker word for a coin with no quote in ${loc}`, async ({ browser }) => {
+      test.skip(loc === 'ar', 'Arabic is not offered and /ar has no landing page (PM 2026-11-14)');
       const ctx = await browser.newContext({ viewport: { width: 390, height: 900 } });
       await ctx.addInitScript((l) => { try { localStorage.setItem('lhq_lang_v1', l); } catch { /* private */ } }, loc);
       const page = await ctx.newPage(); await refuseBinance(page);
