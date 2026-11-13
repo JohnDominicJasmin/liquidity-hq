@@ -30,7 +30,9 @@ import { claudeShape } from '../../../lib/claudeRequest.ts';
 
 const HARD_CAP_USD = 15;
 const CEILING_USD = 0.0085;   // the owner's per-answer ceiling for the quick read
-const MAX_TOKENS = 800;       // what the route asks for
+const MAX_TOKENS = Math.min(4000, Number(process.env.BAKEOFF_MAX_TOKENS) > 0 ? Number(process.env.BAKEOFF_MAX_TOKENS) : 800);   // what the route asks for (800 today); raisable to test a bigger budget
+const SEQUENTIAL = process.env.BAKEOFF_SEQUENTIAL === '1';   // one call at a time, to tell a provider 503 from one the parallel burst caused
+const ONLY = (process.env.BAKEOFF_ENGINES ?? '').split(',').map((x) => x.trim()).filter(Boolean);   // restrict to some engines by id
 
 const ENGINES = [
   { id: 'grok-4.3', kind: 'grok', rates: XAI_RATES_BY_MODEL['grok-4.3'] },
@@ -62,7 +64,7 @@ function say(...parts) {
 
 const haveClaude = !!process.env.ANTHROPIC_API_KEY;
 const haveGrok = !!process.env.GROK_API_KEY;
-const active = ENGINES.filter((e) => (e.kind === 'claude' ? haveClaude : haveGrok));
+const active = ENGINES.filter((e) => (e.kind === 'claude' ? haveClaude : haveGrok)).filter((e) => ONLY.length === 0 || ONLY.includes(e.id));
 if (!haveClaude) say('NOTICE: no ANTHROPIC_API_KEY, claude engines skipped');
 if (!haveGrok) say('NOTICE: no GROK_API_KEY, grok skipped');
 if (active.length === 0) { say('NOTHING_TO_RUN'); process.exit(1); }
@@ -111,7 +113,7 @@ for (let r = 0; r < RUNS; r++) {
     const engines = active.filter((e) => e.kind === 'claude' || (r === 0 && i < GROK_MAX_INPUTS && spentGrok + worstCase(e, prompts[i]) <= CAP_GROK));
     const batch = engines.filter((e) => e.kind === 'claude').reduce((a, e) => a + worstCase(e, prompts[i]), 0);
     if (spent + batch > CAP_CLAUDE) { stopped = true; break outer; }
-    await Promise.all(engines.map(async (eng) => {
+    const runEng = async (eng) => {
       const wc = worstCase(eng, prompts[i]);
       const st = stats.get(eng.id);
       try {
@@ -151,7 +153,8 @@ for (let r = 0; r < RUNS; r++) {
         const cls = status !== null ? 'HTTP_' + status + why + typeWord : 'ERROR';
         st.fail.set(cls, (st.fail.get(cls) ?? 0) + 1);
       }
-    }));
+    };
+    if (SEQUENTIAL) { for (const e of engines) await runEng(e); } else { await Promise.all(engines.map(runEng)); }
     if ((i + 1) % 10 === 0) say('PROGRESS run=', r + 1, 'input=', i + 1, 'spent_claude_usd=', spent, 'spent_grok_usd=', spentGrok);
   }
 }
@@ -164,6 +167,8 @@ for (const e of active) {
   say(e.id, 'calls=', s.done, 'parsed=', s.parsed, 'parse_rate=', s.done ? s.parsed / s.done : NaN,
     'p50_ms=', pct(s.lat, 50), 'p95_ms=', pct(s.lat, 95), 'mean_usd=', mean, mean <= CEILING_USD ? 'UNDER_CEILING' : 'OVER_CEILING');
   const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN);
+  const nFail = [...s.fail.values()].reduce((a, b) => a + b, 0);
+  say(e.id, 'rates fail_rate=', s.done + nFail ? nFail / (s.done + nFail) : NaN, 'truncation_rate=', s.done ? s.truncated / s.done : NaN, 'max_tokens=', MAX_TOKENS, SEQUENTIAL ? 'SEQUENTIAL' : 'PARALLEL');
   say(e.id, 'diag verdict_ok=', s.verdictOk, 'combined_ok=', s.combinedOk, 'truncated=', s.truncated, 'has_signal_word=', s.hasSignalWord, 'mean_out_tokens=', avg(s.outTok), 'mean_chars=', avg(s.chars));
   for (const [cls, n] of s.fail) say(e.id, 'failed', cls, n);
 }

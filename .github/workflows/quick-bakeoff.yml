@@ -32,6 +32,18 @@ on:
         description: 'Number of quick-read inputs (1-60).'
         required: false
         default: '30'
+      engines:
+        description: 'Comma list of engine ids to run (empty = all). Example: claude-haiku-5-5'
+        required: false
+        default: ''
+      sequential:
+        description: 'Set to 1 to call one engine at a time.'
+        required: false
+        default: ''
+      max_tokens:
+        description: 'Output token budget (default 800, max 4000).'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -60,4 +72,7 @@ jobs:
           BAKEOFF_CAP_USD: ${{ inputs.cap_usd }}
           BAKEOFF_RUNS: ${{ inputs.runs }}
           BAKEOFF_INPUTS: ${{ inputs.inputs }}
+          BAKEOFF_ENGINES: ${{ inputs.engines }}
+          BAKEOFF_SEQUENTIAL: ${{ inputs.sequential }}
+          BAKEOFF_MAX_TOKENS: ${{ inputs.max_tokens }}
         run: node --import ./qa/alias-register.mjs scripts/bakeoff/quick/run.mjs
