@@ -1,4 +1,5 @@
-import { withSentryConfig } from "@sentry/nextjs";
+// SDK 11 moved withSentryConfig to its own entry point (migration guide: "withSentryConfig and the SentryBuildOptions type moved to the @sentry/nextjs/config entry point").
+import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
 // Supabase host for connect-src (NEXT_PUBLIC_ vars are available at config eval time)
