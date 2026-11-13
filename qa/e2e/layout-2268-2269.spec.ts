@@ -33,6 +33,7 @@ test.describe('#2268 / #2269 layout', () => {
           const g = cells[0] ? textRect(cells[0]) : null, c = cells[1] ? textRect(cells[1]) : null;
           const headCut = cells.filter(e => (e.textContent || '').trim()).map(e => e.scrollWidth > e.clientWidth + 1);
           const hr = cells.filter(e => (e.textContent || '').trim()).map(e => ({ t: (e.textContent || '').trim(), r: textRect(e) }));
+          const headLines = cells.filter(e => (e.textContent || '').trim()).map(e => { const r = document.createRange(); r.selectNodeContents(e); return new Set(Array.from(r.getClientRects()).filter(x => x.width > 0).map(x => Math.round(x.top))).size; });
           const headTouch = hr.filter((x, i) => i > 0 && x.r && hr[i - 1].r && x.r.left < hr[i - 1].r!.right + 1).map(x => x.t);
           const btns = Array.from(document.querySelectorAll('.mkt-row-btn')) as HTMLElement[];
           const rows = btns.map(b => b.closest('.mkt-coin-cell')?.parentElement as HTMLElement | null).filter(Boolean) as HTMLElement[];
@@ -41,7 +42,7 @@ test.describe('#2268 / #2269 layout', () => {
           const border = rows.map(r => { const cs = getComputedStyle(r); const m = /rgba?(([^)]+))/.exec(cs.borderBottomColor); const a = m ? (m[1].split(',')[3] !== undefined ? parseFloat(m[1].split(',')[3]) : 1) : 0; return { w: parseFloat(cs.borderBottomWidth), a }; });
           const faint = border.filter(b => !(b.w >= 1 && b.a >= 0.06)).length;
           const past = rows.filter(r => r.getBoundingClientRect().right > vw + 1).length;
-          return { hdrGradeRight: g && Math.round(g.right), hdrCoinLeft: c && Math.round(c.left), headCut, headTouch, nBtn: btns.length, minBtn: btns.length ? Math.round(Math.min(...btns.map(b => b.getBoundingClientRect().height))) : null, nRows: rows.length, widthMin: Math.min(...widths), widthMax: Math.max(...widths), touching: touching.slice(0, 6), faint, past, docSw: document.documentElement.scrollWidth, vw };
+          return { hdrGradeRight: g && Math.round(g.right), hdrCoinLeft: c && Math.round(c.left), headCut, headTouch, headLines, nBtn: btns.length, minBtn: btns.length ? Math.round(Math.min(...btns.map(b => b.getBoundingClientRect().height))) : null, nRows: rows.length, widthMin: Math.min(...widths), widthMax: Math.max(...widths), touching: touching.slice(0, 6), faint, past, docSw: document.documentElement.scrollWidth, vw };
         });
         console.log(`[Y1] ${loc} ${JSON.stringify(m)}`);
         expect(m.nRows, 'no market rows: nothing measured').toBeGreaterThan(5);
@@ -49,6 +50,7 @@ test.describe('#2268 / #2269 layout', () => {
         expect(m.hdrGradeRight!, 'GRADE head runs into the COIN head').toBeLessThanOrEqual(m.hdrCoinLeft! - 1);
         expect(m.headCut.filter(Boolean).length, `a head is cut off in its own cell: ${JSON.stringify(m.headCut)}`).toBe(0);
         expect(m.headTouch, 'two heads touch').toEqual([]);
+        expect(m.headLines.filter(n => n > 1), `a head wraps onto several lines (letter by letter): ${JSON.stringify(m.headLines)}`).toEqual([]);
         expect(m.faint, 'rows whose own divider is missing or nearly invisible').toBe(0);
         expect(m.touching, 'a price touches its ticker').toEqual([]);
         expect(m.widthMax - m.widthMin, 'rows are not all the same width (a divider stops short)').toBeLessThanOrEqual(1);
