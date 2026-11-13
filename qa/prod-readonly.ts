@@ -104,7 +104,8 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
      nothing in arena/page.tsx persists it, so there is no write even in principle. Same shape as
      arena-panel-overlap above. Being signed out also keeps it off the paid mount effects: both
      GlobalMacroContext and DryPowder return early on `!user`. */
-  { spec: 'category-chips-aria-pressed', needs: 'none' },
+  { spec: 'category-chips-aria-pressed', needs: 'none', note: 'the eight chips inside the coin picker (#2244); anonymous, reads only' },
+  { spec: 'arena-picker-chips', needs: 'none', note: 'the picker chips, search, keyboard and sign-off shots (#2244); anonymous; writes only its own browser localStorage' },
   { spec: 'chart-backfill', needs: 'none' },
   { spec: 'checkout-config-agrees', needs: 'none', note: 'asserts /api/version flags: production differs from dev, expect a triage pass' },
   { spec: 'clock', needs: 'none' },
