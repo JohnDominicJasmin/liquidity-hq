@@ -5483,7 +5483,7 @@ body.landing {
   /* Give the SIGNAL column ~1.7x the coin column and let it wrap to 2 lines
      instead of truncating to "..." (was 1fr + nowrap → every signal clipped). */
   /* /markets at 390 (#1185, QA run 43495290194): the 28 px grade column was narrower than its own head ("GRADE" ran into "COIN"), the coin column was narrower than icon + name ("PEPE" ran into the price), and a cell wider than its track pushed some rows past the edge so their divider stopped short. Wider grade and price columns, a coin column with a floor, every cell allowed to shrink (min-width: 0) and every head clipped inside its own cell. */
-  .mkt-row, .mkt-hdr-row { grid-template-columns: 40px minmax(72px, 0.9fr) 80px 62px minmax(0, 1.4fr) !important; column-gap: 4px; align-items: center; min-width: 0; }
+  .mkt-row, .mkt-hdr-row { grid-template-columns: 56px minmax(72px, 0.9fr) 76px 62px minmax(0, 1.4fr) !important; column-gap: 2px; /* grade 56 px: its head is the word plus the 24 px info icon (QA shots21: the icon sat on the C of COIN at 40 px); the 16 px come from the price column and the gaps, so the signal column keeps its width */ align-items: center; min-width: 0; }
   .mkt-row > *, .mkt-hdr-row > * { min-width: 0; }
   /* HEADS STAY ON ONE LINE AND ARE NOT CLIPPED (QA shots19, shots20): clipping cut '24 HOURS' to '24 HO...', and wrapping anywhere stacked GRADE and SIGNAL letter by letter in a 40 px cell. One line, tighter tracking (.02em), nothing hidden: every head fits its column in English, and the columns above were widened for it. */
   .mkt-hdr-row > * { white-space: nowrap; overflow-wrap: normal; line-height: 1.15; letter-spacing: .02em; }
