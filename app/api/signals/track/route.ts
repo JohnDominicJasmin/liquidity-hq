@@ -7,6 +7,7 @@ import { checkCronAuth } from '@/lib/cronAuth';
 import { exchangeFetch } from '@/lib/exchangeGuard';
 import { firstVenueThatAnswers } from '@/lib/venueFallback';
 import { reportHealth, healthError } from '@/lib/apiHealth';
+import * as Sentry from '@sentry/nextjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,7 +64,10 @@ async function fetchOHLCV(coin: CoinId, tf: string, limit: number): Promise<OHLC
   return firstVenueThatAnswers<OHLCV[]>([
     bnSym ? { venue: 'Binance futures', run: () => fetchBinanceFuturesKlines(bnSym, TF_BN[tf], limit) } : null,
     bySym ? { venue: 'Bybit',           run: () => fetchBybitKlines(bySym, TF_BY[tf], limit) } : null,
-  ], `${coin}/${tf}`);
+  ], `${coin}/${tf}`, (failed, _err, next) => {
+    /* THE FAILOVER IS COUNTED (#1651): 'intermittent' becomes a rate. FIXED TEXT, tags only for the two venue names: nothing from the request, the coin or the error body leaves the process. */
+    Sentry.captureMessage('signals-track venue failover', { level: 'warning', tags: { route: 'signals-track', failed, next } });
+  });
 }
 
 interface OpenRow {
