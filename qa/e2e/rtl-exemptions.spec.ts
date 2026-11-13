@@ -119,7 +119,9 @@ test.describe('quantitative axes are exempt from RTL mirroring', () => {
          failure - it flips the gate red the moment the exemptions DO land, which is exactly when
          this should become a real assertion again. `/hours` and `/arena` already render exempt
          containers and stay real. */
-      test.fail(route === '/briefing', 'step 2 (RTL exemptions on /briefing) not landed: /briefing renders no dir="ltr" containers yet');
+      /* 2026-11-14 (PM): /briefing is SKIPPED, not expected-to-fail. Arabic is not offered by any picker and nothing builds the /briefing exemptions until it returns, so a red-by-design row
+         only keeps the gate red. Parking decision: #1185 comment 6865507154 (revisit when Arabic is switched back on, then make this a real assertion again). */
+      test.skip(route === '/briefing', 'Arabic is not offered; /briefing RTL exemptions parked (#1185 comment 6865507154)');
       await page.addInitScript(() => {
         try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
       });
