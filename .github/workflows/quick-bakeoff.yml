@@ -1,0 +1,61 @@
+# Quick-read bake-off (#1631, owner decision 2026-11-13): Grok vs Claude Haiku 5.5, Sonnet 5.5 and Opus 5.5 on the SAME quick-read prompts.
+# Measures cost per call (vs the $0.0085 ceiling), latency and parse rate, and prints nothing else.
+#
+# IT SPENDS REAL MONEY, SO: workflow_dispatch only (no schedule, no pull_request), a HARD $15 STOP IN CODE (scripts/bakeoff/quick/run.mjs refuses
+# any call whose worst case would pass the cap, and the cap can only be lowered by the input below, never raised), and the owner approved exactly
+# that cap. Expected spend at list prices is roughly $11-13 for the default 30 inputs x 3 runs.
+#
+# THE LOG IS PUBLIC. The script prints engine names and numbers only: no prompt, no answer, no error text, no key; failures are counted by class.
+# There is no upload-artifact and no cache. `permissions: contents: read`.
+#
+# SECRETS (repository secrets, set by the OWNER himself; nobody else handles them):
+#   ANTHROPIC_API_KEY   the Anthropic key. Without it the Claude engines are skipped (and say so).
+#   GROK_API_KEY        the xAI key already used by the app. Without it Grok is skipped (and says so).
+# To run: Actions > Quick-read bake-off > Run workflow. Lower `cap_usd` to spend less.
+#
+# WHAT IT DOES NOT DO: judge the quality of a read (that needs a person reading answers blind, and answers do not go in a public log).
+
+name: Quick-read bake-off
+
+on:
+  workflow_dispatch:
+    inputs:
+      cap_usd:
+        description: 'Spend cap in USD. Can only LOWER the built-in $15 hard cap.'
+        required: false
+        default: '15'
+      runs:
+        description: 'Runs per input (1-5).'
+        required: false
+        default: '3'
+      inputs:
+        description: 'Number of quick-read inputs (1-60).'
+        required: false
+        default: '30'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quick-bakeoff
+  cancel-in-progress: false
+
+jobs:
+  bakeoff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # The prompt builder (lib/grok.ts) and the SDK need node_modules. No scripts run on install.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run the bake-off
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
+          BAKEOFF_CAP_USD: ${{ inputs.cap_usd }}
+          BAKEOFF_RUNS: ${{ inputs.runs }}
+          BAKEOFF_INPUTS: ${{ inputs.inputs }}
+        run: node --import ./qa/alias-register.mjs scripts/bakeoff/quick/run.mjs
