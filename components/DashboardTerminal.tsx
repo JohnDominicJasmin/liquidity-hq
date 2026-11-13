@@ -33,6 +33,7 @@ import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { coinRow } from '@/lib/coins';
 import type { LabelKey } from '@/lib/labelKeys';
 import PageHint from '@/components/PageHint';
 import PerpSpotCard from '@/components/PerpSpotCard';
@@ -230,7 +231,7 @@ function TCoinSidebar() {
                 {health.grade}
               </span>
               <span className="csb2-price">
-                {d?.price ? '$' + fmtPrice(d.price, dec) : '-'}
+                {d?.price ? '$' + fmtPrice(d.price, dec) : <QuoteGap coin={id} />}
               </span>
             </div>
 
@@ -364,7 +365,7 @@ function TEdgeSignals() {
 
   /* #1613: the trend text must come from the SAME hour as the % beside it, so it is derived from the 1h samples, not from the store's oiTrend (another window). */
   const { txt: oi1hTxt, col: oi1hCol } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
-  const oi1hPctStr = oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : '-';
+  const oi1hPctStr = oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : null;
 
   const sq    = computeSqueezeScore(d);
   // --txt2, not --txt-dim (#546 C9): --txt-dim isn't in terminal's 16-token
@@ -449,15 +450,26 @@ function TEdgeSignals() {
             <Tip text={t('DASH_EDGE_OI1H_TIP')}>{t('DASH_EDGE_OI1H_LABEL', { coin: coin.toUpperCase() })}</Tip>
           </div>
           <div className="edge-card-value" style={{ color: oi1hCol }}>
-            {oi1h.loading ? '-' : oi1hPctStr}
+            {oi1h.loading ? <span role="img" aria-label={t('ARENA_SCANNER_LOADING_TITLE')} title={t('ARENA_SCANNER_LOADING_TITLE')}>{'\u2026'}</span>
+              : oi1hPctStr ?? <span title={t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE')}>{t('ARENA_SCANNER_UNAVAILABLE')}</span>}
           </div>
           <div className="edge-card-signal" style={{ color: oi1hCol }}>
-            {oi1h.loading ? <SkeletonBar width={70} height={11} radius={4} /> : oi1hTxt}
+            {oi1h.loading ? <SkeletonBar width={70} height={11} radius={4} /> : oi1hPctStr == null ? null : oi1hTxt}
           </div>
         </div>
       </div>
     </>
   );
+}
+
+/* A COIN WITH NO QUOTE SAYS WHICH KIND OF NO (#1651, PM): the read that prices it is still in flight (an ellipsis), or it answered or failed (the plain words, with the cause on hover). Never a bare dash.
+   The same states as the scanner and the landing (#2245, #2246); the words are the scanner's own label keys. */
+function QuoteGap({ coin }: { coin: string }) {
+  const { store } = useMarket();
+  const { t } = useLabels();
+  const feed = coinRow(coin)?.bybit ? store.scannerFeed.universe : store.scannerFeed.binanceOnly;
+  if (feed === 'pending') return <span role="img" aria-label={t('ARENA_SCANNER_LOADING_TITLE')} title={t('ARENA_SCANNER_LOADING_TITLE')}>{'\u2026'}</span>;
+  return <span title={feed === 'failed' ? t('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE') : t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE')}>{t('ARENA_SCANNER_UNAVAILABLE_NARROW')}</span>;
 }
 
 function TCoinSignalsHeader() {
@@ -493,7 +505,7 @@ function TSelectedCoinCard() {
       <CoinIcon coin={id} size={30} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
       <div className="scc-id">
         <span className="scc-ticker">{id.toUpperCase()}</span>
-        <span className="scc-price">{d?.price ? '$' + fmtPrice(d.price, dec) : '-'}</span>
+        <span className="scc-price">{d?.price ? '$' + fmtPrice(d.price, dec) : <QuoteGap coin={id} />}</span>
       </div>
       <div className="scc-meta">
         <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}><span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}</span>
