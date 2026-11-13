@@ -141,12 +141,12 @@ export function useOI1h(coin: CoinId): OI1hData {
             { cache: 'no-store' }
           );
           if (r.ok) {
-            const d = await r.json() as { result?: { list?: Array<{ openInterest: string }> } };
+            const d = await r.json() as { result?: { list?: Array<{ openInterest: string; timestamp?: string }> } };
             const list = d.result?.list ?? [];
             result = { ...result, reason: 'short-window' };   // same reasoning as the Binance branch above
             if (list.length >= 2) {
-              const newest = parseFloat(list[0].openInterest);
-              const oldest = parseFloat(list[list.length - 1].openInterest);
+              /* THE BYBIT BRANCH GETS THE SAME SPAN CHECK AS BINANCE'S (#1696, #1651): its rows are newest-first, so they are turned oldest-first and read by the one shared helper, which returns null when the samples do not span the hour within one poll. Without it a gapped Bybit list (HYPE and the other Bybit-only coins) labelled whatever it held as '1h'. */
+              const change = oiHistChange(list.slice().reverse().map(x => ({ sumOpenInterest: x.openInterest, timestamp: x.timestamp })), { ms: 60 * 60_000, toleranceMs: 5 * 60_000 });
               /* NO USD NOTIONAL FROM BYBIT, so `oiUsd` is null rather than a contract count wearing
                  a dollar sign. This branch used to pass `newest` straight through - which is
                  `openInterest`, a quantity of contracts - into a field the card renders as USD, so
@@ -155,7 +155,7 @@ export function useOI1h(coin: CoinId): OI1hData {
                  was rejected, and absent beats a wrong number. Widening these maps spread the
                  inconsistency to every Bybit-only coin, so it is fixed rather than carried. */
 
-              result = { coin, oiUsd: null, pct: oldest > 0 ? (newest - oldest) / oldest * 100 : null, pricePct: null, reason: oldest > 0 ? 'ok' : 'short-window' };
+              result = { coin, oiUsd: null, pct: change?.oiPct ?? null, pricePct: null, reason: change?.oiPct == null ? 'short-window' : 'ok' };
             }
           }
         }
