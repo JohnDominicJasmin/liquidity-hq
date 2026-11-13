@@ -2787,6 +2787,14 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    width, which is what blew a track out in Russian. The terminal design already ran this route with `white-space: normal` ("labels are DB-driven"). Cards are flex columns, and the value block is pinned to the bottom
    (`margin-top: auto`) so a two-line title in one card does not leave its neighbour's value higher than its own in the same grid row. */
 .edge-card > .edge-card-value { margin-top: auto; }
+/* THE DASHBOARD'S CARD ROWS SHARE THEIR LINES (#1651, QA run 43475206913: values sat 15-30 px apart in one row). Pinning the value to the card bottom only levels it when the NOTE under it is the same height in every card; a
+   one-line note beside a two-line note (Russian) or an empty one (OI 1h with no note) moved the value. Each card now takes three rows of the GRID (label, value, note) as a subgrid, so the tallest label, value and note in a
+   row set the line for all of them: values align across the row, and an empty note still keeps its line. */
+.edge-grid.edge-grid-aligned { grid-auto-rows: auto; }  /* the phone rule gives auto rows 1fr, which would stretch all three lines of every card */
+.edge-grid-aligned > .edge-card { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 0; }
+.edge-grid-aligned > .edge-card > .edge-card-label  { grid-row: 1; }
+.edge-grid-aligned > .edge-card > .edge-card-value  { grid-row: 2; margin-top: 0; }
+.edge-grid-aligned > .edge-card > .edge-card-signal { grid-row: 3; }
 /* min-height, so a card whose value uses a smaller font is still the same
    height as its neighbours (#244).
    QA measured three .edge-card in the Arena rail: VWAP and Funding 77px, Open
