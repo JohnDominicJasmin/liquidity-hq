@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { trText } from '@/lib/marketReadText';
 import { getLocalNow, getCurrentWindow, isDead, getUpcomingWindows } from '@/lib/session';
 import { utcWindowToLocalRange, localZoneAbbr } from '@/lib/resetTime';
 import SessionCountdown from '@/components/SessionCountdown';
@@ -188,7 +189,7 @@ export default function BestHours() {
           {mounted && (win ? (
             <div className="window-pill" style={{ background: win.bg, color: win.color, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" /></svg>
-              {t('HOURS_WINDOW_ACTIVE_NOW', { name: win.name })}
+              {t('HOURS_WINDOW_ACTIVE_NOW', { name: trText(t, win.name) })}
             </div>
           ) : dead ? (
             <div className="window-pill wp-dead" style={{ display: 'inline-block' }}>{t('HOURS_DEAD_ZONE_MSG')}</div>
@@ -353,9 +354,9 @@ export default function BestHours() {
             <div>
               <div className="nw-name" style={{ color: win.color, display: 'flex', alignItems: 'center', gap: 5 }}>
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" /></svg>
-                {t('HOURS_WINDOW_ACTIVE_RIGHT_NOW', { name: win.name })}
+                {t('HOURS_WINDOW_ACTIVE_RIGHT_NOW', { name: trText(t, win.name) })}
               </div>
-              <div className="nw-time">{win.label}</div>
+              <div className="nw-time">{trText(t, win.label)}</div>
             </div>
             <div className="nw-countdown" style={{ color: win.color }}>{t('HOURS_GO_HUNT')}</div>
           </div>

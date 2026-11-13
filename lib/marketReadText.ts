@@ -1,10 +1,12 @@
 import type { LabelKey } from './labelKeys.ts';
+import { SESSION_KEYS } from './sessionText.ts';
 
 /* THE MARKET READ'S AND THE SESSION BADGE'S ENGLISH, TRANSLATED AT THE POINT OF DISPLAY (#1185, PM 2026-11-13: /ru dashboard still showed "Decent conditions - be selective", "High greed", "Friday",
  * "Long-heavy", "Leaning bear", "NY Session"). `lib/marketRead.ts` and `lib/session.ts` compute with English strings, and the AI-prompt builders read those same strings, so they are NOT changed; the
  * components that SHOW them pass each string through `trText`, which swaps an exactly-known English string for its label and leaves anything else untouched. Keys that already existed are reused
  * (days, funding sides, Bullish/Bearish, Fear & Greed); the rest are new MARKET_READ_TXT_* and SESSION_NAME_* keys, in the label table with the English as the default. */
 const KEYS: Record<string, LabelKey> = {
+  ...SESSION_KEYS,
   'Fear & Greed': 'BRIEFING_FNG_LABEL',
   'Funding': 'SETUP_SCANNER_STAT_FUNDING',
   'Neutral': 'FUNDING_NEUTRAL_LABEL',
