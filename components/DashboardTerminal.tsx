@@ -343,7 +343,7 @@ function TEdgeSignals() {
   /* THE VWAP, not the price - the same defect as CoinMarketSnapshot, and the same reasoning (#1263).
    * The sub-line that used to print the VWAP underneath is gone with it: the value IS the VWAP now,
    * so keeping it would say the same number twice. The relation to price stays below. */
-  const vwapStr = vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[coin]) : '-';
+  const vwapStr = vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[coin]) : null;
 
   const oiMeta = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
 
@@ -381,10 +381,10 @@ function TEdgeSignals() {
             <Tip text={t('DASH_EDGE_VWAP_TIP')}>{t('DASH_EDGE_VWAP_LABEL', { coin: coin.toUpperCase() })}</Tip>
           </div>
           <div className="edge-card-value" style={{ color: vwapCol }}>
-            {vwapStr}
+            {vwapStr ?? <ReadingGap loading={store.snapshotStatus === 'loading'} />}
           </div>
           <div className="edge-card-signal" style={{ color: vwapCol }}>
-            {vwapAbove === null ? t('STATE_UNAVAILABLE') : vwapAbove ? t('DASH_EDGE_VWAP_SIG_ABOVE') : t('DASH_EDGE_VWAP_SIG_BELOW')}
+            {vwapStr == null ? null : vwapAbove === null ? t('STATE_UNAVAILABLE') : vwapAbove ? t('DASH_EDGE_VWAP_SIG_ABOVE') : t('DASH_EDGE_VWAP_SIG_BELOW')}
           </div>
         </div>
 
@@ -409,10 +409,10 @@ function TEdgeSignals() {
             <Tip text={t(frInfo ? FUNDING_TIP_KEY[frInfo.band] : 'DASH_EDGE_FUNDING_TIP')}>{t('DASH_EDGE_FUNDING_LABEL', { coin: coin.toUpperCase() })}</Tip>
           </div>
           <div className="edge-card-value" style={{ color: frCol }}>
-            {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
+            {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : <ReadingGap loading={store.scannerFeed.universe === 'pending'} />}
           </div>
           <div className="edge-card-signal" style={{ color: frCol }}>
-            {frInfo ? frInfo.label : <SkeletonBar width={70} height={11} radius={4} />}
+            {frInfo ? frInfo.label : store.scannerFeed.universe === 'pending' ? <SkeletonBar width={70} height={11} radius={4} /> : null}
           </div>
         </div>
 
@@ -438,10 +438,10 @@ function TEdgeSignals() {
             <Tip text={t('DASH_EDGE_CB_TIP')}>{t('DASH_EDGE_CB_LABEL')}</Tip>
           </div>
           <div className="edge-card-value" style={{ color: cbCol }}>
-            {cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : '-'}
+            {cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : <ReadingGap loading={store.cbPremiumStatus === 'pending'} />}
           </div>
           <div className="edge-card-signal" style={{ color: cbCol }}>
-            {cbPct == null ? <SkeletonBar width={90} height={11} radius={4} /> : cbSig}
+            {cbPct == null ? (store.cbPremiumStatus === 'pending' ? <SkeletonBar width={90} height={11} radius={4} /> : null) : cbSig}
           </div>
         </div>
 
@@ -470,6 +470,13 @@ function QuoteGap({ coin }: { coin: string }) {
   const feed = coinRow(coin)?.bybit ? store.scannerFeed.universe : store.scannerFeed.binanceOnly;
   if (feed === 'pending') return <span role="img" aria-label={t('ARENA_SCANNER_LOADING_TITLE')} title={t('ARENA_SCANNER_LOADING_TITLE')}>{'\u2026'}</span>;
   return <span title={feed === 'failed' ? t('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE') : t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE')}>{t('ARENA_SCANNER_UNAVAILABLE_NARROW')}</span>;
+}
+
+/* A READING THAT IS NOT HERE SAYS WHICH KIND OF NOT (#1651, PM): still coming (an ellipsis) or not available (the plain word, cause on hover). Never a bare dash. For the VWAP, Funding and CB premium cards. */
+function ReadingGap({ loading }: { loading: boolean }) {
+  const { t } = useLabels();
+  if (loading) return <span role="img" aria-label={t('ARENA_SCANNER_LOADING_TITLE')} title={t('ARENA_SCANNER_LOADING_TITLE')}>{'\u2026'}</span>;
+  return <span title={t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE')}>{t('ARENA_SCANNER_UNAVAILABLE')}</span>;
 }
 
 function TCoinSignalsHeader() {
