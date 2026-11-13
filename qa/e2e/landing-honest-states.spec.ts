@@ -110,13 +110,17 @@ test.describe('#2246 sign-off shots', () => {
       const ctx = await browser.newContext({ viewport: { width, height: 900 } });
       await ctx.addInitScript((t) => { try { localStorage.setItem('theme', t); } catch { /* private */ } }, theme);
       await setup(ctx, { coinbase: true }); const page = await ctx.newPage();
-      try { await gotoGuarded(page, '/'); await page.waitForTimeout(16_000); await page.screenshot({ path: `qa/.shots/l-landing-${width}-${theme}.png` }); const sw = await page.evaluate(() => ({ s: document.documentElement.scrollWidth, w: window.innerWidth })); expect(sw.s, 'sideways scroll').toBeLessThanOrEqual(sw.w); } finally { await ctx.close(); }
+      try { await gotoGuarded(page, '/'); await page.waitForTimeout(16_000); await page.screenshot({ path: `qa/.shots/l-landing-${width}-${theme}.png`, fullPage: true }); const sw = await page.evaluate(() => ({ s: document.documentElement.scrollWidth, w: window.innerWidth })); expect(sw.s, 'sideways scroll').toBeLessThanOrEqual(sw.w); } finally { await ctx.close(); }
     });
   }
+  test('S. /ru at 1280px', async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await setup(ctx, { coinbase: true }); const page = await ctx.newPage();
+    try { await gotoGuarded(page, '/ru'); await page.waitForTimeout(16_000); await page.screenshot({ path: 'qa/.shots/l-landing-ru-1280.png', fullPage: true }); } finally { await ctx.close(); }
+  });
   for (const loc of ['ko', 'zh', 'ru']) {
     test(`S. /${loc} at 390px`, async ({ browser }) => {
       const ctx = await browser.newContext({ viewport: { width: 390, height: 900 } }); await setup(ctx, { coinbase: true }); const page = await ctx.newPage();
-      try { await gotoGuarded(page, '/' + loc); await page.waitForTimeout(16_000); await page.screenshot({ path: `qa/.shots/l-landing-${loc}-390.png` }); } finally { await ctx.close(); }
+      try { await gotoGuarded(page, '/' + loc); await page.waitForTimeout(16_000); await page.screenshot({ path: `qa/.shots/l-landing-${loc}-390.png`, fullPage: true }); } finally { await ctx.close(); }
     });
   }
 });

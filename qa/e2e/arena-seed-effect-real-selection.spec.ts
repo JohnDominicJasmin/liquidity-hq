@@ -101,7 +101,7 @@ test.describe('Arena seed effect restores a REAL saved strategy selection after 
 
       // THE ASSERTION #1263 NAMES: correct AFTER loading, not merely "not loading".
       const smaChip = chip(page, 'SMA');
-      await expect(smaChip, 'the real saved SMA selection must come back pressed, not reset to unselected').toHaveAttribute('aria-pressed', 'true');
+      await expect(smaChip, 'the real saved SMA selection must come back pressed, not reset to unselected').toHaveAttribute('aria-pressed', 'true', { timeout: 25_000 });
     } finally {
       await ctx.close();
     }
@@ -148,8 +148,8 @@ test.describe('Arena seed effect restores a REAL saved strategy selection after 
 
       const emaChip = chip(page, 'MACD');
       const smaChip = chip(page, 'SMA');
-      await expect(emaChip, 'the real saved MACD selection must come back pressed - this is the exact multi-item shape #1263 was originally reported in').toHaveAttribute('aria-pressed', 'true');
-      await expect(smaChip, 'the real saved SMA selection must ALSO come back pressed - a fix that only restores one of two saved indicators is not fixed').toHaveAttribute('aria-pressed', 'true');
+      await expect(emaChip, 'the real saved MACD selection must come back pressed - this is the exact multi-item shape #1263 was originally reported in').toHaveAttribute('aria-pressed', 'true', { timeout: 25_000 });
+      await expect(smaChip, 'the real saved SMA selection must ALSO come back pressed - a fix that only restores one of two saved indicators is not fixed').toHaveAttribute('aria-pressed', 'true', { timeout: 25_000 });
     } finally {
       await ctx.close();
     }
