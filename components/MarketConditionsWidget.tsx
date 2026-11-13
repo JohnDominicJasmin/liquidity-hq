@@ -4,6 +4,7 @@ import { useMarket, BINANCE_SYMS } from '@/lib/marketStore';
 import Sparkline from './Sparkline';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { fngWord } from '@/lib/shortWords';
 import { parseRatioPair } from '@/lib/ratioPair';
 
 /* ── Fear & Greed label → CSS class (existing .score-* tokens, previously
@@ -160,7 +161,7 @@ export default function MarketConditionsWidget() {
         <FngGauge value={fng} />
         <div>
           <div className={`fng-score ${fng != null && store.fngLabel ? fngScoreClass(store.fngLabel) : ''}`}>{fng ?? '-'}</div>
-          <div className="fng-label" style={{ color: fng != null ? `var(--txt)` : 'var(--txt3)', marginBottom: 6 }}>{store.fngLabel || '-'}</div>
+          <div className="fng-label" style={{ color: fng != null ? `var(--txt)` : 'var(--txt3)', marginBottom: 6 }}>{fngWord(t, store.fngLabel) || '-'}</div>
           {delta != null && delta !== 0 && (
             <span className={`fng-delta-pill ${delta > 0 ? 'fng-delta-up' : 'fng-delta-down'}`}>
               <span aria-hidden="true">{delta > 0 ? '▲' : '▼'}</span> {(delta > 0 ? '+' : '') + delta}

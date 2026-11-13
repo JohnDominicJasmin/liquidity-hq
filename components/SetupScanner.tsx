@@ -5,6 +5,7 @@ import { SkeletonBar } from './Skeleton';
 import { Warn } from '@/components/icons';
 import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
+import { setupWord } from '@/lib/shortWords';
 import { formatRsi } from '@/lib/rsi';
 
 type FilterDir = 'all' | 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL';
@@ -102,7 +103,7 @@ function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
       <div className="scan-card-top">
         <span className="scan-rank">#{rank}</span>
         <span className="scan-coin-name">{row.id.toUpperCase()}</span>
-        <span className="scan-dir-label" style={{ color: row.color }}>{row.label}</span>
+        <span className="scan-dir-label" style={{ color: row.color }}>{setupWord(t, row.label)}</span>
         <span className="scan-score-num" style={{ color: row.color }}>{row.score}</span>
       </div>
 

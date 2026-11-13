@@ -88,11 +88,11 @@ export default function MarketRead() {
              exactly as wrongly as a calculated one. */}
         <div dir="ltr" className="mr-track">
           <div suppressHydrationWarning className="mr-fill" style={{ width: (read.score ?? 0) + '%' }} />
-          <div className="mr-track-good-tick" style={{ left: '70%' }} title="Good ≥ 70" />
+          <div className="mr-track-good-tick" style={{ left: '70%' }} title={t('MARKET_READ_GOOD_TICK_TITLE')} />
         </div>
         <div className="mr-scale">
           <span>0</span>
-          <span className="mr-scale-good">≥ 70 good</span>
+          <span className="mr-scale-good">{t('MARKET_READ_SCALE_GOOD')}</span>
           <span>100</span>
         </div>
       </div>

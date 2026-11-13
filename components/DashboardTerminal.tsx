@@ -33,6 +33,7 @@ import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { fundingWord, setupWord, patternWord } from '@/lib/shortWords';
 import { coinRow } from '@/lib/coins';
 import type { LabelKey } from '@/lib/labelKeys';
 import PageHint from '@/components/PageHint';
@@ -164,7 +165,7 @@ function TCoinSidebar() {
         if (!sig && d?.chartPattern) {
           const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(d.chartPattern);
           const isBear = /bear|lower high|engulf.*bear|shooting|double top/i.test(d.chartPattern);
-          const label  = d.chartPattern.split(';')[0].split('(')[0].trim();
+          const label  = patternWord(t, d.chartPattern.split(';')[0].split('(')[0].trim());
           if (isBull)       sig = { text: label, col: 'var(--green)' };
           else if (isBear)  sig = { text: label, col: 'var(--red)' };
           else if (label)   sig = { text: label, col: 'var(--txt3)' };
@@ -417,7 +418,7 @@ function TEdgeSignals() {
             {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : <ReadingGap loading={store.scannerFeed.universe === 'pending'} />}
           </div>
           <div className="edge-card-signal" style={{ color: frCol }}>
-            {frInfo ? frInfo.label : store.scannerFeed.universe === 'pending' ? <SkeletonBar width={70} height={11} radius={4} /> : null}
+            {frInfo ? fundingWord(t, frInfo.band) : store.scannerFeed.universe === 'pending' ? <SkeletonBar width={70} height={11} radius={4} /> : null}
           </div>
         </div>
 
@@ -427,7 +428,7 @@ function TEdgeSignals() {
           </div>
           <div className="edge-card-value" style={{ color: sqCol }}>
             {sq.score}
-            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, marginLeft: 6 }}>{sq.label}</span>
+            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, marginLeft: 6 }}>{setupWord(t, sq.label)}</span>
           </div>
           <div className="edge-card-signal" style={{ color: sqCol }}>
             {sq.dir === 'SHORT_SQ' ? t('DASH_EDGE_SETUP_SHORT_SQ')
@@ -504,7 +505,7 @@ function TSelectedCoinCard() {
   const up  = chg != null && chg >= 0;
   const badgeCol = coinBadgeColor(id);
   const oi = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
-  const pattern = d?.chartPattern?.split(';')[0].split('(')[0].trim();
+  const pattern = patternWord(t, d?.chartPattern?.split(';')[0].split('(')[0].trim());
   const sigText = oi ? t(oi.txtKey) : (pattern || null);
   const sigCol  = oi?.col ?? 'var(--txt3)';
 
