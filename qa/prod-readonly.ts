@@ -106,6 +106,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
      GlobalMacroContext and DryPowder return early on `!user`. */
   { spec: 'category-chips-aria-pressed', needs: 'none', note: 'the eight chips inside the coin picker (#2244); anonymous, reads only' },
   { spec: 'arena-picker-chips', needs: 'none', note: 'the picker chips, search, keyboard and sign-off shots (#2244); anonymous; writes only its own browser localStorage' },
+  { spec: 'edge-card-shots', needs: 'none', note: 'sign-off shots of the edge cards on dashboard and arena (#2253); anonymous; reads only' },
   { spec: 'pages-width-sweep', needs: 'none', note: 'a one-off page-width sweep at 390 in ru and ko; anonymous; reads only' },
   { spec: 'arena-scanner-narrow', needs: 'none', note: 'scanner cells at 390 with Binance refused in five locales (#2253); anonymous; labels injected in the browser, nothing written' },
   { spec: 'arena-wide-elements', needs: 'none', note: 'a one-off dump of elements past the 390 viewport on arena, with shots; anonymous; reads only' },
