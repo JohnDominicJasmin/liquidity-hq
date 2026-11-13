@@ -230,8 +230,9 @@ export default function MarketsTerminal() {
         ) : pageRows.map(id => {
           const d      = store.coins[id];
           const dec    = COIN_DEC[id] ?? 2;
-          const chg    = d?.change ?? 0;
-          const up     = chg >= 0;
+          /* AN UNKNOWN CHANGE IS NOT ZERO (#1651): `?? 0` drew a coin with no quote as a real +0.00%. Null stays null and the cell stays empty. */
+          const chg    = d?.change ?? null;
+          const up     = chg != null && chg >= 0;
           const health = computeCoinHealth(d);
           const sig    = topSignal(d);
           /* #1494 class: null, not 50. This one also PRINTS the number - a coin with no taker data read
@@ -305,7 +306,7 @@ export default function MarketsTerminal() {
                 textAlign: 'right', fontSize: 'var(--fs-caption)', fontWeight: 700,
                 color: up ? 'var(--green-2)' : 'var(--red)',
               }}>
-                {up ? '+' : ''}{chg.toFixed(2)}%
+                {chg != null ? (up ? '+' : '') + chg.toFixed(2) + '%' : null}
               </div>
 
               {/* Pressure bar */}
