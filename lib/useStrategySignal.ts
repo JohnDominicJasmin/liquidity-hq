@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CoinId } from './marketStore.ts';
 import { fetchOHLCV, TF_BN, TF_BY } from './useEMAStrategy.ts';
 import { TF_MS, dropForming, msUntilNextClose } from './candles.ts';
-import { findStrategy, type StrategyResult } from './strategies';
+import { findStrategy, type StrategyResult } from './strategies/index.ts';
 
 export interface StrategySignalState {
   result: StrategyResult | null;

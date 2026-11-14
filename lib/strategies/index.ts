@@ -1,8 +1,8 @@
-import { LIQUIDITY_SWEEP_MSS } from './liquiditySweepMss';
-import { NY_OPEN_BREAKOUT } from './nyOpenBreakout';
-import type { StrategyDef } from './types';
+import { LIQUIDITY_SWEEP_MSS } from './liquiditySweepMss.ts';
+import { NY_OPEN_BREAKOUT } from './nyOpenBreakout.ts';
+import type { StrategyDef } from './types.ts';
 
-export type { StrategyDef, StrategyContext, StrategyResult, Verdict } from './types';
+export type { StrategyDef, StrategyContext, StrategyResult, Verdict } from './types.ts';
 
 /* THE ARENA'S STRATEGIES, in the order the panel lists them. Add one here and it is selectable, shown, pinged on and logged, nowhere else. */
 export const STRATEGIES: readonly StrategyDef[] = [LIQUIDITY_SWEEP_MSS, NY_OPEN_BREAKOUT];
