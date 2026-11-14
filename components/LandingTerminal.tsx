@@ -60,18 +60,18 @@ function useIsDesktop() {
 }
 
 /* The hero is the one section with a fixed-width child - the 472px LIVE READ panel, flexShrink:0 -
- * so between 768 and 1024 its two columns don't fit: the panel clips at the right edge (STOP/TARGET,
+ * so between 768 and 1100 its two columns don't fit: the panel clips at the right edge (STOP/TARGET,
  * the clock, the Setup/OI notes all hidden) and the CTAs wrap (#1185). It therefore stacks one
- * breakpoint later than the rest of the page - below 1024 it renders the same single-column tree 390
+ * breakpoint later than the rest of the page - below 1100 it renders the same single-column tree 390
  * already does, each CTA full-width on one line. Same useSyncExternalStore-over-matchMedia contract
  * as useIsDesktop (landing.md's Layout section), so it stays one tree read synchronously on the
  * client; the SSR snapshot is shared (assume wide, corrected before paint). */
 function subscribeHeroWide(cb: () => void) {
-  const mql = window.matchMedia('(min-width: 1024px)');
+  const mql = window.matchMedia('(min-width: 1100px)');
   mql.addEventListener('change', cb);
   return () => mql.removeEventListener('change', cb);
 }
-function getHeroWideSnapshot() { return window.matchMedia('(min-width: 1024px)').matches; }
+function getHeroWideSnapshot() { return window.matchMedia('(min-width: 1100px)').matches; }
 function useHeroWide() {
   return useSyncExternalStore(subscribeHeroWide, getHeroWideSnapshot, getServerViewportSnapshot);
 }
