@@ -207,7 +207,7 @@ export const BASELINE = {
    * reason - a local run measured 113, twice, against CI's 112. Set to the
    * higher number so `toBeLessThanOrEqual` is green in both, same rule:
    * this +1 is not explained either, and is not licence to widen further. */
-  tapTargetsUnder24: 113,
+  tapTargetsUnder24: 92,
   /**
    * SC 2.5.8 failures per axe-core's own `target-size` rule, which models BOTH
    * exceptions (spacing and inline) rather than re-deriving them by hand.
