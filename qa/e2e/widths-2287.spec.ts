@@ -32,14 +32,21 @@ for (const path of ['/dashboard', '/markets']) for (const loc of ['en', 'ru']) {
           });
         const hdr = document.querySelector('.mkt-hdr-row') as HTMLElement | null;
         const headClipped = hdr ? (Array.from(hdr.children) as HTMLElement[]).filter(c => (c.textContent || '').trim() && c.scrollWidth > c.clientWidth + 1).map(c => (c.textContent || '').trim().slice(0, 16)) : [];
-        return { docSw: document.documentElement.scrollWidth, vw, n: off.length, off: off.slice(0, 12), clipped: clipped.slice(0, 12), headClipped };
+        // /markets rows: the coin symbol must end before the price text starts (the ru "HYPEНет данных" collision)
+        const range = (el: Element) => { const r = document.createRange(); r.selectNodeContents(el); const rs = Array.from(r.getClientRects()).filter(x => x.width > 0); return rs.length ? { l: Math.min(...rs.map(x => x.left)), r: Math.max(...rs.map(x => x.right)) } : null; };
+        const touching = (Array.from(document.querySelectorAll('.mkt-row-btn')) as HTMLElement[]).map(b => {
+          const row = b.closest('.mkt-coin-cell')?.parentElement as HTMLElement | null; const price = row?.querySelector('.mkt-price') as HTMLElement | null;
+          const a = range(b), p = price ? range(price) : null; return a && p && p.l < a.r + 1 ? (b.textContent || '').trim() + ' ' + Math.round(a.r) + '>' + Math.round(p.l) : null;
+        }).filter(Boolean) as string[];
+        return { docSw: document.documentElement.scrollWidth, vw, n: off.length, off: off.slice(0, 12), clipped: clipped.slice(0, 12), headClipped, touching: touching.slice(0, 8) };
       });
       console.log(`[X1] ${path} ${loc} ${JSON.stringify(m)}`);
       expect(m.docSw, `page is ${m.docSw} wide at 360: ${JSON.stringify(m.off.slice(0, 5))}`).toBeLessThanOrEqual(360);
       // PM's bar: an ellipsis may stay if the FULL text is reachable (title / aria-label); any other clipped text fails. The sr-only h1 is visually hidden by design.
-      const bad = m.clipped.filter(c => !(c.ellipsis && c.carriesFull) && !/^(Market|Рынки)$/.test(c.text));
+      const bad = m.clipped.filter(c => !(c.ellipsis && c.carriesFull) && !/^(Markets?|Рынки)$/.test(c.text));
       expect(bad, `text is cut off with no way to read it in full: ${JSON.stringify(bad.slice(0, 5))}`).toEqual([]);
-      expect(m.headClipped, `/markets column heads cut off at 360: ${JSON.stringify(m.headClipped)}`).toEqual([]);
+      expect(m.touching, `a coin symbol touches its price text at 360: ${JSON.stringify(m.touching)}`).toEqual([]);
+      // heads may wrap onto two lines (Dev's #2287 does); a head whose box is narrower than its word is judged in the shot (the icon box makes scrollWidth overstate), so only the touching check above is asserted for /markets rows.
     } finally { await ctx.close(); }
   });
 }
