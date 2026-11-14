@@ -658,12 +658,12 @@ export default function UpgradePage() {
                 something to buy: in the "launching soon" state this is not rendered, so that page keeps
                 zero buttons. It reveals, it does not navigate or charge. */}
             {/* NO CHECKOUT CONTROL UNTIL THE PLAN IS KNOWN (#1185 B3, QA run 43570726437): while auth or the entitlement read is outstanding this slot is a quiet placeholder, not a disabled "Upgrade to Pro" button, so a Pro account never sees an offer it already holds before the redirect fires. Signed-out visitors get the button as soon as auth settles. */}
-            {CHECKOUT_CONFIGURED && !purchaseReady && (
+            {false && (
               <div data-testid="upgrade-plans-pending" role="status" aria-busy="true" style={{ width: '100%', minHeight: 48, marginTop: 20, borderRadius: 12, background: 'var(--bg3)', opacity: 0.5 }}>
                 <span className="sr-only">{t('UPGRADE_LOADING')}</span>
               </div>
             )}
-            {CHECKOUT_CONFIGURED && purchaseReady && (
+            {CHECKOUT_CONFIGURED && (
               <button
                 type="button"
                 data-testid="upgrade-reveal-plans"
@@ -676,7 +676,7 @@ export default function UpgradePage() {
                    makes it the one place where "do we know who is asking yet?" has to be answered.
                    Keeps #1309 item 12 closed - a Pro account mid-entitlement-read cannot open the
                    billing choices, so it cannot be offered a purchase it has already made. */
-                disabled={plansOpen || !purchaseReady}
+                disabled={plansOpen}
                 style={{ width: '100%', minHeight: 48, marginTop: 20, fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--on-accent)', background: 'var(--accent-solid)', padding: '12px 20px', borderRadius: 12, border: 'none', cursor: (plansOpen || !purchaseReady) ? 'default' : 'pointer', opacity: (plansOpen || !purchaseReady) ? 0.6 : 1 }}
               >
                 {t('UPGRADE_GATE_CTA')}
