@@ -9,6 +9,7 @@ import { computeRSI14 } from '@/lib/rsi';
 import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
 import { getAuthToken } from '@/lib/supabase';
+import { sendTelegramAlert } from '@/lib/sendTelegramAlert';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { liveOiTrend, bootstrapReadings, trendBetween, type OiReading } from '@/lib/oiTrendWindow';
 import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exchangeFailover';
@@ -54,13 +55,7 @@ function sendCVDAlert(
   const priceStr = price > 0
     ? `$${price.toLocaleString(undefined, { maximumFractionDigits: 4 })}`
     : '';
-  fetch('/api/telegram/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: `${emoji} <b>CVD Divergence - ${coin.toUpperCase()}</b>\n<b>${dir}</b>\n${hint}\n\n📊 ${coin.toUpperCase()} ${priceStr}\nliquidity-hq.com`,
-    }),
-  }).catch(() => {});
+  void sendTelegramAlert(`${emoji} <b>CVD Divergence - ${coin.toUpperCase()}</b>\n<b>${dir}</b>\n${hint}\n\n📊 ${coin.toUpperCase()} ${priceStr}\nliquidity-hq.com`);
 }
 
 /* ── Liquidation Cascade ── */
@@ -89,13 +84,7 @@ function sendCascadeAlert(
   const usdStr = totalUsd >= 1e6
     ? `$${(totalUsd / 1e6).toFixed(1)}M`
     : `$${(totalUsd / 1e3).toFixed(0)}K`;
-  fetch('/api/telegram/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: `${emoji} <b>Liquidation Cascade - ${coin}</b>\n${usdStr} ${who} wiped in 60s\n\n${hint}\nliquidity-hq.com`,
-    }),
-  }).catch(() => {});
+  void sendTelegramAlert(`${emoji} <b>Liquidation Cascade - ${coin}</b>\n${usdStr} ${who} wiped in 60s\n\n${hint}\nliquidity-hq.com`);
 }
 
 const _WS_STREAMS = Object.values(BINANCE_SYMS)

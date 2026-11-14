@@ -13,6 +13,7 @@ import { detectPatternsStr, Candle } from '@/lib/patterns';
 import { getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
 import { getAuthToken } from '@/lib/supabase';
+import { sendTelegramAlert } from '@/lib/sendTelegramAlert';
 import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
@@ -1798,11 +1799,7 @@ function ArenaContent() {
             lines.push(`Session: ${ctx.session}`);
             lines.push('');
             lines.push('<i>LiquidityHQ Arena</i>');
-            fetch('/api/telegram/send', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message: lines.join('\n') }),
-            }).catch(() => { /* silent - alert failure must not block UI */ });
+            void sendTelegramAlert(lines.join('\n')); // signed-in Pro only, to the user's own chat; silent on failure so the UI is never blocked
           }
         } catch { /* localStorage unavailable - skip silently */ }
       }
