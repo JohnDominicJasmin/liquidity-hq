@@ -131,7 +131,9 @@ export async function GET(req: NextRequest) {
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  const btcPrice = parseFloat(req.nextUrl.searchParams.get('price') ?? '0') || 0;
+  /* A price in a sane range or nothing (#1413): it goes into the AI prompt and the result is cached for every visitor under one key, so an absurd value must not get in. */
+  const priceIn = parseFloat(req.nextUrl.searchParams.get('price') ?? '0');
+  const btcPrice = Number.isFinite(priceIn) && priceIn > 0 && priceIn < 10_000_000 ? priceIn : 0;
 
   try {
     const result = await cached('onchain', CACHE_TTL, async () => {
