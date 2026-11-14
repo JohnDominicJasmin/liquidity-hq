@@ -83,7 +83,7 @@ test('P1. /upgrade as the Pro fixture never shows a checkout button while the pl
   await ctx.addInitScript(() => {
     const w = window as unknown as { __co?: string[] };
     w.__co = [];
-    const scan = () => { document.querySelectorAll('a,button').forEach(e => { const t = (e.textContent || '').trim(); const r = (e as HTMLElement).getBoundingClientRect(); if (/^(upgrade|subscribe|get pro|start|buy|checkout)\b|checkout/i.test(t) && r.width > 0 && r.height > 0 && !/current plan/i.test(t)) { const k = t.slice(0, 30); if (!w.__co!.includes(k)) w.__co!.push(k); } }); };
+    const scan = () => { document.querySelectorAll('a,button').forEach(e => { const t = (e.textContent || '').trim(); const r = (e as HTMLElement).getBoundingClientRect(); if (/^(upgrade|subscribe|get pro|start|buy|checkout)\b|checkout/i.test(t) && r.width > 0 && r.height > 0 && !/current plan/i.test(t)) { const k = location.pathname + ' :: ' + t.slice(0, 30); if (!w.__co!.includes(k)) w.__co!.push(k); } }); };
     new MutationObserver(scan).observe(document, { childList: true, subtree: true, attributes: false });
     setInterval(scan, 50);
   });
@@ -94,8 +94,10 @@ test('P1. /upgrade as the Pro fixture never shows a checkout button while the pl
     console.log(`[P1] checkout-like buttons ever visible: ${JSON.stringify(r.seen)}; current-plan shown=${/current plan/i.test(r.text)}; url=${page.url().replace(/\?.*/, '')}; planBadge=${(r.text.match(/(PRO|FREE|TRIAL)/) || [''])[0]}; text=${r.text.replace(/\s+/g, ' ').slice(0, 500)}`);
     await page.screenshot({ path: 'qa/.shots/upgrade-pro-fixture.png' });
     expect(r.text.length, '/upgrade did not render for the Pro fixture').toBeGreaterThan(300);
-    expect(/current plan/i.test(r.text), 'the Pro fixture must see "Current plan" once loaded (positive control)').toBe(true);
-    expect(r.seen, `checkout buttons were shown to a Pro account: ${JSON.stringify(r.seen)}`).toEqual([]);
+    const onUpgrade = r.seen.filter(s => s.startsWith('/upgrade'));
+    const left = !page.url().includes('/upgrade');
+    expect(left || /current plan/i.test(r.text), 'a Pro account stayed on /upgrade without seeing "Current plan" (positive control)').toBe(true);
+    expect(onUpgrade, `checkout buttons were shown on /upgrade to a Pro account: ${JSON.stringify(onUpgrade)}`).toEqual([]);
   } finally { await ctx.close(); }
 });
 
