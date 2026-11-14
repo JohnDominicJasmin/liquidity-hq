@@ -36,11 +36,17 @@ async function open(browser: Browser, o: { width?: number; theme?: 'dark' | 'lig
   const page = await ctx.newPage(); await page.setViewportSize({ width: o.width ?? 1280, height: 900 });
   await installPaidAiFence(page);
   const state = { saved: o.saved === undefined ? null : o.saved, writes: [] as unknown[] };
+  /* the settings WRITE goes through /api/settings (recorded here and kept as state); the READ is a browser Supabase call to the user_settings table, so the saved answer is played back by patching that response */
   await page.route(/\/api\/settings(\?|$)/, async route => {
-    const req = route.request();
-    if (req.method() === 'GET') { const res = await route.fetch(); const body = await res.json().catch(() => ({})); return route.fulfill({ response: res, json: { ...(body as Record<string, unknown>), arena_sound: state.saved } }); }
+    const req = route.request(); if (req.method() === 'GET') return route.fallback();
     const b = req.postDataJSON() as { arena_sound?: boolean }; state.writes.push(b); if (typeof b?.arena_sound === 'boolean') state.saved = b.arena_sound;
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+  await page.route(/\/rest\/v1\/lhq_(dev_)?user_settings\?/, async route => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const res = await route.fetch(); const body = await res.json().catch(() => null); if (body == null) return route.fulfill({ response: res });
+    const patch = (r: Record<string, unknown>) => ({ ...r, arena_sound: state.saved });
+    return route.fulfill({ response: res, json: Array.isArray(body) ? body.map(patch) : patch(body as Record<string, unknown>) });
   });
   return { ctx, page, state };
 }

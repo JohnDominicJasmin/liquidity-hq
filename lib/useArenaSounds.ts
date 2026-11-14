@@ -1,8 +1,8 @@
 'use client';
 import { useCallback, useEffect, useRef } from 'react';
-import { intervalToMs } from './candles';
-import { audioReady, playPing, unlockAudio } from './arenaSound';
-import { pingForSignalChange, readMove, signalIdentity, type Bar } from './arenaSoundTriggers';
+import { intervalToMs } from './candles.ts';
+import { audioReady, playPing, unlockAudio } from './arenaSound.ts';
+import { pingForSignalChange, readMove, signalIdentity, type Bar } from './arenaSoundTriggers.ts';
 
 /* THE ARENA'S SOUND ALERTS (owner-requested, 2026-11-14). Wires lib/arenaSoundTriggers.ts (the rules) to lib/arenaSound.ts (the tones).
  *

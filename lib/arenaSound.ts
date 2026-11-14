@@ -1,4 +1,4 @@
-import type { PingKind } from './arenaSoundTriggers';
+import type { PingKind } from './arenaSoundTriggers.ts';
 
 /* THE ARENA'S PINGS, GENERATED, NOT DOWNLOADED. Three short tones from the Web Audio API: no files, no external URLs, nothing to load.
  *   buy  - two rising notes (660 then 880 Hz)       sell - two falling notes (660 then 440 Hz)       move - one soft low note (520 Hz, quieter)
