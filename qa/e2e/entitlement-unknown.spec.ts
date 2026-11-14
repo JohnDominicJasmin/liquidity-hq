@@ -101,6 +101,13 @@ test.describe('#1119 entitlement retry-exhaustion (#1184 hook)', () => {
       // fixed here, not there.
       await page.locator(UNKNOWN_CARD).first().getByRole('button', { name: 'Try again' }).click();
 
+      // PROBE (QA, 2026-11-14): print what the page holds at 3, 8 and 20 s after the click, to tell a stale locator from an app that does not recover.
+      for (const wait of [3000, 5000, 12000]) {
+        await page.waitForTimeout(wait);
+        const st = await page.evaluate(() => ({ unknown: document.querySelectorAll('[data-testid="entitlement-unknown"]').length, locked: document.querySelectorAll('[data-testid="locked-feature"]').length, sms: document.querySelectorAll('.sms-card').length, smsText: Array.from(document.querySelectorAll('.sms-card')).map(e => (e.textContent || '').replace(/\s+/g, ' ').slice(0, 60)), planBadge: (document.body.innerText.match(/\b(PRO|FREE|TRIAL)\b/) || [''])[0], url: location.pathname }));
+        console.log(`[ENT] after ${wait} ms: ${JSON.stringify(st)}`);
+      }
+      await page.screenshot({ path: 'qa/.shots/ent-after-retry.png' });
       await expect(page.locator(REAL_CONTENT),
         'Retry must recover to the real Pro state once the backend answers again').toBeVisible({ timeout: 15_000 });
       /* NO .first() HERE, DELIBERATELY. This asserts the card is GONE, so it has to count every
