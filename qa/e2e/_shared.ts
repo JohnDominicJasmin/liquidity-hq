@@ -206,8 +206,11 @@ export const BASELINE = {
    * documents for the 84->85 case above, on the same metric, for the same
    * reason - a local run measured 113, twice, against CI's 112. Set to the
    * higher number so `toBeLessThanOrEqual` is green in both, same rule:
-   * this +1 is not explained either, and is not licence to widen further. */
-  tapTargetsUnder24: 92,
+   * this +1 is not explained either, and is not licence to widen further.
+   *
+   * 92 -> 8 (QA, 2026-11-14): measured 8 on the live qa build AND on a local CI build of the same tree (runs 43570644015 and 43572464978), after #2254/#2287/#2286:
+   * /markets 4 (button.mkt-row-btn), /about 1, /disclaimer 1, /refund 1 (a.support-mail-link x2 and one bare <a>), /dashboard 1 (button.csb2-name-btn). #2309 fixes those; lower again then. */
+  tapTargetsUnder24: 8,
   /**
    * SC 2.5.8 failures per axe-core's own `target-size` rule, which models BOTH
    * exceptions (spacing and inline) rather than re-deriving them by hand.
