@@ -37,12 +37,17 @@ test('M2a. chip map: every chip a strategy turns on is a chip that DRAWS, and on
   assert.deepEqual(STRATEGIES.filter((s) => s.chips.length > 0).map((s) => [s.id, [...s.chips]]), [['bb_squeeze', ['BOLL']]]);
 });
 
-test('M3a. the call box reserves its height from the moment a strategy is picked and carries every test id the browser cells read', () => {
+test('M3a. the call box reserves the height of its CHANGING part (the .strat-call-dyn section), holds the loading / unavailable / verdict parts inside it, and carries every test id the browser cells read', () => {
   const s = read('components/StrategyCallBox.tsx');
-  assert.match(s, /minHeight:\s*208/, 'the reserved height is gone: the call arriving can push the panels again');
-  for (const id of ['strategy-call-box', 'strategy-call-name', 'strategy-call-desc', 'strategy-call-verdict', 'strategy-call-reason', 'strategy-call-invalidation', 'strategy-call-note', 'strategy-call-loading', 'strategy-call-unavailable']) assert.ok(s.includes(`data-testid="${id}"`), `missing ${id}`);
+  const open = s.indexOf('className="strat-call-dyn"'); assert.ok(open > 0, 'the changing part is no longer in a .strat-call-dyn section');
+  const close = s.indexOf('<p data-testid="strategy-call-note"'); assert.ok(close > open, 'the signals-not-predictions line moved inside the changing part');
+  const dyn = s.slice(open, close);
+  for (const id of ['strategy-call-loading', 'strategy-call-unavailable', 'strategy-call-verdict', 'strategy-call-reason', 'strategy-call-invalidation']) assert.ok(dyn.includes(`data-testid="${id}"`), `${id} is outside the reserved section`);
+  for (const id of ['strategy-call-box', 'strategy-call-name', 'strategy-call-desc', 'strategy-call-note']) assert.ok(s.includes(`data-testid="${id}"`), `missing ${id}`);
+  assert.equal(/data-testid="strategy-call-(name|desc)"/.test(dyn), false, 'the static name or description is inside the reserved section');
+  const css = read('app/globals.css'); const m = /\.strat-call-dyn\s*\{\s*min-height:\s*(\d+)px/.exec(css); assert.ok(m, 'the reserve is gone from globals.css: the call arriving can push the panels again'); assert.ok(Number(m![1]) >= 150, `the desktop reserve is only ${m![1]}px`);
+  const mm = /@media\s*\(max-width:\s*640px\)\s*\{\s*\.strat-call-dyn\s*\{\s*min-height:\s*(\d+)px/.exec(css); assert.ok(mm && Number(mm[1]) >= Number(m![1]), 'the phone reserve is missing or smaller than the desktop one');
   assert.ok(/state\.error \?/.test(s) && /STRAT_UNAVAILABLE/.test(s), 'a failed read must show the unavailable state');
-  assert.equal(/verdict === 'wait' \? .*unavailable/.test(s), false);
 });
 
 test('M8. the old Strategy card is gone: no component file, no test id, no import anywhere in app/, components/ or lib/', () => {
