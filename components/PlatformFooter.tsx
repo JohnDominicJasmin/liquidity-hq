@@ -6,8 +6,11 @@ import { useTheme } from '@/lib/theme';
 import { useAuth } from '@/components/AuthProvider';
 import BrandMark from '@/components/BrandMark';
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from '@/lib/supportContact';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
-const DISCLOSURES = [
+/* The AI Analysis entry reads the legal key (labelKey) instead of carrying its own copy of the processor sentence (#1185, PM): one source, so the wording cannot drift from the disclaimer page. */
+const DISCLOSURES: { label: string; text: string; labelKey?: LabelKey }[] = [
   {
     label: 'Educational Use',
     text: 'All content - signals, scores, alerts, and AI commentary - is for informational purposes only. Nothing constitutes a recommendation to buy, sell, or hold any asset.',
@@ -22,7 +25,8 @@ const DISCLOSURES = [
   },
   {
     label: 'AI Analysis',
-    text: 'LiquidityAI is powered by xAI Grok. AI output can be incomplete, outdated, or wrong - never use it as your sole basis for a trade. Always verify against the raw data shown.',
+    text: '',
+    labelKey: 'DISCLAIMER_SECTION_AI_ANALYSIS_BODY',
   },
   {
     label: 'Data Sources',
@@ -42,6 +46,7 @@ export default function PlatformFooter() {
   // .pf-footer), so its mark must track the real theme rather than a fixed
   // tone - the one surface in this rollout where that's actually true.
   const { theme } = useTheme();
+  const { t } = useLabels();
   const { loading: authLoading } = useAuth();
   if (pathname === '/' || pathname === '/login') return null;
 
@@ -139,7 +144,7 @@ export default function PlatformFooter() {
           {DISCLOSURES.map(item => (
             <div key={item.label} className="pf-footer-item">
               <div className="pf-footer-item-label">{item.label}</div>
-              <p className="pf-footer-item-text">{item.text}</p>
+              <p className="pf-footer-item-text">{item.labelKey ? t(item.labelKey) : item.text}</p>
             </div>
           ))}
         </div>

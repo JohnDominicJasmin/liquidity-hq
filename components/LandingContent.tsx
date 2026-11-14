@@ -9,6 +9,7 @@ interface Props {
   dict: LandingDict;
   locale: Locale;
   dir: 'ltr' | 'rtl';
+  aiAnalysisBody: string;
 }
 
 /* Terminal is the only design now (#1111, Pattern A - the last of the 8).
@@ -36,7 +37,7 @@ interface Props {
  * child's on unmount, so the final restored state is still correct). Not
  * worth de-duplicating as part of this PR - pre-existing, not introduced by
  * this collapse. */
-export default function LandingContent({ dict, locale, dir }: Props) {
+export default function LandingContent({ dict, locale, dir, aiAnalysisBody }: Props) {
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -93,5 +94,5 @@ export default function LandingContent({ dict, locale, dir }: Props) {
     );
   }
 
-  return <LandingTerminal dict={dict} locale={locale} dir={dir} />;
+  return <LandingTerminal dict={dict} locale={locale} dir={dir} aiAnalysisBody={aiAnalysisBody} />;
 }
