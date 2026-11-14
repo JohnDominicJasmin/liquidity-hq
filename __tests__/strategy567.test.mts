@@ -128,3 +128,23 @@ test('7-d. NO REPEAT: fresh for FRESH_BARS candles with one identity, then stale
   const at0 = detectRsiDivergenceTrigger(path.slice(0, 63), ctxFor(H1)); const at1 = detectRsiDivergenceTrigger(path, ctxFor(H1)); const at2 = detectRsiDivergenceTrigger(bullishPath([97]), ctxFor(H1));
   assert.equal(at0.verdict, 'buy'); assert.equal(at1.verdict, 'buy'); assert.equal(at1.signalTimestamp, at0.signalTimestamp, 'one identity: the page pings once'); assert.equal(at2.verdict, 'wait', 'two candles on is stale');
 });
+
+/* ---- 7 (bearish side): the mirror image of the bullish fixture: a steep rise to a first HIGH, a slow drift to a HIGHER high with a lower RSI, then a close back below the swing candle's low ---- */
+const bearishPath = (): C[] => bullishPath().map((c, i) => dbar(i, 200 - c.close));
+
+test('7-e. SELL: price makes a higher high while RSI makes a lower high, and a later candle closes back below the swing candle\'s low', () => {
+  const cs = bearishPath(); const r = detectRsiDivergenceTrigger(cs, ctxFor(H1));
+  assert.equal(r.verdict, 'sell', `got ${r.verdict} for ${cs.length} candles`); assert.equal(r.signalDir, 'short');
+  assert.equal(typeof r.params.swing, 'number'); assert.equal(r.params.inv, r.params.swing, 'invalidation = the swing high');
+  assert.ok((r.params.trigger as number) < (r.params.swing as number), 'the trigger level is the swing candle low, under the swing high');
+});
+test('7-f. bearish controls: no trigger candle, a swing older than MAX_AGE, a NEW HIGH above the swing after it is confirmed, and one identity for 2 candles then stale', () => {
+  const full = bearishPath();
+  const noTrigger = full.slice(0, 60).concat([113.4, 113.4, 113.4, 113.4].map((c, k) => dbar(60 + k, c)));       // never closes under the swing candle low (113.3)
+  assert.equal(detectRsiDivergenceTrigger(noTrigger, ctxFor(H1)).verdict, 'wait', 'a bearish divergence with no trigger is not a signal');
+  assert.equal(detectRsiDivergenceTrigger(full.slice(0, 63).concat([dbar(63, 115)]), ctxFor(H1)).verdict, 'wait', 'a new high above the swing kills it');
+  assert.equal(detectRsiDivergenceTrigger(full.slice(0, 63).concat([dbar(63, 105)]), ctxFor(H1)).verdict, 'sell', 'CONTROL: a normal candle there keeps it');
+  const at0 = detectRsiDivergenceTrigger(full.slice(0, 63), ctxFor(H1)); const at1 = detectRsiDivergenceTrigger(full, ctxFor(H1)); const at2 = detectRsiDivergenceTrigger(bearishPath().concat([dbar(64, 103)]), ctxFor(H1));
+  assert.equal(at0.verdict, 'sell'); assert.equal(at1.verdict, 'sell'); assert.equal(at1.signalTimestamp, at0.signalTimestamp); assert.equal(at2.verdict, 'wait');
+  assert.equal(detectRsiDivergenceTrigger(Array.from({ length: 80 }, (_, i) => dbar(i, 100)), ctxFor(H1)).verdict, 'wait', 'flat');
+});
