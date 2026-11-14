@@ -41,9 +41,24 @@ export default function StrategyCallBox({ def, state }: Props) {
     <div data-testid="strategy-call-box" data-strategy={def.id} aria-live="polite" style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div className="strat-call-dyn" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {state.error ? (
-        <div data-testid="strategy-call-unavailable" style={{ color: 'var(--amber)', fontSize: 'var(--fs-caption)' }}>{t('STRAT_UNAVAILABLE')}</div>
+        <>
+          <div data-testid="strategy-call-unavailable" style={{ color: 'var(--amber)', fontSize: 'var(--fs-label)', fontWeight: 600 }}>{t('STRAT_UNAVAILABLE')}</div>
+          <p data-testid="strategy-call-unavailable-detail" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('STRAT_UNAVAILABLE_DETAIL')}</p>
+          {state.retry && (
+            <button type="button" data-testid="strategy-call-retry" onClick={state.retry} style={{ alignSelf: 'flex-start', minHeight: 32, padding: '0 14px', border: '0.5px solid var(--bdr)', borderRadius: 8, background: 'transparent', color: 'var(--txt)', fontSize: 'var(--fs-caption)', fontWeight: 600, cursor: 'pointer' }}>{t('SETTINGS_SAVE_RETRY_BUTTON')}</button>
+          )}
+        </>
       ) : !r ? (
-        <div data-testid="strategy-call-loading" style={{ color: 'var(--txt2)', fontSize: 'var(--fs-caption)' }}>{t('STRAT_LOADING')}</div>
+        <>
+          {/* Static placeholder bars in the shape of a call (no shimmer): they fill the reserved height while the read loads. */}
+          <div aria-hidden="true" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ width: 46, height: 12, borderRadius: 3, background: 'var(--bg3)' }} />
+            <div style={{ width: '100%', height: 11, borderRadius: 3, background: 'var(--bg3)' }} />
+            <div style={{ width: '92%', height: 11, borderRadius: 3, background: 'var(--bg3)' }} />
+            <div style={{ width: '74%', height: 11, borderRadius: 3, background: 'var(--bg3)' }} />
+          </div>
+          <div data-testid="strategy-call-loading" style={{ color: 'var(--txt2)', fontSize: 'var(--fs-caption)' }}>{t('STRAT_LOADING')}</div>
+        </>
       ) : (
         <>
           <div data-testid="strategy-call-verdict" data-verdict={r.verdict} style={{ fontSize: 'var(--fs-label)', fontWeight: 700, letterSpacing: '0.04em', color: colour }}>
