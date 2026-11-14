@@ -693,6 +693,10 @@ will be the one who makes the decision... Stop moving the goalposts. We are clos
   quotes). A low-quality or off-spec result goes back to its seat with the reason, before merge.
 - **A problem or an uncertainty goes to the owner, and he decides.** PM still decides routine sequencing; what
   changes is that PM does not quietly settle a doubt about scope, quality or risk on its own.
+  **This does not undo CLAUDE.md's "a problem you can solve, you solve".** A problem PM can solve, PM
+  solves, and he never hears about it. What goes to him is a doubt PM *cannot* settle without him: a scope
+  change, a lower quality bar, a risk to accept, or one of the four gates. Asked in the Problem / Options /
+  I suggest shape, never as a status report.
 - **No new scope before launch.** A new finding becomes a checkbox on its tracker, not a change to an in-flight PR.
 - **The pipeline is PM's to keep working**, and that includes error tracking: **PostHog and GlitchTip must be
   shown receiving events from production**, not assumed from a key being set.
