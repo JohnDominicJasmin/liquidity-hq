@@ -1,3 +1,4 @@
+import { writeAdminAudit } from '@/lib/adminAudit';
 import { NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { withOwner } from '@/lib/admin-auth';
@@ -79,17 +80,14 @@ export const PATCH = withOwner(async (req, { user }) => {
   }
 
   const admin = getSupabaseAdmin();
+  const { data: prev } = await admin.from(T.app_config).select('value').eq('key', key).maybeSingle();
   const { error } = await admin.from(T.app_config).upsert(
     { key, value, updated_by: user.email, updated_at: new Date().toISOString() },
     { onConflict: 'key' },
   );
   if (error) return apiError('ops/config', error);
 
-  await admin.from(T.admin_audit_log).insert({
-    actor_email: user.email,
-    action: `config_${key}`,
-    detail: { value },
-  });
+  const logged = await writeAdminAudit(admin, { actor_email: user.email, action: `config_${key}`, detail: { value, previous: prev?.value ?? null } });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, auditLogged: logged });
 });

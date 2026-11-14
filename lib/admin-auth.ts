@@ -29,6 +29,11 @@ function bootstrapOwnerEmails(): string[] {
     .filter(Boolean);
 }
 
+/** Whether an email is one of the emergency-bootstrap owners (ADMIN_EMAILS). */
+export function isBootstrapOwnerEmail(email: string | null | undefined): boolean {
+  return !!email && bootstrapOwnerEmails().includes(email.toLowerCase());
+}
+
 // Resolve a validated auth user to their admin role, or null if not an admin.
 //  1. ADMIN_EMAILS is always treated as owner, and self-seeded into admin_users
 //     (only writing when the row is missing/stale) so the table stays the source
