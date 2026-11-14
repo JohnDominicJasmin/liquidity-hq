@@ -2,8 +2,11 @@
 import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useNow } from '@/lib/useNow';
+import { isSafeHttpUrl } from '@/lib/safeUrl';
+import { REASONING_SPLIT, emphasisInner } from '@/lib/reasoningMarkup';
+import { plainSummary } from '@/lib/plainSummary';
 import { useSearchParams } from 'next/navigation';
-import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
+import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, venueSymbols, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
@@ -23,6 +26,8 @@ import { oiTrend1h } from '@/lib/oiTrend1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
 import EMASignal from '@/components/EMASignal';
+import ArenaSoundPrompt from '@/components/ArenaSoundPrompt';
+import { useArenaSounds } from '@/lib/useArenaSounds';
 import HigherTfMoveBadge from '@/components/HigherTfMoveBadge';
 import Tip from '@/components/Tip';
 import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
@@ -30,20 +35,24 @@ import LiqFeed, { type Bucket } from '@/components/LiqFeed';
 import { topClustersForCoin, acceptClusterEmission, formatClustersForPrompt } from '@/lib/liqClusters';
 import UsageMeter from '@/components/UsageMeter';
 import { FreeUpgradePill } from '@/components/UpgradePill';
-import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
+import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, SIGNAL_OLD_BARS } from '@/lib/useEMAStrategy';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
-import { describeSelection, overlayStates } from '@/lib/strategyRegistry';
+import ArenaStrategyCard from '@/components/ArenaStrategyCard';
+import { useStrategySignal } from '@/lib/useStrategySignal';
+import { findStrategy } from '@/lib/strategies';
+import { describeSelection, overlayStates, selectableIds } from '@/lib/strategyRegistry';
 import { coinLockedForUnpaid, gateSignal, signalPlanFor } from '@/lib/signalCoinGate';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
-import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF } from '@/lib/limits';
+import { coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
+import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF, CHART_TFS, ARENA_TFS } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
 import { usePerpSpot } from '@/lib/usePerpSpot';
@@ -90,8 +99,8 @@ function fmtPrice(n: number): string {
 /* ── Reasoning markdown renderer ─────────────────────────────────────────── */
 function ReasoningText({ text }: { text: string }) {
   const { t } = useLabels();
-  // Split on **bold**, [text](url), [[n]](url), or newlines
-  const parts = text.split(/(\*\*[\s\S]*?\*\*|\[\[?[^\]]*\]?\]\([^)]+\)|\n)/g);
+  // Split on **bold**, *emphasis*, [text](url), [[n]](url), or newlines (lib/reasoningMarkup.ts, #2166)
+  const parts = text.split(REASONING_SPLIT);
   return (
     <>
       {parts.map((seg, i) => {
@@ -99,9 +108,21 @@ function ReasoningText({ text }: { text: string }) {
         if (seg === '\n') return <br key={i} />;
         if (seg.startsWith('**') && seg.endsWith('**') && seg.length > 4)
           return <strong key={i}>{seg.slice(2, -2)}</strong>;
+        const emphasis = emphasisInner(seg);
+        if (emphasis !== null) return <em key={i}>{emphasis}</em>;
         const link = seg.match(/^\[(\[?[^\]]*\]?)\]\(([^)]+)\)$/);
         if (link) {
           const label = link[1].replace(/^\[/, '').replace(/\]$/, '') || t('ARENA_REASONING_LINK_FALLBACK');
+          /* THE URL COMES FROM MODEL-WRITTEN TEXT, so it is checked before it becomes an href
+             (#1631, found by PM 2026-11-10). This used to render `href={link[2]}` with no check,
+             so a `javascript:` URL in the AI's prose became a clickable link - and because Deep
+             mode searches the web, a crafted page could seed that text, and the read is stored in
+             history, so it persisted. Live since 2026-05-29.
+
+             AN UNSAFE URL RENDERS THE LABEL AS PLAIN TEXT rather than dropping the segment: the
+             sentence the model wrote still reads correctly, it simply is not clickable. Dropping it
+             would silently edit the answer. */
+          if (!isSafeHttpUrl(link[2])) return <span key={i}>{label}</span>;
           return (
             <a key={i} href={link[2]} target="_blank" rel="noopener noreferrer" className="reasoning-link">
               {label}
@@ -134,7 +155,23 @@ function ReasoningText({ text }: { text: string }) {
 const SIGNAL_COINS = new Set<string>(COINS);
 const READABLE_COINS = new Set<string>(COINS);
 
-const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', readonly CoinId[]> = {
+/* TRADFI NAMES AND NOTES. The label key per kind, shown on the scanner row and beside the chart. A kind with
+   no entry cannot render: this is a Record over every CoinKind, so a new kind fails tsc here. */
+const KIND_LABEL_KEYS: Record<CoinKind, LabelKey> = {
+  stock: 'ARENA_KIND_STOCK', etf: 'ARENA_KIND_ETF', commodity: 'ARENA_KIND_COMMODITY',
+  fx: 'ARENA_KIND_FX', preipo: 'ARENA_KIND_PREIPO', asset: 'ARENA_KIND_ASSET',
+};
+/** The name to show for a coin. Only the TradFi rows route through coinLabel: `catstock` is CAT, and the
+ *  plain `id.toUpperCase()` the page used for everything else is left exactly as it was. */
+const displayCoin = (c: string): string => (coinKind(c) ? coinLabel(c) : c.toUpperCase());
+const COIN_CATEGORIES = ['all', 'majors', 'alts', 'defi', 'meme', 'stocks', 'etfs', 'commodities'] as const;
+type CoinCategory = (typeof COIN_CATEGORIES)[number];
+const CAT_LABEL_KEYS: Record<CoinCategory, LabelKey> = {
+  all: 'ARENA_CAT_ALL', majors: 'ARENA_CAT_MAJORS', alts: 'ARENA_CAT_ALTS', defi: 'ARENA_CAT_DEFI', meme: 'ARENA_CAT_MEME',
+  stocks: 'ARENA_CAT_STOCKS', etfs: 'ARENA_CAT_ETFS', commodities: 'ARENA_CAT_COMMODITIES',
+};
+
+const CAT_FILTER_COINS: Record<CoinCategory, readonly CoinId[]> = {
   /* Every instrument both venues trade, not the rendered 50 - this is the one surface the
      owner asked to cover the whole market, and the search box and category tabs it already
      has are what make 463 entries navigable without a new control. */
@@ -143,7 +180,19 @@ const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', read
   alts:   ['near', 'sui', 'avax', 'link', 'dot', 'atom', 'arb', 'op', 'apt', 'sei', 'inj', 'tia', 'trx', 'xlm', 'etc', 'fil', 'stx'],
   defi:   ['hype', 'aave', 'uni', 'ldo', 'rune', 'gmx', 'crv', 'jup', 'wld', 'render', 'tao', 'fet', 'ondo', 'pyth', 'ena', 'dydx', 'xau', 'spx'],
   meme:   ['doge', 'pepe', 'wif', 'bonk', 'gmt', 'sand', 'mana'],
+  /* TradFi, from the generated rows' own kind - nothing to keep in step by hand. */
+  stocks: TRADFI_CATEGORY_COINS.stocks,
+  etfs: TRADFI_CATEGORY_COINS.etfs,
+  commodities: TRADFI_CATEGORY_COINS.commodities,
 };
+
+/* The category filter lives INSIDE the coin picker (owner, 2026-11-13, #1263): one place to type and narrow. Sets, so the live
+   count on each chip is a lookup per coin rather than an array scan per coin per chip. */
+const CAT_SETS: Record<CoinCategory, ReadonlySet<CoinId>> = Object.fromEntries(
+  COIN_CATEGORIES.map(k => [k, new Set<CoinId>(CAT_FILTER_COINS[k])]),
+) as unknown as Record<CoinCategory, ReadonlySet<CoinId>>;
+/* Per-viewer convenience only: the chosen category survives closing and reopening the list. Every access is wrapped; blocked storage means All. */
+const SCANNER_CAT_KEY = 'lhq_arena_scanner_cat';
 
 
 
@@ -201,6 +250,9 @@ const ARENA_HIST_KEY = 'arena-session-history-v1';
 // tapping a gated timeframe opens the upgrade modal instead of switching.
 const GATED_TFS: readonly ChartTf[] = LIMIT_GATED_TFS as readonly ChartTf[];
 const FREE_FALLBACK_TF = LIMIT_FREE_FALLBACK_TF as ChartTf;
+/* The AI read, the EMA signal and Draw Structure cover up to the 1D chart (#1263). On a weekly or
+   monthly chart their buttons are disabled with this tooltip rather than silently doing nothing. */
+// The tooltip text is the ARENA_ANALYSIS_CEILING_TITLE label (t() in the component, so it can be translated).
 const TF_FEATURE_LABEL_KEYS: Record<string, LabelKey> = {
   '1m': 'ARENA_TF_LABEL_1M', '5m': 'ARENA_TF_LABEL_5M', '15m': 'ARENA_TF_LABEL_15M',
 };
@@ -218,13 +270,48 @@ function ArenaContent() {
   const { user, loading: authLoading, entitlementStatus, entitlementsLoading, retryEntitlements, isPro } = useAuth();
   const { settings, settingsLoadStatus, update, refresh: refreshSettings } = useSettings();
   const searchParams = useSearchParams();
+  /* THE WHOLE UNIVERSE IS VALID IN THE URL, not just the rendered 50 (#1263).
+
+     This validated against `COINS`, so `/arena?coin=cyber` silently landed on BTC - and so did a
+     RELOAD on a non-core coin, because the URL-sync effect below writes the selected coin into the
+     URL. The reader saw BTC's chart under no explanation at all. Since #2127, #2129 and #2133 a
+     non-core coin charts, scores and shows open interest, and the selector has offered all 463
+     since the owner asked for the whole market - so the URL was the last surface that disagreed.
+
+     NO UNKNOWN-YET CASE TO DESIGN FOR, which PM asked about: `UNIVERSE_COINS` is a module-level
+     array derived from the generated coin file (`lib/coins.ts:39`), not something fetched, so it is
+     complete on the first render - the same render this initialiser runs in. Holding an
+     unrecognised id pending would be machinery for a state that cannot occur.
+
+     AN ID WE DO NOT RECOGNISE STILL FALLS BACK TO BTC, because a URL is user input and there is no
+     honest way to show a coin that does not exist. That is a different case from the one this fixes:
+     `cyber` was always a real coin we simply refused to accept.
+
+     `COIN_DEC` and `coinLabel()` already cover the universe - the first is built from the generated
+     rows, the second falls back to the uppercased id and its comment names "a URL parameter" as a
+     call site - so nothing downstream needs widening with this. What a non-core coin still lacks is
+     the AI READ, the liquidation feed, the perp-vs-spot reading and the snapshot-derived
+     figures. The read is named first because it is the one a deep link most likely disappoints
+     (QA on #2150): `/api/grok` refuses any coin outside `COINS` before it looks at a plan, and
+     `READABLE_COINS` (`:147`) is built from that same list, so the refusal holds FOR EVERY
+     TIER - a Pro subscriber opening `/arena?coin=cyber` now gets the chart and every panel the
+     other #1263 fixes widened, and still no read. That is COVERAGE, not entitlement, which is
+     why no plan upgrade changes it; the comment on the two sets above says the same thing from
+     the other end. Each of these absences is stated on screen after #2125 and #2131 rather
+     than showing a wrong number. */
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
     const c = searchParams.get('coin')?.toLowerCase() ?? '';
-    return (COINS as string[]).includes(c) ? c as CoinId : 'btc';
+    return (UNIVERSE_COINS as string[]).includes(c) ? c as CoinId : 'btc';
   });
   const [readTf, setReadTf] = useState<ChartTf>(() => {
     const tf = searchParams.get('tf') ?? '';
-    const valid: ChartTf[] = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'];
+    /* `valid` IS `CHART_TFS`, aliased (#1263). This used to be a hand-typed copy of the eight
+       timeframes, so `?tf=1w` landed silently on 15m once the chart gained weekly - the same shape
+       as the coin parameter validating against the editorial 50. One list now, from lib/limits.ts,
+       asserted equal to ChartTf there. Kept as a named `valid` local rather than inlined because
+       __tests__/arenaTfClampWaitsForPlan.test.mts A6 reads this exact expression from source to
+       prove the Arena still starts on a gated timeframe; its regex keys on `valid.includes(...)`. */
+    const valid: readonly ChartTf[] = CHART_TFS;
     return valid.includes(tf as ChartTf) ? tf as ChartTf : '15m';
   });
   // #1263: whether the page was actually navigated to with a coin/tf param,
@@ -236,6 +323,14 @@ function ArenaContent() {
   // default and can no longer tell a real deep link apart from it.
   const [hadCoinParamAtMount] = useState(() => searchParams.has('coin'));
   const [hadTfParamAtMount]   = useState(() => searchParams.has('tf'));
+  /* A coin the link names that Arena does not offer (#1263, owner: it must say so, not swap to BTC silently). Captured ONCE at mount like the flags above, because the URL-sync
+     effect rewrites the address bar to the coin that actually opened. Sanitised and capped for display; React escapes it either way. */
+  const [unknownCoinParam, setUnknownCoinParam] = useState<string | null>(() => {
+    const raw = searchParams.get('coin');
+    if (!raw) return null;
+    if ((UNIVERSE_COINS as string[]).includes(raw.toLowerCase())) return null;
+    return raw.replace(/[^\w.\-]/g, '').slice(0, 16) || null;
+  });
   // Which Pro feature the user just tried to open (null = modal closed)
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
   const arenaInitRef  = useRef(false);
@@ -247,7 +342,12 @@ function ArenaContent() {
   // clobber a real in-flight choice once it finally resolves.
   const coinTouchedRef = useRef(false);
   const tfTouchedRef   = useRef(false);
-  const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '-' });
+  /* STAMPED WITH THE COIN IT DESCRIBES (#1651, QA). Clearing on change was not enough:
+     `useOI1h` flips to loading INSIDE an effect, so for one render after a coin change this
+     consumer still sees the old snapshot - loading false, the previous coin's pct - and writes it
+     to the ref before the clear runs. Carrying the coin makes staleness impossible rather than
+     brief, and independent of effect order, the same way `chartAlertsCoinRef` does it. */
+  const oi1hDataRef   = useRef<{ coin: CoinId | null; pct: number | null; signal: string }>({ coin: null, pct: null, signal: '-' });
   const msDataRef     = useRef<MSData | null>(null);
   // State, not a ref: the Confluence Score re-renders on it. Sourced from the
   // chart rather than recomputed here so the score votes on the same break the
@@ -347,6 +447,15 @@ function ArenaContent() {
     setStrategyParams(next);
     update({ strategy_params: next });
   }, [update]);
+  /* ARENA STRATEGY (owner-requested, 2026-11-14): one saved rule set (lib/strategies) with a buy/sell/wait card under the Strategy panel. Separate from the indicator chips above. Persisted on the user's own action only, never echoed by the seed. */
+  const [arenaStrategy, setArenaStrategyState] = useState<string | null>(null);
+  const handleArenaStrategyChange = useCallback((next: string | null) => {
+    if (settingsLoadStatus !== 'ready') return;
+    setArenaStrategyState(next);
+    update({ arena_strategy: next });
+  }, [update, settingsLoadStatus]);
+  const strategyLiqLevels = useMemo(() => (chartLiqClusters ?? []).map(c => c.price), [chartLiqClusters]);
+  const strategyState = useStrategySignal(selectedCoin, readTf, arenaStrategy, strategyLiqLevels);
   const oi1h          = useOI1h(selectedCoin);
   // Default OFF: a 3-year majors/1h backtest showed raw signals (this filter off) beat
   // the stricter persistence-based filter on every metric - see STRICT_FILTER_PARAMS
@@ -382,16 +491,39 @@ function ArenaContent() {
     const id = window.setTimeout(() => setFeedGraceOver(true), 15_000);
     return () => window.clearTimeout(id);
   }, [selectedCoin]);
+  /* THE CHART GOES ABOVE 1D; THE ANALYSIS DOES NOT (#1263, owner: signals/read/Draw Structure stay
+     on <= 1d). `readTf` is one state - it is the chart's timeframe AND the analysis timeframe - so
+     weekly and monthly would otherwise drag the EMA signal, the AI read and the panels up with the
+     chart. `aboveAnalysisCeiling` is the one place that split is decided; everything that must stay
+     <= 1d reads it.
+
+     The hook is fed a clamped '1d' rather than the raw `readTf`, for two reasons: it must not fetch
+     and compute a weekly signal nobody is allowed to act on, and a signal computed from 1d candles
+     must not be drawn as markers onto a weekly chart (klinecharts keys overlays by timestamp, so
+     daily markers would scatter between weekly bars). The clamped signal is suppressed from both the
+     chart and the panel below when the ceiling is crossed - it exists only so the hook has a valid
+     timeframe. */
+  const aboveAnalysisCeiling = !(ARENA_TFS as readonly string[]).includes(readTf);
   const rawEmaSignal = useEMAStrategy(
     selectedCoin,
-    readTf,
+    aboveAnalysisCeiling ? '1d' : readTf,
     store.coins[selectedCoin]?.fundingRate ?? null,
     oi1h.pct,
     filterParams,
     strategySelection,
     feedGraceOver,
   );
-  const emaSignal = useMemo(() => gateSignal(rawEmaSignal, signalPlan, selectedCoin), [rawEmaSignal, signalPlan, selectedCoin]);
+  const gatedEmaSignal = useMemo(() => gateSignal(rawEmaSignal, signalPlan, selectedCoin), [rawEmaSignal, signalPlan, selectedCoin]);
+  /* No markers above the ceiling: the signal is not operating at this timeframe, so the chart shows
+     none and the panel says so. Empty marker arrays rather than a loading flag, so nothing spins. */
+  const emaSignal = useMemo(
+    () => (aboveAnalysisCeiling
+      ? { ...gatedEmaSignal, loading: false, signalLongs: [], signalShorts: [], lockedMarkers: [], reversalWarnings: [], signalLock: null }
+      : gatedEmaSignal),
+    [gatedEmaSignal, aboveAnalysisCeiling],
+  );
+  /* ARENA SOUND ALERTS (owner, 2026-11-14): on only after the visitor said yes (settings.arena_sound === true, saved with the account). The hook pings a NEW buy or sell from the strategy panel's own signal (`emaSignal`) and, once per candle, a big move with big volume from the chart's live bars. */
+  const { onLiveBars } = useArenaSounds({ enabled: settingsLoadStatus === 'ready' && settings.arena_sound === true, coin: selectedCoin, tf: readTf, signal: emaSignal });
   /* #1613's feedGraceOver moved above the useEMAStrategy call (#1651) - a hook call reading it has to come after its declaration. */
   const [readLoading, setReadLoading] = useState(false);
   // #1309 item 24: state, not a ref, updates asynchronously - two clicks
@@ -429,7 +561,17 @@ function ArenaContent() {
   const [scannerOpen, setScannerOpen]   = useState(false);
   const [scannerSearch, setScannerSearch] = useState('');
   const scannerSearchRef = useRef<HTMLInputElement>(null);
-  const [coinCat, setCoinCat]           = useState<'all' | 'majors' | 'alts' | 'defi' | 'meme'>('all');
+  const [coinCat, setCoinCat]           = useState<CoinCategory>('all');
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(SCANNER_CAT_KEY);
+      if (v && (COIN_CATEGORIES as readonly string[]).includes(v)) setCoinCat(v as CoinCategory);
+    } catch { /* blocked storage: the list opens on All */ }
+  }, []);
+  const chooseCat = (c: CoinCategory) => {
+    setCoinCat(c);
+    try { window.localStorage.setItem(SCANNER_CAT_KEY, c); } catch { /* not remembered; still applied */ }
+  };
   const [copiedKey, setCopiedKey]           = useState<string | null>(null);
   const [jpyUsd, setJpyUsd]                 = useState<number | null>(null);
   /* Perps vs spot (#340) - the same reading the dashboard card shows, from the
@@ -475,6 +617,11 @@ function ArenaContent() {
      coin's lines stayed drawn on the new coin's chart at the old coin's prices. */
   const chartAlertsCoinRef = useRef<string | null>(null);
 
+  /* PRICE ALERTS COVER THE CURATED COINS ONLY: the alert cron prices nothing else, so an alert on any other coin is
+     accepted and never fires. The server refuses it too (app/api/price-alerts/route.ts); this keeps the button from
+     offering what would be refused. */
+  const alertCoinCovered = (COINS as string[]).includes(selectedCoin);
+
   function openAlertForm() {
     const price = store.coins[selectedCoin]?.price;
     setAlertPrice(price ? String(price) : '');
@@ -485,7 +632,7 @@ function ArenaContent() {
   }
 
   async function saveArenaAlert() {
-    if (!alertPrice || isNaN(parseFloat(alertPrice)) || !user) return;
+    if (!alertPrice || isNaN(parseFloat(alertPrice)) || !user || !alertCoinCovered) return;
     setAlertSaving(true);
     setAlertError('');
     try {
@@ -541,13 +688,25 @@ function ArenaContent() {
     return () => window.removeEventListener('hashchange', scrollToUsage);
   }, []);
 
-  /* ── Sync coin + tf to URL so the page is shareable ── */
+  /* ── Sync coin + tf to URL so the page is shareable ──
+     #1263, COLD LOAD: NOT WHILE THE ACCOUNT'S SETTINGS ARE STILL BEING READ. On a cold signed-in load
+     OnboardingGate unmounts the page (it renders the onboarding LOADING screen while the profile
+     read is in flight) and mounts it again when that read lands. If this effect had already written
+     `?coin=btc&tf=15m` - the initialisers' defaults - on the first mount, the second mount read
+     those two params as a deep link, `hadCoinParamAtMount`/`hadTfParamAtMount` came out true, and
+     the seed effect below skipped both: the account's saved coin and timeframe were ignored on every
+     cold load, and only a warm client-side navigation (where the page mounts once) honoured them.
+     Waiting for the settings read means a page that is about to be unmounted never writes at all, so
+     the remount sees the URL the visitor really arrived with. A real deep link is untouched: its
+     params are already in the URL and are read by the initialisers either way. A failed read
+     ('error') still syncs, as it always did. */
   useEffect(() => {
+    if (settingsLoadStatus === 'loading') return;
     const url = new URL(window.location.href);
     url.searchParams.set('coin', selectedCoin);
     url.searchParams.set('tf', readTf);
     window.history.replaceState(null, '', url.toString());
-  }, [selectedCoin, readTf]);
+  }, [selectedCoin, readTf, settingsLoadStatus]);
 
   /* ── Fetch alerts for selected coin (chart overlay lines) ── */
   useEffect(() => {
@@ -658,7 +817,9 @@ function ArenaContent() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         openedByHover.current = false;
+        const wasInside = !!scannerRef.current && scannerRef.current.contains(document.activeElement);
         setScannerOpen(false);
+        if (wasInside) scannerRef.current?.querySelector<HTMLElement>('button[aria-expanded]')?.focus(); // the real trigger button; data-testid=scanner-trigger is on the (unfocusable) wrapper
       }
     };
     document.addEventListener('keydown', onKey);
@@ -763,8 +924,13 @@ function ArenaContent() {
     // refuses to run before settingsLoadStatus is 'ready' (see above), so
     // there is no path for the user to have touched strategy selection
     // before this effect's own check passes.
-    if (settings.strategy_selection) setStrategySelection(settings.strategy_selection);
+    // #1263: a saved set from before the panel redesign can still carry `RSI` (now an always-on
+    // chart layer, not a selectable indicator) or a since-removed id. Filter the loaded selection to
+    // what the panel can actually offer, so a stale id neither counts in the panel, labels the read,
+    // nor pushes `selection` into buildArenaPrompt's non-empty weighting branch.
+    if (settings.strategy_selection) setStrategySelection(selectableIds(settings.strategy_selection));
     if (settings.strategy_params) setStrategyParams(settings.strategy_params);
+    if (findStrategy(settings.arena_strategy)) setArenaStrategyState(settings.arena_strategy);
     setSelectionSeeded(true); // an account with no saved selection is seeded too: empty is then the real answer
   }, [settingsLoadStatus, settings.default_coin, settings.default_tf, settings.strategy_selection, settings.strategy_params]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -817,11 +983,25 @@ function ArenaContent() {
 
   /* ── Sync OI 1h hook data → ref (used by Grok context builder) ── */
   useEffect(() => {
-    if (oi1h.loading || oi1h.pct == null) return;
+    /* CLEARED, NOT LEFT ALONE, when there is no usable value (#1651). This used to `return` early,
+       and `selectedCoin` is in the deps - so switching to a coin with no OI history left the ref
+       holding the PREVIOUS coin's number, and the context builder below then sent it to the model
+       as this coin's 1h open-interest change. A wrong number attributed to the wrong coin is worse
+       than no number, and the model has no way to notice.
+
+       The clear covers `loading` too, deliberately: `useOI1h` flips to loading the moment the coin
+       changes, so this is the earliest point the stale value can be dropped. A read fired during
+       that window is told '-' rather than the old coin's move. */
+    if (oi1h.loading || oi1h.pct == null) { oi1hDataRef.current = { coin: oi1h.coin, pct: null, signal: '-' }; return; }
     // #1613: the AI read is told the 1h OI change with a trend text from the SAME hour (not the store's oiTrend, another window).
     const { txt } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
-    oi1hDataRef.current = { pct: oi1h.pct, signal: txt };
-  }, [oi1h.pct, oi1h.pricePct, oi1h.loading, selectedCoin]);
+    oi1hDataRef.current = { coin: oi1h.coin, pct: oi1h.pct, signal: txt };
+    /* `selectedCoin` IS GONE FROM THE DEPS ON PURPOSE, and legitimately: this effect no longer
+       reads it. The stamp comes from `oi1h.coin`, which the hook sets from the coin it fetched, so
+       the ref can only ever describe the snapshot it was written from (#1651, QA). Stamping the
+       component's current coin was the bug this replaces - on an ETH to BTC switch that wrote
+       { coin: BTC, pct: ETH's } and the guard let it through. */
+  }, [oi1h.coin, oi1h.pct, oi1h.pricePct, oi1h.loading]);
 
   /* ── Sync EMA strategy → ref (used by Grok context builder) ── */
   useEffect(() => {
@@ -1339,7 +1519,10 @@ function ArenaContent() {
         return `Score ${sq.score}/100 · ${sq.label} · ${oiChip}, ${cvdChip}, ${tkr}, ${rsi}`;
       })(),
       oi1hChange: (() => {
-        const { pct, signal } = oi1hDataRef.current;
+        const { coin: stampedCoin, pct, signal } = oi1hDataRef.current;
+        /* A FIGURE FOR ANOTHER COIN IS NOT A FIGURE FOR THIS ONE. The model cannot tell, and the
+           read it writes looks exactly as confident either way. */
+        if (stampedCoin !== selectedCoin) return '-';
         if (pct == null) return '-';
         return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '% · ' + signal;
       })(),
@@ -1439,7 +1622,14 @@ function ArenaContent() {
     if (readInFlightRef.current) return;
     readInFlightRef.current = true;
     const binanceSym = BINANCE_SYMS[selectedCoin] as string | undefined;
-    const bybitSym   = BYBIT_SYMS[selectedCoin]   as string | undefined;
+      /* BYBIT FROM THE UNIVERSE, BINANCE LEFT ON THE EDITORIAL MAP, and the asymmetry is the point
+         (#1263). Bybit is the primary here and `venueSymbols` covers all 462, so a non-core coin now
+         gets data. The Binance call below is `source=binance` - SPOT - and the universe has no
+         spot-verified column: `venueSymbols().binance` is a FUTURES symbol, which the spot allowlist
+         refuses by design (#2127). Passing it would manufacture a request that can never succeed and
+         call it a fallback, which is the `SPXUSDT` defect the klines route documents. So a non-core
+         coin is served by Bybit and simply has no spot fallback, exactly as `fet` has none today. */
+    const bybitSym   = venueSymbols(selectedCoin).bybit as string | undefined;
     if (!binanceSym && !bybitSym) {
       setReadError(t('ARENA_ERROR_NO_DATA_SOURCE', { coin: selectedCoin.toUpperCase() })); setReadProLocked(false);
       readInFlightRef.current = false;
@@ -1606,34 +1796,6 @@ function ArenaContent() {
       if (usage) setGrokUsage(usage);
       track.arenaAnalysis(mode, selectedCoin);
 
-      // ── Liquidity Raid → Telegram alert (1h cooldown per coin + setup type) ──
-      if (res.raidSetup) {
-        try {
-          const raidKey  = `raid-tg-${selectedCoin}-${res.raidSetup}`;
-          const lastSent = Number(localStorage.getItem(raidKey) ?? 0);
-          if (Date.now() - lastSent > 60 * 60 * 1000) {
-            localStorage.setItem(raidKey, String(Date.now()));
-            const sym  = selectedCoin.toUpperCase();
-            const lines: string[] = [
-              '<b>LIQUIDITY RAID DETECTED</b>',
-              `<b>${res.raidSetup} - ${sym}/USDT</b>`,
-              '',
-            ];
-            if (res.raidTarget)  lines.push(`Target: ${res.raidTarget}`);
-            if (res.raidTrigger) lines.push(`Trigger: ${res.raidTrigger}`);
-            lines.push(`Signal: ${res.signal} · ${res.confidence}% confidence`);
-            lines.push(`Session: ${ctx.session}`);
-            lines.push('');
-            lines.push('<i>LiquidityHQ Arena</i>');
-            fetch('/api/telegram/send', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message: lines.join('\n') }),
-            }).catch(() => { /* silent - alert failure must not block UI */ });
-          }
-        } catch { /* localStorage unavailable - skip silently */ }
-      }
-
       // Cache result per coin (with price snapshot for stale-check)
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
       setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: selection } }));
@@ -1773,6 +1935,12 @@ function ArenaContent() {
      `readMarket` below exactly as received here, so a click is correct at
      the instant it happens regardless of tick timing. */
   const runStrategy = (kind: RunKind, selection: readonly string[]) => {
+    /* THE READ COVERS <= 1D, so above the ceiling every run path is refused here - the buttons are
+       disabled too (below), but ASK dispatches through an event channel and a future caller could
+       reach this directly. The server's own `isArenaTf` guard (lib/arenaContext.ts) would refuse a
+       weekly `chart.tf` anyway; this turns that server refusal into a no-op instead of a spent click
+       and an error banner. */
+    if (aboveAnalysisCeiling) return;
     if (kind === 'ask') {
       window.dispatchEvent(new CustomEvent('grok-chat', {
         detail: {
@@ -1813,6 +1981,30 @@ function ArenaContent() {
 
   /* ── Squeeze scanner data - sorted by 24h volume descending (BTC → ETH → ...) ── */
   const btcChange = store.coins['btc']?.change ?? null;
+  /* A MISSING QUOTE SAYS WHICH KIND OF MISSING (#1263, owner: a bare dash could mean loading or an error). The read that prices this row is still in flight: an
+     ellipsis. It answered and this row has no quote, or it failed: the word, with a hover/assistive title naming which. Never a bare dash. */
+  /* ONE WORD PER ROW (PM, 2026-11-13): when the price AND the 24h change are both gone, the price cell says so once and the 24h and vs-BTC cells stay empty; when only the change is
+     missing, those cells say the narrow wording ("No data", plain words that wrap on their space). No abbreviation anywhere (owner). */
+  const quoteGap = (c: CoinId, mode: 'price' | 'narrow') => {
+    const feed = coinRow(c)?.bybit ? store.scannerFeed.universe : store.scannerFeed.binanceOnly;
+    if (feed === 'pending') return <span role="img" aria-label={t('ARENA_SCANNER_LOADING_TITLE')} title={t('ARENA_SCANNER_LOADING_TITLE')}>{'\u2026'}</span>;
+    const why = feed === 'failed' ? t('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE') : t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE');
+    /* THE PRICE CELL CARRIES BOTH WORDS and CSS picks one: at 480 px and below the price column is 65 px, and the full word ("Недоступно", 10 letters, in Russian) is wider than its box.
+       The narrow wording is plain words that wrap on their space ("Нет данных"), never an abbreviation (owner: no shorthand in trader labels); the title says why in full either way. */
+    if (mode === 'price') {
+      return (
+        <span title={why} style={{ fontSize: 'var(--fs-micro)', fontWeight: 500 }}>
+          <span className="scanner-gap-long">{t('ARENA_SCANNER_UNAVAILABLE')}</span>
+          <span className="scanner-gap-short">{t('ARENA_SCANNER_UNAVAILABLE_NARROW')}</span>
+        </span>
+      );
+    }
+    return (
+      <span title={why} style={{ fontSize: 'var(--fs-micro)', fontWeight: 500 }}>
+        {t('ARENA_SCANNER_UNAVAILABLE_NARROW')}
+      </span>
+    );
+  };
   const scannerRows = UNIVERSE_COINS
     .filter(c => coinCat === 'all' || (CAT_FILTER_COINS[coinCat] as readonly CoinId[]).includes(c))
     .map(c => {
@@ -1841,9 +2033,37 @@ function ArenaContent() {
     }).sort((a, b) => (b.vol24 ?? 0) - (a.vol24 ?? 0));
   const sqzCount   = scannerRows.filter(x => x.sq.dir === 'SHORT_SQ'  && x.sq.score >= 30).length;
   const flushCount = scannerRows.filter(x => x.sq.dir === 'LONG_LIQ'  && x.sq.score >= 30).length;
-  const visibleScannerRows = scannerSearch
-    ? scannerRows.filter(r => r.c.toLowerCase().includes(scannerSearch.toLowerCase()))
-    : scannerRows;
+  /* SEARCH AND CATEGORY COMBINE. `scannerRows` is already narrowed to the active category; the search narrows it further. Typing never touches the
+     category and choosing a category never touches the search. The name a trader sees (NVDA) is matched as well as the id. */
+  const scannerQ = scannerSearch.trim().toLowerCase();
+  const scannerMatches = (c: CoinId) => !scannerQ || c.toLowerCase().includes(scannerQ) || displayCoin(c).toLowerCase().includes(scannerQ);
+  const visibleScannerRows = scannerQ ? scannerRows.filter(r => scannerMatches(r.c)) : scannerRows;
+  /* Live count per chip for the CURRENT search, so the trader sees where the matches are. Only while the list is open. */
+  const catCounts: Record<CoinCategory, number> | null = scannerOpen
+    ? (Object.fromEntries(COIN_CATEGORIES.map(k => [k, UNIVERSE_COINS.reduce((n, c) => n + (CAT_SETS[k].has(c) && scannerMatches(c) ? 1 : 0), 0)])) as Record<CoinCategory, number>)
+    : null;
+  /* Chip row keyboard: one tab stop (the active chip), arrows move between chips, and a typed character goes to the search box so the trader can keep typing. */
+  const onCatKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const chips = Array.from(e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('button[data-cat]') ?? []);
+    const i = chips.indexOf(e.currentTarget);
+    const go = (j: number) => { const b = chips[(j + chips.length) % chips.length]; if (b) { b.focus(); try { b.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch { /* old browser */ } } };
+    if (e.key === 'ArrowRight') { e.preventDefault(); go(i + 1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); go(i - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); go(0); }
+    else if (e.key === 'End') { e.preventDefault(); go(chips.length - 1); }
+    else if (e.key === 'Backspace') { e.preventDefault(); setScannerSearch(v => v.slice(0, -1)); scannerSearchRef.current?.focus(); }
+    else if (e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); const ch = e.key; setScannerSearch(v => v + ch); scannerSearchRef.current?.focus(); }
+  };
+  /* Arrow keys between the search box and the rows. */
+  const focusRow = (from: HTMLElement | null, delta: number) => {
+    const rows = Array.from(scannerRef.current?.querySelectorAll<HTMLElement>('[data-testid^="scanner-row-"]') ?? []);
+    if (!rows.length) return;
+    const i = from ? rows.indexOf(from) : -1;
+    const j = i + delta;
+    if (j < 0) { scannerSearchRef.current?.focus(); return; }
+    const next = rows[Math.min(j, rows.length - 1)];
+    next.focus(); try { next.scrollIntoView({ block: 'nearest' }); } catch { /* old browser */ }
+  };
 
   return (
     <div className="arena-term-wrap">
@@ -1866,32 +2086,12 @@ function ArenaContent() {
         body={t('ARENA_HINT_BODY')}
       />
 
-      {/* ── COIN CATEGORY TABS ── */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-        {(['all', 'majors', 'alts', 'defi', 'meme'] as const).map(c => (
-          <button
-            key={c}
-            type="button"
-            /* #1263 (WCAG 4.1.2): these five signalled the selected category with COLOUR ALONE - the
-               `.on` class changes background, text and border and nothing else. Every one of them
-               announced identically, so a screen-reader user could not tell which category was
-               active, and neither could anyone who cannot separate the purple from the grey.
-
-               `aria-pressed` is the right control rather than `aria-current` or a radio group: these
-               are toggle buttons that filter a list in place, which is exactly what the pressed state
-               describes. It also costs nothing visually, so the approved design is untouched.
-
-               The strategy chips already do this (components/StrategyPanel.tsx:373); this group was
-               missed because it is in the page rather than in that component. */
-            aria-pressed={coinCat === c}
-            className={`gsc-tf-btn${coinCat === c ? ' on' : ''}`}
-            style={{ padding: '3px 9px', fontSize: 'var(--fs-caption)', textTransform: 'capitalize' }}
-            onClick={() => setCoinCat(c)}
-          >
-            {c === 'all' ? t('ARENA_CAT_ALL') : c === 'majors' ? t('ARENA_CAT_MAJORS') : c === 'alts' ? t('ARENA_CAT_ALTS') : c === 'defi' ? t('ARENA_CAT_DEFI') : t('ARENA_CAT_MEME')}
-          </button>
-        ))}
-      </div>
+      {unknownCoinParam && (
+        <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 8px', padding: '2px 4px 2px 12px', border: '0.5px solid var(--bdr)', background: 'var(--bg2)', fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
+          <span style={{ flex: 1 }}>{t('ARENA_UNKNOWN_COIN_NOTE', { coin: unknownCoinParam.toUpperCase() })}</span>
+          <button type="button" aria-label={t('SETTINGS_SAVE_DISMISS_ARIA')} onClick={() => setUnknownCoinParam(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', minWidth: 44, minHeight: 44, fontSize: '1rem' }}>{'\u00D7'}</button>
+        </div>
+      )}
 
       {/* ── SQUEEZE SCANNER - hover flyout (Bybit-style watchlist) ── */}
       <div
@@ -1967,7 +2167,7 @@ function ArenaContent() {
             flexShrink: 0,
           }}>
             <CoinIcon coin={selectedCoin} size={16} color="#5aa3ff" bg="color-mix(in srgb, var(--accent-2) 15%, transparent)" />
-            {selectedCoin.toUpperCase()}
+            {displayCoin(selectedCoin)}
           </span>
           {/* Spacer */}
           <span style={{ flex: 1 }} />
@@ -2070,11 +2270,38 @@ function ArenaContent() {
                 placeholder={t('ARENA_SCANNER_SEARCH_PLACEHOLDER')}
                 value={scannerSearch}
                 onChange={e => setScannerSearch(e.target.value)}
+                onKeyDown={e => { if (e.key === 'ArrowDown') { e.preventDefault(); focusRow(null, 1); } }}
                 style={{ flex: 1, background: 'transparent', border: 'none', padding: '7px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
               />
               {scannerSearch && (
                 <button onClick={() => setScannerSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label={t('ARENA_SCANNER_CLEAR_SEARCH_ARIA')}>×</button>
               )}
+            </div>
+
+            {/* Category chips, INSIDE the list under the search box (owner, 2026-11-13). The search bar and this row sit above the scrolling rows, so they
+                stay in view while the rows scroll. The active chip says so with a check and a heavier weight as well as colour (aria-pressed for assistive tech). */}
+            <div className="scanner-cat-row" role="group" aria-label={t('ARENA_SCANNER_CAT_GROUP_ARIA')} style={{ borderBottom: '0.5px solid var(--bdr)' }}>
+              {COIN_CATEGORIES.map(k => {
+                const n = catCounts ? catCounts[k] : 0;
+                const on = coinCat === k;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    data-cat={k}
+                    aria-pressed={on}
+                    aria-label={t('ARENA_SCANNER_CAT_COUNT_ARIA', { category: t(CAT_LABEL_KEYS[k]), n })}
+                    tabIndex={on ? 0 : -1}
+                    className={`gsc-tf-btn scanner-cat-chip${on ? ' on' : ''}`}
+                    style={{ fontWeight: on ? 700 : 500 }}
+                    data-empty={n === 0 && !on ? 'true' : undefined}
+                    onClick={e => { chooseCat(k); try { e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch { /* old browser */ } }}
+                    onKeyDown={onCatKey}
+                  >
+                    {on && <span aria-hidden="true">{'\u2713 '}</span>}{t(CAT_LABEL_KEYS[k])}<span aria-hidden="true" className="scanner-cat-n">{n}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Column header */}
@@ -2097,9 +2324,26 @@ function ArenaContent() {
             </div>
 
             {/* Coin rows */}
-            <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+            <div className="scanner-flyout-rows">
             {visibleScannerRows.length === 0 ? (
-              <div style={{ padding: '12px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>{t('ARENA_SCANNER_NO_MATCH', { search: scannerSearch })}</div>
+              <div style={{ padding: '12px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                {(() => {
+                  /* The matches exist, just not in this category: offer the category that holds most of them (All if none of the others does), keeping the search text. */
+                  const others = COIN_CATEGORIES.filter(k => k !== coinCat && k !== 'all' && (catCounts?.[k] ?? 0) > 0).sort((x, y) => (catCounts?.[y] ?? 0) - (catCounts?.[x] ?? 0));
+                  const target: CoinCategory = others[0] ?? 'all';
+                  const found = catCounts?.[target] ?? 0;
+                  if (scannerQ && coinCat !== 'all' && found > 0) {
+                    return (<>
+                      <span>{t('ARENA_SCANNER_EMPTY_IN_CAT', { category: t(CAT_LABEL_KEYS[coinCat]), n: found, other: t(CAT_LABEL_KEYS[target]) })}</span>
+                      <button type="button" className="gsc-tf-btn on scanner-cat-chip" onClick={() => chooseCat(target)}>{t('ARENA_SCANNER_EMPTY_SWITCH', { other: t(CAT_LABEL_KEYS[target]) })}</button>
+                    </>);
+                  }
+                  return (<>
+                    <span>{t('ARENA_SCANNER_NO_MATCH', { search: scannerSearch })}</span>
+                    {scannerSearch && <button type="button" className="gsc-tf-btn scanner-cat-chip" onClick={() => { setScannerSearch(''); scannerSearchRef.current?.focus(); }}>{t('ARENA_SCANNER_CLEAR_SEARCH_ARIA')}</button>}
+                  </>);
+                })()}
+              </div>
             ) : visibleScannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges, hasSignals, canRead }) => {
               const isSelected  = c === selectedCoin;
               /* A row with no funding and no OI can never be active - and must not read as a
@@ -2112,7 +2356,20 @@ function ArenaContent() {
               return (
                 <button
                   key={c}
+                  /* A STABLE HANDLE PER ROW, the companion to `scanner-trigger` on the wrapper
+                     above (#1775). The trigger got one because its `aria-expanded` is shared with
+                     four other components and its accessible name contains the SELECTED coin; the
+                     rows have the matching problem for the opposite reason - their accessible name
+                     is the concatenation of all six grid cells (label, score, change, RSI, funding,
+                     caret), so `getByRole("button", /^BTC/)` matches by luck and breaks when a cell
+                     changes. Keyed by the coin ID, which is what the search box filters on. */
+                  data-testid={`scanner-row-${c}`}
                   className="scanner-flyout-grid"
+                  onKeyDown={e => {
+                    if (e.key === 'ArrowDown') { e.preventDefault(); focusRow(e.currentTarget, 1); }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); focusRow(e.currentTarget, -1); }
+                  }}
+                  aria-current={isSelected ? 'true' : undefined}
                   onClick={() => {
                     coinTouchedRef.current = true;
                     setSelectedCoin(c); setScannerOpen(false); setScannerSearch(''); window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'coins' }));
@@ -2120,9 +2377,11 @@ function ArenaContent() {
                   style={{
                     width: '100%', display: 'grid',
                     gridTemplateColumns: '1fr 78px 44px 44px 72px 32px',
-                    alignItems: 'center', padding: '7px 12px',
+                    alignItems: 'center', padding: '7px 12px 7px 9px',
                     background: isSelected ? 'color-mix(in srgb, var(--accent-2) 8%, transparent)' : 'transparent',
                     border: 'none',
+                    /* THE SELECTED ROW IS NOT SHOWN BY COLOUR ALONE (#1263, QA run: aria-current plus a 3 px start bar). Transparent when not selected, so no row shifts. */
+                    borderInlineStart: '3px solid ' + (isSelected ? 'var(--accent-2)' : 'transparent'),
                     borderBottom: '0.5px solid var(--bdr)',
                     cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s',
                   }}
@@ -2139,7 +2398,7 @@ function ArenaContent() {
                     />
                     <div>
                       <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isSelected ? 'var(--accent-2)' : isActive ? 'var(--txt)' : 'var(--txt3)', lineHeight: 1.2 }}>
-                        {c.toUpperCase()}
+                        {displayCoin(c)}
                       </div>
                       {badges.length > 0 ? (
                         <div style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap' }}>
@@ -2159,22 +2418,22 @@ function ArenaContent() {
                           {/* Said before the click, not after. A row with no AI read is still worth
                               selecting - the chart and the price work - so this is a note, not a
                               disabled control. */}
-                          {canRead ? t('ARENA_SCANNER_USDT_PERP') : t('ARENA_SCANNER_NO_AI_READ')}
+                          {canRead ? t('ARENA_SCANNER_USDT_PERP') : coinKind(c) ? t('ARENA_SCANNER_KIND_NO_AI_READ', { kind: t(KIND_LABEL_KEYS[coinKind(c) as CoinKind]) }) : t('ARENA_SCANNER_NO_AI_READ')}
                         </div>
                       )}
                     </div>
                   </div>
                   {/* Price */}
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: isActive ? 'var(--txt)' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
-                    {price ? '$' + fmtPrice(price) : '-'}
+                    {price ? currencyPrefix(c) + fmtPrice(price) : quoteGap(c, 'price')}
                   </span>
                   {/* 24h % */}
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? 'var(--txt3)' : change >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
-                    {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : '-'}
+                    {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : price ? quoteGap(c, 'narrow') : null}
                   </span>
                   {/* vs BTC */}
                   <span className="scanner-flyout-vsbtc" style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: vsBtcColor }}>
-                    {vsBtc != null ? (vsBtc >= 0 ? '+' : '') + vsBtc.toFixed(1) + '%' : c === 'btc' ? '-' : '-'}
+                    {vsBtc != null ? (vsBtc >= 0 ? '+' : '') + vsBtc.toFixed(1) + '%' : c === 'btc' ? '-' : price ? quoteGap(c, 'narrow') : null}
                   </span>
                   {/* Status */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
@@ -2201,7 +2460,7 @@ function ArenaContent() {
                     style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isActive ? rowSq.color : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}
                     title={hasSignals ? undefined : t('ARENA_SCANNER_NO_SIGNALS_TITLE')}
                   >
-                    {hasSignals ? rowSq.score : t('ARENA_SCANNER_NO_SIGNALS')}
+                    {hasSignals ? rowSq.score : '\u2013'}
                   </span>
                 </button>
               );
@@ -2216,6 +2475,24 @@ function ArenaContent() {
           </div>
         )}
       </div>
+
+      {/* ── TRADFI NOTE: what this instrument is, and the one fact that is easy to get wrong ──
+          A tokenized stock, ETF or commodity contract trades around the clock; the market behind it does
+          not. A pre-IPO reference is not a listed share at all. Shown only when the selected coin is one. */}
+      {coinKind(selectedCoin) && (
+        <p data-testid="tradfi-note" style={{ margin: '0 0 10px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.45 }}>
+          <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>{t(KIND_LABEL_KEYS[coinKind(selectedCoin) as CoinKind])}</span>
+          {' · '}
+          {coinKind(selectedCoin) === 'preipo' ? t('ARENA_TRADFI_NOTE_PREIPO') : t('ARENA_TRADFI_NOTE')}
+        </p>
+      )}
+      {/* THE WARNING, under the kind line (owner, 2026-11-13). 'hkd': the price is in Hong Kong dollars and every
+          figure is printed with "HK$". 'disputed': two exchanges quote different definitions of this price. */}
+      {coinCaveat(selectedCoin) && (
+        <p data-testid="tradfi-caveat" role="note" style={{ margin: '0 0 10px', fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--amber)', lineHeight: 1.45 }}>
+          {t(coinCaveat(selectedCoin) === 'hkd' ? 'ARENA_CAVEAT_HKD' : 'ARENA_CAVEAT_DISPUTED')}
+        </p>
+      )}
 
       {/* ── AI READ · answer-first hero ── */}
       <div className="arena-below-chart">
@@ -2233,10 +2510,10 @@ function ArenaContent() {
             pattern as this file's other #1347 fixes. */}
         <button
           className={`arena-fire-btn arena-quick-btn${(!user && !authLoading) || coinLocked ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
+          disabled={aboveAnalysisCeiling || readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
           onClick={() => runStrategy('quick', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
+          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
         >
           {readLoading && readMode === 'quick' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -2251,10 +2528,10 @@ function ArenaContent() {
         {/* Deep button - requires sign-in. Same fix as Quick above. */}
         <button
           className={`arena-fire-btn${(!user && !authLoading) || coinLocked ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
+          disabled={aboveAnalysisCeiling || readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
           onClick={() => runStrategy('deep', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
+          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
         >
           {readLoading && readMode === 'deep' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -2269,17 +2546,26 @@ function ArenaContent() {
         {user && (
           <button
             className="arena-ask-grok-btn"
-            style={{ width: 'auto', marginBottom: 0, background: alertFormOpen ? 'rgba(26,122,255,0.15)' : undefined }}
+            style={{ width: 'auto', marginBottom: 0, background: alertFormOpen && alertCoinCovered ? 'rgba(26,122,255,0.15)' : undefined }}
             onClick={() => alertFormOpen ? setAlertFormOpen(false) : openAlertForm()}
-            title={t('ARENA_SET_ALERT_TITLE')}
+            disabled={!alertCoinCovered}
+            title={alertCoinCovered ? t('ARENA_SET_ALERT_TITLE') : t('ARENA_ALERT_MAIN_COINS_ONLY')}
           >
             {t('ARENA_SET_ALERT_BUTTON')}
           </button>
+        )}
+        {/* The reason, in plain sight: a disabled control with its explanation only in a tooltip is a silent no. */}
+        {user && !alertCoinCovered && (
+          <span data-testid="alert-main-coins-only" role="note" style={{ alignSelf: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
+            {t('ARENA_ALERT_MAIN_COINS_ONLY')}
+          </span>
         )}
 
         <button
           className="arena-ask-grok-btn"
           style={{ width: 'auto', marginBottom: 0 }}
+          disabled={aboveAnalysisCeiling}
+          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : undefined}
           onClick={() => runStrategy('ask', strategySelection)}
         >
           {t('ARENA_ASK_LIQUIDITYAI_BUTTON')}
@@ -2297,7 +2583,7 @@ function ArenaContent() {
       </div>
 
       {/* ── Price alert inline form - buy/sell-panel styling ── */}
-      {alertFormOpen && user && (
+      {alertFormOpen && user && alertCoinCovered && (
         <div style={{
           margin: '8px 0', padding: 16, borderRadius: 14,
           border: '0.5px solid var(--bdr)', background: 'var(--bg2)',
@@ -2351,7 +2637,7 @@ function ArenaContent() {
                     color: 'var(--accent-2)', background: 'var(--accent-bg)', border: '0.5px solid var(--accent-bdr)',
                     borderRadius: 7, padding: '4px 9px',
                   }}>
-                    {selectedCoin.toUpperCase()}
+                    {displayCoin(selectedCoin)}
                   </span>
                 </div>
               </div>
@@ -2454,10 +2740,33 @@ function ArenaContent() {
         // page was contradicting itself, when really it's one input the AI weighed against
         // the others and still called LONG anyway.
         const verdictDir = result.signal.includes('BULLISH') ? 'long' : result.signal.includes('BEARISH') ? 'short' : null;
-        const ribbonRel = !verdictDir || !emaSignal.signalDir ? 'neutral'
+        /* AN OLD SIGNAL IS NOT AGREEMENT (PM, 2026-11-11, once #2122 gave the signal its age).
+           A cross from 50+ bars back is history, not a second opinion on today's read, so it reads
+           'neutral' here rather than 'agrees' or 'opposes' - dropped from the comparison the same
+           way a neutral directional factor is dropped from the Confluence denominator (#2119), and
+           for the same reason: a vote nobody cast today should not look like one.
+
+           Under the threshold nothing changes, and this row is DISPLAY ONLY - `factors` is built
+           here and consumed only by the render below, so no score or confidence moves. */
+        const ribbonStale = emaSignal.signalBarsAgo != null && emaSignal.signalBarsAgo >= SIGNAL_OLD_BARS;
+        /* FOUR STATES, NOT THREE, and this is QA's design point rather than a flourish. My first
+           version collapsed a stale signal into 'neutral' - the same token as "there is no signal
+           at all" - which is precisely the unknown-drawn-as-neutral conflation removed from the
+           multi-timeframe badge earlier today (#2119). "We dropped an old vote" and "there was
+           never a vote" are different facts and the row has to say which.
+
+           So 'stale' is its own state, reported as "no recent signal" rather than a neutral tick.
+           It carries the same neutral colour, because the point is that it adds nothing to today's
+           read, and the same `•` arrow, because it points nowhere. */
+        const ribbonRel: 'agrees' | 'opposes' | 'stale' | 'neutral' =
+            !verdictDir || !emaSignal.signalDir ? 'neutral'
+          : ribbonStale ? 'stale'
           : emaSignal.signalDir === verdictDir ? 'agrees' : 'opposes';
         const factors = [
-          { k: 'Ribbon',    v: ribbonRel === 'agrees' ? 'agrees' : ribbonRel === 'opposes' ? 'opposes' : 'neutral', c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '↑' : ribbonRel === 'opposes' ? '↓' : '•' },
+          /* 'stale' prints its own words. Falling through to 'neutral' here was the bug in the first
+             cut of this change: the state existed in the type and died at the render, so a dropped
+             old vote looked exactly like a coin with no signal at all. */
+          { k: 'Ribbon',    v: ribbonRel === 'agrees' ? 'agrees' : ribbonRel === 'opposes' ? 'opposes' : ribbonRel === 'stale' ? 'no recent signal' : 'neutral', c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '↑' : ribbonRel === 'opposes' ? '↓' : '•' },
           { k: 'Squeeze',   v: sqzCount > 0 ? 'building' : flushCount > 0 ? 'flush risk' : 'quiet', c: sqzCount > 0 ? GC : flushCount > 0 ? RC : NC, a: sqzCount > 0 ? '↑' : flushCount > 0 ? '↓' : '•' },
           { k: 'Funding',   v: frPct == null ? (feedGraceOver ? 'unavailable' : 'loading…') : frPct >= 0.03 ? 'long-heavy' : frPct <= -0.02 ? 'short-heavy' : 'neutral', c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' },
           { k: 'Multi-TF',  v: tfBull >= 2 ? `${tfBull}/3 up` : tfBear >= 2 ? `${tfBear}/3 down` : (tfBull > 0 && tfBear > 0) ? 'conflicting' : 'mixed', c: tfBull >= 2 ? GC : tfBear >= 2 ? RC : NC, a: tfBull >= 2 ? '↑' : tfBear >= 2 ? '↓' : '•' },
@@ -2535,7 +2844,13 @@ function ArenaContent() {
               </div>
             )}
 
-            {whyLine && <p className="av-why">{whyLine}</p>}
+            {/* THROUGH ReasoningText, not a bare {whyLine} (#1263). whyLine is the first sentences of
+                `result.reasoning`, which the model writes in markdown - so a bare render showed
+                `[label](url)` as literal text here while the lower card (:2779) rendered the same
+                prose with real, scheme-checked links. Same renderer now: bold and links resolve, and
+                an unsafe URL still falls back to plain label text (isSafeHttpUrl), so this cannot
+                become a clickable `javascript:` link either. */}
+            {whyLine && <p className="av-why"><ReasoningText text={whyLine} /></p>}
 
             {/* Factor chips - live signals behind the read */}
             <div className="av-factors">
@@ -2600,6 +2915,13 @@ function ArenaContent() {
               </div>
             )}
 
+            {/* A DEEP read that gave levels but no catalysts says so (#1631, QA 2026-11-08: `catalysts: []` beside 3 levels): never an empty box, and never a silence a trader could read as a miss. */}
+            {cacheEntry?.mode === 'deep' && (!result.catalysts || result.catalysts.length === 0) && (result.levels?.length ?? 0) > 0 && (
+              <div style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 8, fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.5 }}>
+                {t('ARENA_NO_CATALYSTS_CITED')}
+              </div>
+            )}
+
             {/* Catalysts - top 3 bullets only */}
             {result.catalysts && result.catalysts.length > 0 && (
               <div style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 8 }}>
@@ -2629,7 +2951,7 @@ function ArenaContent() {
         </div>
       )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} />
+      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
       {/* Directly under the chart, on the owner's request (#370). The read
           refers to what the chart shows - "price below EMAs", "closing below
           the swing low", "lower wick at Fib support" - so anything between
@@ -2655,6 +2977,30 @@ function ArenaContent() {
                 : t('ARENA_STALE_SELECTION_CLEARED')}
             </div>
           )}
+          {/* ONE PLAIN-ENGLISH LINE FIRST, for a reader who does not know the vocabulary (owner,
+              2026-11-10). Built from the read's own fields by `plainSummary` - no second AI call,
+              because a summary that asks the model to summarise itself can disagree with the read
+              printed directly underneath it, and the reader has no way to tell which is wrong.
+
+              The technical paragraph, the patterns and the chips all stay, below it. */}
+          {(() => {
+            const s = plainSummary(result.signal, result.levels);
+            if (!s) return null;
+            const watch  = s.watch  ? t(s.watch.key,  { price: s.watch.price })  : null;
+            /* THE CANCEL CLAUSE ONLY APPEARS ALONGSIDE THE WATCH CLAUSE. On its own it would need
+               its first word capitalised, and capitalising a translated string is the kind of
+               English-shaped assumption that breaks in other locales. A read that names an
+               invalidation level but no confirmation level is also the rarer half of a pair, so
+               dropping it costs little - and `plainSummary` omits rather than invents either way. */
+            const cancel = watch && s.cancel ? t(s.cancel.key, { price: s.cancel.price }) : null;
+            return (
+              <div className="arena-reasoning" style={{ margin: '10px 0' }}>
+                <div className="arena-reasoning-text" data-testid="arena-plain-summary">
+                  {t(s.verdictKey)}{watch ? ` ${watch}${cancel ? `; ${cancel}` : ''}.` : ''}
+                </div>
+              </div>
+            );
+          })()}
           {result.chartAnalysis && (
             <div className="arena-reasoning" style={{ margin: '10px 0' }}>
               <div className="arena-reasoning-title">{t('ARENA_REASONING_CHART_TITLE')}</div>
@@ -2774,7 +3120,7 @@ function ArenaContent() {
       {/* EMA Ribbon Strategy card - sits directly under the chart so it reads as
           the explanation of the chart's own Buy/Sell markers, not a stray card
           four sections down. */}
-      <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
+      <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} aboveCeiling={aboveAnalysisCeiling} />
       {/* Owner-directed (screenshots, "put the multi timeframe inside of it"):
           the rail (.arena-ws-rail) runs longer than this left column - Strategy
           panel, market snapshot, Confluence Score - and .arena-ws uses
@@ -2807,6 +3153,10 @@ function ArenaContent() {
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
       <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} />
+      <ArenaStrategyCard selected={arenaStrategy} onSelect={handleArenaStrategyChange} state={strategyState} disabled={settingsLoadStatus !== 'ready'} />
+      {/* THE FIRST-VISIT SOUND QUESTION sits HERE, below the Strategy card, not above the chart. It appears only after settings load, so above the chart it pushed the whole chart
+          down (CLS 0.164 against a 0.1 budget on /arena: release run 43595134120, measured again in 43602526829). Down here it can only push the panels beneath it. */}
+      <ArenaSoundPrompt />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>

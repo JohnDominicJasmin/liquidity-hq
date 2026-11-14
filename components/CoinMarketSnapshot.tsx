@@ -2,6 +2,8 @@
 import { useMarket, CoinId, fmtPrice, COIN_DEC, classifyFunding, FUNDING_TIP_KEY } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { oiTrend1h } from '@/lib/oiTrend1h';
+import { currencyPrefix } from '@/lib/coins';
+import ReadingGap from '@/components/ReadingGap';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
@@ -40,6 +42,22 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
   const vwapAbove = vwap != null && price != null ? price > vwap : null;
   const vwapPct   = vwap && price ? ((price - vwap) / vwap) * 100 : null;
   const vwapCol   = vwapAbove === null ? 'var(--txt3)' : vwapAbove ? 'var(--green)' : 'var(--red)';
+  /* THE CARD SHOWS THE VWAP, under a heading that says VWAP (#1263, owner report).
+   *
+   * `edge-card-value` printed `price`, so the card showed the live PRICE under a "VWAP" label whose
+   * tooltip defines VWAP as "the average price across the day, weighted by how much was traded at
+   * each level". That was true for EVERY coin, the core 50 included - which is why it went
+   * unnoticed for so long: price and VWAP are normally close enough that the number looks right.
+   * The owner spotted it on CYBER, where $0.2637 under VWAP was simply the live price.
+   *
+   * The real VWAP survived only as the direction and percentage underneath, which is where the
+   * design intent plainly was. Now the value is the VWAP and that line is its relation to price.
+   *
+   * A DASH AND A WORD, NEVER AN ENDLESS SKELETON. `vwap` is written only by the core-50 snapshot
+   * pass, so on a universe coin the skeleton below spun for ever and the card settled into reading
+   * as a finished value - the same unknown-shown-as-pending defect as #2119 and #2125. */
+  /* currencyPrefix, not a literal $ (#2196): an HKD coin's VWAP read HK$ everywhere else on the page and $ here. */
+  const vwapStr = vwap != null ? currencyPrefix(coin) + fmtPrice(vwap, COIN_DEC[coin]) : null;
 
   /* #1613: the label and the number beside it come from the SAME hour. `store.oiTrend` is a different window (~3h at first load, ~25 min once the
      poll has filled its history) and made the label contradict the 1h figure and flip as its source changed, so this card no longer reads it.
@@ -70,11 +88,12 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
       <div className="edge-card">
         <div className="edge-card-label"><Tip text={t('COIN_MARKET_SNAPSHOT_VWAP_TOOLTIP')}>{t('COIN_MARKET_SNAPSHOT_VWAP_LABEL')}</Tip></div>
         <div className="edge-card-value" style={{ color: vwapCol }}>
-          {price != null ? '$' + fmtPrice(price, COIN_DEC[coin]) : '-'}
+          {/* NO BARE DASH ON THE RAIL EITHER (#1651, PM, QA's HYPE live check): an ellipsis while the snapshot is loading, "Unavailable" once it is not (vwap is written only by the core-50 snapshot pass, so a universe coin never gets one). */}
+          {vwapStr ?? <ReadingGap loading={store.snapshotStatus === 'loading'} />}
         </div>
         <div className="edge-card-signal" style={{ color: vwapCol }}>
           {vwapAbove === null
-            ? <SkeletonBar width={100} height={11} radius={4} />
+            ? (vwap == null ? null : t('STATE_UNAVAILABLE'))
             : t('COIN_MARKET_SNAPSHOT_VWAP_SIGNAL', { arrow: vwapAbove ? '▲' : '▼', pct: vwapPct != null ? (vwapPct >= 0 ? '+' : '') + vwapPct.toFixed(2) + '%' : '' })}
         </div>
       </div>
@@ -85,7 +104,7 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
         </div>
         {oiMeta ? (
           <>
-            <div className="edge-card-value is-label" style={{ color: oiMeta.col }}>{t(oiMeta.txtKey)}</div>
+            <div className="edge-card-value is-label" title={t(oiMeta.txtKey)} style={{ color: oiMeta.col }}>{t(oiMeta.txtKey)}</div>
             <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
               {t(oiMeta.subKey)}{!oi1h.loading && oi1h.pct != null ? t('COIN_MARKET_SNAPSHOT_OI_1H_PCT_SUFFIX', { pct: oi1hPctStr }) : ''}
             </div>
@@ -93,10 +112,21 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
         ) : (
           <>
             <div className="edge-card-value is-label" style={{ color: oi1hCol }}>
-              {!oi1h.loading && oi1h.pct != null ? oi1hPctStr : '-'}
+              {!oi1h.loading && oi1h.pct != null ? oi1hPctStr : <ReadingGap loading={oi1h.loading} />}
             </div>
             <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
-              {oi1h.loading ? <SkeletonBar width={90} height={11} radius={4} /> : oi1h.pct != null ? t('COIN_MARKET_SNAPSHOT_OI_1H_TREND_SUFFIX', { txt: oi1hTxt }) : t('GLOBAL_MACRO_CONTEXT_ROW_UNAVAILABLE')}
+              {/* THREE ABSENCES, THREE STRINGS (#1651, QA's finding). Loading was already its own
+                  state - the skeleton - but "the venue did not answer" and "there is not enough
+                  history yet" both printed "Unavailable", which sends a reader looking for an
+                  outage that is not there. A newly listed coin, or the first minutes after a cache
+                  flush, is the second case and is entirely normal. */}
+              {oi1h.loading
+                ? <SkeletonBar width={90} height={11} radius={4} />
+                : oi1h.pct != null
+                ? t('COIN_MARKET_SNAPSHOT_OI_1H_TREND_SUFFIX', { txt: oi1hTxt })
+                : oi1h.reason === 'short-window'
+                ? t('COIN_MARKET_SNAPSHOT_OI_1H_SHORT_WINDOW')
+                : t('GLOBAL_MACRO_CONTEXT_ROW_UNAVAILABLE')}
             </div>
           </>
         )}
@@ -106,10 +136,10 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
         {/* Tooltip follows the SIGN (#244) - see the dashboard card for why. */}
         <div className="edge-card-label"><Tip text={t(fr != null ? FUNDING_TIP_KEY[classifyFunding(fr).band] : 'COIN_MARKET_SNAPSHOT_FUNDING_TOOLTIP')}>{t('COIN_MARKET_SNAPSHOT_FUNDING_LABEL')}</Tip></div>
         <div className="edge-card-value" style={{ color: frCol }}>
-          {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
+          {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : <ReadingGap loading={store.scannerFeed.universe === 'pending'} />}
         </div>
         <div className="edge-card-signal" style={{ color: frCol }}>
-          {frPct == null ? <SkeletonBar width={70} height={11} radius={4} /> : t(frSigKey)}
+          {frPct == null ? (store.scannerFeed.universe === 'pending' ? <SkeletonBar width={70} height={11} radius={4} /> : null) : t(frSigKey)}
         </div>
       </div>
     </div>

@@ -44,8 +44,10 @@ import { cached } from '@/lib/apiCache';
 import { intervalToMs, closedCandleKey, CLOSE_SKEW_MS } from '@/lib/candles';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
+import { logDeep502 } from '@/lib/deep502Log';
 import { reportHealth } from '@/lib/apiHealth';
 import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, OKX_SYMS, HL_SYMS, bybitPriceFactor } from '@/lib/coins';
+import { COIN_UNIVERSE } from '@/lib/coinUniverse.generated';
 import {
   HL_INFO_URL, HL_INTERVALS, hlIntervalToMs, hlCandleSnapshotBody, parseHlCandles,
   hlCandlesToBareArray, hlMultiplier,
@@ -109,7 +111,34 @@ function bybitKlinesToBinanceShape(body: unknown, priceFactor: number, limitRaw:
  * and limit is snapped to a bucket - so the worst case is
  * sources x symbols x intervals x buckets, which is bounded and small. */
 const SYMBOLS: Record<Source, Set<string>> = {
-  bybit:             new Set(Object.values(BYBIT_SYMS)),
+  /* THE WHOLE UNIVERSE ON THE TWO PERP VENUES, not the editorial 50 (owner report, 2026-11-11).
+     Arena offers all 463 `UNIVERSE_COINS` in its selector (`arena/page.tsx:153`) and its scanner
+     (`:1850`), while this allowlist was built from `BYBIT_SYMS` - which is derived from
+     `RENDERED_IDS`. So ~413 of the coins Arena offers were refused BY NAME here: the chart sat on
+     "Loading 15M..." against an empty canvas with the default 0-10 axis, and the scanner printed
+     "n/a n/a" for signal and score because the EMA strategy never got candles. Price and VWAP still
+     showed, from the universe ticker pass, which is what made it look like a partial outage rather
+     than a coin the data layer had never heard of.
+
+     CORRECTION, and it was wrong in this comment first: that pass carries PRICE AND 24H CHANGE
+     ONLY (see its own header). It does NOT carry VWAP. The "VWAP" the owner saw on CYBER is the
+     live price rendered under a VWAP heading - a separate mislabelling defect QA traced to three
+     sites, affecting every coin including the core 50. Left here because this sentence was the
+     only written explanation for a VWAP on a non-core coin, and it would have stopped the next
+     person looking.
+
+     STILL A REAL ALLOWLIST. Derived from the generated universe, so an arbitrary or delisted symbol
+     is rejected exactly as before - the set is bigger, not absent. `bybitPriceFactor()` already
+     reads every universe row, so the multipliers these coins need are in place.
+
+     THE SHARED MAPS ARE DELIBERATELY NOT TOUCHED. 35 files read `BYBIT_SYMS`/`BINANCE_SYMS`,
+     including the alert cron, so widening those would turn 463 coins into live consumers everywhere
+     rather than on the one chart a user actually opened (PM's option C, 2026-11-11).
+
+     THE CACHE KEY SPACE grows with it: the bound above is sources x symbols x intervals x buckets,
+     and symbols goes from ~50 to ~462 on these two sources. Still finite, and `cached()` caps
+     entries and bytes, so it evicts rather than growing without limit. */
+  bybit:             new Set(COIN_UNIVERSE.map(r => r.bybit).filter((s): s is string => !!s)),
   /* SPOT GETS THE SPOT MAP. `BINANCE_SYMS` is generated from `fapi/v1/exchangeInfo`, so it proves a
      FUTURES listing and says nothing about spot - `SPXUSDT` is on futures and not on spot. This set
      used to be `BINANCE_SYMS`, so `source=binance&symbol=SPXUSDT` was admitted and then 400'd at
@@ -119,7 +148,11 @@ const SYMBOLS: Record<Source, Set<string>> = {
      in its batched ticker call. Now the refusal is ours and immediate, and the chart takes the same
      fallback one upstream call sooner. See `BINANCE_SPOT_SYMS` in lib/coins.ts. */
   binance:           new Set(Object.values(BINANCE_SPOT_SYMS)),
-  'binance-futures': new Set(Object.values(BINANCE_SYMS)),
+  /* The universe's `binance` column IS the futures symbol - the generator reads
+     `fapi/v1/exchangeInfo` - so it belongs here and NOT in the spot set above, which stays on the
+     spot-verified map for the `SPXUSDT` reason given there. There is no spot-verified column for
+     the universe, so widening spot would re-create that defect 413 times over. */
+  'binance-futures': new Set(COIN_UNIVERSE.map(r => r.binance).filter((s): s is string => !!s)),
   /* 49 of the 50 rendered coins, from the generated `okx` column. Three ids the other two venues
      carry are deliberately absent because OKX names a different asset by that ticker - so this set
      being SMALLER than BYBIT_SYMS for a reason other than listing coverage is correct. */
@@ -253,6 +286,7 @@ function sliceToLimit(source: Source, body: unknown, n: number): unknown {
 }
 
 export async function GET(req: NextRequest) {
+  const t0 = Date.now(); // for the Deep-path 502 line (lib/deep502Log.ts)
   /* 1200/min, not the 120 this shipped with.
    *
    * 120 was copied from routes a page calls a handful of times. This one is
@@ -709,6 +743,7 @@ export async function GET(req: NextRequest) {
     }
 
     reportHealth(`${source}:klines-proxy`, 'market', false, status ? `upstream ${status}` : String(e));
+    logDeep502({ route: '/api/market/klines', kind: 'klines-upstream', upstream: source, upstreamStatus: typeof status === 'number' ? status : null, coin: symbol, ms: Date.now() - t0 });
     /* 502 with the upstream status attached: "refused" must be distinguishable
        from "no candles", which is the whole of #228. */
     return apiError('market-klines', e, 502, status === 418 || status === 429

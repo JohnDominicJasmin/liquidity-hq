@@ -31,7 +31,8 @@ export type CoinId = string;
 
 const BY_ID = new Map<string, CoinRow>(COIN_UNIVERSE.map(r => [r.id, r]));
 
-/** EVERY instrument the exchanges trade and both venues cover - 463 of them, opt-in.
+/** EVERY instrument in the generated universe: the crypto both venues cover (463) plus Binance's
+ * TradFi contracts - stocks, funds, commodities, FX and pre-IPO references (235) - opt-in.
  *
  * Nothing renders this by default. It is here for the surfaces that are SUPPOSED to offer the
  * whole market, and each of those is a visual decision the owner signs off on one at a time.
@@ -137,6 +138,61 @@ export const UNIVERSE_SYM_TO_COIN: Record<string, string> = Object.fromEntries(
 export function coinRow(coin: string): CoinRow | undefined {
   return BY_ID.get(coin);
 }
+
+/* ── TRADFI: stocks, funds, commodities, FX and pre-IPO references (owner, 2026-11-12) ─────────
+ *
+ * Binance lists these as TRADIFI_PERPETUAL and the generator now carries them (see its header). A
+ * row has `kind` and `ticker`; a plain crypto coin has neither. Two things callers must know:
+ *
+ *   - THE ID IS NOT ALWAYS THE TICKER. A ticker that clashes with a crypto base takes Bybit's own
+ *     `<ticker>stock` form (`catstock`, because `cat` is a memecoin), so show `coinLabel(id)`, never
+ *     `id.toUpperCase()`, on a surface that can hold one of these.
+ *   - THEY ARE UNIVERSE-ONLY. None is in `COINS`, so none is scanned, alerted on, or offered an AI
+ *     read - the same coverage line every other non-curated coin sits behind. */
+export type CoinKind = NonNullable<CoinRow['kind']>;
+
+/** What kind of instrument a coin id is, or undefined for a plain crypto coin. */
+export function coinKind(coin: string): CoinKind | undefined {
+  return BY_ID.get(coin)?.kind;
+}
+
+/** A warning the app must show for this row (see the generator's TRADFI_CAVEAT), or undefined. */
+export type CoinCaveat = NonNullable<CoinRow['caveat']>;
+export function coinCaveat(coin: string): CoinCaveat | undefined {
+  return BY_ID.get(coin)?.caveat;
+}
+
+/* THE CURRENCY SIGN FOR A COIN'S PRICE. Everything is quoted in dollars except the Hong Kong listings Binance
+ * quotes in Hong Kong dollars, which print "HK$". A price for one of those rows must NEVER carry a bare "$":
+ * 396 HK$ read as $396 is wrong by a currency (HK0700 is 7.84x its own USD-quoted TENCENT). Every surface that
+ * writes a literal "$" in front of a selected coin's price goes through this; a surface that does not is a
+ * defect on those four rows. */
+export function currencyPrefix(coin: string | null | undefined): string {
+  return coin != null && BY_ID.get(coin)?.caveat === 'hkd' ? 'HK$' : '$';
+}
+
+const idsOfKind = (kinds: readonly CoinKind[]): CoinId[] =>
+  COIN_UNIVERSE.filter(r => r.kind && kinds.includes(r.kind)).map(r => r.id);
+
+/** The Arena's three TradFi category tabs. A pre-IPO reference and a "Tokenized asset" (an equity whose
+ *  stock-vs-fund status is unconfirmed) sit with Stocks, each labelled as what it is on its row; FX sits
+ *  with Commodities, whose tab says so. */
+export const TRADFI_CATEGORY_COINS: { stocks: CoinId[]; etfs: CoinId[]; commodities: CoinId[] } = {
+  stocks: idsOfKind(['stock', 'asset', 'preipo']),
+  etfs: idsOfKind(['etf']),
+  commodities: idsOfKind(['commodity', 'fx']),
+};
+
+/* BINANCE SYMBOL -> COIN ID, for the universe rows Bybit does not list at all (18 today: the pre-IPO
+ * references, a few commodities and the Hong Kong shares). The Bybit bulk ticker is what prices every
+ * other universe coin, so these would have no price without a second source. They are read with one
+ * small request naming exactly these symbols - never the whole market. The curated Binance-only coin
+ * (`fet`) is excluded: it is priced by the curated path. */
+export const UNIVERSE_BINANCE_ONLY: Record<string, string> = Object.fromEntries(
+  COIN_UNIVERSE
+    .filter(r => !r.bybit && r.binance && !RENDERED_IDS.includes(r.id))
+    .map(r => [r.binance as string, r.id]),
+);
 
 /* THESE TWO MAPS COVER WHAT THE APP RENDERS, NOT THE WHOLE UNIVERSE, and that is load-bearing
  * rather than tidy.
@@ -346,6 +402,21 @@ export const HL_SYMS: Record<string, string> = Object.fromEntries(
     .filter(([, name]) => typeof name === 'string' && hlMultiplier(name as string) !== null),
 );
 
+/* SECOND PRICE SOURCE FOR ROWS THE PRIMARY FEEDS CAN LEAVE EMPTY (#1263, owner: the scanner showed a bare dash).
+ *
+ * Hyperliquid, price and 24h change only, ONLY for rows where its instrument is the SAME asset at the SAME unit as the row's own venue.
+ * Each name below was checked against Binance's last price on 2026-11-13: one sample per row, NOT a time series.
+ *     fet    FET               +0.08%        copper  xyz:COPPER    -0.21%     natgas xyz:NATGAS    -0.12%
+ *     xpd    xyz:PALLADIUM     -0.18%        xpt     xyz:PLATINUM  -0.17%     oura   xyz:OURA      +0.11%
+ *     strc   xyz:STRC          -0.16%
+ * All inside 0.5%. A row not listed here has no proven second source and says "Unavailable" when its own feed fails. Rows that were
+ * looked at and left out: anthropic, openai, moonshot (Bybit's quote differs by 0.55-1.3% and nothing says it is the same reference),
+ * dis, frhc, payp, hk0625, hk0700, hk0992, hk1810 (no Hyperliquid instrument). Adding a row needs the same proof first.
+ * The server route (app/api/market/price-backup) is the only reader of this map. */
+export const HL_PRICE_BACKUP: Record<string, string> = {
+  fet: 'FET', copper: 'xyz:COPPER', natgas: 'xyz:NATGAS', xpd: 'xyz:PALLADIUM', xpt: 'xyz:PLATINUM', oura: 'xyz:OURA', strc: 'xyz:STRC',
+};
+
 /* Names listed here but dropped by the refusal filter above - empty today, and exported so the
    generator and a test can assert that a refusal actually removes something rather than trusting
    that it would. An entry here is not a bug; it is the filter working, and worth seeing. */
@@ -432,7 +503,7 @@ const LABEL_OVERRIDE: Record<string, string> = { spx: 'SPX6900' };
 /** Display label. The ticker is the label for every instrument, so this is derived rather
  *  than listed - a generated coin cannot arrive without one. */
 export const COIN_LABELS: Record<string, string> = Object.fromEntries(
-  COIN_UNIVERSE.map(r => [r.id, LABEL_OVERRIDE[r.id] ?? r.id.toUpperCase()]),
+  COIN_UNIVERSE.map(r => [r.id, LABEL_OVERRIDE[r.id] ?? r.ticker ?? r.id.toUpperCase()]),
 );
 
 /* Bybit quotes the low-unit-price meme perps per 1000 tokens - 1000PEPEUSDT, 1000BONKUSDT -
@@ -473,9 +544,61 @@ export function binancePriceFactor(coin: string): number {
 }
 
 /** Same conversion when only the symbol is in hand, not the coin id. */
-export function bybitSymbolPriceFactor(symbol: string): number {
+
+/* THE VENUE SYMBOLS FOR ANY COIN THE APP OFFERS, editorial or universe (#1263, owner report).
+ *
+ * `BYBIT_SYMS`/`BINANCE_SYMS` are built from `RENDERED_IDS` on purpose and 17 files read them, so
+ * they stay the editorial list. But Arena's selector and scanner offer all 463 `UNIVERSE_COINS`,
+ * and its chart resolved symbols from those editorial maps - so for a non-core coin both came back
+ * `undefined`, every fetch branch was skipped, and NO REQUEST WAS EVER MADE. Widening the kline
+ * route's allowlist (#2127) could not help, because nothing was calling it.
+ *
+ * Use this ONLY on a surface that deliberately offers the universe. A surface that renders the
+ * editorial list should keep reading the maps, so that a coin appearing where it should not is a
+ * missing symbol rather than a silently working one.
+ *
+ * BINANCE_HOLD IS RESPECTED, and deliberately not re-derived. It holds `pepe` and `bonk` out of
+ * the Binance map because `binancePriceFactor` has zero call sites, and the last time symbols were
+ * added before the factor was applied it put those two coins' alert outcomes at +/-100,000% and
+ * dragged the Track Record average to -126%. That is a measured incident with a hand-written list
+ * naming its own exit condition; this resolver is not the place to overturn it. Such a coin still
+ * charts, from Bybit. */
+export function venueSymbols(coin: string): { bybit: string | null; binance: string | null } {
+  const row = BY_ID.get(coin);
+  if (!row) return { bybit: null, binance: null };
+  return {
+    bybit:   row.bybit ?? null,
+    binance: BINANCE_HOLD.has(coin) ? null : (row.binance ?? null),
+  };
+}
+
+/** The denomination a SYMBOL declares, from its own leading multiplier: `1000PEPEUSDT` -> 0.001,
+ *  `10000SATSUSDT` -> 0.0001, `1000000MOGUSDT` -> 0.000001, anything else -> 1.
+ *
+ * VENUE-NEUTRAL BY NAME, and that is load-bearing rather than tidy. This was renamed from a
+ * venue-named predecessor (#2135, migrated over #2136/#2137, the alias deleted here) because three
+ * Arena surfaces correctly pass it a BINANCE symbol: it reads the symbol's own declared
+ * denomination, which is the only reading that works for `sats`, `tag`, `toshi` and `turbo`, where
+ * the two venues denominate the SAME coin differently (bybit 10000SATS vs binance 1000SATS). The
+ * old name invited readers to "correct" those call sites to the venue-keyed `bybitPriceFactor`,
+ * which would have silently priced those four coins out by 10x to 1000x. QA raised it.
+ *
+ * NOT TO BE CONFUSED WITH `bybitPriceFactor` / `binancePriceFactor`, which are genuinely
+ * venue-specific: they look the coin up and read that venue's `mult` from the generated row. Use
+ * those when you have a COIN ID and know the venue; use this when all you have is a symbol string
+ * off a feed.
+ *
+ * A LEADING DIGIT IS NOT ALWAYS A MULTIPLIER (#1263). Three universe tickers begin with one -
+ * `0GUSDT`, `2ZUSDT`, `4USDT` - and dividing by it gave `Infinity`, `0.5` and `0.25`. So the
+ * prefix counts only as a denomination when it is a power of ten of at least 1000, which is the
+ * exchanges' actual convention. Verified against all 463 generated rows: the result equals each
+ * row's own `bybitMult`/`binanceMult`, where three disagreed before. */
+export function symbolDenominationFactor(symbol: string): number {
   const m = /^(\d+)/.exec(symbol);
-  return m ? 1 / Number(m[1]) : 1;
+  if (!m) return 1;
+  const n = Number(m[1]);
+  const isDenomination = n >= 1000 && Number.isInteger(Math.log10(n));
+  return isDenomination ? 1 / n : 1;
 }
 
 /* The symbol the CHART shows, which is not always the symbol we fetch.
@@ -488,10 +611,10 @@ export function bybitSymbolPriceFactor(symbol: string): number {
  * Nothing leaks out of the chart at this scale: its two internal consumers of the last close
  * are a pixel conversion and a percentage distance to S/R, both scale-invariant. Revisit if
  * klinecharts fixes small-value axes - the fix is to delete this and re-apply
- * bybitSymbolPriceFactor in the chart's fetches. */
+ * symbolDenominationFactor in the chart's fetches. */
 export function chartDisplaySymbol(coin: string): string {
   const prefix = BYBIT_SYMS[coin]?.startsWith('1000') ? '1000' : '';
-  return `${prefix}${coin.toUpperCase()}/USDT`;
+  return `${prefix}${BY_ID.get(coin)?.ticker ?? coin.toUpperCase()}/USDT`;
 }
 
 /* The helper arrived on `dev` in #1863 with a HAND-WRITTEN COIN_LABELS beside it; this branch

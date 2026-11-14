@@ -73,6 +73,20 @@ export interface LandingDict {
     free: { name: string; sub: string; features: Record<string, string>; cta: string };
     pro: { badge: string; name: string; sub: string; features: Record<string, string>; cta: string };
   };
+  /* The top price ticker's words for a missing quote (#1263). In the dictionary and NOT the label table, because the landing page does not read the label table (#1889). */
+  ticker: { loading: string; unavailable: string; failedNote: string; noneNote: string };
+  /* The live-read card's words and the header START button (#1185, PM 2026-11-13: the non-English landings still showed English there). In the dictionary and NOT the label table, because the landing page does not read the label table (#1889). */
+  liveRead: {
+    start: string; title: string; conf: string;
+    rows: { vwap: string; oiTrend: string; funding: string; cbPrem: string; oi1h: string; setup: string };
+    notes: { above: string; below: string; nOf3: string };
+    verdict: { bullish: string; bearish: string; noRead: string };
+    levels: { entry: string; stop: string; target: string };
+    oiTrend: { strong_up: string; strong_down: string; weak_up: string; weak_down: string };
+    funding: { heavyPos: string; mildPos: string; neutral: string; mildNeg: string; heavyNeg: string };
+    setup: { noData: string; balanced: string; squeeze: string; flush: string };
+    oi1h: { spikeUp: string; spikeDown: string; stable: string; rising: string; unwinding: string; newLongs: string; newShorts: string; shortCover: string; longExits: string };
+  };
   finalCta: { h2: string; sub: string; cta: string };
   footer: {
     brandDesc: string;
@@ -89,6 +103,18 @@ export interface LandingDict {
 }
 
 export const en: LandingDict = {
+  ticker: { loading: 'Loading', unavailable: 'Unavailable', failedNote: 'The exchange did not answer. Retrying.', noneNote: 'No price for this instrument from our sources.' },
+  liveRead: {
+    start: 'START', title: 'Live read', conf: 'CONF',
+    rows: { vwap: 'VWAP', oiTrend: 'OI trend', funding: 'Funding', cbPrem: 'CB prem', oi1h: 'OI 1h', setup: 'Setup' },
+    notes: { above: 'Above', below: 'Below', nOf3: '{n} of 3 signals' },
+    verdict: { bullish: 'BULLISH', bearish: 'BEARISH', noRead: 'NO READ' },
+    levels: { entry: 'Entry', stop: 'Stop', target: 'Target' },
+    oiTrend: { strong_up: 'Strong up', strong_down: 'Strong down', weak_up: 'Weak up', weak_down: 'Weak down' },
+    funding: { heavyPos: 'Heavily positive', mildPos: 'Mildly positive', neutral: 'Neutral', mildNeg: 'Mildly negative', heavyNeg: 'Heavily negative' },
+    setup: { noData: 'No data', balanced: 'Balanced', squeeze: 'Short squeeze ↑', flush: 'Long liquidation risk ↓' },
+    oi1h: { spikeUp: 'OI spike - rising', spikeDown: 'OI spike - unwinding', stable: 'Stable', rising: 'Rising', unwinding: 'Unwinding', newLongs: 'New longs - real trend ▲', newShorts: 'New shorts - real dump ▼', shortCover: 'Short covering - weak pump', longExits: 'Long exits - no panic' },
+  },
   nav: { signIn: 'Sign In', getStarted: 'Get Started Free' },
   hero: {
     badge: '50 markets · Signals + alerts',
@@ -182,6 +208,18 @@ export const en: LandingDict = {
 };
 
 export const ko: LandingDict = {
+  ticker: { loading: '불러오는 중', unavailable: '이용 불가', failedNote: '거래소가 응답하지 않았습니다. 다시 시도하는 중입니다.', noneNote: '저희 데이터 소스에는 이 상품의 가격이 없습니다.' },
+  liveRead: {
+    start: '시작', title: '실시간 분석', conf: '신뢰도',
+    rows: { vwap: 'VWAP', oiTrend: 'OI 추세', funding: '펀딩', cbPrem: 'CB 프리미엄', oi1h: 'OI 1시간', setup: '셋업' },
+    notes: { above: '위', below: '아래', nOf3: '신호 {n}/3' },
+    verdict: { bullish: '강세', bearish: '약세', noRead: '판단 없음' },
+    levels: { entry: '진입', stop: '손절', target: '목표' },
+    oiTrend: { strong_up: '강한 상승', strong_down: '강한 하락', weak_up: '약한 상승', weak_down: '약한 하락' },
+    funding: { heavyPos: '매우 높은 양(+)', mildPos: '약간 양(+)', neutral: '중립', mildNeg: '약간 음(-)', heavyNeg: '매우 낮은 음(-)' },
+    setup: { noData: '데이터 없음', balanced: '균형', squeeze: '숏 스퀴즈 ↑', flush: '롱 청산 위험 ↓' },
+    oi1h: { spikeUp: 'OI 급증 - 증가', spikeDown: 'OI 급증 - 감소', stable: '안정', rising: '증가', unwinding: '감소', newLongs: '신규 롱 - 실제 추세 ▲', newShorts: '신규 숏 - 실제 하락 ▼', shortCover: '숏 커버링 - 약한 상승', longExits: '롱 청산 - 패닉 아님' },
+  },
   nav: { signIn: '로그인', getStarted: '무료로 시작하기' },
   hero: {
     badge: '50개 마켓 · 신호 + 알림',
@@ -265,6 +303,18 @@ export const ko: LandingDict = {
 };
 
 export const zh: LandingDict = {
+  ticker: { loading: '加载中', unavailable: '不可用', failedNote: '交易所未响应，正在重试。', noneNote: '我们的数据源没有该品种的价格。' },
+  liveRead: {
+    start: '开始', title: '实时解读', conf: '置信度',
+    rows: { vwap: 'VWAP', oiTrend: '持仓趋势', funding: '资金费率', cbPrem: 'CB 溢价', oi1h: '1 小时持仓', setup: '形态' },
+    notes: { above: '上方', below: '下方', nOf3: '{n}/3 个信号' },
+    verdict: { bullish: '看涨', bearish: '看跌', noRead: '暂无判断' },
+    levels: { entry: '入场', stop: '止损', target: '目标' },
+    oiTrend: { strong_up: '强势上升', strong_down: '强势下降', weak_up: '弱势上升', weak_down: '弱势下降' },
+    funding: { heavyPos: '明显偏正', mildPos: '轻度偏正', neutral: '中性', mildNeg: '轻度偏负', heavyNeg: '明显偏负' },
+    setup: { noData: '暂无数据', balanced: '均衡', squeeze: '空头挤压 ↑', flush: '多头清算风险 ↓' },
+    oi1h: { spikeUp: '持仓激增 - 上升', spikeDown: '持仓激增 - 回落', stable: '稳定', rising: '上升', unwinding: '回落', newLongs: '新增多头 - 真实趋势 ▲', newShorts: '新增空头 - 真实下跌 ▼', shortCover: '空头回补 - 弱势上涨', longExits: '多头离场 - 无恐慌' },
+  },
   nav: { signIn: '登录', getStarted: '免费开始使用' },
   hero: {
     badge: '50个市场 · 信号 + 提醒',
@@ -348,6 +398,18 @@ export const zh: LandingDict = {
 };
 
 export const ar: LandingDict = {
+  ticker: { loading: 'جارٍ التحميل', unavailable: 'غير متاح', failedNote: 'لم تستجب البورصة. نعيد المحاولة.', noneNote: 'لا يتوفر سعر لهذه الأداة من مصادرنا.' },
+  liveRead: {
+    start: 'ابدأ', title: 'القراءة المباشرة', conf: 'الثقة',
+    rows: { vwap: 'VWAP', oiTrend: 'اتجاه OI', funding: 'التمويل', cbPrem: 'علاوة CB', oi1h: 'OI لساعة', setup: 'الإعداد' },
+    notes: { above: 'أعلى', below: 'أدنى', nOf3: '{n} من 3 إشارات' },
+    verdict: { bullish: 'صاعد', bearish: 'هابط', noRead: 'لا قراءة' },
+    levels: { entry: 'الدخول', stop: 'الوقف', target: 'الهدف' },
+    oiTrend: { strong_up: 'صعود قوي', strong_down: 'هبوط قوي', weak_up: 'صعود ضعيف', weak_down: 'هبوط ضعيف' },
+    funding: { heavyPos: 'إيجابي بشدة', mildPos: 'إيجابي بدرجة طفيفة', neutral: 'محايد', mildNeg: 'سلبي بدرجة طفيفة', heavyNeg: 'سلبي بشدة' },
+    setup: { noData: 'لا بيانات', balanced: 'متوازن', squeeze: 'ضغط على البائعين ↑', flush: 'خطر تصفية الشراء ↓' },
+    oi1h: { spikeUp: 'قفزة في OI - ارتفاع', spikeDown: 'قفزة في OI - تراجع', stable: 'مستقر', rising: 'يرتفع', unwinding: 'يتراجع', newLongs: 'مراكز شراء جديدة - اتجاه حقيقي ▲', newShorts: 'مراكز بيع جديدة - هبوط حقيقي ▼', shortCover: 'تغطية مراكز بيع - صعود ضعيف', longExits: 'خروج من الشراء - بلا ذعر' },
+  },
   nav: { signIn: 'تسجيل الدخول', getStarted: 'ابدأ مجانًا' },
   hero: {
     badge: 'مباشر · 50 عملة · إشارات لحظية',
@@ -430,12 +492,20 @@ export const ar: LandingDict = {
   },
 };
 
-/* RUSSIAN, TRANSLATED FROM THE ENGLISH ABOVE AND NOT YET SWITCHED ON (#1740).
+/* RUSSIAN, TRANSLATED FROM THE ENGLISH ABOVE AND NOW LIVE (#1740).
  *
- * Held out of `SUPPORTED_LOCALES` and out of the `dictionaries` map below, exactly the way `ar` is, so
- * `/ru` still 404s until someone deliberately turns it on. The type is what enforces that: the map is
- * keyed by `Locale`, so adding `ru` here without also adding it to `SUPPORTED_LOCALES` is a compile
- * error rather than a half-released language.
+ * THIS PARAGRAPH SAID THE OPPOSITE UNTIL 2026-11-12, and it is corrected rather than deleted because
+ * the stale version is what caused a defect. `ru` is in `SUPPORTED_LOCALES` (line 25) and in the
+ * `dictionaries` map below, so `/ru` has been served for some time - but the pre-paint landing
+ * redirect in components/RootDocument.tsx was written against this comment's three languages and
+ * never gained /ru, so signed-in Russian visitors kept the flash it exists to remove (#1173). A
+ * comment describing a state that has ended is not harmless: it is what the next reader checks
+ * instead of the code.
+ *
+ * `ar` IS still held out, of both this map and `SUPPORTED_LOCALES`, and the type is what enforces it:
+ * the map is keyed by `Locale`, so adding a language here without adding it to `SUPPORTED_LOCALES` is
+ * a compile error rather than a half-released language. Adding one to `SUPPORTED_LOCALES` is what
+ * makes its landing route real - and now also what puts it in the redirect's path list.
  *
  * WHY IT IS DRAFTED AT ALL. Russian already works throughout the APP - 2,416 `lhq_labels` rows live
  * since 2026-08-03 - and only the landing page is missing, because the landing is a separate
@@ -455,6 +525,18 @@ export const ar: LandingDict = {
  * Latin left as-is where Russian traders use it that way and the Korean dictionary does the same:
  * LiquidityHQ, AI, Telegram, Binance, Bybit, BTC, DXY, S&P 500, ETF, GEX, CVD, RSI, EMA, FR, L/S. */
 export const ru: LandingDict = {
+  ticker: { loading: 'Загрузка', unavailable: 'Недоступно', failedNote: 'Биржа не ответила. Повторяем попытку.', noneNote: 'В наших источниках нет цены для этого инструмента.' },
+  liveRead: {
+    start: 'СТАРТ', title: 'Живой обзор', conf: 'УВЕР.',
+    rows: { vwap: 'VWAP', oiTrend: 'Тренд OI', funding: 'Фандинг', cbPrem: 'Премия CB', oi1h: 'OI 1ч', setup: 'Сетап' },
+    notes: { above: 'Выше', below: 'Ниже', nOf3: '{n} из 3 сигналов' },
+    verdict: { bullish: 'БЫЧИЙ', bearish: 'МЕДВЕЖИЙ', noRead: 'НЕТ ОЦЕНКИ' },
+    levels: { entry: 'Вход', stop: 'Стоп', target: 'Цель' },
+    oiTrend: { strong_up: 'Сильный рост', strong_down: 'Сильное падение', weak_up: 'Слабый рост', weak_down: 'Слабое падение' },
+    funding: { heavyPos: 'Сильно положительный', mildPos: 'Слабо положительный', neutral: 'Нейтральный', mildNeg: 'Слабо отрицательный', heavyNeg: 'Сильно отрицательный' },
+    setup: { noData: 'Нет данных', balanced: 'Баланс', squeeze: 'Шорт-сквиз ↑', flush: 'Риск ликвидации лонгов ↓' },
+    oi1h: { spikeUp: 'Всплеск OI - рост', spikeDown: 'Всплеск OI - сокращение', stable: 'Стабильно', rising: 'Растёт', unwinding: 'Сокращается', newLongs: 'Новые лонги - реальный тренд ▲', newShorts: 'Новые шорты - реальное падение ▼', shortCover: 'Закрытие шортов - слабый рост', longExits: 'Выход из лонгов - без паники' },
+  },
   nav: { signIn: 'Войти', getStarted: 'Начать бесплатно' },
   hero: {
     badge: '50 рынков · Сигналы + оповещения',

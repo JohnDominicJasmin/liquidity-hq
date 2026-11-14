@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
+import { chip } from './_shared';
 
 /* #1253 (#1246): a chip clicked on the Strategy Panel before the settings
  * DB read lands must not write an empty/narrowed selection over a real
@@ -75,7 +76,7 @@ test.describe('Strategy Panel pre-load write race (#1253)', () => {
       // 1. Skeleton, not bare unselected-looking chips, while loading.
       const skeleton = page.locator('[role="status"][aria-live="polite"]', { hasText: /loading your saved strategy/i });
       await expect(skeleton).toBeVisible({ timeout: DELAY_MS - 200 });
-      await expect(page.locator('button.strat-chip')).toHaveCount(0);
+      await expect(page.locator('button.strat-ind-chip')).toHaveCount(0);
       await expect(page.locator('select.strat-sel')).toBeDisabled();
 
       // 2. A click during the window does nothing and writes nothing - there
@@ -89,7 +90,7 @@ test.describe('Strategy Panel pre-load write race (#1253)', () => {
       await expect(page.locator('select.strat-sel')).toBeEnabled();
 
       await page.locator('select.strat-sel').selectOption('custom');
-      const bollingerChip = page.locator('button.strat-chip', { hasText: 'Bollinger' });
+      const bollingerChip = chip(page, 'Bollinger');
       await expect(bollingerChip).toHaveAttribute('aria-pressed', 'false');
       await bollingerChip.click();
       await expect(bollingerChip).toHaveAttribute('aria-pressed', 'true');

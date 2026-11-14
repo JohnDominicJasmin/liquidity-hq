@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { gotoSignedIn, signedInContext, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
 import { killTransitions, snapshotCanvases, quietSnapshot, chartChanged } from './_chart';
 import { installPaidAiFence } from './_no-paid-ai';
+import { chip } from './_shared';
 
 /**
  * Pins #1008's fix (Pro subscribers edit indicator parameters and the chart
@@ -121,7 +122,7 @@ test.describe('indicator parameter edits reach the chart (#1008)', () => {
 
       // Custom strategy set, so the Bollinger chip's own param editor renders.
       await page.locator('select').first().selectOption('custom');
-      await page.locator('button.strat-chip', { hasText: 'Bollinger' }).click();
+      await chip(page, 'Bollinger').click();
 
       const paramsSection = page.locator('.strat-params');
       const lengthInput = paramsSection.locator('input').first();

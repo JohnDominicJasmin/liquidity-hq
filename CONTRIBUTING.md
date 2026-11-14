@@ -1487,8 +1487,17 @@ fast-forwards it again from `dev`. Nothing needs resetting.
 
 **SINCE 2026-10-29 THE UNIT TESTS DEPEND ON THIS RULE, so it is load-bearing in
 a way it was not before.** `.githooks/pre-push` gives the unit tests to CI, and
-CI runs them on every pull request into `dev`, `qa`, `staging` and `main` and on
+CI ran them on every pull request into `dev`, `qa`, `staging` and `main` and on
 every push to `dev`, `staging` and `main`.
+
+**SUPERSEDED 2026-11-10 - OWNER-RULES §17. CI now runs ONCE, on the release PR
+into `main`, and nowhere else** (the November Actions budget ran out on day 10:
+3,565 job-minutes, $22, no users). So nothing runs lint or the unit tests on a
+feature PR any more. **The author runs `npm run verify` locally (lint, typecheck,
+unit tests, build) before a code PR merges into `dev`, and pastes the counts line
+into the PR.** Docs-only PRs skip it. One heavy run on the laptop at a time; use
+`CIRCLE_NODE_TOTAL=1 npm run verify` for a one-worker build. The text below
+describes the old trigger lists and is kept for history.
 
 **`qa` is on neither list.** That is deliberate and `.github/workflows/ci.yml`
 says so: a fast-forward promotion puts a commit on `qa` that is bit-identical to

@@ -197,14 +197,51 @@ const providerOnce = (re: RegExp, label: string) => {
 };
 const HYDRATE_SRC = providerOnce(/const hydrateNews = (async \(\) => \{[\s\S]*?\n {4}\});\n/, 'hydrateNews')[1].replace(/ as NewsRow\[\] \| null/, '');
 
+/* THE INJECTED SCOPE, as one list that both `hydrate` and N0 read.
+ *
+ * It used to be five string literals typed straight into `new Function`, which meant the eval'd body
+ * and the names it could see were declared in two places that nothing kept in step. When
+ * `hydrateNews` grew a `setAlertsFailed` call (#2125), the body threw `ReferenceError:
+ * setAlertsFailed is not defined` from inside N1 and N2 - so a harness that had gone stale presented
+ * as two product cells failing, and Dev had to diagnose my test file to find out why their change was
+ * red.
+ *
+ * `providerOnce` already fails CLOSED on a rename: it asserts exactly one match and complains by
+ * name. This list failed OPEN on a new dependency, which is the harder direction to notice. N0 below
+ * closes that, and keeping one array is what stops the two from drifting again. */
+const INJECTED = ['sb', 'T', 'live', 'ingestRow', 'setAlertsLoaded', 'setAlertsFailed'] as const;
+
 async function hydrate(answer: { data: unknown; error: unknown }) {
-  const ingested: unknown[] = [], loaded: unknown[] = [];
+  const ingested: unknown[] = [], loaded: unknown[] = [], failed: unknown[] = [];
   const q = { from: () => q, select: () => q, gte: () => q, order: () => q, limit: () => Promise.resolve(answer) };
-  const fn = new Function('sb', 'T', 'live', 'ingestRow', 'setAlertsLoaded', `return (${HYDRATE_SRC});`)(
-    q, { news: 'lhq_news' }, true, (row: unknown) => ingested.push(row), (v: unknown) => loaded.push(v)) as () => Promise<void>;
+  /* `failed` RECORDS rather than no-ops, even though nothing asserts its contents yet. On today's
+     `dev` the array simply stays empty, because `hydrateNews` does not call the setter until #2125
+     lands. Recording now means the follow-up is assertions alone - and a spy that silently swallowed
+     the value would be the same shape of defect this file exists to catch. */
+  const fn = new Function(...INJECTED, `return (${HYDRATE_SRC});`)(
+    q, { news: 'lhq_news' }, true, (row: unknown) => ingested.push(row),
+    (v: unknown) => loaded.push(v), (v: unknown) => failed.push(v)) as () => Promise<void>;
   await fn();
-  return { ingested, loaded };
+  return { ingested, loaded, failed };
 }
+
+test('N0. CONTRACT: every setter the extracted body calls is one this harness injects', () => {
+  const setters = [...new Set([...HYDRATE_SRC.matchAll(/\b(set[A-Z]\w*)\s*\(/g)].map(m => m[1]))];
+
+  /* CONTROL, and the reason this cell is not vacuous: if the scan finds nothing, it is the regex that
+     is broken, not the body that is clean - `hydrateNews` has always called at least one setter. A
+     cell that passes because it matched zero lines is exactly the silent-zero failure it guards. */
+  assert.ok(setters.length > 0,
+    'control: no `setX(` call found in the extracted hydrateNews body at all, which cannot be right - '
+    + 're-read components/NewsProvider.tsx before trusting anything else in this file');
+
+  for (const s of setters) {
+    assert.ok((INJECTED as readonly string[]).includes(s),
+      `hydrateNews now calls \`${s}\`, which this harness does not inject, so the eval'd body would `
+      + `throw ReferenceError from inside N1/N2 and look like a product failure. Fix: add '${s}' to `
+      + `INJECTED above and a recording spy for it in hydrate(), in that argument order.`);
+  }
+});
 
 test('N1. a news read that errors (timeout, PGRST002, refused) leaves alertsLoaded unset and ingests nothing', async () => {
   for (const data of [null, []]) {
@@ -219,6 +256,39 @@ test('N2. a read that succeeds marks the feed loaded, empty or not, with rows in
   const r = await hydrate({ data: [{ dedup_key: 'new' }, { dedup_key: 'old' }], error: null });
   assert.deepEqual(r.loaded, [true]);
   assert.deepEqual(r.ingested, [{ dedup_key: 'old' }, { dedup_key: 'new' }]);
+});
+
+test('N5. the failure flag is set on an error, CLEARED on success, and cleared ALONGSIDE the loaded flag', async () => {
+  /* #2125 gave the provider an explicit `alertsFailed`, and #2126 added the recording spy for it
+     without asserting anything - deliberately, because the assertions would have been red on `dev`
+     until #2125 landed. It has landed, so this is that follow-up.
+     ITS OWN CELL rather than extra lines in N1/N2: those two own the loaded/ingested contract, and
+     "N5 failed" should mean the failure flag rather than sending a reader to re-read three cells. */
+
+  /* 1. an errored read sets it. Without this the All tab shows a skeleton for as long as the feed
+        stays down - the defect #2125 exists to remove. */
+  for (const data of [null, []]) {
+    const r = await hydrate({ data, error: { code: '57014', message: 'canceling statement due to statement timeout' } });
+    assert.deepEqual(r.failed, [true], `data=${JSON.stringify(data)}: an errored read must set alertsFailed`);
+  }
+
+  /* 2. a successful read CLEARS it. A failure that never clears strands an error over a feed that has
+        since recovered - wrong about working, which is worse than wrong about broken. */
+  const ok = await hydrate({ data: [{ dedup_key: 'x' }], error: null });
+  assert.deepEqual(ok.failed, [false], 'a successful read must clear alertsFailed');
+
+  /* 3. AND it clears ALONGSIDE the loaded flag, not instead of it. This is the assertion the other
+        two cannot make: a refactor that swapped `setAlertsFailed(false)` for `setAlertsLoaded(true)`
+        would satisfy both checks above while leaving the feed in a state no render branch matches -
+        not failed, not loaded, so the All tab falls through to its skeleton for ever. */
+  assert.deepEqual(ok.loaded, [true], 'the successful read must ALSO mark the feed loaded');
+  assert.equal(ok.failed.length + ok.loaded.length, 2,
+    'exactly two setter calls expected on the success path - one clearing failed, one marking loaded; '
+    + `got failed=${JSON.stringify(ok.failed)} loaded=${JSON.stringify(ok.loaded)}`);
+
+  /* And the error path must NOT mark it loaded, which is the pairing in the other direction. */
+  const bad = await hydrate({ data: null, error: { code: 'PGRST002', message: 'schema cache' } });
+  assert.deepEqual(bad.loaded, [], 'an errored read must not mark the feed loaded');
 });
 
 test('N3. no Supabase client means no news was read: that early return does not mark the feed loaded', () => {

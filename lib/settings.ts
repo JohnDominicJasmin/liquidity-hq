@@ -48,6 +48,12 @@ export interface UserSettings {
   // param - identical to this app's pre-#1020 in-memory-only behaviour.
   strategy_selection: string[] | null;
   strategy_params:    Record<string, Record<string, string | number | boolean>> | null;
+  // Arena sound alerts (owner, 2026-11-14): null = never asked (the Arena shows its one question), true = the visitor pressed Allow or turned it on, false = Not now / off.
+  // Synced with the rest of the account's settings, so the answer follows the account across devices.
+  arena_sound:        boolean | null;
+  /* The Arena strategy the trader picked (lib/strategies), or null for none. Separate from strategy_selection: that is indicator chips, this is a rule set that
+     gives a buy/sell/wait verdict. An unknown id is treated as none on read. */
+  arena_strategy:     string | null;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -79,6 +85,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   timezone:           null,
   strategy_selection: null,
   strategy_params:    null,
+  arena_sound:        null,
+  arena_strategy:     null,
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -123,6 +131,9 @@ export interface SettingsContextValue {
   // again to the same newer write).
   saveStatus: 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
   update:     (partial: Partial<UserSettings>) => void;
+  // Save and wait (#1113): like update(), but flushes now and resolves true only once the server accepted the save
+  // (false when every attempt failed). For a caller that must not move on until the write has landed.
+  saveNow:    (partial: Partial<UserSettings>) => Promise<boolean>;
   // Re-read the saved row from the server. Needed by flows where the SERVER,
   // not this client, writes the value: connecting Telegram is finished by the
   // bot webhook (see app/api/telegram/webhook/route.ts), so the page has no
@@ -143,6 +154,7 @@ export const SettingsContext = createContext<SettingsContextValue>({
   settingsLoadStatus: 'loading',
   saveStatus: 'idle',
   update:     () => {},
+  saveNow:    async () => false,
   refresh:    async () => {},
   retrySave:  () => {},
 });
@@ -314,6 +326,8 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     strategy_selection: Array.isArray(row.strategy_selection)
       ? (row.strategy_selection as unknown[]).filter((v): v is string => typeof v === 'string')
       : null,
+    arena_sound: typeof row.arena_sound === 'boolean' ? row.arena_sound : null,
+    arena_strategy: typeof row.arena_strategy === 'string' && row.arena_strategy ? row.arena_strategy : null,
     strategy_params: (row.strategy_params && typeof row.strategy_params === 'object' && !Array.isArray(row.strategy_params))
       ? row.strategy_params as Record<string, Record<string, string | number | boolean>>
       : null,

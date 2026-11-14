@@ -5,6 +5,8 @@ import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMP
 import { arenaContextCoinId, COIN_NOT_TRACKED, parseArenaChart, parseArenaContext, parseSelection } from '@/lib/arenaContext';
 import { arenaServerNumbers } from '@/lib/arenaServerNumbers';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
+import { chartFromCandles } from '@/lib/arenaChartServer';
+import { EMA_SIGNAL_TFS, fetchRibbonCandles, type EMASignalTF } from '@/lib/ribbonCandles';
 import { T } from '@/lib/tables';
 import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
 import { aiCoinAllowed, normalizeCoinId } from '@/lib/signalCoinGate';
@@ -14,6 +16,9 @@ import { incrementUsageColumn, rateLimitMessage, refundUsageColumn, todayUtc } f
 import { apiError } from '@/lib/apiError';
 import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
 import { anonServerClient, userClient } from '@/lib/supabase-user';
+import { logDeep502 } from '@/lib/deep502Log';
+import { engineFor, type Engine } from '@/lib/aiEngine';
+import { callClaude, claudeConfigured } from '@/lib/aiProvider';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -23,8 +28,15 @@ const DEEP_X_DAYS = 2;
 
 /** #1651 item 3: ask once more for a verdict the answer did not state readably. A plain chat call - no search, no market data, the
  *  answer itself is the input - logged as its own call type so its cost is counted. null on any failure: the caller then refuses. */
-async function restateVerdict(answer: string, userId: string) {
+async function restateVerdict(answer: string, userId: string, engine: Engine = 'grok') {
   try {
+    /* THE REPAIR RUNS ON THE ENGINE THAT PRODUCED THE ANSWER (lib/aiEngine.ts: `verdict_repair` inherits its call's engine). A failure here returns null,
+       exactly as the xAI path does, so the caller refuses and refunds. */
+    if (engine !== 'grok') {
+      const c = await callClaude({ model: engine, user: buildVerdictRepairPrompt(answer), maxTokens: 200 });
+      await recordAiCall({ userId, callType: 'verdict_repair', model: c.model, usage: c.usage });
+      return parseVerdict(c.text);
+    }
     const r = await xaiFetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
@@ -115,11 +127,13 @@ export async function GET(req: NextRequest) {
 
 // ── POST - run an analysis ──────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const t0 = Date.now(); // for the Deep-path 502 line (lib/deep502Log.ts)
   if (!(await isFeatureEnabled('grok'))) {
     return NextResponse.json({ error: 'AI Arena is temporarily unavailable.', code: 'FEATURE_DISABLED' }, { status: 503 });
   }
 
-  const body = await req.json() as Record<string, unknown>;
+  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
+  if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_INPUT', message: 'Send a JSON body.' }, { status: 400 });
 
   /* ── THE REQUEST CARRIES DATA, NOT A PROMPT (#1631 item 5) ────────────────
    *
@@ -323,7 +337,21 @@ export async function POST(req: NextRequest) {
      NO COUNT IN THIS SENTENCE, DELIBERATELY. It said "the twelve fields" and went stale within the
      hour, when `longShortRatio` was sourced and the list became thirteen - the same count-is-a-copy
      mistake #1889 fixed in three signpost comments. Naming the list cannot drift from it. */
-  const prompt = buildArenaPrompt({ ...ctx, ...gathered.fields }, chart, type, selection);
+  /* THE CANDLES THE MODEL SEES, READ BY THE SERVER WHEN THE FLAG IS ON (#1605). Off by default: the browser's `chart` is used exactly as before, and
+     nothing changes until QA has measured the two against each other on a live coin. With `GROK_SERVER_CHART=1` the chart half is rebuilt from the
+     exchange's candles for the DECLARED coin and timeframe (lib/arenaChartServer.ts mirrors the browser's maths), so a hand-made request can no longer
+     describe candles of its own. It FAILS OPEN to the browser's chart (any fetch error, a timeframe the shared fetch does not cover, too few candles):
+     a read the user paid for is not refused because the exchange was slow, and the fixed log line says which path ran. */
+  let promptChart = chart;
+  if (process.env.GROK_SERVER_CHART === '1' && coin && (EMA_SIGNAL_TFS as readonly string[]).includes(tf)) {
+    try {
+      const built = chartFromCandles(tf, await fetchRibbonCandles(coin, tf as EMASignalTF));
+      if (built) promptChart = built; else console.warn(`[grok] server chart: too few candles for ${logTag(coin)}/${tf}, keeping the browser's`);
+    } catch {
+      console.warn(`[grok] server chart: candle fetch failed for ${logTag(coin)}/${tf}, keeping the browser's`);
+    }
+  }
+  const prompt = buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, selection);
 
   /* The second bound. The server's fields are short formatted strings, so this cannot realistically
      fire once the first bound passed - which is why it is worth having: if it ever does, the gather
@@ -400,6 +428,8 @@ export async function POST(req: NextRequest) {
   // ── Call xAI ──────────────────────────────────────────────────────────────
   let text: string;
   let citations: string[] = [];
+  /* WHICH ENGINE ANSWERED (#1631). Grok unless the quick read is flagged to a Claude model AND the server holds a key AND the Claude call succeeded. */
+  let usedEngine: Engine = 'grok';
   /* HAS xAI BEEN PAID YET? A box rather than a plain `let` for the reason #1965 records: TS
    * control-flow analysis does not follow an assignment made inside a nested closure, and this is
    * read in the `catch` below. Set the moment a 2xx is confirmed, in BOTH branches. */
@@ -437,6 +467,29 @@ export async function POST(req: NextRequest) {
       // #1651 item 2: an X post dated outside the window by its own ID is dropped.
       citations = searchCitations(d, xWindow);
     } else {
+      /* THE PER-FEATURE ENGINE SWITCH, QUICK READ ONLY (#1631, owner decision 2026-11-13). `engineFor('quick')` is 'grok' unless an `app_config.ai_engines` row names an
+         allowlisted Claude model for it, and it fails open to Grok. The key must exist too. If the Claude call FAILS (any transport or API error), this read is made on
+         Grok instead, once: both processors are named in the legal strings, so Grok receiving the same data is a declared path. Deep is never switchable (it needs X). */
+      let claudeText: string | null = null;
+      if (claudeConfigured()) {
+        const engine = await engineFor('quick');
+        if (engine !== 'grok') {
+          try {
+            /* 1,600, not the 800 Grok is given: Claude writes longer, and at 800 Haiku and Sonnet were cut off 46 of 50 and 49 of 49 times; at 1,600 Haiku was cut off 1 of 30 (bake-off follow-up, run 43411132215). */
+            const c = await callClaude({ model: engine, user: prompt, maxTokens: 1600 });
+            spent.current = true; // 2xx: the tokens are billed from here
+            await recordAiCall({ userId, callType: 'quick', model: c.model, usage: c.usage });
+            claudeText = c.text;
+            usedEngine = engine;
+          } catch (e) {
+            // Fixed text only: nothing from the request or the error body is written to the log.
+            console.error(`[grok] claude quick read failed, falling back to grok (model ${engine}, ${e instanceof Error ? e.name : 'error'})`);
+          }
+        }
+      }
+      if (claudeText !== null) {
+        text = claudeText;
+      } else {
       // chat/completions - no search tools, cheaper
       const r = await xaiFetch('https://api.x.ai/v1/chat/completions', {
         method: 'POST',
@@ -455,6 +508,7 @@ export async function POST(req: NextRequest) {
       const d = await r.json();
       await recordAiCall({ userId, callType: 'quick', model: d.model ?? 'grok-4.3', usage: d.usage });
       text = answerText(d, false);
+      }
     }
   } catch (e: unknown) {
     /* THE READ GOES BACK IF WE NEVER PAID FOR IT. `incrementUsageColumn` reserved it above, so a
@@ -511,14 +565,16 @@ export async function POST(req: NextRequest) {
       /* LOGS, because a refusal that writes nothing is unmeasurable (#1631, QA). PM searched production for this failure and found
          silence - which meant nothing, since these two paths were plain NextResponse.json with no apiError, no console, no health
          report. Without a line here the eventual FIX is also unverifiable on prod: we would ship it and have no way to know. */
+      logDeep502({ route: '/api/grok', kind: 'grok-empty', upstream: usedEngine === 'grok' ? 'xai' : 'anthropic', upstreamStatus: null, coin: String(coin), ms: Date.now() - t0 });
       console.error(`[grok] BAD_ANSWER empty-text type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=false`);
       const refunded = await refundUsageColumn(userId, column, reservedOn);
       return NextResponse.json({ error: GROK_EMPTY_ANSWER_MESSAGE, code: 'BAD_ANSWER', refunded: refunded !== null, usage: usageAfterRefund(refunded) }, { status: 502 });
     }
-    const v = await restateVerdict(text, userId);
+    const v = await restateVerdict(text, userId, usedEngine);
     if (!v) {
       /* restated=true: the restatement attempt RAN and still produced no verdict - a different fault from an answer that arrived
          empty, and the distinction is the first thing anyone debugging this will want. */
+      logDeep502({ route: '/api/grok', kind: 'grok-unreadable', upstream: usedEngine === 'grok' ? 'xai' : 'anthropic', upstreamStatus: null, coin: String(coin), ms: Date.now() - t0 });
       console.error(`[grok] BAD_ANSWER unreadable-verdict type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=true chars=${text.trim().length} head=${JSON.stringify(logHead(text.trim()))}`);
       const refunded = await refundUsageColumn(userId, column, reservedOn);
       return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', refunded: refunded !== null, usage: usageAfterRefund(refunded) }, { status: 502 });
@@ -541,6 +597,7 @@ export async function POST(req: NextRequest) {
        charge the user for a read it refused (the defect #1724 fixed) and write nothing to the log (the silence PM searched
        production for). `restated=${restated}` is the field that tells the two causes apart: false means the guard above let an
        answer through that this one rejected, which should be impossible and is the first thing worth knowing. */
+    logDeep502({ route: '/api/grok', kind: 'grok-strict-refused', upstream: usedEngine === 'grok' ? 'xai' : 'anthropic', upstreamStatus: null, coin: String(coin), ms: Date.now() - t0 });
     console.error(`[grok] BAD_ANSWER strict-read-refused type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} restated=${restated} chars=${text.trim().length} head=${JSON.stringify(logHead(text.trim()))}`);
     const refunded = await refundUsageColumn(userId, column, reservedOn);
     return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', refunded: refunded !== null, usage: usageAfterRefund(refunded) }, { status: 502 });

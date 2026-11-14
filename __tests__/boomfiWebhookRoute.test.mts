@@ -371,7 +371,10 @@ test('R14. source (Phase 1c): grants sit behind the payments switch, only ever w
   // The only deletes are the compensating removal of THIS delivery's own record, so a Replay is not answered "replay".
   assert.equal((src.match(/\.delete\(\)/g) ?? []).length, 1);
   assert.match(src, /\.from\(T\.boomfi_webhook_events\)\.delete\(\)\.eq\('payload_hash', payloadHash\)/);
-  assert.deepEqual(src.match(/\S*\.update\(/g), ["crypto.createHash('sha256').update("], 'the route has an .update( that is not the payload hash');
+  /* #2320: the atomic extend (lib/extendSubscription.ts) owns the period; the route's ONE other update writes only BoomFi's own customer / subscription ids after a granted extension. */
+  assert.deepEqual(src.match(/\S*\.update\(/g), ["crypto.createHash('sha256').update(", 'sb.from(T.user_subscriptions).update('], 'the route has an .update( that is neither the payload hash nor the id write');
+  assert.ok(at('extendSubscription(') > at('decideBoomfiEvent('), 'the atomic extend runs before the decision');
+  assert.match(src, /update\(ids\)\.eq\('user_id', accountId\)/, 'the id write is no longer ids-only');
   assert.equal([...src.matchAll(/from '@\/lib\/lemonsqueezy'/g)].length, 1);
   assert.match(src, /import \{ payerOwnsAccount \} from '@\/lib\/lemonsqueezy';/, 'the route takes more than the email comparison from the Lemon Squeezy module');
   const tables = new Set([...src.matchAll(/\.from\((T\.\w+)\)/g)].map((m) => m[1]));
@@ -450,4 +453,14 @@ test('G5. the dev block is the live block with the prefix changed, statement for
   const dev = statements(devSql.slice(devSql.indexOf('create table if not exists lhq_dev_boomfi_webhook_events')));
   assert.equal(live.length, 5, `expected 5 live statements, found ${live.length}`);
   assert.deepEqual(dev.map((s) => s.split('lhq_dev_').join('lhq_')), live, 'the dev block has drifted from the live block');
+});
+
+test('R15. source (#2320): the atomic extend is tried first with provider boomfi; an extend ERROR fails and forgets the delivery (retryable); a failed ID write after a granted extension is only reported, so the replay guard stays and a Replay cannot extend twice', () => {
+  const src = stripTsComments(read('app/api/boomfi/webhook/route.ts'));
+  assert.match(src, /extendSubscription\(sb, \{ userId: accountId, add: decision\.add, plan: decision\.plan, provider: 'boomfi', now: new Date\(\) \}\)/);
+  assert.match(src, /if \(atomic\.kind === 'error'\) return failAndForget\(sb, payloadHash, 'subscription extend', atomic\.err\);/);
+  const ids = src.slice(src.indexOf("if (atomic.kind === 'granted')"), src.indexOf("if (atomic.kind === 'granted')") + 900);
+  assert.match(ids, /if \(idsErr\) apiError\('boomfi\/webhook'/, 'the id-write failure is no longer only reported');
+  assert.doesNotMatch(ids, /failAndForget/, 'a failed id write removes the replay guard: a Replay could extend the period a second time');
+  assert.ok(src.indexOf("atomic.kind === 'admin_grant'") > 0, 'the admin-grant outcome is no longer handled');
 });

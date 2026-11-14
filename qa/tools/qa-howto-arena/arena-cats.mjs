@@ -27,16 +27,15 @@ try {
       const bar = page.locator('button[aria-expanded]').filter({ hasText: /BTC/ }).first();
       for (const cat of ['all', 'majors', 'alts', 'defi', 'meme']) {
         const tag = `${viewer}-${w === 390 ? 'mobile' : 'desktop'}-${cat}`;
-        // the five category buttons are the .gsc-tf-btn row that sits directly above the coin bar
-        const btns = page.locator('button.gsc-tf-btn').filter({ hasText: /^(All|Majors|Alts|DeFi.*|Meme)$/i });
-        const idx = ['all', 'majors', 'alts', 'defi', 'meme'].indexOf(cat);
-        if (await btns.count() < 5) { console.log(tag, 'category buttons found:', await btns.count()); continue; }
-        const textOutside = () => page.evaluate(() => { const clone = document.body.cloneNode(true); clone.querySelectorAll('button.gsc-tf-btn, canvas, script, style').forEach((e) => e.remove()); return clone.innerText.replace(/\s+/g, ' ').replace(/\d[\d,.]*/g, '#').slice(0, 6000); });
-        const before = await textOutside(); const urlBefore = page.url();
-        await btns.nth(idx).click({ timeout: 5000 }); await sleep(1500);
-        const after = await textOutside(); const on = await btns.evaluateAll((els) => els.map((e) => e.classList.contains('on')));
-        await page.screenshot({ path: `${dir}/${tag}-1-list-closed.png`, fullPage: false });
+        // #2244: the category chips live INSIDE the open list (.scanner-cat-chip[data-cat]); there is no tab row above the bar any more, so the list is opened FIRST.
+        const btns = page.locator('.scanner-cat-chip');
         await bar.scrollIntoViewIfNeeded().catch(() => {}); await bar.click({ timeout: 5000 }).catch(() => {}); await sleep(1500);
+        if (await btns.count() < 5) { console.log(tag, 'category chips found:', await btns.count()); continue; }
+        const textOutside = () => page.evaluate(() => { const clone = document.body.cloneNode(true); clone.querySelectorAll('.scanner-cat-chip, .scanner-flyout, canvas, script, style').forEach((e) => e.remove()); return clone.innerText.replace(/\s+/g, ' ').replace(/\d[\d,.]*/g, '#').slice(0, 6000); });
+        const before = await textOutside(); const urlBefore = page.url();
+        await page.locator('.scanner-cat-chip[data-cat="' + cat + '"]').first().click({ timeout: 5000 }); await sleep(1500);
+        const after = await textOutside(); const on = await btns.evaluateAll((els) => els.map((e) => e.getAttribute('aria-pressed') === 'true'));
+        await page.screenshot({ path: `${dir}/${tag}-1-chip-clicked.png`, fullPage: false });
         const rows = await page.locator('button.scanner-flyout-grid').evaluateAll((els) => els.map((e) => (e.innerText.split('\n')[0] || '').trim().toLowerCase()));
         const exp = EXPECT[cat]; const missing = exp.filter((c) => !rows.includes(c)); const extra = rows.filter((c) => !exp.includes(c));
         await page.screenshot({ path: `${dir}/${tag}-2-list-open.png`, fullPage: false });

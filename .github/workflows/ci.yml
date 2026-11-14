@@ -71,9 +71,13 @@ name: CI
 #
 # ── WHERE THE SUITE RUNS WHEN IT IS ON ───────────────────────────────────────
 #
-# ONE trigger, and no manual override:
+# ⚠️ THIS LIST CHANGED ON 2026-11-12. It read "ONE trigger, and no manual override: a PR into
+# `main`", which was true from 2026-11-10 until the owner amended the rule. Now:
 #
-#   a PR into `main` - the release, immediately before a production deploy
+#   a PR into `main`                     - the release, immediately before a production deploy
+#                                          (the ONLY automatic browser-suite run)
+#   a PR into `dev`, `qa` or `staging`   - the QUICK jobs only; no browser suite
+#   a dispatch with `e2e` ticked         - the per-group run, and QA's `spec` runs
 #
 # ⚠️ THE SUITE CAN BE RUN ON DEMAND AGAIN, AS OF 2026-10-29, BUT ONLY IF YOU
 # ASK FOR IT: dispatch this workflow with `e2e` ticked. A dispatch without it
@@ -231,113 +235,36 @@ on:
   # here - CI that only runs after a merge runs at the one moment it cannot
   # help. `types` is explicit so a label or a title edit can never spend 34
   # minutes; `synchronize` is the one that fires on each push to an open PR.
+  # OWNER RULE, 2026-11-10: CI RUNS ONCE, ON THE RELEASE PR (staging -> main), AND NOWHERE ELSE.
+  # November hit the Actions budget on day 10: 3,565 job-minutes, 1,808 of them the build job on
+  # pull_requests into dev/qa/staging and 988 the browser suite. His words: "run one time testing CI,
+  # one time only" - changes park on staging and the release PR is where resources are spent.
+  # Feature PRs, dev, qa and staging pushes run nothing here; QA tests on the deployed qa site.
+  # The `push:` trigger (qa, staging, main) was removed for the same reason; drift on main is
+  # release-signals.yml's job, not this file's. Re-adding a branch here re-adds that bill.
+  # ── `dev`, `qa` AND `staging` ADDED 2026-11-12, ON THE OWNER'S DECISION ────────────────────
+  #
+  # He chose, first-hand and from options: quick checks run automatically on EVERY PR; the full
+  # browser suite runs per group (dispatched) and on the release PR; nothing runs on his laptop.
+  #
+  # WHAT THIS DOES AND DOES NOT TURN ON. A PR into `dev`/`qa`/`staging` runs `changes` and
+  # `build` — classification, lint, typecheck, unit tests, build. It does NOT run the browser
+  # suite: the `e2e` job's `if:` is `base_ref == 'main'` or an explicit dispatch, and neither is
+  # satisfied by a PR into `dev`. The `gate` job already accepts a skipped `e2e` outside `main`,
+  # so nothing there needed changing for this.
+  #
+  # ⚠️ THIS IS THE EXACT TRIGGER THAT PRODUCED THE NOVEMBER BILL, and saying so is the point:
+  # 1,808 of November's 3,565 job-minutes were this build job on PRs into dev/qa/staging. What
+  # changed is not the volume, it is who pays — the repo went public on 2026-11-10, and standard
+  # runners on a public repo are free. If this repo ever goes private again, THIS BLOCK IS THE
+  # FIRST THING TO REVERT, and whoever makes it private owes the owner that number before doing it.
+  #
+  # Still NO `push:` trigger. Promotions are fast-forward pushes and are covered by the group's
+  # dispatched run; a push trigger would double every merge.
   pull_request:
-    branches: [dev, qa, staging, main]
+    branches: [main, dev, qa, staging]
     types: [opened, reopened, synchronize, ready_for_review]
 
-  push:
-    # `qa` IS IN THIS LIST AS OF 2026-11-08, and the paragraph below used to say
-    # it was "deliberately ABSENT". That argument was correct about the commits
-    # and wrong about the tree, so it is corrected rather than deleted.
-    #
-    # It said: every promotion is fast-forward only, so the commit landing on
-    # `qa` is bit-identical to one already tested on `dev`. True - and it stopped
-    # being sufficient on 2026-10-30, when `dev` left this list on the owner's
-    # order (36 of 129 runs in two days were per-merge rechecks). From that day
-    # the commit on `qa` was bit-identical to one that NOTHING had built: each
-    # PR was gated as it merged, but the merged result was not.
-    #
-    # docs/WORK-QUEUE.md:331 covered the gap with a manual step - "you create the
-    # run instead of looking for one", `gh workflow run ci.yml --ref dev` before
-    # each promotion. THAT CONTROL FAILED ON ITS FIRST BUSY NIGHT. On 2026-11-07
-    # dev promoted to `qa` four times and dispatched it zero times; the newest
-    # integrated build was 557e8bd0 while `qa` had moved to cfbd5401, two
-    # promotions later, unbuilt until someone audited the box that describes
-    # this and dispatched 42439808517 by hand. The dispatch passed - so nothing
-    # was broken, which is exactly why nobody would have noticed.
-    #
-    # `qa` RATHER THAN BACK TO `dev`, and the difference is the whole point.
-    # `qa` is fast-forward only, so a push to it is exactly ONE event per
-    # promotion - the same minutes the manual guardrail costs, with no memory
-    # dependency. Restoring `dev` would bring back the per-merge recheck the
-    # owner removed. This buys the integration gate without re-buying the waste.
-    #
-    # E2E IS UNAFFECTED AND STAYS GATED. The e2e job's `if:` is
-    # `github.base_ref == 'main' || (workflow_dispatch && inputs.e2e)`, and
-    # `base_ref` is empty on a `push` event - so a promotion to `qa` runs
-    # lint/typecheck/test/build and cannot start the 38-minute browser suite.
-    #
-    # `staging` WAS absent for the same reason, and was added 2026-08-10 because
-    # the reason turned out not to cover the browser suite. See the e2e job's
-    # `if:` below - the argument was about the 2-minute job, and the 38-minute
-    # one was reaching `staging` through a release PR that has since stopped
-    # being opened. Issue #207.
-    # `dev` LEFT THIS LIST on the owner's order, 2026-10-30. The recheck after
-    # every merge is what 36 of 129 runs in two days were. The merged head is
-    # instead built ONCE before each promotion, through the build-only
-    # `workflow_dispatch` above - leave `e2e` unchecked - and guardrail 3 in
-    # docs/WORK-QUEUE.md is the control that it happened.
-    #
-    # WHAT THIS GIVES UP, stated rather than discovered later: between merges,
-    # `dev` is unchecked. `.githooks/pre-push` runs `tsc` and nothing else, so
-    # lint, unit tests and build are unverified there until someone dispatches.
-    # Guardrail 3 stops being a good habit and becomes the only thing standing
-    # between a broken merge and `qa`. That is the owner's choice, made with the
-    # cost in front of him.
-    branches: [qa, staging, main]
-    # Docs-only pushes do not need a build. Every path here is either not
-    # compiled or not shipped, so a run over them proves nothing that the
-    # PR-side run had not already proved.
-    #
-    # DELIBERATELY ON `push` ONLY, not on `pull_request`, and the reason matters
-    # more than the saving:
-    #
-    #   - `main` is the only branch with a required status check (`CI Gate`).
-    #     Required checks are evaluated on the PULL REQUEST. A required check
-    #     that never runs never reports, and GitHub treats "never reported" as
-    #     pending forever - so a docs-only release PR would be unmergeable with
-    #     no way to force it short of an admin override. That is a worse failure
-    #     than the minutes are worth.
-    #   - The alternative - keep the workflow running and skip the expensive
-    #     jobs with an `if:` - is worse still. The `gate` job below rests on
-    #     "build carries no `if:`, so anything other than success is real".
-    #     Teaching it to accept `skipped` reopens the hole it was hardened to
-    #     close after release PR #38, where a skipped job read as a green
-    #     required check.
-    #
-    # So: pushes skip, pull requests always run. Issue #114 sibling item.
-    #
-    # ── WHAT IS DELIBERATELY *NOT* ON THIS LIST ────────────────────────────
-    # QA's wording from the duplicate PR #115, kept because it is the better
-    # argument and because this is the line someone will be tempted to edit:
-    #
-    #   `qa/**` and `.github/**` are deliberately NOT in the ignore list. Test
-    #   code and workflow definitions are exactly the things that need CI to
-    #   run; excluding them is how a broken spec or a broken workflow ships
-    #   without anyone noticing.
-    #
-    # Adding them roughly TRIPLES the saving, which is precisely why it looks
-    # attractive - and it removes the gate from the QA suite while doing it.
-    # The two `.github/` entries below are individual files that cannot affect a
-    # build; the directory as a whole stays covered.
-    #
-    # Sized honestly so nobody re-litigates it expecting more: only **1 of 31**
-    # recent commits touches documentation alone, so this saves ~60 min/month.
-    # QA's first count was 7 of 21 and included `.github/` and `qa/` changes;
-    # filtering to true documentation left one in thirty-one. It is worth doing
-    # because it is correct and free, not because it moves the number. The item
-    # that moves the number is `workers` - issue #114. (At 2 since 2026-08-09;
-    # above 2 is blocked on a per-IP egress measurement, not on theory.)
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'pendings/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/pull_request_template.md'
-      - 'LICENSE'
-
-  # For running the browser suite on demand: re-checking after a flake, or
-  # proving a fix without opening a release PR first.
   workflow_dispatch:
     inputs:
       # `e2e` RESTORED 2026-10-29, on the owner's authorisation relayed by
@@ -414,6 +341,55 @@ on:
       # question #114 has been stuck on since it was filed.
       count_egress:
         description: 'Tally outbound third-party calls (does not change behaviour; artifact: egress-tally)'
+        type: boolean
+        default: false
+
+      # ── `spec`, `project`, `screenshots` — QA's browser runs move off the laptop ──
+      #
+      # OWNER DECISION, 2026-11-12, relayed first-hand by PM/DevOps: QA's browser tests run on
+      # GitHub's servers and never on his laptop again. The three inputs below are what makes a
+      # single targeted run possible; the whole-suite behaviour above is untouched.
+      #
+      # WHY THESE LIVE IN THIS FILE RATHER THAN A NEW WORKFLOW: a `workflow_dispatch` workflow has
+      # to exist on the DEFAULT branch before it can be dispatched at all, and `main` is
+      # owner-gated. `ci.yml` is already there, and a dispatch with `--ref <branch>` reads THAT
+      # branch's copy — so new inputs work from a branch the moment they are pushed.
+      #
+      # COST, stated rather than assumed, because §17 of OWNER-RULES is a standing cost rule and
+      # this is the first thing to run outside the release PR since it was written: a targeted run
+      # is ONE spec against the already-deployed qa site with `base_url` set, so nothing is built
+      # and nothing is booted. That is a few minutes, not the 38-minute suite. The whole-suite
+      # paths are unchanged and still cost what they cost.
+      spec:
+        description: 'Run ONE spec (e.g. qa/e2e/onboarding.spec.ts) or a --grep pattern, instead of the whole suite. Forces --workers=1 and --trace=off.'
+        type: string
+        default: ''
+
+      # Only consulted when `spec` is set, so a full-suite dispatch still runs both legs exactly as
+      # it does today. A targeted run wants one browser, not two.
+      project:
+        description: 'Which Playwright project a `spec` run uses. Ignored unless `spec` is set.'
+        type: choice
+        options: [desktop, mobile, both]
+        default: desktop
+
+      # ⚠️ THE REPOSITORY IS PUBLIC (owner, 2026-11-10), SO AN ARTIFACT IS PUBLIC. Anyone with a
+      # GitHub account can download it while it exists. That is why this is off by default, why
+      # the upload keeps `retention-days: 1`, and why the spec that writes the files is
+      # responsible for masking the fixture email and never shooting an account or settings page.
+      # Whoever turns it on deletes the artifact through the API once it has been downloaded.
+      screenshots:
+        description: 'Upload screenshots written to qa/.shots (PUBLIC artifact, kept 1 day, masked pages only).'
+        type: boolean
+        default: false
+
+      # A SEPARATE TICK, NOT INFERRED FROM THE SPEC PATH. The onboarding spec rewrites a fixture
+      # account's own rows in the DEV database, and `qa` and `staging` both read that database — so
+      # a run with this on changes state other specs depend on. Deriving that from "the spec path
+      # contains onboarding" would mean a rename quietly turning a destructive step on or off.
+      # The spec skips loudly when this is unset, and says why in the skip reason.
+      fixture_reset:
+        description: 'Allow the onboarding spec to reset its fixture account (DEV database only). Off = that spec skips.'
         type: boolean
         default: false
 
@@ -700,7 +676,32 @@ jobs:
     # check is not redundant: on a `pull_request` or `push` the `inputs` context
     # is empty, and leaning on `inputs.e2e` alone would make the clause depend
     # on an unset value evaluating falsey. State the event you mean.
+    # ⚠️ THIS `if:` MUST NOT REFERENCE `matrix` — it is a JOB-level condition, evaluated BEFORE the
+    # matrix is expanded, so `matrix.project` is out of scope here and the whole workflow fails to
+    # parse (`Unrecognized named-value: 'matrix'`), taking the release gate down with it. The
+    # project filter for a targeted `spec` run therefore lives on the Run E2E STEP below, where
+    # `matrix` IS in scope. This was wrong in the first draft and Dev caught it.
     if: github.base_ref == 'main' || (github.event_name == 'workflow_dispatch' && inputs.e2e)
+    # ── ONE RUN AT A TIME OVER THE SHARED FIXTURES ───────────────────────────────────────────
+    #
+    # The fixtures live in the DEV database, which `qa` and `staging` both point at, so two runs
+    # signing in as the same account fight over its state. That is not hypothetical: resetting
+    # fixture B's `profile_complete` while a suite was mid-flight would have rendered the
+    # onboarding wizard in place of every page the later specs assert on.
+    #
+    # ONLY FIXTURE-RESET DISPATCHES SERIALISE. A dispatch that resets fixture B shares one lane, so
+    # two of them cannot fight over that account's state. A dispatch that does NOT reset (a signed-out
+    # visual run, the landing-flash probe) gets its OWN per-branch lane, because it touches no shared
+    # fixture - and lumping all dispatches into one lane is what cancelled three runs that were fired
+    # together: GitHub keeps only ONE pending run per group and cancels the previously-pending one,
+    # EVEN with cancel-in-progress: false. The release gate keeps its per-project lanes (the matrix
+    # exists so mobile stops starving behind desktop at the cap); gate legs still share the fixtures.
+    concurrency:
+      group: >-
+        ${{ (github.event_name == 'workflow_dispatch' && inputs.fixture_reset) && 'e2e-fixtures-dev-db'
+            || (github.event_name == 'workflow_dispatch' && format('e2e-dispatch-{0}-{1}', github.ref_name, matrix.project))
+            || format('e2e-gate-{0}-{1}', github.ref_name, matrix.project) }}
+      cancel-in-progress: false
     # Without a cap, a genuinely hung run burns to GitHub's 6-hour default, and
     # a stuck run looks identical to a slow one - which happened while this
     # suite was being brought up. So the cap stays; the number moved.
@@ -966,6 +967,12 @@ jobs:
       # key only - never the service-role key. The anon key is public by design
       # and the dev project holds no real user data.
       - name: Run E2E
+        # THE PROJECT FILTER FOR A TARGETED `spec` RUN LIVES HERE, not on the job `if:` above,
+        # because `matrix` is only in scope at step level. When a dispatch sets `spec` and picks a
+        # single project, the other leg's job still spins up but this step is skipped, so it does no
+        # test work and the leg passes. A full-suite run and the release gate leave `spec` empty, so
+        # this condition is always true for them and both legs run exactly as before.
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.spec == '' || inputs.project == 'both' || inputs.project == matrix.project }}
         # `--project` is what makes a leg a leg. Without it each one would run
         # the whole 1274 and the split would double the bill for nothing.
         # `--max-failures` ON DESKTOP ONLY, and the asymmetry is the point.
@@ -1026,40 +1033,52 @@ jobs:
         # So the condition is "is this a run we actually care to see the end of", which both are.
         # The 25 branch is now unreachable and kept only so a future event that does fall through
         # inherits the bounded value rather than no cap at all.
-        run: npm run test:e2e -- --project=${{ matrix.project }} ${{ matrix.project == 'desktop' && ((github.base_ref == 'main' || github.event_name == 'workflow_dispatch') && '--max-failures=50' || '--max-failures=25') || '' }}
-        # ── MOBILE IS NON-BLOCKING FOR ITS FIRST RUN. REVERT AFTER v2026.10.29c ──────
+        # ── `QA_SPEC` IS READ FROM THE ENVIRONMENT, NOT INTERPOLATED INTO THIS COMMAND ──────────
         #
-        # ⚠️ TEMPORARY. Remove this line once the mobile leg has one completed run on
-        # record. Tracked as a checkbox on the release PR and on #1413.
+        # `${{ inputs.spec }}` written inline would be pasted into the shell before bash sees it,
+        # so a dispatch input would be executing on the runner. Only collaborators can dispatch,
+        # which makes that a small door rather than no door — and a small door in a PUBLIC repo is
+        # still worth shutting. The value arrives as an env var, is checked against an allowlist of
+        # characters, and the run aborts if it does not match.
         #
-        # THIS IS NOT A WEAKENING OF THE GATE, and reading it as one gets the history
-        # backwards. The mobile project has NEVER executed in CI - not in this release
-        # and not in any previous one. It was queued behind desktop and starved at the
-        # 120-minute cap every time, which is the defect the matrix above fixes. So
-        # every release this project has ever shipped had desktop-only browser
-        # coverage; this preserves exactly that and ADDS a measurement.
-        #
-        # The unusual move would be the other one: putting 637 never-executed tests in
-        # front of a release as a blocking check on their first run.
-        #
-        # THE PRINCIPLE, worth keeping after this line goes: a test's first-ever run
-        # cannot be a blocking gate, because a red result is not interpretable. With no
-        # baseline there is no way to tell "found a real defect" from "the test is
-        # wrong" from "the environment is down" - and a gate that cannot distinguish
-        # those is not a signal, it is a stop.
-        #
-        # WHY STEP-LEVEL AND NOT JOB-LEVEL. The documented effect of this key is
-        # "Prevents a job from failing when a step fails", so the job's own conclusion
-        # becomes success and `needs.e2e.result` - which the `gate` job asserts must be
-        # `success` for a PR into main - is satisfied without depending on how a
-        # job-level `continue-on-error` is reported to the `needs` context. One less
-        # unverified assumption on a release path.
-        #
-        # DESKTOP IS UNAFFECTED: the expression is false for it, so a desktop failure
-        # still fails its leg, still fails the aggregate, and still blocks the release.
-        continue-on-error: ${{ matrix.project == 'mobile' }}
+        # SPACES ARE NOT ALLOWED, which is what lets the value stay quoted as a single argument.
+        # So a grep is written `--grep=Onboarding`, with the `=`, not `--grep Onboarding`. The
+        # allowlist has `-` LAST inside the bracket expression on purpose: anywhere else it would
+        # be read as a range endpoint rather than a literal hyphen, and the check would silently
+        # mean something other than it says.
+        run: |
+          set -euo pipefail
+          if [ -n "${QA_SPEC:-}" ]; then
+            case "$QA_SPEC" in
+              *[!A-Za-z0-9_./@:=\|-]*)
+                # `|` is allowed so ONE dispatch can name several specs as a regex (Playwright treats
+                # positional filters as regexes: `reconnect-|audit-001`). It must be ESCAPED here:
+                # unescaped, bash reads it as the case-pattern separator, splits this into two
+                # alternatives, and the whole allowlist silently accepts everything (measured).
+                # The value reaches Playwright quoted, so `|` is inert in the shell.
+                # __tests__/ciSpecAllowlist.test.mts runs THIS pattern against the reject cases.
+                echo "::error::spec input rejected: letters, digits and _ . / @ : = | - only, and no spaces (use --grep=Pattern)"
+                exit 1 ;;
+            esac
+            echo "targeted run: $QA_SPEC (workers=1, trace=off, project=${{ matrix.project }})"
+            npm run test:e2e -- --project=${{ matrix.project }} --workers=1 --trace=off "$QA_SPEC"
+          else
+            npm run test:e2e -- --project=${{ matrix.project }} ${{ matrix.project == 'desktop' && ((github.base_ref == 'main' || github.event_name == 'workflow_dispatch') && '--max-failures=50' || '--max-failures=25') || '' }}
+          fi
+        # THE MOBILE LEG IS BLOCKING AGAIN (#1413). It was non-blocking for its first-ever run only, because a first run has no baseline and a red result on it is not
+        # interpretable. It now has one: the release run 43394223429 and QA's full gates gave a real, completed mobile outcome (E2E mobile SUCCESS on the release tree).
+        # With `continue-on-error` gone the job's conclusion IS the test outcome, so nothing here needs to read `outcome` separately. Desktop was never affected.
         env:
           CI: true
+
+          # Empty outside a dispatch, which is what makes the `if [ -n ... ]` above resolve to the
+          # existing whole-suite command on the release gate.
+          QA_SPEC: ${{ inputs.spec }}
+
+          # '1' only when the dispatcher ticked it. Any other value, including empty, leaves the
+          # onboarding spec skipped.
+          QA_FIXTURE_RESET: ${{ (github.event_name == 'workflow_dispatch' && inputs.fixture_reset) && '1' || '' }}
+          QA_SHOTS: ${{ (github.event_name == 'workflow_dispatch' && inputs.screenshots) && '1' || '' }}
 
           # Empty on every automatic event, because the `inputs` context is empty
           # outside a dispatch - so the release gate keeps building the candidate's
@@ -1353,33 +1372,44 @@ jobs:
       # failure() only. This used to upload on every green run too - ~15s and
       # storage for a report nobody opens. failure() still excludes
       # cancellations, so a concurrency-cancelled run uploads nothing.
-      #
-      # ── PLUS MOBILE, ALWAYS, WHILE ITS LEG IS NON-BLOCKING. REVERT TOGETHER ──────
-      #
-      # The `continue-on-error` above makes the mobile job SUCCEED when its tests fail,
-      # which means `failure()` is false and this step would not have fired - so a
-      # non-blocking leg would have produced no report at all. That is the whole shape
-      # of the `/api/signal-accuracy` entry found on 2026-10-29: a job we paid for,
-      # green forever, measuring air.
-      #
-      # So mobile uploads on PASS as well as fail, deliberately. Its result has to be
-      # readable either way, because the only reason to run a non-blocking leg is to
-      # read it - and on its debut the passing report is the baseline that lets the
-      # NEXT red one mean something.
-      #
-      # `matrix.project == 'mobile'` rather than a `steps.<id>.outcome` check, because
-      # `outcome` versus `conclusion` under continue-on-error is one more semantic this
-      # release path does not need to depend on. This condition contains `failure()`,
-      # so it is evaluated as written rather than having an implicit `success()` added.
       - uses: actions/upload-artifact@v4
-        if: ${{ failure() || matrix.project == 'mobile' }}
+        if: ${{ failure() }}
         with:
           # `matrix.project` is REQUIRED, not decorative: upload-artifact@v4
           # errors on a duplicate name, so without it the second leg to fail
           # would fail on the upload instead of on its tests.
           name: playwright-report-${{ matrix.project }}-${{ github.run_attempt }}
           path: qa/e2e-report/
-          retention-days: 14
+          # 14 -> 3 ON PM/DevOps'S CALL, 2026-11-12. The repo is public, `playwright.config.ts`
+          # sets `screenshot: 'only-on-failure'`, and this artifact is how a failing authenticated
+          # spec's screenshots reach anyone with a GitHub account. Three days is enough to read a
+          # failed release run and short enough that the window closes on its own.
+          #
+          # The other half of that fix is in `qa/e2e/_auth.ts`, which blurs the one element that
+          # renders the fixture email. PM checked the matching hazard in traces: the password
+          # exchange is a Node `fetch` (`_auth.ts`), not a browser or `request` call, so traces
+          # never held passwords. Access tokens can appear in browser request headers and expire
+          # in about an hour.
+          retention-days: 3
+
+      # ── SCREENSHOTS FROM A TARGETED RUN ──────────────────────────────────────────────────────
+      #
+      # PUBLIC, so: one day, nothing from an account or settings page, fixture email masked by the
+      # spec that takes the shot, and deleted through the API once downloaded. `if-no-files-found:
+      # ignore` because a spec that took none is a normal outcome, not a failure to report.
+      - name: Screenshots (public artifact, 1 day)
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.screenshots }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-screenshots-${{ matrix.project }}-${{ github.run_attempt }}
+          path: qa/.shots/
+          retention-days: 1
+          if-no-files-found: ignore
+          # ⚠️ `qa/.shots` IS A HIDDEN DIRECTORY (leading dot), and upload-artifact@v4 defaults
+          # include-hidden-files to false - so without this the whole folder is excluded and the
+          # artifact comes out EMPTY even though the spec wrote six PNGs (measured on run
+          # 43230915872). The shots carry no secrets; the spec masks any email before writing.
+          include-hidden-files: true
 
       # always(), NOT success(). The number is most interesting precisely when
       # the run went badly - a suite that tripped a rate limit is the case #114
@@ -1474,6 +1504,13 @@ jobs:
 
   # ───────────────────────────────────────────────────────────────────────────
   # THE ONLY REQUIRED STATUS CHECK. Do not require `build` or `e2e` directly.
+  #
+  # CORRECTION, 2026-11-10 (QA, measured): NOTHING IS REQUIRED TODAY. Branch protection and rulesets
+  # return 403 "Upgrade to GitHub Pro or make this repository public" - a private repo on the free
+  # plan cannot require a check. #2097 showed `mergeable: MERGEABLE`, `UNSTABLE` with this gate at
+  # FAILURE. So the release gate is a convention: PM reads this result before merging to `main`.
+  # Enforcing it costs GitHub Pro - the owner's money, the owner's call. The advice below holds IF
+  # it is ever made required.
   #
   # GitHub's behaviour here is unintuitive and both halves are traps:
   #

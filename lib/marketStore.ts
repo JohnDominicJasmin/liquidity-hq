@@ -5,7 +5,7 @@ import type { RealYield } from './realYield.ts';
 import { healthLabelKey } from './healthGradeA11y.ts';
 import type { HealthLabelKey } from './healthGradeA11y.ts';
 export type { CoinId } from './coins.ts';
-export { COINS, UNIVERSE_COINS, UNIVERSE_SYM_TO_COIN, BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, COIN_LABELS, coinLabel } from './coins.ts';
+export { COINS, UNIVERSE_COINS, UNIVERSE_SYM_TO_COIN, BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, COIN_LABELS, coinLabel, venueSymbols } from './coins.ts';
 
 export interface GexLevel {
   strike: number;
@@ -144,6 +144,8 @@ export function classifyFunding(rate: number): FundingClass {
   return { label: 'Neutral', cls: 'fund-neu', rpm: 'neu', band: 'neutral', note: 'No extreme positioning. Lower raid probability. Trade with caution.' };
 }
 
+export type ScannerFeedState = 'pending' | 'ok' | 'failed';
+
 export type MarketStore = {
   coins: Partial<Record<CoinId, CoinData>>;
   selectedCoin: CoinId;
@@ -154,7 +156,31 @@ export type MarketStore = {
   btcDomHistory: number[];
   ethDom: number | null;            // ETH market dominance % (from CMC)
   altSeasonScore: number | null;    // 0–100: % of top-50 alts outperforming BTC (90d)
+  /** The state of the two CoinMarketCap reads behind the dashboard's BTC.D and ALT cells (#1651): 'pending' until the first answer, 'ok', or 'failed'; 'ok' is kept through a later blip. */
+  btcDomStatus: ScannerFeedState;
+  altSeasonStatus: ScannerFeedState;
   wsStatus: string;
+  /** A PRICE READ FAILED AND NOTHING ARRIVED, which is a different fact from 'still loading'.
+   *  Panels that gate on `coins[id].price != null` cannot tell those apart on their own, so they
+   *  showed a loading skeleton for ever while the feed was down (#1263's class). Cleared the moment
+   *  any source - the WebSocket or the REST fallback - delivers a price, so a recovery heals the
+   *  display without a reload. */
+  pricesFailed: boolean;
+  /** THE STATE OF THE TWO READS THAT PRICE THE SCANNER'S NON-CURATED ROWS (#1263), so a cell can say loading, failed or no-quote instead of a bare dash.
+   *  universe    - the Bybit bulk ticker (every instrument Bybit lists).
+   *  binanceOnly - the small Binance request for the rows Bybit does not list.
+   *  'pending' until the first answer; 'ok' = it answered (a row still empty then has no quote there); 'failed' = it errored. */
+  scannerFeed: { universe: ScannerFeedState; binanceOnly: ScannerFeedState };
+  /** THE STATE OF THE ONE BULK SNAPSHOT READ (`/api/market/snapshot`), which is what supplies the first
+   *  VWAP, RSI and long/short figures on a cold load.
+   *    'loading' - no answer yet. A figure that depends on it is simply not here YET, and a surface must
+   *                show that as loading (a dash, no note), never as a reading.
+   *    'ok'      - the read answered. A figure still missing after this is genuinely not carried.
+   *    'failed'  - the read errored and nothing has ever answered. Only now is "unavailable" true.
+   *  Once 'ok' it stays 'ok': a later blip leaves the last good figures on screen, so it must not
+   *  re-flag them. The landing hero read "Unavailable" for the first seconds because it could not tell
+   *  'loading' from 'failed' (#1651). */
+  snapshotStatus: 'loading' | 'ok' | 'failed';
   newsCache: string[];
   oilPrice: number | null;
   oilChg: number | null;         // its 1-day change in % (#1631 A)
@@ -193,6 +219,8 @@ export type MarketStore = {
   /* Coinbase Premium Index */
   cbPremium: number | null;    // Coinbase BTC/USD − exchange BTC/USDT converted to USD (#1631 C)
   cbPremiumPct: number | null; // as % of the exchange price in USD
+  /** The state of the Coinbase premium read, so a surface can say loading or unavailable instead of a bare dash (#1651). 'ok' is kept through a later blip. */
+  cbPremiumStatus: ScannerFeedState;
   /* GEX - Gamma Exposure from Deribit options */
   btcNetGex: number | null;    // total net GEX in $ (positive = dealers long gamma)
   btcGexFlip: number | null;   // zero-gamma strike - cross = regime change
@@ -216,7 +244,12 @@ export const defaultStore: MarketStore = {
   btcDomHistory: [],
   ethDom: null,
   altSeasonScore: null,
+  btcDomStatus: 'pending',
+  altSeasonStatus: 'pending',
   wsStatus: 'Connecting...',
+  pricesFailed: false,
+  scannerFeed: { universe: 'pending', binanceOnly: 'pending' },
+  snapshotStatus: 'loading',
   newsCache: [],
   oilPrice: null,
   oilChg: null,
@@ -239,7 +272,7 @@ export const defaultStore: MarketStore = {
   real10y: null,
   spx: null, spxChg: null,
   gold: null, goldChg: null,
-  cbPremium: null, cbPremiumPct: null,
+  cbPremium: null, cbPremiumPct: null, cbPremiumStatus: 'pending',
   btcNetGex: null,
   btcGexFlip: null,
   btcGexLevels: [],
@@ -273,8 +306,23 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
   dir: 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL';
   label: string;
   color: string;
+  /* HOW MANY OF THE THREE INPUTS ARRIVED (#1651 design A), and their plain-word names. This is DATA
+     PRESENCE, not threshold-crossing (longSignals/shortSignals are that) - the landing hero reads it
+     to show "N of 3 signals" and to withhold the verdict until all three are in, so it needs no
+     assumption about which inputs the public page happens to receive. volRatio is a bonus, not one
+     of the three, so it is not counted. */
+  signalsPresent: number;
+  present: string[];
 } {
-  if (!coin) return { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)' };
+  if (!coin) return { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)', signalsPresent: 0, present: [] };
+
+  /* The three inputs, counted by PRESENCE (does the datum exist), independent of whether it crossed
+     a threshold - a funding rate of 0.001 has still "arrived". Names are the plain words the hero
+     tooltip shows. */
+  const present: string[] = [];
+  if (coin.fundingRate != null) present.push('funding');
+  if (coin.longRatio != null && coin.shortRatio != null) present.push('long/short');
+  if (coin.takerBuyRatio != null) present.push('taker flow');
 
   let longRisk = 0;    // longs overleveraged → price dump incoming
   let shortRisk = 0;   // shorts overleveraged → price pump incoming
@@ -321,11 +369,12 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
   const score = Math.min(100, dominant + (dominant > 10 ? volBonus : 0));
 
   // ── Gate: ≥2 independent signals required to label as Flush / Squeeze ─────
+  const signalsPresent = present.length;
   if (longRisk > shortRisk && longSignals >= 2)
-    return { score, dir: 'LONG_LIQ', label: 'Long liquidation risk ↓', color: 'var(--red-soft)' };
+    return { score, dir: 'LONG_LIQ', label: 'Long liquidation risk ↓', color: 'var(--red-soft)', signalsPresent, present };
   if (shortRisk > longRisk && shortSignals >= 2)
-    return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: 'var(--green-soft)' };
-  return { score, dir: 'NEUTRAL', label: 'Balanced', color: 'var(--txt-dim)' };
+    return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: 'var(--green-soft)', signalsPresent, present };
+  return { score, dir: 'NEUTRAL', label: 'Balanced', color: 'var(--txt-dim)', signalsPresent, present };
 }
 
 /* ── Coin Health Score ─────────────────────────────────────────────────────

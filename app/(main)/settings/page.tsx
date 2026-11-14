@@ -13,6 +13,7 @@ import PageHint from '@/components/PageHint';
 import { SkeletonBar } from '@/components/Skeleton';
 import LanguageSelect from '@/components/LanguageSelect';
 import { useLabels } from '@/lib/labels';
+import { playPing, unlockAudio } from '@/lib/arenaSound';
 import { getSupabase, getAuthToken } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
 import { updatePassword } from '@/lib/authSession';
@@ -74,6 +75,34 @@ function AnalyticsConsentToggle() {
         </button>
       </div>
       <div className="st-desc" style={{ marginTop: 8 }}>{t('SETTINGS_ANALYTICS_DESC')}</div>
+    </div>
+  );
+}
+
+/* ARENA SOUND ALERTS (owner, 2026-11-14): the on/off switch for the pings. Saved with the account settings. Turning it on unlocks audio inside the click, like the Arena's first-visit question does. */
+function ArenaSoundToggle() {
+  const { t } = useLabels();
+  const { settings, update } = useSettings();
+  const on = settings.arena_sound === true;
+  return (
+    <div className="st-field">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <div className="st-field-label" style={{ marginBottom: 2 }}>{t('SETTINGS_ARENA_SOUND_TITLE')}</div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{on ? t('SETTINGS_ARENA_SOUND_ON') : t('SETTINGS_ARENA_SOUND_OFF')}</div>
+        </div>
+        <button
+          className={`st-toggle${on ? ' on' : ''}`}
+          data-testid="arena-sound-toggle"
+          role="switch"
+          aria-checked={on}
+          aria-label={t('SETTINGS_ARENA_SOUND_TITLE')}
+          onClick={() => { if (!on) { unlockAudio(); window.setTimeout(() => { playPing('move'); }, 60); } update({ arena_sound: !on }); }}
+        >
+          <span className="st-toggle-thumb" />
+        </button>
+      </div>
+      <div className="st-desc" style={{ marginTop: 8 }}>{t('SETTINGS_ARENA_SOUND_DESC')}</div>
     </div>
   );
 }
@@ -823,6 +852,7 @@ export default function SettingsPage() {
           <label className="st-field-label">{t('SETTINGS_SECTION_LANGUAGE')}</label>
           <LanguageSelect />
         </div>
+        <ArenaSoundToggle />
         <AnalyticsConsentToggle />
       </Section>
 

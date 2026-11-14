@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
+import { chip } from './_shared';
 
 /* #1263 (tracker) / #1308 (fix, merged 2026-09-16, dev@61fd0429): Arena's
  * one-shot coin/TF/strategy seed effect used to latch on its FIRST run,
@@ -99,7 +100,7 @@ test.describe('Arena seed effect restores a REAL saved strategy selection after 
       await expect(skeleton).toHaveCount(0, { timeout: DELAY_MS + 3_000 });
 
       // THE ASSERTION #1263 NAMES: correct AFTER loading, not merely "not loading".
-      const smaChip = page.locator('button.strat-chip', { hasText: 'SMA' });
+      const smaChip = chip(page, 'SMA');
       await expect(smaChip, 'the real saved SMA selection must come back pressed, not reset to unselected').toHaveAttribute('aria-pressed', 'true');
     } finally {
       await ctx.close();
@@ -129,7 +130,7 @@ test.describe('Arena seed effect restores a REAL saved strategy selection after 
     await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/about');
-      await resetStrategySelection(page, ['EMA_RIBBON', 'SMA']);
+      await resetStrategySelection(page, ['MACD', 'SMA']);
 
       const DELAY_MS = 2_000;
       await page.route(`${SUPABASE_URL}/rest/v1/**`, async route => {
@@ -145,9 +146,9 @@ test.describe('Arena seed effect restores a REAL saved strategy selection after 
       await expect(skeleton).toBeVisible({ timeout: DELAY_MS - 200 });
       await expect(skeleton).toHaveCount(0, { timeout: DELAY_MS + 3_000 });
 
-      const emaChip = page.locator('button.strat-chip', { hasText: 'EMA Ribbon' });
-      const smaChip = page.locator('button.strat-chip', { hasText: 'SMA' });
-      await expect(emaChip, 'the real saved EMA Ribbon selection must come back pressed - this is the exact multi-item shape #1263 was originally reported in').toHaveAttribute('aria-pressed', 'true');
+      const emaChip = chip(page, 'MACD');
+      const smaChip = chip(page, 'SMA');
+      await expect(emaChip, 'the real saved MACD selection must come back pressed - this is the exact multi-item shape #1263 was originally reported in').toHaveAttribute('aria-pressed', 'true');
       await expect(smaChip, 'the real saved SMA selection must ALSO come back pressed - a fix that only restores one of two saved indicators is not fixed').toHaveAttribute('aria-pressed', 'true');
     } finally {
       await ctx.close();

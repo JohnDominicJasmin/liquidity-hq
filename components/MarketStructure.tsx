@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
-import { bybitSymbolPriceFactor } from '@/lib/coins';
+import { CoinId, BINANCE_SYMS, BYBIT_SYMS, venueSymbols } from '@/lib/marketStore';
+import { currencyPrefix } from '@/lib/coins';
+import { symbolDenominationFactor } from '@/lib/coins';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
@@ -136,7 +137,14 @@ export default function MarketStructure({ coin, onData }: Props) {
     setLoading(true); setErr('');
     try {
       const binSym = BINANCE_SYMS[coin] as string | undefined;
-      const bytSym = BYBIT_SYMS[coin]   as string | undefined;
+      /* BYBIT FROM THE UNIVERSE, BINANCE LEFT ON THE EDITORIAL MAP, and the asymmetry is the point
+         (#1263). Bybit is the primary here and `venueSymbols` covers all 462, so a non-core coin now
+         gets data. The Binance call below is `source=binance` - SPOT - and the universe has no
+         spot-verified column: `venueSymbols().binance` is a FUTURES symbol, which the spot allowlist
+         refuses by design (#2127). Passing it would manufacture a request that can never succeed and
+         call it a fallback, which is the `SPXUSDT` defect the klines route documents. So a non-core
+         coin is served by Bybit and simply has no spot fallback, exactly as `fet` has none today. */
+      const bytSym = venueSymbols(coin).bybit as string | undefined;
       let candles: Candle[];
 
       if (binSym) {
@@ -154,7 +162,7 @@ export default function MarketStructure({ coin, onData }: Props) {
         // Per-1000 quoting on 1000PEPEUSDT / 1000BONKUSDT. This card prints the
         // broken level and both swing levels as dollar prices, so without the
         // factor they read 1000x against the ticker right above them.
-        const pf = bybitSymbolPriceFactor(bytSym);
+        const pf = symbolDenominationFactor(bytSym);
         candles = [...(d.result?.list ?? [])].reverse().map(k => ({
           t: +k[0], o: +k[1] * pf, h: +k[2] * pf, l: +k[3] * pf, c: +k[4] * pf, v: +k[5],
         }));
@@ -248,7 +256,7 @@ export default function MarketStructure({ coin, onData }: Props) {
                     {le.type} <span className="ms-dir-glyph" aria-hidden="true">{le.dir === 'bullish' ? '▲' : '▼'}</span>
                   </span>
           </span>
-          <span className="ms-ev-price">${fmtP(le.price)}</span>
+          <span className="ms-ev-price">{currencyPrefix(coin)}{fmtP(le.price)}</span>
           <span className="ms-ev-ago">{fmtAge(le.candlesAgo)}</span>
           {le.type === 'CHoCH' && (
             <span style={{ fontSize: 'var(--fs-caption)', color: evCol(le), fontWeight: 700, marginLeft: 4 }}>{t('MARKET_STRUCTURE_FLIP_TAG')}</span>
@@ -261,13 +269,13 @@ export default function MarketStructure({ coin, onData }: Props) {
         {d.lastSwingHigh != null && (
           <div className="ms-level">
             <span className="ms-level-lbl">{t('MARKET_STRUCTURE_SWING_HIGH_LABEL')}</span>
-            <span className="ms-level-val" style={{ color: 'var(--red)' }}>${fmtP(d.lastSwingHigh)}</span>
+            <span className="ms-level-val" style={{ color: 'var(--red)' }}>{currencyPrefix(coin)}{fmtP(d.lastSwingHigh)}</span>
           </div>
         )}
         {d.lastSwingLow != null && (
           <div className="ms-level">
             <span className="ms-level-lbl">{t('MARKET_STRUCTURE_SWING_LOW_LABEL')}</span>
-            <span className="ms-level-val" style={{ color: 'var(--green-2)' }}>${fmtP(d.lastSwingLow)}</span>
+            <span className="ms-level-val" style={{ color: 'var(--green-2)' }}>{currencyPrefix(coin)}{fmtP(d.lastSwingLow)}</span>
           </div>
         )}
       </div>
@@ -282,7 +290,7 @@ export default function MarketStructure({ coin, onData }: Props) {
                     {ev.type} <span className="ms-dir-glyph" aria-hidden="true">{ev.dir === 'bullish' ? '▲' : '▼'}</span>
                   </span>
               </span>
-              <span className="ms-hist-price">${fmtP(ev.price)}</span>
+              <span className="ms-hist-price">{currencyPrefix(coin)}{fmtP(ev.price)}</span>
               <span className="ms-hist-ago">{fmtAge(ev.candlesAgo)}</span>
             </div>
           ))}

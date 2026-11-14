@@ -9,7 +9,7 @@
  * WHAT IT CANNOT PROVE: that the migration RUNS (the live refusal check on the dev DB in QA's window, #1632), or prod's live grants. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { TEXT_LIMITS, ACTIVE_ALERT_CAP, limitRefusal, clip } from '../lib/ownRowLimits.ts';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
@@ -21,6 +21,20 @@ const grantList = (block: string, table: string) => {
   const m = new RegExp(`table_name = '${table}'\\s*and column_name = any \\(array\\[([^\\]]+)\\]\\)`).exec(block);
   return m ? [...m[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort() : null;
 };
+/** COLUMNS ADDED BY LATER MIGRATIONS: a new setting arrives with its own `grant insert (col), update (col) on public.<table> to authenticated` (20261114d arena_sound, 20261114f arena_strategy), in the
+ *  prod form and as a commented dev form. The pinned 20261021e grant plus those later grants must equal ALLOWED, so a new setting is allowed to ship with its own grant migration and a setting
+ *  with NO grant anywhere (a save the database would refuse) is still caught. */
+const laterGrants = (table: string): string[] => {
+  const dir = new URL('../supabase/migrations/', import.meta.url); const out: string[] = [];
+  for (const f of readdirSync(dir).filter((n) => n.endsWith('.sql') && n > '20261021e_security_own_row_limits.sql').sort()) {
+    const body = readFileSync(new URL(f, dir), 'utf8');
+    for (const m of body.matchAll(new RegExp('^\\s*(?:--\\s*)?grant insert \\(([^)]*)\\), update \\(([^)]*)\\) on public\\.' + table + ' to authenticated', 'gm'))) {
+      assert.equal(m[1].trim(), m[2].trim(), `${f}: insert and update column lists differ`);
+      for (const c of m[1].split(',').map((x) => x.trim()).filter(Boolean)) out.push(c);
+    }
+  }
+  return out;
+};
 const allowedFromRoute = () => {
   const src = read('app/api/settings/route.ts');
   const m = /const ALLOWED = \[([\s\S]*?)\];/.exec(src);
@@ -31,11 +45,19 @@ test('G1. the column grant equals /api/settings\' ALLOWED plus user_id, updated_
   const want = [...allowedFromRoute(), 'user_id', 'updated_at', 'field_updated_at'].sort();
   assert.ok(want.length > 10, 'could not read ALLOWED from app/api/settings/route.ts');
   for (const [name, block, table] of [['prod', prodBlock, 'lhq_user_settings'], ['dev', devBlock, 'lhq_dev_user_settings']] as const) {
-    const got = grantList(block, table);
-    assert.ok(got, `${name} block: the column list for ${table} was not found`);
+    const base = grantList(block, table);
+    assert.ok(base, `${name} block: the column list for ${table} was not found`);
+    const got = [...new Set([...base!, ...laterGrants(table)])].sort();
     assert.deepEqual(got, want, `${name} block: the granted columns differ from what /api/settings writes (a save would be refused, or a column is granted for nothing)`);
     assert.ok(!got!.includes('telegram_chat_id'), `${name} block grants telegram_chat_id: the #1632 item 1 hole is back`);
   }
+});
+
+test('G1b. every later column grant is symmetrical across prod and dev, grants only columns /api/settings writes, and never telegram_chat_id', () => {
+  const prod = laterGrants('lhq_user_settings').sort(); const dev = laterGrants('lhq_dev_user_settings').sort();
+  assert.deepEqual(prod, dev, 'a later grant exists for one project and not the other');
+  for (const c of prod) assert.ok(allowedFromRoute().includes(c), `${c} is granted but /api/settings does not write it`);
+  assert.ok(!prod.includes('telegram_chat_id'));
 });
 
 test('G2. both blocks revoke table-wide INSERT/UPDATE from anon and authenticated before granting the columns back, and refuse to run with no columns found', () => {

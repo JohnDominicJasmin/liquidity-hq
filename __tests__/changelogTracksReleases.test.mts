@@ -265,3 +265,39 @@ test('C5. the rule accepts a repository at rest and exactly one release in fligh
   assert.equal(f.ok, false, '(f) a pending entry whose tag already exists must FAIL - the tag order is inconsistent');
   assert.match(f.ok ? '' : f.reason, /already exists/, '(f) must fail for the right reason');
 });
+
+/* ── C6: the file COMPILES, which the five cells above cannot tell you ─────────────────────────────
+ *
+ * C1-C5 read `lib/changelog.ts` as TEXT, and that is deliberate: shape is checkable on source that
+ * will not compile, which is exactly when you want a shape check. **Do not "fix" them into imports.**
+ *
+ * But it leaves a boundary, and Dev hit it editing #2140: an apostrophe inside a single-quoted string
+ * broke the file, and all five cells still passed. Only `tsc` caught it. **A green suite confirming an
+ * edit that had broken the page it was editing** is the same failure as a grep that cannot see its
+ * target - a passing run that cannot see the thing it is about looks exactly like one that can.
+ *
+ * THE INDEPENDENT QUANTITY IS "DOES THE MODULE LOAD". This cell imports it, so a parse error throws
+ * at import and the file never reaches its first assertion. And it asserts the newest entry's shape
+ * at the same time, so it earns its place as more than a smoke test and cannot be deleted later as
+ * redundant with C1-C5 - they check the source's shape, this checks the module's value. */
+
+test('C6. the module actually loads, and its newest entry has the fields the page renders', async () => {
+  const mod = await import('../lib/changelog.ts');
+  const list = mod.CHANGELOG;
+
+  assert.ok(Array.isArray(list), 'CHANGELOG is not an array - the page maps over it');
+  assert.ok(list.length > 0, 'CHANGELOG is empty, so /changelog renders nothing');
+
+  /* The newest entry only. Every entry having these fields is C1-C5's business via the source; this
+     is about the value the page receives for the release being shipped. */
+  const [newest] = list;
+  assert.equal(typeof newest.date, 'string', 'the newest entry has no date - it is the heading and the React key');
+  assert.match(newest.date, /^\d{4}-\d{2}-\d{2}$/, `the newest entry's date is not ISO: '${newest.date}'`);
+  assert.equal(typeof newest.tag, 'string', 'the newest entry has no tag - that is the provenance for the next editor');
+  assert.ok(Array.isArray(newest.items) && newest.items.length > 0,
+    'the newest entry has no items; an entry with nothing user-visible is omitted rather than left empty');
+  for (const [i, line] of newest.items.entries()) {
+    assert.equal(typeof line, 'string', `items[${i}] is not a string`);
+    assert.ok(line.trim().length > 0, `items[${i}] is blank - a blank bullet renders as an empty row`);
+  }
+});

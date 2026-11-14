@@ -1,7 +1,23 @@
-import type { Page, APIRequestContext, APIResponse } from '@playwright/test';
+import type { Page, Locator, APIRequestContext, APIResponse } from '@playwright/test';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
+import { createServer as createNetServer } from 'node:net';
 import { awaitLogLine } from './awaitLogLine';
 import DEFAULT_EN_LABELS from '../../lib/labelDefaults.en.json';
+
+/** An OS-assigned free TCP port. `listen(0)` lets the kernel pick one nothing else holds; we close
+ *  immediately and hand the number back. There is a tiny race between close and the next bind, which
+ *  startFailOnceServer covers by retrying on EADDRINUSE. */
+async function findFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = createNetServer();
+    srv.on('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const addr = srv.address();
+      const port = typeof addr === 'object' && addr ? addr.port : 0;
+      srv.close(() => (port ? resolve(port) : reject(new Error('no free port'))));
+    });
+  });
+}
 
 /** Every route the suite sweeps. Public + app routes, signed out. */
 /* Every route the sweeping specs measure — contrast, layout, a11y, seo, perf.
@@ -190,8 +206,11 @@ export const BASELINE = {
    * documents for the 84->85 case above, on the same metric, for the same
    * reason - a local run measured 113, twice, against CI's 112. Set to the
    * higher number so `toBeLessThanOrEqual` is green in both, same rule:
-   * this +1 is not explained either, and is not licence to widen further. */
-  tapTargetsUnder24: 113,
+   * this +1 is not explained either, and is not licence to widen further.
+   *
+   * 92 -> 8 (QA, 2026-11-14): measured 8 on the live qa build AND on a local CI build of the same tree (runs 43570644015 and 43572464978), after #2254/#2287/#2286:
+   * /markets 4 (button.mkt-row-btn), /about 1, /disclaimer 1, /refund 1 (a.support-mail-link x2 and one bare <a>), /dashboard 1 (button.csb2-name-btn). #2309 fixes those; lower again then. */
+  tapTargetsUnder24: 8,
   /**
    * SC 2.5.8 failures per axe-core's own `target-size` rule, which models BOTH
    * exceptions (spacing and inline) rather than re-deriving them by hand.
@@ -840,18 +859,18 @@ export async function startFailOnceServer(opts: {
    *  finding a new one and hiding the leak. */
   port?: number;
 }): Promise<{ baseURL: string; logs: string[]; stop: () => Promise<void> }> {
-  /* PER-WORKER PORT, because a fixed one collides as soon as the suite runs parallel.
+  /* A FREE OS-ASSIGNED PORT, because the computed per-worker scheme still collided (PM, 2026-11-12).
    *
-   * This was `3101` flat, and CI failed with `EADDRINUSE: address already in use :::3101` - the
-   * child logged `[fail-once] armed` and then died on bind, so it started fine and simply had
-   * nowhere to listen. The suite runs 2 workers ("Running 640 tests using 2 workers"), and both
-   * the mobile and desktop legs exercise this helper, so two servers wanted the same port.
-   *
-   * `TEST_PARALLEL_INDEX` is Playwright's own answer to this: 0..workers-1, stable for the life of
-   * a worker, and documented for exactly this purpose - allocating a per-worker resource. Using
-   * `workerIndex` instead would keep climbing across retries and walk into whatever else is
-   * listening higher up. */
-  const port = opts.port ?? 3101 + Number(process.env.TEST_PARALLEL_INDEX ?? 0);
+   * This was `3101` flat (EADDRINUSE on two workers), then `3101 + TEST_PARALLEL_INDEX` - which is
+   * unique per worker in theory, but a run still died on `:3102` ("exited before it could answer").
+   * A leaked `next start` from a prior failed run holds that exact port, or a retry re-enters with
+   * the same index while the previous child is still shutting down, and the fixed arithmetic walks
+   * straight back into it. `listen(0)` asks the kernel for a port nothing currently holds, so
+   * neither a leak nor a parallel worker can clash. The small trade-off the old comment named - a
+   * fixed port made a leak "obvious" - is given up on purpose: a green suite beats a diagnosable red
+   * one, and a leak now simply fails to be re-bound rather than taking the next run down with it.
+   * `opts.port` still overrides, for a test that wants a known port. */
+  const port = opts.port ?? await findFreePort();
   const status = opts.status ?? 504;
   const logs: string[] = [];
 
@@ -1071,4 +1090,22 @@ export async function entitlementsUnresolved(
     `cannot render in this state, and the Pro-gate control does NOT catch it - that card says ` +
     `neither "part of Pro" nor "Unlock with Pro". A failed DB read, not a product defect. ` +
     `Not a finding.`;
+}
+
+/* THE STRATEGY PANEL'S INDICATOR CHIPS, BY STABLE HANDLE (#2162 redesign, 2026-11-13).
+ *
+ * The chips were `button.strat-chip` filtered by their visible name. The redesign renamed the class to
+ * `button.strat-ind-chip`, renamed two labels (#2184: "Parabolic SAR", "Bollinger Bands") and gave every chip
+ * `data-testid="strategy-indicator-<registry id>"`. Ten specs went red on that (gate 43264183678) while the
+ * behaviour they pin was untouched, so the handle is the test id and the NAME is only mapped to it here, once.
+ *
+ * Selectable chips are SMA, SAR, MACD and BOLL only. RSI and the EMA ribbon are chart-layer rows, not chips -
+ * a spec that needs a chip must not ask for them. An unknown name is passed through as an id, so a typo fails
+ * as "element not found" on a visible id rather than matching something else. */
+const CHIP_ID: Record<string, string> = {
+  SMA: 'SMA', MACD: 'MACD', Bollinger: 'BOLL', 'Bollinger Bands': 'BOLL', BOLL: 'BOLL',
+  'Parabolic SAR': 'SAR', PSAR: 'SAR', SAR: 'SAR',
+};
+export function chip(scope: Page | Locator, name: string): Locator {
+  return scope.getByTestId(`strategy-indicator-${CHIP_ID[name] ?? name}`);
 }

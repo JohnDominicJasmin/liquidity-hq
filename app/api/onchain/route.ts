@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
-import { searchTools, searchWindow } from '@/lib/xaiAnswer';
+import { answerWasCutOff, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
@@ -131,7 +131,9 @@ export async function GET(req: NextRequest) {
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  const btcPrice = parseFloat(req.nextUrl.searchParams.get('price') ?? '0') || 0;
+  /* A price in a sane range or nothing (#1413): it goes into the AI prompt and the result is cached for every visitor under one key, so an absurd value must not get in. */
+  const priceIn = parseFloat(req.nextUrl.searchParams.get('price') ?? '0');
+  const btcPrice = Number.isFinite(priceIn) && priceIn > 0 && priceIn < 10_000_000 ? priceIn : 0;
 
   try {
     const result = await cached('onchain', CACHE_TTL, async () => {
@@ -175,7 +177,8 @@ export async function GET(req: NextRequest) {
       let parsed: Record<string, unknown> | null = null;
       const m = raw.match(/\{[\s\S]*\}/);
       if (m) { try { parsed = JSON.parse(m[0]) as Record<string, unknown>; } catch { /* fall through */ } }
-      if (!parsed) throw new Error('Could not parse AI response');
+      /* A cut-off answer is named as one (#1631): the cap, not the model, is what to fix. */
+      if (!parsed) throw new Error(answerWasCutOff(d) ? 'AI answer cut off at the output cap (status incomplete)' : 'Could not parse AI response');
 
       return { ...parsed, blockchain_stats: stats ?? undefined, timestamp: new Date().toISOString() };
     });

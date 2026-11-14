@@ -1,6 +1,6 @@
 import { test, expect, request as pwRequest } from '@playwright/test';
 import { getGuarded } from './_shared';
-import { AUTH_READY, AUTH_SKIP_REASON, FIXTURES, SUPABASE_URL, SUPABASE_ANON, signIn } from './_auth';
+import { AUTH_READY, AUTH_SKIP_REASON, ROW_IDS_READY, ROW_IDS_SKIP_REASON, FIXTURES, SUPABASE_URL, SUPABASE_ANON, signIn } from './_auth';
 
 /**
  * BOLA / IDOR - OWASP API Security #1.
@@ -29,6 +29,21 @@ import { AUTH_READY, AUTH_SKIP_REASON, FIXTURES, SUPABASE_URL, SUPABASE_ANON, si
 
 test.describe('BOLA / IDOR - cross-account access', () => {
   test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+
+  /* THE ROW IDS ARE THIS FILE'S PRECONDITION, NOT THE SUITE'S. Moved here 2026-11-10.
+   *
+   * `E2E_A_TRADE_ID`, `E2E_A_HYPOTHESIS_ID`, `E2E_A_PRICE_ALERT_ID` and `E2E_B_PRICE_ALERT_ID`
+   * used to sit in `_auth.ts`'s blanket gate, so an absent one skipped all 46 specs that gate on
+   * AUTH_READY - and this is the only file that uses any of them. Measured, not assumed.
+   *
+   * FAILS rather than skips when `E2E_BASE_URL` is set, the same decision `_auth.ts` makes for the
+   * sign-in values: a deliberate run against a deployed site that silently verifies no object-level
+   * authorisation at all should not exit 0. Done locally rather than by a throw in `_auth.ts`,
+   * because throwing there for this file's precondition would take down the other 45. */
+  if (!ROW_IDS_READY) {
+    if (process.env.E2E_BASE_URL) throw new Error(ROW_IDS_SKIP_REASON);
+    test.skip(true, ROW_IDS_SKIP_REASON);
+  }
 
   // HTTP-level. Running both viewport projects would just double the requests.
   test.beforeEach(({}, testInfo) => {

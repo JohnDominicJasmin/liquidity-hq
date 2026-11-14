@@ -106,6 +106,11 @@ interface NewsCtx {
   geoEvents: GeoEvent[];
   eventsLoaded: boolean;
   alertsLoaded: boolean;  // true once a news read has SUCCEEDED and been applied - a failed one leaves it false
+  /** A NEWS READ FAILED, which `!alertsLoaded` on its own cannot express: an unfinished first read
+   *  and a persistently failing one both leave it false, so the All tab showed its loading skeleton
+   *  for ever against a down feed. Cleared by the next read that succeeds, since the fallback timer
+   *  and each SUBSCRIBED keep retrying. */
+  alertsFailed: boolean;
   newsActive: boolean;
   latestHeadlines: string[];
   /** #1631 A: the same headlines with their source and time (ts in SECONDS), for prompts that must date what they cite. */
@@ -163,6 +168,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const nowMs = useNow(60_000);
   const [eventsLoaded, setEventsLoaded] = useState(false);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
+  const [alertsFailed, setAlertsFailed] = useState(false);
   const [latestHeadlines, setLatestHeadlines] = useState<string[]>([]);
   const [latestNews, setLatestNews] = useState<Array<{ headline: string; source: string; ts: number }>>([]);
   const [whaleAlerts, setWhaleAlerts] = useState<WhaleAlert[]>([]);
@@ -339,13 +345,14 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
       if (!live) return;
       // A failed read is not an empty feed: leave alertsLoaded false so nothing reports "no news" from it. The fallback timer
       // below and the next SUBSCRIBED both read again while it is false.
-      if (error) return;
+      if (error) { setAlertsFailed(true); return; }
       // Oldest first so pushAlert's arrival order matches chronological order.
       // Explicit arrow rather than passing ingestRow straight to forEach -
       // forEach hands the index in as the second argument, which would land on
       // the notify parameter and make every row after the first notify.
       (data as NewsRow[] | null)?.slice().reverse().forEach(row => ingestRow(row, false));
       setAlertsLoaded(true);
+      setAlertsFailed(false);
     };
 
     const hydrateEcon = async () => {
@@ -456,7 +463,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const newsActive = alerts.some(a => nowMs / 1000 - a.ts < 5 * 60);
 
   return (
-    <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, econRaw, econStale, econAgeMs: econStaleMs, geoEvents, eventsLoaded, alertsLoaded, newsActive, latestHeadlines, latestNews, whaleAlerts }}>
+    <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, econRaw, econStale, econAgeMs: econStaleMs, geoEvents, eventsLoaded, alertsLoaded, alertsFailed, newsActive, latestHeadlines, latestNews, whaleAlerts }}>
       {children}
     </NewsContext.Provider>
   );

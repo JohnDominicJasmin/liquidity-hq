@@ -104,7 +104,8 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
      nothing in arena/page.tsx persists it, so there is no write even in principle. Same shape as
      arena-panel-overlap above. Being signed out also keeps it off the paid mount effects: both
      GlobalMacroContext and DryPowder return early on `!user`. */
-  { spec: 'category-chips-aria-pressed', needs: 'none' },
+  { spec: 'category-chips-aria-pressed', needs: 'none', note: 'the eight chips inside the coin picker (#2244); anonymous, reads only' },
+  { spec: 'arena-picker-chips', needs: 'none', note: 'the picker chips, search, keyboard and sign-off shots (#2244); anonymous; writes only its own browser localStorage' },
   { spec: 'chart-backfill', needs: 'none' },
   { spec: 'checkout-config-agrees', needs: 'none', note: 'asserts /api/version flags: production differs from dev, expect a triage pass' },
   { spec: 'clock', needs: 'none' },
@@ -117,6 +118,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'i18n', needs: 'none' },
   { spec: 'klines-route', needs: 'none', note: 'calls a data route: spends upstream quota' },
   { spec: 'layout', needs: 'none', note: 'route sweep' },
+  { spec: 'funding-chip-fallback', needs: 'none', note: 'stubs the two funding routes, signed out, nothing written' },
   { spec: 'market-scenarios', needs: 'none' },
   { spec: 'mobile-input-zoom', needs: 'none' },
   { spec: 'news-feed-fixture', needs: 'none' },
@@ -157,15 +159,25 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'tnav-russian-768', needs: 'pro', note: 'Russian test is test.fail() while #1255 stands' },
   // ── signed in, free ──
   { spec: 'plan-badge-trial-flip', needs: 'free' },
+  { spec: 'layout-2268-2269', needs: 'none', note: 'markets layout at 390 and hours cosmetics in ru and zh (#2268 #2269); anonymous; reads only' },
+  { spec: 'hype-oi1h-live', needs: 'none', note: 'OI 1h on BTC and HYPE on a live build (#2275); anonymous; reads only' },
+  { spec: 'strategy-card', needs: 'pro', note: 'the Arena strategy card (#2307..#2316); signed in as account A; the settings write is stubbed; reads only' },
+  { spec: 'landing-2302-2303', needs: 'none', note: 'the AI disclosure on the landing page and the hero breakpoint (#2302 #2303); anonymous; reads only' },
   { spec: 'arena-overflow-probe', needs: 'free', note: 'measures layout only - reads scrollWidth and element rects, writes nothing; sets its own 390x844 viewport and samples at 600ms and 4.6s, so 16 page loads' },
 ];
 
 /** Every other spec, and why it is kept off production. A spec must appear in exactly one
  *  of the two lists; the unit test enforces it. */
 export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
+  'briefing-row-opens-that-coin': 'signs in as the A fixture, which is a DEV-project Supabase account that does not exist on the production project at all - same first reason as upgrade-purchase-marker. Two stronger ones follow. C1 and C2 INTERCEPT the Supabase user_settings read and serve a stubbed row, so against production they would interpose on a real signed-in account\'s settings read; and C3 deliberately does NOT stub, it OBSERVES the real response to compare the settled URL against whatever the account has saved - which on production means reading a real person\'s saved coin and timeframe. Neither is a write, and the exclusion is not about writes: it is about interposing on, and reading, a real account\'s data. The two annotated cells also pin an OPEN defect (#1263, a cold /arena load ignoring saved settings), so on production they would fail by design and say nothing new.',
   '_record-proxy': 'a recorder of live upstream payloads, not a test',
   'cross-browser-surface': 'the #1410 cross-browser pass: staging-scoped by its own tracker, run through qa/crossbrowser.config.ts against Firefox and Brave, and it writes to the visitor\'s own localStorage to prove storage round-trips',
+  'signoff-shots': 'signs in as BOTH the Pro and the Free fixture (DEV-project accounts that do not exist on production) and shoots /arena for PM visual sign-off, with the account email blurred and masked. No write, but it is a qa evidence capture, and a production account on screen in a public artifact is the exclusion.',
+  'landing-vwap-loading': 'intercepts the public landing page /api/market/snapshot read (delay, 500, ok then 500) to prove the hero never labels a loading figure Unavailable. Signed out, no write; excluded because it deliberately interposes on a production route and waits out a real 3-minute poll interval, neither of which belongs in a production read-only run.',
+  'scanner-cells': 'forces the Binance reads to answer 429 and closes every Binance socket in the browser to reproduce the dev/staging condition (#2245); meaningless against production, where the address is allowed. Anonymous, reads only, nothing billed.',
+  'landing-honest-states': 'forces the Binance and Coinbase reads to fail or to answer from stubs to see the landing missing-reading states (#2246); meaningless against production, where the reads work. Anonymous, reads only.',
   'ops-admit': 'needs admin fixtures',
+  'upgrade-purchase-marker': 'signs in as BOTH the Pro and the non-Pro fixture, so two production accounts, and `needs` describes a single tier - same reason as plan-badge-same-user-auth-event and state-matrix. The fixtures are DEV-project accounts, which are not production accounts at all. It also drives /upgrade with ?purchase=whop and ?status=canceled, the post-checkout return URLs: against production that is a real payer-facing page reached with a fabricated marker, and S2 deliberately proves a Pro account gets bounced, which on production means redirecting a real signed-in visitor. (This said ?status=succeeded until 2026-11-10 and the spec never drove it - `succeeded` appears there only in H1\'s comment, recording that it renders NO banner, which is why the cell uses `canceled` instead. The exclusion does not turn on which parameter it is, so the reason held while the citation was wrong; corrected because an exclusion note is read as a description of what the spec does.) It writes nothing and classifies clean; the exclusion is about the accounts and the URLs.',
   'plan-badge-same-user-auth-event': 'signs in as BOTH a Pro and a free account: needs two production accounts',
   'label-length-390': 'injects production label values into the /api/labels response to measure layout under copy that only exists on production (#675). Pointless against production, which already serves those strings, and it signs in as the Pro fixture. A layout probe rather than a regression test',
   'arena-venue-fallback': 'forces the Bybit klines route to 502 to prove the Binance fallback runs (#1767). Injecting a venue outage against production would make a live signal card show a failure to any real visitor sharing that build, and it signs in as the Pro fixture',
@@ -174,6 +186,9 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'arena-alert-resilience': 'clicks Save on a price alert on purpose; safe only while a route stub matches, and a missed match would create a real alert',
   'checkout': 'clicks the checkout CTA on purpose; safe only while a route stub matches, and a missed match would create a real checkout session',
   'draw-structure-labels-render': 'CLICKS the Draw Structure control, which calls a CAPPED AI route - safe only while the route stub matches, and a missed match is a billed xAI call on a production account. Same reason as checkout and arena-alert-resilience. It also signs in with a DEV-project fixture, which is not a production account at all.',
+  'draw-structure-menu': 'CLICKS Draw Structure, a CAPPED AI route - safe only while the route stub matches; signs in with a DEV-project fixture. Same reason as draw-structure-labels-render.',
+  'arena-grok-unreadable': 'CLICKS the Quick read button, which calls /api/grok - a billed xAI route - safe only while the route stub matches; signs in with a DEV-project fixture, not a production account. Same reason as arena-bad-answer-copy.',
+  'tradfi-caveat-render': 'signs in with a DEV-project fixture and WRITES: A3 creates a BTC price alert and removes it again (A2 asserts a refused POST creates nothing). Not a production account.',
   'arena-bad-answer-copy': 'CLICKS the Quick read button, which calls /api/grok - a billed xAI route - so it is safe only while the route stub matches, and a missed match is a real billed call on a production account. Exactly the reason draw-structure-labels-render, checkout and arena-alert-resilience are excluded. It also signs in with a DEV-project fixture, which is not a production account, and the thing it asserts is which of two labels renders for a server flag it fabricates - a 502 that production would never send. It writes nothing and classifies clean; the exclusion is about what the click leads to.',
   'lemonsqueezy-real-purchase': 'a real purchase',
   'arena-quick-deep-stale-selection': 'real AI credits (billed), and PATCHes settings',
@@ -193,6 +208,7 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'grokchat-selection-without-arena-visit': 'writes on purpose: PATCHes strategy_selection',
   'indicator-param-canvas': 'writes on purpose: PATCHes indicator params',
   'offline': 'writes on purpose: POSTs while offline',
+  'onboarding': 'writes on purpose, and is the strongest exclusion here: it RESETS fixture B\'s lhq_dev_user_onboarding and lhq_dev_user_settings rows to a pre-onboarding state, walks the wizard, then restores them. Against production that would wipe and rewrite a real account\'s onboarding and profile. It is additionally self-fenced - the spec skips unless QA_FIXTURE_RESET is set, and the reset asserts the Supabase ref is the dev project (wdtjhrilakoitfcezxpx) and refuses any other - but it is listed here because the classification guard is the layer that does not depend on remembering either of those.',
   'onboarding-load-failure': 'writes on purpose: PATCHes onboarding state',
   'payments-webhook': 'writes on purpose: POSTs webhook payloads',
   'payments-write-path': 'writes on purpose: exercises the payment write path',

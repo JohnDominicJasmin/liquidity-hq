@@ -1,3 +1,4 @@
+import { readJsonCapped, BODY_CAPS } from '@/lib/requestBody';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
@@ -63,7 +64,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   let body: { key?: string; muted?: boolean };
-  try { body = await req.json(); } catch { return NextResponse.json({ ok: false, error: 'Invalid JSON' }, { status: 400 }); }
+  const capped = await readJsonCapped(req, BODY_CAPS.alertPrefs);
+  if (capped.tooLarge) return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  if (!capped.value || typeof capped.value !== 'object') return NextResponse.json({ ok: false, error: 'Invalid JSON' }, { status: 400 });
+  body = capped.value as { key?: string; muted?: boolean };
   const { key, muted } = body;
   if (!key || typeof key !== 'string' || key.length > 64) {
     return NextResponse.json({ ok: false, error: 'key required' }, { status: 400 });

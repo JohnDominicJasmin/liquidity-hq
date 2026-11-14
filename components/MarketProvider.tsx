@@ -4,7 +4,7 @@ import {
   MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
   BINANCE_SYMS, BYBIT_SYMS, UNIVERSE_SYM_TO_COIN,
 } from '@/lib/marketStore';
-import { bybitPriceFactor, BINANCE_SPOT_SYMS } from '@/lib/coins';
+import { bybitPriceFactor, binancePriceFactor, BINANCE_SPOT_SYMS, UNIVERSE_BINANCE_ONLY, HL_PRICE_BACKUP } from '@/lib/coins';
 import { computeRSI14 } from '@/lib/rsi';
 import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
@@ -35,68 +35,13 @@ const REST_FALLBACK_MS = 30_000;
  * rather than about a ban. */
 const WS_BACKOFF_CAP_MS = 30_000;
 
-/* ── CVD Divergence Telegram alert ── */
-function sendCVDAlert(
-  coin: string,
-  div: 'bullish' | 'bearish',
-  price: number,
-  cooldown: Record<string, number>,
-) {
-  const key = `${coin}-${div}`;
-  const now = Date.now();
-  if (now - (cooldown[key] ?? 0) < 30 * 60_000) return; // 30-min cooldown
-  cooldown[key] = now;
-  const emoji = div === 'bullish' ? '🟢' : '🔴';
-  const dir   = div === 'bullish' ? 'Bullish' : 'Bearish';
-  const hint  = div === 'bullish'
-    ? 'Price ↓ but CVD ↑ - hidden accumulation 👀'
-    : 'Price ↑ but CVD ↓ - distribution in progress ⚠️';
-  const priceStr = price > 0
-    ? `$${price.toLocaleString(undefined, { maximumFractionDigits: 4 })}`
-    : '';
-  fetch('/api/telegram/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: `${emoji} <b>CVD Divergence - ${coin.toUpperCase()}</b>\n<b>${dir}</b>\n${hint}\n\n📊 ${coin.toUpperCase()} ${priceStr}\nliquidity-hq.com`,
-    }),
-  }).catch(() => {});
-}
-
-/* ── Liquidation Cascade ── */
+/* ── Liquidation Cascade (the on-screen banner; no message is sent anywhere) ── */
 const LIQ_CASCADE_THRESHOLDS: Record<string, number> = {
   BTC: 5_000_000, ETH: 2_000_000, SOL: 1_000_000, DEFAULT: 800_000,
 };
 const MARKET_CASCADE_THRESHOLD = 20_000_000;
 const LIQ_DELTA_WINDOW_MS = 15 * 60_000; // rolling window for the net long/short liquidation delta
 const LIQ_DELTA_MIN_TOTAL = 20_000; // ignore near-zero noise below this combined $ volume
-
-function sendCascadeAlert(
-  coin: string,
-  side: 'LONG' | 'SHORT' | 'MIXED',
-  totalUsd: number,
-  cooldown: Record<string, number>,
-) {
-  const key = `casc-${coin}`;
-  const now = Date.now();
-  if (now - (cooldown[key] ?? 0) < 10 * 60_000) return; // 10-min cooldown
-  cooldown[key] = now;
-  const emoji = side === 'LONG' ? '🔴' : side === 'SHORT' ? '🟢' : '⚡';
-  const who   = side === 'LONG' ? 'LONGS' : side === 'SHORT' ? 'SHORTS' : 'cascade';
-  const hint  = side === 'LONG'  ? 'Bears flushing longs - short squeeze possible ⚠️'
-              : side === 'SHORT' ? 'Bulls squeezing shorts - watch for reversal ⚠️'
-              : 'Multi-directional flush - vol spike ahead ⚠️';
-  const usdStr = totalUsd >= 1e6
-    ? `$${(totalUsd / 1e6).toFixed(1)}M`
-    : `$${(totalUsd / 1e3).toFixed(0)}K`;
-  fetch('/api/telegram/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: `${emoji} <b>Liquidation Cascade - ${coin}</b>\n${usdStr} ${who} wiped in 60s\n\n${hint}\nliquidity-hq.com`,
-    }),
-  }).catch(() => {});
-}
 
 const _WS_STREAMS = Object.values(BINANCE_SYMS)
   .map(s => `${s.toLowerCase()}@ticker`)
@@ -164,10 +109,8 @@ export default function MarketProvider(
   const macroOkRef = useRef(false);
   /* CVD Divergence alerts: last known divergence + 30-min cooldown */
   const cvdDivStateRef    = useRef<Partial<Record<string, 'bullish' | 'bearish' | null>>>({});
-  const cvdAlertCooldown  = useRef<Record<string, number>>({});
   /* Liquidation cascade: rolling event buffer + per-coin cooldown */
   const liqBufferRef    = useRef<Array<{ coin: string; side: 'LONG' | 'SHORT'; usd: number; ts: number }>>([]);
-  const cascadeCooldown = useRef<Record<string, number>>({});
 
   useEffect(() => { storeRef.current = store; }, [store]);
 
@@ -175,6 +118,10 @@ export default function MarketProvider(
     setStore(s => ({
       ...s,
       coins: { ...s.coins, [id]: { ...s.coins[id], ...patch } as MarketStore['coins'][CoinId] },
+      /* CLEARED AT THE FUNNEL, not in each caller: every price passes through here whichever
+         source produced it, so the WebSocket, the REST fallback and the universe pass all heal the
+         display without any of them knowing the flag exists. */
+      pricesFailed: Number.isFinite(patch?.price) ? false : s.pricesFailed,
     }));
   }, []);
 
@@ -188,9 +135,53 @@ export default function MarketProvider(
       for (const id of ids) {
         coins[id as CoinId] = { ...coins[id as CoinId], ...patches[id] } as MarketStore['coins'][CoinId];
       }
-      return { ...s, coins };
+      const anyPrice = ids.some(id => Number.isFinite(patches[id]?.price));
+      return { ...s, coins, pricesFailed: anyPrice ? false : s.pricesFailed };
     });
   }, []);
+
+  /* A SEED, NOT A STOMP (#1263). Writes only to coins that have NO price yet, so a live socket price is never overwritten by an older REST read. This is what
+     lets a REST source fill a coin whose own socket never connected (Binance blocked this address) without ever ticking a live price backwards. */
+  const seedPrices = useCallback((patches: Record<string, Partial<MarketStore['coins'][CoinId]>>) => {
+    const ids = Object.keys(patches);
+    if (!ids.length) return;
+    setStore(s => {
+      const coins = { ...s.coins };
+      let any = false;
+      for (const id of ids) {
+        if (coins[id as CoinId]?.price == null && Number.isFinite(patches[id]?.price)) {
+          coins[id as CoinId] = { ...coins[id as CoinId], ...patches[id] } as MarketStore['coins'][CoinId];
+          any = true;
+        }
+      }
+      return any ? { ...s, coins, pricesFailed: false } : s;
+    });
+  }, []);
+  const setScannerFeed = useCallback((patch: Partial<MarketStore['scannerFeed']>) => {
+    setStore(s => ({ ...s, scannerFeed: { ...s.scannerFeed, ...patch } }));
+  }, []);
+  /* A FAILED FIRST READ IS RETRIED, BUT CAPPED: at most two retries, 30 s then 60 s apart, so a refused address (Binance 429) is never hammered. After that the
+     normal 8-minute poll is the only retry. Reset by the first pass that answers. */
+  const scannerRetryRef = useRef(0);
+  const scannerRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /* Hyperliquid, price and 24h change only, for the few rows with a proven same-asset quote (HL_PRICE_BACKUP). Asked for only the coins that still have no price
+     six seconds after the main read, so a healthy load (socket and REST both answering) never makes this call for a coin that has a price. */
+  const fetchPriceBackup = useCallback(async () => {
+    const need = Object.keys(HL_PRICE_BACKUP).filter(id => storeRef.current.coins[id as CoinId]?.price == null);
+    if (!need.length) return;
+    try {
+      const r = await fetch('/api/market/price-backup?coins=' + need.join(','));
+      if (!r.ok) return;
+      const body: unknown = await r.json();
+      if (!body || typeof body !== 'object') return;
+      const seed: Record<string, Partial<MarketStore['coins'][CoinId]>> = {};
+      for (const [id, v] of Object.entries(body as Record<string, { price?: number; change?: number | null; vol24?: number | null }>)) {
+        if (!need.includes(id) || !v || !Number.isFinite(v.price) || (v.price as number) <= 0) continue;
+        seed[id] = { price: v.price, perpPrice: v.price, ...(Number.isFinite(v.change) ? { change: v.change as number } : {}), ...(Number.isFinite(v.vol24) ? { vol24: v.vol24 as number } : {}) };
+      }
+      seedPrices(seed);
+    } catch { /* the cell keeps saying what it said; the next poll retries */ }
+  }, [seedPrices]);
 
   const selectCoin = useCallback((c: CoinId) => {
     setStore(s => ({ ...s, selectedCoin: c }));
@@ -211,7 +202,10 @@ export default function MarketProvider(
       const batch = encodeURIComponent(JSON.stringify(syms));
       const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`);
       const data = await res.json();
-      if (!Array.isArray(data)) return;
+      /* BOTH EXITS OF THIS POLL WERE SILENT - a thrown error and a body we cannot parse - and the
+         panels downstream read the resulting absence as "still loading". An unparseable shape is a
+         failed read, not a slow one. */
+      if (!Array.isArray(data)) { setStore(s => ({ ...s, pricesFailed: true })); return; }
       data.forEach((d: Record<string, string>) => {
         const id = SYM_MAP[d.symbol];
         if (!id) return;
@@ -223,7 +217,7 @@ export default function MarketProvider(
         });
       });
       setStore(s => ({ ...s, wsStatus: 'Live · backup feed' }));
-    } catch { /* ignore */ }
+    } catch { setStore(s => ({ ...s, pricesFailed: true })); }
   }, [updateCoin]);
 
   /* ── Binance WebSocket ── */
@@ -283,9 +277,19 @@ export default function MarketProvider(
         startWSRef.current();
       }, delay);
 
-      /* The REST backup still waits for the quick attempts to be spent, deliberately: a two-second
-         blip should not spin up a 45-symbol poll. */
-      if (retriesRef.current <= 5) return;
+      /* The REST backup waits for the quick socket attempts to be spent, deliberately: a two-second
+         blip mid-session should not spin up a 45-symbol poll when prices are already on screen.
+
+         THE EXCEPTION IS A COLD LOAD (#1651). On first load prices come only from the socket, so
+         until it delivers, no coin has a price and the whole page sits on a skeleton. If the first
+         connect is slow or fails (Render cold start), waiting out five capped-backoff retries left
+         that skeleton up for ~36 s. So when NO coin has a price yet, don't wait - run the REST
+         backup on the first close, which fills prices in one request. `storeRef` lags render by a
+         tick, which is harmless here: it can only be stale in the direction of "a price just
+         arrived", and starting the backup a close early when prices already exist costs one poll,
+         not a blank page. */
+      const noPriceYet = !Object.values(storeRef.current.coins).some(c => Number.isFinite(c?.price));
+      if (retriesRef.current <= 5 && !noPriceYet) return;
 
       /* ── REST fallback ──
          This used to poll every 5 seconds, forever, and never retry the
@@ -322,14 +326,63 @@ export default function MarketProvider(
   useEffect(() => { startWSRef.current = startWS; }, [startWS]);
 
   /* ── Bybit: all coins - single bulk fetch instead of per-symbol calls ── */
+  /* ── FUNDING FROM BINANCE, WHEN THE BYBIT READ FAILS (#1651, the funding chip's single venue) ──
+   *
+   * The chip's `fundingRate` came from ONE source: Bybit's bulk ticker, above. A Bybit blip left it null
+   * and the chip said "unavailable" beside a healthy `/api/funding`, which has a Binance fallback of its own.
+   * Binance's premium index (already polled every 30s for the next-funding estimate) carries
+   * `lastFundingRate` for the same perps, so a failed Bybit read is backed by it.
+   *
+   * RULES, each one deliberate:
+   *   - ONLY WHEN THE BYBIT READ FAILED (non-OK, a throw, or no list at all). A Bybit read that answered
+   *     but carries no figure for some coin is NOT a failure and does not call this - same rule as the
+   *     1h open-interest fallback (#2149).
+   *   - NEVER OVERWRITE A FIGURE WE ALREADY HOLD. Funding differs a little between venues, and swapping
+   *     the chip between two venues cycle to cycle would read as the rate moving. It only fills a coin
+   *     that has none.
+   *   - NOT WHEN THE PROXY ANSWERED FROM BYBIT. `/api/proxy` falls back to Bybit if Binance is down
+   *     (X-Data-Source: bybit-fallback); that is the venue that just failed, so it is skipped.
+   *   - A missing or unparseable figure stays UNKNOWN (the key is left out), never 0. */
+  const fundingFromBinance = useCallback(async () => {
+    try {
+      const res = await fetch('/api/proxy?type=premium-index', { cache: 'no-store' });
+      if (!res.ok || res.headers.get('X-Data-Source') === 'bybit-fallback') return;
+      const data = await res.json() as Array<{ symbol: string; lastFundingRate?: string }>;
+      if (!Array.isArray(data)) return;
+      for (const item of data) {
+        const id = SYM_MAP[item.symbol];
+        if (!id || storeRef.current.coins[id]?.fundingRate != null) continue;
+        const fr = parseFloat(item.lastFundingRate ?? '');
+        if (Number.isFinite(fr)) updateCoin(id, { fundingRate: fr });
+      }
+    } catch { /* both venues down: the chip stays unknown, which is true */ }
+  }, [updateCoin]);
+
   const fetchBybit = useCallback(async () => {
     try {
-      const res = await fetch('/api/proxy?type=bybit-tickers');
-      const d = await res.json();
+      /* A non-OK answer or a throw is a FAILED read, handled by the Binance fallback below - not an empty
+         one. (A non-OK body used to be parsed and silently yield no rows, which looked like "no data".) */
+      const d = await (async () => {
+        try {
+          const res = await fetch('/api/proxy?type=bybit-tickers');
+          return res.ok ? await res.json() : null;
+        } catch { return null; }
+      })();
+      if (!d || !Array.isArray(d.result?.list)) {
+        setScannerFeed({ universe: 'failed', binanceOnly: 'failed' });
+        if (scannerRetryRef.current < 2 && !scannerRetryTimer.current) {
+          scannerRetryRef.current += 1;
+          scannerRetryTimer.current = setTimeout(() => { scannerRetryTimer.current = null; fetchBybit(); }, 30_000 * scannerRetryRef.current);
+        }
+        setTimeout(() => { fetchPriceBackup(); }, 6000);
+        await fundingFromBinance();
+        return;
+      }
       // Build symbol → ticker map for O(1) lookup
       const bySymbol: Record<string, Record<string, string>> = {};
       for (const t of (d.result?.list ?? [])) bySymbol[t.symbol] = t;
 
+      const seedCurated: Record<string, Partial<MarketStore['coins'][CoinId]>> = {};
       for (const coin of Object.keys(BYBIT_SYMS)) {
         const item = bySymbol[BYBIT_SYMS[coin]];
         if (!item) continue;
@@ -379,9 +432,21 @@ export default function MarketProvider(
           patch.high   = parseFloat(item.highPrice24h || '0');
           patch.low    = parseFloat(item.lowPrice24h  || '0');
           patch.vol24  = parseFloat(item.turnover24h  || '0');
+        } else if (Number.isFinite(curPrice) && curPrice > 0) {
+          /* A dual-listed coin leaves price to the Binance socket, and that is exactly the coin that went blank (HYPE) when the socket never connected on a
+             refused address. Bybit has the quote in this very response, so it is offered as a SEED: used only while the coin has no price. */
+          const pct = parseFloat(item.price24hPcnt ?? '');
+          seedCurated[coin] = {
+            price: curPrice,
+            ...(Number.isFinite(pct) ? { change: pct * 100 } : {}),
+            high: parseFloat(item.highPrice24h || '0') * bybitPriceFactor(coin),
+            low:  parseFloat(item.lowPrice24h  || '0') * bybitPriceFactor(coin),
+            vol24: parseFloat(item.turnover24h || '0'),
+          };
         }
         updateCoin(coin as CoinId, patch);
       }
+      seedPrices(seedCurated);
 
       /* ── THE REST OF THE UNIVERSE: PRICE AND 24H CHANGE ONLY ──────────────────────────────
        *
@@ -426,8 +491,53 @@ export default function MarketProvider(
         };
       }
       updateCoins(extra);
+      setScannerFeed({ universe: 'ok' });
+
+      /* ── UNIVERSE ROWS BYBIT DOES NOT LIST (Binance-only TradFi) ────────────────────────────
+       *
+       * The Bybit bulk response above prices every other universe coin, so these 18 (pre-IPO
+       * references, a few commodities, the Hong Kong shares) would sit at "-" with no source. One
+       * small request names exactly them. Same rule as above: price and 24h change only, no funding
+       * or open interest, and a failed or empty answer leaves the previous values rather than
+       * blanking them. `priceChangePercent` is already a percent (Bybit's is a fraction). */
+      const bnOnly = Object.keys(UNIVERSE_BINANCE_ONLY);
+      let bnAnswered = bnOnly.length === 0;
+      if (bnOnly.length > 0) {
+        try {
+          const r = await fetch('/api/proxy?type=binance-futures-24hr&symbols=' + encodeURIComponent(JSON.stringify(bnOnly)));
+          const arr: unknown = r.ok ? await r.json() : null;
+          if (Array.isArray(arr)) {
+            const bn: Record<string, Partial<MarketStore['coins'][CoinId]>> = {};
+            for (const t of arr as Array<Record<string, string>>) {
+              const id = UNIVERSE_BINANCE_ONLY[t.symbol];
+              if (!id) continue;
+              const f = binancePriceFactor(id);
+              const price = parseFloat(t.lastPrice ?? '') * f;
+              if (!Number.isFinite(price) || price <= 0) continue;
+              const pct = parseFloat(t.priceChangePercent ?? '');
+              bn[id] = {
+                price,
+                perpPrice: price,
+                ...(Number.isFinite(pct) ? { change: pct } : {}),
+                high:  parseFloat(t.highPrice || '0') * f,
+                low:   parseFloat(t.lowPrice  || '0') * f,
+                vol24: parseFloat(t.quoteVolume || '0'),
+              };
+            }
+            updateCoins(bn);
+            bnAnswered = true;
+          }
+        } catch { /* a missed cycle keeps the last values; the next poll retries */ }
+      }
+      setScannerFeed({ binanceOnly: bnAnswered ? 'ok' : 'failed' });
+      if (bnAnswered) scannerRetryRef.current = 0;
+      else if (scannerRetryRef.current < 2 && !scannerRetryTimer.current) {
+        scannerRetryRef.current += 1;
+        scannerRetryTimer.current = setTimeout(() => { scannerRetryTimer.current = null; fetchBybit(); }, 30_000 * scannerRetryRef.current);
+      }
+      setTimeout(() => { fetchPriceBackup(); }, 6000);
     } catch { /* */ }
-  }, [updateCoin, updateCoins]);
+  }, [updateCoin, updateCoins, fundingFromBinance, seedPrices, setScannerFeed, fetchPriceBackup]);
 
   /* ── Bybit + Binance LSR ── */
   const fetchLSR = useCallback(async () => {
@@ -480,9 +590,13 @@ export default function MarketProvider(
      response actually carried, so a partial or missing response leaves the
      previous values on screen rather than blanking them. */
   const fetchSnapshot = useCallback(async () => {
+    /* ok is sticky and failed never overwrites it - see MarketStore.snapshotStatus. Returns the same
+       object when nothing changes, so a steady poll does not re-render every consumer. */
+    const mark = (st: 'ok' | 'failed') =>
+      setStore(s => (s.snapshotStatus === st || (st === 'failed' && s.snapshotStatus === 'ok')) ? s : { ...s, snapshotStatus: st });
     try {
       const res = await fetch('/api/market/snapshot');
-      if (!res.ok) return;
+      if (!res.ok) { mark('failed'); return; }
       const body = await res.json() as {
         ticker?: Record<string, { price: number; change: number; high: number; low: number; vol24: number }>;
         klines?: Record<string, Record<string, unknown>>;
@@ -518,7 +632,8 @@ export default function MarketProvider(
       for (const [coin, r] of Object.entries(body.lsr ?? {})) {
         if (r && Object.keys(r).length) updateCoin(coin as CoinId, r as Partial<CoinData>);
       }
-    } catch { /* */ }
+      mark('ok');
+    } catch { mark('failed'); }
   }, [updateCoin]);
 
   /* ── Bybit klines for Bybit-only coins (HYPE, PEPE, BONK, XAU, SPX, …) ── */
@@ -723,7 +838,6 @@ export default function MarketProvider(
 
           // CVD divergence: compare first vs last of 5-snapshot window
           let _newDiv: 'bullish' | 'bearish' | null = null;
-          let _capPrice = 0;
           setStore(prev => {
             const currentPrice = prev.coins[coin]?.price ?? 0;
             const snaps = [...(cvdSnapsRef.current[coin] ?? []), { price: currentPrice, cvd: cvdValue }].slice(-5);
@@ -739,7 +853,6 @@ export default function MarketProvider(
               if (pricePct < -0.003 && cvdDelta > 0) cvdDivergence = 'bullish';
             }
             _newDiv = cvdDivergence;
-            _capPrice = currentPrice;
 
             return {
               ...prev,
@@ -749,10 +862,6 @@ export default function MarketProvider(
               },
             };
           });
-          // Alert on new divergence (transition from null/other → bullish/bearish)
-          if (_newDiv && _newDiv !== (cvdDivStateRef.current[coin] ?? null)) {
-            sendCVDAlert(coin, _newDiv, _capPrice, cvdAlertCooldown.current);
-          }
           cvdDivStateRef.current[coin] = _newDiv;
         } catch { /* */ }
         }));
@@ -792,7 +901,6 @@ export default function MarketProvider(
           });
           const cvdValue = buyVol - sellVol;
           let _hypeDiv: 'bullish' | 'bearish' | null = null;
-          let _hypePrice = 0;
           setStore(prev => {
             const currentPrice = prev.coins.hype?.price ?? 0;
             const snaps = [...(cvdSnapsRef.current.hype ?? []), { price: currentPrice, cvd: cvdValue }].slice(-5);
@@ -806,12 +914,8 @@ export default function MarketProvider(
               if (pricePct < -0.003 && cvdDelta > 0) cvdDivergence = 'bullish';
             }
             _hypeDiv = cvdDivergence;
-            _hypePrice = currentPrice;
             return { ...prev, coins: { ...prev.coins, hype: { ...prev.coins.hype, cvd: cvdValue, cvdDivergence } as CoinData } };
           });
-          if (_hypeDiv && _hypeDiv !== (cvdDivStateRef.current.hype ?? null)) {
-            sendCVDAlert('hype', _hypeDiv, _hypePrice, cvdAlertCooldown.current);
-          }
           cvdDivStateRef.current.hype = _hypeDiv;
         } catch { /* */ }
       })(),
@@ -1116,10 +1220,11 @@ export default function MarketProvider(
   /* ── Coinbase Premium Index (Coinbase BTC − Bybit BTC) ── */
   const fetchCoinbasePremium = useCallback(async () => {
     try {
+      const markCb = (status: 'ok' | 'failed') => setStore(s => ({ ...s, cbPremiumStatus: s.cbPremiumStatus === 'ok' ? 'ok' : status }));
       const res = await fetch('/api/coinbase-price', { cache: 'no-store' });
-      if (!res.ok) return;
+      if (!res.ok) { markCb('failed'); return; }
       const { price: cbPrice, usdtUsd } = await res.json() as { price: number; usdtUsd?: number | null };
-      if (!cbPrice || isNaN(cbPrice)) return;
+      if (!cbPrice || isNaN(cbPrice)) { markCb('failed'); return; }
       setStore(s => {
         const bybitPrice = s.coins.btc?.price;
         /* #1631 C: Coinbase quotes USD, the exchange price is USDT. Converted to USD first; without the USDT rate the premium is
@@ -1128,9 +1233,9 @@ export default function MarketProvider(
         const bybitUsd   = bybitPrice * usdtUsd;
         const premium    = cbPrice - bybitUsd;
         const premiumPct = (premium / bybitUsd) * 100;
-        return { ...s, cbPremium: premium, cbPremiumPct: premiumPct };
+        return { ...s, cbPremium: premium, cbPremiumPct: premiumPct, cbPremiumStatus: 'ok' };
       });
-    } catch { /* fail silently */ }
+    } catch { setStore(s => ({ ...s, cbPremiumStatus: s.cbPremiumStatus === 'ok' ? 'ok' : 'failed' })); }
   }, []);
 
   /* ── Binance premium index → next FR estimate (Binance perps) ── */
@@ -1290,8 +1395,11 @@ export default function MarketProvider(
         // #1192: real dominance data means this attempt did not miss - the
         // 12s retry below only needs to fire when this never happens.
         cmcOkRef.current = true;
+        setStore(s => ({ ...s, btcDomStatus: 'ok' }));
+      } else {
+        setStore(s => ({ ...s, btcDomStatus: s.btcDomStatus === 'ok' ? 'ok' : 'failed' }));
       }
-    } catch { /* */ }
+    } catch { setStore(s => ({ ...s, btcDomStatus: s.btcDomStatus === 'ok' ? 'ok' : 'failed' })); }
   }, []);
 
   /* ── Alt Season Index (top-50 alts vs BTC, 90-day) ── */
@@ -1315,8 +1423,9 @@ export default function MarketProvider(
         quote?: { USD?: { percent_change_90d?: number } };
       }>;
 
+      const markAltFailed = () => setStore(s => ({ ...s, altSeasonStatus: s.altSeasonStatus === 'ok' ? 'ok' : 'failed' }));
       const btc   = coins.find(c => c.symbol === 'BTC');
-      if (!btc) return;
+      if (!btc) { markAltFailed(); return; }
       const btc90 = btc.quote?.USD?.percent_change_90d ?? 0;
 
       const eligible = coins
@@ -1329,13 +1438,13 @@ export default function MarketProvider(
         )
         .slice(0, 50);
 
-      if (!eligible.length) return;
+      if (!eligible.length) { markAltFailed(); return; }
 
       const beat  = eligible.filter(c => (c.quote?.USD?.percent_change_90d ?? -Infinity) > btc90).length;
       const score = Math.round((beat / eligible.length) * 100);
 
-      setStore(s => ({ ...s, altSeasonScore: score }));
-    } catch { /* */ }
+      setStore(s => ({ ...s, altSeasonScore: score, altSeasonStatus: 'ok' }));
+    } catch { setStore(s => ({ ...s, altSeasonStatus: s.altSeasonStatus === 'ok' ? 'ok' : 'failed' })); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1569,7 +1678,6 @@ export default function MarketProvider(
             const side: 'LONG' | 'SHORT' | 'MIXED' =
               (lUsd >= thr && sUsd >= thr) ? 'MIXED' : lUsd >= thr ? 'LONG' : 'SHORT';
             setStore(s => ({ ...s, cascadeAlert: { coin, side, totalUsd: lUsd + sUsd, ts: now } }));
-            sendCascadeAlert(coin, side, lUsd + sUsd, cascadeCooldown.current);
             fired = true; break;
           }
         }
@@ -1579,7 +1687,6 @@ export default function MarketProvider(
             const side: 'LONG' | 'SHORT' | 'MIXED' =
               mktL > mktS * 1.5 ? 'LONG' : mktS > mktL * 1.5 ? 'SHORT' : 'MIXED';
             setStore(s => ({ ...s, cascadeAlert: { coin: 'MARKET', side, totalUsd: mktTotal, ts: now } }));
-            sendCascadeAlert('MARKET', side, mktTotal, cascadeCooldown.current);
           }
         }
       }
@@ -1670,6 +1777,7 @@ export default function MarketProvider(
     ];
 
     return () => {
+      if (scannerRetryTimer.current) { clearTimeout(scannerRetryTimer.current); scannerRetryTimer.current = null; }
       intervals.forEach(clearInterval);
       /* Detach onclose before closing. Otherwise unmounting fires the handler
          above, which starts the REST fallback and the socket-retry timer for a

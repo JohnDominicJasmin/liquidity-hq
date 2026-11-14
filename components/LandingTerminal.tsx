@@ -40,6 +40,8 @@ interface Props {
   dict: LandingDict;
   locale: Locale;
   dir: 'ltr' | 'rtl';
+  /** The AI-processor disclosure, from the legal key (lib/legalDefaults.ts), passed by the server page. */
+  aiAnalysisBody: string;
 }
 
 /* Required by landing.md's own Layout section: "Select with
@@ -57,6 +59,23 @@ function getViewportSnapshot() { return window.matchMedia('(min-width: 768px)').
 function getServerViewportSnapshot() { return true; }
 function useIsDesktop() {
   return useSyncExternalStore(subscribeViewport, getViewportSnapshot, getServerViewportSnapshot);
+}
+
+/* The hero is the one section with a fixed-width child - the 472px LIVE READ panel, flexShrink:0 -
+ * so between 768 and 1100 its two columns don't fit: the panel clips at the right edge (STOP/TARGET,
+ * the clock, the Setup/OI notes all hidden) and the CTAs wrap (#1185). It therefore stacks one
+ * breakpoint later than the rest of the page - below 1100 it renders the same single-column tree 390
+ * already does, each CTA full-width on one line. Same useSyncExternalStore-over-matchMedia contract
+ * as useIsDesktop (landing.md's Layout section), so it stays one tree read synchronously on the
+ * client; the SSR snapshot is shared (assume wide, corrected before paint). */
+function subscribeHeroWide(cb: () => void) {
+  const mql = window.matchMedia('(min-width: 1100px)');
+  mql.addEventListener('change', cb);
+  return () => mql.removeEventListener('change', cb);
+}
+function getHeroWideSnapshot() { return window.matchMedia('(min-width: 1100px)').matches; }
+function useHeroWide() {
+  return useSyncExternalStore(subscribeHeroWide, getHeroWideSnapshot, getServerViewportSnapshot);
 }
 
 const LIVE_READ_COIN = 'btc' as const;
@@ -82,22 +101,54 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const { store } = useMarket();
   const d = store.coins[LIVE_READ_COIN];
   const oi1h = useOI1h(LIVE_READ_COIN);
+
+  /* THE CLOCK IS THE CLIENT'S OR IT IS NOTHING (#1651).
+
+     `new Date()` in the markup runs on the SERVER during the initial render, so the first paint of
+     a public page carried the SERVER'S wall clock - and `suppressHydrationWarning` on that span
+     hid the mismatch rather than the cause. A visitor in Manila saw a London time for a moment and
+     had no way to know which it was.
+
+     A mounted flag rather than the data's as-of time, which would be the better label: the store
+     does not keep the snapshot's `ts` today, so that is provider plumbing and this is a low item.
+     Named here so the better fix is not re-derived from scratch.
+
+     The expression is unchanged, so it still refreshes whenever this component re-renders, which on
+     this page is whenever the store updates. No timer is added, because adding one would be a new
+     failure mode for a cosmetic line. */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const sq = computeSqueezeScore(d);
 
-  const verdictCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt2)';
-  const verdictText = sq.dir === 'SHORT_SQ' ? 'BULLISH' : sq.dir === 'LONG_LIQ' ? 'BEARISH' : 'NO READ';
-  const hasConfidence = sq.dir !== 'NEUTRAL';
+  /* DESIGN A (#1651): the verdict needs all THREE inputs present (funding, long/short, taker flow),
+     not just the >=2-signal direction gate. While fewer have arrived, the big verdict line and the
+     confidence bar are withheld and the Setup row below shows the score with an "N of 3 signals"
+     note instead - so a partial reading on the public hero never reads as a final call, and the
+     panel still fills from the first signal rather than blanking until everything lands (the #2144
+     failure this replaces). It counts whatever arrived, so it assumes nothing about which inputs
+     the landing happens to receive. */
+  const setupComplete = sq.signalsPresent === 3;
+  const setupPartial = d != null && sq.signalsPresent >= 1 && !setupComplete;
+  const shownDir = setupComplete ? sq.dir : 'NEUTRAL';
+  const verdictCol = shownDir === 'SHORT_SQ' ? 'var(--green)' : shownDir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt2)';
+  const lr = dict.liveRead;
+  const verdictText = shownDir === 'SHORT_SQ' ? lr.verdict.bullish : shownDir === 'LONG_LIQ' ? lr.verdict.bearish : lr.verdict.noRead;
+  const hasConfidence = shownDir !== 'NEUTRAL';
 
+  /* LOADING IS NOT A READING (#1651). Until the snapshot read has answered, a missing figure is simply
+     not here yet: the row shows a dash and NO note. "Unavailable" / "No data" are only true once the read
+     has finished (ok without this figure) or failed. */
+  const snapshotLoading = store.snapshotStatus === 'loading';
   const price = d?.price ?? null;
   const vwap  = d?.vwap ?? null;
   const vwapAbove = vwap != null && price != null ? price > vwap : null;
   const vwapCol = vwapAbove === null ? 'var(--txt)' : vwapAbove ? 'var(--green)' : 'var(--red)';
 
   const oiTrendTxt: Record<string, { txt: string; col: string }> = {
-    strong_up:   { txt: 'Strong up',   col: 'var(--green)' },
-    strong_down: { txt: 'Strong down', col: 'var(--red)' },
-    weak_up:     { txt: 'Weak up',     col: 'var(--txt)' },
-    weak_down:   { txt: 'Weak down',   col: 'var(--txt)' },
+    strong_up:   { txt: lr.oiTrend.strong_up,   col: 'var(--green)' },
+    strong_down: { txt: lr.oiTrend.strong_down, col: 'var(--red)' },
+    weak_up:     { txt: lr.oiTrend.weak_up,     col: 'var(--txt)' },
+    weak_down:   { txt: lr.oiTrend.weak_down,   col: 'var(--txt)' },
   };
   const oiRow = d?.oiTrend ? oiTrendTxt[d.oiTrend] : null;
 
@@ -109,16 +160,49 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const cbCol = cbPct == null ? 'var(--txt)' : cbPct >= 0.05 ? 'var(--green)' : cbPct <= -0.05 ? 'var(--red)' : 'var(--txt)';
 
   /* #1613: the trend text must come from the SAME hour as the % beside it, so it is derived from the 1h samples, not from the store's oiTrend (another window). */
-  const { txt: oi1hTxt, col: oi1hColRaw } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
+  const oi1hTrendKey = oiTrend1h(oi1h.pct, oi1h.pricePct);
+  const { col: oi1hColRaw } = oi1hSignal(oi1h.pct, oi1hTrendKey);
+  /* The note beside the OI 1h figure, in the visitor's language: the same decision tree as `oi1hSignal` (lib/useOI1h.ts), keyed to the dictionary instead of its English strings. */
+  const oi1hTxt = oi1h.pct == null ? '' : (() => {
+    const trendTxt = oi1hTrendKey === 'strong_up' ? lr.oi1h.newLongs : oi1hTrendKey === 'strong_down' ? lr.oi1h.newShorts : oi1hTrendKey === 'weak_up' ? lr.oi1h.shortCover : oi1hTrendKey === 'weak_down' ? lr.oi1h.longExits : null;
+    const pos = oi1h.pct > 0;
+    if (Math.abs(oi1h.pct) >= 10) return trendTxt ?? (pos ? lr.oi1h.spikeUp : lr.oi1h.spikeDown);
+    return trendTxt ?? (Math.abs(oi1h.pct) < 2 ? lr.oi1h.stable : pos ? lr.oi1h.rising : lr.oi1h.unwinding);
+  })();
   const oi1hCol = oi1h.pct == null ? 'var(--txt2)' : oi1hColRaw;
 
-  const evidence: { label: string; value: string | null; note: string; col: string }[] = [
-    { label: 'VWAP',    value: price != null ? '$' + fmtPrice(price, COIN_DEC[LIVE_READ_COIN]) : null, note: vwapAbove == null ? '' : vwapAbove ? 'Above' : 'Below', col: vwapCol },
-    { label: 'OI trend', value: oiRow ? oiRow.txt : null, note: '', col: oiRow ? oiRow.col : 'var(--txt2)' },
-    { label: 'Funding', value: fr != null ? (fr * 100 >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : null, note: frInfo ? frInfo.label : '', col: frCol },
-    { label: 'CB prem', value: null, note: '', col: 'var(--txt2)' /* no source wired - see LABELS in spec, always em dash */ },
-    { label: 'OI 1h',   value: oi1h.loading ? null : (oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : null), note: oi1h.loading ? '' : oi1hTxt, col: oi1hCol },
-    { label: 'Setup',   value: String(sq.score), note: sq.label, col: sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)' },
+  /* A MISSING READING SAYS WHICH KIND OF MISSING (#1651): an ellipsis while it is still coming, the localized word once it is not, never a bare dash. The words are the landing
+     dictionary's, not the label table's (#1889). Entry/Stop/Target keep the design's em dash: they are not a feed. */
+  const feedPending = store.scannerFeed.universe === 'pending' || snapshotLoading;
+  const evidence: { label: string; value: string | null; note: string; col: string; title?: string; state?: 'loading' | 'unavailable' }[] = [
+    /* THE VWAP, not the price (#1263). This row printed `price` under a "VWAP" label on the PUBLIC
+       hero - a signed-out visitor's first impression of the product - for every coin. Measured: all
+       49 coins in the snapshot carry a real vwap, so this shows a number rather than a dash; the
+       'Unavailable' note is reachable only if that feed fails or the coin is outside it. */
+    { label: lr.rows.vwap,    value: vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[LIVE_READ_COIN]) : null, note: vwap == null ? (snapshotLoading ? '' : dict.ticker.unavailable) : vwapAbove == null ? '' : vwapAbove ? lr.notes.above : lr.notes.below, col: vwapCol },
+    { label: lr.rows.oiTrend, value: oiRow ? oiRow.txt : null, note: '', col: oiRow ? oiRow.col : 'var(--txt2)', state: oiRow ? undefined : (feedPending ? 'loading' : 'unavailable') },
+    { label: lr.rows.funding, value: fr != null ? (fr * 100 >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : null, note: frInfo ? lr.funding[frInfo.band] : '', col: frCol },
+    { label: lr.rows.cbPrem, value: cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : null, note: '', col: cbCol, state: cbPct != null ? undefined : (store.cbPremiumStatus === 'pending' ? 'loading' : 'unavailable') },
+    { label: lr.rows.oi1h,   value: oi1h.loading ? null : (oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : null), note: oi1h.loading || oi1h.pct == null ? '' : oi1hTxt, col: oi1hCol, state: oi1h.loading ? 'loading' : (oi1h.pct == null ? 'unavailable' : undefined) },
+    /* `null` WHEN THERE IS NO COIN DATA, not the score (#1185). `computeSqueezeScore` returns
+       `{ score: 0, dir: 'NEUTRAL', label: 'No data' }` for a missing coin, so this row printed a
+       confident "0" next to its own "No data" note - on the PUBLIC landing hero, which is the first
+       thing an ad visitor sees. The other five rows in this array already use `null` for absent and
+       render the em dash; this one did not.
+
+       KEYED ON DATA PRESENCE, NOT ON `dir`: a real NEUTRAL reading with data behind it is a
+       legitimate score and must still show. The big score and its bar below are already guarded by
+       `hasConfidence`, so they were never part of this.
+
+       DESIGN A (#1651): the score shows from the first signal, but the DIRECTION label and colour
+       wait until all three inputs are in. While partial the note is "N of 3 signals" and the value
+       stays neutral, so the number reads as a partial sum in progress, not a final call; a tooltip
+       names which signals are in. */
+    { label: lr.rows.setup,
+      value: (d && sq.signalsPresent >= 1) ? String(sq.score) : null,
+      note: setupComplete ? (sq.dir === 'SHORT_SQ' ? lr.setup.squeeze : sq.dir === 'LONG_LIQ' ? lr.setup.flush : lr.setup.balanced) : (d ? lr.notes.nOf3.replace('{n}', String(sq.signalsPresent)) : (snapshotLoading ? '' : lr.setup.noData)),
+      col: setupComplete ? (sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)') : 'var(--txt)',
+      title: sq.present.length ? `Signals in: ${sq.present.join(', ')}` : undefined },
   ];
 
   return (
@@ -128,10 +212,10 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
       <div style={{ height: 34, display: 'flex', alignItems: 'center', padding: '0 14px', gap: 9, borderBottom: '1px solid var(--bdr)' }}>
         <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
         <span style={{ fontSize: 10, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--txt2)' }}>
-          Live read · {LIVE_READ_COIN.toUpperCase()}
+          {dict.liveRead.title} · {LIVE_READ_COIN.toUpperCase()}
         </span>
-        <span style={{ marginLeft: 'auto', fontSize: 10, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt3)' }} suppressHydrationWarning>
-          {new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })}
+        <span style={{ marginLeft: 'auto', fontSize: 10, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt3)' }}>
+          {mounted ? new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false }) : ''}
         </span>
       </div>
 
@@ -147,13 +231,13 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
             </div>
             <div style={{ marginTop: 6, display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline', gap: 6 }}>
               <span style={{ fontSize: 13, fontFamily: 'var(--font-mono), monospace', fontWeight: 700, color: 'var(--txt)' }}>{sq.score}</span>
-              <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.12em', color: 'var(--txt3)' }}>CONF</span>
+              <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.12em', color: 'var(--txt3)' }}>{dict.liveRead.conf}</span>
             </div>
           </div>
         )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, background: 'var(--bdr)', marginTop: 16 }}>
-          {(['Entry', 'Stop', 'Target'] as const).map(label => (
+          {([lr.levels.entry, lr.levels.stop, lr.levels.target]).map(label => (
             <div key={label} style={{ background: 'var(--bg1)', padding: mobile ? '9px 10px' : '11px 12px' }}>
               <div style={{ fontSize: 9, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--txt3)' }}>{label}</div>
               <div style={{ fontSize: mobile ? 12.5 : 13.5, fontFamily: 'var(--font-mono), monospace', fontWeight: 600, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums', marginTop: 5 }}>
@@ -165,11 +249,14 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
 
         <div style={{ marginTop: 4 }}>
           {evidence.map(row => (
-            <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 14px', borderBottom: '1px solid var(--bdr2)' }}>
+            <div key={row.label} title={row.title} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 14px', borderBottom: '1px solid var(--bdr2)' }}>
               <span style={{ width: 2, height: 18, flexShrink: 0, background: row.value == null ? 'var(--mark-idle)' : row.col }} />
-              <span style={{ width: 76, flexShrink: 0, fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.1em', color: 'var(--txt3)' }}>{row.label}</span>
+              <span style={{ minWidth: 76, flexShrink: 0, fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.1em', color: 'var(--txt3)' }}>{row.label}</span>
               <span style={{ fontSize: 12.5, fontFamily: 'var(--font-mono), monospace', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: row.value == null ? 'var(--txt2)' : row.col }}>
-                {row.value == null ? <EmptyValue /> : row.value}
+                {row.value != null ? row.value
+                  : row.state === 'loading' ? <span role="img" aria-label={dict.ticker.loading} title={dict.ticker.loading}>{'\u2026'}</span>
+                  : row.state === 'unavailable' ? <span style={{ color: 'var(--txt2)' }}>{dict.ticker.unavailable}</span>
+                  : <EmptyValue />}
               </span>
               {row.note && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--txt3)' }}>{row.note}</span>}
             </div>
@@ -180,8 +267,9 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   );
 }
 
-export default function LandingTerminal({ dict, locale, dir }: Props) {
+export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: Props) {
   const isDesktop = useIsDesktop();
+  const heroWide = useHeroWide();
   const stepArrow = dir === 'rtl' ? '←' : '→';
 
   useEffect(() => {
@@ -234,28 +322,28 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
           padding: isDesktop ? '10px 18px' : '10px 12px',
           textDecoration: 'none', textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0,
         }}>
-          {isDesktop ? dict.nav.getStarted : 'START'}
+          {isDesktop ? dict.nav.getStarted : dict.liveRead.start}
         </Link>
       </nav>
 
       {/* ── TICKER ── */}
-      <LandingTicker mobile={!isDesktop} dir={dir} />
+      <LandingTicker mobile={!isDesktop} dir={dir} words={dict.ticker} />
 
       {/* ── HERO — glow/beams intentionally kept, see file header ── */}
-      <section style={{ position: 'relative', padding: isDesktop ? '76px 40px 64px' : '34px 18px 30px' }}>
+      <section style={{ position: 'relative', padding: heroWide ? '76px 40px 64px' : '34px 18px 30px' }}>
         <BeamsBackground intensity="medium" />
         <div className="lp-hero-glow" />
         <div style={{
           position: 'relative', zIndex: 2, display: 'flex',
-          flexDirection: isDesktop ? 'row' : 'column', gap: isDesktop ? 56 : 30,
+          flexDirection: heroWide ? 'row' : 'column', gap: heroWide ? 56 : 30,
         }}>
-          <div style={{ flex: isDesktop ? 1 : undefined }}>
+          <div style={{ flex: heroWide ? 1 : undefined }}>
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 8, border: '1px solid var(--bdr)',
               background: 'var(--bg1)', padding: '7px 13px',
             }}>
-              <span style={{ width: isDesktop ? 6 : 5, height: isDesktop ? 6 : 5, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
-              <span style={{ fontSize: isDesktop ? 10.5 : 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: isDesktop ? '.16em' : '.14em', textTransform: 'uppercase', color: 'var(--txt2)' }}>
+              <span style={{ width: heroWide ? 6 : 5, height: heroWide ? 6 : 5, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
+              <span style={{ fontSize: heroWide ? 10.5 : 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: heroWide ? '.16em' : '.14em', textTransform: 'uppercase', color: 'var(--txt2)' }}>
                 {dict.hero.badge}
               </span>
             </div>
@@ -263,22 +351,22 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
                 sits." left "sits." alone on a third line at 1280 and 390. */}
             <h1 className="lp-hero-h1" style={{
               fontFamily: 'var(--font-mono), monospace', fontWeight: 700, color: 'var(--txt)',
-              fontSize: isDesktop ? 54 : 32, lineHeight: isDesktop ? 1.06 : 1.1,
-              letterSpacing: '-.015em', marginTop: isDesktop ? 26 : 18, margin: 0, marginBlockStart: isDesktop ? 26 : 18,
+              fontSize: heroWide ? 54 : 32, lineHeight: heroWide ? 1.06 : 1.1,
+              letterSpacing: '-.015em', marginTop: heroWide ? 26 : 18, margin: 0, marginBlockStart: heroWide ? 26 : 18,
             }}>
               {dict.hero.h1Line1}<br />
               <span style={{ color: 'var(--accent)' }}>{dict.hero.h1Line2}</span>
             </h1>
             <p style={{
-              fontSize: isDesktop ? 17 : 14.5, lineHeight: 1.6, color: 'var(--txt2)',
-              marginTop: isDesktop ? 22 : 14, maxWidth: isDesktop ? 600 : undefined,
+              fontSize: heroWide ? 17 : 14.5, lineHeight: 1.6, color: 'var(--txt2)',
+              marginTop: heroWide ? 22 : 14, maxWidth: heroWide ? 600 : undefined,
             }}>
               {dict.hero.sub}
             </p>
-            <div style={{ display: 'flex', flexDirection: isDesktop ? 'row' : 'column', gap: isDesktop ? 12 : 9, marginTop: isDesktop ? 30 : 22 }}>
+            <div style={{ display: 'flex', flexDirection: heroWide ? 'row' : 'column', gap: heroWide ? 12 : 9, marginTop: heroWide ? 30 : 22 }}>
               <Link href="/login?signup=1" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                height: isDesktop ? 50 : 48, padding: isDesktop ? '0 30px' : undefined,
+                height: heroWide ? 50 : 48, padding: heroWide ? '0 30px' : undefined,
                 background: 'var(--accent)', color: 'var(--bg0)', fontFamily: 'var(--font-mono), monospace',
                 fontSize: 13, fontWeight: 700, letterSpacing: '.12em', textDecoration: 'none',
                 textTransform: 'uppercase',
@@ -287,7 +375,7 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
               </Link>
               <Link href="/briefing" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                height: isDesktop ? 50 : 46, padding: isDesktop ? '0 26px' : undefined,
+                height: heroWide ? 50 : 46, padding: heroWide ? '0 26px' : undefined,
                 border: '1px solid var(--border-input)', color: 'var(--txt2)', fontFamily: 'var(--font-mono), monospace',
                 fontSize: 13, letterSpacing: '.12em', textDecoration: 'none', textTransform: 'uppercase',
               }}>
@@ -295,7 +383,7 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
               </Link>
             </div>
 
-            {isDesktop ? (
+            {heroWide ? (
               <div style={{ display: 'flex', marginTop: 40, borderTop: '1px solid var(--bdr)', paddingTop: 24 }}>
                 {[dict.hero.stats.coins, dict.hero.stats.ai, dict.hero.stats.telegram].map((label, i) => (
                   <div key={label} style={{ paddingRight: 38, marginRight: 38, borderRight: i < 2 ? '1px solid var(--bdr)' : undefined }}>
@@ -320,7 +408,7 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
             )}
           </div>
 
-          <LiveReadPanel mobile={!isDesktop} dict={dict} />
+          <LiveReadPanel mobile={!heroWide} dict={dict} />
         </div>
       </section>
 
@@ -612,7 +700,7 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
             { label: 'Educational Use', text: 'All content - signals, scores, alerts, and AI commentary - is for informational purposes only. Nothing constitutes a recommendation to buy, sell, or hold any asset.' },
             { label: 'Trading Risk', text: 'Crypto trading involves substantial risk. Prices are volatile, leverage magnifies losses, and most active traders lose money. Only trade with money you can afford to lose.' },
             { label: 'No Investment Advice', text: 'We are not a registered investment advisor, and we do not execute trades or hold customer funds. You are solely responsible for your own trading decisions. Consult a licensed professional before making any investment decision.' },
-            { label: 'AI Analysis', text: 'LiquidityAI is powered by xAI Grok. AI output can be incomplete, outdated, or wrong - never use it as your sole basis for a trade. Always verify against the raw data shown.' },
+            { label: 'AI Analysis', text: aiAnalysisBody },
             { label: 'Data Sources', text: 'Price, funding, and OI data sourced from Binance and Bybit. News from Finnhub, Fear & Greed from Alternative.me. We do not guarantee accuracy, completeness, or availability of third-party feeds.' },
             { label: 'No Affiliation', text: 'LiquidityHQ is not affiliated with, endorsed by, or sponsored by any exchange or data provider referenced here. All trademarks belong to their respective owners.' },
           ].map(item => (
@@ -626,17 +714,17 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
         <div style={{ borderTop: '1px solid var(--bdr)', padding: '20px 0 24px', marginTop: 30 }}>
           <p style={{ fontSize: isDesktop ? 12.5 : 12, lineHeight: 1.6, color: 'var(--txt3)', margin: 0 }}>
             {dict.footer.copyright}{' '}
-            <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{dict.footer.fullDisclaimer}</Link>
+            <Link href="/disclaimer" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{dict.footer.fullDisclaimer}</Link>
           </p>
           <p style={{ fontSize: isDesktop ? 12.5 : 12, lineHeight: 1.6, color: 'var(--txt3)', margin: '8px 0 0' }}>
             By using LiquidityHQ, you acknowledge that you understand and agree to our{' '}
-            <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Disclaimer</Link>,{' '}
-            <Link href="/terms" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Terms of Use</Link>, and{' '}
-            <Link href="/privacy" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Privacy Policy</Link>.
+            <Link href="/disclaimer" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Disclaimer</Link>,{' '}
+            <Link href="/terms" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Terms of Use</Link>, and{' '}
+            <Link href="/privacy" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Privacy Policy</Link>.
           </p>
           <p style={{ fontSize: isDesktop ? 12.5 : 12, lineHeight: 1.6, color: 'var(--txt3)', margin: '8px 0 0' }}>
-            <Link href="/contact" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Contact</Link>:{' '}
-            <a href={SUPPORT_MAILTO} data-testid="landing-support-email" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{SUPPORT_EMAIL}</a>
+            <Link href="/contact" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Contact</Link>:{' '}
+            <a href={SUPPORT_MAILTO} data-testid="landing-support-email" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{SUPPORT_EMAIL}</a>
           </p>
         </div>
       </footer>

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { gotoGuarded } from './_shared';
+import { synthCombinedFrame } from '../syntheticMarket.mjs';
 
 /* #1260 sibling to reconnect-cdp.spec.ts. That file's instrument - CDP
  * `Network.emulateNetworkConditions` - only produces an unclean socket close
@@ -39,6 +40,15 @@ test.describe('ticker WebSocket recovers from a deterministic outage', () => {
     let attemptsAfterOutage = 0;
     let firstMessageAfterOutageAt: number | null = null;
 
+    // Count messages the PAGE's sockets actually receive after the outage, so "recovered" means the
+    // app resumed reading, not merely that we sent something.
+    await page.addInitScript(() => {
+      (window as unknown as { __rx: number }).__rx = 0;
+      const N = window.WebSocket;
+      class W extends N { constructor(u: string | URL, pr?: string | string[]) { super(u, pr); this.addEventListener('message', () => { (window as unknown as { __rx: number }).__rx++; }); } }
+      window.WebSocket = W as unknown as typeof WebSocket;
+    });
+
     await context.routeWebSocket(/stream\.binance\.com/, ws => {
       const elapsed = Date.now() - startedAt;
       if (elapsed < OUTAGE_MS) {
@@ -49,15 +59,16 @@ test.describe('ticker WebSocket recovers from a deterministic outage', () => {
         return;
       }
       attemptsAfterOutage++;
-      const server = ws.connectToServer();
-      // Calling onMessage on the server-side route disables Playwright's
-      // automatic forwarding, so every message must be forwarded by hand -
-      // that's the price of observing "a real message actually arrived"
-      // rather than just "a socket object opened".
-      server.onMessage(message => {
-        if (firstMessageAfterOutageAt === null) firstMessageAfterOutageAt = Date.now();
-        ws.send(message);
-      });
+      /* SYNTHETIC, NOT BINANCE (PM ruling 2026-11-12). The old branch called connectToServer() and
+         waited for a real Binance frame - which a US GitHub runner cannot reach, so recovery could
+         never be observed there. Serve generated @ticker frames from the shared generator instead:
+         the app's reconnect path is identical, and nothing depends on the venue. */
+      const streams = (() => { try { return new URL(ws.url()).searchParams.get('streams') ?? ''; } catch { return ''; } })();
+      const syms = streams.split('/').filter(x => x.includes('@ticker')).map(x => x.split('@')[0].toUpperCase());
+      const emit = () => { for (const sym of (syms.length ? syms : ['BTCUSDT'])) { try { ws.send(synthCombinedFrame(sym)); } catch { /* closed */ } } };
+      emit();
+      const timer = setInterval(emit, 1000);
+      ws.onClose(() => clearInterval(timer));
     });
 
     await gotoGuarded(page, '/arena');
@@ -76,7 +87,11 @@ test.describe('ticker WebSocket recovers from a deterministic outage', () => {
 
     /* THE CLAIM. Poll rather than one fixed wait, so a fast recovery doesn't
        cost the full budget and a slow one still gets the whole window. */
-    await expect.poll(() => firstMessageAfterOutageAt !== null, {
+    await expect.poll(async () => {
+      const rx = await page.evaluate(() => (window as unknown as { __rx: number }).__rx);
+      if (rx > 0 && firstMessageAfterOutageAt === null && attemptsAfterOutage > 0) firstMessageAfterOutageAt = Date.now();
+      return firstMessageAfterOutageAt !== null;
+    }, {
       message: `no message arrived on any ticker socket within ${RECOVERY_BUDGET_MS}ms of the ` +
         `outage lifting (connection attempts after outage: ${attemptsAfterOutage}). Either the ` +
         `retry loop never reopened a socket, or one opened but the app never resumed reading it.`,

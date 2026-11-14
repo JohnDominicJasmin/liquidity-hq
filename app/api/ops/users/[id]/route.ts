@@ -1,3 +1,4 @@
+import { writeAdminAudit, isProtectedAdminTarget } from '@/lib/adminAudit';
 import { NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { withAdmin } from '@/lib/admin-auth';
@@ -125,7 +126,7 @@ const BAN_DURATION = '876000h'; // 100 years
 // PATCH /api/ops/users/[id] - account actions. Any admin (owner or staff) may
 // act - Team management is the owner-only surface, not this. Every action is
 // audited. Self-ban is blocked so an admin can never lock themselves out.
-export const PATCH = withAdmin<[{ params: Promise<{ id: string }> }]>(async (req, { user }, { params }) => {
+export const PATCH = withAdmin<[{ params: Promise<{ id: string }> }]>(async (req, { user, role }, { params }) => {
   const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const action = body.action as UserAction;
@@ -139,6 +140,16 @@ export const PATCH = withAdmin<[{ params: Promise<{ id: string }> }]>(async (req
 
   const admin = getSupabaseAdmin();
   let emailSent = false;
+
+  /* STAFF CANNOT BAN OR UNBAN AN ADMIN (security audit #1413, S7): any admin could ban or unban any other account, including an owner. An account that is in admin_users (active) or is a
+     bootstrap owner email can only be banned or unbanned by an owner. Fails closed if the lookup fails. */
+  if ((action === 'ban' || action === 'unban') && role !== 'owner' && await isProtectedAdminTarget(admin, id)) {
+    return NextResponse.json({ error: 'Only an owner can ban or unban an admin account.' }, { status: 403 });
+  }
+
+  /* BEFORE-STATE FOR THE AUDIT TRAIL (S10): what the account looked like before this action, so the log can answer "what was changed from what". */
+  const { data: before } = await admin.from(T.user_subscriptions).select('role, ban_reason, billing_provider').eq('user_id', id).maybeSingle();
+  const beforeState = { previous_role: before?.role ?? null, previous_ban_reason: before?.ban_reason ?? null, billing_provider: before?.billing_provider ?? null };
 
   switch (action) {
     case 'revoke_pro': {
@@ -183,12 +194,13 @@ export const PATCH = withAdmin<[{ params: Promise<{ id: string }> }]>(async (req
     }
   }
 
-  await admin.from(T.admin_audit_log).insert({
+  const logged = await writeAdminAudit(admin, {
     actor_email: user.email,
     action: `user_${action}`,
     target_user_id: id,
-    detail: action === 'ban' ? { emailSent } : {},
+    detail: { ...beforeState, ...(action === 'ban' ? { reason: reason || null, emailSent } : {}), ...(action === 'unban' ? { cleared_reason: beforeState.previous_ban_reason } : {}) },
   });
 
-  return NextResponse.json({ ok: true });
+  // The change is made either way; if the audit row could not be written the caller is told (and it was reported to GlitchTip).
+  return NextResponse.json({ ok: true, auditLogged: logged });
 });

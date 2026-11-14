@@ -150,6 +150,192 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* v2026.11.12. Written before the tag is cut, so whoever tags checks this against
+       `git tag --points-at main` rather than against the day they are working. C1 permits exactly
+       one untagged entry in flight, and this is it.
+
+       EVERY ITEM IS TIED TO COMMITS IN `main..dev` (63 non-merge commits), found by reading that
+       range and the commit BODIES rather than the subjects. Mapping, in the order below:
+         f54947fd + 8e712904 + e41fcbe9   coins outside the default list now work in Arena
+         3e78d6cb                         older candles on scroll-back
+         95419f56                         1h open interest for every perp
+         afa9f259 + e526e6af + ed80f87f   the open-interest card: right coin, named absence
+         04c2617c                         VWAP is the VWAP
+         cecc3be4                         the plain-English opening line
+         51b18648 + d2db2ad7              internal names out of the AI text
+         7b6c4acb + b700b5a2 + b2498283   Draw Structure: 1h/2h, Free lock, labelled lines
+         40c06fb1 + 99410529              the EMA signal's age, and an old signal dropped
+         4c7c80b4                         "couldn't load" instead of an endless skeleton
+         ef455e5b                         a missing reading shown as a dash, not a number
+         286bd8b0                         the Strategy panel lists only wired indicators
+         f82681f1 + 42e15994              the Ask AI button's tablet overlaps
+         52278a7b                         the Fear & Greed 30-day trend drawing blank
+
+       WHO RECEIVES IT was applied to every line, which is this entry's own rule after four of five
+       lines failed it last release. Each surviving line names a surface a reader looks at and a
+       difference they can observe on it.
+
+       ONE LINE WAS CUT BY THAT TEST, AND IT IS THE REASON THE TEST EXISTS: the onboarding tour's
+       "scanning the major coins in real time" claim (71dce059). It reads like an honesty fix and it
+       is one - but its own body says "Production never showed this": prod's label row already
+       carried honest wording, and a row beats the shipped default. The claim only ever appeared on
+       qa and staging. A line here would have told users we fixed something they never saw, which is
+       the same shape as last release's chips line - a true change, falsely addressed.
+
+       ALSO CUT, each for a stated reason rather than by category:
+         7cbee7e2  only http/https links from AI text are clickable. Real hardening, but nothing a
+                   reader observes unless the model emitted a javascript: URL, which it did not.
+         95419f56's `oiUsd` half  the field has no consumers anywhere, so no one ever saw it.
+         2cefd201 + 4f88b89b + eec45195 + 1db834f4  the denomination-helper rename. Internal.
+         every test(), docs() and chore() commit in the range  internal by definition.
+
+       LINE 1 NAMES THREE SURFACES RATHER THAN SAYING "works", and the narrowing is QA's catch on
+       review. "AI Arena now works for every coin it offers" overclaimed: the liquidation feed is
+       still core-only by our own decision (#2133 left the liquidation feed alone - widening its subscription
+       list from 50 to 462 streams is a load decision, parked on #1263), so it stays empty on XMR
+       or CYBER. The first draft of this line contradicted the same PR that documented the
+       exclusion. Chart, scanner and open interest are what actually changed; keep it to those
+       three unless the feed is widened too.
+
+       THE DRAW STRUCTURE LINE CARRIES THREE CHANGES and stays one line because they are one thing
+       to a reader: the feature is offered on more timeframes, each line it draws is now labelled,
+       and a Free account can see it exists. Splitting them would describe our PRs rather than their
+       experience. */
+    date: '2026-11-13',
+    tag: 'v2026.11.13',
+    items: [
+      'The chart, the scanner and open interest in AI Arena now work for every coin it offers, not just the main list: pick something like XMR, CYBER or XAUT and the chart draws candles, the scanner shows a signal and a score, and open interest shows a figure - where before the chart sat on "Loading" and the signal columns read "n/a".',
+      'The Arena chart loads older candles as you scroll left, instead of stopping at the batch it opened with.',
+      'The 1-hour open interest figure now appears for every coin with a perpetual market. Most coins used to say "Unavailable" there.',
+      'The 1-hour open interest card now shows the coin you are looking at rather than briefly keeping the last one, and says whether it is still collecting or could not reach the exchange.',
+      'The VWAP figure on the dashboard, in Arena and on the landing page is now the VWAP. It was showing the current price under a VWAP heading. Where a coin has no VWAP it shows a dash and says so, instead of a loading bar that never finished.',
+      'An AI read now opens with one plain sentence - the direction, the price that would confirm it and the price that would cancel it - above the technical detail.',
+      'AI reads no longer print internal names like TRENDING_SHORT or BOS_CONFIRMED. They say "trending down" and "break of structure".',
+      'Draw Structure is now offered on the 1-hour and 2-hour charts as well as 4-hour and daily, each proposed line is labelled with its kind and how many touches support it, and a Free account can see the feature with a padlock instead of not seeing it at all.',
+      'The EMA signal says how many bars ago it fired and marks itself old past 50 bars, and an old signal no longer counts as agreement in the AI read.',
+      'When a price or news feed fails, the setup scanner, the accumulation and distribution panels and the News tab say they could not load, instead of showing a loading bar for as long as the feed stays down.',
+      'A reading that has not arrived is shown as a dash rather than a number. The landing page printed "Setup 0" next to its own "No data" note, and the Confluence Score counted the EMA ribbon as a neutral vote while it was still loading, pulling the score toward zero.',
+      'The Strategy panel lists only indicators that are actually calculated. More than half its entries drew nothing.',
+      'On tablets, the floating Ask AI button no longer sits on top of the bottom navigation bar or the playbook favourite star.',
+      'The 30-day Fear & Greed trend no longer shows a blank space when a short cached history is in play.',
+      /* ADDED AFTER THE GROUP MERGE, each tied to its pull request. Every line names a surface a reader looks at
+         and a difference they can see on it; internal work in the same range (the label-key moves, the rate
+         tables, the engine-switch scaffolding that nothing reads yet, CI and tests) is left out on purpose.
+           TradFi universe + category tabs      #2182, and the warning sentence on it, #2196
+           Strategy panel redesign + chip names  #2162 #2184
+           1W / 1M timeframes                   #2157
+           markers follow the indicators         #2159
+           AI read gets the indicator values     #2161
+           landing hero on tablets               #2175
+           landing hero loading + partial score  #2167 #2185
+           funding rate fallback                 #2186
+           chart pattern pills                   #2187
+           deep link to a non-core coin          #2150
+           landing clock                         #2151
+           signed-in visitors skip the landing   #2154
+           open interest survives one venue      #2149
+           cold-load price skeleton              #2169
+           News "For You" empty state            #2152
+         THE FIRST FIVE OF THE LAST GROUP WERE CHECKED NOT TO BE IN origin/main (2026-11-13, main = v2026.11.10), so
+         they ship in this release.
+         THE NEWS "FOR YOU" LINE (#2152) WAS HELD AND IS NOW LISTED: production's label row overrides the shipped
+         text, so a user only sees the change once that row is written. The owner approved the row ("No catalysts
+         right now", five locales) first-hand to PM on 2026-11-13, and PM applies it at release time after the render
+         check. IF THE ROWS ARE NOT APPLIED BEFORE THE TAG, THIS LINE COMES OUT - copy says only what a user can see.
+         IF ANY OF THESE DOES NOT REACH THE RELEASE, ITS LINE COMES OUT HERE - copy says only what ships. */
+      'AI Arena now includes tokenized stocks, ETFs and commodities, plus a currency pair, under new Stocks, ETFs and Commodities & FX tabs. Each one says what it is, and a note explains that the contract trades around the clock while the market behind it keeps its own hours. A few carry a warning: Hong Kong listings are priced in HK$, and two pre-IPO references where exchanges disagree on the price. AI reads are not offered for them.',
+      'The Strategy panel is simpler. Pro and trial accounts can switch on as many indicators as they like with no counter, and a Free account picks one at a time, tapping another to swap it in. Each indicator (SMA, Parabolic SAR, MACD, Bollinger Bands) has a one-line description, and the chart layers sit in their own section with on/off switches for support and resistance and for liquidation clusters.',
+      'The Arena chart now has 1W and 1M timeframes. Signals, the AI read and Draw Structure still cover up to the daily chart, and the weekly and monthly views say so.',
+      'The buy and sell markers on the Arena chart now follow the indicators you have switched on: a marker shows only where they agree with the EMA ribbon, and the chart says when your selection has filtered some out.',
+      'The AI read now receives the readings of the indicators you have selected, such as the SMA, Parabolic SAR, MACD and Bollinger values, instead of only knowing their names.',
+      'On tablets, the landing page no longer cuts off the live read panel (stop, target, the clock and the notes beneath it) or splits its buttons over two lines.',
+      'The landing page shows a dash while market data is still arriving, and says "Unavailable" or "No data" only once the read has finished or failed. Its Setup score now appears from the first signal with an "N of 3 signals" note, and gives a verdict only when all three are in.',
+      'The funding rate in AI Arena now falls back to a second exchange when the first does not answer, instead of showing unavailable.',
+      'When an AI read lists several chart patterns in one line, such as "Double top; Tight consolidation", they now show as separate labels.',
+      'AI Arena links to coins outside the main list, such as /arena?coin=cyber, now open that coin instead of silently loading Bitcoin.',
+      'The clock on the landing page\'s live read panel no longer shows a time an hour old.',
+      'If you are already signed in, the landing page no longer flashes on screen before taking you to the app.',
+      'The 1-hour open interest card stays up when one exchange limits our requests: it falls back to the other exchange instead of going blank.',
+      'If the live price connection fails when you first open the app, it now switches to its backup price feed straight away, so prices appear within seconds instead of a loading skeleton lasting about half a minute.',
+      'When nothing in the news matches your coins, the For You tab now says "No catalysts right now" instead of looking like it is still loading.',
+      /* ADDED AFTER #2188, each tied to its pull request. Same rule as the lines above: each names a surface a reader
+         looks at and a difference they can see on it, and IF ANY OF THESE PRS DOES NOT REACH THE RELEASE ITS LINE COMES
+         OUT HERE.
+           price alerts: main coins only, with a note        #2197
+           Draw Structure on phones                          #2202
+           AI Arena opens on the saved coin and timeframe    #2205 (open when written: out if it does not merge)
+           Draw Structure menu closes, lines stay            #2192
+           chart tag overlap + stray asterisks, one line     #2200 #2206 (#2206 open when written: if it does not
+                                                              merge, the asterisks half comes out)
+         LEFT OUT ON PURPOSE: the Chart Layers spacing next to the Ask AI button (#2207), which is spacing, not a change
+         a reader would name. */
+      'Price alerts in AI Arena are now offered for the main coins only, and the Set Alert button says so, instead of letting you set an alert on a coin that could never trigger.',
+      'Draw Structure now works on phones. The button was hidden on narrow screens; it is back, with a menu that fits the screen.',
+      'AI Arena now opens on the coin and timeframe you saved in Settings when you load it fresh, instead of Bitcoin on 15 minutes.',
+      'The Draw Structure menu now closes with Escape or a tap outside it, and the lines it drew stay on the chart.',
+      'Two small chart fixes: the liquidation price tag at the chart edge is no longer drawn over a nearby support or resistance tag, and text an AI read puts between single asterisks now shows in italics instead of with stray asterisks.',
+      /* ADDED AFTER #2236, each tied to its pull request. Same rule as above: IF ANY OF THESE PRS DOES NOT REACH THE RELEASE ITS LINE COMES OUT HERE.
+           whale BUY/SELL + Research stacks on phones   #2228 (4b, 6b)
+           nothing sits under the Ask AI button          #2228 (playbook star), #2229 (dashboard new play), #2238 (liquidation map Total)
+         LEFT OUT ON PURPOSE: the shared sign-in deadline in #2241 (it stops waiting a few seconds sooner and shows nothing new, QA measured), the error-report privacy tightening in #2239 (internal, and too technical for a reader), the chart feed dot's accessible name and the darker /funding chip colour inside #2228, which are small
+         accessibility and contrast changes a reader would not name. */
+      'The whale feed now says BUY or SELL on every large trade, and the Research page stacks its first two cards on phones so no number is cut off.',
+      'The floating Ask AI button no longer sits on top of the playbook favourite star, the dashboard "new play" button on phones, or the Total column of the liquidation map clusters table.',
+      /* ADDED AFTER #2245, each tied to its pull request. Same rule as above: IF ANY OF THESE PRS DOES NOT REACH THE RELEASE ITS LINE COMES OUT HERE.
+           coin list: loading / Unavailable / prices that were blank   #2245 (merged)
+           landing ticker and Live Read card states, Coinbase premium   #2246 (merged)
+           link to a coin we do not list says so                          #2247 (merged)
+         #2248 (open when written: out if it does not merge): a Deep read that cites no catalysts says so.
+         #2252 (merged): the /ko /zh /ru home pages are fully in their language; the legal text stays English on purpose.
+         #2253 (merged): the scanner says "No data" in plain words on phones, card titles wrap, and Russian no longer scrolls sideways.
+         ADDED AFTER #2254, grouped (each line comes out if ANY of its PRs does not reach the release; PM 2026-11-13; #2250 and #2251 get no line):
+           missing figures say loading or No data, never a dash (dashboard cards, BTC dominance and alt-season cells, coin prices, funding table, Markets page prices and buy pressure; a price change that is not known draws nothing)   #2256 #2261 #2262 #2263 #2283 (merged)
+           card notes and market-read tiles wrap instead of ending in an ellipsis; the Markets page's column heads, long prices and row lines fit on phones   #2255 #2264 #2269 #2284 (all merged; KEEP the heads wording only because #2284 merged)
+           dashboard, market read, session clock and holidays, Ask AI chat and funding in ko/zh/ru; Russian in the home page menu, and the short words (funding, setup, Fear & Greed, chart patterns) follow the language (Arabic is not offered in any picker, so it is not named)   #2257 #2258 #2259 #2260 #2266 (open when written)
+           coin names easier to tap on phones (KEEP ONLY IF QA's /markets 24 px measurement lands after the promotion; funding and dashboard are measured)   #2254 (merged)
+           Best Hours shows 24-hour times and local weekday names in Korean, Chinese and Russian; its ranges and axis fit on phones   #2267 #2268 (both merged)
+           SECOND BATCH (PM 2026-11-14), each line out if its PR does not reach the release; #2270, #2273, #2274, #2275, #2277, #2278 and #2280 get no line because a visitor cannot see them (#2273 only changes a server log message), and #2276 (the Alert Track Record states how far back it reaches) gets none because that card only shows with SHOW_PERFORMANCE_STATS, which is off by the owner's order (#1574), so no user sees it:
+             the selected coin in the Arena list is marked beyond colour   #2271 (open when written)
+             on desktop the collapsed Setup button sits beside the Ask AI button   #2272 (open when written)
+             Hong Kong stock prices show HK$ on the coin page, including the VWAP card and the EMA entry line   #2281 (merged)
+         NOTE: the stale "n/a" wording of the #2245 line is corrected below to match what #2253 shipped ("No data"). */
+      'In the AI Arena coin list, a price that has not arrived shows a loading mark, and one that cannot be found says "No data" in plain words, instead of a dash that could mean either. HYPE, FET and several commodities now show a price even when one exchange cannot be reached, and coins with no signals say "No signals" instead of "n/a".',
+      'On the landing page, the price ticker and the Live Read card now say "Unavailable" or show a loading mark instead of a bare dash, and the card shows the Coinbase premium.',
+      'An AI Arena link to a coin we do not list now says so and opens Bitcoin, instead of switching to Bitcoin without a word.',
+      'A Deep read that gives price levels but cites no catalysts now says so, instead of leaving a gap.',
+      'The Korean, Chinese and Russian home pages are now fully in their language: the start button, the Live Read card and the cookie notice. The legal text at the bottom stays in English.',
+      'On phones, the AI Arena coin list says "No data" in plain words when a price is missing, instead of a dash, and the Russian page no longer scrolls sideways.',
+      'Missing figures now show a loading mark, "Unavailable" or "No data" in plain words instead of a dash: the dashboard cards, coin prices, the Markets page prices and buy pressure, and the funding table. A price change that is not known no longer shows as +0.00%.',
+      'Card titles, the notes under card values and the market-read tiles now wrap onto a second line instead of being cut off with "...", and the Markets page column heads, long prices and row lines fit on a phone.',
+      'Most of the dashboard, the market read, the session clock and market holidays, the Ask AI chat, with their short words such as funding, Fear & Greed and chart patterns, now speak Korean, Chinese and Russian, and Russian is offered in the home page language menu.',
+      'Coin names on the funding, markets and dashboard pages are easier to tap on phones.',
+      'Best Hours now shows 24-hour times and weekday names in your own language in Korean, Chinese and Russian, and its time ranges and chart axis fit on a phone.',
+      'The selected coin in the Arena coin list is now marked with a bar as well as a colour.',
+      'On desktop the collapsed Setup button now sits beside the Ask AI button instead of over the page.',
+      'Prices of Hong Kong stocks now show HK$ on the coin page, including the VWAP card and the EMA entry line.',
+      /* ADDED FOR THE 2026-11-14 PROMOTION (PM). Same rule as above: each line names a surface a reader looks at and a difference they can see on it, and IF ANY OF THESE PRS
+         DOES NOT REACH THE RELEASE ITS LINE COMES OUT HERE. The DATE of this entry is a placeholder PM sets on release day.
+           seven Arena strategies                                  #2307 #2308 #2311 #2313 #2314 #2315 #2316
+           sound alerts on the Arena                               #2304 (needs its labels applied; the prompt and the Settings row read them)
+           "Signals, not predictions" on Alerts and Telegram        #2299 (the Alerts page line needs its label row; the Telegram footer is in the code)
+           AI chat answers show links and formatting safely         #2326
+           Privacy page: deletion on request                        #2323 (needs its label row)
+           small links and buttons easier to tap                    #2309
+           the upgrade page no longer flashes for Pro accounts      #2305
+           landing hero stays in one column up to wider screens     #2303
+         LEFT OUT ON PURPOSE, each because a visitor cannot see it: the alert outcome logging, the request-size and input checks, the admin and
+         honeypot changes, the rate limiter, the push and subscription handling, the error-report filtering, and the Telegram send route. */
+      'AI Arena has seven strategies to choose from in a new Strategy card: Liquidity sweep and structure shift, New York open breakout, EMA 20/50/100/200 stack (it enters on the pullback), Supply and demand zone retest (with a BTC check on other coins), Bollinger squeeze breakout, VWAP reclaim and RSI divergence. Each reads Buy, Sell or Wait from closed candles only, says why in plain words, and says it is a signal, not a prediction. Your choice is saved with your account.',
+      'AI Arena can now play a short sound when the strategy signal for your coin and timeframe turns to buy or sell, and once per candle on an unusually big, high-volume move. It asks you first, and you can switch it off any time in Settings.',
+      'The Alerts page and every Telegram signal alert now say plainly: signals, not predictions, and that past alerts moved the alert\'s way about half the time at 24 hours.',
+      'Links and formatting in AI chat answers are now handled more carefully, so a link in an answer only opens if it is a normal web address.',
+      'The Privacy page now explains that your personal data is removed from our active systems within 30 days of asking us to delete your account.',
+      'More small links and buttons are easier to tap on phones: coin names on the Markets page, the support email address, and the About link at the bottom of the Disclaimer.',
+      'If you are on Pro, the upgrade page no longer shows an "Upgrade to Pro" button for a moment before sending you on.',
+      'On laptop-width screens the landing page keeps its one-column layout until the screen is wide enough for the live read panel to fit beside the text.',
+    ],
+  },
+  {
     /* v2026.11.10. Written before the tag is cut, so whoever tags checks this against
        `git tag --points-at main` rather than against the day they are working.
 

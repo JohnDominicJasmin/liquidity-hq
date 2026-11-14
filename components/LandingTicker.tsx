@@ -16,9 +16,21 @@
  * question (flagged to QA, not resolved here) - this file only answers it
  * for landing, where the spec is explicit. */
 import { useMarket, COINS, COIN_DEC, coinLabel, fmtPrice } from '@/lib/marketStore';
+import type { LandingDict } from '@/lib/i18n/dictionaries';
 
-export default function LandingTicker({ mobile, dir }: { mobile: boolean; dir: 'ltr' | 'rtl' }) {
+export default function LandingTicker({ mobile, dir, words }: { mobile: boolean; dir: 'ltr' | 'rtl'; words: LandingDict['ticker'] }) {
   const { store } = useMarket();
+  /* A MISSING QUOTE SAYS WHICH KIND OF MISSING (#1263): an ellipsis while the bulk read is still in flight, otherwise "n/a" with a hover note, never a bare dash.
+     THE WORDS COME FROM THE LANDING DICTIONARY (the `words` prop), not the label table: the landing page does not read the label table (landingReadsNoLabels, #1889), so this
+     component must not call useLabels. */
+  const LOADING = words.loading;
+  const FAILED = words.failedNote;
+  const NONE = words.noneNote;
+  const feed = store.scannerFeed.universe;
+  const gap = () => feed === 'pending'
+    ? <span role="img" aria-label={LOADING} title={LOADING}>{'…'}</span>
+    : <span title={feed === 'failed' ? FAILED : NONE}>{words.unavailable}</span>;
+
   // landing.md line 518: the fade is direction-dependent - under RTL the
   // gradient must mirror to 270deg, or it hides the first cell instead of
   // the last (#592 review).
@@ -39,6 +51,8 @@ export default function LandingTicker({ mobile, dir }: { mobile: boolean; dir: '
         const d = store.coins[id];
         const chg = d?.change ?? null;
         const up = chg != null && chg >= 0;
+        /* Price AND change both missing: say it ONCE, in the first slot that is rendered (the price on desktop, the change on mobile), not twice. */
+        const bothGone = !d?.price && chg == null;
         return (
           <div key={id} style={{
             display: 'flex', alignItems: 'center', gap: mobile ? 6 : 8,
@@ -52,7 +66,7 @@ export default function LandingTicker({ mobile, dir }: { mobile: boolean; dir: '
             </span>
             {!mobile && (
               <span style={{ fontSize: 11, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>
-                {d?.price ? fmtPrice(d.price, COIN_DEC[id]) : '-'}
+                {d?.price ? fmtPrice(d.price, COIN_DEC[id]) : gap()}
               </span>
             )}
             <span style={{
@@ -71,7 +85,7 @@ export default function LandingTicker({ mobile, dir }: { mobile: boolean; dir: '
                  size or weight. */
               color: chg == null ? 'var(--txt2)' : (up ? 'var(--green)' : 'var(--red)'),
             }}>
-              {chg == null ? '-' : `${up ? '+' : '−'}${Math.abs(chg).toFixed(2)}%`}
+              {chg == null ? (bothGone && !mobile ? null : gap()) : `${up ? '+' : '−'}${Math.abs(chg).toFixed(2)}%`}
             </span>
           </div>
         );

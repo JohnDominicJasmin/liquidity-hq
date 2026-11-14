@@ -1,22 +1,14 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
+import { trText } from '@/lib/marketReadText';
 import { getCurrentWindow, isDead, getActiveHolidays, type Window as SessionWindow } from '@/lib/session';
 import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
+import { fmtDuration } from '@/lib/durationText';
 
 /* ── helpers ── */
 function pad(n: number) { return String(n).padStart(2, '0'); }
 
-function fmtMs(ms: number): string {
-  if (ms <= 0) return '0s';
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (h > 0) return `${h}h ${pad(m)}m ${pad(sec)}s`;
-  if (m > 0) return `${m}m ${pad(sec)}s`;
-  return `${sec}s`;
-}
 
 /* Scan forward (1-min steps) to find next session boundary - fast enough (<1ms).
    Skips the currently-active window so "Next" is never the session already running. */
@@ -96,7 +88,7 @@ export default function SessionCountdown() {
       <div className="sc-row-main">
         <div suppressHydrationWarning className="sc-badge" style={{ color: statusCol, background: statusBg, borderColor: withAlpha(statusCol, '44') }}>
           {!mounted ? '-'
-            : current ? current.name.toUpperCase()
+            : current ? trText(t, current.name).toUpperCase()
             : dead ? t('SESSION_COUNTDOWN_DEAD_ZONE') : t('SESSION_COUNTDOWN_OFF_PEAK')}
         </div>
 
@@ -104,7 +96,7 @@ export default function SessionCountdown() {
           <div className="sc-timer-block">
             <span className="sc-timer-label">{t('SESSION_COUNTDOWN_CLOSES_IN')}</span>
             <span suppressHydrationWarning className="sc-timer" style={{ color: current.color }}>
-              {fmtMs(endsInMs)}
+              {fmtDuration(t, Math.floor(endsInMs / 1000), true)}
             </span>
           </div>
         )}
@@ -123,10 +115,10 @@ export default function SessionCountdown() {
         <div className="sc-row-next">
           <span className="sc-next-label">{t('SESSION_COUNTDOWN_NEXT')}</span>
           <span suppressHydrationWarning className="sc-next-name" style={{ color: next.win.color }}>
-            {next.win.name}
+            {trText(t, next.win.name)}
           </span>
           <span className="sc-next-sep">{t('SESSION_COUNTDOWN_OPENS_IN')}</span>
-          <span suppressHydrationWarning className="sc-next-timer">{fmtMs(nextInMs)}</span>
+          <span suppressHydrationWarning className="sc-next-timer">{fmtDuration(t, Math.floor(nextInMs / 1000), true)}</span>
         </div>
       )}
 
@@ -135,7 +127,7 @@ export default function SessionCountdown() {
         <div className="sc-row-next" style={{ marginTop: 4 }}>
           <span className="sc-next-label" style={{ color: 'var(--amber)' }}>{t('SESSION_COUNTDOWN_HOLIDAY')}</span>
           <span suppressHydrationWarning style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
-            {holidays.map(h => t('SESSION_COUNTDOWN_HOLIDAY_ITEM', { region: h.region, name: h.name })).join(' · ')}
+            {holidays.map(h => t('SESSION_COUNTDOWN_HOLIDAY_ITEM', { region: trText(t, h.region), name: trText(t, h.name) })).join(' · ')}
           </span>
         </div>
       )}

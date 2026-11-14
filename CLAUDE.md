@@ -25,8 +25,9 @@ post-mortem of your own mistakes, no unsolicited status.
 > back to me."*
 > *"Short, concise, and simple."* — 2026-10-23, said three times in one session before it stuck
 
-**Only four things need his word:** merging to `main`, production deploys, his money, and visual
-sign-off. **Everything else, decide it.**
+**Only four things need his word:** merging to `main`, production deploys, his money, and writes to
+the shared (production) database. **Visual sign-off was on this list until 2026-11-06, when he handed it to PM/DevOps:** *"Just ship it.
+Do the verification. Do the work. You should be the one doing it."* **Everything else, decide it.**
 
 **This sits at the top of the file he reads first, on purpose.** It was in
 `docs/OWNER-RULES.md` and in a session's private memory, and it was still broken repeatedly —
@@ -53,10 +54,33 @@ broken most often, in short — the full text and the rest are in that file:
 - **One tracker per area. Stop creating issues.** A finding on a page or feature
   that already has a tracker becomes a **checkbox on that tracker**. The measure
   of progress is issues **closed**, not PRs merged.
-- **Nothing heavy runs on his laptop.** Suites, builds, `npm ci`, browser runs,
-  gates — all of it in the cloud runners. Screenshots come from a deployed URL.
+- **All testing runs on GitHub, never on the owner's laptop.** Set 2026-11-10 as
+  "CI once" after a $22 Actions bill; **amended by the owner 2026-11-12** (*"put all the
+  testing on the CI/CD of GitHub. Since it's free, then use all of it"*). **Every PR into
+  `dev`/`qa`/`staging`/`main` runs the quick checks automatically** (lint, typecheck, unit
+  tests, build); **the full browser suite runs only when dispatched** (per group) **or on
+  the release PR.** No `push:` trigger. Work moves
+  in **groups** (Arena, Landing+onboarding, News+alerts, AI, Payments), and **each group
+  gets its own dispatched run (`e2e: true`) on its `qa` head before it enters `staging`**.
+  Then one final run on the `staging` → `main` release PR. **Nothing goes to production
+  until everything in scope is in `staging`, tested and audited.** **And not even then
+  without zero open items and the owner's own go** (owner, 2026-11-13: *"We're not releasing
+  it unless I don't see any PRs or issues remaining... including the backlogs... then I will
+  give the go signal"*). A release PR may sit open with its CI run; it does not merge early. QA's browser tests
+  run **on GitHub runners, not the owner's laptop** (`ci.yml` `spec` input). **A code
+  PR merges into `dev` only on a green automatic check on its head** (that check is the
+  pre-merge `verify`), plus QA's word. If the repo ever goes private again, the PR trigger
+  is the first thing to revert, and the cost goes to the owner first. Anything that spends his
+  money gets its cost put to him first. Full text: OWNER-RULES §17. Screenshots
+  still come from a deployed URL.
+- **The repo is PUBLIC since 2026-11-10** (owner, for free CI). Never put a secret,
+  customer data or a private address in a file, an issue or a PR.
+- **Before starting ANY issue: reread `CLAUDE.md`, `docs/OWNER-RULES.md` and the
+  parts of `CONTRIBUTING.md` the work touches.** Owner, 2026-11-10: *"Before we
+  start any type of issue, make sure to reread, review your documentation."* §18.
 - **The product UI never names the AI vendor or model.** It says "AI". Only the
-  three legal strings name the processor, because privacy law expects it.
+  FOUR legal strings name the processor (privacy law, and the trademark non-affiliation
+  notice) - OWNER-RULES §5 lists them.
 - **Short messages to him.** Under 80 words, bullets or a table, answer first.
   When asking him anything, give **clickable options with a recommendation**.
 
@@ -422,7 +446,7 @@ only when ALL FIVE are true:**
 2. **QA audited it.**
 3. **It passed manual testing.**
 4. **PM/DevOps audited it.**
-5. **If it is VISUAL — anything the owner sees — the OWNER approved it.**
+5. **If it is VISUAL, PM verifies at 390/768/1280, light/dark, states, on a deployed URL (owner waiver 2026-11-06).** Until then this read "the OWNER approved it".
 
 **Steps 4 and 5 are the new ones.** The owner set this after finding PM/DevOps
 closing issues on QA's report alone. **Closing on a report is not auditing a
@@ -432,12 +456,18 @@ measured, checking the claim against the artifact rather than the summary, and
 saying on the issue what was audited. **If you cannot name what was measured,
 where, and by whom, it does not close.**
 
-**Step 5 is the owner's and is not delegable.** Layout, spacing, labels, colour,
-what a panel says, where it sits, what a chart draws. QA can confirm a panel
-renders; **only the owner can say it renders right.** When in doubt, it is
-visual — asking costs one message, guessing cost this project the Arena
-redesign, built three times and rejected three times because sessions decided
-for themselves what the owner would accept.
+**Step 5 was the owner's until 2026-11-06, and it is PM/DevOps's now — he waived it
+himself** (*"check it every visual… You have capability to check it in different angles
+and sizes and states… I have 9-to-5 job"*). Layout, spacing, labels, colour, what a panel
+says, where it sits, what a chart draws: QA confirms a panel renders, and **PM checks it
+renders right**, on a deployed URL at 390/768/1280, light and dark, signed in and out,
+and in its loading, empty and error states. **Do not ask the owner about a visual.**
+
+**The guard on that waiver:** PM's sign-off covers changes to existing screens and new
+ones. It does **not** cover replacing an owner-approved design wholesale — the Arena
+redesign was built three times and rejected three times because sessions decided for
+themselves what the owner would accept. A redesign is new scope, and the default answer
+is no.
 
 **This does not move the sign-off.** QA still decides what "verified" means.
 Step 4 is a second reader on that decision, never a veto over it. Full text and

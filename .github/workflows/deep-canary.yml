@@ -65,20 +65,8 @@ on:
   schedule:
     # 07:00 UTC - an hour after daily-health, so a bad morning names one job rather than two.
     - cron: '0 7 * * *'
-  # The contract selfcheck on PRs that touch the request contract. Free - no secrets, no Deep call, no
-  # money - and it is the gate that keeps this canary honest: `scripts/` is .mjs and tsconfig only
-  # includes .ts/.tsx/.mts, so NOTHING typechecks this script. Without this job, adding context field
-  # 62 would leave the canary silently 400ing every morning and reporting Deep as broken. With it, the
-  # PR that adds the field goes red naming the field.
-  pull_request:
-    paths:
-      - 'lib/arenaContext.ts'
-      - 'lib/grok.ts'
-      - 'lib/coins.ts'
-      - 'lib/limits.ts'
-      - 'lib/strategyRegistry.ts'
-      - 'scripts/deep-canary.mjs'
-      - '.github/workflows/deep-canary.yml'
+  # No pull_request trigger (owner rule 2026-11-10: CI runs once, on the release PR). The contract
+  # selfcheck still runs on demand: workflow_dispatch with selfcheck_only=true, free and no secrets.
   workflow_dispatch:
     inputs:
       url:
@@ -109,7 +97,9 @@ jobs:
   # ARENA_CONTEXT_KEYS and hands it to the route's OWN three parsers. No network, no credential, no
   # Deep call - so it can run on every relevant PR without spending anything.
   selfcheck:
-    if: ${{ github.event_name == 'pull_request' }}
+    # Dispatch-only since the pull_request trigger was removed (OWNER-RULES §17). Dev's review of #2098
+    # caught that leaving `event_name == 'pull_request'` here made this job dead on every event.
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.selfcheck_only == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -127,7 +117,8 @@ jobs:
   canary:
     # The spend gate. A manual dispatch always runs; the cron only runs once the owner has enabled it.
     # Never on a pull request - a PR must not be able to spend money.
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.DEEP_CANARY_ENABLED == '1') }}
+    # selfcheck_only=true goes to the `selfcheck` job above, which fails red; this job would swallow it.
+    if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.selfcheck_only != 'true') || (github.event_name == 'schedule' && vars.DEEP_CANARY_ENABLED == '1') }}
     runs-on: ubuntu-latest
     # Generous, because the budgets inside the script are 90s to wake a sleeping free-plan service plus
     # up to 180s for the Deep read itself. The job timeout must not be the thing that fires first, or
@@ -159,18 +150,21 @@ jobs:
         id: probe
         env:
           CANARY_BASE_URL:           ${{ github.event.inputs.url || 'https://liquidity-hq-staging.onrender.com' }}
-          CANARY_SUPABASE_URL:       ${{ secrets.CANARY_SUPABASE_URL }}
-          CANARY_SUPABASE_ANON_KEY:  ${{ secrets.CANARY_SUPABASE_ANON_KEY }}
-          CANARY_FIXTURE_EMAIL:      ${{ secrets.CANARY_FIXTURE_EMAIL }}
-          CANARY_FIXTURE_PASSWORD:   ${{ secrets.CANARY_FIXTURE_PASSWORD }}
-          CANARY_FIXTURE_USER_ID:    ${{ vars.CANARY_FIXTURE_USER_ID }}
+          # THE CANARY USES THE DEV PROJECT'S EXISTING E2E FIXTURES, so the owner sets no new secret (owner decision 2026-11-13).
+          # Which fixture is the repo variable CANARY_FIXTURE: 'A' (default) or 'B'. It must be the Pro account with NO END DATE (see the header).
+          # The old CANARY_* secrets and the CANARY_FIXTURE_USER_ID variable still win if someone sets them.
+          CANARY_SUPABASE_URL:       ${{ secrets.CANARY_SUPABASE_URL || secrets.E2E_SUPABASE_URL }}
+          CANARY_SUPABASE_ANON_KEY:  ${{ secrets.CANARY_SUPABASE_ANON_KEY || secrets.E2E_SUPABASE_ANON_KEY }}
+          CANARY_FIXTURE_EMAIL:      ${{ secrets.CANARY_FIXTURE_EMAIL || (vars.CANARY_FIXTURE == 'B' && secrets.E2E_USER_B_EMAIL || secrets.E2E_USER_A_EMAIL) }}
+          CANARY_FIXTURE_PASSWORD:   ${{ secrets.CANARY_FIXTURE_PASSWORD || (vars.CANARY_FIXTURE == 'B' && secrets.E2E_USER_B_PASSWORD || secrets.E2E_USER_A_PASSWORD) }}
+          CANARY_FIXTURE_USER_ID:    ${{ vars.CANARY_FIXTURE_USER_ID || (vars.CANARY_FIXTURE == 'B' && secrets.E2E_USER_B_ID || secrets.E2E_USER_A_ID) }}
           CANARY_LOG_FILE:           /tmp/canary.log
         # `|| true`: FAIL exits non-zero so a human running this locally sees a red exit, but the issue
         # step below must still run - it is what reports the failure. The state is read from the output,
         # never from the exit code. A pipeline that reads a gate from an exit code is how a red run
         # becomes silence in this repo's history.
         run: |
-          node scripts/deep-canary.mjs ${{ github.event.inputs.selfcheck_only == 'true' && '--selfcheck' || '' }} || true
+          node scripts/deep-canary.mjs || true
 
       - name: Open, update or close the issue
         if: ${{ github.event.inputs.dry_run != 'true' && github.event.inputs.selfcheck_only != 'true' }}

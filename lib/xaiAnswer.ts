@@ -12,6 +12,12 @@ export function answerText(data: unknown, isSearch: boolean): string {
   return typeof t === 'string' ? t : '';
 }
 
+/** TRUE WHEN THE PROVIDER STOPPED THE ANSWER AT THE OUTPUT CAP (#1631): the Responses API reports a truncated answer as `status: "incomplete"` on a 200, not as an error, so without this check the cut-off JSON surfaces as a generic parse failure and nobody can tell a too-small cap from a bad answer. Chat completions say the same with `finish_reason: "length"`. */
+export function answerWasCutOff(data: unknown): boolean {
+  const d = data as { status?: unknown; choices?: Array<{ finish_reason?: unknown }> } | null;
+  return d?.status === "incomplete" || d?.choices?.[0]?.finish_reason === "length";
+}
+
 /** #1651 item 1: the dates an X search may draw from, so an old post cannot pose as today's catalyst. xAI's x_search takes `from_date` and
  *  `to_date` as YYYY-MM-DD in UTC - posts from 00:00 on from_date up to, NOT including, to_date - and silently ignores any other format,
  *  a full date-time included (docs.x.ai/developers/tools/x-search, "Date Range"). So the window is built here, never by hand at a call

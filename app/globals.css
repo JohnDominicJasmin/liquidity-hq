@@ -1024,9 +1024,10 @@ body::after {
 .mr-factor-k { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); letter-spacing: .1em;
   text-transform: uppercase; color: var(--txt3); }
 .mr-factor-v { font-size: var(--fs-caption); font-weight: 700; margin-top: 3px; letter-spacing: -.01em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* WRAP, NEVER CUT (#1651, PM): a translated value ("Преобладают лонги") is longer than the English token and was ending in an ellipsis. */
+  white-space: normal; overflow-wrap: anywhere; }
 .mr-factor-s { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); color: var(--txt3);
-  margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  margin-top: 1px; white-space: normal; overflow-wrap: anywhere; }
 .mr-flag { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 9px 11px;
   border-radius: 8px; font-size: var(--fs-caption); line-height: 1.45; }
 .mr-flag-bull { color: var(--green); background: rgba(52,211,153,.07); border: 0.5px solid rgba(52,211,153,.25); }
@@ -1306,7 +1307,8 @@ body[data-rpm-level="high"]::before {
   animation: ticker-slide-in 0.28s ease-out;
 }
 .announcement-banner-text { color: var(--txt); font-size: var(--fs-label); text-align: center; }
-.announcement-banner-text a { color: var(--accent-2); text-decoration: underline; }
+.announcement-banner-text a { color: var(--accent-2); text-decoration: underline; display: inline-flex; align-items: center; min-height: 24px; min-width: 24px; /* WCAG 2.5.8 hit area, same look */ }
+.support-mail-link { display: inline-flex; align-items: center; min-height: 24px; min-width: 24px; /* WCAG 2.5.8 hit area for the support address in body text, same look */ }
 .announcement-banner-dismiss {
   position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
   background: none; border: none; color: var(--txt2); cursor: pointer;
@@ -1516,6 +1518,11 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .sotd-wrap::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: var(--txt3); opacity: 0.4; }
 .sotd-static-badge { font-size: var(--fs-caption); font-weight: 700; letter-spacing: .04em; color: var(--txt2); background: rgba(255,255,255,0.05); border: 0.5px solid var(--bdr2); border-radius: 20px; padding: 2px 8px; }
 .sotd-label { font-size: var(--fs-micro); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--txt3); margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+/* THE "new play" BUTTON CLEAR OF THE ASK AI BUTTON ON PHONES (#1185, PM un-parked it). `.gchat-fab` is fixed in the rightmost 84px (16px + 64px) and this
+   button sat at the right end of the label row, so it scrolled under it: 34% covered at 390. The FAB is NOT moved (at phone width that corner is shared with
+   the tab bar, the Setup pill, the PWA toast and the consent bar, so moving it is four collisions, not one). The row keeps a 72px gutter on its right instead,
+   the same remedy as the Chart Layers list, and wraps if the badge, the number and the button no longer fit beside it. */
+@media (max-width: 640px) { .sotd-label { flex-wrap: wrap; row-gap: 6px; padding-right: 72px; } }
 .sotd-refresh { font-size: var(--fs-caption); color: var(--txt3); cursor: pointer; padding: 2px 8px; border-radius: 8px; border: 0.5px solid var(--bdr); background: none; transition: all 0.15s; min-height: 36px; display: inline-flex; align-items: center; }
 .sotd-refresh:hover { color: var(--purple); border-color: var(--purple-bdr); }
 .sotd-num        { font-size: var(--fs-data); font-weight: 600; color: var(--txt3); margin-bottom: 4px; }
@@ -1600,8 +1607,31 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 }
 .scanner-flyout { animation: scannerFadeIn 0.15s ease-out forwards; }
 @media (max-width: 480px) {
-  .scanner-flyout-grid { grid-template-columns: 1fr 65px 40px 60px 28px !important; }
+  /* The 24h column is 54 px (was 40): when a coin has a price but no 24h change, that cell says "Нет данных" in plain words (no abbreviation), and "данных" does not fit 40 px (QA, #2253 N2). */
+  .scanner-flyout-grid { grid-template-columns: 1fr 65px 54px 60px 28px !important; }
   .scanner-flyout-vsbtc { display: none !important; }
+}
+/* Arena coin picker: category chips live inside the list, under the search box (#1263). One line that scrolls sideways, never wrapping onto two or three. */
+.scanner-cat-row { display: flex; flex-wrap: nowrap; gap: 4px; padding: 6px 12px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.scanner-cat-row::-webkit-scrollbar { display: none; }
+.scanner-cat-chip { flex: 0 0 auto; white-space: nowrap; min-height: 32px; padding: 3px 10px; font-size: var(--fs-caption); }
+.scanner-flyout-rows { max-height: 380px; overflow-y: auto; }
+/* The count beside a chip label: its own gap, smaller and muted, so it never reads as part of the word. A chip with no match is muted as a whole. */
+.scanner-cat-n { margin-left: 6px; font-size: var(--fs-micro); font-variant-numeric: tabular-nums; color: var(--txt3); }
+.scanner-cat-chip[data-empty="true"] { opacity: 0.5; color: var(--txt3); }
+/* The header and the rows share one column gap, so STATUS and SCORE do not touch at 390. */
+.scanner-flyout-grid { column-gap: 6px; }
+/* A grid item's min-width is `auto`, so a long unbreakable word in one column can widen a `1fr` track past the screen (Russian at 390). Items may shrink; the cell text wraps or clips inside its own column. */
+.scanner-flyout-grid > * { min-width: 0; }
+.scanner-gap-short { display: none; }
+@media (max-width: 480px) {
+  .scanner-gap-long { display: none; }
+  .scanner-gap-short { display: inline; }
+}
+@media (max-width: 640px) {
+  /* A soft fade at the right edge says there is more to scroll to. */
+  .scanner-cat-row { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+  .scanner-flyout-rows { max-height: 60vh; }
 }
 
 .scanner-fund-box { background: var(--bg2); border-radius: var(--radius-card); padding: 10px 12px; margin-bottom: 10px; border: 0.5px solid var(--bdr); }
@@ -1618,6 +1648,8 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 
 /* ── HOURS ── */
 .window-pill { font-size: var(--fs-caption); font-weight: 700; padding: 4px 12px; border-radius: 20px; }
+/* /hours 24-hour axis: at phone width the nine labels crowd in Chinese (#1185, PM); keep every second one (0, 6, 12, 18, 24), which stay evenly spaced under space-between. */
+@media (max-width: 480px) { .hours-tick-minor { display: none; } }
 .wp-god    { background: var(--amber-bg);  color: var(--amber);  border: 0.5px solid var(--amber-bdr);  box-shadow: var(--glow-amber); }
 .wp-prime  { background: var(--green-bg);  color: var(--green);  border: 0.5px solid var(--green-bdr);  box-shadow: var(--glow-green); }
 .wp-london { background: var(--blue-bg);   color: var(--blue);   border: 0.5px solid var(--blue-bdr); }
@@ -1661,6 +1693,33 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .s-text  { font-size: var(--fs-label); color: var(--txt2); line-height: 1.55; }
 .cat-badge { font-size: var(--fs-caption); font-weight: 700; padding: 1px 5px; border-radius: 4px; letter-spacing: .03em; }
 .s-num-right { margin-left: auto; display: flex; align-items: center; gap: 5px; }
+
+/* KEEP THE FAVOURITE STAR OUT FROM UNDER THE ASK AI BUTTON (#1185).
+ *
+ * `.pb-star` sits at the right edge of `.s-num` (via `.s-num-right`'s `margin-left: auto`), and
+ * `.gchat-fab` is `position: fixed; bottom: 24px; right: 20px` at 64x64 - so it owns the rightmost
+ * 84px of the viewport. Because the button is fixed and the list scrolls under it, WHICHEVER row is
+ * at the bottom of the viewport has its star covered. Measured on deployed qa, resting state (no
+ * consent banner): 84% covered at 641px, 81% at 767px, and that does not change at any button
+ * position - 64/68/72/76/92px lifts were all tried and the star rows repeat every ~124px, so no
+ * fixed vertical position avoids them. Moving the button cannot fix this; the row has to stop
+ * reaching into the button's column.
+ *
+ * 56px IS DERIVED, NOT PICKED. Measured right-edge insets of the star from the viewport edge:
+ * 31px at 641, 65px at 768, 193px at 1024, 35px at 1100. The button needs 84px clear, so the
+ * shortfalls are 53, 19, none and 49. One value has to cover the worst of them: 31+56 = 87,
+ * 65+56 = 121, 35+56 = 91, all >= 84. Anything under 53 leaves 641px still covered.
+ *
+ * ON `.secret` RATHER THAN A PAGE CONTAINER, on PM's scoping call: a container gutter would move
+ * every page at these widths, which is a far larger visual surface to verify. This moves the badge,
+ * the star and the text column of the playbook list only.
+ *
+ * 1101px AND UP WAS LEFT OUT AT FIRST, and is covered now (#1185, PM): the star's inset is 35px at 1280 and
+ * 1357 as well, so it was 36% covered there on the same arithmetic. The button is in the right column at every
+ * width, so the ceiling is gone and the gutter applies from 641 up. Phones (390) are unchanged: the star was 0% there. */
+@media (min-width: 641px) {
+  .secret { padding-right: 70px; }   /* 14px base + the 56px derived above */
+}
 .cat-hunt  { background: var(--purple-bg); color: var(--purple); }
 .cat-time  { background: var(--green-bg);  color: var(--green); }
 .cat-trap  { background: var(--red-bg);    color: var(--red); }
@@ -2210,7 +2269,7 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .klc-legend { display: flex; gap: 8px; align-items: center; }
 .klc-ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--txt3); flex-shrink: 0; }
 .klc-ws-dot.live { background: var(--green); box-shadow: 0 0 5px var(--green); }
-.klc-ws-dot.err  { background: var(--red); }
+.klc-ws-dot.err  { background: transparent; box-shadow: inset 0 0 0 1.5px var(--red); } /* a RING, not a filled dot: the state differs by shape too (#1185, not colour alone) */
 .sq-badge { display: inline-flex; align-items: center; }
 /* `.sq-info`, `.sq-tooltip`, `.sq-info:hover .sq-tooltip`, `.sq-tooltip::after`
    and `@keyframes sq-fade` were REMOVED here (#850), not left behind.
@@ -2250,9 +2309,21 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
      User can still drag-resize from here (clamped to viewport, see the
      height-restore effect in KLineProChart.tsx). */
   .klc-canvas { height: 500px; }
-  /* Hide drawing tools on mobile - touch devices can't use them precisely */
-  .klc-tool-btn:not(.klc-tf-btn):not(.klc-clear):not(.klc-fullscreen-btn) { display: none !important; }
+  /* Hide the MANUAL drawing tools on mobile - touch devices can't use them precisely. DRAW STRUCTURE IS NOT ONE
+     OF THEM (#1263): it is one tap that asks the AI for lines, no precision needed, so it stays (`.klc-ds-btn`).
+     The rule used to hide every `.klc-tool-btn` that was not a timeframe, Clear or Fullscreen, which removed Draw
+     Structure from phones as collateral - on production too. */
+  .klc-tool-btn:not(.klc-tf-btn):not(.klc-clear):not(.klc-fullscreen-btn):not(.klc-ds-btn) { display: none !important; }
   .klc-sep { display: none !important; }
+  /* THE DRAW STRUCTURE MENU CANNOT SPILL OFF A PHONE BY CONSTRUCTION. It is normally anchored to its own button
+     (`left: 0`), so where it lands depends on where that button sits in the toolbar, which varies with the
+     timeframe buttons around it. Here the toolbar becomes its containing block and the menu spans it with an 8px
+     margin each side, so it is as wide as the chart container and no wider. Long rows (the lower-timeframe note)
+     wrap instead of forcing the width. Phone widths only; the manual Draw menu is untouched. */
+  .klc-toolbar { position: relative; }
+  .klc-ds-wrap { position: static; }
+  .klc-ds-wrap .klc-draw-menu { left: 8px; right: 8px; top: auto; margin-top: 4px; min-width: 0; }
+  .klc-ds-wrap .klc-draw-item { white-space: normal; }
   .klc-legend { flex-wrap: wrap; gap: 4px; max-width: calc(100% - 80px); }
 }
 
@@ -2288,7 +2359,11 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .gchat-fab {
   position: fixed; bottom: 24px; right: 20px; z-index: 9995;
   width: 64px; height: 64px; border-radius: 50%;
-  background: var(--accent-bg);
+  /* OPAQUE (#1185). `--accent-bg` is a 7% blue tint, so on its own this button was see-through in dark:
+     whatever scrolled under it - the Strategy panel's "Always on" text - showed through the button, while
+     the light theme (below) was already solid. The tint is kept, laid over a solid surface, so the colour
+     reads the same on a dark page and nothing shows through. */
+  background: linear-gradient(var(--accent-bg), var(--accent-bg)), var(--bg1);
   border: 0.5px solid var(--accent-bdr);
   /* #970: was `0 4px 24px rgba(0,0,0,0.8), var(--glow-accent)`. --glow-accent
      is `none` in every context that reaches this rule (dark by :root, and
@@ -2709,8 +2784,20 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    color lives on the values, Bloomberg/Coinglass convention. Tight 3-row cells
    (label / value / one-line context) at an equal, small height. */
 .edge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin-bottom: 8px; }
-.edge-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 10px; padding: 7px 10px; }
-.edge-card-label { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.edge-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 10px; padding: 7px 10px; display: flex; flex-direction: column; }
+.edge-card-label { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 3px; white-space: normal; overflow-wrap: break-word; }
+/* THE CARD TITLE WRAPS, IT IS NEVER CUT OFF (PM, 2026-11-13: a cut title hides what the card is, and it already cut in English). It was `nowrap` + ellipsis, and nowrap also made the label's min-content its full
+   width, which is what blew a track out in Russian. The terminal design already ran this route with `white-space: normal` ("labels are DB-driven"). Cards are flex columns, and the value block is pinned to the bottom
+   (`margin-top: auto`) so a two-line title in one card does not leave its neighbour's value higher than its own in the same grid row. */
+.edge-card > .edge-card-value { margin-top: auto; }
+/* THE DASHBOARD'S CARD ROWS SHARE THEIR LINES (#1651, QA run 43475206913: values sat 15-30 px apart in one row). Pinning the value to the card bottom only levels it when the NOTE under it is the same height in every card; a
+   one-line note beside a two-line note (Russian) or an empty one (OI 1h with no note) moved the value. Each card now takes three rows of the GRID (label, value, note) as a subgrid, so the tallest label, value and note in a
+   row set the line for all of them: values align across the row, and an empty note still keeps its line. */
+.edge-grid.edge-grid-aligned { grid-auto-rows: auto; }  /* the phone rule gives auto rows 1fr, which would stretch all three lines of every card */
+.edge-grid-aligned > .edge-card { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 0; }
+.edge-grid-aligned > .edge-card > .edge-card-label  { grid-row: 1; }
+.edge-grid-aligned > .edge-card > .edge-card-value  { grid-row: 2; margin-top: 0; }
+.edge-grid-aligned > .edge-card > .edge-card-signal { grid-row: 3; }
 /* min-height, so a card whose value uses a smaller font is still the same
    height as its neighbours (#244).
    QA measured three .edge-card in the Arena rail: VWAP and Funding 77px, Open
@@ -2732,7 +2819,8 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    still gets its 14px. */
 .edge-card-value.is-label { font-size: var(--fs-label); }
 .edge-card-sub   { font-size: var(--fs-caption); color: var(--txt3); margin-top: 2px; line-height: 1.4; }
-.edge-card-signal { font-size: var(--fs-caption); font-weight: 600; margin-top: 2px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The note under a card value WRAPS, it is not cut off with an ellipsis (PM, #1185: "Выше VWAP - бычи…", en "Lower highs + lower …" at 390), the same rule the card titles follow. */
+.edge-card-signal { font-size: var(--fs-caption); font-weight: 600; margin-top: 2px; line-height: 1.25; white-space: normal; overflow-wrap: break-word; }
 
 
 /* ── Taker Buy/Sell Ratio table ── */
@@ -2969,7 +3057,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --amber-bdr: rgba(180,83,9,0.20);
   /* #559: same darkened-hue treatment as --amber/--orange above - #d4b483
      (the dark value) measures ~2:1 on white. */
-  --fr-slight-long: #7C5E2E;
+  --fr-slight-long: #6B4F22; /* darker (#1185): #7C5E2E measured 4.17-4.49:1 on the selected row's tint */
   /* #519: was #C2410C - 3.09:1 for the grade-D badge on a selected watchlist
      row, 3.85:1 normally, both below WCAG AA's 4.5:1 for 12px text. */
   --orange:     #7C2D12;
@@ -3735,7 +3823,10 @@ html[data-theme="light"] { background: var(--bg0); }
 .wf-row:last-child { border-bottom: none; }
 .wf-row-big     { background: rgba(255,255,255,.025); }
 .wf-row-coin    { font-size: var(--fs-caption); font-weight: 800; }
-.wf-row-side    { font-size: var(--fs-caption); font-weight: 700; letter-spacing: .04em; }
+/* /research top pair (#1185, #1309 item 29): two columns from 641 up; ONE column on phones, where the BTC risk card's 120px label + 72px value did not fit a ~174px cell and was clipped. */
+.research-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+@media (max-width: 640px) { .research-pair { grid-template-columns: 1fr; } }
+.wf-row-side    { font-size: var(--fs-caption); font-weight: 700; letter-spacing: .04em; white-space: nowrap; }
 .wf-row-side-buy  { color: var(--green); }
 .wf-row-side-sell { color: var(--red); }
 .wf-row-usd     { font-size: var(--fs-label); font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -3846,7 +3937,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .frh-row.on .frh-coin { color: var(--purple) !important; }
 /* #1309 item 6: the coin cell's real button. Looks exactly like the bare text it replaced;
    the only visible difference is the focus ring, which is the point. */
-.frh-coin-btn { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; text-align: left; }
+.frh-coin-btn { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; text-align: left; min-height: 24px; }
+/* WCAG 2.5.8 (#1185, QA gate 43450549138): the funding coin name is the control and was ~17 px tall (50 of them on /funding). min-height gives the hit box 24 px without touching the row's padding or type. */
 .frh-coin-btn:disabled { cursor: default; }
 .frh-coin-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .frh-spark-th    { min-width: 120px; }
@@ -5391,7 +5483,24 @@ body.landing {
 @media (max-width: 480px) {
   /* Give the SIGNAL column ~1.7x the coin column and let it wrap to 2 lines
      instead of truncating to "..." (was 1fr + nowrap → every signal clipped). */
-  .mkt-row, .mkt-hdr-row { grid-template-columns: 28px 0.9fr 92px 54px 1.7fr !important; align-items: center; }
+  /* /markets at 390 (#1185, QA run 43495290194): the 28 px grade column was narrower than its own head ("GRADE" ran into "COIN"), the coin column was narrower than icon + name ("PEPE" ran into the price), and a cell wider than its track pushed some rows past the edge so their divider stopped short. Wider grade and price columns, a coin column with a floor, every cell allowed to shrink (min-width: 0) and every head clipped inside its own cell. */
+  .mkt-row, .mkt-hdr-row { grid-template-columns: 62px minmax(68px, 0.9fr) 74px 62px minmax(0, 1.4fr) !important; column-gap: 2px; /* grade 56 px: its head is the word plus the 24 px info icon (QA shots21: the icon sat on the C of COIN at 40 px); the 16 px come from the price column and the gaps, so the signal column keeps its width */ align-items: center; min-width: 0; }
+  .mkt-row > *, .mkt-hdr-row > * { min-width: 0; }
+  /* HEADS STAY ON ONE LINE AND ARE NOT CLIPPED (QA shots19, shots20): clipping cut '24 HOURS' to '24 HO...', and wrapping anywhere stacked GRADE and SIGNAL letter by letter in a 40 px cell. One line, tighter tracking (.02em), nothing hidden: every head fits its column in English, and the columns above were widened for it. */
+  .mkt-hdr-row > * { white-space: nowrap; overflow-wrap: normal; line-height: 1.15; letter-spacing: .02em; }
+  /* THE SIGNAL HEAD WRAPS INSTEAD OF OVERFLOWING ITS CELL AT EVERY PHONE WIDTH (gate run 43530156793, Y1: "a head is cut off in its own cell" at 390 en; "Signal ⓘ" is about 83 px in a ~72 px cell). Two lines are fine (PM); the 360 rule below adds the tighter columns. */
+  .mkt-hdr-row > :last-child { padding-left: 6px !important; white-space: normal; overflow-wrap: break-word; line-height: 1.1; }
+  /* THE ROW DIVIDER IS ONE FULL LINE (QA shots19): the visible "divider" under each row was the buy-pressure accent line, whose width is the buy share, so it stopped short (about half for a 49% coin). The pressure column is hidden here, so the accent goes too and the row's own border, which was nearly invisible, is drawn in the normal border colour. */
+  .mkt-accent { display: none; }
+  .mkt-row { border-bottom-color: var(--bdr) !important; }
+  /* The title row wraps and the bull/bear/neutral counters take their own line: in Russian the three counters pushed the page to 401 px at 390. */
+  .mkt-top { flex-wrap: wrap; }
+  .mkt-counts { margin-left: 0 !important; width: 100%; flex-wrap: wrap; gap: 4px 12px !important; }
+  .mkt-coin-cell { padding-left: 6px !important; }
+  .mkt-price { white-space: nowrap; }
+  /* "Нет данных" / "No data" in the price cell wraps under itself instead of running left into the coin symbol (QA run 43541923030, 360 ru: "HYPEНет данных"). */
+  .mkt-price.mkt-price-gap { white-space: normal; line-height: 1.1; overflow-wrap: break-word; }
+  .mkt-price-long { font-size: var(--fs-micro) !important; }
   .mkt-col-spark, .mkt-col-pressure { display: none !important; }
   .mkt-signal {
     white-space: normal !important; overflow: visible !important; text-overflow: clip !important;
@@ -5808,6 +5917,8 @@ html[lang="ko"] .lp-hero-h1 { word-break: keep-all; }
    the smaller caption size already carry the de-emphasis. */
 .pf-footer-bottom-note { font-style: italic; max-width: 700px; text-align: right; }
 .pf-footer-bottom-link { color: var(--txt3); text-decoration: underline; text-underline-offset: 2px; }
+/* A 24 PX HIT AREA WITHOUT A VISIBLE CHANGE (#1185, QA: the three legal links in the footer note measured 15 px tall at every width). Inline-block with 5 px of padding above and below and the same amount of negative margin: the line height and the look are unchanged, the clickable box is 25 px. */
+.pf-footer-bottom-link, .lt-inline-hit { display: inline-block; padding-block: 5px; margin-block: -5px; }
 .pf-footer-bottom-link:hover { color: var(--txt); }
 @media (max-width: 900px) { .pf-footer-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) {
@@ -6207,6 +6318,8 @@ html[lang="ar"] .lp-h1-accent {
    selector, so the values that used to sit here (24px / 94px) never applied on
    any screen. The live values are the later ones, which put the pill in the
    same row as the Ask AI FAB, clear of the mobile tab bar. */
+/* DESKTOP TOO (#1185, QA at ~1200 px: the collapsed pill floated at bottom: 140 over the settings card). Same row as the FAB, just to its left: the FAB is 64 px at right: 20, bottom: 24, the pill about 36 px tall, so bottom 38 centres it on the FAB and right 94 clears it by 10. The phone rule below still wins at 640 px and under. */
+.ob-checklist.ob-checklist-mini { bottom: 38px; right: 94px; }
 .ob-cl-mini-text { font-size: var(--fs-caption); font-weight: 600; color: var(--txt2); white-space: nowrap; }
 .ob-cl-mini-track {
   width: 56px; height: 3px; border-radius: 2px;
@@ -6329,6 +6442,65 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   .edge-card { display: flex; flex-direction: column; }
   .edge-card-label { min-width: 0; }
 }
+
+/* THE FAB'S NAV CLEARANCE AND THE NAV ITSELF HAD DIFFERENT BREAKPOINTS (#1185).
+ *
+ * `.gchat-fab { bottom: 76px }` above lifts the button over the fixed bottom nav, and it lives in
+ * `@media (max-width: 640px)`. The nav it is clearing is `.tnav-tabs`, which renders at
+ * `max-width: 767px` (globals.css:7338 - the boundary #616 set). So 641-767px got the 60px fixed
+ * bar WITHOUT the clearance, and the button sat on it.
+ *
+ * MEASURED, on the deployed qa site at 641px, consent answered: the FAB at `bottom: 24` occupies
+ * the band 24-88px from the viewport bottom; `.tnav-tabs` occupies 0-60px. The 36px of overlap put
+ * the button over the "BOOK" tab, covering 30% of it - AT EVERY SCROLL POSITION, because both are
+ * `position: fixed`. Every other overlap on this issue clears when the page is scrolled; this one
+ * never did, which is what made it the worst of the set despite the smallest percentage.
+ *
+ * ONE PIXEL IS WHY IT WAS INVISIBLE. 640 and 767 differ by a band no common device width lands in,
+ * so a phone (390) and a laptop (1280) both looked correct and a tablet did not.
+ *
+ * 64, NOT THE PHONE RULE'S 76, AND THE 12px MATTERS. Lift sweeps at 64/68/72/76/92 across 16 scroll
+ * offsets: every one of them takes the BOOK tab to 0%, because all it has to do is clear a 60px bar.
+ * What differs is what the button lands on INSTEAD - near the top of /dashboard it grazes the corner
+ * of a `.scc-card` link, and that graze grows with the lift: 5% at 64, 6% at 68 and 72, 7% at 76,
+ * 9% at 92 (at 641px; 2% and 1% at 700 and 767). So the smallest lift that does the job is the one
+ * that disturbs the least, and "match the phone value" would have cost 2 points of card corner for
+ * nothing. PM accepted the 5% against a nav tab that is permanently 30% covered.
+ *
+ * NO PANEL RULE HERE, deliberately - the phone block sets one and this does not need to. The panel's
+ * base `bottom: 86px` already clears a 60px bar, and `.gchat-fab-open` hides the button while the
+ * panel is up, so the two cannot be seen overlapping. Adding a value would be a declaration whose
+ * removal nothing would detect. The expanded `.ob-checklist` (bottom: 140) clears the bar too.
+ *
+ * `!important` MIRRORS THE PHONE RULE RATHER THAN ADDING ANYTHING: `body.consent-open .gchat-fab`
+ * is also `!important` and carries higher specificity, so the consent-bar lift still wins here
+ * exactly as it does below 641. Verified by measuring both states, not by reading the cascade.
+ *
+ * WHAT THIS DOES NOT FIX, and it was asked for: the `.pb-star` overlap on /playbook, and a `Ⓘ`
+ * control on /dashboard.
+ *
+ * `.pb-star` CANNOT be solved by moving this button, and the sweep is what proved it rather than
+ * the arithmetic. Measured 100% covered at 641 and 700 and 81% at 767 at EVERY lift including 92px.
+ * The star rows repeat every ~124px down the full column, so whatever fixed vertical position the
+ * button takes, some scroll offset puts a row under it; and there is no horizontal escape either -
+ * the column's right edge sits 31px from the viewport edge at 641 and 65px at 768, while a 64px
+ * button at `right: 20` needs an 84px clear strip. It needs a reserved gutter on the list rows, or
+ * the star moved. Tracked on #1185, not attempted here.
+ *
+ * The `Ⓘ` on /dashboard at 641 is covered 100% ALREADY, at today's `bottom: 24px` - it is not
+ * something this change causes, and this change does not clear it either. At 700 the lift happens to
+ * improve it from 75% to 46%. Recorded so the next reader does not read it as a regression from this
+ * rule; also on #1185.
+ *
+ * MEASURE THIS OVER MORE THAN ONE SCROLL OFFSET IF YOU CHANGE IT. Two of my own runs gave confident
+ * wrong answers from a single position: one read `.pb-star` as fixed (it was measured at scroll 0,
+ * where a row happens to straddle the button's band), and one read the `.scc-card` graze as absent
+ * (it only sampled offsets past 1200, and the graze is near the top). Both elements here are
+ * `position: fixed`; what they collide with depends entirely on where the page is. */
+@media (min-width: 641px) and (max-width: 767px) {
+  .gchat-fab { bottom: 64px !important; }
+}
+
 /* ── Monochrome Terminal design tokens (#413) ─────────────────────────────
    The redesign's palette, scoped to [data-design="terminal"] so NOTHING in the
    running app changes until a screen opts in. The redesign lands screen by
@@ -6670,7 +6842,7 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   --on-accent: #ffffff;
   /* FundingTerminal's "slight long" signal state (#559) - reusing the
      current design's own light value rather than inventing a second one. */
-  --fr-slight-long: #7C5E2E;
+  --fr-slight-long: #6B4F22; /* darker (#1185): #7C5E2E measured 4.17-4.49:1 on the selected row's tint */
 
   /* Radius and typography are theme-invariant design-system rules, not
      colours - omitting them here would leave terminal+light with :root's
@@ -8966,6 +9138,101 @@ main.app-content[data-chrome="none"] {
   color: var(--on-accent); font-weight: 600;
 }
 
+/* ── Strategy panel redesign (#1263) ─────────────────────────────────────────
+   INDICATORS as checkbox chips with a one-line blurb, CHART LAYERS as always-on
+   rows and real switches. Transcribed from the owner-approved artboards; the
+   check mark is the non-colour cue for a selected chip (not colour alone). */
+[data-design="terminal"] .strat-ind-note {
+  margin: 0 0 8px; font-size: 11px; line-height: 1.45; color: var(--txt3); /* 4.71 / 5.07 on --bg1 */
+}
+[data-design="terminal"] .strat-ind-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;
+}
+@media (max-width: 420px) {
+  [data-design="terminal"] .strat-ind-grid { grid-template-columns: 1fr; }
+}
+[data-design="terminal"] .strat-ind-chip {
+  display: flex; align-items: flex-start; gap: 8px;
+  min-height: 44px; padding: 8px 9px; box-sizing: border-box;
+  border: 1px solid var(--bdr); border-radius: 0; background: none;
+  cursor: pointer; text-align: left; font-family: inherit;
+}
+[data-design="terminal"] .strat-ind-chip.on {
+  border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-bg);
+}
+[data-design="terminal"] .strat-ind-chip:focus-visible { outline: 2px solid var(--txt); outline-offset: 3px; }
+/* The check box: the non-colour cue. Border when off, accent fill + check when on. */
+[data-design="terminal"] .strat-ind-box {
+  flex: none; width: 16px; height: 16px; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--txt3); color: var(--on-accent); background: transparent;
+}
+[data-design="terminal"] .strat-ind-chip.on .strat-ind-box { background: var(--accent); border-color: var(--accent); }
+[data-design="terminal"] .strat-ind-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+[data-design="terminal"] .strat-ind-name {
+  display: inline-flex; align-items: center; gap: 5px;
+  /* NOT UPPERCASE. The approved panel design shows the names as written - "SMA", "Parabolic SAR",
+     "MACD", "Bollinger Bands" - and the owner has objected to all-caps jargon before. This rule used to
+     capitalise them, which turned "Bollinger Bands" into "BOLLINGER BANDS". Only the chip NAME is
+     affected; the section labels above keep their own uppercase style. */
+  font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: .04em;
+  color: var(--txt); font-weight: 600;
+}
+[data-design="terminal"] .strat-ind-desc { font-size: 10.5px; line-height: 1.3; color: var(--txt3); } /* 4.71 / 5.07 on --bg1 */
+
+/* FREE upgrade callout: an invitation, present even with nothing selected. */
+[data-design="terminal"] .strat-callout {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 9px; padding: 9px 11px;
+  border: 1px solid var(--accent); background: var(--accent-bg);
+  font-size: 11px; line-height: 1.4; color: var(--txt);
+}
+[data-design="terminal"] .strat-callout-link {
+  flex: none; display: inline-flex; align-items: center; min-height: 44px;
+  color: var(--accent); font-weight: 700; text-decoration: underline; white-space: nowrap;
+}
+
+/* CHART LAYERS rows and switches. */
+[data-design="terminal"] .strat-layers { display: flex; flex-direction: column; }
+[data-design="terminal"] .strat-layer {
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 40px; border-bottom: 1px solid var(--bdr3);
+}
+[data-design="terminal"] .strat-layer:last-child { border-bottom: 0; }
+/* KEEP THE CHART LAYERS ROWS OUT FROM UNDER THE ASK AI BUTTON (#1185). `.gchat-fab` is `position: fixed` and
+ * takes no space, so it owns the rightmost 84px of the viewport (right: 20px + 64px wide; 16px + 64px on
+ * phones) and the panel scrolls under it - whichever layer row is at the bottom of the viewport has its
+ * right-hand text, or its switch, covered. Moving the button cannot help (the file's other #1185 notes
+ * measured that), so the rows stop reaching into the column, the same remedy as `.pb-star` above.
+ *
+ * 72px IS A DERIVED UPPER BOUND, NOT A MEASURED FIT, and it is scoped to this one list on purpose. The
+ * button needs 84px clear and the page gutter already supplies some of it; 72 is enough with a gutter as
+ * small as 12px and costs only a narrower right column. IT APPLIES AT EVERY WIDTH (#1185, PM sign-off at 1280):
+ * this rule was first limited to 1100px and below, the band PM had measured, on the reading that above it the panel
+ * was unmeasured. At 1280 the screenshot showed "· BTC only" under the button and the panel right edge running
+ * beneath it, because the button sits in the viewport's right column at every width and the panel reaches that
+ * column wherever it is not centred in a wider page. At desktop the only cost is the right column's text width.
+ * If a deployed screenshot shows more space than it needs, lower this value; do not remove the opaque background
+ * above, which is the other half. */
+[data-design="terminal"] .strat-layers { padding-right: 72px; }
+[data-design="terminal"] .strat-layer-name { font-size: 12px; color: var(--txt); }
+[data-design="terminal"] .strat-layer-state { font-size: 10.5px; color: var(--txt3); } /* 4.71 / 5.07 on --bg1 */
+[data-design="terminal"] .strat-switch {
+  position: relative; flex: none; width: 44px; height: 24px; padding: 0;
+  border: 1px solid var(--bdr); border-radius: 12px; background: var(--bg2); cursor: pointer;
+}
+[data-design="terminal"] .strat-switch.on { background: var(--accent); border-color: var(--accent); }
+[data-design="terminal"] .strat-switch:disabled { opacity: 0.4; cursor: default; }
+[data-design="terminal"] .strat-switch:focus-visible { outline: 2px solid var(--txt); outline-offset: 3px; }
+[data-design="terminal"] .strat-switch-knob {
+  position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 8px;
+  background: var(--txt3); transition: left .12s ease, background .12s ease;
+}
+[data-design="terminal"] .strat-switch.on .strat-switch-knob { left: 23px; background: var(--on-accent); }
+@media (prefers-reduced-motion: reduce) {
+  [data-design="terminal"] .strat-switch-knob { transition: none; }
+}
+
 
 /* ── The coin-row keyboard controls (#943) ───────────────────────────────────
    The rows on /markets and the dashboard rail were mouse-only: a click handler
@@ -8985,6 +9252,10 @@ main.app-content[data-chrome="none"] {
   background: none; border: 0; padding: 0; margin: 0;
   font: inherit; color: inherit; letter-spacing: inherit;
   cursor: pointer; text-align: left;
+  /* WCAG 2.5.8 (#1185): the coin name carries the row's action and was under 24 px tall (20 on /markets, 8 on /dashboard). A 24 px hit box, text vertically centred, no change to padding or type. */
+  display: inline-flex; align-items: center; min-height: 24px;
+  /* WIDTH TOO (WCAG 2.5.8 is 24 x 24): a short coin name (OP, SUI, ADA at the caption size) is narrower than 24 px, and the #1185 rule above fixed only the height. Left-aligned, so the glyphs do not move. */
+  min-width: 24px; justify-content: flex-start;
 }
 .mkt-row-btn {
   font-size: var(--fs-caption); font-weight: 700;
@@ -9018,4 +9289,22 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .ob-checklist,
 [data-design="terminal"][data-theme="light"] .ob-checklist {
   box-shadow: none;
+}
+
+/* ── 360 PX WIDTH PASS (#1185, QA run 43537174082): /dashboard was 387 wide and /markets 388 (en) to 408 (ru) on a 360 px phone, so both scrolled sideways. Phone width only, nothing at 390 and up. ──
+   /markets: the five columns plus the two 10 px row paddings needed about 28 px more than 360 leaves, and the SIGNAL head ran past the edge. Tighter columns and 6 px row padding here, and the last head is clipped inside its own cell as a safety net (Russian is longer).
+   /dashboard: a rail panel is allowed to shrink below its content and clips the overflow rather than widening the page. */
+@media (max-width: 380px) {
+  .mkt-row, .mkt-hdr-row { grid-template-columns: 62px minmax(60px, 1fr) 76px 54px !important; padding-left: 4px !important; padding-right: 4px !important; }
+  /* NO CLIPPED HEADING (PM, QA run 43539950327: "Signal ⓘ" was 83 px of text in a 42 px cell): the last head wraps, and breaks inside a word only if the word itself does not fit. */
+  .mkt-hdr-row > :last-child { white-space: normal; overflow: visible; overflow-wrap: break-word; padding-left: 2px !important; line-height: 1.1; }
+  /* A LONG LIVE PRICE ("$0.00000424", PEPE) NEEDS ROOM AT 360 (QA live run, #1185): the price column is 76 px, not 60, and the coin column keeps a 60 px floor (symbol, 18 px icon and padding), so a 5-letter symbol and a 10-character price ("$66,844.40" at the caption size, "$0.00000424" at the small size) keep a gap at 360. The signal column gives the width back and wraps. */
+  .mkt-price-long { letter-spacing: -.02em; }
+  /* THE SIGNAL HEAD FITS ITS COLUMN AT 360 (QA live run on 697b214: "Signal ⓘ" is about 83 px and the column about 64, so the head ran past the viewport: page 364 en, 388 ru). The Tip wrapper is an inline flex row; it may now wrap, so the ⓘ drops to a second line under the word (still a 24 px, focusable button) and the word reads in full. The price column stays 76 px. */
+  .mkt-hdr-row > :last-child > span { flex-wrap: wrap; max-width: 100%; row-gap: 0; }
+  /* THE SIGNAL TAKES ITS OWN LINE UNDER THE ROW AT 360 (QA live run on ac71050: the fifth column was 36 px wide, and a Russian signal ("Открываются новые покупатели", 96 px of unbreakable word) overflowed it, so the page was 388 wide in ru). Four columns on the first line, the signal and its head on a second line across the coin, price and change columns (about 200 px), where the text reads. The page can no longer be widened by a long word: the cell may shrink and breaks inside a word only if it must. */
+  .mkt-row > .mkt-signal { grid-column: 2 / -1; grid-row: 2; padding: 0 0 2px 6px !important; min-width: 0; overflow-wrap: break-word; }
+  .mkt-hdr-row > :last-child { grid-column: 2 / -1; grid-row: 2; }
+  .dash-right, .dash-right > * { min-width: 0; max-width: 100%; }
+  .av-rail-panel { min-width: 0; max-width: 100%; overflow-x: clip; }
 }

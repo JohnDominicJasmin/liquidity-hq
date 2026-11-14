@@ -1,7 +1,7 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { getSupabase } from '@/lib/supabase';
-import { forceSignOut } from '@/lib/authSession';
+import { forceSignOut, INACTIVITY_MS, LAST_ACTIVE_KEY } from '@/lib/authSession';
 import type { User } from '@supabase/supabase-js';
 import posthog from 'posthog-js';
 import { T } from '@/lib/tables';
@@ -82,7 +82,9 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-const INACTIVITY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+// INACTIVITY_MS and LAST_ACTIVE_KEY are imported from lib/authSession.ts (#1173): the pre-paint
+// landing redirect in RootDocument.tsx reads the same window and the same key, and two copies of
+// either would drift without anything failing.
 
 /* How long the initial session read may take before the app gives up and
    renders as signed-out (#727). Generous enough that a slow-but-working
@@ -174,7 +176,7 @@ function qaForcedEntitlementsFailure(): boolean {
   return Boolean((window as unknown as { __LHQ_QA_FORCE_ENTITLEMENTS_FAIL__?: boolean }).__LHQ_QA_FORCE_ENTITLEMENTS_FAIL__);
 }
 
-const LAST_ACTIVE_KEY = 'lhq_last_active';
+
 // Read by AuthGate - shared here so both sides reference the same literal.
 export const BAN_NOTICE_KEY = 'lhq_ban_notice';
 
@@ -251,6 +253,15 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // callback is created once inside the effect with `[]` deps, so `user`
   // itself would be permanently stale there.
   const userIdRef = useRef<string | null>(null);
+  /* #1173: how long the first session read took. The entitlements read that follows spends the SAME wait the person is sitting through, so its budget is
+     what is left of ENTITLEMENTS_OVERALL_BUDGET_MS, never a fresh 22 s on top (QA measured 37 s from navigation with a 6.5 s-held session read). Cleared once
+     entitlements settle, so a later re-fetch gets the full budget. */
+  const sessionReadMsRef = useRef(0);
+  /* The entitlements effect can start from the auth-state event (SIGNED_IN / INITIAL_SESSION) BEFORE the getSession read below settles, so the read's own
+     duration is not yet known when the budget is computed (QA measured the leg at the full 22 s). The first entitlements fetch therefore measures from when this
+     provider mounted - what the person has actually waited - and later re-fetches get the full budget. */
+  const authMountedAtRef = useRef(Date.now());
+  const firstEntitlementsRef = useRef(true);
   useEffect(() => { userIdRef.current = user?.id ?? null; }, [user]);
 
   useEffect(() => {
@@ -293,7 +304,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
      * The deadline is taken once, so `loading` resolves within
      * SESSION_RESOLVE_MS of the effect starting no matter how the time is split
      * between the two calls. */
-    const deadline = Date.now() + SESSION_RESOLVE_MS;
+    const readStartedAt = Date.now();
+    const deadline = readStartedAt + SESSION_RESOLVE_MS;
     const withTimeout = <T,>(p: PromiseLike<T>): Promise<T | null> =>
       Promise.race([
         Promise.resolve(p),
@@ -302,6 +314,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       ]);
 
     withTimeout(sb.auth.getSession()).then(async (res) => {
+      sessionReadMsRef.current = Math.min(SESSION_RESOLVE_MS, Date.now() - readStartedAt);
       const data = res?.data;
       const sessionUser = data?.session?.user ?? null;
       if (sessionUser && isSessionExpired()) {
@@ -531,14 +544,22 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       }
     }
 
+    if (firstEntitlementsRef.current) {
+      /* Only a start within the session-read window counts as the same wait: someone who sits on the login page and signs in later has waited for nothing yet. */
+      const sinceMount = Date.now() - authMountedAtRef.current;
+      sessionReadMsRef.current = sinceMount <= SESSION_RESOLVE_MS ? sinceMount : 0;
+    }
     (async () => {
       const { result, cancelled: bailedEarly } = await retryWithBackoff(attempt, {
         maxAttempts: ENTITLEMENTS_MAX_ATTEMPTS,
         backoffMs: ENTITLEMENTS_RETRY_BACKOFF_MS,
         isCancelled: () => cancelled,
-        overallBudgetMs: ENTITLEMENTS_OVERALL_BUDGET_MS,
+        // Shared deadline (#1173): the wait already spent on the session read counts, but one full per-attempt read (15 s) always stays possible.
+        overallBudgetMs: Math.max(ENTITLEMENTS_FETCH_MS, ENTITLEMENTS_OVERALL_BUDGET_MS - sessionReadMsRef.current),
       });
       if (bailedEarly) return;
+      sessionReadMsRef.current = 0;
+      firstEntitlementsRef.current = false;
       const { data, failed } = result;
 
       if (!failed) {

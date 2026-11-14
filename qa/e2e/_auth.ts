@@ -97,33 +97,103 @@ export const FIXTURES = {
  * only symptom was `20 skipped` scrolling past.
  *
  * A skip that does not name its cause is a silent gap with extra steps. */
-const REQUIRED_FIXTURES: ReadonlyArray<readonly [name: string, value: string]> = [
+/* ── SPLIT INTO WHAT SIGNING IN NEEDS AND WHAT ONE SPEC NEEDS. 2026-11-10 ────────────────────
+ *
+ * This list used to carry all ten values, and the note above already argued against exactly that
+ * for the T/ADMIN accounts - "AUTH_READY gates ~20 specs that only need A and B; adding these would
+ * make all of them skip on an environment that has what they actually need". The four row ids were
+ * in it anyway, so the file broke its own rule.
+ *
+ * MEASURED before changing it: **46 specs gate on `AUTH_READY`, and the four row ids are used by
+ * exactly ONE of them - `bola.spec.ts`.** So 46 specs were gated on four values that 45 of them
+ * never touch. Dev Team hit this: `E2E_B_PRICE_ALERT_ID` absent from their clone skipped
+ * `entitlement-unknown` - a spec with no row ids in it - and the run exited 0.
+ *
+ * So: this list is now only what SIGNING IN AS A OR B requires. A value used by one spec is that
+ * spec's precondition and belongs beside it, which is the shape the T/ADMIN accounts already use. */
+const SIGN_IN_FIXTURES: ReadonlyArray<readonly [name: string, value: string]> = [
   ['NEXT_PUBLIC_SUPABASE_URL', SUPABASE_URL],
   ['NEXT_PUBLIC_SUPABASE_ANON_KEY', SUPABASE_ANON],
   ['E2E_USER_A_EMAIL', FIXTURES.aEmail],
   ['E2E_USER_A_PASSWORD', FIXTURES.aPassword],
   ['E2E_USER_B_EMAIL', FIXTURES.bEmail],
   ['E2E_USER_B_PASSWORD', FIXTURES.bPassword],
+];
+
+const MISSING_FIXTURES = SIGN_IN_FIXTURES.filter(([, v]) => !v).map(([n]) => n);
+
+export const AUTH_READY = MISSING_FIXTURES.length === 0;
+
+export const AUTH_SKIP_REASON =
+  `sign-in fixtures absent - MISSING: ${MISSING_FIXTURES.join(', ')}. ` +
+  'Set them in `.env.e2e.local` (gitignored) or as env vars.\n\n' +
+  'Skipping rather than passing: an authenticated test that runs without a session proves ' +
+  'nothing. But a skip is NOT a pass either - if you are seeing this, the authenticated surface ' +
+  'is being verified by nothing at all in this run.';
+
+/* The row ids `bola.spec.ts` needs, and nothing else in the suite uses. Exported so that spec can
+ * state its own precondition; deliberately NOT part of AUTH_READY.
+ *
+ * CI supplies these two price-alert ids as GitHub VARIABLES rather than secrets - they are row ids
+ * in the dev database, not credentials - so they are easy to miss when copying a local file from
+ * the secret list. That is what cost the time on 2026-08-10 and again in Dev's clone today. */
+const ROW_ID_FIXTURES: ReadonlyArray<readonly [name: string, value: string]> = [
   ['E2E_A_TRADE_ID', FIXTURES.tradeId],
   ['E2E_A_HYPOTHESIS_ID', FIXTURES.hypothesisId],
   ['E2E_A_PRICE_ALERT_ID', FIXTURES.priceAlertId],
   ['E2E_B_PRICE_ALERT_ID', FIXTURES.bPriceAlertId],
 ];
 
-const MISSING_FIXTURES = REQUIRED_FIXTURES.filter(([, v]) => !v).map(([n]) => n);
+const MISSING_ROW_IDS = ROW_ID_FIXTURES.filter(([, v]) => !v).map(([n]) => n);
 
-export const AUTH_READY = MISSING_FIXTURES.length === 0;
+export const ROW_IDS_READY = MISSING_ROW_IDS.length === 0;
 
-export const AUTH_SKIP_REASON =
-  `authenticated fixtures absent - MISSING: ${MISSING_FIXTURES.join(', ')}. ` +
-  'Set them in `.env.e2e.local` (gitignored) or as env vars. Note that CI supplies ' +
-  'E2E_A_PRICE_ALERT_ID and E2E_B_PRICE_ALERT_ID as GitHub VARIABLES rather than secrets - ' +
-  'they are row ids in the dev database, not credentials - so they are easy to miss when ' +
-  'copying a local file from the secret list. See the issue "QA unblocked: two seeded test ' +
-  'accounts".\n\n' +
-  'Skipping rather than passing: a BOLA test that runs without fixtures proves nothing. ' +
-  'But a skip is NOT a pass either - if you are seeing this, the authenticated surface ' +
-  'is being verified by nothing at all in this run.';
+export const ROW_IDS_SKIP_REASON =
+  `seeded row ids absent - MISSING: ${MISSING_ROW_IDS.join(', ')}. ` +
+  'These are row ids in the dev database, not credentials, and CI supplies them as GitHub ' +
+  'VARIABLES. See the issue "QA unblocked: two seeded test accounts".\n\n' +
+  'A BOLA/IDOR test that runs without them proves nothing - but a skip is not a pass, and ' +
+  'the object-level authorisation surface is then verified by nothing in this run.';
+
+/* ── A DELIBERATE DEPLOYED-SITE RUN MUST NOT SKIP SILENTLY. 2026-11-10, PM/DevOps's call ─────
+ *
+ * `test.skip()` exits 0. With the old blanket gate, one absent row id turned 46 specs into
+ * `46 skipped`, exit 0, and `AUTH_SKIP_REASON` visible only to someone reading the output - so any
+ * wrapper, dispatch or gate reading the exit code saw green from a run that asserted nothing. That
+ * is the third shape of the same failure found on 2026-11-10 alone, after #2080's `cancelled` steps
+ * and the mobile leg's `continue-on-error`: the reporting layer cannot see an absence.
+ *
+ * `E2E_BASE_URL` being set means someone pointed the suite at a deployed site ON PURPOSE. Silence
+ * is the wrong answer to that, so this throws at import and the run ends non-zero with the reason
+ * on stdout. Every spec importing this module fails to load, which cannot be read as a pass.
+ *
+ * Gated on the SIGN-IN values only. Throwing for a row id would re-create the coupling this change
+ * removes - one spec's missing precondition taking down 45 others. `bola.spec.ts` makes the same
+ * fail-not-skip decision locally, for itself.
+ *
+ * ── YES, IT ABORTS THE WHOLE RUN, AND THAT IS THE INTENT. Dev Team asked; here is the cost ──
+ *
+ * This throws at IMPORT, so every spec importing this module fails to load - including one that
+ * imports it for an unrelated export. A deployed run with no sign-in fixtures is a
+ * misconfiguration, not a reduced-coverage run, and stopping everything is the only way the exit
+ * code can say so: a per-file gate would let `test.skip()` swallow it and exit 0 again, which is
+ * the whole failure being removed. The guard has to fire BEFORE any skip can.
+ *
+ * MEASURED blast radius rather than asserted: of the 52 specs importing this module, **50 need a
+ * session and 2 do not** - `news-feed-fixture.spec.ts` and `payments-write-path.spec.ts`, which
+ * import `SUPABASE_URL` alone. And `SUPABASE_URL` is itself one of the six values whose absence
+ * fires this, so when it is the missing one those two could not have worked either way. They are
+ * genuine collateral only when the missing value is one of the four A/B credentials - two specs,
+ * in one configuration, against 46 specs that used to report green having asserted nothing.
+ *
+ * If you hit that case and want those two anyway: supply the four A/B values, or run them without
+ * `E2E_BASE_URL` (the local path is unchanged and still skips rather than throwing). */
+if (process.env.E2E_BASE_URL && !AUTH_READY) {
+  throw new Error(
+    'E2E_BASE_URL is set, so this run was pointed at a deployed site deliberately - '
+    + 'refusing to skip silently and exit 0.\n\n' + AUTH_SKIP_REASON,
+  );
+}
 
 /* #1348/#1347 item 1: a spec that fires real, billed xAI calls (QUICK/DEEP
  * against /api/grok) must not run as part of the ordinary suite - CI's
@@ -457,6 +527,41 @@ export async function signedInContext(
   // supabase-js v2 reads sb-<projectRef>-auth-token from localStorage.
   const projectRef = new URL(SUPABASE_URL).hostname.split('.')[0];
   const ctx = await browser.newContext({ viewport: opts.viewport ?? { width: 1440, height: 900 } });
+
+  /* ── THE FIXTURE EMAIL IS REDACTED IN EVERY SIGNED-IN CONTEXT (PM, 2026-11-12) ──────────────
+   *
+   * WHY HERE RATHER THAN IN THE CONFIG: `use.screenshot` accepts only `{ mode, fullPage,
+   * omitBackground }` - there is NO global `mask` for automatic failure screenshots, so the
+   * config cannot express this. Every context that can display an email is minted by this
+   * function, and a signed-out page has no email to show, so this is the one place that covers
+   * the whole suite without editing 46 specs.
+   *
+   * WHAT IS ACTUALLY EXPOSED, measured rather than assumed: the email reaches the screen in ONE
+   * element, `.tnav-drop-email`, and only while the account menu is open. `TerminalNav` also puts
+   * it in a `title` attribute, which renders as a browser tooltip and never appears in a
+   * screenshot, and in `initials`, which is one letter.
+   *
+   * A BLUR, NOT A COLOUR CHANGE OR A TEXT SUBSTITUTION. `filter` leaves the computed `color` and
+   * `background-color` untouched, so `contrast.spec.ts` keeps measuring the real values, and the
+   * DOM text is unchanged, so an assertion that reads this element still sees the address. Only
+   * the pixels are unreadable - which is the half that ends up in a public artifact.
+   *
+   * The repo is public (owner, 2026-11-10) and `qa/e2e-report/` is uploaded on failure, so a
+   * failing authenticated spec is the path that would otherwise publish it. */
+  await ctx.addInitScript(() => {
+    try {
+      const css = '.tnav-drop-email { filter: blur(6px) !important; }';
+      const apply = () => {
+        if (document.getElementById('qa-redact')) return;
+        const el = document.createElement('style');
+        el.id = 'qa-redact';
+        el.textContent = css;
+        (document.head ?? document.documentElement).appendChild(el);
+      };
+      if (document.head) apply();
+      else document.addEventListener('DOMContentLoaded', apply, { once: true });
+    } catch { /* a page that blocks inline styles is not worth failing a run over */ }
+  });
   /* THEME SEEDED BEFORE THE FIRST FRAME, not clicked after it. `app/layout.tsx` runs an inline script that reads
      localStorage before hydration and stamps `data-theme`, so seeding the key means the page never renders a frame of
      the theme we are not measuring - and there is no race with a toggle. Same approach as contrast.spec.ts. */

@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
+import { installSyntheticSocket } from './_fixtures';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
+import { chip } from './_shared';
 
 /* #1347 item 6 (#1362, fix by Dev Team) - the Strategy Panel's `entitled`
  * boolean (`entitlementStatus === 'entitled'`) fed the indicator limit, the
@@ -66,6 +68,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
     const ctx = await signedInContext(browser, 'a');
     await ctx.addInitScript(forceEntitlementsFail);
     const page = await ctx.newPage();
+    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
     await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
@@ -76,7 +79,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
         'the panel must show EntitlementUnknownCard while the plan cannot be verified - the Confluence card being correct is not enough, ' +
         'the panel is where the defect lived').toBeVisible({ timeout: 15_000 });
 
-      await expect(panel.locator('button.strat-chip'),
+      await expect(panel.locator('button.strat-ind-chip'),
         'the indicator chip grid must not render while the plan is unknown - a Pro account capped at one chip is the fail-closed ' +
         'direction #1119 forbids').toHaveCount(0);
       await expect(panel.locator('select.strat-sel'),
@@ -97,6 +100,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
     const ctx = await signedInContext(browser, 'a');
     await ctx.addInitScript(forceEntitlementsFail);
     const page = await ctx.newPage();
+    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
     await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
@@ -122,7 +126,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
       await expect(page.locator(UNKNOWN_CARD),
         'clicking the PANEL\'s Try again left an unknown card on the page - the panel is not calling the shared retryEntitlements ' +
         '(a second implementation of the same pattern is exactly what this PR says it did not add)').toHaveCount(0, { timeout: 15_000 });
-      await expect(panel.locator('button.strat-chip').first(),
+      await expect(panel.locator('button.strat-ind-chip').first(),
         'once the plan is confirmed the chip grid must come back').toBeVisible({ timeout: 15_000 });
     } finally {
       await ctx.close();
@@ -132,12 +136,13 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
   test('CONTROL: a confirmed-FREE account (B) still sees the ordinary chip grid, not the unknown card', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'b');
     const page = await ctx.newPage();
+    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
     await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
       const panel = page.locator(PANEL);
       await expect(panel).toBeVisible({ timeout: 15_000 });
-      await expect(panel.locator('button.strat-chip').first(),
+      await expect(panel.locator('button.strat-ind-chip').first(),
         'a confirmed-free account must still get the chip grid (limit 1) - the fix must not have turned not_entitled into unknown').toBeVisible({ timeout: 15_000 });
       await expect(panel.locator(UNKNOWN_CARD), 'a confirmed-free account must not be shown the couldn\'t-verify card').toHaveCount(0);
     } finally {
@@ -148,12 +153,13 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
   test('CONTROL: a confirmed-PRO account (A) is unaffected', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
     await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     try {
       await gotoSignedIn(page, '/arena');
       const panel = page.locator(PANEL);
       await expect(panel).toBeVisible({ timeout: 15_000 });
-      await expect(panel.locator('button.strat-chip').first(), 'a confirmed-Pro account must get the chip grid').toBeVisible({ timeout: 15_000 });
+      await expect(panel.locator('button.strat-ind-chip').first(), 'a confirmed-Pro account must get the chip grid').toBeVisible({ timeout: 15_000 });
       await expect(panel.locator(UNKNOWN_CARD), 'a confirmed-Pro account must not be shown the couldn\'t-verify card').toHaveCount(0);
     } finally {
       await ctx.close();
@@ -185,6 +191,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
   test('MEASUREMENT: what a Pro account\'s panel shows while the entitlements read is still in flight', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
+    await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
     await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     const held: Array<import('@playwright/test').Route> = [];
     try {
@@ -200,7 +207,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
         timeout: 15_000,
       }).toBeGreaterThan(0);
 
-      const chipCount = await panel.locator('button.strat-chip').count();
+      const chipCount = await panel.locator('button.strat-ind-chip').count();
       const unknownCard = await panel.locator(UNKNOWN_CARD).count();
       await panel.locator('select.strat-sel').selectOption('custom').catch(() => {});
 
@@ -209,20 +216,25 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
       // limit of one (the second chip gets `blocked` and a "Deselect one first"
       // note) and read-only params. The first chip in the grid has no params
       // box, which is why an earlier version of this test observed neither.
-      const sma = panel.locator('button.strat-chip', { hasText: 'SMA' }).first();
-      const rsi = panel.locator('button.strat-chip', { hasText: 'RSI' }).first();
+      const sma = chip(panel, 'SMA').first();
+      const rsi = chip(panel, 'MACD').first();
       let params = 'SMA chip not reachable';
       let limit = 'not observed';
       if (await sma.isVisible().catch(() => false)) {
-        await sma.click();
+        /* EVERY ACTION HERE IS TIME-BOUNDED. Playwright's actionTimeout is 0 (unlimited) on a local
+           build - only a remote run gets 30s - so a chip that is visible but never actionable (a
+           disabled or `blocked` chip while the plan is unresolved is exactly this measurement's
+           subject) waited out the whole 240s test timeout instead of being recorded. This test
+           observes; a chip that cannot be clicked is an observation, not a hang. */
+        await sma.click({ timeout: 10_000 }).catch(() => { params = 'SMA chip visible but not clickable'; });
         const input = panel.locator('.strat-params input').first();
         params = await input.isVisible().catch(() => false)
-          ? ((await input.isDisabled()) ? 'params inputs DISABLED (read-only)' : 'params inputs enabled')
+          ? ((await input.isDisabled({ timeout: 3_000 })) ? 'params inputs DISABLED (read-only)' : 'params inputs enabled')
           : 'no params box for SMA';
-        const rsiBlocked = ((await rsi.getAttribute('class')) ?? '').includes('blocked');
-        const limitNote = (await panel.locator('.strat-limit').innerText().catch(() => '')).trim();
-        await rsi.click().catch(() => {});
-        const rsiPressed = await rsi.getAttribute('aria-pressed');
+        const rsiBlocked = ((await rsi.getAttribute('class', { timeout: 3_000 }).catch(() => null)) ?? '').includes('blocked');
+        const limitNote = (await panel.locator('.strat-limit').innerText({ timeout: 3_000 }).catch(() => '')).trim();
+        await rsi.click({ timeout: 5_000 }).catch(() => { /* blocked/disabled while in flight - recorded via the class and pressed state below */ });
+        const rsiPressed = await rsi.getAttribute('aria-pressed', { timeout: 3_000 }).catch(() => 'n/a');
         limit = `second chip (RSI) blocked class: ${rsiBlocked} | limit note: ${limitNote ? `"${limitNote}"` : 'none'} | RSI pressed after click: ${rsiPressed}`;
       }
       const freeNote = await panel.getByText(/Defaults on free/i).count();

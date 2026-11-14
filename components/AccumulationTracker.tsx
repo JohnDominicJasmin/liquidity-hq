@@ -1,6 +1,7 @@
 'use client';
 import { useMemo } from 'react';
 import { useMarket, COINS, CoinId, CoinData, fmtPrice, COIN_DEC } from '@/lib/marketStore';
+import { SkeletonBar } from './Skeleton';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
 
@@ -140,7 +141,20 @@ export default function AccumulationTracker() {
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ACCUMULATION_TRACKER_SUBTITLE')}</span>
       </div>
 
-      {rows.length === 0 ? (
+      {/* "Nothing found" only once something has arrived (#1185) - a cold store used to state a
+          result it had not computed. A FAILED read still looks like a cold one, because
+          the store now carries `pricesFailed` (#1263), so all three cases are distinguishable: this separates "no data yet"
+          from "data arrived and found nothing", which is the reachable half. */}
+      {rows.length === 0 && !COINS.some(id => store.coins[id]?.price != null) ? (
+        store.pricesFailed ? (
+          /* FAILED, not slow. Same absence of prices either way, so the flag is the only thing
+             that can tell them apart - without it this branch showed a loading skeleton for as
+             long as the feed stayed down. */
+          <div className="empty-state"><div className="empty-state-sub">{t('MARKET_FEED_FAILED')}</div></div>
+        ) : (
+          <div className="empty-state"><SkeletonBar width={180} height={13} style={{ margin: '0 auto' }} /></div>
+        )
+      ) : rows.length === 0 ? (
         /* minHeight holds the space the rows will occupy.
 
            Without it this card was 72px while prices were still arriving and

@@ -1,3 +1,4 @@
+import { writeAdminAudit } from '@/lib/adminAudit';
 import { NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { withOwner } from '@/lib/admin-auth';
@@ -26,17 +27,13 @@ export const PATCH = withOwner<[Ctx]>(async (req, { user }, { params }) => {
   }
 
   const admin = getSupabaseAdmin();
+  const { data: prev } = await admin.from(T.admin_users).select('role, active').eq('user_id', id).maybeSingle();
   const { error } = await admin.from(T.admin_users).update(patch).eq('user_id', id);
   if (error) return apiError('ops/team/[id]', error);
 
-  await admin.from(T.admin_audit_log).insert({
-    actor_email: user.email,
-    action: 'admin_update',
-    target_user_id: id,
-    detail: patch,
-  });
+  const logged = await writeAdminAudit(admin, { actor_email: user.email, action: 'admin_update', target_user_id: id, detail: { ...patch, previous: prev ?? null } });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, auditLogged: logged });
 });
 
 // DELETE /api/ops/team/[id] - revoke admin access (owner-only). Removes the
@@ -49,15 +46,11 @@ export const DELETE = withOwner<[Ctx]>(async (_req, { user }, { params }) => {
   }
 
   const admin = getSupabaseAdmin();
+  const { data: prev } = await admin.from(T.admin_users).select('role, active').eq('user_id', id).maybeSingle();
   const { error } = await admin.from(T.admin_users).delete().eq('user_id', id);
   if (error) return apiError('ops/team/[id]', error);
 
-  await admin.from(T.admin_audit_log).insert({
-    actor_email: user.email,
-    action: 'admin_remove',
-    target_user_id: id,
-    detail: {},
-  });
+  const logged = await writeAdminAudit(admin, { actor_email: user.email, action: 'admin_remove', target_user_id: id, detail: { previous: prev ?? null } });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, auditLogged: logged });
 });
