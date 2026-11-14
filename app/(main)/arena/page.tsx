@@ -2695,13 +2695,6 @@ function ArenaContent() {
         </div>
       )}
 
-      {/* ── Auth / upgrade notice ── */}
-      {!user && !authLoading && (
-        <div className="usage-auth-notice">
-          {t('ARENA_AUTH_NOTICE')}{' '}
-          <Link href="/login" className="usage-auth-link">{t('ARENA_AUTH_SIGN_IN_LINK')}</Link>
-        </div>
-      )}
       {/* Free-tier usage now shown live by the UsageMeter under the buttons
           (remaining Quick/Deep + reset + Upgrade), so the old static "7 Quick +
           5 Deep / day" notice was a redundant second Upgrade prompt - removed. */}
@@ -2963,6 +2956,15 @@ function ArenaContent() {
       )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
       <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
+      {/* ── Auth / upgrade notice ── BELOW THE CHART (arena layout shift, #1263). It exists only for a signed-out visitor and appears when auth resolves, about half a
+          second after first paint. Above the chart it pushed the whole chart workspace down 54 px (QA's element measurement: CLS 0.041 on a CI build, 0.196 on the real network). Down here it can
+          only push what is under the chart. */}
+      {!user && !authLoading && (
+        <div className="usage-auth-notice">
+          {t('ARENA_AUTH_NOTICE')}{' '}
+          <Link href="/login" className="usage-auth-link">{t('ARENA_AUTH_SIGN_IN_LINK')}</Link>
+        </div>
+      )}
       {/* Directly under the chart, on the owner's request (#370). The read
           refers to what the chart shows - "price below EMAs", "closing below
           the swing low", "lower wick at Fib support" - so anything between
