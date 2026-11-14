@@ -201,8 +201,8 @@ export const CHANGELOG: ChangelogEntry[] = [
        to a reader: the feature is offered on more timeframes, each line it draws is now labelled,
        and a Free account can see it exists. Splitting them would describe our PRs rather than their
        experience. */
-    date: '2026-11-13',
-    tag: 'v2026.11.13',
+    date: '2026-11-15',
+    tag: 'v2026.11.14',
     items: [
       'The chart, the scanner and open interest in AI Arena now work for every coin it offers, not just the main list: pick something like XMR, CYBER or XAUT and the chart draws candles, the scanner shows a signal and a score, and open interest shows a figure - where before the chart sat on "Loading" and the signal columns read "n/a".',
       'The Arena chart loads older candles as you scroll left, instead of stopping at the batch it opened with.',
