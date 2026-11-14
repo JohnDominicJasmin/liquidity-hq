@@ -38,7 +38,7 @@ for (const width of [768, 1024, 1100, 1160]) for (const th of ['dark', 'light'] 
           docSw: document.documentElement.scrollWidth, vw,
           panel: pr ? { l: Math.round(pr.left), r: Math.round(pr.right), w: Math.round(pr.width) } : null,
           stopRight: stop ? Math.round(stop.getBoundingClientRect().right) : null, tgtRight: tgt ? Math.round(tgt.getBoundingClientRect().right) : null,
-          ctas: cta.map(c => { const r = c.getBoundingClientRect(); const lh = parseFloat(getComputedStyle(c).lineHeight) || parseFloat(getComputedStyle(c).fontSize) * 1.3; return { t: (c.textContent || '').trim().slice(0, 24), h: Math.round(r.height), lines: Math.round((r.height - 2 * (parseFloat(getComputedStyle(c).paddingTop) || 0)) / lh * 10) / 10 }; }),
+          ctas: cta.map(c => { const r = c.getBoundingClientRect(); const rg = document.createRange(); rg.selectNodeContents(c); const tops = new Set(Array.from(rg.getClientRects()).filter(x => x.width > 0).map(x => Math.round(x.top / 4))); return { t: (c.textContent || '').trim().slice(0, 24), h: Math.round(r.height), lines: tops.size }; }),
         };
       });
       console.log(`[H1] ${width} ${th} ${JSON.stringify(m)}`);
@@ -49,7 +49,7 @@ for (const width of [768, 1024, 1100, 1160]) for (const th of ['dark', 'light'] 
       expect(m.stopRight, 'STOP column not found').not.toBeNull(); expect(m.stopRight!).toBeLessThanOrEqual(m.vw);
       expect(m.tgtRight, 'TARGET column not found').not.toBeNull(); expect(m.tgtRight!).toBeLessThanOrEqual(m.vw);
       expect(m.ctas.length, 'the two hero CTAs were not found').toBeGreaterThanOrEqual(2);
-      for (const c of m.ctas) expect(c.lines, `CTA "${c.t}" wraps onto ${c.lines} lines`).toBeLessThanOrEqual(1.6);
+      for (const c of m.ctas) expect(c.lines, `CTA "${c.t}" wraps onto ${c.lines} lines`).toBeLessThanOrEqual(1);
     } finally { await ctx.close(); }
   });
 }
@@ -91,7 +91,8 @@ test('P1. /upgrade as the Pro fixture never shows a checkout button while the pl
   try {
     await gotoSignedIn(page, '/upgrade'); await page.waitForTimeout(8_000);
     const r = await page.evaluate(() => ({ seen: (window as unknown as { __co?: string[] }).__co || [], text: document.body.innerText }));
-    console.log(`[P1] checkout-like buttons ever visible: ${JSON.stringify(r.seen)}; current-plan shown=${/current plan/i.test(r.text)}`);
+    console.log(`[P1] checkout-like buttons ever visible: ${JSON.stringify(r.seen)}; current-plan shown=${/current plan/i.test(r.text)}; url=${page.url().replace(/\?.*/, '')}; planBadge=${(r.text.match(/(PRO|FREE|TRIAL)/) || [''])[0]}; text=${r.text.replace(/\s+/g, ' ').slice(0, 500)}`);
+    await page.screenshot({ path: 'qa/.shots/upgrade-pro-fixture.png' });
     expect(r.text.length, '/upgrade did not render for the Pro fixture').toBeGreaterThan(300);
     expect(/current plan/i.test(r.text), 'the Pro fixture must see "Current plan" once loaded (positive control)').toBe(true);
     expect(r.seen, `checkout buttons were shown to a Pro account: ${JSON.stringify(r.seen)}`).toEqual([]);
