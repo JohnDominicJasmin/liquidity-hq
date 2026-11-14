@@ -75,6 +75,15 @@ export function installFakeFetch(w) {
       if (/bybit/.test(u.host)) return json({ retCode: 0, result: { category: 'linear', list: syms.map(s => ({ symbol: s, lastPrice: String(w.prices[s]), price24hPcnt: '0.01', volume24h: '1000', turnover24h: '1000000' })) } });
       return json(syms.map(s => ({ symbol: s, lastPrice: String(w.prices[s]), priceChangePercent: '1.0', volume: '1000', quoteVolume: '1000000' })));
     }
+    if (u.host === 'fapi.binance.com' && u.pathname === '/fapi/v1/klines') {          // Binance perp klines: what the strategy and ribbon readers use first
+      const sym = u.searchParams.get('symbol'); const iv = u.searchParams.get('interval'); const limit = Math.min(Number(u.searchParams.get('limit') ?? 300), 1000);
+      const ms = ({ '1m': 60_000, '5m': 300_000, '15m': 900_000, '30m': 1_800_000, '1h': 3_600_000, '2h': 7_200_000, '4h': 14_400_000, '1d': 86_400_000 })[iv] ?? 3_600_000;
+      const series = (w.ohlc && w.ohlc[`${sym}:${iv}`]) || null;                         // oldest -> newest, the last one is the FORMING candle
+      const start = Math.floor((w.anchor ?? Date.now()) / ms) * ms; const out = [];
+      const n = series ? series.length : Math.min(limit, 300);
+      for (let i = 0; i < n; i++) { const c = series ? series[i] : { o: 100, h: 100.5, l: 99.5, c: 100, v: 100 }; out.push([start - (n - 1 - i) * ms, String(c.o), String(c.h), String(c.l), String(c.c), String(c.v ?? 100), start - (n - 1 - i) * ms + ms - 1, '0', 0, '0', '0', '0']); }
+      return json(out);
+    }
     if (/bybit/.test(u.host) && u.pathname === '/v5/market/kline' && w.noKlines) return json({ retCode: 0, result: { list: [] } });   // a market with no candles: only price alerts can fire
     if (/bybit/.test(u.host) && u.pathname === '/v5/market/kline') {
       const sym = u.searchParams.get('symbol'); const iv = u.searchParams.get('interval'); const limit = Math.min(Number(u.searchParams.get('limit') ?? 200), 1000);
@@ -92,14 +101,14 @@ export function installFakeFetch(w) {
   };
 }
 
-export async function loadRoute() {
+export async function loadRoute(relPath = 'app/api/telegram/alert/route.ts') {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://stub.supabase.test';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'stub-service-key';
   process.env.TELEGRAM_BOT_TOKEN = '123:harness-fake-token';
   process.env.CRON_SECRET = 'harness-fake-secret';
   process.env.NEXT_PUBLIC_APP_ENV = 'prod';        // table names lhq_*, the same names the fake world serves
   const jiti = createJiti(import.meta.url, { alias: { '@': root }, interopDefault: true, moduleCache: false });
-  const mod = await jiti.import(path.join(root, 'app/api/telegram/alert/route.ts'));
+  const mod = await jiti.import(path.join(root, relPath));
   const { NextRequest } = await import('next/server.js');
   return {
     run: async (secret = 'harness-fake-secret') => {

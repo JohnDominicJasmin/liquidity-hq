@@ -7,6 +7,7 @@ export interface World {
   prices: Record<string, number>;
   series?: Record<string, number[]>;
   noKlines?: boolean;
+  ohlc?: Record<string, Array<{ o: number; h: number; l: number; c: number; v?: number }>>;
   anchor?: number;
   rpcs?: Array<{ name: string; args: any }>;
   writes: WorldWrite[];
@@ -15,4 +16,4 @@ export interface World {
 }
 export function makeWorld(over?: { tables?: Record<string, any[]>; [k: string]: any }): World;
 export function installFakeFetch(w: World): void;
-export function loadRoute(): Promise<{ run: (secret?: string) => Promise<{ status: number; body: any }> }>;
+export function loadRoute(relPath?: string): Promise<{ run: (secret?: string) => Promise<{ status: number; body: any }> }>;
