@@ -312,7 +312,26 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Best Hours now shows 24-hour times and weekday names in your own language in Korean, Chinese and Russian, and its time ranges and chart axis fit on a phone.',
       'The selected coin in the Arena coin list is now marked with a bar as well as a colour.',
       'On desktop the collapsed Setup button now sits beside the Ask AI button instead of over the page.',
-      'Prices of Hong Kong stocks now show HK$ on the coin page, including the VWAP card and the EMA entry line.',
+      /* ADDED FOR THE 2026-11-14 PROMOTION (PM). Same rule as above: each line names a surface a reader looks at and a difference they can see on it, and IF ANY OF THESE PRS
+         DOES NOT REACH THE RELEASE ITS LINE COMES OUT HERE. The DATE of this entry is a placeholder PM sets on release day.
+           seven Arena strategies                                  #2307 #2308 #2311 #2313 #2314 #2315 #2316
+           sound alerts on the Arena                               #2304 (needs its labels applied; the prompt and the Settings row read them)
+           "Signals, not predictions" on Alerts and Telegram        #2299 (the Alerts page line needs its label row; the Telegram footer is in the code)
+           AI chat answers show links and formatting safely         #2326
+           Privacy page: deletion on request                        #2323 (needs its label row)
+           small links and buttons easier to tap                    #2309
+           the upgrade page no longer flashes for Pro accounts      #2305
+           landing hero stays in one column up to wider screens     #2303
+         LEFT OUT ON PURPOSE, each because a visitor cannot see it: the alert outcome logging, the request-size and input checks, the admin and
+         honeypot changes, the rate limiter, the push and subscription handling, the error-report filtering, and the Telegram send route. */
+      'AI Arena has seven strategies to choose from in a new Strategy card: Liquidity sweep and structure shift, New York open breakout, EMA 20/50/100/200 stack (it enters on the pullback), Supply and demand zone retest (with a BTC check on other coins), Bollinger squeeze breakout, VWAP reclaim and RSI divergence. Each reads Buy, Sell or Wait from closed candles only, says why in plain words, and says it is a signal, not a prediction. Your choice is saved with your account.',
+      'AI Arena can now play a short sound when the strategy signal for your coin and timeframe turns to buy or sell, and once per candle on an unusually big, high-volume move. It asks you first, and you can switch it off any time in Settings.',
+      'The Alerts page and every Telegram signal alert now say plainly: signals, not predictions, and that past alerts moved the alert\'s way about half the time at 24 hours.',
+      'Links and formatting in AI chat answers are now handled more carefully, so a link in an answer only opens if it is a normal web address.',
+      'The Privacy page now says your personal data is removed within 30 days when you ask us to delete your account, instead of describing a delete button that does not exist.',
+      'More small links and buttons are easier to tap on phones: coin names on the Markets page, the support email address, and the About link at the bottom of the Disclaimer.',
+      'If you are on Pro, the upgrade page no longer shows an "Upgrade to Pro" button for a moment before sending you on.',
+      'On laptop-width screens the landing page keeps its one-column layout until the screen is wide enough for the live read panel to fit beside the text.',
     ],
   },
   {
