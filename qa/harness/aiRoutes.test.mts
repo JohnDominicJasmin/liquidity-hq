@@ -35,3 +35,26 @@ for (const r of ROUTES) {
     const out = await call(r.path, body); assert.equal(out.status, 400, `status ${out.status}`); assert.equal(out.increments, 0, `the account was charged ${out.increments} use(s) for a request that was refused`); assert.equal(out.xai, 0, 'xAI was called for a refused request');
   });
 }
+
+/* #2344 (G7): the body size caps on the three paid AI routes. An over-cap body is answered 413 BEFORE the usage counter is charged and before any xAI call; a body of exactly the cap is not refused for size. */
+const CAP = { 'thesis-check': 65_536, 'strategy-research': 32_768, 'pine-script': 131_072 } as const;
+const sized = (bytes: number) => { const head = '{"description":"', tail = '"}'; return head + 'a'.repeat(bytes - head.length - tail.length) + tail; };
+const callRaw = async (routePath: string, body: BodyInit | null, extra: Record<string, string> = {}, stream = false) => {
+  const mod = await jiti.import(path.join(root, routePath)); hh().increments.length = 0; hh().xai = 0;
+  const init: Record<string, unknown> = { method: 'POST', body, headers: { 'content-type': 'application/json', Authorization: 'Bearer t', ...extra } }; if (stream) init.duplex = 'half';
+  const res = await (mod as { POST: (r: NextRequest) => Promise<Response> }).POST(new NextRequest('http://localhost/api/x', init as never));
+  return { status: res.status, increments: hh().increments.length, xai: hh().xai };
+};
+const streamOf = (text: string) => { const enc = new TextEncoder().encode(text); let i = 0; return new ReadableStream({ pull(c) { if (i >= enc.length) return c.close(); c.enqueue(enc.slice(i, i + 1024)); i += 1024; } }); };
+for (const r of ROUTES) {
+  const cap = CAP[r.name];
+  test(`${r.name}: a body over ${cap} bytes (declared) is 413 and the usage counter and xAI are UNTOUCHED`, async () => {
+    const out = await callRaw(r.path, '{"a":1}', { 'content-length': String(cap + 1) }); assert.equal(out.status, 413); assert.equal(out.increments, 0); assert.equal(out.xai, 0);
+  });
+  test(`${r.name}: a body over ${cap} bytes STREAMED with no content-length is 413 and nothing is charged`, async () => {
+    const out = await callRaw(r.path, streamOf(sized(cap + 1)), {}, true); assert.equal(out.status, 413, `status ${out.status}`); assert.equal(out.increments, 0); assert.equal(out.xai, 0);
+  });
+  test(`${r.name}: a body of exactly ${cap} bytes is not refused for size (it reaches the route's own validation)`, async () => {
+    const out = await callRaw(r.path, sized(cap)); assert.notEqual(out.status, 413);
+  });
+}

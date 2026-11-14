@@ -23,7 +23,10 @@ test('V3. price-alerts POST and PATCH: direction is above|below, the price a fin
   const s = route('price-alerts');
   assert.equal((s.match(/direction !== 'above' && (body\.)?direction !== 'below'|direction !== 'above' && direction !== 'below'/g) || []).length, 2, 'direction enum in both POST and PATCH');
   assert.equal((s.match(/!Number\.isFinite\((targetNum|n)\) \|\| (targetNum|n) <= 0/g) || []).length, 2, 'finite positive price in both');
-  assert.equal((s.match(/req\.json\(\)\.catch\(\(\) => null\)/g) || []).length, 2, 'a non-JSON body is caught in both');
+  /* #2344: the body is read through readJsonCapped (a size cap, 413 over it); a non-JSON body still comes back as value null and is the same 400. */
+  assert.equal((s.match(/readJsonCapped\(req, BODY_CAPS\.priceAlerts\)/g) || []).length, 2, 'the body is read through the capped reader in both POST and PATCH');
+  assert.equal((s.match(/Send a JSON body\./g) || []).length, 2, 'a non-JSON body is a 400 in both');
+  assert.equal((s.match(/req\.json\(\)/g) || []).length, 0, 'no uncapped read is left');
   assert.ok((s.match(/status: 400/g) || []).length >= 6, 'each refusal is a 400');
   assert.match(s, /target_price: targetNum/, 'the validated number is what is inserted, not parseFloat of the raw value');
   assert.doesNotMatch(s, /target_price: parseFloat\(target_price\)/);
