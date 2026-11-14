@@ -35,29 +35,21 @@ export default function StrategyCallBox({ def, state }: Props) {
     else if (r.verdict === 'sell') reason = t(def.reasonSellKey, priceParams);
     else reason = t(def.reasonWaitKey);
   }
+  /* FLAT, ANSWER FIRST (owner, 2026-11-15, PM distill pass): no card inside the panel's card and no name heading (the dropdown above already shows it). Order: the call (verdict, reason, invalidation) in the
+     reserved .strat-call-dyn block, then the one-line description with its Expand / Collapse link, then "Signals, not predictions" directly after it. Spare reserved height falls at the bottom of the call block. */
   return (
-    <div
-      data-testid="strategy-call-box"
-      data-strategy={def.id}
-      aria-live="polite"
-      style={{ marginTop: 10, padding: '10px 12px', border: '0.5px solid var(--bdr)', borderRadius: 8, background: 'var(--bg2)', display: 'flex', flexDirection: 'column', gap: 6 }}
-    >
-      <div data-testid="strategy-call-name" style={{ fontWeight: 700 }}>{t(def.nameKey)}</div>
-      <div style={{ display: 'flex', alignItems: open ? 'flex-start' : 'baseline', gap: 8 }}>
-        <p data-testid="strategy-call-desc" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)', flex: '1 1 auto', minWidth: 0, ...(open ? {} : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }) }}>{t(def.descKey)}</p>
-        <button type="button" data-testid="strategy-call-desc-toggle" aria-expanded={open} onClick={() => setOpenFor(open ? null : def.id)} style={{ flex: '0 0 auto', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)', fontSize: 'var(--fs-caption)', fontWeight: 600 }}>{open ? t('CHAT_COLLAPSE') : t('CHAT_EXPAND')}</button>
-      </div>
+    <div data-testid="strategy-call-box" data-strategy={def.id} aria-live="polite" style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div className="strat-call-dyn" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {state.error ? (
-        <div data-testid="strategy-call-unavailable" style={{ color: 'var(--amber)' }}>{t('STRAT_UNAVAILABLE')}</div>
+        <div data-testid="strategy-call-unavailable" style={{ color: 'var(--amber)', fontSize: 'var(--fs-caption)' }}>{t('STRAT_UNAVAILABLE')}</div>
       ) : !r ? (
-        <div data-testid="strategy-call-loading" style={{ color: 'var(--txt2)' }}>{t('STRAT_LOADING')}</div>
+        <div data-testid="strategy-call-loading" style={{ color: 'var(--txt2)', fontSize: 'var(--fs-caption)' }}>{t('STRAT_LOADING')}</div>
       ) : (
         <>
-          <div data-testid="strategy-call-verdict" data-verdict={r.verdict} style={{ fontWeight: 700, color: colour }}>
+          <div data-testid="strategy-call-verdict" data-verdict={r.verdict} style={{ fontSize: 'var(--fs-label)', fontWeight: 700, letterSpacing: '0.04em', color: colour }}>
             {t(r.verdict === 'buy' ? 'STRAT_VERDICT_BUY' : r.verdict === 'sell' ? 'STRAT_VERDICT_SELL' : 'STRAT_VERDICT_WAIT')}
           </div>
-          <p data-testid="strategy-call-reason" style={{ margin: 0, fontSize: 'var(--fs-label)' }}>{reason}</p>
+          <p data-testid="strategy-call-reason" style={{ margin: 0, fontSize: 'var(--fs-body)', color: 'var(--txt)', lineHeight: 1.45 }}>{reason}</p>
           {r.verdict !== 'wait' && typeof r.params.inv === 'number' && (
             <p data-testid="strategy-call-invalidation" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('STRAT_INVALIDATION', { price: priceText(r.params.inv) })}</p>
           )}
@@ -66,9 +58,12 @@ export default function StrategyCallBox({ def, state }: Props) {
           )}
         </>
       )}
-      {/* The note sits INSIDE the reserved area, directly under the call, so spare reserved height is at the bottom of the box, never between (owner, 2026-11-15). */}
-      <p data-testid="strategy-call-note" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('STRAT_NOT_PREDICTIONS')}</p>
       </div>
+      <div style={{ display: 'flex', alignItems: open ? 'flex-start' : 'baseline', gap: 8 }}>
+        <p data-testid="strategy-call-desc" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)', flex: '1 1 auto', minWidth: 0, ...(open ? {} : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }) }}>{t(def.descKey)}</p>
+        <button type="button" data-testid="strategy-call-desc-toggle" aria-expanded={open} onClick={() => setOpenFor(open ? null : def.id)} style={{ flex: '0 0 auto', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)', fontSize: 'var(--fs-caption)', fontWeight: 600 }}>{open ? t('CHAT_COLLAPSE') : t('CHAT_EXPAND')}</button>
+      </div>
+      <p data-testid="strategy-call-note" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('STRAT_NOT_PREDICTIONS')}</p>
     </div>
   );
 }
