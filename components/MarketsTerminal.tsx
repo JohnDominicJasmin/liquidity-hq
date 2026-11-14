@@ -323,7 +323,7 @@ export default function MarketsTerminal() {
               </div>
 
               {/* Signal */}
-              <div className="mkt-signal" style={{
+              <div className="mkt-signal" title={sig.key ? t(sig.key) : undefined} style={{
                 paddingLeft: 12, fontSize: 'var(--fs-caption)',
                 color: sig.col === 'var(--txt-dim)' ? 'var(--txt3)' : sig.col,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
