@@ -132,7 +132,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'AI Arena is temporarily unavailable.', code: 'FEATURE_DISABLED' }, { status: 503 });
   }
 
-  const body = await req.json() as Record<string, unknown>;
+  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
+  if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_INPUT', message: 'Send a JSON body.' }, { status: 400 });
 
   /* ── THE REQUEST CARRIES DATA, NOT A PROMPT (#1631 item 5) ────────────────
    *

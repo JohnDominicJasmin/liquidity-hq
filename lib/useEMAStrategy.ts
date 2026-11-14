@@ -206,7 +206,7 @@ async function fetchBybitKlines(sym: string, interval: string, limit: number): P
   }));
 }
 
-async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval: string, limit: number): Promise<OHLCV[]> {
+export async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval: string, limit: number): Promise<OHLCV[]> {
   /* venueSymbols, not the editorial maps: the Arena scanner scores the whole universe (#1263). */
   const { binance: bnSym, bybit: bySym } = venueSymbols(coin);
   /* #1059: Bybit primary, Binance fallback - reversed from Binance-primary.
@@ -283,11 +283,11 @@ const klineCache = new Map<string, KlineCacheEntry>();
    periods old, and on a 1d chart it refetched 96 times to observe one change. */
 
 /* ── TF → exchange interval strings ─────────────────────────────────────── */
-const TF_BN: Record<string, string> = {
+export const TF_BN: Record<string, string> = {
   '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m',
   '1h': '1h', '2h': '2h', '4h': '4h', '1d': '1d',
 };
-const TF_BY: Record<string, string> = {
+export const TF_BY: Record<string, string> = {
   '1m': '1', '5m': '5', '15m': '15', '30m': '30',
   '1h': '60', '2h': '120', '4h': '240', '1d': 'D',
 };
