@@ -126,6 +126,8 @@ const nextConfig: NextConfig = {
    * flag is what turns that into a build failure instead of a silent downgrade. */
   experimental: {
     globalNotFound: true,
+    /* NO TURBOPACK BUILD CACHE (#1185, QA + Render build log, 2026-11-14). Next 16.4.1 saves and restores Turbopack's work in .next/cache/turbopack by default, and Render restores .next/cache between builds. liquidity-hq-qa deployed 09a4a3b with "Compiled successfully in 5.1s" (a warm compile; a cold one is ~26s) and served a stylesheet that lacked the newest CSS (#2287), while /api/version, the build id and the HTML were new. A clear-cache redeploy ("No build cache found", cold compile) fixed it. Cost of turning the cache off: about 5-20s per build. Not worth shipping stale CSS to production; production builds the same way. Node modules caching is unaffected. */
+    turbopackFileSystemCacheForBuild: false,
   },
 
   // Remove X-Powered-By: Next.js header (don't leak stack info)
