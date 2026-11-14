@@ -41,7 +41,9 @@ for (const loc of ['en', 'ru']) for (const width of [390, 1280]) for (const th o
       expect(land.para && land.para.length > 60, `the AI Analysis row has no paragraph: ${land.para}`).toBe(true);
       expect(land.right!, 'the paragraph runs past the viewport').toBeLessThanOrEqual(land.vw + 1);
       expect(land.docSw, 'page scrolls sideways').toBeLessThanOrEqual(land.vw);
-      const dPage = await ctx.newPage(); await gotoGuarded(dPage, '/disclaimer');   // there is no localized disclaimer route: locale landings link /disclaimer (English legal text by design) await dPage.waitForFunction(() => document.body.innerText.length > 800, null, { timeout: 25_000 }).catch(() => { /* judged below */ });
+      const dPage = await ctx.newPage(); await gotoGuarded(dPage, '/disclaimer');
+      /* there is no localized disclaimer route: locale landings link /disclaimer (English legal text by design) */
+      await dPage.waitForFunction(() => document.body.innerText.length > 800, null, { timeout: 25_000 }).catch(() => { /* judged below */ });
       const dtext = norm(await dPage.evaluate(() => document.body.innerText));
       expect(dtext.length, '/disclaimer did not render').toBeGreaterThan(500);
       expect(dtext.includes(norm(land.para!)) || norm(land.para!).split(/(?<=[.!?。])\s+/).filter(s => s.length > 25).every(s => dtext.includes(norm(s))),
