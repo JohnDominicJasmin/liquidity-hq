@@ -13,7 +13,6 @@ import { detectPatternsStr, Candle } from '@/lib/patterns';
 import { getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
 import { getAuthToken } from '@/lib/supabase';
-import { sendTelegramAlert } from '@/lib/sendTelegramAlert';
 import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
@@ -1779,30 +1778,6 @@ function ArenaContent() {
       const { result: res, usage } = await callGrokViaProxy(ctx, chartData, mode, selection);
       if (usage) setGrokUsage(usage);
       track.arenaAnalysis(mode, selectedCoin);
-
-      // ── Liquidity Raid → Telegram alert (1h cooldown per coin + setup type) ──
-      if (res.raidSetup) {
-        try {
-          const raidKey  = `raid-tg-${selectedCoin}-${res.raidSetup}`;
-          const lastSent = Number(localStorage.getItem(raidKey) ?? 0);
-          if (Date.now() - lastSent > 60 * 60 * 1000) {
-            localStorage.setItem(raidKey, String(Date.now()));
-            const sym  = selectedCoin.toUpperCase();
-            const lines: string[] = [
-              '<b>LIQUIDITY RAID DETECTED</b>',
-              `<b>${res.raidSetup} - ${sym}/USDT</b>`,
-              '',
-            ];
-            if (res.raidTarget)  lines.push(`Target: ${res.raidTarget}`);
-            if (res.raidTrigger) lines.push(`Trigger: ${res.raidTrigger}`);
-            lines.push(`Signal: ${res.signal} · ${res.confidence}% confidence`);
-            lines.push(`Session: ${ctx.session}`);
-            lines.push('');
-            lines.push('<i>LiquidityHQ Arena</i>');
-            void sendTelegramAlert(lines.join('\n')); // signed-in Pro only, to the user's own chat; silent on failure so the UI is never blocked
-          }
-        } catch { /* localStorage unavailable - skip silently */ }
-      }
 
       // Cache result per coin (with price snapshot for stale-check)
       const priceNow = store.coins[selectedCoin]?.price ?? 0;

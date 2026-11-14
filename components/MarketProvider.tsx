@@ -9,7 +9,6 @@ import { computeRSI14 } from '@/lib/rsi';
 import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
 import { getAuthToken } from '@/lib/supabase';
-import { sendTelegramAlert } from '@/lib/sendTelegramAlert';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { liveOiTrend, bootstrapReadings, trendBetween, type OiReading } from '@/lib/oiTrendWindow';
 import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exchangeFailover';
@@ -36,56 +35,13 @@ const REST_FALLBACK_MS = 30_000;
  * rather than about a ban. */
 const WS_BACKOFF_CAP_MS = 30_000;
 
-/* ── CVD Divergence Telegram alert ── */
-function sendCVDAlert(
-  coin: string,
-  div: 'bullish' | 'bearish',
-  price: number,
-  cooldown: Record<string, number>,
-) {
-  const key = `${coin}-${div}`;
-  const now = Date.now();
-  if (now - (cooldown[key] ?? 0) < 30 * 60_000) return; // 30-min cooldown
-  cooldown[key] = now;
-  const emoji = div === 'bullish' ? '🟢' : '🔴';
-  const dir   = div === 'bullish' ? 'Bullish' : 'Bearish';
-  const hint  = div === 'bullish'
-    ? 'Price ↓ but CVD ↑ - hidden accumulation 👀'
-    : 'Price ↑ but CVD ↓ - distribution in progress ⚠️';
-  const priceStr = price > 0
-    ? `$${price.toLocaleString(undefined, { maximumFractionDigits: 4 })}`
-    : '';
-  void sendTelegramAlert(`${emoji} <b>CVD Divergence - ${coin.toUpperCase()}</b>\n<b>${dir}</b>\n${hint}\n\n📊 ${coin.toUpperCase()} ${priceStr}\nliquidity-hq.com`);
-}
-
-/* ── Liquidation Cascade ── */
+/* ── Liquidation Cascade (the on-screen banner; no message is sent anywhere) ── */
 const LIQ_CASCADE_THRESHOLDS: Record<string, number> = {
   BTC: 5_000_000, ETH: 2_000_000, SOL: 1_000_000, DEFAULT: 800_000,
 };
 const MARKET_CASCADE_THRESHOLD = 20_000_000;
 const LIQ_DELTA_WINDOW_MS = 15 * 60_000; // rolling window for the net long/short liquidation delta
 const LIQ_DELTA_MIN_TOTAL = 20_000; // ignore near-zero noise below this combined $ volume
-
-function sendCascadeAlert(
-  coin: string,
-  side: 'LONG' | 'SHORT' | 'MIXED',
-  totalUsd: number,
-  cooldown: Record<string, number>,
-) {
-  const key = `casc-${coin}`;
-  const now = Date.now();
-  if (now - (cooldown[key] ?? 0) < 10 * 60_000) return; // 10-min cooldown
-  cooldown[key] = now;
-  const emoji = side === 'LONG' ? '🔴' : side === 'SHORT' ? '🟢' : '⚡';
-  const who   = side === 'LONG' ? 'LONGS' : side === 'SHORT' ? 'SHORTS' : 'cascade';
-  const hint  = side === 'LONG'  ? 'Bears flushing longs - short squeeze possible ⚠️'
-              : side === 'SHORT' ? 'Bulls squeezing shorts - watch for reversal ⚠️'
-              : 'Multi-directional flush - vol spike ahead ⚠️';
-  const usdStr = totalUsd >= 1e6
-    ? `$${(totalUsd / 1e6).toFixed(1)}M`
-    : `$${(totalUsd / 1e3).toFixed(0)}K`;
-  void sendTelegramAlert(`${emoji} <b>Liquidation Cascade - ${coin}</b>\n${usdStr} ${who} wiped in 60s\n\n${hint}\nliquidity-hq.com`);
-}
 
 const _WS_STREAMS = Object.values(BINANCE_SYMS)
   .map(s => `${s.toLowerCase()}@ticker`)
@@ -153,10 +109,8 @@ export default function MarketProvider(
   const macroOkRef = useRef(false);
   /* CVD Divergence alerts: last known divergence + 30-min cooldown */
   const cvdDivStateRef    = useRef<Partial<Record<string, 'bullish' | 'bearish' | null>>>({});
-  const cvdAlertCooldown  = useRef<Record<string, number>>({});
   /* Liquidation cascade: rolling event buffer + per-coin cooldown */
   const liqBufferRef    = useRef<Array<{ coin: string; side: 'LONG' | 'SHORT'; usd: number; ts: number }>>([]);
-  const cascadeCooldown = useRef<Record<string, number>>({});
 
   useEffect(() => { storeRef.current = store; }, [store]);
 
@@ -884,7 +838,6 @@ export default function MarketProvider(
 
           // CVD divergence: compare first vs last of 5-snapshot window
           let _newDiv: 'bullish' | 'bearish' | null = null;
-          let _capPrice = 0;
           setStore(prev => {
             const currentPrice = prev.coins[coin]?.price ?? 0;
             const snaps = [...(cvdSnapsRef.current[coin] ?? []), { price: currentPrice, cvd: cvdValue }].slice(-5);
@@ -900,7 +853,6 @@ export default function MarketProvider(
               if (pricePct < -0.003 && cvdDelta > 0) cvdDivergence = 'bullish';
             }
             _newDiv = cvdDivergence;
-            _capPrice = currentPrice;
 
             return {
               ...prev,
@@ -910,10 +862,6 @@ export default function MarketProvider(
               },
             };
           });
-          // Alert on new divergence (transition from null/other → bullish/bearish)
-          if (_newDiv && _newDiv !== (cvdDivStateRef.current[coin] ?? null)) {
-            sendCVDAlert(coin, _newDiv, _capPrice, cvdAlertCooldown.current);
-          }
           cvdDivStateRef.current[coin] = _newDiv;
         } catch { /* */ }
         }));
@@ -953,7 +901,6 @@ export default function MarketProvider(
           });
           const cvdValue = buyVol - sellVol;
           let _hypeDiv: 'bullish' | 'bearish' | null = null;
-          let _hypePrice = 0;
           setStore(prev => {
             const currentPrice = prev.coins.hype?.price ?? 0;
             const snaps = [...(cvdSnapsRef.current.hype ?? []), { price: currentPrice, cvd: cvdValue }].slice(-5);
@@ -967,12 +914,8 @@ export default function MarketProvider(
               if (pricePct < -0.003 && cvdDelta > 0) cvdDivergence = 'bullish';
             }
             _hypeDiv = cvdDivergence;
-            _hypePrice = currentPrice;
             return { ...prev, coins: { ...prev.coins, hype: { ...prev.coins.hype, cvd: cvdValue, cvdDivergence } as CoinData } };
           });
-          if (_hypeDiv && _hypeDiv !== (cvdDivStateRef.current.hype ?? null)) {
-            sendCVDAlert('hype', _hypeDiv, _hypePrice, cvdAlertCooldown.current);
-          }
           cvdDivStateRef.current.hype = _hypeDiv;
         } catch { /* */ }
       })(),
@@ -1735,7 +1678,6 @@ export default function MarketProvider(
             const side: 'LONG' | 'SHORT' | 'MIXED' =
               (lUsd >= thr && sUsd >= thr) ? 'MIXED' : lUsd >= thr ? 'LONG' : 'SHORT';
             setStore(s => ({ ...s, cascadeAlert: { coin, side, totalUsd: lUsd + sUsd, ts: now } }));
-            sendCascadeAlert(coin, side, lUsd + sUsd, cascadeCooldown.current);
             fired = true; break;
           }
         }
@@ -1745,7 +1687,6 @@ export default function MarketProvider(
             const side: 'LONG' | 'SHORT' | 'MIXED' =
               mktL > mktS * 1.5 ? 'LONG' : mktS > mktL * 1.5 ? 'SHORT' : 'MIXED';
             setStore(s => ({ ...s, cascadeAlert: { coin: 'MARKET', side, totalUsd: mktTotal, ts: now } }));
-            sendCascadeAlert('MARKET', side, mktTotal, cascadeCooldown.current);
           }
         }
       }
