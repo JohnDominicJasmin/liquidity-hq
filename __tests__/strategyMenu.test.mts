@@ -45,8 +45,11 @@ test('M3a. the call box reserves the height of its CHANGING part (the .strat-cal
   for (const id of ['strategy-call-loading', 'strategy-call-unavailable', 'strategy-call-verdict', 'strategy-call-reason', 'strategy-call-invalidation']) assert.ok(dyn.includes(`data-testid="${id}"`), `${id} is outside the reserved section`);
   for (const id of ['strategy-call-box', 'strategy-call-name', 'strategy-call-desc', 'strategy-call-note']) assert.ok(s.includes(`data-testid="${id}"`), `missing ${id}`);
   assert.equal(/data-testid="strategy-call-(name|desc)"/.test(dyn), false, 'the static name or description is inside the reserved section');
-  const css = read('app/globals.css'); const m = /^\.strat-call-dyn\s*\{\s*min-height:\s*(\d+)px/m.exec(css); assert.ok(m, 'the reserve is gone from globals.css: the call arriving can push the panels again'); assert.ok(Number(m![1]) >= 150, `the desktop reserve is only ${m![1]}px`);
-  const mm = /@media\s*\(max-width:\s*640px\)\s*\{\s*\.strat-call-dyn\s*\{\s*min-height:\s*(\d+)px/.exec(css); assert.ok(mm && Number(mm[1]) >= Number(m![1]), 'the phone reserve is missing or smaller than the desktop one');
+  const css = read('app/globals.css');
+  const wide = /^\.strat-call-dyn\s*\{\s*min-height:\s*(\d+)px/m.exec(css); assert.ok(wide, 'the wide-screen reserve is gone from globals.css: the call arriving can push the panels again'); assert.ok(Number(wide![1]) >= 264, `the wide reserve is only ${wide![1]}px: the tallest possible call at >980 px is 264 px (Russian, measured)`);
+  const mid = /@media\s*\(max-width:\s*(?:9\d\d|10\d\d)px\)\s*\{\s*\.strat-call-dyn\s*\{\s*min-height:\s*(\d+)px/.exec(css); assert.ok(mid && Number(mid[1]) >= 150, 'the tablet-width reserve (the band where the arena workspace is one column) is missing or below the measured 150px');
+  const phone = /@media\s*\(max-width:\s*640px\)\s*\{\s*\.strat-call-dyn\s*\{\s*min-height:\s*(\d+)px/.exec(css); assert.ok(phone && Number(phone[1]) >= 222, 'the phone reserve is missing or below the measured 222px');
+  /* THE REAL HEIGHTS ARE GATED BY qa/e2e/strategy-call-height.spec.ts (it fails when a reserve is smaller than the tallest possible call at that width); here only the rules' existence and a floor are pinned. */
   assert.ok(/state\.error \?/.test(s) && /STRAT_UNAVAILABLE/.test(s), 'a failed read must show the unavailable state');
 });
 
