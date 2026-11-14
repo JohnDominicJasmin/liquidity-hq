@@ -1307,7 +1307,8 @@ body[data-rpm-level="high"]::before {
   animation: ticker-slide-in 0.28s ease-out;
 }
 .announcement-banner-text { color: var(--txt); font-size: var(--fs-label); text-align: center; }
-.announcement-banner-text a { color: var(--accent-2); text-decoration: underline; }
+.announcement-banner-text a { color: var(--accent-2); text-decoration: underline; display: inline-flex; align-items: center; min-height: 24px; min-width: 24px; /* WCAG 2.5.8 hit area, same look */ }
+.support-mail-link { display: inline-flex; align-items: center; min-height: 24px; min-width: 24px; /* WCAG 2.5.8 hit area for the support address in body text, same look */ }
 .announcement-banner-dismiss {
   position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
   background: none; border: none; color: var(--txt2); cursor: pointer;
@@ -9253,6 +9254,8 @@ main.app-content[data-chrome="none"] {
   cursor: pointer; text-align: left;
   /* WCAG 2.5.8 (#1185): the coin name carries the row's action and was under 24 px tall (20 on /markets, 8 on /dashboard). A 24 px hit box, text vertically centred, no change to padding or type. */
   display: inline-flex; align-items: center; min-height: 24px;
+  /* WIDTH TOO (WCAG 2.5.8 is 24 x 24): a short coin name (OP, SUI, ADA at the caption size) is narrower than 24 px, and the #1185 rule above fixed only the height. Left-aligned, so the glyphs do not move. */
+  min-width: 24px; justify-content: flex-start;
 }
 .mkt-row-btn {
   font-size: var(--fs-caption); font-weight: 700;

@@ -4,6 +4,7 @@ import { T } from '@/lib/tables';
 import { shouldAcceptFieldWrite } from '@/lib/settingsFieldConcurrency';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { STRATEGY_IDS } from '@/lib/strategies';
 
 function sb(token: string) {
   return userClient(token);
@@ -63,7 +64,7 @@ export async function PATCH(req: NextRequest) {
     'beginner_mode', 'trading_experience', 'trading_style', 'how_heard', 'watchlist',
     'display_name', 'country', 'trading_challenge', 'language',
     'timezone',
-    'strategy_selection', 'strategy_params',
+    'strategy_selection', 'strategy_params', 'arena_strategy',
   ];
   const payload: Record<string, unknown> = {};
   for (const key of ALLOWED) {
@@ -101,6 +102,12 @@ export async function PATCH(req: NextRequest) {
     const sel = payload.strategy_selection;
     if (sel !== null && !(Array.isArray(sel) && sel.every(v => typeof v === 'string'))) {
       return NextResponse.json({ error: 'Invalid strategy_selection' }, { status: 400 });
+    }
+  }
+  if ('arena_strategy' in payload) {
+    const a = payload.arena_strategy;
+    if (a !== null && !(typeof a === 'string' && STRATEGY_IDS.has(a))) {
+      return NextResponse.json({ error: 'Invalid arena_strategy' }, { status: 400 });
     }
   }
   if ('strategy_params' in payload) {
