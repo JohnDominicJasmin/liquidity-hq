@@ -47,12 +47,12 @@ test.describe('footer wait and sign-in notice (#2357)', () => {
     for (const p of ['/', '/login']) { await gotoGuarded(page, p); await page.waitForTimeout(6_000); expect(await page.locator('.pf-footer').count(), `${p} shows the platform footer`).toBe(0); }
   });
 
-  test('FN1. signed out on /arena: the sign-in notice is under the chart workspace, and the workspace top does not move when it appears', async ({ page }) => {
+  test('FN1. signed out on /arena: the sign-in notice is under the chart, and the workspace top does not move when it appears', async ({ page }) => {
     await page.addInitScript(() => { const w = window as unknown as { __tops: number[] }; w.__tops = []; const iv = setInterval(() => { const ws = document.querySelector('.arena-ws'); if (ws) w.__tops.push(Math.round(ws.getBoundingClientRect().top + scrollY)); }, 50); setTimeout(() => clearInterval(iv), 14_000); });
     await gotoGuarded(page, '/arena'); const notice = page.locator('.usage-auth-notice'); await expect(notice, 'no sign-in notice on /arena signed out').toBeVisible({ timeout: 40_000 }); await page.waitForTimeout(8_000);
-    const g = await page.evaluate(() => { const n = document.querySelector('.usage-auth-notice')!.getBoundingClientRect(); const ws = document.querySelector('.arena-ws')!.getBoundingClientRect(); const tops = (window as unknown as { __tops: number[] }).__tops; return { noticeTop: Math.round(n.top + scrollY), wsBottom: Math.round(ws.bottom + scrollY), tops: [...new Set(tops)] }; });
+    const g = await page.evaluate(() => { const n = document.querySelector('.usage-auth-notice')!.getBoundingClientRect(); const ws = (document.querySelector('.klc-wrap') ?? document.querySelector('.arena-ws'))!.getBoundingClientRect(); /* the CHART's box: .arena-ws also holds the right-hand rail, which is taller */ const tops = (window as unknown as { __tops: number[] }).__tops; return { noticeTop: Math.round(n.top + scrollY), wsBottom: Math.round(ws.bottom + scrollY), tops: [...new Set(tops)] }; });
     console.log(`[FN1] ${JSON.stringify(g)}`);
-    expect(g.noticeTop, 'the notice is above the chart workspace').toBeGreaterThanOrEqual(g.wsBottom - 2);
+    expect(g.noticeTop, 'the notice is above the chart (its top is above the chart bottom)').toBeGreaterThanOrEqual(g.wsBottom - 2);
     expect(g.tops.length === 0 || Math.max(...g.tops) - Math.min(...g.tops) <= 12, `the chart workspace's top moved by ${g.tops.length ? Math.max(...g.tops) - Math.min(...g.tops) : 0}px while the page loaded: ${JSON.stringify(g.tops)}`).toBe(true);
   });
 });
