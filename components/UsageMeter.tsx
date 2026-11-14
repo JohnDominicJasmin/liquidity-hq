@@ -48,14 +48,17 @@ export default function UsageMeter() {
   }, []);
 
   if (!user) return null;
+  /* THE SLOT IS RESERVED FOR A SIGNED-IN VISITOR FROM FIRST PAINT (arena layout shift, #1263). The meter used to render nothing until the usage numbers arrived (3 to 6 seconds on the real network) and then
+     appear above the chart, pushing the whole chart workspace down 43 px on a desktop and 81 px on a phone (QA's node-insert probe, run 43649222730: +0.0254 at 1280, +0.0476 at 390). `.usage-meter-slot`
+     keeps that height (globals.css), so the numbers arriving fill the slot and move nothing. */
   /* The Upgrade button does not wait for usage to load (owner, 2026-10-07): a Free visitor sees it as soon as the plan is
      known, even while the Quick/Deep tally is still on its way. */
   if (!usage) {
-    return showFreeUpgrade ? (
-      <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '2px 0 10px' }}>
-        <UpgradePillLink testId="usage-meter-upgrade" />
+    return (
+      <div className="usage-meter-slot" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
+        {showFreeUpgrade ? <UpgradePillLink testId="usage-meter-upgrade" /> : null}
       </div>
-    ) : null;
+    );
   }
 
   const quickPct = usage.quick_limit > 0 ? (usage.quick_used / usage.quick_limit) * 100 : 0;
@@ -63,10 +66,11 @@ export default function UsageMeter() {
   const nearCap  = quickPct >= 80 || deepPct >= 80;
 
   return (
+    <div className="usage-meter-slot">
     <div
       style={{
         display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
-        margin: '2px 0 10px', padding: '8px 14px',
+        margin: 0, padding: '8px 14px',
         borderRadius: 'var(--radius-card)', border: '0.5px solid var(--bdr)', background: 'var(--bg2)',
       }}
     >
@@ -85,6 +89,7 @@ export default function UsageMeter() {
           {t('USAGE_METER_UPGRADE_LINK')}
         </Link>
       )}
+    </div>
     </div>
   );
 }

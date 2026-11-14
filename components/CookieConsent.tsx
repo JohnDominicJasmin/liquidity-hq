@@ -13,7 +13,7 @@ import { readConsent, writeConsent } from '@/lib/consent';
 // visibly harder than acceptance is the classic dark pattern that consent
 // rules single out, and it would undercut the reason this component exists.
 export default function CookieConsent() {
-  const { t: tLabel } = useLabels();
+  const { t: tLabel, loading: labelsLoading } = useLabels();
   /* On a locale-prefixed landing page (/ru, /ko, /zh) the label table is not read (#1889), so the bar would show English: use the landing's own words there. */
   const landingLocale = landingLocaleOf(usePathname());
   const words = landingLocale ? CONSENT_WORDS[landingLocale] : undefined;
@@ -48,10 +48,14 @@ export default function CookieConsent() {
   // Measured rather than hardcoded because the height depends on how the body
   // text wraps, which changes with locale and screen width. ResizeObserver keeps
   // it correct through rotation and font-size changes.
+  /* THE BAR WAITS FOR ITS WORDS (arena layout shift, #1263). Its text comes from the label table; shown on the English defaults first, it re-wrapped when the real labels arrived, its height changed by
+     18 px, and because it is a large fixed element that move scored 0.18 on its own (QA run 43647909628, a first-time visitor on a phone). Held until the labels have loaded (they resolve on failure too),
+     the bar is drawn once at its final size. A landing locale carries its own words and never waits. */
+  const visible = show && (!labelsLoading || !!words);
   useEffect(() => {
-    document.body.classList.toggle('consent-open', show);
+    document.body.classList.toggle('consent-open', visible);
     const root = document.documentElement;
-    if (!show) {
+    if (!visible) {
       root.style.removeProperty('--consent-top');
       return () => { document.body.classList.remove('consent-open'); };
     }
@@ -74,9 +78,9 @@ export default function CookieConsent() {
       document.body.classList.remove('consent-open');
       root.style.removeProperty('--consent-top');
     };
-  }, [show]);
+  }, [visible]);
 
-  if (!show) return null;
+  if (!visible) return null;
 
   const choose = (state: 'granted' | 'denied') => {
     writeConsent(state);

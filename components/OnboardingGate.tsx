@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
 import { useOnboarding } from './OnboardingProvider';
@@ -8,6 +9,14 @@ export default function OnboardingGate({ children }: { children: React.ReactNode
   const router = useRouter();
   const { user } = useAuth();
   const { state, loaded, loadError, requestTour } = useOnboarding();
+  /* ONE-WAY (arena layout shift, #1263). The session read resolves a moment AFTER the first paint, so `user` is null on the first render and the page renders; when the user then arrives with the
+     onboarding read still in flight, the old gate swapped the whole page for the 'Setting up your account' stub and back, which re-created every panel (QA probe, run 43649222730: arena-term-wrap
+     mounted twice, +0.029 to +0.095). Once the page has rendered it is never taken away for an UNRESOLVED read: the stub is for a mount that begins with the user already known. A resolved
+     incomplete profile still gets the wizard, and a failed read still does not block. */
+  const [pageRendered, setPageRendered] = useState(false);
+  const showStub = !!user && !loadError && !loaded && !pageRendered;
+  const showWizard = !!user && !loadError && loaded && !state.profileComplete;
+  useEffect(() => { if (!showStub && !showWizard) setPageRendered(true); }, [showStub, showWizard]);
 
   // Blocks every route behind onboarding, not just dashboard - a signed-in
   // user with an unresolved or incomplete profile must never reach app
@@ -20,7 +29,7 @@ export default function OnboardingGate({ children }: { children: React.ReactNode
   // genuinely new user - so an already-onboarded user hit by a transient
   // DB error got dropped back into the 5-step wizard on every route. A
   // failed read means unknown, not incomplete; unknown must not block.
-  if (user && !loadError && (!loaded || !state.profileComplete)) {
+  if (showStub || showWizard) {
     // The spotlight tour targets dashboard-only DOM (data-spotlight-section,
     // .mb-glow-card), so route there to start it rather than trying to run
     // it over whatever page the user happened to finish onboarding on.
