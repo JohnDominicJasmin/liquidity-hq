@@ -1,3 +1,4 @@
+import { readJsonCapped, BODY_CAPS } from '@/lib/requestBody';
 import { TEXT_LIMITS } from '@/lib/ownRowLimits';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -21,7 +22,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+  const capped = await readJsonCapped(req, BODY_CAPS.hypothesis);
+  if (capped.tooLarge) return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  const body = (capped.value ?? {}) as Record<string, unknown>;
 
   const allowed = ['title','hypothesis','acceptance_criteria','status','target_date'];
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };

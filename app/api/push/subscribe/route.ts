@@ -1,3 +1,4 @@
+import { readJsonCapped, BODY_CAPS } from '@/lib/requestBody';
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
@@ -26,7 +27,9 @@ export async function POST(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return unauthorized();
 
-  const body = await req.json().catch(() => null);
+  const capped = await readJsonCapped(req, BODY_CAPS.pushSubscribe);
+  if (capped.tooLarge) return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  const body = capped.value as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } } | null;
   const { endpoint, keys } = body ?? {};
   if (!endpoint || !keys?.p256dh || !keys?.auth) {
     return NextResponse.json({ error: 'Missing endpoint or keys' }, { status: 400 });
@@ -54,7 +57,9 @@ export async function DELETE(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return unauthorized();
 
-  const body = await req.json().catch(() => null);
+  const capped = await readJsonCapped(req, BODY_CAPS.pushSubscribe);
+  if (capped.tooLarge) return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  const body = capped.value as { endpoint?: unknown } | null;
   const { endpoint } = body ?? {};
   if (!endpoint) return NextResponse.json({ error: 'Missing endpoint' }, { status: 400 });
 

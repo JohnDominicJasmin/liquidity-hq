@@ -1,3 +1,4 @@
+import { readJsonCapped, BODY_CAPS } from '@/lib/requestBody';
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { T } from '@/lib/tables';
@@ -53,7 +54,10 @@ export async function PATCH(req: NextRequest) {
   const user = await getUser(token);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await req.json() as Record<string, unknown>;
+  const capped = await readJsonCapped(req, BODY_CAPS.settings);
+  if (capped.tooLarge) return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  if (!capped.value || typeof capped.value !== 'object' || Array.isArray(capped.value)) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  const body = capped.value as Record<string, unknown>;
 
   // Sanitize - only allow known fields through
   const ALLOWED = [
