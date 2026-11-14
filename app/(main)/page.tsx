@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import LandingContent from '@/components/LandingContent';
 import { en } from '@/lib/i18n/dictionaries';
+import { AI_ANALYSIS_BODY } from '@/lib/legalDefaults';
 
 /* #1740: `/`'s canonical lives HERE rather than on the root layout, because a canonical on the layout is
    inherited by every page that does not set its own - and each of those would then declare itself to be
@@ -36,5 +37,5 @@ export const metadata: Metadata = {
 };
 
 export default function LandingPage() {
-  return <LandingContent dict={en} locale="en" dir="ltr" />;
+  return <LandingContent dict={en} locale="en" dir="ltr" aiAnalysisBody={AI_ANALYSIS_BODY} />;
 }

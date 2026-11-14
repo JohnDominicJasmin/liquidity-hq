@@ -657,7 +657,13 @@ export default function UpgradePage() {
             {/* Danivy's flow (#861): the cards first, the billing choices on request. Only where there is
                 something to buy: in the "launching soon" state this is not rendered, so that page keeps
                 zero buttons. It reveals, it does not navigate or charge. */}
-            {CHECKOUT_CONFIGURED && (
+            {/* NO CHECKOUT CONTROL UNTIL THE PLAN IS KNOWN (#1185 B3, QA run 43570726437): while auth or the entitlement read is outstanding this slot is a quiet placeholder, not a disabled "Upgrade to Pro" button, so a Pro account never sees an offer it already holds before the redirect fires. Signed-out visitors get the button as soon as auth settles. */}
+            {CHECKOUT_CONFIGURED && !purchaseReady && (
+              <div data-testid="upgrade-plans-pending" role="status" aria-busy="true" style={{ width: '100%', minHeight: 48, marginTop: 20, borderRadius: 12, background: 'var(--bg3)', opacity: 0.5 }}>
+                <span className="sr-only">{t('UPGRADE_LOADING')}</span>
+              </div>
+            )}
+            {CHECKOUT_CONFIGURED && purchaseReady && (
               <button
                 type="button"
                 data-testid="upgrade-reveal-plans"
