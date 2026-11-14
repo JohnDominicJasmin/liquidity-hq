@@ -667,6 +667,22 @@ emulate phone widths.
 Written into this file on 2026-11-13, three days late: it lived only in PM's private notes, so
 Dev could not check it and had to ask whether a browser session had been Brave. (It had.)
 
+## 20. NOBODY AUDITS THEIR OWN WORK. PM AUDITS.
+
+Owner, 2026-11-14, on the security audit Dev had written about Dev's own code: *"who's auditing it?
+... or who should be?"* and then *"make it a team rule"*, *"u have higher model and effort level"*.
+
+- **The seat that wrote the code never audits it.** Dev builds; Dev may list gaps in its own work, but that list is
+  an input, not an audit.
+- **PM/DevOps audits** (it runs on the stronger model and the higher effort setting): security, data integrity,
+  payments, privacy, launch readiness, and any audit the owner asks for. PM confirms each finding against the code
+  or the live system itself before acting on it, and gets a second, independent read when the stakes are high
+  (a reviewer that has not seen the author's findings).
+- **QA tests every fix** and decides whether it is done, as before. PM's audit is a second reader on QA's
+  sign-off, never a replacement for it (closing conditions 4 and 5).
+- Findings and decisions go on the tracker the area belongs to, with file:line and the evidence. Never a secret,
+  key, email or personal detail: the repo is public.
+
 ## Keeping this file true
 
 **RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**
