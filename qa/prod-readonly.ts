@@ -159,6 +159,9 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'tnav-russian-768', needs: 'pro', note: 'Russian test is test.fail() while #1255 stands' },
   // ── signed in, free ──
   { spec: 'plan-badge-trial-flip', needs: 'free' },
+  { spec: 'tap-target-shots', needs: 'none', note: 'sign-off shots and button heights on funding, markets and dashboard at 390 (#2254); anonymous; reads only' },
+  { spec: 'honest-states-batch', needs: 'none', note: 'the 2026-11-14 dashboard, funding and picker batch (#2255 #2256 #2260 #2261); anonymous; market reads stubbed' },
+  { spec: 'widths-2287', needs: 'none', note: 'the 360 width pass and footer link heights (#2287); anonymous; reads only' },
   { spec: 'arena-overflow-probe', needs: 'free', note: 'measures layout only - reads scrollWidth and element rects, writes nothing; sets its own 390x844 viewport and samples at 600ms and 4.6s, so 16 page loads' },
 ];
 
@@ -169,6 +172,7 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   '_record-proxy': 'a recorder of live upstream payloads, not a test',
   'cross-browser-surface': 'the #1410 cross-browser pass: staging-scoped by its own tracker, run through qa/crossbrowser.config.ts against Firefox and Brave, and it writes to the visitor\'s own localStorage to prove storage round-trips',
   'signoff-shots': 'signs in as BOTH the Pro and the Free fixture (DEV-project accounts that do not exist on production) and shoots /arena for PM visual sign-off, with the account email blurred and masked. No write, but it is a qa evidence capture, and a production account on screen in a public artifact is the exclusion.',
+  'small-items-1185': 'checks #2228 and #2229 (star gutter at 1101+, /research stack, funding chip contrast, live-dot name, dashboard new play) plus a five-page overflow, console and link sweep. Anonymous, GET only, nothing written or billed; excluded only because the S1-S6 cells measure layout changes that are not on production until the release, so against production today they would fail by design.',
   'landing-vwap-loading': 'intercepts the public landing page /api/market/snapshot read (delay, 500, ok then 500) to prove the hero never labels a loading figure Unavailable. Signed out, no write; excluded because it deliberately interposes on a production route and waits out a real 3-minute poll interval, neither of which belongs in a production read-only run.',
   'scanner-cells': 'forces the Binance reads to answer 429 and closes every Binance socket in the browser to reproduce the dev/staging condition (#2245); meaningless against production, where the address is allowed. Anonymous, reads only, nothing billed.',
   'landing-honest-states': 'forces the Binance and Coinbase reads to fail or to answer from stubs to see the landing missing-reading states (#2246); meaningless against production, where the reads work. Anonymous, reads only.',
