@@ -38,7 +38,7 @@ test.describe('anon write grants (dev project)', () => {
       const table = `${P}${t}`;
       const probes: Array<[string, () => Promise<{ status: () => number; text: () => Promise<string> }>]> = [
         ['INSERT', () => request.post(rest(table), { headers: anonHeaders, data: {} })],
-        ['UPDATE', () => request.patch(rest(`${table}?${col}=is.null`), { headers: anonHeaders, data: {} })],
+        ['UPDATE', () => request.patch(rest(`${table}?${col}=is.null`), { headers: anonHeaders, data: { [col]: null } })],
         ['DELETE', () => request.delete(rest(`${table}?${col}=is.null`), { headers: anonHeaders })],
       ];
       for (const [verb, run] of probes) {
@@ -62,7 +62,7 @@ test.describe('anon write grants (dev project)', () => {
       const d = await request.delete(rest(`${P}trades?id=eq.${id}`), { headers: H });
       console.log(`[F1] delete -> ${d.status()}`); expect(d.status(), `a signed-in user could not DELETE a trade: ${await d.text()}`).toBeLessThan(300);
       const gone = await (await request.get(rest(`${P}trades?id=eq.${id}&select=id`), { headers: H })).json(); expect(gone, 'the trade is still there').toEqual([]); id = '';
-    } finally { if (id) await request.delete(rest(`${P}trades?id=eq.${id}`), { headers: H }).catch(() => {}); }
+    } finally { await request.delete(rest(`${P}trades?coin=eq.QATEST&notes=like.qa-anon-grants*`), { headers: H }).catch(() => {}); /* also clears rows an earlier failed run left behind */ }
   });
 
   test('F2. signed in as fixture A: onboarding progress can be saved (re-written with its own value)', async ({ request }) => {
