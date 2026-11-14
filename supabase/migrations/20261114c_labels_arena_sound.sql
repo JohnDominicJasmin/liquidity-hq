@@ -1,0 +1,76 @@
+-- NOT YET APPLIED TO ANY DATABASE. Apply ONE block per project: the PROD block on prod (qdpwhnvmhqgzijuwopso) by PM/DevOps with the release; the DEV block on dev (wdtjhrilakoitfcezxpx, shared by dev/qa/staging).
+--
+-- 8 new keys for the Arena sound alerts (owner-requested, 2026-11-14): the first-visit question (ARENA_SOUND_PROMPT_*) and the Settings switch (SETTINGS_ARENA_SOUND_*). English ships in lib/labelDefaults.en.json and needs no row.
+-- ko/zh/ru/ar are AI-drafted and not native-reviewed, under the owner's 2026-11-13 ruling (see 20261113b); Arabic is not offered in any picker, so its rows are harmless. Upserts by (key, locale).
+--
+-- ===================== PROD (liquidity-hq, qdpwhnvmhqgzijuwopso) =====================
+insert into lhq_labels (key, locale, value) values
+('ARENA_SOUND_PROMPT_TEXT','ko','새 신호와 큰 움직임이 있을 때 소리를 재생할까요?'),
+('ARENA_SOUND_PROMPT_TEXT','zh','在出现新信号和大幅波动时播放提示音吗？'),
+('ARENA_SOUND_PROMPT_TEXT','ru','Воспроизводить звук при новых сигналах и сильных движениях?'),
+('ARENA_SOUND_PROMPT_TEXT','ar','هل تريد تشغيل صوت عند ظهور إشارات جديدة وتحركات كبيرة؟'),
+('ARENA_SOUND_PROMPT_ALLOW','ko','허용'),
+('ARENA_SOUND_PROMPT_ALLOW','zh','允许'),
+('ARENA_SOUND_PROMPT_ALLOW','ru','Разрешить'),
+('ARENA_SOUND_PROMPT_ALLOW','ar','السماح'),
+('ARENA_SOUND_PROMPT_NOT_NOW','ko','나중에'),
+('ARENA_SOUND_PROMPT_NOT_NOW','zh','暂不'),
+('ARENA_SOUND_PROMPT_NOT_NOW','ru','Не сейчас'),
+('ARENA_SOUND_PROMPT_NOT_NOW','ar','ليس الآن'),
+('ARENA_SOUND_PROMPT_DISMISS_LABEL','ko','닫기 (소리는 꺼진 상태 유지)'),
+('ARENA_SOUND_PROMPT_DISMISS_LABEL','zh','关闭（保持静音）'),
+('ARENA_SOUND_PROMPT_DISMISS_LABEL','ru','Закрыть (звук останется выключенным)'),
+('ARENA_SOUND_PROMPT_DISMISS_LABEL','ar','إغلاق (يبقى الصوت متوقفاً)'),
+('SETTINGS_ARENA_SOUND_TITLE','ko','Arena 소리 알림'),
+('SETTINGS_ARENA_SOUND_TITLE','zh','Arena 声音提醒'),
+('SETTINGS_ARENA_SOUND_TITLE','ru','Звуковые оповещения Arena'),
+('SETTINGS_ARENA_SOUND_TITLE','ar','تنبيهات صوتية في Arena'),
+('SETTINGS_ARENA_SOUND_ON','ko','켜짐: 새 신호와 큰 움직임에 소리 알림'),
+('SETTINGS_ARENA_SOUND_ON','zh','已开启：新信号和大幅波动时播放提示音'),
+('SETTINGS_ARENA_SOUND_ON','ru','Включено: звук при новых сигналах и сильных движениях'),
+('SETTINGS_ARENA_SOUND_ON','ar','مفعّل: صوت عند الإشارات الجديدة والتحركات الكبيرة'),
+('SETTINGS_ARENA_SOUND_OFF','ko','꺼짐'),
+('SETTINGS_ARENA_SOUND_OFF','zh','已关闭'),
+('SETTINGS_ARENA_SOUND_OFF','ru','Выключено'),
+('SETTINGS_ARENA_SOUND_OFF','ar','متوقف'),
+('SETTINGS_ARENA_SOUND_DESC','ko','선택한 코인과 시간대의 전략 패널 신호가 매수나 매도로 바뀔 때, 그리고 캔들의 움직임과 거래량이 모두 최근 평균의 2배 이상일 때 캔들당 한 번 짧은 소리가 납니다. 페이지를 한 번 클릭한 뒤부터 재생되며, 탭이 백그라운드에 있어도 재생됩니다.'),
+('SETTINGS_ARENA_SOUND_DESC','zh','当所选币种和周期的策略面板信号变为买入或卖出时，以及某根K线的波动幅度和成交量都达到近期平均值的两倍以上时（每根K线一次），会播放一声短提示音。需要您在页面上点击过之后才会播放，标签页在后台时也会播放。'),
+('SETTINGS_ARENA_SOUND_DESC','ru','Короткий сигнал на Arena, когда сигнал панели стратегии для вашей монеты и таймфрейма меняется на покупку или продажу, и один раз за свечу, когда её ход и объём одновременно не меньше чем вдвое выше недавнего среднего. Звук воспроизводится только после вашего клика на странице, в том числе когда вкладка в фоне.'),
+('SETTINGS_ARENA_SOUND_DESC','ar','نغمة قصيرة في Arena عندما تتحول إشارة لوحة الاستراتيجية لعملتك وإطارك الزمني إلى شراء أو بيع، ومرة واحدة لكل شمعة عندما تبلغ حركتها وحجمها ضعف المتوسط الأخير على الأقل. لا يُشغَّل الصوت إلا بعد نقرك على الصفحة، وكذلك أثناء وجود التبويب في الخلفية.')
+on conflict (key, locale) do update set value = excluded.value, updated_at = now();
+
+-- ============ DEV (shared by dev/qa/staging, wdtjhrilakoitfcezxpx) ============
+insert into lhq_dev_labels (key, locale, value) values
+('ARENA_SOUND_PROMPT_TEXT','ko','새 신호와 큰 움직임이 있을 때 소리를 재생할까요?'),
+('ARENA_SOUND_PROMPT_TEXT','zh','在出现新信号和大幅波动时播放提示音吗？'),
+('ARENA_SOUND_PROMPT_TEXT','ru','Воспроизводить звук при новых сигналах и сильных движениях?'),
+('ARENA_SOUND_PROMPT_TEXT','ar','هل تريد تشغيل صوت عند ظهور إشارات جديدة وتحركات كبيرة؟'),
+('ARENA_SOUND_PROMPT_ALLOW','ko','허용'),
+('ARENA_SOUND_PROMPT_ALLOW','zh','允许'),
+('ARENA_SOUND_PROMPT_ALLOW','ru','Разрешить'),
+('ARENA_SOUND_PROMPT_ALLOW','ar','السماح'),
+('ARENA_SOUND_PROMPT_NOT_NOW','ko','나중에'),
+('ARENA_SOUND_PROMPT_NOT_NOW','zh','暂不'),
+('ARENA_SOUND_PROMPT_NOT_NOW','ru','Не сейчас'),
+('ARENA_SOUND_PROMPT_NOT_NOW','ar','ليس الآن'),
+('ARENA_SOUND_PROMPT_DISMISS_LABEL','ko','닫기 (소리는 꺼진 상태 유지)'),
+('ARENA_SOUND_PROMPT_DISMISS_LABEL','zh','关闭（保持静音）'),
+('ARENA_SOUND_PROMPT_DISMISS_LABEL','ru','Закрыть (звук останется выключенным)'),
+('ARENA_SOUND_PROMPT_DISMISS_LABEL','ar','إغلاق (يبقى الصوت متوقفاً)'),
+('SETTINGS_ARENA_SOUND_TITLE','ko','Arena 소리 알림'),
+('SETTINGS_ARENA_SOUND_TITLE','zh','Arena 声音提醒'),
+('SETTINGS_ARENA_SOUND_TITLE','ru','Звуковые оповещения Arena'),
+('SETTINGS_ARENA_SOUND_TITLE','ar','تنبيهات صوتية في Arena'),
+('SETTINGS_ARENA_SOUND_ON','ko','켜짐: 새 신호와 큰 움직임에 소리 알림'),
+('SETTINGS_ARENA_SOUND_ON','zh','已开启：新信号和大幅波动时播放提示音'),
+('SETTINGS_ARENA_SOUND_ON','ru','Включено: звук при новых сигналах и сильных движениях'),
+('SETTINGS_ARENA_SOUND_ON','ar','مفعّل: صوت عند الإشارات الجديدة والتحركات الكبيرة'),
+('SETTINGS_ARENA_SOUND_OFF','ko','꺼짐'),
+('SETTINGS_ARENA_SOUND_OFF','zh','已关闭'),
+('SETTINGS_ARENA_SOUND_OFF','ru','Выключено'),
+('SETTINGS_ARENA_SOUND_OFF','ar','متوقف'),
+('SETTINGS_ARENA_SOUND_DESC','ko','선택한 코인과 시간대의 전략 패널 신호가 매수나 매도로 바뀔 때, 그리고 캔들의 움직임과 거래량이 모두 최근 평균의 2배 이상일 때 캔들당 한 번 짧은 소리가 납니다. 페이지를 한 번 클릭한 뒤부터 재생되며, 탭이 백그라운드에 있어도 재생됩니다.'),
+('SETTINGS_ARENA_SOUND_DESC','zh','当所选币种和周期的策略面板信号变为买入或卖出时，以及某根K线的波动幅度和成交量都达到近期平均值的两倍以上时（每根K线一次），会播放一声短提示音。需要您在页面上点击过之后才会播放，标签页在后台时也会播放。'),
+('SETTINGS_ARENA_SOUND_DESC','ru','Короткий сигнал на Arena, когда сигнал панели стратегии для вашей монеты и таймфрейма меняется на покупку или продажу, и один раз за свечу, когда её ход и объём одновременно не меньше чем вдвое выше недавнего среднего. Звук воспроизводится только после вашего клика на странице, в том числе когда вкладка в фоне.'),
+('SETTINGS_ARENA_SOUND_DESC','ar','نغمة قصيرة في Arena عندما تتحول إشارة لوحة الاستراتيجية لعملتك وإطارك الزمني إلى شراء أو بيع، ومرة واحدة لكل شمعة عندما تبلغ حركتها وحجمها ضعف المتوسط الأخير على الأقل. لا يُشغَّل الصوت إلا بعد نقرك على الصفحة، وكذلك أثناء وجود التبويب في الخلفية.')
+on conflict (key, locale) do update set value = excluded.value, updated_at = now();
