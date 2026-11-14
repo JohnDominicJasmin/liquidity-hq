@@ -42,11 +42,23 @@ for (const loc of ['en', 'ru']) for (const width of [390, 1280]) for (const th o
       expect(land.docSw, 'page scrolls sideways').toBeLessThanOrEqual(land.vw);
       const dPage = await ctx.newPage(); await gotoGuarded(dPage, '/disclaimer');
       /* there is no localized disclaimer route: locale landings link /disclaimer (English legal text by design) */
+      /* THE /disclaimer READ IS SAMPLED OVER TIME, NOT TAKEN ONCE (release run 43595134120: ru 390 dark failed twice while the same cell passed on qa and staging). The page can show its shipped default
+         first and the database label row after it loads, so one early read can be either. Every 500 ms for up to 14 s the AI Analysis section text is read; the DISTINCT texts and when they appeared are
+         logged, and the check is made on the SETTLED (last) text: that is what a visitor ends up reading. If the text changes while loading, the log shows it. */
       await dPage.waitForFunction(() => document.body.innerText.length > 800, null, { timeout: 25_000 }).catch(() => { /* judged below */ });
-      const dtext = norm(await dPage.evaluate(() => document.body.innerText));
+      const holds = (txt: string) => txt.includes(norm(land.para!)) || norm(land.para!).split(/(?<=[.!?。])\s+/).filter(s => s.length > 25).every(s => txt.includes(norm(s)));
+      const section = (txt: string) => { const i = txt.search(/AI ANALYSIS|AI-анализ|Анализ ИИ|ИИ-анализ|AI 분석|AI分析/i); return i < 0 ? '(no AI Analysis heading in the text)' : txt.slice(i, i + 420); };
+      const seen: Array<{ t: number; held: boolean; len: number; text: string }> = []; const tD = Date.now(); let dtext = '';
+      while (Date.now() - tD < 14_000) {
+        dtext = norm(await dPage.evaluate(() => document.body.innerText)); const sec = section(dtext);
+        if (!seen.length || seen[seen.length - 1].text !== sec) seen.push({ t: Date.now() - tD, held: holds(dtext), len: dtext.length, text: sec });
+        if (seen.length && seen[seen.length - 1].held && Date.now() - tD > 4_000) break;
+        await dPage.waitForTimeout(500);
+      }
+      // eslint-disable-next-line no-console
+      console.log(`[D1] /disclaimer ${loc} ${width} ${th}: ${seen.length} distinct AI-section text(s): ${JSON.stringify(seen.map(s => ({ t: s.t, held: s.held, len: s.len, head: s.text.slice(0, 160) })))}`);
       expect(dtext.length, '/disclaimer did not render').toBeGreaterThan(500);
-      expect(dtext.includes(norm(land.para!)) || norm(land.para!).split(/(?<=[.!?。])\s+/).filter(s => s.length > 25).every(s => dtext.includes(norm(s))),
-        `the landing paragraph is not the /disclaimer legal text:\n${land.para}`).toBe(true);
+      expect(holds(dtext), `the landing paragraph is not the SETTLED /disclaimer legal text:\nlanding: ${land.para}\n/disclaimer: ${section(dtext)}`).toBe(true);
       /* THE PICTURE COMES LAST AND CANNOT FAIL THE CELL: it used to sit above the asserts, so a screenshot timeout skipped every check (run 43590458814, mobile, ru 1280). */
       await (async () => { await page.locator('[data-qa-ai-row]').first().scrollIntoViewIfNeeded(); await page.locator('[data-qa-ai-row]').first().screenshot({ path: `qa/.shots/landing-ai-${loc}-${width}-${th}.png` }); })().catch((err) => console.log(`[D1] shot skipped: ${String(err).slice(0, 80)}`));
     } finally { await ctx.close(); }
