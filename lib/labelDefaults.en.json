@@ -109,6 +109,7 @@
   "STRAT_VERDICT_SELL": "SELL",
   "STRAT_VERDICT_WAIT": "WAIT",
   "STRAT_UNAVAILABLE": "Strategy read unavailable right now.",
+  "STRAT_UNAVAILABLE_DETAIL": "Price data for this coin and timeframe did not load. Nothing is shown rather than a guess.",
   "STRAT_LOADING": "Reading closed candles…",
   "STRAT_NOT_PREDICTIONS": "Signals, not predictions. This shows what the candles did, not what price will do.",
   "STRAT_INVALIDATION": "Wrong if price trades beyond {price}.",
