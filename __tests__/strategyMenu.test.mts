@@ -45,7 +45,7 @@ test('M3a. the call box reserves the height of its CHANGING part (the .strat-cal
   for (const id of ['strategy-call-loading', 'strategy-call-unavailable', 'strategy-call-verdict', 'strategy-call-reason', 'strategy-call-invalidation']) assert.ok(dyn.includes(`data-testid="${id}"`), `${id} is outside the reserved section`);
   for (const id of ['strategy-call-box', 'strategy-call-name', 'strategy-call-desc', 'strategy-call-note']) assert.ok(s.includes(`data-testid="${id}"`), `missing ${id}`);
   assert.equal(/data-testid="strategy-call-(name|desc)"/.test(dyn), false, 'the static name or description is inside the reserved section');
-  const css = read('app/globals.css'); const m = /\.strat-call-dyn\s*\{\s*min-height:\s*(\d+)px/.exec(css); assert.ok(m, 'the reserve is gone from globals.css: the call arriving can push the panels again'); assert.ok(Number(m![1]) >= 150, `the desktop reserve is only ${m![1]}px`);
+  const css = read('app/globals.css'); const m = /^\.strat-call-dyn\s*\{\s*min-height:\s*(\d+)px/m.exec(css); assert.ok(m, 'the reserve is gone from globals.css: the call arriving can push the panels again'); assert.ok(Number(m![1]) >= 150, `the desktop reserve is only ${m![1]}px`);
   const mm = /@media\s*\(max-width:\s*640px\)\s*\{\s*\.strat-call-dyn\s*\{\s*min-height:\s*(\d+)px/.exec(css); assert.ok(mm && Number(mm[1]) >= Number(m![1]), 'the phone reserve is missing or smaller than the desktop one');
   assert.ok(/state\.error \?/.test(s) && /STRAT_UNAVAILABLE/.test(s), 'a failed read must show the unavailable state');
 });
