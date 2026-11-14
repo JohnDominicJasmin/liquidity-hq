@@ -172,6 +172,86 @@ cheap to remove or needed a dedicated bot first. It was cheap.
 
 ---
 
+## 2b. Production backups: runbook (written 2026-11-14 from the code; release-day P3)
+
+Read from `app/api/backup/route.ts`, `lib/backupTables.ts` and `.github/workflows/backup-restore-test.yml` (and `scripts/restore-test/run.mjs`). **Nothing here has been run against production by the author; the "good response" examples below are what the code returns, with placeholders where a number depends on live data.** No secret values appear in this file or may be added to it (the repository is public).
+
+**What it is.** `GET /api/backup` exports the 16 tables that cannot be recreated (payment records, user settings, alerts, research, labels, app config, admin users and audit log: `BACKUP_TABLES`) as one JSON file into a **private** Supabase Storage bucket. 15 tables that regenerate or are telemetry are deliberately excluded (`EXCLUDED_TABLES`; `alert_fires`, the largest at about 13 MB, is among them). It issues SELECT only. It protects against our own mistakes (a destructive migration, a bad delete, a dropped column), **not** against losing the Supabase account itself: the bucket is in the same vendor as the database.
+
+### 1. Environment variables on the PROD service (names only)
+
+| Name | State | Notes |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | already set | the prod project's URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | already set | the route reads and writes Storage with the prod service-role client, so the bucket must live in the **same project as this key** |
+| `CRON_SECRET` | already set | the route is fail-closed without it (401) and accepts the **header only** (`x-cron-secret`); `?secret=` is refused because the route reads payment and customer rows |
+| `BACKUP_BUCKET` | **new** | the NAME of the bucket (not a URL) |
+
+**What `BACKUP_BUCKET` must be:** a bucket in the **production** Supabase project (`qdpwhnvmhqgzijuwopso`), created **private** (Storage, new bucket, "Public bucket" OFF). The route checks this on every run, not just at setup. Its refusal rules, in the order they apply:
+
+| Condition | Result |
+|---|---|
+| no / wrong `x-cron-secret` | 401, nothing read |
+| `mode` is not `count` or `export` | 400 |
+| any table fails its count, its order key, or reads short (fewer rows than the count) or has duplicate keys | 500, `written:false`, `reason:"short_read"`; **no file is written** |
+| `BACKUP_BUCKET` unset | 200, `written:false`, `reason:"BACKUP_BUCKET not set"`, with `bytes` and `sha256` (safe to deploy before the bucket exists) |
+| bucket not found / unreadable | 502, `written:false`, `reason:"bucket unreadable: ..."` |
+| **bucket is public** | **500, `written:false`, `reason:"REFUSED - bucket is public"`**: the payload is customer and payment data and `push_subscriptions` carries credentials |
+| upload fails | 502, `written:false`, `reason:"upload failed: ..."` |
+
+Files are named `backup-<UTC timestamp>.json`; an upload never overwrites an existing file (`upsert:false`).
+
+### 2. The cron-job.org schedule entry
+
+Add one job beside the others in §2:
+
+| Field | Value |
+|---|---|
+| Job name | `LiquidityHQ - backup` |
+| URL | `https://liquidity-hq.com/api/backup?mode=export` (production hostname only, like every secret-bearing job) |
+| Method | **GET** (the route exports only GET) |
+| Header | name `x-cron-secret`, value = the prod `CRON_SECRET` (never in the URL) |
+| Frequency | **once a day**, off-peak (for example `30 3 * * *`, tz Asia/Manila like the other jobs) |
+
+Why once a day: retention counts DAYS (see §5), so a burst of extra runs occupies one slot rather than ageing out good copies, but there is nothing to gain from more than one. **Timeouts:** Render closes a request after about 30 seconds and cron-job.org has its own per-request timeout (check the job's setting). Take the real duration from the first manual run (`finishedAt` minus `startedAt` in the response). With about 32 MB in the whole database and the largest table excluded it should be seconds; if it is ever close to 30 s, say so on #1413 before relying on the schedule. Enable the cron-job.org failure notification for this job, because the route fails loudly (500/502) and a silent schedule is how a backup stops existing.
+
+### 3. The first run, by hand
+
+Use the real secret from your own shell; do not paste it anywhere.
+
+**Step 1: count (the default mode; reads nothing into memory, writes nothing).**
+
+```
+curl -s -H "x-cron-secret: $CRON_SECRET" "https://liquidity-hq.com/api/backup?mode=count"
+```
+
+A good response: HTTP 200, `"ok": true`, `"mode": "count"`, `"tables"` with **16 entries**, each `{ "table": "lhq_...", "rows": N, "expected": N, "ok": true }` (rows equal expected), `"totalRows"` their sum, `"excluded"` listing the 15 excluded table names, and **`"unclassified": []`** (a table in `lib/tables.ts` that is in neither list would appear here; it is empty as of this writing). Any `"ok": false` entry carries a `note` ("count failed", "orderBy ... rejected") and means the config or the database needs a look before exporting.
+
+**Step 2: export, before the bucket exists (optional dry run).** With `BACKUP_BUCKET` unset, `?mode=export` reads everything and returns `"written": false, "reason": "BACKUP_BUCKET not set"` with `bytes` and `sha256`: proves the read and gives the real size without writing anywhere.
+
+**Step 3: export for real** (after the bucket exists and `BACKUP_BUCKET` is set on the service):
+
+```
+curl -s -H "x-cron-secret: $CRON_SECRET" "https://liquidity-hq.com/api/backup?mode=export"
+```
+
+A good response: HTTP 200, `"ok": true`, all 16 `tables` entries with `rows` equal to `expected` and no `note`, **`"written": true`**, `"file": "backup-<timestamp>.json"`, `"bytes"` (record this number on #1413: it is the real dump size), `"sha256"`, `"keepDays": 14`, `"kept"` (1 on the first day), `"listed"` (1), **`"pruned": 0`**. Then confirm in Supabase Storage that the file is there and the bucket still says Private.
+
+### 4. The restore drill (a backup nobody has restored is not a backup)
+
+GitHub, Actions, **"Backup restore test"**, "Run workflow". It restores into a throwaway Postgres service container on the runner (no Supabase project, free CI), and the run log is public by design (it prints table names and integers only).
+
+1. **Synthetic first (no secrets, no real data):** `synthetic = true` (the default). **It passed if:** the job is green, the step "Restore the synthetic dump (must PASS)" ends `RESTORE_TEST PASS`, and the control step prints `CONTROL_OK` (a repeated primary key must be rejected; `CONTROL_FAILED` means the uniqueness check cannot fail and the drill proves nothing). QA's proof that the log leaks nothing: grep the log for `SENTINEL`: **zero hits**; and a run with `leaky_control = true` MUST show one (otherwise the grep cannot be trusted).
+2. **Real dump:** after step 3 above wrote a file, run with `synthetic = false`. This uses the GitHub Environment `backup-restore` (main branch only, the owner as required reviewer, so the owner approves the run). One-time setup of that Environment: secrets `BACKUP_S3_ACCESS_KEY_ID` and `BACKUP_S3_SECRET_ACCESS_KEY` (S3-compatible access keys for the prod project's Storage); variables `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION`, `BACKUP_BUCKET`. **It passed if** the log shows `dump: backup-<timestamp>.json` (the newest file), then **16 lines of the form `<table>: expected N restored N OK`**, then `RESTORE_TEST PASS` and a green job. Any of `COUNT_MISMATCH`, `DUPLICATE_KEYS`, `RESTORE_TEST FAIL` or `RESTORE_TEST_FAILED <CODE>` (`NO_DUMP` = the bucket is empty or the variables point at the wrong bucket; `DOWNLOAD` = the keys cannot read it) is a failure. Leave Actions step debug logging OFF for this workflow (it could expose the Postgres container log in a public log).
+3. **What the drill does not prove:** the typed schema. Five of the sixteen tables have no `CREATE TABLE` in `supabase/migrations` before `20260616a`, so rows are restored as jsonb: it proves the dump is valid, every row loads, counts match and no primary key repeats. It does not prove a restore into the real column types.
+
+### 5. Free-plan storage limits and retention
+
+- **Size of one dump:** the whole database is about 32 MB (route header). The dump covers 16 of 31 tables and leaves out `alert_fires` (about 13 MB), `ai_call_log` and the other large regenerating tables, so it is a few MB. **The exact figure is `bytes` in the first real export: record it on #1413.**
+- **Limits to check against (vendor figures for the Supabase free plan, confirm in the project's Storage settings):** 1 GB of Storage in total and a 50 MB cap per uploaded file. One dump is far below the per-file cap; the cap would only matter if the database grew by an order of magnitude.
+- **How many are kept:** `KEEP_DAYS = 14` in the route: the newest file for each of the last 14 UTC days is protected, and a file may only be deleted if it is also older than 7 days. Counting days (not files) means extra runs in one day cannot push good copies out. So at most about 14 files, a few MB each: tens of MB against the 1 GB, no action needed. The response's `kept`, `listed` and `pruned` fields show what retention did; `listTruncated: true` appears only if the bucket ever holds more than 100,000 objects (it should not).
+- **Residual risk to state to the owner:** same vendor and same account as the database. A second destination (another provider or the owner's own storage) is the next step if the owner wants protection against losing the account.
+
 ## 3. Workflow Automation — n8n
 
 Self-hosted, see §1. Login is separate from Render/Supabase/cron-job.org — another credential silo an assistant can't see into without being handed the URL.
