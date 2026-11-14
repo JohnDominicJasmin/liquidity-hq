@@ -4019,6 +4019,8 @@ html[data-theme="light"] { background: var(--bg0); }
 /* The usage meter's slot (components/UsageMeter.tsx): the margin the meter always had plus a FIXED height. The meter is one line (its reset text ellipsizes), so 43 px (QA run 43649222730) holds on a
    phone and in every language. */
 .usage-meter-slot { margin: 2px 0 10px; height: 43px; }
+/* Free: the Upgrade pill makes the row 62 px (QA measured 62 vs 43 on deployed qa, en/ru/ko/zh alike). */
+.usage-meter-slot--free { height: 62px; }
 .usage-auth-link {
   color: var(--accent-2); text-decoration: none; font-weight: 600;
   padding: 4px 2px; display: inline-flex; align-items: center;

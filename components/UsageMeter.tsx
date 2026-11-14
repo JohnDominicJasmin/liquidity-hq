@@ -48,6 +48,8 @@ export default function UsageMeter() {
   }, []);
 
   if (!user) return null;
+  /* The slot is sized PER TIER (QA, deployed qa: the Free row is 62 px, the Pro row 43 px, because the Upgrade pill is taller than the numbers). A plan that is not yet known to be Pro is held at the Free height. */
+  const slotClass = isPro ? 'usage-meter-slot' : 'usage-meter-slot usage-meter-slot--free';
   /* ONE LINE, FIXED HEIGHT: the row never wraps (the reset text ellipsizes), so the box is the same height in every language and width (PM, #2365). */
   /* THE SLOT IS RESERVED FOR A SIGNED-IN VISITOR FROM FIRST PAINT (arena layout shift, #1263). The meter used to render nothing until the usage numbers arrived (3 to 6 seconds on the real network) and then
      appear above the chart, pushing the whole chart workspace down 43 px on a desktop and 81 px on a phone (QA's node-insert probe, run 43649222730: +0.0254 at 1280, +0.0476 at 390). `.usage-meter-slot`
@@ -56,7 +58,7 @@ export default function UsageMeter() {
      known, even while the Quick/Deep tally is still on its way. */
   if (!usage) {
     return (
-      <div className="usage-meter-slot" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
+      <div className={slotClass} style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
         {showFreeUpgrade ? <UpgradePillLink testId="usage-meter-upgrade" /> : null}
       </div>
     );
@@ -67,7 +69,7 @@ export default function UsageMeter() {
   const nearCap  = quickPct >= 80 || deepPct >= 80;
 
   return (
-    <div className="usage-meter-slot">
+    <div className={slotClass}>
     <div
       style={{
         display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'nowrap', overflow: 'hidden',
