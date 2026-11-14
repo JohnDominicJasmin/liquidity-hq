@@ -23,12 +23,23 @@ const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/
 const UPGRADE = code(read(appPath('app/upgrade/page.tsx')));
 const defaults = JSON.parse(read('lib/labelDefaults.en.json')) as Record<string, string>;
 
+test('UP1b. while the plan is unresolved the reveal button is replaced by a status placeholder, never left disabled-but-visible (#1185 B3)', () => {
+  const ph = UPGRADE.indexOf('data-testid="upgrade-plans-pending"');
+  assert.ok(ph > 0, 'CONTROL: the placeholder is gone');
+  assert.equal(UPGRADE.split('data-testid="upgrade-plans-pending"').length - 1, 1);
+  const before = UPGRADE.slice(Math.max(0, ph - 120), ph);
+  assert.match(before, /\{CHECKOUT_CONFIGURED && !purchaseReady && \(\s*<div\s*$/, 'the placeholder is not gated on !purchaseReady');
+  const tag = UPGRADE.slice(ph, ph + 160);
+  assert.match(tag, /role="status"/); assert.match(tag, /aria-busy="true"/);
+  assert.ok(UPGRADE.indexOf('upgrade-reveal-plans') > ph, 'the reveal button comes after (and instead of) the placeholder');
+});
+
 test('UP1. "Upgrade to Pro" is rendered only where checkout is configured, so the launching-soon state still has no button', () => {
   const at = UPGRADE.indexOf('data-testid="upgrade-reveal-plans"');
   assert.ok(at > 0, 'CONTROL: the reveal button is gone');
   assert.equal(UPGRADE.split('data-testid="upgrade-reveal-plans"').length - 1, 1, 'more than one reveal button');
   const before = UPGRADE.slice(Math.max(0, at - 160), at);
-  assert.match(before, /\{CHECKOUT_CONFIGURED && \(\s*<button\s+type="button"\s*$/, 'the reveal button is no longer gated on CHECKOUT_CONFIGURED');
+  assert.match(before, /\{CHECKOUT_CONFIGURED && purchaseReady && \(\s*<button\s+type="button"\s*$/, 'the reveal button is no longer gated on CHECKOUT_CONFIGURED && purchaseReady (a Pro account must not see it while the plan loads)');
   const soon = UPGRADE.indexOf("t('UPGRADE_COMING_SOON_TITLE')");
   assert.ok(soon > 0, 'CONTROL: the coming-soon block moved');
   const region = UPGRADE.slice(soon, soon + 1400);
