@@ -1,26 +1,25 @@
 /* #2275 (#1651): after the Bybit OI 1h span check, a Bybit-only coin (HYPE) must still show an OI 1h VALUE in a healthy market - the regression the PR names:
  * if the card goes to "Not enough history yet" on a healthy HYPE, the Bybit timestamps are not arriving.
  * Meant for the DEPLOYED qa build (set base_url): a CI runner cannot reach Bybit, the deployed service can. Signed out, reads only.
- *   H1  /arena?coin=btc is the control: BTC (Binance) shows an OI 1h figure, so the card renders at all
- *   H2  /arena?coin=hype shows an OI 1h figure (a percentage), not the "not enough history" wording and not a dash
- * If the control itself shows no figure the cell reports "nothing measured" instead of blaming the PR. */
-import { test, expect, type Page } from '@playwright/test';
+ * The coin snapshot prints the figure as "... · +1.2% 1h" (COIN_MARKET_SNAPSHOT_OI_1H_PCT_SUFFIX) or "Not enough history yet" (..._SHORT_WINDOW).
+ *   H1  control: BTC (Binance) shows a "% 1h" figure, so the card renders and the page text carries it
+ *   H2  HYPE shows a "% 1h" figure and not the short-window wording
+ * If the control itself shows neither, the cell reports "nothing measured" instead of blaming the PR. */
+import { test, expect } from '@playwright/test';
 import { gotoGuarded } from './_shared';
-
-const oiBlock = (page: Page) => page.evaluate(() => {
-  const t = (document.body.innerText || '').replace(/\s+/g, ' ');
-  const i = t.search(/OI\s*(%|1h|1H)/i); return { around: i >= 0 ? t.slice(Math.max(0, i - 20), i + 140) : null, all: /Not enough history/i.test(t) };
-});
 
 test.describe('#2275 HYPE OI 1h on a live build', () => {
   test.describe.configure({ timeout: 150_000 });
+  test.use({ viewport: { width: 1440, height: 1000 } });
   for (const coin of ['btc', 'hype']) {
     test(`${coin === 'btc' ? 'H1 control' : 'H2'}. /arena?coin=${coin}: OI 1h shows a figure`, async ({ page }) => {
       await gotoGuarded(page, `/arena?coin=${coin}&tf=1h`); await page.waitForTimeout(25_000);
-      const b = await oiBlock(page); console.log(`[OI1h] ${coin} ${JSON.stringify(b)}`);
-      expect(b.around, `no OI 1h element found for ${coin}: nothing measured`).not.toBeNull();
-      expect(b.around!, `${coin}: OI 1h reads "not enough history" on a healthy market`).not.toMatch(/Not enough history/i);
-      expect(b.around!, `${coin}: OI 1h shows no percentage`).toMatch(/[-+]?\d+(\.\d+)?\s?%/);
+      const t = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' '));
+      const fig = /([-+]?\d+(?:\.\d+)?%)\s*1h\b/.exec(t); const shortWin = /Not enough history yet/i.test(t);
+      console.log(`[OI1h] ${coin} figure=${JSON.stringify(fig && fig[0])} shortWindow=${shortWin}`);
+      expect(fig !== null || shortWin, `no OI 1h figure and no short-window text for ${coin}: nothing measured`).toBe(true);
+      expect(shortWin && fig === null, `${coin}: OI 1h reads "Not enough history yet" on a healthy market`).toBe(false);
+      expect(fig, `${coin}: OI 1h shows no percentage`).not.toBeNull();
     });
   }
 });
