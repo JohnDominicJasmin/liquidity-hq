@@ -1,5 +1,5 @@
-import type { OHLCV } from '../strategyCore';
-import type { LabelKey } from '../labelKeys';
+import type { OHLCV } from '../strategyCore.ts';
+import type { LabelKey } from '../labelKeys.ts';
 
 /* THE ARENA STRATEGY CONTRACT (owner-requested, 2026-11-14). A strategy is a PURE function: closed candles in, a deterministic verdict out. No React, no network, no
  * clock, so the SAME function runs in the browser (the panel card and the sound ping) and on the server (the fire log that grades it), and a test can hand it fixture
