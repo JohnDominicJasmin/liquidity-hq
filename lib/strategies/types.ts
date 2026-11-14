@@ -31,6 +31,8 @@ export interface StrategyDef {
   reasonBuyKey: LabelKey;
   reasonSellKey: LabelKey;
   reasonWaitKey: LabelKey;
+  /** Optional: a different sentence for the same verdict (e.g. which of two triggers fired). Return null to use the default key. */
+  reasonKeyFor?: (r: StrategyResult) => LabelKey | null;
   /** Closed candles the detector needs before it will say anything but wait. */
   minCandles: number;
   /** Timeframes the server logs it on (the card works on any timeframe the Arena offers). */
