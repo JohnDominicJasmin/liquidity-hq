@@ -8,8 +8,10 @@ import { priceText } from '@/lib/numberFormat';
  * panel: its name, a one-line description, BUY / SELL / WAIT with the reason in plain words, the invalidation line where the strategy has one, and "Signals, not predictions". A failed read
  * says so (never drawn as WAIT: unknown is not neutral); loading has its own line.
  *
- * ITS HEIGHT IS RESERVED. The box keeps a minimum height from the moment a strategy is picked, so the call arriving (loading -> BUY / SELL / WAIT) or changing never pushes the panels
- * beneath it (the /arena layout shift budget is 0.1). Only text longer than the reserve can grow it. */
+ * THE CALL'S HEIGHT IS RESERVED, per part (QA measured the first version: one 208 px reserve for the whole box was shorter than every strategy's box, 274 to 370 px, so the call
+ * arriving still pushed the panels beneath it by 66 to 162 px). The name and the description are STATIC for a picked strategy (known the moment it is picked), so they need no reserve; the part
+ * that changes is the call itself (loading -> BUY / SELL / WAIT with the reason, the invalidation line and the liquidity note), and THAT part sits in `.strat-call-dyn`, which keeps the
+ * height of the tallest call (globals.css). Loading, unavailable and every verdict therefore occupy the same height, and the call arriving or changing moves nothing below it. */
 interface Props {
   def: StrategyDef;
   state: StrategySignalState;
@@ -34,10 +36,11 @@ export default function StrategyCallBox({ def, state }: Props) {
       data-testid="strategy-call-box"
       data-strategy={def.id}
       aria-live="polite"
-      style={{ minHeight: 208, marginTop: 10, padding: '10px 12px', border: '0.5px solid var(--bdr)', borderRadius: 8, background: 'var(--bg2)', display: 'flex', flexDirection: 'column', gap: 6 }}
+      style={{ marginTop: 10, padding: '10px 12px', border: '0.5px solid var(--bdr)', borderRadius: 8, background: 'var(--bg2)', display: 'flex', flexDirection: 'column', gap: 6 }}
     >
       <div data-testid="strategy-call-name" style={{ fontWeight: 700 }}>{t(def.nameKey)}</div>
       <p data-testid="strategy-call-desc" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t(def.descKey)}</p>
+      <div className="strat-call-dyn" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {state.error ? (
         <div data-testid="strategy-call-unavailable" style={{ color: 'var(--amber)' }}>{t('STRAT_UNAVAILABLE')}</div>
       ) : !r ? (
@@ -56,7 +59,8 @@ export default function StrategyCallBox({ def, state }: Props) {
           )}
         </>
       )}
-      <p data-testid="strategy-call-note" style={{ margin: 'auto 0 0', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('STRAT_NOT_PREDICTIONS')}</p>
+      </div>
+      <p data-testid="strategy-call-note" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('STRAT_NOT_PREDICTIONS')}</p>
     </div>
   );
 }
