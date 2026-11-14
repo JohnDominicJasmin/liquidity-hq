@@ -25,10 +25,12 @@ async function openArena(browser: import('@playwright/test').Browser, o: { width
     const req = route.request(); if (req.method() === 'GET') return route.fallback();
     writes.push(req.postDataJSON()); return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
-  if (o.saved !== undefined) await page.route(/\/rest\/v1\/lhq_(dev_)?user_settings\?/, async route => {
+  /* a signed-in account's language comes from its settings row, not from localStorage, so Russian is played back the same way */
+  const patchRow: Record<string, unknown> = {}; if (o.saved !== undefined) patchRow.arena_strategy = o.saved; if (o.loc && o.loc !== 'en') patchRow.language = o.loc;
+  if (Object.keys(patchRow).length) await page.route(/\/rest\/v1\/lhq_(dev_)?user_settings\?/, async route => {
     if (route.request().method() !== 'GET') return route.fallback();
     const res = await route.fetch(); const body = await res.json().catch(() => null); if (body == null) return route.fulfill({ response: res });
-    const patch = (r: Record<string, unknown>) => ({ ...r, arena_strategy: o.saved });
+    const patch = (r: Record<string, unknown>) => ({ ...r, ...patchRow });
     return route.fulfill({ response: res, json: Array.isArray(body) ? body.map(patch) : patch(body as Record<string, unknown>) });
   });
   /* candles come from /api/market/klines?source=bybit|binance-futures|okx&symbol=...: failing them all, or only BTC's, makes a failed read */
