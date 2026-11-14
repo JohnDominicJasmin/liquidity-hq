@@ -2268,6 +2268,9 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .klc-draw-clear { color: var(--red); margin-top: 2px; border-top: 0.5px solid var(--bdr); border-radius: 0 0 5px 5px; }
 .klc-legend { display: flex; gap: 8px; align-items: center; }
 .klc-ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--txt3); flex-shrink: 0; }
+/* The fullscreen button and the feed dot: the dot is positioned OUTSIDE the button's right edge, so it adds no width to the toolbar row and can never wrap onto a row of its own (the 13 px chart push). */
+.klc-fs-wrap { position: relative; display: inline-flex; flex-shrink: 0; }
+.klc-fs-wrap .klc-ws-dot { position: absolute; left: 100%; top: 50%; margin: -3px 0 0 4px; }
 .klc-ws-dot.live { background: var(--green); box-shadow: 0 0 5px var(--green); }
 .klc-ws-dot.err  { background: transparent; box-shadow: inset 0 0 0 1.5px var(--red); } /* a RING, not a filled dot: the state differs by shape too (#1185, not colour alone) */
 .sq-badge { display: inline-flex; align-items: center; }

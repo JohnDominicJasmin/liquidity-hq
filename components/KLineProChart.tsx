@@ -3436,20 +3436,25 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             </span>
           </div>
         )}
-        <button
-          className="klc-tool-btn klc-fullscreen-btn"
-          onClick={handleFullscreen}
-          title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-          aria-label={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-        >
-          {fullscreen ? '⊠' : '⛶'}
-        </button>
-        <span
-          className={`klc-ws-dot${wsStatus === 'live' ? ' live' : wsStatus === 'error' ? ' err' : ''}`}
-          role="img"
-          aria-label={wsStatus === 'live' ? 'Live price feed' : wsStatus === 'error' ? 'Price feed offline' : 'Price feed connecting'}
-          title={wsStatus}
-        />
+        {/* THE FEED DOT TAKES NO ROOM IN THE TOOLBAR ROW (arena layout shift, #1263). It was a 6 px flex item after the button, so on a phone it was the item that wrapped onto its OWN row when something
+            else in the row changed width, adding a row and pushing the whole chart canvas down 13 px (CLS 0.104 on every signed-in 390 px load, QA run 43647909628). It now hangs just outside the button's
+            right edge, in the toolbar's own padding, so it sits where it did and can never make a row. */}
+        <span className="klc-fs-wrap">
+          <button
+            className="klc-tool-btn klc-fullscreen-btn"
+            onClick={handleFullscreen}
+            title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            aria-label={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          >
+            {fullscreen ? '⊠' : '⛶'}
+          </button>
+          <span
+            className={`klc-ws-dot${wsStatus === 'live' ? ' live' : wsStatus === 'error' ? ' err' : ''}`}
+            role="img"
+            aria-label={wsStatus === 'live' ? 'Live price feed' : wsStatus === 'error' ? 'Price feed offline' : 'Price feed connecting'}
+            title={wsStatus}
+          />
+        </span>
       </div>
 
       {/* Chart canvas */}
