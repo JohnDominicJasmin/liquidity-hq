@@ -579,6 +579,13 @@ These wasted real time in earlier sessions. All are documented as recurring:
 
 ## 9. Current issues
 
+> **Sections 9-12 are a 2026-09 snapshot, kept for history. Do not work from them (PM, 2026-11-14).**
+> Current open work lives on the area trackers: #1651 data integrity, #1185 UI/copy/visual, #1263 Arena,
+> #1631 AI answers, #1630 payments, #1413 build/CI/tests, #1113 onboarding. Release state and the post-deploy
+> checklist: the open `staging` -> `main` release PR (#2292 as of 2026-11-14). Owner-only items:
+> `docs/OWNER-BLOCKERS.md`. Owner rules: `docs/OWNER-RULES.md`.
+
+
 ### ✅ The three that held the 2026-09-05 release — all resolved, all shipped
 
 All terminal-mode on routes other than `/`, and the dead sorting rule in §6 would have parked every one. The owner reversed the fix-forward ruling and held the release until they were done.
