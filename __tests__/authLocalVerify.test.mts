@@ -219,7 +219,8 @@ test('R1. settings GET with a good token answers from the database with no call 
 
 test('R2. push subscribe (a service-role write) asks Auth exactly once and writes for that user; a banned account is refused at once; no token is 401 with no call', async () => {
   const tok = await sign(claims()); AUTH_KNOWS.set(tok, { id: UID, email: EMAIL });
-  const sub = { endpoint: 'https://push.example.test/e1', keys: { p256dh: 'p', auth: 'a' } };
+  /* #2318: only an https URL on a real push service host is stored (stored-SSRF fix), so the fixture uses an FCM-shaped endpoint; the old fake host is refused (R2b). */
+  const sub = { endpoint: 'https://fcm.googleapis.com/fcm/send/qa-e1', keys: { p256dh: 'p', auth: 'a' } };
   const ok = await pushRoute.POST(post('/api/push/subscribe', sub, tok)); assert.equal(ok.status, 200);
   assert.equal(calls.user, 1, 'push subscribe must ask Auth once (it writes with the service role)');
   assert.equal((calls.rest.find((c) => c.m === 'POST')?.body as { user_id?: string })?.user_id, UID);
@@ -228,6 +229,13 @@ test('R2. push subscribe (a service-role write) asks Auth exactly once and write
   assert.equal(calls.rest.length, 0, 'a banned account reached the write');
   calls.user = 0;
   assert.equal((await pushRoute.POST(post('/api/push/subscribe', sub))).status, 401); assert.equal(calls.user, 0);
+});
+
+test('R2b. (#2318) a subscription whose endpoint is not on a push service host is refused with 400 and nothing is written, even with a good token', async () => {
+  const tok = await sign(claims()); AUTH_KNOWS.set(tok, { id: UID, email: EMAIL }); calls.user = 0; calls.rest = [];
+  const bad = { endpoint: 'https://push.example.test/e1', keys: { p256dh: 'p', auth: 'a' } };
+  const r = await pushRoute.POST(post('/api/push/subscribe', bad, tok));
+  assert.equal(r.status, 400); assert.equal(calls.rest.filter((c) => c.m === 'POST').length, 0, 'a refused subscription was written');
 });
 
 test('R3. the paid chat (#1656, F2) refuses a banned account with a still-valid token, with no xAI call; with no token it is 401 as well', async () => {
