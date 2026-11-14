@@ -165,6 +165,8 @@ async function onRefusal(ex: Exchange, s: ExchangeState, r: Response): Promise<v
   void report(ex, false, detail, `[${ex}] ${detail}. Body: ${body || '(empty)'}`);
 }
 
+/* THE COOLDOWN MESSAGE HAS NO TIMESTAMP (P1, GlitchTip over its free limit): a message that carried the cool-down end time was a different issue every time, so one cool-down
+   became hundreds of events. The end time is in _exchangeGuardStats and the api_health row; the error says only what happened, so repeats group into one issue. */
 /** fetch() for an exchange URL, behind the shared breaker, concurrency cap and budget above. Same arguments and Response as fetch; throws
  *  HttpStatusError(429) without a network call while that exchange is cooling down. Non-exchange URLs go straight to fetch. */
 export async function exchangeFetch(input: string | URL, init: RequestInit = {}): Promise<Response> {
@@ -172,14 +174,14 @@ export async function exchangeFetch(input: string | URL, init: RequestInit = {})
   if (!ex) return fetch(input, init);
   const s = state[ex];
   const cool = exchangeCoolingDown(ex);
-  if (cool) { s.refused++; throw new HttpStatusError(429, `${ex}: cooling down until ${new Date(cool.until).toISOString()}`); }
+  if (cool) { s.refused++; throw new HttpStatusError(429, `${ex}: cooling down`); }
 
   await acquire(ex, s);
   try {
     await respectBudget(ex, s);
     // Re-checked after any wait: the breaker may have opened while this request was queued.
     const cool2 = exchangeCoolingDown(ex);
-    if (cool2) { s.refused++; throw new HttpStatusError(429, `${ex}: cooling down until ${new Date(cool2.until).toISOString()}`); }
+    if (cool2) { s.refused++; throw new HttpStatusError(429, `${ex}: cooling down`); }
     /* Recorded BEFORE the call, not after: a request that times out or is refused at the network
        was still an attempt, and the question this answers is "have we ever tried", not "has it
        ever worked". Setting it after would leave an exchange we cannot reach at all looking
