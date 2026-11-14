@@ -8,15 +8,15 @@ import { gotoGuarded } from './_shared';
 
 type Bar = number;
 async function depth(page: Page, coin: string, tf: string) {
-  const times = new Set<number>();
+  const byIv = new Map<string, Set<number>>(); const IVMAP: Record<string, string[]> = { '15m': ['15m', '15'], '1h': ['1h', '60'], '1d': ['1d', 'D'], '1w': ['1w', 'W'], '1M': ['1M', 'M'] }; const mine = IVMAP[tf] ?? [tf];
   page.on('response', async (r) => {
     if (!/\/api\/market\/klines/.test(r.url())) return;
-    try { const j = await r.json(); const arr = Array.isArray(j) ? j : (j?.result?.list ?? []); for (const k of arr) { const t = Number(Array.isArray(k) ? k[0] : k?.t ?? k?.time); if (Number.isFinite(t)) times.add(t); } } catch { /* not json */ }
+    const iv = new URL(r.url()).searchParams.get('interval') ?? ''; if (!mine.includes(iv)) return; const times = byIv.get(iv) ?? new Set<number>(); byIv.set(iv, times); try { const j = await r.json(); const arr = Array.isArray(j) ? j : (j?.result?.list ?? []); for (const k of arr) { const t = Number(Array.isArray(k) ? k[0] : k?.t ?? k?.time); if (Number.isFinite(t)) times.add(t); } } catch { /* not json */ }
   });
   await gotoGuarded(page, `/arena?coin=${coin}&tf=${tf}`); await page.waitForTimeout(15_000);
-  const snap = () => { const a = Array.from(times).sort((x, y) => x - y); return { n: a.length, earliest: (a[0] ?? null) as Bar | null }; };
+  const snap = () => { const a = Array.from(byIv.values()).flatMap(x => Array.from(x)).sort((x, y) => x - y); return { n: a.length, earliest: (a[0] ?? null) as Bar | null }; };
   const before = snap();
-  const canvas = page.locator('canvas').first(); const box = await canvas.boundingBox();
+  const canvas = page.locator('.arena-ws-chart canvas, canvas').first(); const box = await canvas.boundingBox(); console.log(`[DEPTH] ${coin} ${tf} intervals seen: ${JSON.stringify(Array.from(byIv.keys()))} canvas=${JSON.stringify(box)}`);
   if (box) for (let i = 0; i < 12; i++) { await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.5); await page.mouse.down(); await page.mouse.move(box.x + box.width * 0.9, box.y + box.height * 0.5, { steps: 12 }); await page.mouse.up(); await page.waitForTimeout(1200); }
   await page.waitForTimeout(4000);
   const after = snap();
