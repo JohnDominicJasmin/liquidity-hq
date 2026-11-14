@@ -68,9 +68,9 @@ export async function GET(req: NextRequest) {
     .select('telegram_chat_id')
     .eq('user_id', user.id)
     .maybeSingle();
-  // Fallback to global env var (legacy) - only reachable now by an
-  // authenticated, rate-limited Pro user, not an anonymous caller.
-  const chatId = settingsData?.telegram_chat_id?.trim() || process.env.TELEGRAM_CHAT_ID || null;
+  /* NO FALLBACK TO A GLOBAL CHAT (security audit #1413, S5). This used to fall back to TELEGRAM_CHAT_ID, the owner's own chat, for a Pro user who had not linked Telegram: their
+     test message landed in the owner's chat. Not linked is the 409 below, never someone else's chat. */
+  const chatId = settingsData?.telegram_chat_id?.trim() || null;
 
   // 409, not 400: the request is well-formed and authorised. What is not ready
   // is the caller's own account state - they have not connected Telegram yet -
