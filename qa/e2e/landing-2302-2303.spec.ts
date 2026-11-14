@@ -29,14 +29,15 @@ for (const loc of ['en', 'ru', 'ko', 'zh']) for (const width of [390, 1280]) for
       await gotoGuarded(page, path); await page.waitForTimeout(9_000);
       const land = await page.evaluate(() => {
         const label = Array.from(document.querySelectorAll('*')).find(e => e.children.length === 0 && /^(AI Analysis|AI-анализ|AI 분석|AI分析|Анализ ИИ|ИИ-анализ)/i.test((e.textContent || '').trim())) as HTMLElement | undefined;
-        const row = label ? (label.closest('li,div,p') as HTMLElement | null) : null;
-        const para = row ? Array.from(row.querySelectorAll('*')).filter(e => e.children.length === 0 && (e.textContent || '').trim().length > 60).map(e => (e.textContent || '').trim())[0] || (row.textContent || '').trim() : null;
+        const row = label ? (label.parentElement as HTMLElement | null) : null;
+        const para = row ? ((row.querySelector('p') as HTMLElement | null)?.textContent || '').trim() : null;
         const r = row ? row.getBoundingClientRect() : null;
         return { found: !!row, label: label ? (label.textContent || '').trim() : null, para, right: r ? Math.round(r.right) : null, docSw: document.documentElement.scrollWidth, vw: window.innerWidth };
       });
       console.log(`[D1] ${loc} ${width} ${th} ${JSON.stringify({ ...land, para: land.para ? land.para.slice(0, 90) + '…(' + land.para.length + ')' : null })}`);
       if (th === 'light' || width === 390) await page.screenshot({ path: `qa/.shots/landing-ai-${loc}-${width}-${th}.png`, fullPage: false });
       expect(land.found, `no "AI Analysis" disclosure row on the landing page in ${loc}`).toBe(true);
+      expect(land.para && land.para.length > 60, `the AI Analysis row has no paragraph: ${land.para}`).toBe(true);
       expect(land.right!, 'the paragraph runs past the viewport').toBeLessThanOrEqual(land.vw + 1);
       expect(land.docSw, 'page scrolls sideways').toBeLessThanOrEqual(land.vw);
       const dPage = await ctx.newPage(); await gotoGuarded(dPage, loc === 'en' ? '/disclaimer' : `/${loc}/disclaimer`); await dPage.waitForTimeout(4_000);
@@ -48,20 +49,19 @@ for (const loc of ['en', 'ru', 'ko', 'zh']) for (const width of [390, 1280]) for
   });
 }
 
-test('D2. an expanded footer carries the same paragraph as the landing', async ({ browser }) => {
-  test.setTimeout(120_000);
+test('D2. an expanded footer carries the same AI paragraph as the landing page', async ({ browser }) => {
+  test.setTimeout(150_000);
   const ctx = await open(browser, 1280, 'dark'); const page = await ctx.newPage();
   try {
-    await gotoGuarded(page, '/faq'); await page.waitForTimeout(8_000);
-    const btn = page.getByText(/show full risk disclosures?/i).first(); await expect(btn, 'no "Show full risk disclosures" control in the footer').toBeVisible({ timeout: 30_000 });
-    await btn.click(); await page.waitForTimeout(800);
-    const ft = norm(await page.evaluate(() => (document.querySelector('footer') || document.body).innerText));
-    const d = await ctx.newPage(); await gotoGuarded(d, '/disclaimer'); await d.waitForTimeout(4_000);
-    const dt = norm(await d.evaluate(() => document.body.innerText));
-    const m = /AI[^.]{0,40}(is powered by|processed by|uses)[^.]*\./i.exec(ft);
-    console.log(`[D2] footer AI sentence: ${m ? m[0].slice(0, 140) : 'none'}`);
-    expect(m, 'the expanded footer has no AI-processor sentence').not.toBeNull();
-    expect(dt.includes(norm(m![0])), 'the footer sentence is not in /disclaimer').toBe(true);
+    await gotoGuarded(page, '/'); await page.waitForTimeout(9_000);
+    const land = norm(await page.evaluate(() => { const l = Array.from(document.querySelectorAll('*')).find(e => e.children.length === 0 && /^AI analysis$/i.test((e.textContent || '').trim())) as HTMLElement | undefined; return ((l?.parentElement?.querySelector('p') as HTMLElement | null)?.textContent || ''); }));
+    expect(land.length, 'no landing AI paragraph').toBeGreaterThan(60);
+    const f = await ctx.newPage(); await gotoGuarded(f, '/faq'); await f.waitForTimeout(8_000);
+    const btn = f.getByText(/show full risk disclosures?/i).first(); await expect(btn, 'no "Show full risk disclosures" control in the footer').toBeVisible({ timeout: 30_000 });
+    await btn.click(); await f.waitForTimeout(800);
+    const ft = norm(await f.evaluate(() => document.body.innerText));
+    console.log(`[D2] landing paragraph (${land.length} chars): ${land.slice(0, 100)}; in expanded footer: ${ft.includes(land)}`);
+    expect(ft.includes(land), 'the expanded footer does not carry the landing AI paragraph word for word').toBe(true);
   } finally { await ctx.close(); }
 });
 
