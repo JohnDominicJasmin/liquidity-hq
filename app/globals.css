@@ -4005,8 +4005,11 @@ html[data-theme="light"] { background: var(--bg0); }
 }
 /* THE STRATEGY CALL BOX's changing part (components/StrategyCallBox.tsx): keeps the height of the tallest call (verdict + a four-line reason + the invalidation line + the liquidity note) so the
    call arriving or changing pushes nothing below it. Taller on a phone, where the same text wraps to more lines. */
-.strat-call-dyn { min-height: 188px; }
-@media (max-width: 640px) { .strat-call-dyn { min-height: 236px; } }
+/* Measured by QA on a CI build (English, run 43636233943): the tallest possible call needs 198 px at 1280, 126 px at 768, 174 px at 390. Per width, each with a margin; ru/ko/zh are measured next
+   (run 43637299794) and the values are raised if they come back taller. */
+.strat-call-dyn { min-height: 214px; }
+@media (max-width: 1099px) { .strat-call-dyn { min-height: 150px; } }
+@media (max-width: 640px) { .strat-call-dyn { min-height: 190px; } }
 .usage-auth-link {
   color: var(--accent-2); text-decoration: none; font-weight: 600;
   padding: 4px 2px; display: inline-flex; align-items: center;
