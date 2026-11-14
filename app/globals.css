@@ -4005,12 +4005,12 @@ html[data-theme="light"] { background: var(--bg0); }
 }
 /* THE STRATEGY CALL BOX's changing part (components/StrategyCallBox.tsx): keeps the height of the tallest call (verdict + a four-line reason + the invalidation line + the liquidity note) so the
    call arriving or changing pushes nothing below it. Taller on a phone, where the same text wraps to more lines. */
-/* Measured by QA on a CI build in English, Russian, Korean and Chinese (run 43637299794): the tallest possible call needs 240 px at 1280 (Russian, EMA stack BUY and VWAP reclaim), 150 px at 768
-   (Russian) and 198 px at 390 (Korean, Chinese, Russian). Per width, each with a 10 px margin. Not measured: 1100-1279 (assumed the same column width as 1280), and a seven-digit price in the invalidation
-   line (adds about one line). QA's strategy-call-height cell fails if any reserve is shorter than the tallest call. */
-.strat-call-dyn { min-height: 250px; }
-@media (max-width: 1099px) { .strat-call-dyn { min-height: 160px; } }
-@media (max-width: 640px) { .strat-call-dyn { min-height: 208px; } }
+/* Measured by QA on a CI build in English, Russian, Korean and Chinese (runs 43637299794 and 43639284647, with a seven-digit price in the invalidation line): the tallest possible call needs 264 px (Russian) in the
+   narrow 320 px rail, which is the layout from 981 px up (.arena-ws is two columns above 980 px); 150 px when the rail is full width (641-980 px); 222 px on a phone (Korean, Russian). Each value is the tallest + a margin.
+   QA's strategy-call-height cell fails if any reserve is shorter than the tallest call. */
+.strat-call-dyn { min-height: 280px; }
+@media (max-width: 980px) { .strat-call-dyn { min-height: 160px; } }
+@media (max-width: 640px) { .strat-call-dyn { min-height: 236px; } }
 .usage-auth-link {
   color: var(--accent-2); text-decoration: none; font-weight: 600;
   padding: 4px 2px; display: inline-flex; align-items: center;
