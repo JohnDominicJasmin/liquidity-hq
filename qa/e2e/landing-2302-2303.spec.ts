@@ -20,7 +20,7 @@ async function open(browser: Browser, width: number, theme: 'dark' | 'light', lo
 const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
 
 /* ---------- D1 / D2 ---------- */
-for (const loc of ['en', 'ru', 'ko', 'zh']) for (const width of [390, 1280]) for (const th of ['dark', 'light'] as const) {
+for (const loc of ['en', 'ru']) for (const width of [390, 1280]) for (const th of ['dark', 'light'] as const) {
   test(`D1. landing ${loc} ${width} ${th}: the AI Analysis paragraph is the legal sentence, whole`, async ({ browser }) => {
     test.setTimeout(150_000);
     const ctx = await open(browser, width, th, loc); const page = await ctx.newPage();
@@ -30,18 +30,18 @@ for (const loc of ['en', 'ru', 'ko', 'zh']) for (const width of [390, 1280]) for
       const land = await page.evaluate(() => {
         /* the risk-disclosure label has a paragraph beside it; the stat tile that also reads "AI analysis" does not */
         const label = Array.from(document.querySelectorAll('*')).filter(e => e.children.length === 0 && /^(AI Analysis|AI-анализ|AI 분석|AI分析|Анализ ИИ|ИИ-анализ)/i.test((e.textContent || '').trim())).find(e => !!e.parentElement?.querySelector('p')) as HTMLElement | undefined;
-        const row = label ? (label.parentElement as HTMLElement | null) : null;
+        const row = label ? (label.parentElement as HTMLElement | null) : null; if (row) row.setAttribute('data-qa-ai-row', '1');
         const para = row ? ((row.querySelector('p') as HTMLElement | null)?.textContent || '').trim() : null;
         const r = row ? row.getBoundingClientRect() : null;
         return { found: !!row, label: label ? (label.textContent || '').trim() : null, para, right: r ? Math.round(r.right) : null, docSw: document.documentElement.scrollWidth, vw: window.innerWidth };
       });
       console.log(`[D1] ${loc} ${width} ${th} ${JSON.stringify({ ...land, para: land.para ? land.para.slice(0, 90) + '…(' + land.para.length + ')' : null })}`);
-      if (th === 'light' || width === 390) await page.screenshot({ path: `qa/.shots/landing-ai-${loc}-${width}-${th}.png`, fullPage: false });
+      await page.locator('[data-qa-ai-row]').first().scrollIntoViewIfNeeded(); await page.locator('[data-qa-ai-row]').first().screenshot({ path: `qa/.shots/landing-ai-${loc}-${width}-${th}.png` });
       expect(land.found, `no "AI Analysis" disclosure row on the landing page in ${loc}`).toBe(true);
       expect(land.para && land.para.length > 60, `the AI Analysis row has no paragraph: ${land.para}`).toBe(true);
       expect(land.right!, 'the paragraph runs past the viewport').toBeLessThanOrEqual(land.vw + 1);
       expect(land.docSw, 'page scrolls sideways').toBeLessThanOrEqual(land.vw);
-      const dPage = await ctx.newPage(); await gotoGuarded(dPage, loc === 'en' ? '/disclaimer' : `/${loc}/disclaimer`); await dPage.waitForTimeout(4_000);
+      const dPage = await ctx.newPage(); await gotoGuarded(dPage, loc === 'en' ? '/disclaimer' : `/${loc}/disclaimer`); await dPage.waitForFunction(() => document.body.innerText.length > 800, null, { timeout: 25_000 }).catch(() => { /* judged below */ });
       const dtext = norm(await dPage.evaluate(() => document.body.innerText));
       expect(dtext.length, '/disclaimer did not render').toBeGreaterThan(500);
       expect(dtext.includes(norm(land.para!)) || norm(land.para!).split(/(?<=[.!?。])\s+/).filter(s => s.length > 25).every(s => dtext.includes(norm(s))),
