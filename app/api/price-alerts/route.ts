@@ -1,3 +1,4 @@
+import { readJsonCapped, BODY_CAPS } from '@/lib/requestBody';
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { T } from '@/lib/tables';
@@ -76,7 +77,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Price alerts are a Pro feature.' }, { status: 403 });
   }
 
-  const body = await req.json();
+  const capped = await readJsonCapped(req, BODY_CAPS.priceAlerts);
+  if (capped.tooLarge) return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  const body = capped.value as Record<string, any> | null; // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_INPUT', message: 'Send a JSON body.' }, { status: 400 });
   const { coin, target_price, direction, label } = body;
   if (!coin || !target_price || !direction)
     return NextResponse.json({ error: 'coin, target_price, direction required' }, { status: 400 });
@@ -93,6 +97,10 @@ export async function POST(req: NextRequest) {
   if (label != null && (typeof label !== 'string' || label.length > TEXT_LIMITS.alertLabel)) {
     return NextResponse.json({ error: 'TOO_LONG', message: `The note can be at most ${TEXT_LIMITS.alertLabel} characters.` }, { status: 400 });
   }
+  /* direction is above | below and the price a positive number (#1413): anything else used to reach the insert, where NaN or a free string could be stored and never fire. */
+  if (direction !== 'above' && direction !== 'below') return NextResponse.json({ error: 'INVALID_INPUT', message: 'direction must be above or below.' }, { status: 400 });
+  const targetNum = typeof target_price === 'number' ? target_price : parseFloat(String(target_price));
+  if (!Number.isFinite(targetNum) || targetNum <= 0) return NextResponse.json({ error: 'INVALID_INPUT', message: 'target_price must be a positive number.' }, { status: 400 });
   const { count: activeCount, error: countErr } = await sb(token).from(T.price_alerts)
     .select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('active', true);
   if (countErr) return apiError('price-alerts', countErr);
@@ -112,7 +120,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await sb(token)
     .from(T.price_alerts)
-    .insert({ coin, target_price: parseFloat(target_price), direction, label: label ?? '', user_id: user.id })
+    .insert({ coin, target_price: targetNum, direction, label: label ?? '', user_id: user.id })
     .select()
     .single();
 
@@ -143,10 +151,20 @@ export async function PATCH(req: NextRequest) {
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
-  const body = await req.json();
+  const capped = await readJsonCapped(req, BODY_CAPS.priceAlerts);
+  if (capped.tooLarge) return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  const body = capped.value as Record<string, any> | null; // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_INPUT', message: 'Send a JSON body.' }, { status: 400 });
   const patch: Record<string, unknown> = {};
-  if (body.target_price !== undefined) patch.target_price = parseFloat(body.target_price);
-  if (body.direction !== undefined)    patch.direction    = body.direction;
+  if (body.target_price !== undefined) {
+    const n = typeof body.target_price === 'number' ? body.target_price : parseFloat(String(body.target_price));
+    if (!Number.isFinite(n) || n <= 0) return NextResponse.json({ error: 'INVALID_INPUT', message: 'target_price must be a positive number.' }, { status: 400 });
+    patch.target_price = n;
+  }
+  if (body.direction !== undefined) {
+    if (body.direction !== 'above' && body.direction !== 'below') return NextResponse.json({ error: 'INVALID_INPUT', message: 'direction must be above or below.' }, { status: 400 });
+    patch.direction = body.direction;
+  }
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'nothing to update' }, { status: 400 });
 
   /* maybeSingle, not single - see the same fix in app/api/hypotheses/[id].

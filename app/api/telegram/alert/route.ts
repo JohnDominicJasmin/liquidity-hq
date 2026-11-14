@@ -481,6 +481,9 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
    In the common case (nobody's muted anything) every recipient shares one
    group, so this collapses to exactly the old one-message-per-coin behavior.
    ════════════════════════════════════════ */
+/* ONE PLAIN LINE ON EVERY SIGNAL ALERT (owner, option A, 2026-11-14, #1651): they are signals, not predictions. The "about half" is the production measurement of fires with a 24 h outcome (#1651 comment 6873369526: 51 % moved the alert's way). Telegram messages are English-only here (the recipient's language is not known to this cron), so this line is English. Price alerts are the user's own threshold, not a signal, and are not touched. */
+const SIGNAL_FOOTER = "\n\n<i>Signals, not predictions. Past alerts moved the alert's way about half the time at 24 hours.</i>";
+
 async function flushSignals(
   token: string,
   recipients: Recipient[],
@@ -527,7 +530,7 @@ async function flushSignals(
     await Promise.all([...groups.values()].map(async ({ entries: elig, chatIds }) => {
       if (elig.length === 1) {
         // Single signal - send as-is
-        await tg(token, chatIds, elig[0].body);
+        await tg(token, chatIds, elig[0].body + SIGNAL_FOOTER);
         return;
       }
 
@@ -536,7 +539,7 @@ async function flushSignals(
       await tg(token, chatIds,
         `🔀 <b>${label} - ${elig.length} Signals Aligned</b>\n\n` +
         `${bullets}\n\n` +
-        `<i>${stamp}</i>`
+        `<i>${stamp}</i>` + SIGNAL_FOOTER
       );
     }));
   }));
@@ -2681,9 +2684,21 @@ async function runAlerts(token: string): Promise<NextResponse> {
         ruleKey: e.ruleKey, coin: e.coin, dir: e.dir as 'long' | 'short', label: e.name, price: e.price!,
         agreeCount: a?.rules.size,
         agreeNet: a?.net,
+        metricValue: e.metricValue,
+        thresholdKind: e.thresholdKind,
       };
     });
-  await persistAlertFires(outcomeFires);
+  const fireLog = await persistAlertFires(outcomeFires);
+  /* ONE HEALTH ROW FOR THE FIRE LOG (#1651 "coin flip"), only when something was attempted: a quiet scan is not evidence that logging works. A failed insert shows on /ops instead of vanishing. */
+  if (fireLog.attempted > 0) {
+    reportHealth(
+      'alert:fires', 'market', fireLog.failed === 0,
+      fireLog.failed === 0
+        ? `${fireLog.stored} stored, ${fireLog.deduped} already logged in their cooldown`
+        : `${fireLog.failed} of ${fireLog.attempted} fires failed to store`,
+      fireLog.stored,
+    );
+  }
 
   // ── Delivery observability ────────────────────────────────────────────────
   // Until now this route emitted no logs at all and structure signals are

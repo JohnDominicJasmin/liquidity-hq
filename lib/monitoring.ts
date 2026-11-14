@@ -266,9 +266,23 @@ type ScrubbableEvent = {
   request?: { url?: string; headers?: Record<string, unknown>; query_string?: unknown; cookies?: unknown; data?: unknown };
   user?: Record<string, unknown>;
   breadcrumbs?: ({ category?: string; message?: string; data?: Record<string, unknown> } | undefined)[];
-  exception?: { values?: { value?: string; stacktrace?: { frames?: StackFrame[] } }[] };
+  exception?: { values?: { type?: string; value?: string; stacktrace?: { frames?: StackFrame[] } }[] };
   message?: string;
 };
+
+/* EXPECTED UPSTREAM REFUSALS ARE NOT ERRORS (P1: GlitchTip was over its free limit, 1,537 of 1,000 events, about half of new errors dropped, most of it these).
+   An exchange telling us to slow down (HTTP 403 / 418 / 429 from Bybit or Binance) and our own breaker refusing a call while an exchange is cooling down or its request budget
+   is spent are the system working as designed; they are counted in api_health (lib/exchangeGuard.ts reports each trip and keeps refused / trips counters), so sending them to
+   GlitchTip as well only burned the quota that real errors need. Narrow on purpose: only an HttpStatusError whose message names a rate-limit status, or one of the two guard
+   messages. Everything else still goes through. */
+export function isExpectedUpstreamRefusal(event: unknown): boolean {
+  const values = (event as ScrubbableEvent).exception?.values ?? [];
+  return values.length > 0 && values.every((v) => {
+    const msg = v.value ?? '';
+    if (/^(binance|bybit|okx|hyperliquid): (cooling down|request budget spent)/.test(msg)) return true;
+    return v.type === 'HttpStatusError' && /\b(403|418|429)\b/.test(msg);
+  });
+}
 
 /**
  * Last thing that runs before an event leaves the process.
@@ -355,6 +369,11 @@ export function scrubEvent<T>(event: T): T {
   return event;
 }
 
+/** The beforeSend hook: an expected upstream refusal is dropped, everything else is scrubbed and sent. Generic for the same reason scrubEvent is. */
+export function dropExpectedThenScrub<T>(event: T): T | null {
+  return isExpectedUpstreamRefusal(event) ? null : scrubEvent(event);
+}
+
 /**
  * The options every runtime shares. Spread this, then add runtime-specific keys.
  *
@@ -428,7 +447,7 @@ export function monitoringOptions() {
        importing `ErrorEvent`/`TransactionEvent` - the latter is not re-exported
        by @sentry/nextjs, and reaching into @sentry/core for a type would add an
        undeclared dependency on a transitive package. */
-    beforeSend: scrubEvent,
+    beforeSend: dropExpectedThenScrub,
     // A NO-OP in SDK 11 (no transaction events exist there; tracesSampleRate is 0 anyway) and removed in v12. Kept so nothing about the pipeline changes until then.
     beforeSendTransaction: scrubEvent,
   };

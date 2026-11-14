@@ -1,3 +1,4 @@
+import { writeAdminAudit } from '@/lib/adminAudit';
 import { NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { withOwner } from '@/lib/admin-auth';
@@ -55,6 +56,7 @@ export const POST = withOwner(async (req, { user }) => {
   let userId: string;
   let passwordSet: boolean;
   const existing = await findUserByEmail(admin, email);
+  const { data: prevAdmin } = existing ? await admin.from(T.admin_users).select('role, active').eq('user_id', existing.id).maybeSingle() : { data: null };
   if (existing) {
     userId = existing.id;
     passwordSet = false;
@@ -77,12 +79,7 @@ export const POST = withOwner(async (req, { user }) => {
   // provider is unconfigured or fails, emailSent is just false.
   const emailSent = await sendAdminAddedEmail({ to: email, role, invitedBy: user.email });
 
-  await admin.from(T.admin_audit_log).insert({
-    actor_email: user.email,
-    action: 'admin_add',
-    target_user_id: userId,
-    detail: { email, role, passwordSet, emailSent },
-  });
+  const logged = await writeAdminAudit(admin, { actor_email: user.email, action: 'admin_add', target_user_id: userId, detail: { email, role, passwordSet, emailSent, previous: prevAdmin ?? null } });
 
-  return NextResponse.json({ ok: true, user_id: userId, email, role, passwordSet, emailSent });
+  return NextResponse.json({ ok: true, user_id: userId, email, role, passwordSet, emailSent, auditLogged: logged });
 });

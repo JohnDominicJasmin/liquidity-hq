@@ -1,3 +1,4 @@
+import { readJsonCapped, BODY_CAPS } from '@/lib/requestBody';
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { T } from '@/lib/tables';
@@ -54,7 +55,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (hypErr) return NextResponse.json({ error: hypErr.message }, { status: 500 });
   if (!hyp) return NextResponse.json({ error: 'Hypothesis not found' }, { status: 404 });
 
-  const body = await req.json().catch(() => ({})) as {
+  const capped = await readJsonCapped(req, BODY_CAPS.evidence);
+  if (capped.tooLarge) return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  const body = (capped.value ?? {}) as {
     type?: string;
     content?: string;
     source?: string;

@@ -26,6 +26,8 @@ import { oiTrend1h } from '@/lib/oiTrend1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
 import EMASignal from '@/components/EMASignal';
+import ArenaSoundPrompt from '@/components/ArenaSoundPrompt';
+import { useArenaSounds } from '@/lib/useArenaSounds';
 import HigherTfMoveBadge from '@/components/HigherTfMoveBadge';
 import Tip from '@/components/Tip';
 import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
@@ -39,6 +41,9 @@ import { computeDistributionScore, distributionColor, DistributionInputs } from 
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
+import ArenaStrategyCard from '@/components/ArenaStrategyCard';
+import { useStrategySignal } from '@/lib/useStrategySignal';
+import { findStrategy } from '@/lib/strategies';
 import { describeSelection, overlayStates, selectableIds } from '@/lib/strategyRegistry';
 import { coinLockedForUnpaid, gateSignal, signalPlanFor } from '@/lib/signalCoinGate';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
@@ -442,6 +447,15 @@ function ArenaContent() {
     setStrategyParams(next);
     update({ strategy_params: next });
   }, [update]);
+  /* ARENA STRATEGY (owner-requested, 2026-11-14): one saved rule set (lib/strategies) with a buy/sell/wait card under the Strategy panel. Separate from the indicator chips above. Persisted on the user's own action only, never echoed by the seed. */
+  const [arenaStrategy, setArenaStrategyState] = useState<string | null>(null);
+  const handleArenaStrategyChange = useCallback((next: string | null) => {
+    if (settingsLoadStatus !== 'ready') return;
+    setArenaStrategyState(next);
+    update({ arena_strategy: next });
+  }, [update, settingsLoadStatus]);
+  const strategyLiqLevels = useMemo(() => (chartLiqClusters ?? []).map(c => c.price), [chartLiqClusters]);
+  const strategyState = useStrategySignal(selectedCoin, readTf, arenaStrategy, strategyLiqLevels);
   const oi1h          = useOI1h(selectedCoin);
   // Default OFF: a 3-year majors/1h backtest showed raw signals (this filter off) beat
   // the stricter persistence-based filter on every metric - see STRICT_FILTER_PARAMS
@@ -508,6 +522,8 @@ function ArenaContent() {
       : gatedEmaSignal),
     [gatedEmaSignal, aboveAnalysisCeiling],
   );
+  /* ARENA SOUND ALERTS (owner, 2026-11-14): on only after the visitor said yes (settings.arena_sound === true, saved with the account). The hook pings a NEW buy or sell from the strategy panel's own signal (`emaSignal`) and, once per candle, a big move with big volume from the chart's live bars. */
+  const { onLiveBars } = useArenaSounds({ enabled: settingsLoadStatus === 'ready' && settings.arena_sound === true, coin: selectedCoin, tf: readTf, signal: emaSignal });
   /* #1613's feedGraceOver moved above the useEMAStrategy call (#1651) - a hook call reading it has to come after its declaration. */
   const [readLoading, setReadLoading] = useState(false);
   // #1309 item 24: state, not a ref, updates asynchronously - two clicks
@@ -914,6 +930,7 @@ function ArenaContent() {
     // nor pushes `selection` into buildArenaPrompt's non-empty weighting branch.
     if (settings.strategy_selection) setStrategySelection(selectableIds(settings.strategy_selection));
     if (settings.strategy_params) setStrategyParams(settings.strategy_params);
+    if (findStrategy(settings.arena_strategy)) setArenaStrategyState(settings.arena_strategy);
     setSelectionSeeded(true); // an account with no saved selection is seeded too: empty is then the real answer
   }, [settingsLoadStatus, settings.default_coin, settings.default_tf, settings.strategy_selection, settings.strategy_params]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1778,34 +1795,6 @@ function ArenaContent() {
       const { result: res, usage } = await callGrokViaProxy(ctx, chartData, mode, selection);
       if (usage) setGrokUsage(usage);
       track.arenaAnalysis(mode, selectedCoin);
-
-      // ── Liquidity Raid → Telegram alert (1h cooldown per coin + setup type) ──
-      if (res.raidSetup) {
-        try {
-          const raidKey  = `raid-tg-${selectedCoin}-${res.raidSetup}`;
-          const lastSent = Number(localStorage.getItem(raidKey) ?? 0);
-          if (Date.now() - lastSent > 60 * 60 * 1000) {
-            localStorage.setItem(raidKey, String(Date.now()));
-            const sym  = selectedCoin.toUpperCase();
-            const lines: string[] = [
-              '<b>LIQUIDITY RAID DETECTED</b>',
-              `<b>${res.raidSetup} - ${sym}/USDT</b>`,
-              '',
-            ];
-            if (res.raidTarget)  lines.push(`Target: ${res.raidTarget}`);
-            if (res.raidTrigger) lines.push(`Trigger: ${res.raidTrigger}`);
-            lines.push(`Signal: ${res.signal} · ${res.confidence}% confidence`);
-            lines.push(`Session: ${ctx.session}`);
-            lines.push('');
-            lines.push('<i>LiquidityHQ Arena</i>');
-            fetch('/api/telegram/send', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message: lines.join('\n') }),
-            }).catch(() => { /* silent - alert failure must not block UI */ });
-          }
-        } catch { /* localStorage unavailable - skip silently */ }
-      }
 
       // Cache result per coin (with price snapshot for stale-check)
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
@@ -2962,7 +2951,8 @@ function ArenaContent() {
         </div>
       )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
+      <ArenaSoundPrompt />
+      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
       {/* Directly under the chart, on the owner's request (#370). The read
           refers to what the chart shows - "price below EMAs", "closing below
           the swing low", "lower wick at Fib support" - so anything between
@@ -3164,6 +3154,7 @@ function ArenaContent() {
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
       <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} />
+      <ArenaStrategyCard selected={arenaStrategy} onSelect={handleArenaStrategyChange} state={strategyState} disabled={settingsLoadStatus !== 'ready'} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>

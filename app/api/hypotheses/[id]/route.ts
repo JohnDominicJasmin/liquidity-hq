@@ -1,3 +1,6 @@
+import { readJsonCapped, BODY_CAPS } from '@/lib/requestBody';
+import { TEXT_LIMITS } from '@/lib/ownRowLimits';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { T } from '@/lib/tables';
@@ -19,12 +22,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+  const capped = await readJsonCapped(req, BODY_CAPS.hypothesis);
+  if (capped.tooLarge) return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  const body = (capped.value ?? {}) as Record<string, unknown>;
 
   const allowed = ['title','hypothesis','acceptance_criteria','status','target_date'];
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const k of allowed) {
     if (k in body) update[k] = body[k];
+  }
+  /* The same types and limits POST applies (and the database enforces), said first with a 400 instead of surfacing a constraint failure as a 500 (#1413). */
+  const str = (v: unknown, max: number) => typeof v === 'string' && v.length <= max;
+  if (('title' in update && (!str(update.title, TEXT_LIMITS.hypothesisTitle) || !(update.title as string).trim()))
+    || ('hypothesis' in update && (!str(update.hypothesis, TEXT_LIMITS.hypothesis) || !(update.hypothesis as string).trim()))
+    || ('status' in update && !['active', 'confirmed', 'disconfirmed', 'expired'].includes(update.status as string))
+    || ('target_date' in update && update.target_date != null && !str(update.target_date, 40))
+    || ('acceptance_criteria' in update && (!Array.isArray(update.acceptance_criteria) || update.acceptance_criteria.length > TEXT_LIMITS.criteriaCount
+         || update.acceptance_criteria.some((c: unknown) => !str(c, TEXT_LIMITS.criterion))))) {
+    return NextResponse.json({ error: 'INVALID_INPUT', message: 'One of the fields is the wrong type or too long.' }, { status: 400 });
   }
 
   /* maybeSingle, not single. The .eq('user_id') above is the ownership filter,

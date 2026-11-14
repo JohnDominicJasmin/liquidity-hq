@@ -1,9 +1,11 @@
+import { readJsonCapped, BODY_CAPS } from '@/lib/requestBody';
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { T } from '@/lib/tables';
 import { shouldAcceptFieldWrite } from '@/lib/settingsFieldConcurrency';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { STRATEGY_IDS } from '@/lib/strategies';
 
 function sb(token: string) {
   return userClient(token);
@@ -52,7 +54,10 @@ export async function PATCH(req: NextRequest) {
   const user = await getUser(token);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await req.json() as Record<string, unknown>;
+  const capped = await readJsonCapped(req, BODY_CAPS.settings);
+  if (capped.tooLarge) return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  if (!capped.value || typeof capped.value !== 'object' || Array.isArray(capped.value)) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  const body = capped.value as Record<string, unknown>;
 
   // Sanitize - only allow known fields through
   const ALLOWED = [
@@ -63,7 +68,8 @@ export async function PATCH(req: NextRequest) {
     'beginner_mode', 'trading_experience', 'trading_style', 'how_heard', 'watchlist',
     'display_name', 'country', 'trading_challenge', 'language',
     'timezone',
-    'strategy_selection', 'strategy_params',
+    'strategy_selection', 'strategy_params', 'arena_strategy',
+    'arena_sound',
   ];
   const payload: Record<string, unknown> = {};
   for (const key of ALLOWED) {
@@ -94,6 +100,11 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
+  // arena_sound is a tri-state (null = never asked): refuse anything else rather than store a string a client invented.
+  if ('arena_sound' in payload && payload.arena_sound !== null && typeof payload.arena_sound !== 'boolean') {
+    return NextResponse.json({ error: 'Invalid arena_sound' }, { status: 400 });
+  }
+
   // strategy_selection/strategy_params are jsonb - reject anything that isn't
   // the shape app/arena/page.tsx actually produces, rather than storing
   // garbage that would later crash StrategyPanel/useEMAStrategy on read.
@@ -101,6 +112,12 @@ export async function PATCH(req: NextRequest) {
     const sel = payload.strategy_selection;
     if (sel !== null && !(Array.isArray(sel) && sel.every(v => typeof v === 'string'))) {
       return NextResponse.json({ error: 'Invalid strategy_selection' }, { status: 400 });
+    }
+  }
+  if ('arena_strategy' in payload) {
+    const a = payload.arena_strategy;
+    if (a !== null && !(typeof a === 'string' && STRATEGY_IDS.has(a))) {
+      return NextResponse.json({ error: 'Invalid arena_strategy' }, { status: 400 });
     }
   }
   if ('strategy_params' in payload) {
