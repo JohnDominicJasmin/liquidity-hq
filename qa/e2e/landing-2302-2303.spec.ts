@@ -47,7 +47,7 @@ for (const loc of ['en', 'ru']) for (const width of [390, 1280]) for (const th o
          logged, and the check is made on the SETTLED (last) text: that is what a visitor ends up reading. If the text changes while loading, the log shows it. */
       await dPage.waitForFunction(() => document.body.innerText.length > 800, null, { timeout: 25_000 }).catch(() => { /* judged below */ });
       const holds = (txt: string) => txt.includes(norm(land.para!)) || norm(land.para!).split(/(?<=[.!?。])\s+/).filter(s => s.length > 25).every(s => txt.includes(norm(s)));
-      const section = (txt: string) => { const i = txt.search(/AI ANALYSIS|AI-анализ|Анализ ИИ|ИИ-анализ|AI 분석|AI分析/i); return i < 0 ? '(no AI Analysis heading in the text)' : txt.slice(i, i + 420); };
+      const section = (txt: string) => { const i = txt.search(/xAI|Grok/i); return i < 0 ? '(no xAI/Grok mention in the text)' : txt.slice(Math.max(0, i - 330), i + 330); };
       const seen: Array<{ t: number; held: boolean; len: number; text: string }> = []; const tD = Date.now(); let dtext = '';
       while (Date.now() - tD < 14_000) {
         dtext = norm(await dPage.evaluate(() => document.body.innerText)); const sec = section(dtext);
@@ -55,6 +55,8 @@ for (const loc of ['en', 'ru']) for (const width of [390, 1280]) for (const th o
         if (seen.length && seen[seen.length - 1].held && Date.now() - tD > 4_000) break;
         await dPage.waitForTimeout(500);
       }
+      // eslint-disable-next-line no-console
+      console.log(`[D1] /disclaimer ${loc} ${width} ${th} SETTLED lang=${await dPage.evaluate(() => document.documentElement.lang + '|' + (localStorage.getItem('lhq_lang_v1') ?? ''))} text: ${section(dtext)}`);
       // eslint-disable-next-line no-console
       console.log(`[D1] /disclaimer ${loc} ${width} ${th}: ${seen.length} distinct AI-section text(s): ${JSON.stringify(seen.map(s => ({ t: s.t, held: s.held, len: s.len, head: s.text.slice(0, 160) })))}`);
       expect(dtext.length, '/disclaimer did not render').toBeGreaterThan(500);
