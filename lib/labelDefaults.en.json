@@ -2990,5 +2990,13 @@
   "PATTERN_HANGING_MAN": "Hanging man",
   "PATTERN_INVERTED_HAMMER": "Inverted hammer",
   "PATTERN_DOJI": "Doji",
-  "PATTERN_TIGHT_CONSOLIDATION": "Tight consolidation"
+  "PATTERN_TIGHT_CONSOLIDATION": "Tight consolidation",
+  "ARENA_SOUND_PROMPT_TEXT": "Play a sound on new signals and big moves?",
+  "ARENA_SOUND_PROMPT_ALLOW": "Allow",
+  "ARENA_SOUND_PROMPT_NOT_NOW": "Not now",
+  "ARENA_SOUND_PROMPT_DISMISS_LABEL": "Close (sound stays off)",
+  "SETTINGS_ARENA_SOUND_TITLE": "Arena sound alerts",
+  "SETTINGS_ARENA_SOUND_ON": "On: a ping on new signals and big moves",
+  "SETTINGS_ARENA_SOUND_OFF": "Off",
+  "SETTINGS_ARENA_SOUND_DESC": "A short tone on the Arena when the strategy panel's signal for your coin and timeframe turns to buy or sell, and once per candle when its move and its volume are both at least twice the recent average. It plays only after you have clicked on the page, and also while the tab is in the background."
 }

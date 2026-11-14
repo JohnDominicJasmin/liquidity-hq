@@ -65,6 +65,7 @@ export async function PATCH(req: NextRequest) {
     'display_name', 'country', 'trading_challenge', 'language',
     'timezone',
     'strategy_selection', 'strategy_params', 'arena_strategy',
+    'arena_sound',
   ];
   const payload: Record<string, unknown> = {};
   for (const key of ALLOWED) {
@@ -93,6 +94,11 @@ export async function PATCH(req: NextRequest) {
     } else if (typeof tz !== 'string' || !isValidTimeZone(tz)) {
       return NextResponse.json({ error: 'Invalid timezone' }, { status: 400 });
     }
+  }
+
+  // arena_sound is a tri-state (null = never asked): refuse anything else rather than store a string a client invented.
+  if ('arena_sound' in payload && payload.arena_sound !== null && typeof payload.arena_sound !== 'boolean') {
+    return NextResponse.json({ error: 'Invalid arena_sound' }, { status: 400 });
   }
 
   // strategy_selection/strategy_params are jsonb - reject anything that isn't

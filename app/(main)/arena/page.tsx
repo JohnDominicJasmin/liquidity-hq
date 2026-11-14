@@ -26,6 +26,8 @@ import { oiTrend1h } from '@/lib/oiTrend1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
 import EMASignal from '@/components/EMASignal';
+import ArenaSoundPrompt from '@/components/ArenaSoundPrompt';
+import { useArenaSounds } from '@/lib/useArenaSounds';
 import HigherTfMoveBadge from '@/components/HigherTfMoveBadge';
 import Tip from '@/components/Tip';
 import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
@@ -520,6 +522,8 @@ function ArenaContent() {
       : gatedEmaSignal),
     [gatedEmaSignal, aboveAnalysisCeiling],
   );
+  /* ARENA SOUND ALERTS (owner, 2026-11-14): on only after the visitor said yes (settings.arena_sound === true, saved with the account). The hook pings a NEW buy or sell from the strategy panel's own signal (`emaSignal`) and, once per candle, a big move with big volume from the chart's live bars. */
+  const { onLiveBars } = useArenaSounds({ enabled: settingsLoadStatus === 'ready' && settings.arena_sound === true, coin: selectedCoin, tf: readTf, signal: emaSignal });
   /* #1613's feedGraceOver moved above the useEMAStrategy call (#1651) - a hook call reading it has to come after its declaration. */
   const [readLoading, setReadLoading] = useState(false);
   // #1309 item 24: state, not a ref, updates asynchronously - two clicks
@@ -2947,7 +2951,8 @@ function ArenaContent() {
         </div>
       )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
+      <ArenaSoundPrompt />
+      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
       {/* Directly under the chart, on the owner's request (#370). The read
           refers to what the chart shows - "price below EMAs", "closing below
           the swing low", "lower wick at Fib support" - so anything between
