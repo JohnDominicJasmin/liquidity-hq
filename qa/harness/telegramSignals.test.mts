@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-// @ts-expect-error plain .mjs helper under qa/
 import { makeWorld, installFakeFetch, loadRoute } from '../telegramWorld.mjs';
 
 /* QA's Telegram cron harness, SIGNAL half: the real route, a fake network (see qa/telegramWorld.mjs). The world's BTC hourly candles rise without a pause, so BTC reads RSI 100 and the cron

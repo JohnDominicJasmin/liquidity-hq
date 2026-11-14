@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-// @ts-expect-error plain .mjs helper under qa/
 import { makeWorld, installFakeFetch, loadRoute } from '../telegramWorld.mjs';
 
 /* QA's Telegram cron harness (owner ask 2026-11-14: "test Telegram alerts heavily"). The REAL route handler runs in-process; only the network is fake (see qa/telegramWorld.mjs):
