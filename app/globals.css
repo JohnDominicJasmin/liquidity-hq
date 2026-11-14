@@ -4011,6 +4011,12 @@ html[data-theme="light"] { background: var(--bg0); }
 /* Measured by QA on a CI build in English, Russian, Korean and Chinese (runs 43637299794 and 43639284647, with a seven-digit price in the invalidation line): the tallest possible call needs 264 px (Russian) in the
    narrow 320 px rail, which is the layout from 981 px up (.arena-ws is two columns above 980 px); 150 px when the rail is full width (641-980 px); 222 px on a phone (Korean, Russian). Each value is the tallest + a margin.
    QA's strategy-call-height cell fails if any reserve is shorter than the tallest call. */
+/* The strategy call box's Expand / Collapse icon (components/StrategyCallBox.tsx): 28 px hit area pulled back by -6 px top and bottom so the description row keeps its one-line height; the global focus ring applies. */
+.strat-desc-toggle { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: -6px -7px -6px 0; padding: 0; background: none; border: none; border-radius: 6px; cursor: pointer; color: var(--txt3); }
+.strat-desc-toggle:hover, .strat-desc-toggle:focus-visible { color: var(--accent); }
+.strat-desc-chevron { transition: transform 150ms; }
+.strat-desc-chevron[data-open="true"] { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .strat-desc-chevron { transition: none; } }
 .strat-call-dyn { min-height: 180px; }
 @media (max-width: 980px) { .strat-call-dyn { min-height: 150px; } }
 @media (max-width: 640px) { .strat-call-dyn { min-height: 200px; } }
