@@ -39,7 +39,12 @@ async function signedIn(browser: Browser, width: number, theme: string, o: { fai
   const page = await ctx.newPage(); await page.setViewportSize({ width, height: width < 500 ? 844 : 900 });
   await installPaidAiFence(page);
   /* nothing is written to the shared dev row; the sound answer is "none yet" so the first-visit prompt shows */
-  await page.route(/\/api\/settings(\?|$)/, async route => { if (route.request().method() === 'GET') return route.fallback(); return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); });
+  /* the app only treats a save as done when the answer carries both lists (a bare {} reads as a failed save and shows the error toast), so the stub answers like the real route does */
+  await page.route(/\/api\/settings(\?|$)/, async route => {
+    const req = route.request(); if (req.method() === 'GET') return route.fallback();
+    const sent = Object.keys((req.postDataJSON() ?? {}) as Record<string, unknown>).filter(k => k !== 'knownAsOf');
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ accepted: sent, rejected: [], settings: null }) });
+  });
   await page.route(/\/rest\/v1\/lhq_(dev_)?user_settings\?/, async route => {
     if (route.request().method() !== 'GET') return route.fallback();
     const res = await route.fetch(); const body = await res.json().catch(() => null); if (body == null) return route.fulfill({ response: res });
@@ -58,7 +63,7 @@ test.describe('qa sign-off shots (#2292)', () => {
       const { ctx, page } = await anon(browser, width, theme);
       try {
         await page.goto('/', { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(6_000);
-        const row = page.getByText(/AI ANALYSIS/i).last(); await row.scrollIntoViewIfNeeded(); await page.waitForTimeout(800);
+        const row = page.getByText(/AI ANALYSIS/i).last(); await row.evaluate((el) => el.scrollIntoView({ block: 'center' })); await page.waitForTimeout(800);
         const sc = await hasSideScroll(page); console.log(`[landing ${width} ${theme}] ${JSON.stringify(sc)}`);
         await png(page, `landing-risk-${width}-${theme}`);
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)); await page.waitForTimeout(600); await png(page, `landing-footer-${width}-${theme}`);
@@ -75,7 +80,7 @@ test.describe('qa sign-off shots (#2292)', () => {
         await page.goto('/privacy', { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(5_000);
         const h = page.getByText(/data retention/i).first(); const found = await h.count();
         console.log(`[privacy ${width} ${theme}] data-retention heading found: ${found > 0}`);
-        if (found) await h.scrollIntoViewIfNeeded(); await page.waitForTimeout(600);
+        if (found) await h.evaluate((el) => el.scrollIntoView({ block: 'start' })); await page.waitForTimeout(600);
         const p = await hasSideScroll(page); console.log(`[privacy ${width} ${theme}] ${JSON.stringify(p)}`); await png(page, `privacy-retention-${width}-${theme}`);
         expect(d.sw, '/disclaimer scrolls sideways').toBeLessThanOrEqual(d.vw); expect(p.sw, '/privacy scrolls sideways').toBeLessThanOrEqual(p.vw);
       } finally { await ctx.close(); }
