@@ -1,8 +1,16 @@
 -- Recompute 51 fabricated alert outcomes: fired at the 1000x scale, resolved at the per-token one.
 --
--- ⚠️ **NOT APPLIED. PENDING THE OWNER'S APPROVAL.** This file is a draft. It writes to the shared
+-- ⚠️ **SUPERSEDED. DO NOT RUN.** (PM, 2026-11-14.) The rows this file targets are already corrected on
+-- production: PM read production read-only on 2026-11-14 (#2292 comment 6876455738) and the 52 pepe/bonk
+-- fires in this file's window all carry outcomes between -5.84% and +5.90%, with zero rows anywhere at the
+-- +/-99.9% signature. The statements below are left as written, as the record of what the draft was going to do;
+-- running them is not needed and is not part of any release.
+--
+-- (The original header follows. Everything in it about "NOT APPLIED, pending the owner" is historical.)
+--
+-- ⚠️ ~~NOT APPLIED. PENDING THE OWNER'S APPROVAL.~~ This file was a draft. It writes to the shared
 -- database, which is one of the three things that goes to the owner directly, so nobody runs it on
--- the strength of this file existing. PM/DevOps recommends applying it; the decision is the owner's.
+-- the strength of this file existing. PM/DevOps recommended applying it; the decision was the owner's.
 --
 -- ── WHAT IS WRONG WITH THESE 51 ROWS ────────────────────────────────────────────────────────────
 --

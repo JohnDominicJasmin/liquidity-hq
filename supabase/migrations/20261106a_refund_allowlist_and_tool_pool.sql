@@ -1,8 +1,9 @@
 -- refund_ai_usage_impl could not refund 12 of the 16 columns it is asked for, and gave back half
 -- of each refund it did perform.
 --
--- ⚠️ **NOT APPLIED. PENDING QA REVIEW, THEN RELEASE-TIME APPLICATION WITH 20261031a.** Writes to the
--- shared database, so the owner approves it. PM/DevOps asked for it after finding the first symptom.
+-- ⚠️ **NOT YET APPLIED TO PRODUCTION: RELEASE-TIME APPLICATION.** Writes to the shared database, so the owner
+-- approves it. PM/DevOps asked for it after finding the first symptom. Its former prerequisite, 20261031a, IS
+-- on production (PM read-only, 2026-11-14: `lhq_grok_usage.draw_structure_count` exists), so this file can run on its own.
 --
 -- ── WHAT IS BROKEN. THREE THINGS, AND ONLY THE FIRST WAS REPORTED ──────────────────────────────
 --
