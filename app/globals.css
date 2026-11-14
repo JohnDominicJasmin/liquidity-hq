@@ -5497,6 +5497,8 @@ body.landing {
   .mkt-counts { margin-left: 0 !important; width: 100%; flex-wrap: wrap; gap: 4px 12px !important; }
   .mkt-coin-cell { padding-left: 6px !important; }
   .mkt-price { white-space: nowrap; }
+  /* "Нет данных" / "No data" in the price cell wraps under itself instead of running left into the coin symbol (QA run 43541923030, 360 ru: "HYPEНет данных"). */
+  .mkt-price.mkt-price-gap { white-space: normal; line-height: 1.1; overflow-wrap: break-word; }
   .mkt-price-long { font-size: var(--fs-micro) !important; }
   .mkt-col-spark, .mkt-col-pressure { display: none !important; }
   .mkt-signal {
