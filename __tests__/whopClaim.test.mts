@@ -64,7 +64,8 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   if (p === '/auth/v1/user') { const id = db.tokens.get((req.headers.get('authorization') ?? '').replace('Bearer ', '')); const u = id ? db.users.get(id) : null; return u ? json(200, u) : json(401, { message: 'bad jwt' }); }
   const adm = p.match(/^\/auth\/v1\/admin\/users\/(.+)$/); if (adm) { const u = db.users.get(adm[1]); return u ? json(200, u) : json(404, { message: 'User not found' }); }
   const rpc = p.match(/^\/rest\/v1\/rpc\/(.+)$/);
-  if (rpc) { const { p_email } = JSON.parse(await req.text()); const hit = [...db.users.values()].find((u) => u.email === p_email); return json(200, hit ? hit.id : null); }
+  if (rpc) { if (/extend_subscription$/.test(rpc[1])) return json(404, { code: 'PGRST202', message: 'Could not find the function' });   // #2320: the atomic extend is not installed here, so these cells keep exercising the fallback path
+    const { p_email } = JSON.parse(await req.text()); const hit = [...db.users.values()].find((u) => u.email === p_email); return json(200, hit ? hit.id : null); }
   const table = p.replace('/rest/v1/', '');
   if (table === T('whop_webhook_events')) {
     if (req.method === 'POST') {

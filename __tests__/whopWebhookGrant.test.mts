@@ -57,8 +57,10 @@ const db = {
   events: new Map<string, Record<string, unknown>>(), subs: new Map<string, Record<string, unknown>>(),
   users: new Map<string, { id: string; email: string; email_confirmed_at: string | null }>(),
   writes: [] as string[], tables: new Set<string>(), fail: null as Fail, seq: 0,
+  /* #2320: how the atomic extend answers. null = the function is not installed (404 PGRST202), so the old read-compute-write path runs; the rest are what the database function can say. */
+  extend: null as null | 'granted' | 'admin' | 'error', extendArgs: [] as Record<string, unknown>[],
   reset() {
-    this.events.clear(); this.subs.clear(); this.users.clear(); this.writes = []; this.tables.clear(); this.fail = null; this.seq = 0;
+    this.events.clear(); this.subs.clear(); this.users.clear(); this.writes = []; this.tables.clear(); this.fail = null; this.seq = 0; this.extend = null; this.extendArgs = [];
     this.users.set(USER_ID, { id: USER_ID, email: USER_EMAIL, email_confirmed_at: '2026-01-01T00:00:00Z' });
   },
 };
@@ -83,6 +85,15 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 
   const rpc = p.match(/^\/rest\/v1\/rpc\/(.+)$/);
   if (rpc) {
+    if (/extend_subscription$/.test(rpc[1])) {
+      const args = JSON.parse(await req.text()) as Record<string, unknown>; db.extendArgs.push({ fn: rpc[1], ...args });
+      if (db.extend === null) return json(404, { code: 'PGRST202', message: 'Could not find the function' });   // not installed here: the fallback path is what most cells exercise
+      if (db.extend === 'error') return json(500, { code: 'XX000', message: 'extend boom' });
+      if (db.extend === 'admin') return json(200, [{ outcome: 'admin_grant', period_end: null }]);
+      const end = new Date(Date.now() + (Number(args.p_months) * 30 + Number(args.p_days)) * 86400_000).toISOString();
+      db.subs.set(String(args.p_user_id), { user_id: args.p_user_id, role: 'pro', current_period_end: end, billing_provider: args.p_provider, plan: args.p_plan });   // what the one statement would have done
+      return json(200, [{ outcome: 'granted', period_end: end }]);
+    }
     assert.equal(rpc[1], process.env.NEXT_PUBLIC_APP_ENV === 'dev' ? 'lhq_dev_user_id_by_email' : 'lhq_user_id_by_email');
     if (db.fail === 'rpc') return json(500, { code: 'XX000', message: 'rpc boom' });
     const { p_email } = JSON.parse(await req.text());
@@ -440,4 +451,56 @@ test('X4. /api/version reports which plan ids are set as booleans and never the 
   // the same id on two plans is not "set" for either
   const both = configuredFlags({ WHOP_PLAN_ID_MONTHLY: 'plan_same', WHOP_PLAN_ID_ANNUAL: 'plan_same' } as Record<string, string | undefined>) as unknown as Record<string, unknown>;
   assert.equal(both.whopPlanMonthly, false); assert.equal(both.whopPlanAnnual, false);
+});
+
+
+/* ── #2320: the atomic extension (lhq_extend_subscription) ─────────────── */
+
+test('X1. when the atomic extend is installed it does the grant: the right arguments, no read-compute-write upsert by the route, the answer says granted', async () => {
+  const POST = await load(); fresh(); db.extend = 'granted';
+  const r = await POST(req(pay()));
+  const b = await body(r);
+  assert.equal(r.status, 200); assert.equal(b.granted, 'monthly', JSON.stringify(b));
+  assert.equal(db.extendArgs.length, 1, 'one extend call');
+  const a = db.extendArgs[0];
+  assert.equal(a.p_user_id, USER_ID); assert.equal(a.p_plan, 'monthly'); assert.equal(a.p_provider, 'whop');
+  assert.ok(Number(a.p_months) + Number(a.p_days) > 0, `a length is sent: ${JSON.stringify(a)}`); assert.match(String(a.p_now), /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(db.writes.filter((w) => w.startsWith('subs:upsert')).length, 0, 'the route also upserted the subscription: the old path ran next to the atomic one');
+  assert.equal(db.subs.get(USER_ID)!.role, 'pro');
+});
+
+test('X1b. each plan sends its own length to the atomic extend (fortnightly / monthly / annual differ)', async () => {
+  const POST = await load(); const seen: string[] = [];
+  for (const [plan, id] of [['fortnightly', PLAN.f], ['monthly', PLAN.m], ['annual', PLAN.a]] as const) {
+    fresh(); db.extend = 'granted'; await POST(req(pay({}, { plan: { id } })));
+    const a = db.extendArgs[0]; seen.push(`${plan}:${a.p_months}m${a.p_days}d`); assert.equal(a.p_plan, plan);
+  }
+  assert.equal(new Set(seen).size, 3, `plans sent the same length: ${seen.join(' ')}`);
+});
+
+test('X2. the atomic extend refusing an account with an ADMIN grant goes to manual review and writes nothing (no overwrite of the grant)', async () => {
+  const POST = await load(); fresh(); db.extend = 'admin';
+  const r = await POST(req(pay())); const b = await body(r);
+  assert.equal(b.review, 'account_has_admin_grant', JSON.stringify(b)); assert.equal(db.writes.filter((w) => w.startsWith('subs:upsert')).length, 0);
+});
+
+test('X3. the atomic extend FAILING (not "missing") answers 500 and removes the record, so the retry is not answered "replay"; once it works the retry grants (a paying customer is not stranded)', async () => {
+  const POST = await load(); fresh(); const b = pay(); db.extend = 'error';
+  const r = await POST(req(b, { id: 'msg_x3' }));
+  assert.equal(r.status, 500); assert.equal(db.events.size, 0, 'the record must be removed so the retry is not answered "replay"'); assert.equal(db.subs.size, 0, 'granted despite the failure');
+  db.extend = 'granted';
+  const r2 = await POST(req(b, { id: 'msg_x3' })); assert.equal(r2.status, 200); assert.equal((await body(r2)).granted, 'monthly');
+});
+
+test('X4. a MISSING function (404 PGRST202) falls back to the old path and still grants: a grant that fails is paid-and-not-Pro, which is worse than the race', async () => {
+  const POST = await load(); fresh(); db.extend = null;
+  const r = await POST(req(pay())); assert.equal(r.status, 200); assert.equal((await body(r)).granted, 'monthly');
+  assert.equal(db.extendArgs.length, 1, 'the atomic path was tried first'); assert.equal(db.subs.get(USER_ID)!.role, 'pro');
+  assert.equal(db.writes.filter((w) => w.startsWith('subs:upsert')).length >= 1, true, 'the fallback upsert did not run');
+});
+
+test('X5. one payment through the atomic path is counted once however many bodies it arrives in (the replay guard still sits in front of it)', async () => {
+  const POST = await load(); fresh(); db.extend = 'granted';
+  await POST(req(pay())); await POST(req(pay({ extra: 1 }))); await POST(req(pay({ extra: 2 })));
+  assert.equal(db.extendArgs.length, 1, `extended ${db.extendArgs.length} times for one payment`);
 });
