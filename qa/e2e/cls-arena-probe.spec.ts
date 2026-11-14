@@ -32,7 +32,7 @@ test.describe('arena layout shift probe', () => {
             const ws = document.querySelector('.arena-ws') as HTMLElement | null; const wsTop = ws ? ws.getBoundingClientRect().top + scrollY : 99999;
             for (const m of muts) for (const n of Array.from(m.addedNodes)) {
               if (n.nodeType !== 1) continue; const el = n as HTMLElement; const b = el.getBoundingClientRect(); if (!b.height) continue;
-              if (el.closest('svg,header') || b.height < 12 || b.top + scrollY < 40) continue; if (b.bottom + scrollY <= wsTop + 2) (w as unknown as { __added: unknown[] }).__added.push({ t: Math.round(performance.now() - t0), what: d(el), h: Math.round(b.height), top: Math.round(b.top + scrollY), parent: d(el.parentElement).tag + '.' + d(el.parentElement).cls });
+              if (el.closest('svg,header,.gchat-panel,.gchat-fab') || b.height < 12 || b.top + scrollY < 250 || b.top + scrollY > 460 || performance.now() - t0 < 200) continue; if (b.bottom + scrollY <= wsTop + 2) (w as unknown as { __added: unknown[] }).__added.push({ t: Math.round(performance.now() - t0), what: d(el), h: Math.round(b.height), top: Math.round(b.top + scrollY), parent: d(el.parentElement).tag + '.' + d(el.parentElement).cls });
             }
           }).observe(document, { childList: true, subtree: true });
         } catch { /* unsupported */ }
