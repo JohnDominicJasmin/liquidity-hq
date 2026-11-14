@@ -20,16 +20,19 @@ async function openArena(browser: import('@playwright/test').Browser, o: { width
   const page = await ctx.newPage(); if (o.width) await page.setViewportSize({ width: o.width, height: 900 });
   await installPaidAiFence(page);
   const writes: unknown[] = [];
+  /* the settings WRITE goes through /api/settings (stubbed and recorded); the READ is a browser Supabase call to the user_settings table, so a saved choice is played back by patching that response */
   await page.route(/\/api\/settings(\?|$)/, async route => {
-    const req = route.request();
-    if (req.method() === 'GET') {
-      const res = await route.fetch(); const body = await res.json().catch(() => ({}));
-      if (o.saved !== undefined) { const j = { ...(body as Record<string, unknown>), arena_strategy: o.saved }; return route.fulfill({ response: res, json: j }); }
-      return route.fulfill({ response: res });
-    }
+    const req = route.request(); if (req.method() === 'GET') return route.fallback();
     writes.push(req.postDataJSON()); return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
-  if (o.failKlines) await page.route(/\/api\/proxy\?.*interval=/, route => {
+  if (o.saved !== undefined) await page.route(/\/rest\/v1\/lhq_(dev_)?user_settings\?/, async route => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const res = await route.fetch(); const body = await res.json().catch(() => null); if (body == null) return route.fulfill({ response: res });
+    const patch = (r: Record<string, unknown>) => ({ ...r, arena_strategy: o.saved });
+    return route.fulfill({ response: res, json: Array.isArray(body) ? body.map(patch) : patch(body as Record<string, unknown>) });
+  });
+  /* candles come from /api/market/klines?source=bybit|binance-futures|okx&symbol=...: failing them all, or only BTC's, makes a failed read */
+  if (o.failKlines) await page.route(/\/api\/market\/klines\?/, route => {
     if (o.failKlines === 'btc' && !/symbol=BTC/i.test(route.request().url())) return route.fallback();
     return route.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"stub"}' });
   });
