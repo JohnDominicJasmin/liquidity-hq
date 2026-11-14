@@ -9297,6 +9297,8 @@ main.app-content[data-chrome="none"] {
   .mkt-hdr-row > :last-child { white-space: normal; overflow: visible; overflow-wrap: break-word; padding-left: 2px !important; line-height: 1.1; }
   /* A LONG LIVE PRICE ("$0.00000424", PEPE) NEEDS ROOM AT 360 (QA live run, #1185): the price column is 76 px, not 60, and the coin column keeps a 60 px floor (symbol, 18 px icon and padding), so a 5-letter symbol and a 10-character price ("$66,844.40" at the caption size, "$0.00000424" at the small size) keep a gap at 360. The signal column gives the width back and wraps. */
   .mkt-price-long { letter-spacing: -.02em; }
+  /* THE SIGNAL HEAD FITS ITS COLUMN AT 360 (QA live run on 697b214: "Signal ⓘ" is about 83 px and the column about 64, so the head ran past the viewport: page 364 en, 388 ru). The Tip wrapper is an inline flex row; it may now wrap, so the ⓘ drops to a second line under the word (still a 24 px, focusable button) and the word reads in full. The price column stays 76 px. */
+  .mkt-hdr-row > :last-child > span { flex-wrap: wrap; max-width: 100%; row-gap: 0; }
   .dash-right, .dash-right > * { min-width: 0; max-width: 100%; }
   .av-rail-panel { min-width: 0; max-width: 100%; overflow-x: clip; }
 }
