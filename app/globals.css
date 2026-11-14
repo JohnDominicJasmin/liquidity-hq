@@ -5913,6 +5913,8 @@ html[lang="ko"] .lp-hero-h1 { word-break: keep-all; }
    the smaller caption size already carry the de-emphasis. */
 .pf-footer-bottom-note { font-style: italic; max-width: 700px; text-align: right; }
 .pf-footer-bottom-link { color: var(--txt3); text-decoration: underline; text-underline-offset: 2px; }
+/* A 24 PX HIT AREA WITHOUT A VISIBLE CHANGE (#1185, QA: the three legal links in the footer note measured 15 px tall at every width). Inline-block with 5 px of padding above and below and the same amount of negative margin: the line height and the look are unchanged, the clickable box is 25 px. */
+.pf-footer-bottom-link, .lt-inline-hit { display: inline-block; padding-block: 5px; margin-block: -5px; }
 .pf-footer-bottom-link:hover { color: var(--txt); }
 @media (max-width: 900px) { .pf-footer-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) {
@@ -9281,4 +9283,15 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .ob-checklist,
 [data-design="terminal"][data-theme="light"] .ob-checklist {
   box-shadow: none;
+}
+
+/* ── 360 PX WIDTH PASS (#1185, QA run 43537174082): /dashboard was 387 wide and /markets 388 (en) to 408 (ru) on a 360 px phone, so both scrolled sideways. Phone width only, nothing at 390 and up. ──
+   /markets: the five columns plus the two 10 px row paddings needed about 28 px more than 360 leaves, and the SIGNAL head ran past the edge. Tighter columns and 6 px row padding here, and the last head is clipped inside its own cell as a safety net (Russian is longer).
+   /dashboard: a rail panel is allowed to shrink below its content and clips the overflow rather than widening the page. */
+@media (max-width: 380px) {
+  .mkt-row, .mkt-hdr-row { grid-template-columns: 62px minmax(56px, 0.9fr) 60px 54px minmax(0, 1.4fr) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  /* NO CLIPPED HEADING (PM, QA run 43539950327: "Signal ⓘ" was 83 px of text in a 42 px cell): the last head wraps, and breaks inside a word only if the word itself does not fit. */
+  .mkt-hdr-row > :last-child { white-space: normal; overflow: visible; overflow-wrap: break-word; padding-left: 2px !important; line-height: 1.1; }
+  .dash-right, .dash-right > * { min-width: 0; max-width: 100%; }
+  .av-rail-panel { min-width: 0; max-width: 100%; overflow-x: clip; }
 }
