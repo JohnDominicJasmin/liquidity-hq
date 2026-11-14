@@ -21,11 +21,12 @@ export default function ArenaStrategyCard({ selected, onSelect, state, disabled 
   const r = state.result;
   const verdict = r?.verdict ?? null;
   const colour = verdict === 'buy' ? 'var(--green)' : verdict === 'sell' ? 'var(--red)' : 'var(--txt2)';
-  const fmt = (k: string) => (typeof r?.params[k] === 'number' ? priceText(r.params[k] as number) : '');
+  const priceParams: Record<string, string> = {};
+  for (const [k, v] of Object.entries(r?.params ?? {})) if (typeof v === 'number') priceParams[k] = priceText(v);
   let reason = '';
   if (def && r) {
-    if (r.verdict === 'buy') reason = t(def.reasonBuyKey, { swept: fmt('swept'), mss: fmt('mss') });
-    else if (r.verdict === 'sell') reason = t(def.reasonSellKey, { swept: fmt('swept'), mss: fmt('mss') });
+    if (r.verdict === 'buy') reason = t(def.reasonBuyKey, priceParams);
+    else if (r.verdict === 'sell') reason = t(def.reasonSellKey, priceParams);
     else reason = t(def.reasonWaitKey);
   }
   return (
