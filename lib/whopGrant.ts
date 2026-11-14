@@ -4,6 +4,7 @@ import { T } from '@/lib/tables';
 import { decideWhopEvent, decideWhopMembership, extendedPeriodEnd, readWhopMembership, readWhopPayment, whopCompanyMatches } from '@/lib/whopEntitlement';
 import { payerOwnsAccount } from '@/lib/lemonsqueezy';
 import { apiError } from '@/lib/apiError';
+import { extendSubscription } from '@/lib/extendSubscription';
 
 /* The two things the Whop webhook and the sign-up claim both do, in one place so they cannot drift (#1567, recovery for a payer with no
  * account yet).
@@ -193,6 +194,12 @@ export type GrantResult =
 
 /** Pro for one account from one decided payment. */
 export async function grantToAccount(sb: Admin, accountId: string, d: { plan: string; add: { months?: number; days?: number } }, now: Date = new Date()): Promise<GrantResult> {
+  /* ATOMIC FIRST (#1413): one statement under the row lock, so two different payments for one account both count. Where the function is not on this database yet, fall through
+     to the read-compute-write below rather than fail a paid grant. */
+  const atomic = await extendSubscription(sb, { userId: accountId, add: d.add, plan: d.plan, provider: 'whop', now });
+  if (atomic.kind === 'granted') return { kind: 'granted', plan: d.plan, periodEnd: atomic.periodEnd };
+  if (atomic.kind === 'admin_grant') return { kind: 'review', reason: 'account_has_admin_grant' };
+  if (atomic.kind === 'error') return { kind: 'error', what: 'subscription extend', err: atomic.err };
   const { data: stored, error: storedErr } = await sb
     .from(T.user_subscriptions)
     .select('role, current_period_end, billing_provider')

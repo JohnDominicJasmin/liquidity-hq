@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { verifyBoomfiWebhook, boomfiOrgMatches } from '@/lib/boomfi';
 import { decideBoomfiEvent, extendedPeriodEnd } from '@/lib/boomfiEntitlement';
+import { extendSubscription } from '@/lib/extendSubscription';
 import { isCryptoCheckoutConfigured } from '@/lib/checkout';
 import { payerOwnsAccount } from '@/lib/lemonsqueezy';
 
@@ -170,6 +171,21 @@ export async function POST(req: NextRequest) {
   // The id came from a client-side URL the payer can edit; the payer's own email is the only proof they own the account named.
   if (!decision.payerEmails.some((e) => payerOwnsAccount(e, acctEmail))) {
     return reviewResponse(eventName, paymentId, 'payer_email_does_not_match_account');
+  }
+
+  /* ATOMIC FIRST (#1413): the same one-statement extension the Whop grant uses, so two different payments for one account both count. BoomFi's own customer / subscription ids are
+     a separate, non-racing update afterwards. Where the function is not on this database yet, fall through to the read-compute-write below. */
+  const atomic = await extendSubscription(sb, { userId: accountId, add: decision.add, plan: decision.plan, provider: 'boomfi', now: new Date() });
+  if (atomic.kind === 'admin_grant') return reviewResponse(eventName, paymentId, 'account_has_admin_grant');
+  if (atomic.kind === 'error') return failAndForget(sb, payloadHash, 'subscription extend', atomic.err);
+  if (atomic.kind === 'granted') {
+    const ids = { ...(decision.customerId ? { boomfi_customer_id: decision.customerId } : {}), ...(decision.subscriptionId ? { boomfi_subscription_id: decision.subscriptionId } : {}) };
+    if (Object.keys(ids).length > 0) {
+      const { error: idsErr } = await sb.from(T.user_subscriptions).update(ids).eq('user_id', accountId);
+      /* NOT failAndForget: the period is already extended, and removing the replay guard here would let a Replay extend it a second time. The ids are reported and can be filled in by hand. */
+      if (idsErr) apiError('boomfi/webhook', new Error(`period extended but the BoomFi ids were not saved for payment ${paymentId ?? '(none)'}: ${idsErr.message}`));
+    }
+    return NextResponse.json({ received: true, recorded: true, granted: decision.plan, period_end: atomic.periodEnd.toISOString() });
   }
 
   const { data: stored, error: storedErr } = await sb

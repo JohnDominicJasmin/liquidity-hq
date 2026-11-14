@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { renderChatMarkdown } from '@/lib/renderChatMarkdown';
 import Link from 'next/link';
 import {
   useMarket, CoinId, COINS, computeSqueezeScore, classifyFunding, BINANCE_SYMS, BYBIT_SYMS,
@@ -88,45 +89,7 @@ function relTime(ts: number): string {
 /* Follow-up chips come from the SAME answer now (#1631 E): the server asks for a FOLLOW-UPS block and splits it off
    (lib/chatPrompt.ts). This used to be a second /api/grok-chat call after every answer - a second chat credit and xAI charge. */
 
-/* ── Markdown renderer ─────────────────────────────────────────── */
-function renderMd(raw: string): string {
-  // Escaping quotes here (not just &/</>) matters because this runs BEFORE
-  // the link-detection regexes below build `href="${u}"` attributes straight
-  // from captured URL text - search-mode responses can incorporate content
-  // from arbitrary web pages/X posts, and an unescaped `"` in a captured URL
-  // breaks out of the attribute (e.g. `.../x" onmouseover="...`), letting
-  // that external content run its own script in this DOM. &quot; renders
-  // identically to a literal " for any plain text this touches, so this is
-  // safe for the non-URL cases too.
-  let s = raw
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-
-  // Citations [[1]](url)
-  s = s.replace(/\[\[([^\]]+)\]\]\((https?:\/\/[^)]+)\)/g,
-    (_, n, u) => `<sup><a href="${u}" target="_blank" rel="noopener">[${n}]</a></sup>`);
-  // Links [text](url)
-  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
-    (_, t, u) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`);
-  // Bare URLs
-  s = s.replace(/(^|[\s(])((https?:\/\/)[^\s)]+)/g,
-    (_, p, u) => `${p}<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
-  // Bold / italic
-  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
-  // Headings
-  s = s.replace(/^#{1,3}\s+(.+)$/gm, '<strong>$1</strong>');
-  // Bullets
-  s = s.replace(/^[-•]\s+(.+)$/gm, '&bull; $1');
-  // Numbered list
-  s = s.replace(/^\d+\.\s+(.+)$/gm, (_, i) => `&emsp;${i}`);
-  // Newlines
-  s = s.replace(/\n{2,}/g, '<br/><br/>');
-  s = s.replace(/\n/g, '<br/>');
-  return s;
-}
+/* ── Markdown renderer ─ lib/renderChatMarkdown.ts (links are validated and parked before anything is escaped) ── */
 
 /* ── Smart detectors ──────────────────────────────────────────── */
 
@@ -1027,7 +990,7 @@ export default function GrokChat() {
                   {m.role === 'assistant' ? (
                     <div
                       className="gchat-bubble"
-                      dangerouslySetInnerHTML={{ __html: renderMd(m.content) }}
+                      dangerouslySetInnerHTML={{ __html: renderChatMarkdown(m.content) }}
                     />
                   ) : (
                     <div className="gchat-bubble">{m.display ?? m.content}</div>
