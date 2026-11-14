@@ -39,6 +39,9 @@ import { computeDistributionScore, distributionColor, DistributionInputs } from 
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
+import ArenaStrategyCard from '@/components/ArenaStrategyCard';
+import { useStrategySignal } from '@/lib/useStrategySignal';
+import { findStrategy } from '@/lib/strategies';
 import { describeSelection, overlayStates, selectableIds } from '@/lib/strategyRegistry';
 import { coinLockedForUnpaid, gateSignal, signalPlanFor } from '@/lib/signalCoinGate';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
@@ -442,6 +445,15 @@ function ArenaContent() {
     setStrategyParams(next);
     update({ strategy_params: next });
   }, [update]);
+  /* ARENA STRATEGY (owner-requested, 2026-11-14): one saved rule set (lib/strategies) with a buy/sell/wait card under the Strategy panel. Separate from the indicator chips above. Persisted on the user's own action only, never echoed by the seed. */
+  const [arenaStrategy, setArenaStrategyState] = useState<string | null>(null);
+  const handleArenaStrategyChange = useCallback((next: string | null) => {
+    if (settingsLoadStatus !== 'ready') return;
+    setArenaStrategyState(next);
+    update({ arena_strategy: next });
+  }, [update, settingsLoadStatus]);
+  const strategyLiqLevels = useMemo(() => (chartLiqClusters ?? []).map(c => c.price), [chartLiqClusters]);
+  const strategyState = useStrategySignal(selectedCoin, readTf, arenaStrategy, strategyLiqLevels);
   const oi1h          = useOI1h(selectedCoin);
   // Default OFF: a 3-year majors/1h backtest showed raw signals (this filter off) beat
   // the stricter persistence-based filter on every metric - see STRICT_FILTER_PARAMS
@@ -914,6 +926,7 @@ function ArenaContent() {
     // nor pushes `selection` into buildArenaPrompt's non-empty weighting branch.
     if (settings.strategy_selection) setStrategySelection(selectableIds(settings.strategy_selection));
     if (settings.strategy_params) setStrategyParams(settings.strategy_params);
+    if (findStrategy(settings.arena_strategy)) setArenaStrategyState(settings.arena_strategy);
     setSelectionSeeded(true); // an account with no saved selection is seeded too: empty is then the real answer
   }, [settingsLoadStatus, settings.default_coin, settings.default_tf, settings.strategy_selection, settings.strategy_params]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3164,6 +3177,7 @@ function ArenaContent() {
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
       <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} />
+      <ArenaStrategyCard selected={arenaStrategy} onSelect={handleArenaStrategyChange} state={strategyState} disabled={settingsLoadStatus !== 'ready'} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>

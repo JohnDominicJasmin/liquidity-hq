@@ -35,8 +35,11 @@ export interface FireForOutcome {
 /** What one `persistAlertFires` call did, so a logging gap is visible instead of looking like a quiet scan (#1651). */
 export interface FireLogTally { attempted: number; deduped: number; stored: number; failed: number }
 
+/** Arena strategy fires (lib/strategies) are logged as `strat_<id>_<tf>` through the same table, so the same resolver prices them at 24 h / 48 h. */
+export function isStrategyRuleKey(ruleKey: string): boolean { return /^strat_[a-z0-9_]+_(1m|5m|15m|30m|1h|2h|4h|1d)$/.test(ruleKey); }
+
 export function isOutcomeTracked(ruleKey: string, dir: 'long' | 'short' | undefined, price: number | undefined): dir is 'long' | 'short' {
-  return dir != null && price != null && price > 0 && OUTCOME_TRACKED_RULE_KEYS.has(ruleKey);
+  return dir != null && price != null && price > 0 && (OUTCOME_TRACKED_RULE_KEYS.has(ruleKey) || isStrategyRuleKey(ruleKey));
 }
 
 // Mirrors the CD cooldown windows in app/api/telegram/alert/route.ts for each
@@ -49,6 +52,7 @@ export function isOutcomeTracked(ruleKey: string, dir: 'long' | 'short' | undefi
 // as N separate data points, skewing win-rate stats toward whatever just
 // happened to redeploy. The DB is the only state that survives a restart, so
 // dedup happens here against it, independent of the cron's own cooldown.
+const STRAT_TF_MS: Record<string, number> = { '1m': 60_000, '5m': 300_000, '15m': 900_000, '30m': 1_800_000, '1h': 3_600_000, '2h': 7_200_000, '4h': 14_400_000, '1d': 86_400_000 };
 const OUTCOME_DEDUP_MS: Record<string, number> = {
   squeeze: 4 * 3600_000,
   distribution: 4 * 3600_000,
@@ -76,7 +80,9 @@ export async function persistAlertFires(fires: FireForOutcome[]): Promise<FireLo
     const admin = getSupabaseAdmin();
     const toInsert: FireForOutcome[] = [];
     for (const f of fires) {
-      const windowMs = OUTCOME_DEDUP_MS[f.ruleKey] ?? 0;
+      /* A strategy fire dedups for 2 candles of its own timeframe, like ema_signal_<tf>: the same signal re-detected on the next cron tick must not become a second data point. */
+      const stratTf = isStrategyRuleKey(f.ruleKey) ? f.ruleKey.slice(f.ruleKey.lastIndexOf('_') + 1) : null;
+      const windowMs = stratTf ? 2 * (STRAT_TF_MS[stratTf] ?? 3_600_000) : (OUTCOME_DEDUP_MS[f.ruleKey] ?? 0);
       if (windowMs > 0) {
         const cutoff = new Date(Date.now() - windowMs).toISOString();
         const { data } = await admin
