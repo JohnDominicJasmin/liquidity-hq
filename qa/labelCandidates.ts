@@ -128,9 +128,8 @@ export const CANDIDATES: LabelCandidate[] = [
     key: 'ARENA_SCANNER_COL_24H',
     now: '24 hours', was: '24h',
     path: '/arena',
-    note: 'flyout column header, 40px fixed track at <=480px, uppercase + .07em tracking',
+    note: 'flyout column header, was a 40px fixed track at <=480px (the long form clipped: scrollWidth 42 vs 40); the track is now 54px (2026-11-14 release run: scrollWidth 54 = clientWidth 54), so the long form FITS and this cell now guards that it keeps fitting',
     opener: 'scannerFlyout',
-    expectOverflow: true,
   },
 ];
 
