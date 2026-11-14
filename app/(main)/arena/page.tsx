@@ -41,9 +41,9 @@ import { computeDistributionScore, distributionColor, DistributionInputs } from 
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
-import ArenaStrategyCard from '@/components/ArenaStrategyCard';
 import { useStrategySignal } from '@/lib/useStrategySignal';
 import { findStrategy } from '@/lib/strategies';
+import { AUTO_SET_ID, CUSTOM_SET_ID } from '@/lib/strategyRegistry';
 import { describeSelection, overlayStates, selectableIds } from '@/lib/strategyRegistry';
 import { coinLockedForUnpaid, gateSignal, signalPlanFor } from '@/lib/signalCoinGate';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
@@ -431,6 +431,9 @@ function ArenaContent() {
      seed effect's OWN setStrategySelection/setStrategyParams calls above,
      echoing the just-read value straight back to the server on every load.
      Passed to StrategyPanel below in place of the raw setters. */
+  /* ARENA STRATEGY (owner decision 2026-11-14, option A: ONE strategy menu). The saved strategy id lives here next to the chips: the Strategy set menu writes BOTH in one save, and touching a chip by hand
+     leaves the strategy (the menu then shows Custom). Persisted on the user's own action only, never echoed by the seed. */
+  const [arenaStrategy, setArenaStrategyState] = useState<string | null>(null);
   const handleStrategySelectionChange = useCallback((next: readonly string[]) => {
     // #1246/#1347: belt-and-suspenders alongside StrategyPanel's own gate -
     // this is the only path that writes strategy_selection, and it must not
@@ -443,17 +446,25 @@ function ArenaContent() {
     setStrategySelection(next);
     update({ strategy_selection: next as string[] });
   }, [update, settingsLoadStatus]);
+  /* The Strategy set menu (PM rules, #2358): picking a strategy never removes the user's chips: a strategy with no drawable chip leaves the chip row as it was, one that reads a chip ADDS it to the
+     existing chips (no-op if already on; a Free account, limited to one chip, swaps it in as a tap would). 'Let the read choose' and 'Custom' clear the saved strategy (the call box goes) and leave
+     the chips alone. Touching a chip while a strategy is picked keeps the strategy. One request per change. */
+  const handleStrategyMenuPick = useCallback((id: string) => {
+    if (settingsLoadStatus !== 'ready') return;
+    if (id === AUTO_SET_ID || id === CUSTOM_SET_ID) { if (arenaStrategy !== null) { setArenaStrategyState(null); update({ arena_strategy: null }); } return; }
+    const def = findStrategy(id);
+    if (!def) return;
+    const add = selectableIds(def.chips).filter(c => !strategySelection.includes(c));
+    if (add.length === 0) { setArenaStrategyState(def.id); update({ arena_strategy: def.id }); return; }
+    const chips = entitlementStatus === 'entitled' ? [...strategySelection, ...add] : (strategySelection.length === 0 ? add.slice(0, 1) : [add[0]]);
+    setArenaStrategyState(def.id);
+    setStrategySelection(chips);
+    update({ arena_strategy: def.id, strategy_selection: chips as string[] });
+  }, [update, settingsLoadStatus, arenaStrategy, strategySelection, entitlementStatus]);
   const handleStrategyParamsChange = useCallback((next: Record<string, Record<string, string | number | boolean>>) => {
     setStrategyParams(next);
     update({ strategy_params: next });
   }, [update]);
-  /* ARENA STRATEGY (owner-requested, 2026-11-14): one saved rule set (lib/strategies) with a buy/sell/wait card under the Strategy panel. Separate from the indicator chips above. Persisted on the user's own action only, never echoed by the seed. */
-  const [arenaStrategy, setArenaStrategyState] = useState<string | null>(null);
-  const handleArenaStrategyChange = useCallback((next: string | null) => {
-    if (settingsLoadStatus !== 'ready') return;
-    setArenaStrategyState(next);
-    update({ arena_strategy: next });
-  }, [update, settingsLoadStatus]);
   const strategyLiqLevels = useMemo(() => (chartLiqClusters ?? []).map(c => c.price), [chartLiqClusters]);
   const strategyState = useStrategySignal(selectedCoin, readTf, arenaStrategy, strategyLiqLevels);
   const oi1h          = useOI1h(selectedCoin);
@@ -3152,8 +3163,7 @@ function ArenaContent() {
           before readLoading is ever set - so the button never visibly
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
-      <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} />
-      <ArenaStrategyCard selected={arenaStrategy} onSelect={handleArenaStrategyChange} state={strategyState} disabled={settingsLoadStatus !== 'ready'} />
+      <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} strategyState={strategyState} />
       {/* THE FIRST-VISIT SOUND QUESTION sits HERE, below the Strategy card, not above the chart. It appears only after settings load, so above the chart it pushed the whole chart
           down (CLS 0.164 against a 0.1 budget on /arena: release run 43595134120, measured again in 43602526829). Down here it can only push the panels beneath it. */}
       <ArenaSoundPrompt />

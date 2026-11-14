@@ -397,13 +397,9 @@ export const CUSTOM_SET_ID = 'custom';
 
 export const STRATEGY_SETS: readonly StrategySet[] = [
   { id: AUTO_SET_ID, label: 'Let the read choose', indicators: [] },
-  { id: 'liquidity_sweep', label: 'Liquidity Sweep', indicators: ['EMA_RIBBON', 'LIQ_CLUSTERS'] },
-  /* SAR rather than ADX: a preset may only name indicators that actually
-     draw, or choosing it selects a chip that then explains it cannot
-     render - which is a worse first experience than a preset that works.
-     ADX goes back in when it is implemented; the test below enforces it. */
-  { id: 'trend_follow',    label: 'Trend Follow',    indicators: ['EMA_RIBBON', 'SAR'] },
-  { id: 'mean_reversion',  label: 'Mean Reversion',  indicators: ['RSI', 'BOLL'] },
+  /* THE THREE OLD PRESETS (Liquidity Sweep, Trend Follow, Mean Reversion) ARE REMOVED (owner decision 2026-11-14, option A: one strategy menu). The seven strategies in lib/strategies sit
+     between these two entries in the panel's dropdown. A user whose saved chips matched an old preset keeps those chips and the menu shows Custom: the menu's value is derived from the saved
+     strategy id and the chips, so nothing they saved is lost or rewritten. */
   { id: CUSTOM_SET_ID,     label: 'Custom',          indicators: [] },
 ];
 
