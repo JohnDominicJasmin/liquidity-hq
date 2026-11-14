@@ -40,6 +40,8 @@ interface Props {
   dict: LandingDict;
   locale: Locale;
   dir: 'ltr' | 'rtl';
+  /** The AI-processor disclosure, from the legal key (lib/legalDefaults.ts), passed by the server page. */
+  aiAnalysisBody: string;
 }
 
 /* Required by landing.md's own Layout section: "Select with
@@ -265,7 +267,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   );
 }
 
-export default function LandingTerminal({ dict, locale, dir }: Props) {
+export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: Props) {
   const isDesktop = useIsDesktop();
   const heroWide = useHeroWide();
   const stepArrow = dir === 'rtl' ? '←' : '→';
@@ -698,7 +700,7 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
             { label: 'Educational Use', text: 'All content - signals, scores, alerts, and AI commentary - is for informational purposes only. Nothing constitutes a recommendation to buy, sell, or hold any asset.' },
             { label: 'Trading Risk', text: 'Crypto trading involves substantial risk. Prices are volatile, leverage magnifies losses, and most active traders lose money. Only trade with money you can afford to lose.' },
             { label: 'No Investment Advice', text: 'We are not a registered investment advisor, and we do not execute trades or hold customer funds. You are solely responsible for your own trading decisions. Consult a licensed professional before making any investment decision.' },
-            { label: 'AI Analysis', text: 'LiquidityAI is powered by xAI Grok. AI output can be incomplete, outdated, or wrong - never use it as your sole basis for a trade. Always verify against the raw data shown.' },
+            { label: 'AI Analysis', text: aiAnalysisBody },
             { label: 'Data Sources', text: 'Price, funding, and OI data sourced from Binance and Bybit. News from Finnhub, Fear & Greed from Alternative.me. We do not guarantee accuracy, completeness, or availability of third-party feeds.' },
             { label: 'No Affiliation', text: 'LiquidityHQ is not affiliated with, endorsed by, or sponsored by any exchange or data provider referenced here. All trademarks belong to their respective owners.' },
           ].map(item => (

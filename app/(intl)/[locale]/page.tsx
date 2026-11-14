@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import LandingContent from '@/components/LandingContent';
 import { getDictionary, dirForLocale, isSupportedLocale, SUPPORTED_LOCALES } from '@/lib/i18n/dictionaries';
 import { OG_IMAGES } from '@/lib/seo';
+import { AI_ANALYSIS_BODY } from '@/lib/legalDefaults';
 
 interface Params { locale: string }
 
@@ -132,5 +133,5 @@ export default async function LocalizedLandingPage({ params }: { params: Promise
   const { locale } = await params;
   if (!isSupportedLocale(locale)) notFound();
   const dict = getDictionary(locale);
-  return <LandingContent dict={dict} locale={locale} dir={dirForLocale(locale)} />;
+  return <LandingContent dict={dict} locale={locale} dir={dirForLocale(locale)} aiAnalysisBody={AI_ANALYSIS_BODY} />;
 }

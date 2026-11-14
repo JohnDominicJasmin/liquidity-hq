@@ -1,0 +1,4 @@
+import defaults from './labelDefaults.en.json';
+
+/* THE AI-PROCESSOR DISCLOSURE, READ FROM ITS ONE SOURCE (#1185, PM). The landing page and the platform footer each hardcoded their own copy of "LiquidityAI is powered by xAI Grok...", a vendor mention outside the four legal keys that would go stale if the engine switch (#2235) is ever turned on. The legal key DISCLAIMER_SECTION_AI_ANALYSIS_BODY is the one place the wording lives; the footer reads it through t(), and the landing page (which takes its copy as a prop, not from the label table) gets the shipped default of that key from this module. SERVER ONLY: import it from a server page and pass it down, never from a client component, so the label file does not ship in the landing bundle. Legal text stays English by owner decision. */
+export const AI_ANALYSIS_BODY: string = (defaults as Record<string, string>).DISCLAIMER_SECTION_AI_ANALYSIS_BODY;
