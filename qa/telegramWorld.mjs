@@ -95,6 +95,7 @@ export function installFakeFetch(w) {
 export async function loadRoute() {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://stub.supabase.test';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'stub-service-key';
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'stub-anon-key';
   process.env.TELEGRAM_BOT_TOKEN = '123:harness-fake-token';
   process.env.CRON_SECRET = 'harness-fake-secret';
   process.env.NEXT_PUBLIC_APP_ENV = 'prod';        // table names lhq_*, the same names the fake world serves
@@ -107,4 +108,11 @@ export async function loadRoute() {
       return { status: res.status, body: await res.json().catch(() => null) };
     },
   };
+}
+
+/** Any route module, through the same jiti and the same env (the alert route's loader above is the one most cells use). */
+export async function loadModule(rel) {
+  await loadRoute();
+  const jiti = createJiti(import.meta.url, { alias: { '@': root }, interopDefault: true, moduleCache: false });
+  return jiti.import(path.join(root, rel));
 }

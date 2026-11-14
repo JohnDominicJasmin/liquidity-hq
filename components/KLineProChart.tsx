@@ -390,6 +390,8 @@ interface Props {
   // toggle: the toggle controls whether markers are drawn, not whether the
   // signal exists.
   onStructure?:  (sig: PASignal | null) => void;
+  /** The chart's own live bars (oldest first, the last one still forming), handed over every few seconds with the coin and timeframe they belong to, for the Arena's sound alerts. No network: it reads what the live stream already put in the chart. */
+  onLiveBars?:   (info: { coin: string; tf: string; bars: Array<{ timestamp: number; open: number; high: number; low: number; close: number; volume: number }> }) => void;
   /* The strategy panel's selection (#930). ADDITIVE ONLY - see the effect that
      consumes it for why an empty selection must leave this chart exactly as it
      was before the panel existed. REQUIRED (#1347 item 11, same shape as #1370's
@@ -667,7 +669,7 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, onUnlock }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, onUnlock }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -2631,6 +2633,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   // signal whether or not the user has markers switched on.
   const onStructureRef = useRef(onStructure);
   useEffect(() => { onStructureRef.current = onStructure; }, [onStructure]);
+  /* LIVE BARS FOR THE SOUND ALERTS: every 5 s hand the last 22 bars the chart already holds (the live stream keeps the last one current) to the page, tagged with the
+     coin and timeframe, so the page can tell a stale batch from the chart it is showing. */
+  const onLiveBarsRef = useRef(onLiveBars);
+  useEffect(() => { onLiveBarsRef.current = onLiveBars; }, [onLiveBars]);
+  useEffect(() => {
+    const id = setInterval(() => {
+      const cb = onLiveBarsRef.current;
+      const chart = chartRef.current;
+      if (!cb || !chart) return;
+      const list = chart.getDataList();
+      if (!list || list.length < 22) return;
+      cb({ coin: coinRef.current, tf, bars: list.slice(-22).map(b => ({ timestamp: b.timestamp, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 })) });
+    }, 5000);
+    return () => clearInterval(id);
+  }, [tf]);
   useEffect(() => {
     onStructureRef.current?.(paSignals.length ? paSignals[paSignals.length - 1] : null);
   }, [paSignals]);

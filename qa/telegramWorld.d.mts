@@ -16,3 +16,4 @@ export interface World {
 export function makeWorld(over?: { tables?: Record<string, any[]>; [k: string]: any }): World;
 export function installFakeFetch(w: World): void;
 export function loadRoute(): Promise<{ run: (secret?: string) => Promise<{ status: number; body: any }> }>;
+export function loadModule(rel: string): Promise<any>;
