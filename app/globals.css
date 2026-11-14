@@ -4014,6 +4014,10 @@ html[data-theme="light"] { background: var(--bg0); }
 .strat-call-dyn { min-height: 280px; }
 @media (max-width: 980px) { .strat-call-dyn { min-height: 160px; } }
 @media (max-width: 640px) { .strat-call-dyn { min-height: 236px; } }
+/* The usage meter's slot (components/UsageMeter.tsx): the margin the meter always had plus the height it measured on the real network (QA run 43649222730: 43 px on a desktop, 81 px on a phone; Russian, Korean
+   and Chinese labels can wrap one line more, which grows the slot once). */
+.usage-meter-slot { margin: 2px 0 10px; min-height: 43px; }
+@media (max-width: 640px) { .usage-meter-slot { min-height: 81px; } }
 .usage-auth-link {
   color: var(--accent-2); text-decoration: none; font-weight: 600;
   padding: 4px 2px; display: inline-flex; align-items: center;
