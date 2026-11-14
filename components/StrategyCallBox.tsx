@@ -61,7 +61,7 @@ export default function StrategyCallBox({ def, state }: Props) {
       </div>
       <div style={{ display: 'flex', alignItems: open ? 'flex-start' : 'baseline', gap: 8 }}>
         <p data-testid="strategy-call-desc" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)', flex: '1 1 auto', minWidth: 0, ...(open ? {} : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }) }}>{t(def.descKey)}</p>
-        <button type="button" data-testid="strategy-call-desc-toggle" aria-expanded={open} onClick={() => setOpenFor(open ? null : def.id)} style={{ flex: '0 0 auto', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)', fontSize: 'var(--fs-caption)', fontWeight: 600 }}>{open ? t('CHAT_COLLAPSE') : t('CHAT_EXPAND')}</button>
+        <button type="button" data-testid="strategy-call-desc-toggle" aria-expanded={open} onClick={() => setOpenFor(open ? null : def.id)} style={{ flex: '0 0 auto', background: 'none', border: 'none', padding: '8px 0', margin: '-8px 0', cursor: 'pointer', color: 'var(--accent)', fontSize: 'var(--fs-caption)', fontWeight: 600 }}>{open ? t('CHAT_COLLAPSE') : t('CHAT_EXPAND')}</button>
       </div>
       <p data-testid="strategy-call-note" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('STRAT_NOT_PREDICTIONS')}</p>
     </div>
