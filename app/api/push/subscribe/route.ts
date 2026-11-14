@@ -3,6 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { fetchAuthUser } from '@/lib/authUser';
+import { validPushEndpoint, validPushKey } from '@/lib/pushEndpoint';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,10 +31,17 @@ export async function POST(req: NextRequest) {
   if (!endpoint || !keys?.p256dh || !keys?.auth) {
     return NextResponse.json({ error: 'Missing endpoint or keys' }, { status: 400 });
   }
+  /* The server later sends a request to this URL, so only an https URL on a real push service is stored (stored-SSRF fix, #1413). */
+  const cleanEndpoint = validPushEndpoint(endpoint);
+  const p256dh = validPushKey(keys.p256dh);
+  const authKey = validPushKey(keys.auth);
+  if (!cleanEndpoint || !p256dh || !authKey) {
+    return NextResponse.json({ error: 'Invalid push subscription' }, { status: 400 });
+  }
 
   const admin = getSupabaseAdmin();
   const { error } = await admin.from(T.push_subscriptions).upsert(
-    { user_id: user.id, endpoint, p256dh: keys.p256dh, auth: keys.auth },
+    { user_id: user.id, endpoint: cleanEndpoint, p256dh, auth: authKey },
     { onConflict: 'endpoint' }
   );
 

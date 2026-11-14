@@ -48,6 +48,9 @@ export interface UserSettings {
   // param - identical to this app's pre-#1020 in-memory-only behaviour.
   strategy_selection: string[] | null;
   strategy_params:    Record<string, Record<string, string | number | boolean>> | null;
+  /* The Arena strategy the trader picked (lib/strategies), or null for none. Separate from strategy_selection: that is indicator chips, this is a rule set that
+     gives a buy/sell/wait verdict. An unknown id is treated as none on read. */
+  arena_strategy:     string | null;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -79,6 +82,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   timezone:           null,
   strategy_selection: null,
   strategy_params:    null,
+  arena_strategy:     null,
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -318,6 +322,7 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     strategy_selection: Array.isArray(row.strategy_selection)
       ? (row.strategy_selection as unknown[]).filter((v): v is string => typeof v === 'string')
       : null,
+    arena_strategy: typeof row.arena_strategy === 'string' && row.arena_strategy ? row.arena_strategy : null,
     strategy_params: (row.strategy_params && typeof row.strategy_params === 'object' && !Array.isArray(row.strategy_params))
       ? row.strategy_params as Record<string, Record<string, string | number | boolean>>
       : null,

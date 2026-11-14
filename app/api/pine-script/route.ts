@@ -1,3 +1,4 @@
+import { AI_TOOL_LIMITS } from '@/lib/aiInputLimits';
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
@@ -57,6 +58,25 @@ export async function POST(req: NextRequest) {
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
+  /* VALIDATE BEFORE CHARGING (#1413, PM): an input that is refused with a 400 must not cost the user one of their daily uses, so the checks run first and the usage is counted after. */
+  const body = await req.json().catch(() => ({})) as {
+    description?: string;
+    analysisText?: string;
+  };
+
+  if ((body.description != null && typeof body.description !== 'string') || (body.analysisText != null && typeof body.analysisText !== 'string')) {
+    return NextResponse.json({ error: 'INVALID_INPUT', message: 'description and analysisText must be text.' }, { status: 400 });
+  }
+  const description  = (body.description ?? '').trim();
+  const analysisText = (body.analysisText ?? '').trim();
+  if (description.length > AI_TOOL_LIMITS.text || analysisText.length > AI_TOOL_LIMITS.analysis) {
+    return NextResponse.json({ error: 'INVALID_INPUT', message: 'The description or analysis is too long.' }, { status: 400 });
+  }
+
+  if (!description) {
+    return NextResponse.json({ error: 'No strategy description provided' }, { status: 400 });
+  }
+
   const role = await getUsageTier(token, authData.user.id);
   const usageResult = await incrementToolUsage(authData.user.id, 'pineScript', role);
   if (usageResult.blocked) {
@@ -64,18 +84,6 @@ export async function POST(req: NextRequest) {
       { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'Pine Script generations'), code: 'RATE_LIMIT' },
       { status: 429 },
     );
-  }
-
-  const body = await req.json().catch(() => ({})) as {
-    description?: string;
-    analysisText?: string;
-  };
-
-  const description  = (body.description ?? '').trim();
-  const analysisText = (body.analysisText ?? '').trim();
-
-  if (!description) {
-    return NextResponse.json({ error: 'No strategy description provided' }, { status: 400 });
   }
 
   const prompt = buildPinePrompt(description, analysisText);
