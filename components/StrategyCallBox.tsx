@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { useLabels } from '@/lib/labels';
 import type { StrategyDef } from '@/lib/strategies';
 import type { StrategySignalState } from '@/lib/useStrategySignal';
@@ -19,6 +20,9 @@ interface Props {
 
 export default function StrategyCallBox({ def, state }: Props) {
   const { t } = useLabels();
+  /* The description is ONE line with an ellipsis; the toggle opens it in place (owner, 2026-11-15: the box took too much room). Opened text is the user's own action, so it is not part of the reserve. */
+  const [openFor, setOpenFor] = useState<string | null>(null);
+  const open = openFor === def.id;
   const r = state.result;
   const colour = r?.verdict === 'buy' ? 'var(--green)' : r?.verdict === 'sell' ? 'var(--red)' : 'var(--txt2)';
   const priceParams: Record<string, string> = {};
@@ -39,7 +43,10 @@ export default function StrategyCallBox({ def, state }: Props) {
       style={{ marginTop: 10, padding: '10px 12px', border: '0.5px solid var(--bdr)', borderRadius: 8, background: 'var(--bg2)', display: 'flex', flexDirection: 'column', gap: 6 }}
     >
       <div data-testid="strategy-call-name" style={{ fontWeight: 700 }}>{t(def.nameKey)}</div>
-      <p data-testid="strategy-call-desc" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t(def.descKey)}</p>
+      <div style={{ display: 'flex', alignItems: open ? 'flex-start' : 'baseline', gap: 8 }}>
+        <p data-testid="strategy-call-desc" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)', flex: '1 1 auto', minWidth: 0, ...(open ? {} : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }) }}>{t(def.descKey)}</p>
+        <button type="button" data-testid="strategy-call-desc-toggle" aria-expanded={open} onClick={() => setOpenFor(open ? null : def.id)} style={{ flex: '0 0 auto', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)', fontSize: 'var(--fs-caption)', fontWeight: 600 }}>{open ? t('CHAT_COLLAPSE') : t('CHAT_EXPAND')}</button>
+      </div>
       <div className="strat-call-dyn" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {state.error ? (
         <div data-testid="strategy-call-unavailable" style={{ color: 'var(--amber)' }}>{t('STRAT_UNAVAILABLE')}</div>
@@ -50,7 +57,7 @@ export default function StrategyCallBox({ def, state }: Props) {
           <div data-testid="strategy-call-verdict" data-verdict={r.verdict} style={{ fontWeight: 700, color: colour }}>
             {t(r.verdict === 'buy' ? 'STRAT_VERDICT_BUY' : r.verdict === 'sell' ? 'STRAT_VERDICT_SELL' : 'STRAT_VERDICT_WAIT')}
           </div>
-          <p data-testid="strategy-call-reason" style={{ margin: 0 }}>{reason}</p>
+          <p data-testid="strategy-call-reason" style={{ margin: 0, fontSize: 'var(--fs-label)' }}>{reason}</p>
           {r.verdict !== 'wait' && typeof r.params.inv === 'number' && (
             <p data-testid="strategy-call-invalidation" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('STRAT_INVALIDATION', { price: priceText(r.params.inv) })}</p>
           )}
@@ -59,8 +66,9 @@ export default function StrategyCallBox({ def, state }: Props) {
           )}
         </>
       )}
-      </div>
+      {/* The note sits INSIDE the reserved area, directly under the call, so spare reserved height is at the bottom of the box, never between (owner, 2026-11-15). */}
       <p data-testid="strategy-call-note" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('STRAT_NOT_PREDICTIONS')}</p>
+      </div>
     </div>
   );
 }
