@@ -104,7 +104,7 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
         </div>
         {oiMeta ? (
           <>
-            <div className="edge-card-value is-label" style={{ color: oiMeta.col }}>{t(oiMeta.txtKey)}</div>
+            <div className="edge-card-value is-label" title={t(oiMeta.txtKey)} style={{ color: oiMeta.col }}>{t(oiMeta.txtKey)}</div>
             <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
               {t(oiMeta.subKey)}{!oi1h.loading && oi1h.pct != null ? t('COIN_MARKET_SNAPSHOT_OI_1H_PCT_SUFFIX', { pct: oi1hPctStr }) : ''}
             </div>

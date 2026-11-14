@@ -9292,9 +9292,11 @@ main.app-content[data-chrome="none"] {
    /markets: the five columns plus the two 10 px row paddings needed about 28 px more than 360 leaves, and the SIGNAL head ran past the edge. Tighter columns and 6 px row padding here, and the last head is clipped inside its own cell as a safety net (Russian is longer).
    /dashboard: a rail panel is allowed to shrink below its content and clips the overflow rather than widening the page. */
 @media (max-width: 380px) {
-  .mkt-row, .mkt-hdr-row { grid-template-columns: 62px minmax(56px, 0.9fr) 60px 54px minmax(0, 1.4fr) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  .mkt-row, .mkt-hdr-row { grid-template-columns: 62px minmax(60px, 0.9fr) 76px 54px minmax(0, 1.4fr) !important; padding-left: 4px !important; padding-right: 4px !important; }
   /* NO CLIPPED HEADING (PM, QA run 43539950327: "Signal ⓘ" was 83 px of text in a 42 px cell): the last head wraps, and breaks inside a word only if the word itself does not fit. */
   .mkt-hdr-row > :last-child { white-space: normal; overflow: visible; overflow-wrap: break-word; padding-left: 2px !important; line-height: 1.1; }
+  /* A LONG LIVE PRICE ("$0.00000424", PEPE) NEEDS ROOM AT 360 (QA live run, #1185): the price column is 76 px, not 60, and the coin column keeps a 60 px floor (symbol, 18 px icon and padding), so a 5-letter symbol and a 10-character price ("$66,844.40" at the caption size, "$0.00000424" at the small size) keep a gap at 360. The signal column gives the width back and wraps. */
+  .mkt-price-long { letter-spacing: -.02em; }
   .dash-right, .dash-right > * { min-width: 0; max-width: 100%; }
   .av-rail-panel { min-width: 0; max-width: 100%; overflow-x: clip; }
 }
