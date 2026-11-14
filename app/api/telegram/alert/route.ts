@@ -2681,9 +2681,21 @@ async function runAlerts(token: string): Promise<NextResponse> {
         ruleKey: e.ruleKey, coin: e.coin, dir: e.dir as 'long' | 'short', label: e.name, price: e.price!,
         agreeCount: a?.rules.size,
         agreeNet: a?.net,
+        metricValue: e.metricValue,
+        thresholdKind: e.thresholdKind,
       };
     });
-  await persistAlertFires(outcomeFires);
+  const fireLog = await persistAlertFires(outcomeFires);
+  /* ONE HEALTH ROW FOR THE FIRE LOG (#1651 "coin flip"), only when something was attempted: a quiet scan is not evidence that logging works. A failed insert shows on /ops instead of vanishing. */
+  if (fireLog.attempted > 0) {
+    reportHealth(
+      'alert:fires', 'market', fireLog.failed === 0,
+      fireLog.failed === 0
+        ? `${fireLog.stored} stored, ${fireLog.deduped} already logged in their cooldown`
+        : `${fireLog.failed} of ${fireLog.attempted} fires failed to store`,
+      fireLog.stored,
+    );
+  }
 
   // ── Delivery observability ────────────────────────────────────────────────
   // Until now this route emitted no logs at all and structure signals are

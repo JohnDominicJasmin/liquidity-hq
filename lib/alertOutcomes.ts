@@ -27,7 +27,13 @@ export interface FireForOutcome {
      them and the row records null rather than a misleading 1/0. */
   agreeCount?: number;
   agreeNet?: number;
+  /* WHAT TRIGGERED THE FIRE, as a number (#1651 "coin flip"): the RSI value or the squeeze score, with the kind of threshold it was judged against. They were on the queue entry but only survived as text inside `label`. Null for rules with no per-user threshold (whales, distribution, ema_signal_*). */
+  metricValue?: number;
+  thresholdKind?: string;
 }
+
+/** What one `persistAlertFires` call did, so a logging gap is visible instead of looking like a quiet scan (#1651). */
+export interface FireLogTally { attempted: number; deduped: number; stored: number; failed: number }
 
 export function isOutcomeTracked(ruleKey: string, dir: 'long' | 'short' | undefined, price: number | undefined): dir is 'long' | 'short' {
   return dir != null && price != null && price > 0 && OUTCOME_TRACKED_RULE_KEYS.has(ruleKey);
@@ -63,8 +69,9 @@ const OUTCOME_DEDUP_MS: Record<string, number> = {
 };
 
 // Best-effort - outcome logging must never break the alert-send cron.
-export async function persistAlertFires(fires: FireForOutcome[]): Promise<void> {
-  if (fires.length === 0) return;
+export async function persistAlertFires(fires: FireForOutcome[]): Promise<FireLogTally> {
+  const tally: FireLogTally = { attempted: fires.length, deduped: 0, stored: 0, failed: 0 };
+  if (fires.length === 0) return tally;
   try {
     const admin = getSupabaseAdmin();
     const toInsert: FireForOutcome[] = [];
@@ -78,17 +85,25 @@ export async function persistAlertFires(fires: FireForOutcome[]): Promise<void> 
           .eq('rule_key', f.ruleKey).eq('coin', f.coin).eq('dir', f.dir)
           .gte('fired_at', cutoff)
           .limit(1);
-        if (data && data.length > 0) continue; // same event already logged within its cooldown window
+        if (data && data.length > 0) { tally.deduped++; continue; } // same event already logged within its cooldown window
       }
       toInsert.push(f);
     }
-    if (toInsert.length === 0) return;
-    await admin.from(T.alert_fires).insert(
-      toInsert.map(f => ({
-        rule_key: f.ruleKey, coin: f.coin, dir: f.dir, label: f.label, price_at_fire: f.price,
-        agree_count: f.agreeCount ?? null,
-        agree_net:   f.agreeNet   ?? null,
-      }))
-    );
-  } catch { /* best-effort */ }
+    if (toInsert.length === 0) return tally;
+    const rows = toInsert.map(f => ({
+      rule_key: f.ruleKey, coin: f.coin, dir: f.dir, label: f.label, price_at_fire: f.price,
+      agree_count: f.agreeCount ?? null,
+      agree_net:   f.agreeNet   ?? null,
+      metric_value:   f.metricValue   ?? null,
+      threshold_kind: f.thresholdKind ?? null,
+    }));
+    let { error } = await admin.from(T.alert_fires).insert(rows);
+    /* A DEPLOY THAT RUNS BEFORE ITS MIGRATION MUST NOT STOP THE FIRE LOG (#1651): if the only problem is that metric_value / threshold_kind do not exist yet, store the fires without them (null = not recorded) rather than losing them. */
+    if (error && /metric_value|threshold_kind/.test(error.message ?? "")) {
+      ({ error } = await admin.from(T.alert_fires).insert(rows.map(({ metric_value: _m, threshold_kind: _t, ...rest }) => rest)));
+    }
+    /* THE INSERT'S ERROR IS COUNTED, NOT DROPPED (#1651): a failed insert (or a column that is missing because a migration was not applied first) used to look exactly like a quiet scan. */
+    if (error) tally.failed = toInsert.length; else tally.stored = toInsert.length;
+  } catch { tally.failed = tally.attempted - tally.deduped - tally.stored; /* best-effort: never break the alert cron */ }
+  return tally;
 }
