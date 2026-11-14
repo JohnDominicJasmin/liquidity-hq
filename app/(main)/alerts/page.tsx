@@ -585,6 +585,8 @@ export default function AlertsPage() {
       <div className="mb-header">
         <h1 className="mb-title">{t('ALERTS_PAGE_TITLE')}</h1>
         <div className="mb-subtitle">{t('ALERTS_PAGE_SUBTITLE')}</div>
+        {/* SIGNALS, NOT PREDICTIONS (owner, option A, 2026-11-14, #1651): said plainly where alerts are set. The "about half" is the production measurement (61.5k outcomes at 24 h, 51 % moved the alert's way, #1651 comment 6873369526); the label is DB-driven so it can be updated when the measurement is. */}
+        <div className="mb-subtitle" data-testid="alerts-signals-note" style={{ marginTop: 4 }}>{t('ALERTS_SIGNALS_NOT_PREDICTIONS')}</div>
       </div>
 
       {SHOW_PERFORMANCE_STATS && <AlertOutcomes />}
