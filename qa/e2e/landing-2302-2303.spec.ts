@@ -28,7 +28,8 @@ for (const loc of ['en', 'ru', 'ko', 'zh']) for (const width of [390, 1280]) for
       const path = loc === 'en' ? '/' : `/${loc}`;
       await gotoGuarded(page, path); await page.waitForTimeout(9_000);
       const land = await page.evaluate(() => {
-        const label = Array.from(document.querySelectorAll('*')).find(e => e.children.length === 0 && /^(AI Analysis|AI-анализ|AI 분석|AI分析|Анализ ИИ|ИИ-анализ)/i.test((e.textContent || '').trim())) as HTMLElement | undefined;
+        /* the risk-disclosure label has a paragraph beside it; the stat tile that also reads "AI analysis" does not */
+        const label = Array.from(document.querySelectorAll('*')).filter(e => e.children.length === 0 && /^(AI Analysis|AI-анализ|AI 분석|AI分析|Анализ ИИ|ИИ-анализ)/i.test((e.textContent || '').trim())).find(e => !!e.parentElement?.querySelector('p')) as HTMLElement | undefined;
         const row = label ? (label.parentElement as HTMLElement | null) : null;
         const para = row ? ((row.querySelector('p') as HTMLElement | null)?.textContent || '').trim() : null;
         const r = row ? row.getBoundingClientRect() : null;
@@ -54,7 +55,7 @@ test('D2. an expanded footer carries the same AI paragraph as the landing page',
   const ctx = await open(browser, 1280, 'dark'); const page = await ctx.newPage();
   try {
     await gotoGuarded(page, '/'); await page.waitForTimeout(9_000);
-    const land = norm(await page.evaluate(() => { const l = Array.from(document.querySelectorAll('*')).find(e => e.children.length === 0 && /^AI analysis$/i.test((e.textContent || '').trim())) as HTMLElement | undefined; return ((l?.parentElement?.querySelector('p') as HTMLElement | null)?.textContent || ''); }));
+    const land = norm(await page.evaluate(() => { const l = Array.from(document.querySelectorAll('*')).filter(e => e.children.length === 0 && /^AI analysis$/i.test((e.textContent || '').trim())).find(e => !!e.parentElement?.querySelector('p')) as HTMLElement | undefined; return ((l?.parentElement?.querySelector('p') as HTMLElement | null)?.textContent || ''); }));
     expect(land.length, 'no landing AI paragraph').toBeGreaterThan(60);
     const f = await ctx.newPage(); await gotoGuarded(f, '/faq'); await f.waitForTimeout(8_000);
     const btn = f.getByText(/show full risk disclosures?/i).first(); await expect(btn, 'no "Show full risk disclosures" control in the footer').toBeVisible({ timeout: 30_000 });
