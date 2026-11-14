@@ -22,7 +22,7 @@ export default function ArenaStrategyCard({ selected, onSelect, state, disabled 
   const verdict = r?.verdict ?? null;
   const colour = verdict === 'buy' ? 'var(--green)' : verdict === 'sell' ? 'var(--red)' : 'var(--txt2)';
   const priceParams: Record<string, string> = {};
-  for (const [k, v] of Object.entries(r?.params ?? {})) if (typeof v === 'number') priceParams[k] = priceText(v);
+  for (const [k, v] of Object.entries(r?.params ?? {})) if (typeof v === 'number') priceParams[k] = k === 'tag' || k.startsWith('count') ? String(v) : priceText(v);
   let reason = '';
   if (def && r) {
     const alt = def.reasonKeyFor?.(r) ?? null;
