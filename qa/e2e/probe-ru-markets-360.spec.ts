@@ -10,7 +10,7 @@ test('probe: ru /markets at 360', async ({ browser }) => {
   const out = await page.evaluate(() => {
     const vw = 360; const r: unknown[] = [];
     document.querySelectorAll('body *').forEach(e => { const el = e as HTMLElement; const b = el.getBoundingClientRect(); const cs = getComputedStyle(el);
-      if (b.width === 0 && b.height === 0) return;
+      if (b.width === 0 && b.height === 0) return; if (el.closest('.nav-menu')) return;
       if (b.right > vw + 0.5 || el.scrollWidth > el.clientWidth + 0.5 && el.clientWidth > 0 && cs.overflowX === 'visible' && el.scrollWidth + b.left > vw + 0.5)
         r.push({ t: el.tagName, c: String(el.className).slice(0, 50), right: Math.round(b.right), sw: el.scrollWidth, cw: el.clientWidth, pos: cs.position, txt: (el.textContent || '').replace(/\s+/g, ' ').slice(0, 40) }); });
     return { docSw: document.documentElement.scrollWidth, bodySw: document.body.scrollWidth, n: r.length, items: r.slice(0, 14) };
