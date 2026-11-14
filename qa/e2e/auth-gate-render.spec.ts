@@ -38,6 +38,8 @@ import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
 
 const REVEAL = 'button[aria-controls="billing-choices"]';
 const BILLING = '#billing-choices';
+/* #2305: while auth or the entitlement read is outstanding the slot is a quiet PLACEHOLDER, not a disabled button, so the undecided window now reads `pending` (this selector), not `disabled`. A cell that only looked for `disabled` stopped exercising the gate and failed as NOT EXERCISED (release run 43595134120). */
+const PENDING = '[data-testid="upgrade-plans-pending"]';
 
 /* THE REVEAL DOES NOT EXIST ON AN ENVIRONMENT WITH NO CHECKOUT URL, AND THREE CELLS HERE ARE ABOUT THE REVEAL.
  *
@@ -84,7 +86,7 @@ const NO_CHECKOUT_REASON =
 const SAMPLE_MS = 40;
 const SAMPLE_WINDOW_MS = 6000;
 
-interface Shot { t: number; reveal: 'absent' | 'disabled' | 'enabled'; billing: boolean; buyButtons: number; url: string }
+interface Shot { t: number; reveal: 'absent' | 'disabled' | 'enabled' | 'pending'; billing: boolean; buyButtons: number; url: string }
 
 async function sampleUntilSettled(page: import('@playwright/test').Page): Promise<Shot[]> {
   const shots: Shot[] = [];
@@ -92,19 +94,19 @@ async function sampleUntilSettled(page: import('@playwright/test').Page): Promis
   while (Date.now() - t0 < SAMPLE_WINDOW_MS) {
     let shot: Shot;
     try {
-      shot = await page.evaluate(([revealSel, billingSel]) => {
+      shot = await page.evaluate(([revealSel, billingSel, pendingSel]) => {
         const r = document.querySelector(revealSel) as HTMLButtonElement | null;
         const billing = document.querySelector(billingSel);
         return {
           t: 0,
-          reveal: !r ? 'absent' as const : r.disabled ? 'disabled' as const : 'enabled' as const,
+          reveal: !r ? (document.querySelector(pendingSel) ? 'pending' as const : 'absent' as const) : r.disabled ? 'disabled' as const : 'enabled' as const,
           billing: !!billing,
           /* Any element inside the billing choices that would start a payment. Counted rather than asserted
              present/absent, so a partial render shows up as a number instead of a boolean. */
           buyButtons: billing ? billing.querySelectorAll('button, a[href]').length : 0,
           url: location.pathname,
         };
-      }, [REVEAL, BILLING]);
+      }, [REVEAL, BILLING, PENDING]);
     } catch {
       /* A navigation mid-evaluate destroys the execution context. That is not a failure - it is the redirect
          this cell expects - so the sample is skipped rather than throwing. */
@@ -159,7 +161,7 @@ test('#1742 step 5: a Pro account never has a buy button in the DOM on /upgrade,
     /* THE CELL MUST PROVE IT SAW THE UNDECIDED STATE, or it fails as NOT EXERCISED rather than passing as NOT
        BREACHED. A reveal that is `absent` throughout means the page went straight to the redirect and the gate
        was never put to the question - which is exactly the pass this cell returned before the delay existed. */
-    const sawGate = shots.filter((s) => s.reveal === 'disabled');
+    const sawGate = shots.filter((s) => s.reveal === 'disabled' || s.reveal === 'pending');
     expect(sawGate.length,
       `the undecided window was never observed: reveal was ${[...new Set(shots.map((s) => s.reveal))].join('/')} `
       + `across ${shots.length} samples, so this cell did not exercise the gate. Raise ENTITLEMENT_DELAY_MS, or `
@@ -175,7 +177,7 @@ test('#1742 step 5: a Pro account never has a buy button in the DOM on /upgrade,
        distribution is the evidence: `disabled` appearing at all is what says the gate was put to the
        question, and the reader should not have to infer it from the absence of a failure. */
     const dist = shots.reduce<Record<string, number>>((a, s) => ({ ...a, [s.reveal]: (a[s.reveal] ?? 0) + 1 }), {});
-    const firstDisabled = shots.find((s) => s.reveal === 'disabled');
+    const firstDisabled = shots.find((s) => s.reveal === 'disabled' || s.reveal === 'pending');
     // eslint-disable-next-line no-console
     console.log(`PRO /upgrade: ${shots.length} samples over ${shots[shots.length - 1].t}ms | `
       + `reveal states ${JSON.stringify(dist)} | billing present in ${withBilling.length} | `
@@ -185,6 +187,8 @@ test('#1742 step 5: a Pro account never has a buy button in the DOM on /upgrade,
     /* THE ASSERTION. Not "disabled while loading" - "never openable at all", which is what #1309 item 12 needs
        and what the source trace showed is achievable. */
     expect(withBilling.map((s) => `${s.t}ms: ${s.buyButtons} buttons`), 'a Pro account saw the billing choices')
+      .toEqual([]);
+    expect(enabledOnUpgrade.map((s) => `${s.t}ms`), 'a Pro account was offered an ENABLED "Upgrade to Pro" control on /upgrade')
       .toEqual([]);
   } finally {
     assertNoUnstubbedPaidAi(page, 'pro /upgrade');
