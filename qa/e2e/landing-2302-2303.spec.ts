@@ -1,5 +1,5 @@
 /* #2302 (the AI-processor disclosure reads its legal key in both places) and #2303 (hero wide breakpoint 1024 -> 1100). Signed out, reads only.
- *   D1  #2302  / and /ru /ko /zh at 390 and 1280, dark and light: the "AI Analysis" risk-disclosure paragraph on the landing page is word for word a paragraph of the /disclaimer page (the same English legal text in every locale) (the legal key's sentence), is not clipped (right edge inside the viewport) and the page does not scroll sideways; shots
+ *   D1  #2302  / and /ru /ko /zh at 390 and 1280, dark and light: the "AI Analysis" risk-disclosure paragraph on the landing page is word for word the ENGLISH default in every locale, and /disclaimer shows the visitor's own locale paragraph (#1185) (the legal key's sentence), is not clipped (right edge inside the viewport) and the page does not scroll sideways; shots
  *   D2  #2302  an expanded platform footer carries the same paragraph; /disclaimer renders
  *   D3  #2302  no "powered by xAI" literal is left in components/ or app/ (source guard)
  *   W1  #2303  / at 1024, 1060 and 1099: ONE column (the LIVE READ panel starts at the left edge of the content and sits below the CTAs), both CTAs on one line, the panel and its STOP / TARGET inside the viewport; shots
@@ -40,13 +40,31 @@ for (const loc of ['en', 'ru']) for (const width of [390, 1280]) for (const th o
       expect(land.para && land.para.length > 60, `the AI Analysis row has no paragraph: ${land.para}`).toBe(true);
       expect(land.right!, 'the paragraph runs past the viewport').toBeLessThanOrEqual(land.vw + 1);
       expect(land.docSw, 'page scrolls sideways').toBeLessThanOrEqual(land.vw);
+      /* THE RULES, as decided (PM, #1185, 2026-11-13) - the cell used to assume the opposite for /disclaimer:
+           (a) the landing page's legal AI paragraph is the ENGLISH default in EVERY locale (it is not translated on the landing);
+           (b) /disclaimer and the footer show the VISITOR'S locale row once the labels have loaded: English for en, a Russian paragraph for ru (not the English one).
+         The old cell compared the landing paragraph with /disclaimer in every locale. It passed for ru only when it read /disclaimer BEFORE the Russian row loaded (the English default shows first), which is why ru 390 dark
+         failed in the release run 43595134120 and passed on qa and staging. So /disclaimer is read over time (every 500 ms, up to 14 s) and the rule is checked on the SETTLED text: two consecutive samples that satisfy it.
+         The distinct section texts and their times are logged, so a failure shows exactly what the page displayed. */
+      const EN = norm(JSON.parse(readFileSync('lib/labelDefaults.en.json', 'utf8')).DISCLAIMER_SECTION_AI_ANALYSIS_BODY as string);
+      expect(norm(land.para!), `the landing paragraph (${loc}) is not the English default text from lib/labelDefaults.en.json`).toBe(EN);
       const dPage = await ctx.newPage(); await gotoGuarded(dPage, '/disclaimer');
-      /* there is no localized disclaimer route: locale landings link /disclaimer (English legal text by design) */
       await dPage.waitForFunction(() => document.body.innerText.length > 800, null, { timeout: 25_000 }).catch(() => { /* judged below */ });
-      const dtext = norm(await dPage.evaluate(() => document.body.innerText));
+      const aiText = (txt: string) => { const i = txt.search(/xAI|Grok/i); return i < 0 ? '(no xAI/Grok mention in the text)' : txt.slice(Math.max(0, i - 330), i + 330); };
+      const ruleHolds = (txt: string) => loc === 'en' ? txt.includes(EN) : (/[А-Яа-яЁё]{4,}/.test(aiText(txt)) && !txt.includes(EN));
+      const seen: Array<{ t: number; ok: boolean; text: string }> = []; const tD = Date.now(); let dtext = ''; let streak = 0;
+      while (Date.now() - tD < 14_000 && streak < 2) {
+        dtext = norm(await dPage.evaluate(() => document.body.innerText)); const sec = aiText(dtext); const ok = ruleHolds(dtext);
+        if (!seen.length || seen[seen.length - 1].text !== sec || seen[seen.length - 1].ok !== ok) seen.push({ t: Date.now() - tD, ok, text: sec });
+        streak = ok ? streak + 1 : 0;
+        if (streak < 2) await dPage.waitForTimeout(500);
+      }
+      // eslint-disable-next-line no-console
+      console.log(`[D1] /disclaimer ${loc} ${width} ${th}: ${seen.length} distinct AI-section text(s): ${JSON.stringify(seen.map(s => ({ t: s.t, ok: s.ok, head: s.text.slice(0, 140) })))}`);
       expect(dtext.length, '/disclaimer did not render').toBeGreaterThan(500);
-      expect(dtext.includes(norm(land.para!)) || norm(land.para!).split(/(?<=[.!?。])\s+/).filter(s => s.length > 25).every(s => dtext.includes(norm(s))),
-        `the landing paragraph is not the /disclaimer legal text:\n${land.para}`).toBe(true);
+      expect(streak >= 2, loc === 'en'
+        ? `/disclaimer (en) does not contain the English default paragraph:\n${aiText(dtext)}`
+        : `/disclaimer (${loc}) did not settle on that locale's own paragraph (a Russian one, not the English default):\n${aiText(dtext)}`).toBe(true);
       /* THE PICTURE COMES LAST AND CANNOT FAIL THE CELL: it used to sit above the asserts, so a screenshot timeout skipped every check (run 43590458814, mobile, ru 1280). */
       await (async () => { await page.locator('[data-qa-ai-row]').first().scrollIntoViewIfNeeded(); await page.locator('[data-qa-ai-row]').first().screenshot({ path: `qa/.shots/landing-ai-${loc}-${width}-${th}.png` }); })().catch((err) => console.log(`[D1] shot skipped: ${String(err).slice(0, 80)}`));
     } finally { await ctx.close(); }
