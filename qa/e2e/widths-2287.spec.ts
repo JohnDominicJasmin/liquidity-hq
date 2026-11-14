@@ -24,12 +24,22 @@ for (const path of ['/dashboard', '/markets']) for (const loc of ['en', 'ru']) {
         const vw = window.innerWidth; const desc = (e: Element) => e.tagName.toLowerCase() + '.' + String((e as HTMLElement).className).slice(0, 28);
         const off = Array.from(document.querySelectorAll('body *')).filter(e => !e.closest('#nav-drawer') && !e.closest('.nav-drawer') && !e.closest('.gchat-quick-row')).map(e => ({ e, r: e.getBoundingClientRect() })).filter(x => x.r.width > 0 && x.r.right > vw + 1)
           .map(x => ({ el: desc(x.e), right: Math.round(x.r.right), text: (x.e.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 24), parents: [x.e.parentElement, x.e.parentElement?.parentElement].filter(Boolean).map(p => desc(p!)) }));
-        const clipped = Array.from(document.querySelectorAll('body *')).filter(e => !e.closest('#nav-drawer') && !e.closest('.nav-drawer') && !e.closest('.gchat-quick-row') && !e.closest('.ntab-bar') && !e.closest('.frh-list-scroll') && !e.closest('.lpt-ticker') && !e.closest('canvas') && !e.closest('svg')).filter(e => { const h = e as HTMLElement; const cs = getComputedStyle(h); const t = (h.textContent || '').trim(); return t.length > 0 && cs.overflowX !== 'visible' && cs.overflowX !== 'auto' && cs.overflowX !== 'scroll' && h.clientWidth > 0 && h.scrollWidth > h.clientWidth + 1; }).map(e => ({ el: desc(e), sw: (e as HTMLElement).scrollWidth, cw: (e as HTMLElement).clientWidth, text: (e.textContent || '').replace(/s+/g, ' ').trim().slice(0, 30) }));
-        return { docSw: document.documentElement.scrollWidth, vw, n: off.length, off: off.slice(0, 12), clipped: clipped.slice(0, 12) };
+        const clipped = Array.from(document.querySelectorAll('body *')).filter(e => !e.closest('#nav-drawer') && !e.closest('.nav-drawer') && !e.closest('.gchat-quick-row') && !e.closest('.ntab-bar') && !e.closest('.frh-list-scroll') && !e.closest('.lpt-ticker') && !e.closest('canvas') && !e.closest('svg')).filter(e => { const h = e as HTMLElement; const cs = getComputedStyle(h); const t = (h.textContent || '').trim(); return t.length > 0 && cs.overflowX !== 'visible' && cs.overflowX !== 'auto' && cs.overflowX !== 'scroll' && h.clientWidth > 0 && h.scrollWidth > h.clientWidth + 1; }).map(e => {
+            const h = e as HTMLElement; const full = (h.textContent || '').replace(/\s+/g, ' ').trim();
+            let a: HTMLElement | null = h; let label = '';
+            for (let i = 0; i < 3 && a; i++, a = a.parentElement) { label = a.getAttribute('title') || a.getAttribute('aria-label') || ''; if (label) break; }
+            return { el: desc(e), sw: h.scrollWidth, cw: h.clientWidth, text: full.slice(0, 30), ellipsis: getComputedStyle(h).textOverflow === 'ellipsis', carriesFull: label.replace(/\s+/g, ' ').includes(full.slice(0, 14)) };
+          });
+        const hdr = document.querySelector('.mkt-hdr-row') as HTMLElement | null;
+        const headClipped = hdr ? (Array.from(hdr.children) as HTMLElement[]).filter(c => (c.textContent || '').trim() && c.scrollWidth > c.clientWidth + 1).map(c => (c.textContent || '').trim().slice(0, 16)) : [];
+        return { docSw: document.documentElement.scrollWidth, vw, n: off.length, off: off.slice(0, 12), clipped: clipped.slice(0, 12), headClipped };
       });
       console.log(`[X1] ${path} ${loc} ${JSON.stringify(m)}`);
       expect(m.docSw, `page is ${m.docSw} wide at 360: ${JSON.stringify(m.off.slice(0, 5))}`).toBeLessThanOrEqual(360);
-      expect(m.clipped, `text is cut off inside its own box (overflow clipped): ${JSON.stringify(m.clipped.slice(0, 5))}`).toEqual([]);
+      // PM's bar: an ellipsis may stay if the FULL text is reachable (title / aria-label); any other clipped text fails. The sr-only h1 is visually hidden by design.
+      const bad = m.clipped.filter(c => !(c.ellipsis && c.carriesFull) && !/^(Market|Рынки)$/.test(c.text));
+      expect(bad, `text is cut off with no way to read it in full: ${JSON.stringify(bad.slice(0, 5))}`).toEqual([]);
+      expect(m.headClipped, `/markets column heads cut off at 360: ${JSON.stringify(m.headClipped)}`).toEqual([]);
     } finally { await ctx.close(); }
   });
 }
