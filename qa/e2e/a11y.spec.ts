@@ -178,6 +178,7 @@ test.describe('accessibility', () => {
       .sort((a, b) => b[1] - a[1]).slice(0, n)
       .map(([k, c]) => `    ${String(c).padStart(4)}  ${k}`).join('\n');
 
+    console.log(`[TAPCOUNT] ${found.length} under 24px; by route ${JSON.stringify([...byRoute.entries()].sort((x, y) => y[1] - x[1]).slice(0, 12))}; by selector ${JSON.stringify([...bySelector.entries()].sort((x, y) => y[1] - x[1]).slice(0, 8))}`);
     expect(
       found.length,
       `Tap targets under 24px went ${found.length > BASELINE.tapTargetsUnder24 ? 'UP' : 'DOWN'} ` +
