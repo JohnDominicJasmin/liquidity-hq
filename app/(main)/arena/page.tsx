@@ -444,22 +444,23 @@ function ArenaContent() {
     // user's actual saved one (#1347 item 2, the data-loss finding).
     if (settingsLoadStatus !== 'ready') return;
     setStrategySelection(next);
-    if (arenaStrategy !== null) { setArenaStrategyState(null); update({ strategy_selection: next as string[], arena_strategy: null }); }
-    else update({ strategy_selection: next as string[] });
-  }, [update, settingsLoadStatus, arenaStrategy]);
-  /* The Strategy set menu: 'auto' clears chips and strategy, 'custom' only leaves the strategy (chips kept), a strategy id switches on the chips it reads (lib/strategies `chips`: only chips that draw)
-     and saves both in one request. */
+    update({ strategy_selection: next as string[] });
+  }, [update, settingsLoadStatus]);
+  /* The Strategy set menu (PM rules, #2358): picking a strategy never removes the user's chips: a strategy with no drawable chip leaves the chip row as it was, one that reads a chip ADDS it to the
+     existing chips (no-op if already on; a Free account, limited to one chip, swaps it in as a tap would). 'Let the read choose' and 'Custom' clear the saved strategy (the call box goes) and leave
+     the chips alone. Touching a chip while a strategy is picked keeps the strategy. One request per change. */
   const handleStrategyMenuPick = useCallback((id: string) => {
     if (settingsLoadStatus !== 'ready') return;
-    if (id === AUTO_SET_ID) { setArenaStrategyState(null); setStrategySelection([]); update({ strategy_selection: [], arena_strategy: null }); return; }
-    if (id === CUSTOM_SET_ID) { if (arenaStrategy !== null) { setArenaStrategyState(null); update({ arena_strategy: null }); } return; }
+    if (id === AUTO_SET_ID || id === CUSTOM_SET_ID) { if (arenaStrategy !== null) { setArenaStrategyState(null); update({ arena_strategy: null }); } return; }
     const def = findStrategy(id);
     if (!def) return;
-    const chips = selectableIds(def.chips);
+    const add = selectableIds(def.chips).filter(c => !strategySelection.includes(c));
+    if (add.length === 0) { setArenaStrategyState(def.id); update({ arena_strategy: def.id }); return; }
+    const chips = entitlementStatus === 'entitled' ? [...strategySelection, ...add] : (strategySelection.length === 0 ? add.slice(0, 1) : [add[0]]);
     setArenaStrategyState(def.id);
     setStrategySelection(chips);
     update({ arena_strategy: def.id, strategy_selection: chips as string[] });
-  }, [update, settingsLoadStatus, arenaStrategy]);
+  }, [update, settingsLoadStatus, arenaStrategy, strategySelection, entitlementStatus]);
   const handleStrategyParamsChange = useCallback((next: Record<string, Record<string, string | number | boolean>>) => {
     setStrategyParams(next);
     update({ strategy_params: next });

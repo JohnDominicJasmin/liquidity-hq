@@ -167,8 +167,8 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
   const applySet = (id: string) => {
     if (!loaded) return;
     onStrategyPick(id);
-    const def = findStrategy(id);
-    setFocused(def ? (def.chips.find(c => SELECTABLE_INDICATOR_IDS.has(c)) ?? null) : null);
+    const chip = findStrategy(id)?.chips.find(c => SELECTABLE_INDICATOR_IDS.has(c));
+    if (chip) setFocused(chip);   // a strategy that reads a chip shows its parameters; otherwise the chips and the focus stay exactly as they were
   };
 
   const toggle = (entry: IndicatorEntry) => {
