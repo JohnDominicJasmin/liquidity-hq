@@ -69,15 +69,7 @@ export async function POST(req: NextRequest) {
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  const role = await getUsageTier(token, authData.user.id);
-  const usageResult = await incrementToolUsage(authData.user.id, 'thesisCheck', role);
-  if (usageResult.blocked) {
-    return NextResponse.json(
-      { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'thesis checks'), code: 'RATE_LIMIT' },
-      { status: 429 },
-    );
-  }
-
+  /* VALIDATE BEFORE CHARGING (#1413, PM): an input that is refused with a 400 must not cost the user one of their daily uses, so the checks run first and the usage is counted after. */
   const body = await req.json().catch(() => ({})) as {
     symbol?: string; direction?: string; entryDate?: string;
     thesisText?: string; assumptions?: string[];
@@ -95,6 +87,15 @@ export async function POST(req: NextRequest) {
       || !Array.isArray(assumptions) || assumptions.length > AI_TOOL_LIMITS.assumptions
       || assumptions.some(a => typeof a !== 'string' || a.length > AI_TOOL_LIMITS.assumption)) {
     return NextResponse.json({ error: 'INVALID_INPUT', message: 'One of the fields is the wrong type or too long.' }, { status: 400 });
+  }
+
+  const role = await getUsageTier(token, authData.user.id);
+  const usageResult = await incrementToolUsage(authData.user.id, 'thesisCheck', role);
+  if (usageResult.blocked) {
+    return NextResponse.json(
+      { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'thesis checks'), code: 'RATE_LIMIT' },
+      { status: 429 },
+    );
   }
 
   const prompt = buildThesisPrompt(
