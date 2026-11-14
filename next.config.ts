@@ -128,6 +128,8 @@ const nextConfig: NextConfig = {
     globalNotFound: true,
     /* NO TURBOPACK BUILD CACHE (#1185, QA + Render build log, 2026-11-14). Next 16.4.1 saves and restores Turbopack's work in .next/cache/turbopack by default, and Render restores .next/cache between builds. liquidity-hq-qa deployed 09a4a3b with "Compiled successfully in 5.1s" (a warm compile; a cold one is ~26s) and served a stylesheet that lacked the newest CSS (#2287), while /api/version, the build id and the HTML were new. A clear-cache redeploy ("No build cache found", cold compile) fixed it. Cost of turning the cache off: about 5-20s per build. Not worth shipping stale CSS to production; production builds the same way. Node modules caching is unaffected. */
     turbopackFileSystemCacheForBuild: false,
+    /* FOUR BUILD WORKERS, NOT FORTY-SEVEN (#1185). Render's build machine reports 48 CPUs, so Next starts 47 workers to collect page data and generate the 92 static pages, and each worker loads the server bundle. With the Turbopack cache off (above) a build compiles cold and holds the compiler's memory too, and the 47 workers on top exceeded the 8 GiB build limit: every cold build was OOM-killed at "Generating static pages using 47 workers (0/92)" (liquidity-hq-qa, cf536fae). Warm builds fit only because the compile was tiny, which is also how a stale cache shipped. 4 workers keeps the peak well under the limit; generating 92 pages takes seconds either way. */
+    cpus: 4,
   },
 
   // Remove X-Powered-By: Next.js header (don't leak stack info)
