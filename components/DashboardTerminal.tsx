@@ -401,7 +401,7 @@ function TEdgeSignals() {
           </div>
           {oiMeta ? (
             <>
-              <div className="edge-card-value is-label" style={{ color: oiMeta.col }}>{t(oiMeta.txtKey)}</div>
+              <div className="edge-card-value is-label" title={t(oiMeta.txtKey)} style={{ color: oiMeta.col }}>{t(oiMeta.txtKey)}</div>
               <div className="edge-card-signal" style={{ color: oiMeta.col }}>{t(oiMeta.subKey)}</div>
             </>
           ) : (

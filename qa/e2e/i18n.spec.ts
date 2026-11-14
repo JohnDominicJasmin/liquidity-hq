@@ -29,8 +29,8 @@ import { gotoGuarded, getGuarded } from './_shared';
  * says so rather than silently passing.
  */
 
-/** The locales the picker is allowed to offer. `ar` must not appear. */
-const OFFERED = ['English', '한국어', '中文'];
+/** The locales the picker is allowed to offer. `ar` must not appear. Русский was added with the Russian translation. */
+const OFFERED = ['English', 'Русский', '한국어', '中文'];
 
 test.describe('i18n: locale offering and page language', () => {
   // HTML/DOM level - the mobile project would assert the identical strings.
@@ -197,7 +197,7 @@ test.describe('i18n: locale offering and page language', () => {
     } finally { await ctx.close(); }
   });
 
-  test('the language picker offers exactly English, Korean and Chinese', async ({ page }) => {
+  test('the language picker offers exactly English, Russian, Korean and Chinese', async ({ page }) => {
     await gotoGuarded(page, '/', { waitUntil: 'domcontentloaded' });
 
     const btn = page.locator('button.lp-lang-btn');

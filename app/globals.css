@@ -9292,9 +9292,16 @@ main.app-content[data-chrome="none"] {
    /markets: the five columns plus the two 10 px row paddings needed about 28 px more than 360 leaves, and the SIGNAL head ran past the edge. Tighter columns and 6 px row padding here, and the last head is clipped inside its own cell as a safety net (Russian is longer).
    /dashboard: a rail panel is allowed to shrink below its content and clips the overflow rather than widening the page. */
 @media (max-width: 380px) {
-  .mkt-row, .mkt-hdr-row { grid-template-columns: 62px minmax(56px, 0.9fr) 60px 54px minmax(0, 1.4fr) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  .mkt-row, .mkt-hdr-row { grid-template-columns: 62px minmax(60px, 1fr) 76px 54px !important; padding-left: 4px !important; padding-right: 4px !important; }
   /* NO CLIPPED HEADING (PM, QA run 43539950327: "Signal ⓘ" was 83 px of text in a 42 px cell): the last head wraps, and breaks inside a word only if the word itself does not fit. */
   .mkt-hdr-row > :last-child { white-space: normal; overflow: visible; overflow-wrap: break-word; padding-left: 2px !important; line-height: 1.1; }
+  /* A LONG LIVE PRICE ("$0.00000424", PEPE) NEEDS ROOM AT 360 (QA live run, #1185): the price column is 76 px, not 60, and the coin column keeps a 60 px floor (symbol, 18 px icon and padding), so a 5-letter symbol and a 10-character price ("$66,844.40" at the caption size, "$0.00000424" at the small size) keep a gap at 360. The signal column gives the width back and wraps. */
+  .mkt-price-long { letter-spacing: -.02em; }
+  /* THE SIGNAL HEAD FITS ITS COLUMN AT 360 (QA live run on 697b214: "Signal ⓘ" is about 83 px and the column about 64, so the head ran past the viewport: page 364 en, 388 ru). The Tip wrapper is an inline flex row; it may now wrap, so the ⓘ drops to a second line under the word (still a 24 px, focusable button) and the word reads in full. The price column stays 76 px. */
+  .mkt-hdr-row > :last-child > span { flex-wrap: wrap; max-width: 100%; row-gap: 0; }
+  /* THE SIGNAL TAKES ITS OWN LINE UNDER THE ROW AT 360 (QA live run on ac71050: the fifth column was 36 px wide, and a Russian signal ("Открываются новые покупатели", 96 px of unbreakable word) overflowed it, so the page was 388 wide in ru). Four columns on the first line, the signal and its head on a second line across the coin, price and change columns (about 200 px), where the text reads. The page can no longer be widened by a long word: the cell may shrink and breaks inside a word only if it must. */
+  .mkt-row > .mkt-signal { grid-column: 2 / -1; grid-row: 2; padding: 0 0 2px 6px !important; min-width: 0; overflow-wrap: break-word; }
+  .mkt-hdr-row > :last-child { grid-column: 2 / -1; grid-row: 2; }
   .dash-right, .dash-right > * { min-width: 0; max-width: 100%; }
   .av-rail-panel { min-width: 0; max-width: 100%; overflow-x: clip; }
 }
