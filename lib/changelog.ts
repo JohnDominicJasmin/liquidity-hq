@@ -328,7 +328,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'AI Arena can now play a short sound when the strategy signal for your coin and timeframe turns to buy or sell, and once per candle on an unusually big, high-volume move. It asks you first, and you can switch it off any time in Settings.',
       'The Alerts page and every Telegram signal alert now say plainly: signals, not predictions, and that past alerts moved the alert\'s way about half the time at 24 hours.',
       'Links and formatting in AI chat answers are now handled more carefully, so a link in an answer only opens if it is a normal web address.',
-      'The Privacy page now says your personal data is removed within 30 days when you ask us to delete your account, instead of describing a delete button that does not exist.',
+      'The Privacy page now explains that your personal data is removed within 30 days of asking us to delete your account.',
       'More small links and buttons are easier to tap on phones: coin names on the Markets page, the support email address, and the About link at the bottom of the Disclaimer.',
       'If you are on Pro, the upgrade page no longer shows an "Upgrade to Pro" button for a moment before sending you on.',
       'On laptop-width screens the landing page keeps its one-column layout until the screen is wide enough for the live read panel to fit beside the text.',
