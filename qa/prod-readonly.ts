@@ -162,7 +162,6 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'tap-target-shots', needs: 'none', note: 'sign-off shots and button heights on funding, markets and dashboard at 390 (#2254); anonymous; reads only' },
   { spec: 'honest-states-batch', needs: 'none', note: 'the 2026-11-14 dashboard, funding and picker batch (#2255 #2256 #2260 #2261); anonymous; market reads stubbed' },
   { spec: 'widths-2287', needs: 'none', note: 'the 360 width pass and footer link heights (#2287); anonymous; reads only' },
-  { spec: 'probe-ru-markets-360', needs: 'none', note: 'QA probe, not for merge; anonymous; reads only' },
   { spec: 'arena-overflow-probe', needs: 'free', note: 'measures layout only - reads scrollWidth and element rects, writes nothing; sets its own 390x844 viewport and samples at 600ms and 4.6s, so 16 page loads' },
 ];
 
