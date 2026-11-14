@@ -1,7 +1,7 @@
 /* The ONE strategy menu on /arena (#2358, owner decision 2026-11-14 option A), signed in as account A. The settings write is STUBBED and recorded (nothing reaches the dev row); the settings READ is patched to play a saved
  * choice back. Candles are the real ones of the build under test (the CI stand-in market) unless a cell fails them on purpose.
  *   M1  the menu: Let the read choose, the seven strategies in the owner's order, Custom; no old presets, no duplicate label, no raw key; in en and ru
- *   M2  picking a strategy writes arena_strategy AND strategy_selection in ONE request; only Bollinger squeeze turns a chip on (BOLL), every other strategy writes strategy_selection []
+ *   M2  PM's rules: picking a strategy never removes chips (six write arena_strategy ONLY; Bollinger squeeze ADDS BOLL and writes both in ONE request); a chip tap keeps the strategy; Let the read choose / Custom write arena_strategy: null only
  *   M3  the call box sits directly under the dropdown inside the same panel with name, description, verdict + reason, the signals-not-predictions line; Let the read choose and Custom show no call box; a failed candle read
  *       is the UNAVAILABLE state (never WAIT), and so is supply / demand when only the BTC read fails
  *   M4  a saved old-preset chip set (no strategy id) shows Custom with every chip intact and NOTHING is written on load
@@ -81,18 +81,68 @@ test.describe('one strategy menu (#2358)', () => {
     } finally { await ctx.close(); }
   });
 
-  for (const id of IDS) test(`M2. picking ${id}: one request carries arena_strategy and strategy_selection; ${id === 'bb_squeeze' ? 'the Bollinger chip lights' : 'no chip is switched on'}`, async ({ browser }) => {
-    const { ctx, page, writes } = await openArena(browser, { saved: null, chips: [] });
+  /* PM's rules (#2358, final): (1) picking a strategy NEVER removes chips: six strategies leave the chip row as it was and write ONLY arena_strategy; Bollinger squeeze ADDS BOLL (no-op if on) and writes arena_strategy +
+   * strategy_selection in ONE request. (2) toggling a chip keeps the strategy and writes strategy_selection only. (3) Let the read choose / Custom write arena_strategy: null only, chips untouched, the call box goes. */
+  const strat = (writes: Array<Record<string, unknown>>, from: number) => writes.slice(from).filter(w => 'arena_strategy' in w || 'strategy_selection' in w);
+  for (const id of IDS) test(`M2. picking ${id} with SMA already on: ${id === 'bb_squeeze' ? 'ONE request carries arena_strategy and the chips with BOLL added' : 'ONE request carries arena_strategy only'}; SMA stays on`, async ({ browser }) => {
+    const { ctx, page, writes } = await openArena(browser, { saved: null, chips: ['SMA'] });
     try {
       await expect(menu(page)).toBeVisible({ timeout: 30_000 }); const before = writes.length;
       await pick(page, id);
-      const mine = writes.slice(before).filter(w => 'arena_strategy' in w || 'strategy_selection' in w); console.log(`[M2] ${id} writes ${JSON.stringify(mine)}`);
+      const mine = strat(writes, before); console.log(`[M2] ${id} writes ${JSON.stringify(mine)}`);
       expect(mine.length, 'the pick was not saved in ONE request').toBe(1);
-      expect(mine[0].arena_strategy).toBe(id); expect(mine[0].strategy_selection).toEqual(id === 'bb_squeeze' ? ['BOLL'] : []);
+      expect(mine[0].arena_strategy).toBe(id);
+      if (id === 'bb_squeeze') { expect([...(mine[0].strategy_selection as string[])].sort(), 'Bollinger squeeze must ADD BOLL to the chips').toEqual(['BOLL', 'SMA']); expect(await chipOn(page, 'BOLL')).toBe('true'); }
+      else expect('strategy_selection' in mine[0], `${id} must write arena_strategy ONLY (it has no chip to add)`).toBe(false);
+      expect(await chipOn(page, 'SMA'), 'the strategy removed the user\'s SMA chip').toBe('true');
       expect(await menu(page).inputValue()).toBe(id);
-      if (id === 'bb_squeeze') expect(await chipOn(page, 'BOLL'), 'the Bollinger chip is not on').toBe('true');
-      else for (const c of ['SMA', 'PSAR', 'MACD', 'BOLL']) expect(await chipOn(page, c).catch(() => 'absent'), `${c} is on after picking ${id}`).not.toBe('true');
     } finally { await ctx.close(); }
+  });
+
+  test('M2b. Bollinger squeeze when BOLL is already on: the chip stays on once, the strategy is saved, nothing else changes', async ({ browser }) => {
+    const { ctx, page, writes } = await openArena(browser, { saved: null, chips: ['BOLL', 'MACD'] });
+    try {
+      await expect(menu(page)).toBeVisible({ timeout: 30_000 }); const before = writes.length; await pick(page, 'bb_squeeze');
+      const mine = strat(writes, before); console.log(`[M2b] writes ${JSON.stringify(mine)}`);
+      expect(mine.length).toBe(1); expect(mine[0].arena_strategy).toBe('bb_squeeze');
+      if ('strategy_selection' in mine[0]) expect([...(mine[0].strategy_selection as string[])].sort(), 'BOLL duplicated or a chip lost').toEqual(['BOLL', 'MACD']);
+      expect(await chipOn(page, 'BOLL')).toBe('true'); expect(await chipOn(page, 'MACD')).toBe('true');
+    } finally { await ctx.close(); }
+  });
+
+  test('M2c. toggling a chip while a strategy is picked keeps the strategy: strategy_selection only is written, the menu and the call box stay', async ({ browser }) => {
+    const { ctx, page, writes } = await openArena(browser, { saved: 'ema_stack', chips: [] });
+    try {
+      await expect(menu(page)).toBeVisible({ timeout: 30_000 }); await expect(box(page)).toBeVisible({ timeout: 20_000 }); const before = writes.length;
+      await page.getByTestId('strategy-indicator-MACD').click(); await page.waitForTimeout(4_000);
+      const mine = strat(writes, before); console.log(`[M2c] writes ${JSON.stringify(mine)}`);
+      expect(mine.length, 'the chip tap was not one request').toBe(1); expect('arena_strategy' in mine[0], 'a chip tap wrote the strategy').toBe(false); expect(mine[0].strategy_selection).toEqual(['MACD']);
+      expect(await menu(page).inputValue(), 'the chip tap changed the menu').toBe('ema_stack'); await expect(box(page), 'the call box went when a chip was toggled').toBeVisible();
+    } finally { await ctx.close(); }
+  });
+
+  test('M2d. Let the read choose with chips on writes arena_strategy: null only, leaves the chips, removes the call box, and the menu then reads Custom (chips with no strategy)', async ({ browser }) => {
+    const { ctx, page, writes } = await openArena(browser, { saved: 'ema_stack', chips: ['SMA', 'MACD'] });
+    try {
+      await expect(menu(page)).toBeVisible({ timeout: 30_000 }); await expect(box(page)).toBeVisible({ timeout: 20_000 }); const before = writes.length;
+      await pick(page, 'auto');
+      const mine = strat(writes, before); console.log(`[M2d] writes ${JSON.stringify(mine)}`);
+      expect(mine.length).toBe(1); expect(mine[0]).toMatchObject({ arena_strategy: null }); expect('strategy_selection' in mine[0], 'Let the read choose wrote the chips').toBe(false);
+      await expect(box(page), 'the call box is still showing').toHaveCount(0); expect(await chipOn(page, 'SMA')).toBe('true'); expect(await chipOn(page, 'MACD')).toBe('true');
+      expect(await menu(page).inputValue(), 'chips with no strategy must read as Custom (rule 4)').toBe('custom');
+    } finally { await ctx.close(); }
+  });
+
+  test('M2e. Custom with a strategy picked writes arena_strategy: null only and leaves the chips; with no chips and no strategy the menu reads Let the read choose', async ({ browser }) => {
+    const { ctx, page, writes } = await openArena(browser, { saved: 'bb_squeeze', chips: ['BOLL'] });
+    try {
+      await expect(menu(page)).toBeVisible({ timeout: 30_000 }); const before = writes.length; await pick(page, 'custom');
+      const mine = strat(writes, before); console.log(`[M2e] writes ${JSON.stringify(mine)}`);
+      expect(mine.length).toBe(1); expect(mine[0]).toMatchObject({ arena_strategy: null }); expect('strategy_selection' in mine[0]).toBe(false);
+      await expect(box(page)).toHaveCount(0); expect(await chipOn(page, 'BOLL')).toBe('true'); expect(await menu(page).inputValue()).toBe('custom');
+    } finally { await ctx.close(); }
+    const e = await openArena(browser, { saved: null, chips: [] });
+    try { await expect(menu(e.page)).toBeVisible({ timeout: 30_000 }); expect(await menu(e.page).inputValue(), 'nothing saved must read Let the read choose').toBe('auto'); } finally { await e.ctx.close(); }
   });
 
   test('M3. the call box sits directly under the menu in the same panel with every part; Let the read choose and Custom show none', async ({ browser }) => {
