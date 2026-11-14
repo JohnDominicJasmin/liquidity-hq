@@ -164,6 +164,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'strategy-card', needs: 'pro', note: 'the Arena strategy card (#2307..#2316); signed in as account A; the settings write is stubbed; reads only' },
   { spec: 'landing-2302-2303', needs: 'none', note: 'the AI disclosure on the landing page and the hero breakpoint (#2302 #2303); anonymous; reads only' },
   { spec: 'cls-arena-gate', needs: 'pro', note: 'the /arena layout-shift gate on a deployed site: signed out, and signed in as account A; settings writes stubbed; reads only' },
+  { spec: 'strategy-menu-shots', needs: 'pro', note: 'screenshots of the one strategy menu (call open, and Let the read choose) for a visual check; signed in as account A; settings writes stubbed; reads only' },
   { spec: 'arena-overflow-probe', needs: 'free', note: 'measures layout only - reads scrollWidth and element rects, writes nothing; sets its own 390x844 viewport and samples at 600ms and 4.6s, so 16 page loads' },
 ];
 
