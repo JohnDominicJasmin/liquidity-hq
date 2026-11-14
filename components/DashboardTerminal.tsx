@@ -33,6 +33,7 @@ import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import ReadingGap from '@/components/ReadingGap';
 import { fundingWord, setupWord, patternWord } from '@/lib/shortWords';
 import { coinRow } from '@/lib/coins';
 import type { LabelKey } from '@/lib/labelKeys';
@@ -479,12 +480,6 @@ function QuoteGap({ coin }: { coin: string }) {
 }
 
 /* A READING THAT IS NOT HERE SAYS WHICH KIND OF NOT (#1651, PM): still coming (an ellipsis) or not available (the plain word, cause on hover). Never a bare dash. For the VWAP, Funding and CB premium cards. */
-function ReadingGap({ loading }: { loading: boolean }) {
-  const { t } = useLabels();
-  if (loading) return <span role="img" aria-label={t('ARENA_SCANNER_LOADING_TITLE')} title={t('ARENA_SCANNER_LOADING_TITLE')}>{'\u2026'}</span>;
-  return <span title={t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE')}>{t('ARENA_SCANNER_UNAVAILABLE')}</span>;
-}
-
 function TCoinSignalsHeader() {
   const { store } = useMarket();
   const { t } = useLabels();
