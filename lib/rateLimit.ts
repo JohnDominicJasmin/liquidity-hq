@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'crypto';
+
 // Lightweight in-memory per-IP rate limiter for public (unauthenticated) API
 // routes. Render runs this app as a single long-lived process, so an
 // in-memory Map is sufficient - same pattern as the cooldown Map already
@@ -89,48 +91,59 @@ function isPrivateIp(ip: string): boolean {
   return false;
 }
 
-export function getClientIp(req: Request): string {
+/* THE CLIENT IP FOR A RATE-LIMIT KEY (security audit #1413, S8).
+ *
+ * The app sits behind Cloudflare in front of Render, and the Render origin also answers directly (liquidity-hq.onrender.com), so a request can arrive with ANY headers a caller likes.
+ * cf-connecting-ip / true-client-ip are only the real client IP when Cloudflare set them; on a direct request they are whatever the caller sent, which let a caller pick a fresh
+ * rate-limit key on every request. So those two headers are trusted ONLY when the request proves it came through Cloudflare: Cloudflare is configured to add a secret header
+ * (x-origin-auth) and the same value is in the ORIGIN_AUTH_SECRET environment variable; the value is compared in constant time.
+ *
+ * Without a matching secret the Cloudflare headers are ignored and the key is the rightmost public hop of x-forwarded-for, which is the address the platform itself appended
+ * (a client can only prepend to that header, never add to its right end). Through Cloudflare that is a Cloudflare edge address (shared, so the limit is coarser there), directly it is
+ * the real client.
+ *
+ * TRANSITION: while ORIGIN_AUTH_SECRET is not set at all, the old behaviour is kept (trust the Cloudflare headers) so deploying this before Cloudflare is configured does not
+ * collapse every visitor onto a shared edge address. Setting the variable and the Cloudflare rule is what turns the protection on.
+ *
+ * IPv6 is bucketed by its /64, since one customer holds a whole /64 and could otherwise rotate through addresses inside it. */
+export function normalizeIp(ip: string): string {
+  const v = ip.trim().toLowerCase();
+  if (!v.includes(':')) return v;                       // IPv4
+  if (v.startsWith('::ffff:') && v.includes('.')) return v.slice(7); // IPv4-mapped
+  const [headRaw, tailRaw] = v.split('::');
+  const head = headRaw ? headRaw.split(':') : [];
+  const tail = tailRaw !== undefined && tailRaw ? tailRaw.split(':') : [];
+  const groups = v.includes('::') ? [...head, ...Array(Math.max(0, 8 - head.length - tail.length)).fill('0'), ...tail] : head;
+  if (groups.length < 4) return v;
+  return groups.slice(0, 4).map(g => g.replace(/^0+(?=.)/, '')).join(':') + '::/64';
+}
+
+function originSecretMatches(provided: string | null, expected: string): boolean {
+  if (!provided) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+export function getClientIp(req: Request, env: Record<string, string | undefined> = process.env): string {
   const h = req.headers;
+  const expected = env.ORIGIN_AUTH_SECRET;
+  const trustCloudflare = !expected || originSecretMatches(h.get('x-origin-auth'), expected);
 
-  // This app sits behind Cloudflare in front of Render - two proxy hops, not
-  // one. cf-connecting-ip is Cloudflare's own purpose-built header for this
-  // exact problem: it's the client IP Cloudflare itself observed on the
-  // incoming connection, and Cloudflare overwrites any client-supplied value
-  // for this header before setting its own - unlike x-forwarded-for, which a
-  // client can prepend to freely. Confirmed live (TEMP-DEBUG round 3): this
-  // header carries the same value that stayed constant across a whole burst
-  // of requests from one real client, while every other candidate did not
-  // (see below). true-client-ip is Cloudflare Enterprise's equivalent name
-  // for the same value - checked as a second source, not because either
-  // alone was in doubt.
-  const cf = h.get('cf-connecting-ip') ?? h.get('true-client-ip');
-  if (cf) return cf;
+  if (trustCloudflare) {
+    const cf = h.get('cf-connecting-ip') ?? h.get('true-client-ip');
+    if (cf) return normalizeIp(cf);
+  }
 
-  // Fallback for any request that somehow reaches this app without going
-  // through Cloudflare (e.g. a future infra change, or local testing against
-  // Render directly). x-forwarded-for's hop count turned out NOT to be the
-  // fixed 2 this originally assumed:
-  //
-  // Live testing found 3 hops - [client, a Cloudflare edge machine, Render's
-  // own internal instance IP] - and, worse, the MIDDLE hop varies request to
-  // request even from the same real client (Cloudflare's anycast network
-  // routes different requests to different edge machines), so it can never
-  // be a stable per-client rate-limit key regardless of which position it's
-  // read from. Only cf-connecting-ip is both stable and unspoofable here.
-  //
-  // This fallback path just skips Render's own known-private trailing hop
-  // and returns whatever's left - it will NOT reliably separate distinct
-  // clients the way the primary path does, but it is strictly better than
-  // returning Render's own IP for every caller, which is what silently
-  // shipped before this fix (every distinct client shared one bucket, so
-  // the limiter never actually triggered per-IP).
+  // The rightmost PUBLIC hop: the platform's own appended address, skipping its known-private trailing hop.
   const xff = h.get('x-forwarded-for');
   if (xff) {
-    const hops = xff.split(',').map(s => s.trim()).filter(Boolean);
+    const hops = xff.split(',').map(x => x.trim()).filter(Boolean);
     for (let i = hops.length - 1; i >= 0; i--) {
-      if (!isPrivateIp(hops[i])) return hops[i];
+      if (!isPrivateIp(hops[i])) return normalizeIp(hops[i]);
     }
-    if (hops.length) return hops[hops.length - 1];
+    if (hops.length) return normalizeIp(hops[hops.length - 1]);
   }
-  return h.get('x-real-ip') ?? 'unknown';
+  const real = h.get('x-real-ip');
+  return real ? normalizeIp(real) : 'unknown';
 }
