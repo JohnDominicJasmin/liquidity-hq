@@ -28,7 +28,7 @@ const laterGrants = (table: string): string[] => {
   const dir = new URL('../supabase/migrations/', import.meta.url); const out: string[] = [];
   for (const f of readdirSync(dir).filter((n) => n.endsWith('.sql') && n > '20261021e_security_own_row_limits.sql').sort()) {
     const body = readFileSync(new URL(f, dir), 'utf8');
-    for (const m of body.matchAll(new RegExp(`^\s*(?:--\s*)?grant insert \(([^)]*)\), update \(([^)]*)\) on public\.${table} to authenticated`, 'gm'))) {
+    for (const m of body.matchAll(new RegExp('^\\s*(?:--\\s*)?grant insert \\(([^)]*)\\), update \\(([^)]*)\\) on public\\.' + table + ' to authenticated', 'gm'))) {
       assert.equal(m[1].trim(), m[2].trim(), `${f}: insert and update column lists differ`);
       for (const c of m[1].split(',').map((x) => x.trim()).filter(Boolean)) out.push(c);
     }
