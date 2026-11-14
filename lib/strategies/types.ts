@@ -13,6 +13,8 @@ export interface StrategyContext {
   tfMs: number;
   /** Optional liquidation-cluster prices for the coin (client only). A detector may use them to strengthen the reason, never to create a signal. */
   liqLevels?: readonly number[];
+  /** Closed BTC candles on the same timeframe, supplied only to a strategy with needsBtc and only for a coin other than BTC. */
+  btcCandles?: readonly OHLCV[];
 }
 
 export interface StrategyResult {
@@ -32,6 +34,8 @@ export interface StrategyDef {
   reasonSellKey: LabelKey;
   reasonWaitKey: LabelKey;
   /** Optional: a different sentence for the same verdict (e.g. which of two triggers fired). Return null to use the default key. */
+  /** True when the detector reads BTC candles (ctx.btcCandles). The caller fetches them; a failed fetch is an error, never a quiet wait. */
+  needsBtc?: boolean;
   reasonKeyFor?: (r: StrategyResult) => LabelKey | null;
   /** Closed candles the detector needs before it will say anything but wait. */
   minCandles: number;

@@ -25,7 +25,7 @@ export default function ArenaStrategyCard({ selected, onSelect, state, disabled 
   for (const [k, v] of Object.entries(r?.params ?? {})) if (typeof v === 'number') priceParams[k] = priceText(v);
   let reason = '';
   if (def && r) {
-    const alt = r.verdict === 'wait' ? null : def.reasonKeyFor?.(r) ?? null;
+    const alt = def.reasonKeyFor?.(r) ?? null;
     if (alt) reason = t(alt, { ...priceParams, tag: String(r.params.tag ?? '') });
     else if (r.verdict === 'buy') reason = t(def.reasonBuyKey, priceParams);
     else if (r.verdict === 'sell') reason = t(def.reasonSellKey, priceParams);
