@@ -36,7 +36,6 @@ for (const loc of ['en', 'ru']) for (const width of [390, 1280]) for (const th o
         return { found: !!row, label: label ? (label.textContent || '').trim() : null, para, right: r ? Math.round(r.right) : null, docSw: document.documentElement.scrollWidth, vw: window.innerWidth };
       });
       console.log(`[D1] ${loc} ${width} ${th} ${JSON.stringify({ ...land, para: land.para ? land.para.slice(0, 90) + '…(' + land.para.length + ')' : null })}`);
-      await page.locator('[data-qa-ai-row]').first().scrollIntoViewIfNeeded(); await page.locator('[data-qa-ai-row]').first().screenshot({ path: `qa/.shots/landing-ai-${loc}-${width}-${th}.png` });
       expect(land.found, `no "AI Analysis" disclosure row on the landing page in ${loc}`).toBe(true);
       expect(land.para && land.para.length > 60, `the AI Analysis row has no paragraph: ${land.para}`).toBe(true);
       expect(land.right!, 'the paragraph runs past the viewport').toBeLessThanOrEqual(land.vw + 1);
@@ -48,6 +47,8 @@ for (const loc of ['en', 'ru']) for (const width of [390, 1280]) for (const th o
       expect(dtext.length, '/disclaimer did not render').toBeGreaterThan(500);
       expect(dtext.includes(norm(land.para!)) || norm(land.para!).split(/(?<=[.!?。])\s+/).filter(s => s.length > 25).every(s => dtext.includes(norm(s))),
         `the landing paragraph is not the /disclaimer legal text:\n${land.para}`).toBe(true);
+      /* THE PICTURE COMES LAST AND CANNOT FAIL THE CELL: it used to sit above the asserts, so a screenshot timeout skipped every check (run 43590458814, mobile, ru 1280). */
+      await (async () => { await page.locator('[data-qa-ai-row]').first().scrollIntoViewIfNeeded(); await page.locator('[data-qa-ai-row]').first().screenshot({ path: `qa/.shots/landing-ai-${loc}-${width}-${th}.png` }); })().catch((err) => console.log(`[D1] shot skipped: ${String(err).slice(0, 80)}`));
     } finally { await ctx.close(); }
   });
 }
@@ -93,13 +94,13 @@ for (const width of [1024, 1060, 1099]) for (const th of ['dark', 'light'] as co
     try {
       await gotoGuarded(page, '/'); await page.waitForTimeout(9_000);
       const m = await hero(page); console.log(`[W1] ${width} ${th} ${JSON.stringify(m)}`);
-      await page.screenshot({ path: `qa/.shots/hero-${width}-${th}.png` });
       expect(m.panel, 'the LIVE READ panel was not found').not.toBeNull(); expect(m.nCtas).toBeGreaterThanOrEqual(2);
       expect(m.docSw, 'page scrolls sideways').toBeLessThanOrEqual(m.vw);
       expect(m.panel!.t, 'the panel is not below the CTAs: still two columns').toBeGreaterThanOrEqual(m.ctaBottom!);
       expect(m.panel!.l, 'the panel does not start at the content edge: still two columns').toBeLessThanOrEqual(m.ctaLeft! + 8);
       for (const l of m.ctaLines) expect(l, 'a CTA wraps').toBeLessThanOrEqual(1);
       expect(m.panel!.r).toBeLessThanOrEqual(m.vw); expect(m.stopRight!).toBeLessThanOrEqual(m.vw); expect(m.tgtRight!).toBeLessThanOrEqual(m.vw);
+      await page.screenshot({ path: `qa/.shots/hero-${width}-${th}.png` }).catch((err) => console.log(`[W1] shot skipped: ${String(err).slice(0, 80)}`));
     } finally { await ctx.close(); }
   });
 }
@@ -110,11 +111,11 @@ for (const [width, two] of [[1100, true], [1160, true], [1280, true], [768, fals
     try {
       await gotoGuarded(page, '/'); await page.waitForTimeout(9_000);
       const m = await hero(page); console.log(`[W2] ${width} ${JSON.stringify(m)}`);
-      if (width === 1100 || width === 768) await page.screenshot({ path: `qa/.shots/hero-${width}-dark.png` });
       expect(m.panel).not.toBeNull(); expect(m.docSw).toBeLessThanOrEqual(m.vw); expect(m.panel!.r).toBeLessThanOrEqual(m.vw);
       if (two) expect(m.panel!.l, `${width}: the panel is not to the right of the copy`).toBeGreaterThan(m.vw / 3);
       else expect(m.panel!.l, `${width}: the panel is not stacked`).toBeLessThanOrEqual(m.ctaLeft! + 8);
       for (const l of m.ctaLines) expect(l, 'a CTA wraps').toBeLessThanOrEqual(1);
+      if (width === 1100 || width === 768) await page.screenshot({ path: `qa/.shots/hero-${width}-dark.png` }).catch((err) => console.log(`[W2] shot skipped: ${String(err).slice(0, 80)}`));
     } finally { await ctx.close(); }
   });
 }
