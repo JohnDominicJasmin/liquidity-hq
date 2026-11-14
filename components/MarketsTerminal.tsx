@@ -299,7 +299,7 @@ export default function MarketsTerminal() {
               </div>
 
               {/* Price */}
-              <div className={`mkt-mono mkt-price${d?.price && ('$' + fmtPrice(d.price, dec)).length > 9 ? ' mkt-price-long' : ''}`} style={{ textAlign: 'right', fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt2)' }}>
+              <div className={`mkt-mono mkt-price${d?.price && ('$' + fmtPrice(d.price, dec)).length > 9 ? ' mkt-price-long' : ''}${d?.price ? '' : ' mkt-price-gap'}`} style={{ textAlign: 'right', fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt2)' }}>
                 {/* A MISSING QUOTE SAYS WHICH KIND OF MISSING (#1651, PM): an ellipsis while the first read is still coming, the scanner's own word once it is not - not a bare dash. */}
                 {d?.price ? '$' + fmtPrice(d.price, dec) : store.scannerFeed.universe === 'pending' ? '…' : t('ARENA_SCANNER_UNAVAILABLE_NARROW')}
               </div>
@@ -323,7 +323,7 @@ export default function MarketsTerminal() {
               </div>
 
               {/* Signal */}
-              <div className="mkt-signal" style={{
+              <div className="mkt-signal" title={sig.key ? t(sig.key) : undefined} style={{
                 paddingLeft: 12, fontSize: 'var(--fs-caption)',
                 color: sig.col === 'var(--txt-dim)' ? 'var(--txt3)' : sig.col,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',

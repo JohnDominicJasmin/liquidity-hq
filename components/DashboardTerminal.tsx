@@ -248,7 +248,7 @@ function TCoinSidebar() {
               )}
               <Sparkline24h coin={id} width={SPARK_W} height={14} />
               {sig && (
-                <span className="csb2-sig" style={{ color: sig.col }}>
+                <span className="csb2-sig" title={sig.text} style={{ color: sig.col }}>
                   {sig.text}
                 </span>
               )}
@@ -517,7 +517,7 @@ function TSelectedCoinCard() {
       </div>
       <div className="scc-meta">
         {chg != null && <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}><span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}</span>}
-        <span className="scc-sig" style={{ color: sigCol }}>{sigText || <SkeletonBar width={80} height={11} radius={4} />}</span>
+        <span className="scc-sig" title={sigText || undefined} style={{ color: sigCol }}>{sigText || <SkeletonBar width={80} height={11} radius={4} />}</span>
       </div>
       <span className="scc-arrow" aria-hidden="true">›</span>
     </Link>

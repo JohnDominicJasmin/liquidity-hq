@@ -712,17 +712,17 @@ export default function LandingTerminal({ dict, locale, dir }: Props) {
         <div style={{ borderTop: '1px solid var(--bdr)', padding: '20px 0 24px', marginTop: 30 }}>
           <p style={{ fontSize: isDesktop ? 12.5 : 12, lineHeight: 1.6, color: 'var(--txt3)', margin: 0 }}>
             {dict.footer.copyright}{' '}
-            <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{dict.footer.fullDisclaimer}</Link>
+            <Link href="/disclaimer" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{dict.footer.fullDisclaimer}</Link>
           </p>
           <p style={{ fontSize: isDesktop ? 12.5 : 12, lineHeight: 1.6, color: 'var(--txt3)', margin: '8px 0 0' }}>
             By using LiquidityHQ, you acknowledge that you understand and agree to our{' '}
-            <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Disclaimer</Link>,{' '}
-            <Link href="/terms" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Terms of Use</Link>, and{' '}
-            <Link href="/privacy" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Privacy Policy</Link>.
+            <Link href="/disclaimer" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Disclaimer</Link>,{' '}
+            <Link href="/terms" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Terms of Use</Link>, and{' '}
+            <Link href="/privacy" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Privacy Policy</Link>.
           </p>
           <p style={{ fontSize: isDesktop ? 12.5 : 12, lineHeight: 1.6, color: 'var(--txt3)', margin: '8px 0 0' }}>
-            <Link href="/contact" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Contact</Link>:{' '}
-            <a href={SUPPORT_MAILTO} data-testid="landing-support-email" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{SUPPORT_EMAIL}</a>
+            <Link href="/contact" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Contact</Link>:{' '}
+            <a href={SUPPORT_MAILTO} data-testid="landing-support-email" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{SUPPORT_EMAIL}</a>
           </p>
         </div>
       </footer>
