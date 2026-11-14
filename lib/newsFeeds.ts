@@ -32,14 +32,10 @@ export const FEEDS = [
   { url: 'https://cointelegraph.com/rss',                   source: 'CoinTelegraph',    cat: 'crypto' },
   { url: 'https://decrypt.co/feed',                         source: 'Decrypt',          cat: 'crypto' },
   { url: 'https://www.theblock.co/rss.xml',                 source: 'The Block',        cat: 'crypto' },
-  // KEPT DELIBERATELY despite failing in production (decided 2026-07-31).
-  // Returns HTTP 403 from Render's IP while returning 200 with ~10 items from
-  // a home connection - same URL, same User-Agent - so CryptoSlate or its CDN
-  // is blocking datacenter ranges. Unlike the Reuters/AP hostnames, which no
-  // longer resolve at all, this one can start working again the moment their
-  // WAF rules change, and /ops now shows it as Down rather than hiding it. Do
-  // not remove it on the strength of a 403 alone.
-  { url: 'https://cryptoslate.com/feed/',                   source: 'CryptoSlate',      cat: 'crypto' },
+  // CRYPTOSLATE REMOVED 2026-11-15 (#1651). It was kept on 2026-07-31 in case it recovered (403 from Render's IP, 200 from a home connection: their
+  // CDN blocks datacenter ranges). It has now failed 154,041 consecutive times and never succeeded once from production, nine other crypto feeds cover
+  // the gap, and every failed attempt is a request, a health write and a failure on /ops. If it is ever wanted again, add the line back:
+  //   { url: 'https://cryptoslate.com/feed/', source: 'CryptoSlate', cat: 'crypto' },
   { url: 'https://bitcoinmagazine.com/.rss/full/',          source: 'Bitcoin Magazine', cat: 'crypto' },
 ];
 
