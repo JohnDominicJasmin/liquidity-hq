@@ -1,3 +1,4 @@
+import { readJsonCapped, BODY_CAPS } from '@/lib/requestBody';
 import { AI_TOOL_LIMITS } from '@/lib/aiInputLimits';
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
@@ -70,7 +71,9 @@ export async function POST(req: NextRequest) {
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
   /* VALIDATE BEFORE CHARGING (#1413, PM): an input that is refused with a 400 must not cost the user one of their daily uses, so the checks run first and the usage is counted after. */
-  const body = await req.json().catch(() => ({})) as {
+  const capped = await readJsonCapped(req, BODY_CAPS.aiThesis);
+  if (capped.tooLarge) return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  const body = (capped.value ?? {}) as {
     symbol?: string; direction?: string; entryDate?: string;
     thesisText?: string; assumptions?: string[];
   };

@@ -1,3 +1,4 @@
+import { readJsonCapped, BODY_CAPS } from '@/lib/requestBody';
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { T } from '@/lib/tables';
@@ -76,7 +77,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Price alerts are a Pro feature.' }, { status: 403 });
   }
 
-  const body = await req.json().catch(() => null);
+  const capped = await readJsonCapped(req, BODY_CAPS.priceAlerts);
+  if (capped.tooLarge) return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  const body = capped.value as Record<string, any> | null; // eslint-disable-line @typescript-eslint/no-explicit-any
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_INPUT', message: 'Send a JSON body.' }, { status: 400 });
   const { coin, target_price, direction, label } = body;
   if (!coin || !target_price || !direction)
@@ -148,7 +151,9 @@ export async function PATCH(req: NextRequest) {
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
-  const body = await req.json().catch(() => null);
+  const capped = await readJsonCapped(req, BODY_CAPS.priceAlerts);
+  if (capped.tooLarge) return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  const body = capped.value as Record<string, any> | null; // eslint-disable-line @typescript-eslint/no-explicit-any
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_INPUT', message: 'Send a JSON body.' }, { status: 400 });
   const patch: Record<string, unknown> = {};
   if (body.target_price !== undefined) {

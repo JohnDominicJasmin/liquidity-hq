@@ -1,3 +1,4 @@
+import { readJsonCapped, BODY_CAPS } from '@/lib/requestBody';
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { T } from '@/lib/tables';
@@ -36,7 +37,9 @@ export async function POST(req: NextRequest) {
   const userId = authData.user?.id;
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await req.json().catch(() => ({})) as {
+  const capped = await readJsonCapped(req, BODY_CAPS.hypothesis);
+  if (capped.tooLarge) return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  const body = (capped.value ?? {}) as {
     title?: string;
     hypothesis?: string;
     acceptance_criteria?: string[];
