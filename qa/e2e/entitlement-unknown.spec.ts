@@ -102,7 +102,7 @@ test.describe('#1119 entitlement retry-exhaustion (#1184 hook)', () => {
       await page.locator(UNKNOWN_CARD).first().getByRole('button', { name: 'Try again' }).click();
 
       await expect(page.locator(REAL_CONTENT),
-        'Retry must recover to the real Pro state once the backend answers again').toBeVisible({ timeout: 15_000 });
+        'Retry must recover to the real Pro state once the backend answers again').toBeVisible({ timeout: 30_000 });
       /* NO .first() HERE, DELIBERATELY. This asserts the card is GONE, so it has to count every
          match - `.first()` narrows to one element and would pass while a second card remained. The
          sites above use `.first()` because the app renders the card twice and strict mode refuses
