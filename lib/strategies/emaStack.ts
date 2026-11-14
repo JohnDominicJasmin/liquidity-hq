@@ -1,6 +1,6 @@
-import { emaArr, type OHLCV } from '../strategyCore';
-import type { LabelKey } from '../labelKeys';
-import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } from './types';
+import { emaArr, type OHLCV } from '../strategyCore.ts';
+import type { LabelKey } from '../labelKeys.ts';
+import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } from './types.ts';
 
 /* EMA 20 / 50 / 100 / 200 STACK, TRADED ON THE PULLBACK (owner-requested, 2026-11-14: trade WITH the stack, wait for price to pull back to the 20 or 50 and show a
  * confirmation, enter in the trend direction). Deterministic rules, closed candles only.

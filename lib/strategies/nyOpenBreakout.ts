@@ -1,5 +1,5 @@
-import type { OHLCV } from '../strategyCore';
-import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } from './types';
+import type { OHLCV } from '../strategyCore.ts';
+import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } from './types.ts';
 
 /* NEW YORK OPEN BREAKOUT (owner-requested, 2026-11-14). Deterministic rules, closed candles only.
  *
