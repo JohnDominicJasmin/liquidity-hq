@@ -74,9 +74,12 @@ export default function StrategyCallBox({ def, state }: Props) {
         </>
       )}
       </div>
-      <div style={{ display: 'flex', alignItems: open ? 'flex-start' : 'baseline', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: open ? 'flex-start' : 'center', gap: 8 }}>
         <p data-testid="strategy-call-desc" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)', flex: '1 1 auto', minWidth: 0, ...(open ? {} : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }) }}>{t(def.descKey)}</p>
-        <button type="button" data-testid="strategy-call-desc-toggle" aria-expanded={open} onClick={() => setOpenFor(open ? null : def.id)} style={{ flex: '0 0 auto', background: 'none', border: 'none', padding: '8px 0', margin: '-8px 0', cursor: 'pointer', color: 'var(--accent)', fontSize: 'var(--fs-caption)', fontWeight: 600 }}>{open ? t('CHAT_COLLAPSE') : t('CHAT_EXPAND')}</button>
+        {/* An ICON, not text (owner, 2026-11-15): inline SVG chevron (a glyph renders differently in ko/zh fonts), 28 px hit area pulled back with a negative margin so the row keeps its height. */}
+        <button type="button" className="strat-desc-toggle" data-testid="strategy-call-desc-toggle" aria-expanded={open} aria-label={open ? t('CHAT_COLLAPSE') : t('CHAT_EXPAND')} title={open ? t('CHAT_COLLAPSE') : t('CHAT_EXPAND')} onClick={() => setOpenFor(open ? null : def.id)}>
+          <svg className="strat-desc-chevron" data-open={open ? 'true' : 'false'} width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 5l4 4 4-4" /></svg>
+        </button>
       </div>
       <p data-testid="strategy-call-note" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('STRAT_NOT_PREDICTIONS')}</p>
     </div>
