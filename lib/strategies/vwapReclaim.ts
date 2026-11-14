@@ -57,6 +57,7 @@ export const VWAP_RECLAIM: StrategyDef = {
   reasonSellKey: 'STRAT_VWAP_SELL',
   reasonWaitKey: 'STRAT_VWAP_WAIT',
   minCandles: 10,
+  chips: [],
   logTfs: ['5m', '15m', '1h'],
   detect: detectVwapReclaim,
 };

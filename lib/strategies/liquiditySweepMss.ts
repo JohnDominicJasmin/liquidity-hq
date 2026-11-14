@@ -90,6 +90,7 @@ export const LIQUIDITY_SWEEP_MSS: StrategyDef = {
   reasonSellKey: 'STRAT_LIQ_SWEEP_SELL',
   reasonWaitKey: 'STRAT_LIQ_SWEEP_WAIT',
   minCandles: 30,
+  chips: [],
   logTfs: ['15m', '1h', '4h'],
   detect: detectLiquiditySweepMss,
 };

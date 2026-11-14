@@ -74,6 +74,7 @@ export const NY_OPEN_BREAKOUT: StrategyDef = {
   reasonSellKey: 'STRAT_NYOPEN_SELL',
   reasonWaitKey: 'STRAT_NYOPEN_WAIT',
   minCandles: 10,
+  chips: [],
   logTfs: ['5m', '15m'],
   detect: detectNyOpenBreakout,
 };
