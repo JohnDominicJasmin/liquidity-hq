@@ -24,6 +24,18 @@ test.describe('arena layout shift probe', () => {
           return { tag: el.tagName.toLowerCase(), id: el.id || '', testid: el.getAttribute('data-testid') || '', cls: (typeof el.className === 'string' ? el.className : '').split(/\s+/).slice(0, 3).join('.'), text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40) };
         };
         const r = (x: DOMRectReadOnly) => [Math.round(x.x), Math.round(x.y), Math.round(x.width), Math.round(x.height)];
+        /* WHAT IS ADDED ABOVE THE CHART? Every node inserted into the page whose box ends above the chart workspace's top, with its size and the time (the 54 px that pushes `.arena-ws` down has to come from one of these). */
+        (w as unknown as { __added: unknown[] }).__added = [];
+        const t0 = performance.now();
+        try {
+          new MutationObserver((muts) => {
+            const ws = document.querySelector('.arena-ws') as HTMLElement | null; const wsTop = ws ? ws.getBoundingClientRect().top + scrollY : 99999;
+            for (const m of muts) for (const n of Array.from(m.addedNodes)) {
+              if (n.nodeType !== 1) continue; const el = n as HTMLElement; const b = el.getBoundingClientRect(); if (!b.height) continue;
+              if (b.bottom + scrollY <= wsTop + 2) (w as unknown as { __added: unknown[] }).__added.push({ t: Math.round(performance.now() - t0), what: d(el), h: Math.round(b.height), top: Math.round(b.top + scrollY), parent: d(el.parentElement).tag + '.' + d(el.parentElement).cls });
+            }
+          }).observe(document, { childList: true, subtree: true });
+        } catch { /* unsupported */ }
         try {
           new PerformanceObserver((l) => {
             for (const e of l.getEntries() as unknown as Array<{ value: number; startTime: number; hadRecentInput: boolean; sources?: Array<{ node: Node | null; previousRect: DOMRectReadOnly; currentRect: DOMRectReadOnly }> }>) {
@@ -36,6 +48,9 @@ test.describe('arena layout shift probe', () => {
       try {
         await gotoGuarded(page, '/arena'); await page.waitForTimeout(2500 + 1200);
         const shifts = await page.evaluate(() => (window as unknown as { __cls: Shift[] }).__cls);
+        const added = await page.evaluate(() => (window as unknown as { __added: unknown[] }).__added);
+        // eslint-disable-next-line no-console
+        console.log(`[ADDED] load ${run}: ${JSON.stringify(added).slice(0, 1500)}`);
         const total = +shifts.filter((s) => !s.hadRecentInput).reduce((a, s) => a + s.value, 0).toFixed(3);
         // eslint-disable-next-line no-console
         console.log(`[CLS] load ${run}: total ${total} over ${shifts.length} entries`);
