@@ -72,6 +72,7 @@ export const EMA_STACK: StrategyDef = {
   reasonWaitKey: 'STRAT_EMASTACK_WAIT',
   reasonKeyFor: (r): LabelKey | null => (r.params.pullback === true ? (r.verdict === 'buy' ? 'STRAT_EMASTACK_BUY_PULLBACK' : 'STRAT_EMASTACK_SELL_PULLBACK') : null),
   minCandles: MIN_CANDLES,
+  chips: [],
   logTfs: ['15m', '1h', '4h'],
   detect: detectEmaStack,
 };

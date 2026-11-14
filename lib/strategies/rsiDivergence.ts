@@ -53,6 +53,7 @@ export const RSI_DIVERGENCE: StrategyDef = {
   reasonSellKey: 'STRAT_RSIDIV_SELL',
   reasonWaitKey: 'STRAT_RSIDIV_WAIT',
   minCandles: MIN_CANDLES,
+  chips: [],
   logTfs: ['15m', '1h', '4h'],
   detect: detectRsiDivergenceTrigger,
 };

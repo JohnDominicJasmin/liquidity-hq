@@ -26,6 +26,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from './AuthProvider';
 import { SkeletonBar } from './Skeleton';
+import StrategyCallBox from './StrategyCallBox';
+import { STRATEGIES, findStrategy } from '@/lib/strategies';
+import type { StrategySignalState } from '@/lib/useStrategySignal';
 import { EntitlementUnknownCard } from './UpgradeGateModal';
 import type { SettingsLoadStatus } from '@/lib/settings';
 import { useLabels } from '@/lib/labels';
@@ -59,6 +62,12 @@ interface Props {
   onRun: (kind: RunKind, selection: readonly string[]) => void;
   /** Whether a read is already in flight - disables the run buttons (#1309 item 24). */
   running?: boolean;
+  /** The saved Arena strategy id (lib/strategies), or null. An unknown id is treated as none by the caller. The menu's value is DERIVED from this and `selected`: a known id shows that strategy, no id with chips on shows Custom, nothing shows Let the read choose. */
+  strategy: string | null;
+  /** The menu was changed: 'auto', 'custom' or a strategy id. The caller writes arena_strategy and strategy_selection together, in one save. */
+  onStrategyPick: (id: string) => void;
+  /** The picked strategy's live call (closed candles), shown in the call box under the menu. */
+  strategyState: StrategySignalState;
 }
 
 function ParamRow({ spec, value, readOnly, onChange }: {
@@ -130,7 +139,7 @@ function LayerSwitch({ name, on, unavailable, onToggle }: { name: string; on: bo
   );
 }
 
-export default function StrategyPanel({ overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, running = false }: Props) {
+export default function StrategyPanel({ overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, running = false, strategy, onStrategyPick, strategyState }: Props) {
   const loaded = status === 'ready';
   const { user, loading: authLoading, entitlementStatus, retryEntitlements } = useAuth();
   const planLabel = strategyPlanLabel({ signedIn: !!user, authLoading, entitlementStatus });
@@ -145,38 +154,25 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
   };
 
   const limit = indicatorLimit(entitled);
-  const [setId, setSetId] = useState<string>(AUTO_SET_ID);
+  const pickedStrategy = findStrategy(strategy);
+  const setId = pickedStrategy ? pickedStrategy.id : selected.length > 0 ? CUSTOM_SET_ID : AUTO_SET_ID;
   /* Which indicator's parameters the box shows. One box, not one per selection. */
   const [focused, setFocused] = useState<string | null>(null);
-  const [dropped, setDropped] = useState(0);
 
   const paramsFor = (entry: IndicatorEntry) => params[entry.id] ?? defaultParams(entry);
   const focusedEntry = focused ? findIndicator(focused) : undefined;
   const used = slottedIds(selected).length;
 
+  /* THE ONE STRATEGY MENU (owner, 2026-11-14, option A). The caller writes the saved strategy AND the chips in one save; here only the params focus follows. */
   const applySet = (id: string) => {
     if (!loaded) return;
-    setSetId(id);
-    const preset = STRATEGY_SETS.find(s => s.id === id);
-    if (!preset || id === CUSTOM_SET_ID) { setDropped(0); return; }
-    /* A preset can name more indicators than Free may combine (Pro is unlimited). Overlays and the
-       always-on RSI are not selectable here, so keep only the preset's selectable ids, capped to the
-       plan. Truncate rather than refuse, and say so (`dropped`). */
-    let room = limit;
-    const next = preset.indicators.filter(i => {
-      if (!SELECTABLE_INDICATOR_IDS.has(i)) return false;
-      if (room > 0) { room--; return true; }
-      return false;
-    });
-    setDropped(preset.indicators.filter(i => SELECTABLE_INDICATOR_IDS.has(i)).length - next.length);
-    onSelectedChange(next);
-    setFocused(next[0] ?? null);
+    onStrategyPick(id);
+    const def = findStrategy(id);
+    setFocused(def ? (def.chips.find(c => SELECTABLE_INDICATOR_IDS.has(c)) ?? null) : null);
   };
 
   const toggle = (entry: IndicatorEntry) => {
     if (!loaded || !canRender(entry)) return;
-    setSetId(CUSTOM_SET_ID);
-    setDropped(0);
     if (selected.includes(entry.id)) {
       /* #1027: with 2+ on, clicking an earlier chip re-shows its params; only the chip already
          showing its params deselects. With Pro unlimited this is the common path. */
@@ -220,9 +216,12 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
           <span>{t('STRATEGY_PANEL_SECTION_SET')}</span>
           {entitled && <span className="strat-cap">Edit · Save as</span>}
         </div>
-        <select className="strat-sel" value={setId} disabled={!loaded} aria-label={t('STRATEGY_PANEL_SECTION_SET')} onChange={e => applySet(e.target.value)}>
-          {STRATEGY_SETS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+        <select className="strat-sel" data-testid="strategy-set-select" value={setId} disabled={!loaded} aria-label={t('STRATEGY_PANEL_SECTION_SET')} onChange={e => applySet(e.target.value)}>
+          {STRATEGY_SETS.filter(s => s.id === AUTO_SET_ID).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          {STRATEGIES.map(s => <option key={s.id} value={s.id}>{t(s.nameKey)}</option>)}
+          {STRATEGY_SETS.filter(s => s.id === CUSTOM_SET_ID).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
+        {pickedStrategy && <StrategyCallBox def={pickedStrategy} state={strategyState} />}
       </div>
 
       <div className="strat-sect">
@@ -305,14 +304,6 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
 
         {isAuto && (
           <div className="strat-auto">{t('STRATEGY_PANEL_AUTO_NOTE')}</div>
-        )}
-
-        {dropped > 0 && (
-          <div className="strat-trunc" role="status">
-            {dropped === 1
-              ? `1 indicator in this set is beyond your limit - showing the first ${limit}.`
-              : `${dropped} indicators in this set are beyond your limit - showing the first ${limit}.`}
-          </div>
         )}
 
         {focusedEntry && focusedEntry.paramSchema.length > 0 && (
