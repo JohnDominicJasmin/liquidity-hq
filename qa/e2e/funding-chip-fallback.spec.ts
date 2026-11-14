@@ -9,7 +9,7 @@ import { installMarketFixtures } from './_fixtures';
  *                sentinel: the fallback fires only on a failed read, never over a figure we hold. Without
  *                this, F1 passing could just mean "the chip always shows Binance".
  *   F1           Bybit tickers 500, premium index carries the sentinel. The chip shows the sentinel.
- *   F2           Both 500. The chip stays unknown ("-"), never 0.
+ *   F2           Both 500. The chip stays unknown ("Unavailable" since the honest-states batch; it was a bare "-"), never 0.
  *
  * Fixtures serve the rest of the market deterministically; the two routes under test are registered AFTER
  * installMarketFixtures so they win over it. Nothing is billed, nothing is written. */
@@ -72,6 +72,6 @@ test.describe('Arena funding chip - Binance fallback (#2186)', () => {
     const v = await fundingValue(page);
     console.log(`[funding F2] chip=${v} bybit500Calls=${calls.bybit} premiumIndexCalls=${calls.binance}`);
     expect(calls.bybit, 'bybit-tickers was never requested').toBeGreaterThan(0);
-    expect(v, 'with both venues failing the chip must stay unknown').toBe('-');
+    expect(v, 'with both venues failing the chip must stay unknown: it says Unavailable, never a number and never 0').toBe('Unavailable');
   });
 });
