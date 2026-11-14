@@ -1,5 +1,6 @@
 -- NOT YET APPLIED TO PRODUCTION. PM/DevOps applies this at release time, after the render check.
 -- Nothing in this file touches the dev project: the only table named below is production's `lhq_labels`.
+-- NO DEV BLOCK IS NEEDED, and that was checked rather than assumed (read-only, 2026-11-13): dev's `lhq_dev_labels` already holds all ten rows (NEWS_FORYOU_EMPTY_TITLE and SPOTLIGHT_TOUR_STEP5_BODY, five locales each) with this wording, so qa and staging already render it.
 --
 -- Two label rows the owner approved first-hand to PM on 2026-11-13. A database row silently wins over the
 -- shipped default (lib/labelOverrides.ts), so production keeps showing the OLD wording until these rows are

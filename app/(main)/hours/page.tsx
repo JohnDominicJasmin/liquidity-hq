@@ -1,10 +1,12 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { trText } from '@/lib/marketReadText';
 import { getLocalNow, getCurrentWindow, isDead, getUpcomingWindows } from '@/lib/session';
 import { utcWindowToLocalRange, localZoneAbbr } from '@/lib/resetTime';
 import SessionCountdown from '@/components/SessionCountdown';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
+import { fmtDuration } from '@/lib/durationText';
 import type { LabelKey } from '@/lib/labelKeys';
 import { readableOn } from '@/lib/readableOn';
 import PageHint from '@/components/PageHint';
@@ -72,7 +74,7 @@ export default function BestHours() {
   // and the client's first render agree on showing none of them, then swap
   // in the live state right after mount (client-only, nothing for hydration
   // to compare against).
-  const { t } = useLabels();
+  const { t, locale } = useLabels();
   const [mounted, setMounted] = useState(false);
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -174,11 +176,11 @@ export default function BestHours() {
             build DATE until the day changed. A dashed placeholder holds the same
             line until mount. */}
         <div suppressHydrationWarning style={{ fontSize: '2.25rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--txt)', letterSpacing: -1 }}>
-          {mounted ? <>{pad(h12)}:{pad(m)}:{pad(s)}</> : '--:--:--'}
+          {mounted ? <>{locale === 'en' ? pad(h12) : pad(h)}:{pad(m)}:{pad(s)}</> : '--:--:--'}
           {/* The clock has always shown the VIEWER'S own time (getLocalNow() is
               just new Date()), but the label named a single fixed zone - so a trader in
               London read their own 9am under someone else's label. Show the real zone. */}
-          {mounted && <span suppressHydrationWarning style={{ fontSize: 'var(--fs-body)', color: 'var(--txt3)', marginLeft: 8 }}>{ampm} {localZoneAbbr()}</span>}
+          {mounted && <span suppressHydrationWarning style={{ fontSize: 'var(--fs-body)', color: 'var(--txt3)', marginLeft: 8 }}>{locale === 'en' ? ampm + ' ' : ''}{localZoneAbbr()}</span>}
         </div>
         <div suppressHydrationWarning style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', marginTop: 4 }}>
           {mounted ? <>{days[pht.getDay()]}, {months[pht.getMonth()]} {pht.getDate()} {pht.getFullYear()}</> : ' '}
@@ -188,7 +190,7 @@ export default function BestHours() {
           {mounted && (win ? (
             <div className="window-pill" style={{ background: win.bg, color: win.color, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" /></svg>
-              {t('HOURS_WINDOW_ACTIVE_NOW', { name: win.name })}
+              {t('HOURS_WINDOW_ACTIVE_NOW', { name: trText(t, win.name) })}
             </div>
           ) : dead ? (
             <div className="window-pill wp-dead" style={{ display: 'inline-block' }}>{t('HOURS_DEAD_ZONE_MSG')}</div>
@@ -315,7 +317,7 @@ export default function BestHours() {
         {/* Hour ticks */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(hr => (
-            <span key={hr} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontVariantNumeric: 'tabular-nums' }}>
+            <span key={hr} className={hr % 6 !== 0 ? 'hours-tick-minor' : undefined} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontVariantNumeric: 'tabular-nums' }}>
               {hr === 0 || hr === 24 ? t('HOURS_TICK_MIDNIGHT') : hr === 12 ? t('HOURS_TICK_NOON') : hr < 12 ? t('HOURS_TICK_AM', { hr }) : t('HOURS_TICK_PM', { hr: hr - 12 })}
             </span>
           ))}
@@ -339,7 +341,7 @@ export default function BestHours() {
 
         {/* Current position label */}
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>
-          {t('HOURS_NOW_PREFIX')}<span suppressHydrationWarning style={{ color: 'var(--txt2)', fontWeight: 600 }}>{mounted ? <>{pad(h12)}:{pad(m)} {ampm} {localZoneAbbr()}</> : '--:--'}</span>
+          {t('HOURS_NOW_PREFIX')}<span suppressHydrationWarning style={{ color: 'var(--txt2)', fontWeight: 600 }}>{mounted ? <>{locale === 'en' ? <>{pad(h12)}:{pad(m)} {ampm}</> : <>{pad(h)}:{pad(m)}</>} {localZoneAbbr()}</> : '--:--'}</span>
           {mounted && win && <span className="hours-now-win" style={{ marginLeft: 8, color: win.color, fontWeight: 600 }}>{t('HOURS_DOT_SEPARATOR')} {win.name}</span>}
           {mounted && dead && <span style={{ marginLeft: 8, color: 'var(--red)', fontWeight: 600 }}>{t('HOURS_DOT_DEAD_ZONE')}</span>}
         </div>
@@ -353,9 +355,9 @@ export default function BestHours() {
             <div>
               <div className="nw-name" style={{ color: win.color, display: 'flex', alignItems: 'center', gap: 5 }}>
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" /></svg>
-                {t('HOURS_WINDOW_ACTIVE_RIGHT_NOW', { name: win.name })}
+                {t('HOURS_WINDOW_ACTIVE_RIGHT_NOW', { name: trText(t, win.name) })}
               </div>
-              <div className="nw-time">{win.label}</div>
+              <div className="nw-time">{trText(t, win.label)}</div>
             </div>
             <div className="nw-countdown" style={{ color: win.color }}>{t('HOURS_GO_HUNT')}</div>
           </div>
@@ -364,10 +366,10 @@ export default function BestHours() {
             {upcoming.map((u, i) => (
               <div key={i} className="nw-row">
                 <div>
-                  <div className="nw-name" style={{ color: u.win.color }}>{u.win.name}</div>
-                  <div className="nw-time">{u.win.label}</div>
+                  <div className="nw-name" style={{ color: u.win.color }}>{trText(t, u.win.name)}</div>
+                  <div className="nw-time">{trText(t, u.win.label)}</div>
                 </div>
-                <div className="nw-countdown" style={{ color: u.win.color }}>{u.countdown}</div>
+                <div className="nw-countdown" style={{ color: u.win.color }}>{t('HOURS_COUNTDOWN_AWAY', { time: fmtDuration(t, Math.floor(u.diffMs / 1000), false) })}</div>
               </div>
             ))}
           </div>
@@ -380,12 +382,12 @@ export default function BestHours() {
       <div className="dash-section">{t('HOURS_ALL_WINDOWS')}</div>
       {WINDOWS.map((w, i) => (
         <div key={i} className="card" style={{ marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <div className={`window-pill ${w.cls}`}>{t(w.badgeKey)}</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+            <div className={`window-pill ${w.cls}`} style={{ minWidth: 0 }}>{t(w.badgeKey)}</div>
             {/* Client-only: formatting depends on the viewer's timezone, which the
                 prerendered HTML (always UTC) would get wrong. */}
-            <div suppressHydrationWarning style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-              {mounted ? utcWindowToLocalRange(...w.utc) : ''}
+            <div suppressHydrationWarning style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              {mounted ? utcWindowToLocalRange(w.utc[0], w.utc[1], w.utc[2], w.utc[3], w.utc[4], locale) : ''}
             </div>
           </div>
           <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.6 }}>{t(w.descKey)}</div>

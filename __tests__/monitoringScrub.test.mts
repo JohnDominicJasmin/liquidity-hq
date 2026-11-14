@@ -288,17 +288,36 @@ test('monitoring quota settings', async (t) => {
 
   await t.test('the integrations filter removes BrowserSession', () => {
     const filter = monitoringOptions().integrations as (d: { name: string }[]) => { name: string }[];
+    const all = getDefaultIntegrations({}).map(i => i.name);
     const kept = filter(getDefaultIntegrations({})).map(i => i.name);
     assert.ok(!kept.includes('BrowserSession'), 'session tracking would still be on');
-    assert.ok(kept.includes('InboundFilters'), 'the filter removed more than it should have');
+    /* EXACTLY the defaults minus BrowserSession. This used to assert that one named integration (InboundFilters) survived, which SDK 11 broke by renaming it: a pin on a
+       specific other name fails on a rename that has nothing to do with the filter. Comparing the whole list says the same thing (it removed nothing else) and survives renames. */
+    assert.deepEqual(kept, all.filter(n => n !== 'BrowserSession'), 'the filter removed more than it should have, or kept something it should not');
+    assert.ok(kept.length > 0, 'no integrations left at all');
   });
 
   await t.test('transaction sampling stays at 0', () => {
     assert.equal(monitoringOptions().tracesSampleRate, 0);
   });
 
-  await t.test('PII is not sent by default', () => {
-    assert.equal(monitoringOptions().sendDefaultPii, false);
+  /* SDK 11 REMOVED `sendDefaultPii`; the restrictive v10 baseline is now stated through `dataCollection` (lib/monitoring.ts). Owned by QA (Dev moved it when the old line stopped
+     typechecking; QA reviewed it and replaced it with this). It pins the WHOLE object, key by key, not a hand-picked subset: v11's own default collects cookies, bodies, user info and
+     database query data, so a key added to the object later, or one dropped from it, must be a decision someone makes in this file, not a silent change in what leaves the building. */
+  await t.test('PII is not sent by default: the dataCollection baseline is exactly the restrictive v10 one (SDK 11)', () => {
+    const deny = ['forwarded', '-ip', 'remote-', 'via', '-user'];
+    assert.deepEqual(monitoringOptions().dataCollection, {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: { request: { deny }, response: { deny } },
+      httpBodies: [],
+      urlQueryParams: { deny },
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      graphQL: { document: false, variables: false },
+    });
+    assert.equal('sendDefaultPii' in monitoringOptions(), false, 'sendDefaultPii no longer exists in SDK 11; leaving it would do nothing and say nothing');
   });
 
   /* Both scrub hooks must stay wired. beforeSend is what makes PII scrubbing

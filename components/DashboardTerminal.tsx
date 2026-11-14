@@ -33,6 +33,9 @@ import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import ReadingGap from '@/components/ReadingGap';
+import { fundingWord, setupWord, patternWord } from '@/lib/shortWords';
+import { coinRow } from '@/lib/coins';
 import type { LabelKey } from '@/lib/labelKeys';
 import PageHint from '@/components/PageHint';
 import PerpSpotCard from '@/components/PerpSpotCard';
@@ -89,10 +92,11 @@ function TMarketPulseStrip() {
   const domNote = dom == null ? '' : dom >= 60 ? t('DASH_PULSE_NOTE_BTC_LEADS') : dom >= 55 ? t('DASH_PULSE_NOTE_ELEVATED') : dom >= 48 ? t('DASH_PULSE_NOTE_NORMAL') : t('DASH_PULSE_NOTE_ALT_SEASON');
   const altNote = alt == null ? '' : alt >= 75 ? t('DASH_PULSE_NOTE_ALT_SEASON') : alt >= 50 ? t('DASH_PULSE_NOTE_LEAN_ALTS') : alt >= 25 ? t('DASH_PULSE_NOTE_BTC_LEADS') : t('DASH_PULSE_NOTE_BTC_SEASON');
 
-  type Chip = { label: string; value: string; note: string; color: string };
+  type Chip = { label: string; value: React.ReactNode; note: string; color: string };
   const chips: Chip[] = [
-    { label: t('DASH_PULSE_BTC_DOM_LABEL'), value: dom != null ? dom.toFixed(1) + '%' : '-', note: domNote, color: 'var(--txt)' },
-    { label: t('DASH_PULSE_ALT_LABEL'), value: alt != null ? String(alt) : '-', note: altNote, color: altColor },
+    /* A MISSING READING SAYS WHICH KIND OF MISSING (#1651, PM): an ellipsis while the CoinMarketCap read is still coming, the plain word once it is not. */
+    { label: t('DASH_PULSE_BTC_DOM_LABEL'), value: dom != null ? dom.toFixed(1) + '%' : <ReadingGap loading={store.btcDomStatus === 'pending'} />, note: domNote, color: 'var(--txt)' },
+    { label: t('DASH_PULSE_ALT_LABEL'), value: alt != null ? String(alt) : <ReadingGap loading={store.altSeasonStatus === 'pending'} />, note: altNote, color: altColor },
     ...(volLabel ? [{ label: t('DASH_PULSE_VOL_LABEL'), value: volLabel.replace(' Vol', ''), note: t('DASH_PULSE_VOL_NOTE'), color: volColor }] : []),
   ];
 
@@ -137,8 +141,10 @@ function TCoinSidebar() {
       {visibleCoins.map(id => {
         const d      = store.coins[id];
         const dec    = COIN_DEC[id];
-        const chg    = d?.change ?? 0;
-        const up     = chg >= 0;
+        /* AN UNKNOWN CHANGE IS NOT ZERO (#1651, PM, data integrity). `?? 0` turned a coin with no quote into "+0.00%" with a green up arrow, a real-looking reading of a flat market. Null stays null and
+           draws NOTHING; the price cell beside it says why (No data, or the figure when there is one). */
+        const chg    = d?.change ?? null;
+        const up     = chg != null && chg >= 0;
         const sel    = store.selectedCoin === id;
         /* #1494 class: null, not 50. A coin whose taker ratio has not arrived used to draw this bar half-full,
            which is a real reading of balanced flow - the same picture a genuinely 50/50 coin gets. Unknown now
@@ -160,7 +166,7 @@ function TCoinSidebar() {
         if (!sig && d?.chartPattern) {
           const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(d.chartPattern);
           const isBear = /bear|lower high|engulf.*bear|shooting|double top/i.test(d.chartPattern);
-          const label  = d.chartPattern.split(';')[0].split('(')[0].trim();
+          const label  = patternWord(t, d.chartPattern.split(';')[0].split('(')[0].trim());
           if (isBull)       sig = { text: label, col: 'var(--green)' };
           else if (isBear)  sig = { text: label, col: 'var(--red)' };
           else if (label)   sig = { text: label, col: 'var(--txt3)' };
@@ -230,17 +236,19 @@ function TCoinSidebar() {
                 {health.grade}
               </span>
               <span className="csb2-price">
-                {d?.price ? '$' + fmtPrice(d.price, dec) : '-'}
+                {d?.price ? '$' + fmtPrice(d.price, dec) : <QuoteGap coin={id} />}
               </span>
             </div>
 
             <div className="csb2-bottom" style={{ '--csb2-spark-w': `${SPARK_W}px` } as React.CSSProperties}>
-              <span className={`csb2-chg ${up ? 'chg-up' : 'chg-dn'}`}>
-                <span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}
-              </span>
+              {chg != null && (
+                <span className={`csb2-chg ${up ? 'chg-up' : 'chg-dn'}`}>
+                  <span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}
+                </span>
+              )}
               <Sparkline24h coin={id} width={SPARK_W} height={14} />
               {sig && (
-                <span className="csb2-sig" style={{ color: sig.col }}>
+                <span className="csb2-sig" title={sig.text} style={{ color: sig.col }}>
                   {sig.text}
                 </span>
               )}
@@ -342,7 +350,7 @@ function TEdgeSignals() {
   /* THE VWAP, not the price - the same defect as CoinMarketSnapshot, and the same reasoning (#1263).
    * The sub-line that used to print the VWAP underneath is gone with it: the value IS the VWAP now,
    * so keeping it would say the same number twice. The relation to price stays below. */
-  const vwapStr = vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[coin]) : '-';
+  const vwapStr = vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[coin]) : null;
 
   const oiMeta = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
 
@@ -364,7 +372,7 @@ function TEdgeSignals() {
 
   /* #1613: the trend text must come from the SAME hour as the % beside it, so it is derived from the 1h samples, not from the store's oiTrend (another window). */
   const { txt: oi1hTxt, col: oi1hCol } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
-  const oi1hPctStr = oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : '-';
+  const oi1hPctStr = oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : null;
 
   const sq    = computeSqueezeScore(d);
   // --txt2, not --txt-dim (#546 C9): --txt-dim isn't in terminal's 16-token
@@ -374,16 +382,16 @@ function TEdgeSignals() {
 
   return (
     <>
-      <div className="edge-grid">
+      <div className="edge-grid edge-grid-aligned">
         <div className="edge-card">
           <div className="edge-card-label">
             <Tip text={t('DASH_EDGE_VWAP_TIP')}>{t('DASH_EDGE_VWAP_LABEL', { coin: coin.toUpperCase() })}</Tip>
           </div>
           <div className="edge-card-value" style={{ color: vwapCol }}>
-            {vwapStr}
+            {vwapStr ?? <ReadingGap loading={store.snapshotStatus === 'loading'} />}
           </div>
           <div className="edge-card-signal" style={{ color: vwapCol }}>
-            {vwapAbove === null ? t('STATE_UNAVAILABLE') : vwapAbove ? t('DASH_EDGE_VWAP_SIG_ABOVE') : t('DASH_EDGE_VWAP_SIG_BELOW')}
+            {vwapStr == null ? null : vwapAbove === null ? t('STATE_UNAVAILABLE') : vwapAbove ? t('DASH_EDGE_VWAP_SIG_ABOVE') : t('DASH_EDGE_VWAP_SIG_BELOW')}
           </div>
         </div>
 
@@ -408,10 +416,10 @@ function TEdgeSignals() {
             <Tip text={t(frInfo ? FUNDING_TIP_KEY[frInfo.band] : 'DASH_EDGE_FUNDING_TIP')}>{t('DASH_EDGE_FUNDING_LABEL', { coin: coin.toUpperCase() })}</Tip>
           </div>
           <div className="edge-card-value" style={{ color: frCol }}>
-            {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
+            {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : <ReadingGap loading={store.scannerFeed.universe === 'pending'} />}
           </div>
           <div className="edge-card-signal" style={{ color: frCol }}>
-            {frInfo ? frInfo.label : <SkeletonBar width={70} height={11} radius={4} />}
+            {frInfo ? fundingWord(t, frInfo.band) : store.scannerFeed.universe === 'pending' ? <SkeletonBar width={70} height={11} radius={4} /> : null}
           </div>
         </div>
 
@@ -421,7 +429,7 @@ function TEdgeSignals() {
           </div>
           <div className="edge-card-value" style={{ color: sqCol }}>
             {sq.score}
-            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, marginLeft: 6 }}>{sq.label}</span>
+            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, marginLeft: 6 }}>{setupWord(t, sq.label)}</span>
           </div>
           <div className="edge-card-signal" style={{ color: sqCol }}>
             {sq.dir === 'SHORT_SQ' ? t('DASH_EDGE_SETUP_SHORT_SQ')
@@ -431,16 +439,16 @@ function TEdgeSignals() {
         </div>
       </div>
 
-      <div className="edge-grid" style={{ marginTop: 8 }}>
+      <div className="edge-grid edge-grid-aligned" style={{ marginTop: 8 }}>
         <div className="edge-card">
           <div className="edge-card-label">
             <Tip text={t('DASH_EDGE_CB_TIP')}>{t('DASH_EDGE_CB_LABEL')}</Tip>
           </div>
           <div className="edge-card-value" style={{ color: cbCol }}>
-            {cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : '-'}
+            {cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : <ReadingGap loading={store.cbPremiumStatus === 'pending'} />}
           </div>
           <div className="edge-card-signal" style={{ color: cbCol }}>
-            {cbPct == null ? <SkeletonBar width={90} height={11} radius={4} /> : cbSig}
+            {cbPct == null ? (store.cbPremiumStatus === 'pending' ? <SkeletonBar width={90} height={11} radius={4} /> : null) : cbSig}
           </div>
         </div>
 
@@ -449,10 +457,11 @@ function TEdgeSignals() {
             <Tip text={t('DASH_EDGE_OI1H_TIP')}>{t('DASH_EDGE_OI1H_LABEL', { coin: coin.toUpperCase() })}</Tip>
           </div>
           <div className="edge-card-value" style={{ color: oi1hCol }}>
-            {oi1h.loading ? '-' : oi1hPctStr}
+            {oi1h.loading ? <span role="img" aria-label={t('ARENA_SCANNER_LOADING_TITLE')} title={t('ARENA_SCANNER_LOADING_TITLE')}>{'\u2026'}</span>
+              : oi1hPctStr ?? <span title={t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE')}>{t('ARENA_SCANNER_UNAVAILABLE')}</span>}
           </div>
           <div className="edge-card-signal" style={{ color: oi1hCol }}>
-            {oi1h.loading ? <SkeletonBar width={70} height={11} radius={4} /> : oi1hTxt}
+            {oi1h.loading ? <SkeletonBar width={70} height={11} radius={4} /> : oi1hPctStr == null ? null : oi1hTxt}
           </div>
         </div>
       </div>
@@ -460,6 +469,17 @@ function TEdgeSignals() {
   );
 }
 
+/* A COIN WITH NO QUOTE SAYS WHICH KIND OF NO (#1651, PM): the read that prices it is still in flight (an ellipsis), or it answered or failed (the plain words, with the cause on hover). Never a bare dash.
+   The same states as the scanner and the landing (#2245, #2246); the words are the scanner's own label keys. */
+function QuoteGap({ coin }: { coin: string }) {
+  const { store } = useMarket();
+  const { t } = useLabels();
+  const feed = coinRow(coin)?.bybit ? store.scannerFeed.universe : store.scannerFeed.binanceOnly;
+  if (feed === 'pending') return <span role="img" aria-label={t('ARENA_SCANNER_LOADING_TITLE')} title={t('ARENA_SCANNER_LOADING_TITLE')}>{'\u2026'}</span>;
+  return <span title={feed === 'failed' ? t('ARENA_SCANNER_UNAVAILABLE_FAILED_TITLE') : t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE')}>{t('ARENA_SCANNER_UNAVAILABLE_NARROW')}</span>;
+}
+
+/* A READING THAT IS NOT HERE SAYS WHICH KIND OF NOT (#1651, PM): still coming (an ellipsis) or not available (the plain word, cause on hover). Never a bare dash. For the VWAP, Funding and CB premium cards. */
 function TCoinSignalsHeader() {
   const { store } = useMarket();
   const { t } = useLabels();
@@ -476,11 +496,11 @@ function TSelectedCoinCard() {
   const id  = store.selectedCoin;
   const d   = store.coins[id];
   const dec = COIN_DEC[id];
-  const chg = d?.change ?? 0;
-  const up  = chg >= 0;
+  const chg = d?.change ?? null;   // unknown stays null: never a real-looking +0.00% (#1651)
+  const up  = chg != null && chg >= 0;
   const badgeCol = coinBadgeColor(id);
   const oi = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
-  const pattern = d?.chartPattern?.split(';')[0].split('(')[0].trim();
+  const pattern = patternWord(t, d?.chartPattern?.split(';')[0].split('(')[0].trim());
   const sigText = oi ? t(oi.txtKey) : (pattern || null);
   const sigCol  = oi?.col ?? 'var(--txt3)';
 
@@ -493,11 +513,11 @@ function TSelectedCoinCard() {
       <CoinIcon coin={id} size={30} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
       <div className="scc-id">
         <span className="scc-ticker">{id.toUpperCase()}</span>
-        <span className="scc-price">{d?.price ? '$' + fmtPrice(d.price, dec) : '-'}</span>
+        <span className="scc-price">{d?.price ? '$' + fmtPrice(d.price, dec) : <QuoteGap coin={id} />}</span>
       </div>
       <div className="scc-meta">
-        <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}><span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}</span>
-        <span className="scc-sig" style={{ color: sigCol }}>{sigText || <SkeletonBar width={80} height={11} radius={4} />}</span>
+        {chg != null && <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}><span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}</span>}
+        <span className="scc-sig" title={sigText || undefined} style={{ color: sigCol }}>{sigText || <SkeletonBar width={80} height={11} radius={4} />}</span>
       </div>
       <span className="scc-arrow" aria-hidden="true">›</span>
     </Link>

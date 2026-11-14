@@ -24,7 +24,7 @@ const stripTsComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replac
 /* next.config.ts wraps its config in withSentryConfig; under plain Node the package's entry is built for Next's bundler, so a stand-in returns the config unchanged. */
 register('data:text/javascript,' + encodeURIComponent(
   `export async function resolve(specifier, context, next) {
-     if (specifier === '@sentry/nextjs') return { url: 'data:text/javascript,' + encodeURIComponent('export const withSentryConfig = (c) => c; export const captureException = () => {}; export default {};'), shortCircuit: true };
+     if (specifier === '@sentry/nextjs' || specifier === '@sentry/nextjs/config') return { url: 'data:text/javascript,' + encodeURIComponent('export const withSentryConfig = (c) => c; export const captureException = () => {}; export default {};'), shortCircuit: true };
      return next(specifier, context);
    }`));
 

@@ -359,7 +359,8 @@ export default function WhaleTradesFeed() {
           const isMega = trade.usd >= MEGA_USD;
           const isBig  = trade.usd >= BIG_USD;
           const accent = isBuy ? 'var(--green)' : 'var(--red)';
-          const badge  = isMega ? t('WHALE_TRADES_FEED_BADGE_MEGA') : isBig ? t('WHALE_TRADES_FEED_BADGE_WHALE') : trade.side;
+          /* THE SIDE IS ALWAYS WRITTEN (#1185): a big trade used to show only MEGA or WHALE, so buy and sell differed by colour alone. */
+          const badge  = isMega ? `${t('WHALE_TRADES_FEED_BADGE_MEGA')} ${trade.side}` : isBig ? `${t('WHALE_TRADES_FEED_BADGE_WHALE')} ${trade.side}` : trade.side;
 
           return (
             <div

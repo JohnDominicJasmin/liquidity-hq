@@ -305,8 +305,8 @@ export function getCurrentWindow(d: Date): Window | null {
   return null;
 }
 
-export function getUpcomingWindows(now: Date, count: number): { win: Window; countdown: string }[] {
-  const results: { win: Window; countdown: string }[] = [];
+export function getUpcomingWindows(now: Date, count: number): { win: Window; countdown: string; diffMs: number }[] {
+  const results: { win: Window; countdown: string; diffMs: number }[] = [];
   let check = new Date(now.getTime() + 60 * 1000);
   const limit = new Date(now.getTime() + 7 * 24 * 3600000);
   let lastAdded: string | null = null;
@@ -324,7 +324,7 @@ export function getUpcomingWindows(now: Date, count: number): { win: Window; cou
       const dh = Math.floor(diff / 3600000);
       const dm = Math.floor((diff % 3600000) / 60000);
       const countdown = dh > 0 ? `${dh}h ${dm}m away` : `${dm}m away`;
-      results.push({ win, countdown });
+      results.push({ win, countdown, diffMs: diff });
       lastAdded = win.name;
       check = new Date(check.getTime() + 3 * 3600000);
     } else {

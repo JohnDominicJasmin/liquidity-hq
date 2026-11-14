@@ -47,6 +47,7 @@ import { IconSun, IconMoon } from './icons';
 import LanguageNavSwitcher from './LanguageNavSwitcher';
 import PlanBadge from './PlanBadge';
 import { useLabels } from '@/lib/labels';
+import { fmtDuration } from '@/lib/durationText';
 import type { LabelKey } from '@/lib/labelKeys';
 /* The SAME arrays the current design's nav renders, imported rather than
    copied (#714). The owner's complaint was that this bar reaches less than the
@@ -54,6 +55,7 @@ import type { LabelKey } from '@/lib/labelKeys';
    how that gap reappears a month from now. */
 import { SCANNERS, TOOLS, PRIMARY, TAIL, TERMINAL_TABS as ITEMS, screenNameFor, isActive } from '@/lib/navRoutes';
 import { getCurrentWindow, getLocalNow } from '@/lib/session';
+import { trText } from '@/lib/marketReadText';
 import { useShowFreeUpgrade } from '@/components/UpgradePill';
 
 /* Icon paths transcribed from the frames' own ICON map (Dashboard
@@ -95,10 +97,9 @@ function minutesLeftInWindow(now: Date): number | null {
   return null;
 }
 
-function formatRemaining(mins: number): string {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+/* The pill's remaining time in the site language (#1185, QA run 43488714267: "1h 48m" stayed English beside a localized session name). English output is unchanged ("1h 48m", "5m"). */
+function formatRemaining(t: (key: LabelKey) => string, mins: number): string {
+  return mins <= 0 ? `0${t('DURATION_UNIT_M')}` : fmtDuration(t, mins * 60, false);
 }
 
 
@@ -329,8 +330,8 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
             <span className="tnav-session" suppressHydrationWarning>
               <span className="tnav-session-dot" />
               {session.left != null
-                ? `${session.name} · ${formatRemaining(session.left)}`
-                : session.name}
+                ? `${trText(t, session.name)} · ${formatRemaining(t, session.left)}`
+                : trText(t, session.name)}
             </span>
           )}
           {/* No ⌘K chip - see the file header. */}

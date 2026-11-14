@@ -2,6 +2,8 @@
 import { useMarket, CoinId, fmtPrice, COIN_DEC, classifyFunding, FUNDING_TIP_KEY } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { oiTrend1h } from '@/lib/oiTrend1h';
+import { currencyPrefix } from '@/lib/coins';
+import ReadingGap from '@/components/ReadingGap';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
@@ -54,7 +56,8 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
    * A DASH AND A WORD, NEVER AN ENDLESS SKELETON. `vwap` is written only by the core-50 snapshot
    * pass, so on a universe coin the skeleton below spun for ever and the card settled into reading
    * as a finished value - the same unknown-shown-as-pending defect as #2119 and #2125. */
-  const vwapStr = vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[coin]) : '-';
+  /* currencyPrefix, not a literal $ (#2196): an HKD coin's VWAP read HK$ everywhere else on the page and $ here. */
+  const vwapStr = vwap != null ? currencyPrefix(coin) + fmtPrice(vwap, COIN_DEC[coin]) : null;
 
   /* #1613: the label and the number beside it come from the SAME hour. `store.oiTrend` is a different window (~3h at first load, ~25 min once the
      poll has filled its history) and made the label contradict the 1h figure and flip as its source changed, so this card no longer reads it.
@@ -85,11 +88,12 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
       <div className="edge-card">
         <div className="edge-card-label"><Tip text={t('COIN_MARKET_SNAPSHOT_VWAP_TOOLTIP')}>{t('COIN_MARKET_SNAPSHOT_VWAP_LABEL')}</Tip></div>
         <div className="edge-card-value" style={{ color: vwapCol }}>
-          {vwapStr}
+          {/* NO BARE DASH ON THE RAIL EITHER (#1651, PM, QA's HYPE live check): an ellipsis while the snapshot is loading, "Unavailable" once it is not (vwap is written only by the core-50 snapshot pass, so a universe coin never gets one). */}
+          {vwapStr ?? <ReadingGap loading={store.snapshotStatus === 'loading'} />}
         </div>
         <div className="edge-card-signal" style={{ color: vwapCol }}>
           {vwapAbove === null
-            ? t('STATE_UNAVAILABLE')
+            ? (vwap == null ? null : t('STATE_UNAVAILABLE'))
             : t('COIN_MARKET_SNAPSHOT_VWAP_SIGNAL', { arrow: vwapAbove ? '▲' : '▼', pct: vwapPct != null ? (vwapPct >= 0 ? '+' : '') + vwapPct.toFixed(2) + '%' : '' })}
         </div>
       </div>
@@ -108,7 +112,7 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
         ) : (
           <>
             <div className="edge-card-value is-label" style={{ color: oi1hCol }}>
-              {!oi1h.loading && oi1h.pct != null ? oi1hPctStr : '-'}
+              {!oi1h.loading && oi1h.pct != null ? oi1hPctStr : <ReadingGap loading={oi1h.loading} />}
             </div>
             <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
               {/* THREE ABSENCES, THREE STRINGS (#1651, QA's finding). Loading was already its own
@@ -132,10 +136,10 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
         {/* Tooltip follows the SIGN (#244) - see the dashboard card for why. */}
         <div className="edge-card-label"><Tip text={t(fr != null ? FUNDING_TIP_KEY[classifyFunding(fr).band] : 'COIN_MARKET_SNAPSHOT_FUNDING_TOOLTIP')}>{t('COIN_MARKET_SNAPSHOT_FUNDING_LABEL')}</Tip></div>
         <div className="edge-card-value" style={{ color: frCol }}>
-          {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
+          {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : <ReadingGap loading={store.scannerFeed.universe === 'pending'} />}
         </div>
         <div className="edge-card-signal" style={{ color: frCol }}>
-          {frPct == null ? <SkeletonBar width={70} height={11} radius={4} /> : t(frSigKey)}
+          {frPct == null ? (store.scannerFeed.universe === 'pending' ? <SkeletonBar width={70} height={11} radius={4} /> : null) : t(frSigKey)}
         </div>
       </div>
     </div>

@@ -3429,6 +3429,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         </button>
         <span
           className={`klc-ws-dot${wsStatus === 'live' ? ' live' : wsStatus === 'error' ? ' err' : ''}`}
+          role="img"
+          aria-label={wsStatus === 'live' ? 'Live price feed' : wsStatus === 'error' ? 'Price feed offline' : 'Price feed connecting'}
           title={wsStatus}
         />
       </div>

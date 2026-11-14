@@ -633,11 +633,11 @@ also time and focus (*"a waste of time, waste of resources"*). **Changing it wen
 dispatched verify) **or when the release PR is opened by hand** (`RELEASE_PR_PAUSED` is still `1`).
 **No run on a push is the rule working, not an outage.** That mis-diagnosis has been made twice here.
 
-**The mobile browser leg cannot fail the gate.** `continue-on-error` is set for `mobile`, and
-`gate` only asserts `e2e == success`, so a red mobile leg still passes. Kept on purpose, because the
-375px leg has never once completed in CI (#1814). With one run per release, **QA reads the desktop
-and mobile legs separately in the release verdict** and reports mobile failures, rather than trusting
-the run's overall conclusion.
+**The mobile browser leg blocks the gate again since #2240 (2026-11-13).** Until then
+`continue-on-error` was set for `mobile` because the 375px leg had never completed in CI (#1814), so
+a red mobile leg still passed; that paragraph was stale for a day after #2240 merged. With one run per
+release, **QA still reads the desktop and mobile legs separately in the release verdict** rather than
+trusting the run's overall conclusion.
 
 ## 18. BEFORE ANY ISSUE: REREAD THE DOCS FIRST
 
@@ -649,6 +649,23 @@ documentation."*
 plan against them. That is a reread, not "I read it last session". §12 said "run once before
 release" on 2026-10-30 and three sessions worked past it for eleven days, which is how a rule that
 existed still cost $22. A rule nobody rereads is the same as no rule.
+
+## 19. BROWSER: BRAVE ONLY, NEVER CHROME
+
+Owner, 2026-11-10: *"stop, using the browser"*, then *"only use brave for liquidityhq"*, and
+*"if browser is chrome pls dont open"*. In Chrome: *no LiquidityHQ pages, no testing sites, no
+GitHub. Nothing at all.* **Chrome on his laptop is his work browser.** He lifted the hold on
+2026-11-12 and confirmed which connected extension browser is Brave.
+
+**Every session (PM/DevOps, Dev, QA), before any browser-extension call:** run
+`list_connected_browsers` (it opens nothing) and confirm the only browser in use is the one he
+confirmed as Brave. If any other browser is connected or selected, **open nothing** and tell
+PM/DevOps. Never open a page to find out which browser it is; that page opens in whatever is
+connected. Prefer QA's CI runs for render checks anyway: they cost the laptop no memory and can
+emulate phone widths.
+
+Written into this file on 2026-11-13, three days late: it lived only in PM's private notes, so
+Dev could not check it and had to ask whether a browser session had been Brave. (It had.)
 
 ## Keeping this file true
 

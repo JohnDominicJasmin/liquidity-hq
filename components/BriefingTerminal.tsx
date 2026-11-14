@@ -17,6 +17,7 @@ import PageHint from '@/components/PageHint';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { fngWord } from '@/lib/shortWords';
 import type { LabelKey } from '@/lib/labelKeys';
 import { formatRsi } from '@/lib/rsi';
 import { signedUsd } from '@/lib/numberFormat';
@@ -536,7 +537,7 @@ export default function BriefingTerminal() {
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip text={t('BRIEFING_FNG_TIP')}>{t('BRIEFING_FNG_LABEL')}</Tip></div>
             <div className="mb-macro-val" style={{ color: fngColor }}>{fng != null ? fng : '-'}</div>
-            <div className="mb-macro-sub" style={{ color: fngColor }}>{store.fngLabel || '-'}</div>
+            <div className="mb-macro-sub" style={{ color: fngColor }}>{fngWord(t, store.fngLabel) || '-'}</div>
           </div>
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip text={t('BRIEFING_BTCDOM_TIP')}>{t('BRIEFING_BTCDOM_LABEL')}</Tip></div>

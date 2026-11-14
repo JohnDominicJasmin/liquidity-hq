@@ -144,6 +144,8 @@ export function classifyFunding(rate: number): FundingClass {
   return { label: 'Neutral', cls: 'fund-neu', rpm: 'neu', band: 'neutral', note: 'No extreme positioning. Lower raid probability. Trade with caution.' };
 }
 
+export type ScannerFeedState = 'pending' | 'ok' | 'failed';
+
 export type MarketStore = {
   coins: Partial<Record<CoinId, CoinData>>;
   selectedCoin: CoinId;
@@ -154,6 +156,9 @@ export type MarketStore = {
   btcDomHistory: number[];
   ethDom: number | null;            // ETH market dominance % (from CMC)
   altSeasonScore: number | null;    // 0–100: % of top-50 alts outperforming BTC (90d)
+  /** The state of the two CoinMarketCap reads behind the dashboard's BTC.D and ALT cells (#1651): 'pending' until the first answer, 'ok', or 'failed'; 'ok' is kept through a later blip. */
+  btcDomStatus: ScannerFeedState;
+  altSeasonStatus: ScannerFeedState;
   wsStatus: string;
   /** A PRICE READ FAILED AND NOTHING ARRIVED, which is a different fact from 'still loading'.
    *  Panels that gate on `coins[id].price != null` cannot tell those apart on their own, so they
@@ -161,6 +166,11 @@ export type MarketStore = {
    *  any source - the WebSocket or the REST fallback - delivers a price, so a recovery heals the
    *  display without a reload. */
   pricesFailed: boolean;
+  /** THE STATE OF THE TWO READS THAT PRICE THE SCANNER'S NON-CURATED ROWS (#1263), so a cell can say loading, failed or no-quote instead of a bare dash.
+   *  universe    - the Bybit bulk ticker (every instrument Bybit lists).
+   *  binanceOnly - the small Binance request for the rows Bybit does not list.
+   *  'pending' until the first answer; 'ok' = it answered (a row still empty then has no quote there); 'failed' = it errored. */
+  scannerFeed: { universe: ScannerFeedState; binanceOnly: ScannerFeedState };
   /** THE STATE OF THE ONE BULK SNAPSHOT READ (`/api/market/snapshot`), which is what supplies the first
    *  VWAP, RSI and long/short figures on a cold load.
    *    'loading' - no answer yet. A figure that depends on it is simply not here YET, and a surface must
@@ -209,6 +219,8 @@ export type MarketStore = {
   /* Coinbase Premium Index */
   cbPremium: number | null;    // Coinbase BTC/USD − exchange BTC/USDT converted to USD (#1631 C)
   cbPremiumPct: number | null; // as % of the exchange price in USD
+  /** The state of the Coinbase premium read, so a surface can say loading or unavailable instead of a bare dash (#1651). 'ok' is kept through a later blip. */
+  cbPremiumStatus: ScannerFeedState;
   /* GEX - Gamma Exposure from Deribit options */
   btcNetGex: number | null;    // total net GEX in $ (positive = dealers long gamma)
   btcGexFlip: number | null;   // zero-gamma strike - cross = regime change
@@ -232,8 +244,11 @@ export const defaultStore: MarketStore = {
   btcDomHistory: [],
   ethDom: null,
   altSeasonScore: null,
+  btcDomStatus: 'pending',
+  altSeasonStatus: 'pending',
   wsStatus: 'Connecting...',
   pricesFailed: false,
+  scannerFeed: { universe: 'pending', binanceOnly: 'pending' },
   snapshotStatus: 'loading',
   newsCache: [],
   oilPrice: null,
@@ -257,7 +272,7 @@ export const defaultStore: MarketStore = {
   real10y: null,
   spx: null, spxChg: null,
   gold: null, goldChg: null,
-  cbPremium: null, cbPremiumPct: null,
+  cbPremium: null, cbPremiumPct: null, cbPremiumStatus: 'pending',
   btcNetGex: null,
   btcGexFlip: null,
   btcGexLevels: [],

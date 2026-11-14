@@ -140,7 +140,7 @@ export default function EconCalendarWidget() {
                 {e.estimated ? '~' : ''}{fmtTime(e.isoDate)}
               </span>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: col, flexShrink: 0 }} />
-              <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt)', fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span title={e.name} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt)', fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {e.name}
               </span>
               <span className="ecw-impact-chip" style={{

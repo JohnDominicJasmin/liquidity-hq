@@ -225,8 +225,10 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
     <div className="edge-card" style={{ marginBottom: 10 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-        <div>
-          <div className="edge-card-label" style={{ marginBottom: 2 }}>
+        {/* minWidth: 0 so a long title (Russian) can shrink and wrap instead of pushing the verdict badge past the screen at 390 px (QA's element dump: the badge ended at 459 px). */}
+        <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+          {/* The title WRAPS (PM: a cut-off title hides what the card is, and Russian is where it would cut): the label class is nowrap + ellipsis for the one-line cards, so this one opts out. */}
+          <div className="edge-card-label" style={{ marginBottom: 2, whiteSpace: 'normal', overflow: 'visible', textOverflow: 'clip', overflowWrap: 'break-word' }}>
             <Tip width={240} text={t('MULTI_TF_ALIGNMENT_TOOLTIP')}>
               {t('MULTI_TF_ALIGNMENT_TITLE')}
             </Tip>
