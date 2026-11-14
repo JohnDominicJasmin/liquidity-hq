@@ -69,7 +69,7 @@ export default function Disclaimer() {
         </p>
         <p style={{ marginTop: 20, display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
           <span>{t('DISCLAIMER_FOOTER_COPYRIGHT', { year: new Date().getFullYear() })}</span>
-          <Link href="/about" style={{ color: 'var(--txt3)', textDecoration: 'underline' }}>{t('DISCLAIMER_FOOTER_ABOUT_LINK')}</Link>
+          <Link href="/about" style={{ color: 'var(--txt3)', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>{t('DISCLAIMER_FOOTER_ABOUT_LINK')}</Link>
         </p>
       </div>
 
