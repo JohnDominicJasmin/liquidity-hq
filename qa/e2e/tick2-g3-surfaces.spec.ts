@@ -60,7 +60,7 @@ test('S3. /arena: scanner-trigger and scanner-row-<coin> handles exist', async (
   } finally { await ctx.close(); }
 });
 
-for (const [coin, covered] of [['wld', false], ['btc', true]] as Array<[string, boolean]>) {
+for (const [coin, covered] of [['ake', false], ['btc', true]] as Array<[string, boolean]>) {
   test(`S4. /arena?coin=${coin} signed in: Set Alert ${covered ? 'enabled, no reason' : 'disabled with the reason beside it'}`, async ({ browser }) => {
     test.skip(!AUTH_READY, AUTH_SKIP_REASON);
     test.setTimeout(150_000);
