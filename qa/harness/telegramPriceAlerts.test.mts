@@ -1,17 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 // @ts-expect-error plain .mjs helper under qa/
-import { makeWorld, installFakeFetch, loadRoute } from '../qa/telegramWorld.mjs';
+import { makeWorld, installFakeFetch, loadRoute } from '../telegramWorld.mjs';
 
 /* QA's Telegram cron harness (owner ask 2026-11-14: "test Telegram alerts heavily"). The REAL route handler runs in-process; only the network is fake (see qa/telegramWorld.mjs):
  * a fake Supabase, a fake Telegram Bot API that records every sendMessage, fake exchange endpoints. Nothing leaves the machine, no real chat, no real secret.
  * This file covers the PRICE-ALERT path end to end (above/below, ownership and Free/Pro gating, consume-once, failure paths and held retries, health). Signal alerts (footer, mute,
- * cooldown) are in telegramSignalHarness.test.mts. */
+ * cooldown) are in qa/harness/telegramSignals.test.mts. */
 
 type World = ReturnType<typeof makeWorld>;
 const alert = (over: Record<string, unknown> = {}) => ({ id: 1, user_id: 'u-pro', coin: 'btc', target_price: 68_000, direction: 'above', active: true, label: 'my note', ...over });
 async function scenario(o: { alerts: unknown[]; prices?: Record<string, number>; mode?: 'ok' | '403' | '400' | 'throw'; tables?: Record<string, unknown[]> }) {
   const w: World = makeWorld({ tables: { lhq_price_alerts: o.alerts, ...(o.tables ?? {}) } });
+  w.noKlines = true;   // no candles: no signal can fire, so every message here is a price alert
   if (o.prices) w.prices = { ...w.prices, ...o.prices };
   if (o.mode) w.telegram.mode = o.mode;
   installFakeFetch(w);

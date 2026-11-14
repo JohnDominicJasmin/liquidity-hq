@@ -17,7 +17,7 @@ export function makeWorld(over = {}) {
     },
     telegram: { mode: 'ok', sent: [], attempts: [] },     // mode: ok | 403 (bot blocked) | 400 (chat not found) | throw
     prices: { BTCUSDT: 69_000, ETHUSDT: 1_900, SOLUSDT: 75 },
-    writes: [], log: [],
+    writes: [], log: [], anchor: Date.now(),
   };
   for (const k of Object.keys(over)) if (k !== 'tables') w[k] = over[k];
   return w;
@@ -74,6 +74,19 @@ export function installFakeFetch(w) {
       const syms = Object.keys(w.prices);
       if (/bybit/.test(u.host)) return json({ retCode: 0, result: { category: 'linear', list: syms.map(s => ({ symbol: s, lastPrice: String(w.prices[s]), price24hPcnt: '0.01', volume24h: '1000', turnover24h: '1000000' })) } });
       return json(syms.map(s => ({ symbol: s, lastPrice: String(w.prices[s]), priceChangePercent: '1.0', volume: '1000', quoteVolume: '1000000' })));
+    }
+    if (/bybit/.test(u.host) && u.pathname === '/v5/market/kline' && w.noKlines) return json({ retCode: 0, result: { list: [] } });   // a market with no candles: only price alerts can fire
+    if (/bybit/.test(u.host) && u.pathname === '/v5/market/kline') {
+      const sym = u.searchParams.get('symbol'); const iv = u.searchParams.get('interval'); const limit = Math.min(Number(u.searchParams.get('limit') ?? 200), 1000);
+      const ms = ({ D: 86_400_000, W: 604_800_000, M: 2_592_000_000 })[iv] ?? Number(iv) * 60_000;
+      const closes = (w.series && (w.series[`${sym}:${iv}`] ?? w.series[`${sym}:*`])) || null;       // oldest -> newest
+      const start = Math.floor((w.anchor ?? Date.now()) / ms) * ms;   // w.anchor pins the candle clock: "the same market a minute later" stays the same candles
+      const list = []; for (let i = 0; i < limit; i++) {
+        const fromEnd = i; const c = closes ? (closes[closes.length - 1 - fromEnd] ?? closes[0]) : (w.prices[sym] ?? 100);
+        const prev = closes ? (closes[closes.length - 2 - fromEnd] ?? c) : c;
+        list.push([String(start - i * ms), String(prev), String(Math.max(c, prev) + 0.0), String(Math.min(c, prev) - 0.0), String(c), '1000', '100000']);
+      }
+      return json({ retCode: 0, result: { category: u.searchParams.get('category') ?? 'linear', symbol: sym, list } });
     }
     return json([]);   // everything else: an empty, healthy-looking world
   };
