@@ -163,6 +163,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'hype-oi1h-live', needs: 'none', note: 'OI 1h on BTC and HYPE on a live build (#2275); anonymous; reads only' },
   { spec: 'strategy-card', needs: 'pro', note: 'the Arena strategy card (#2307..#2316); signed in as account A; the settings write is stubbed; reads only' },
   { spec: 'landing-2302-2303', needs: 'none', note: 'the AI disclosure on the landing page and the hero breakpoint (#2302 #2303); anonymous; reads only' },
+  { spec: 'footer-and-notice', needs: 'pro', note: 'the platform footer waits for a signed-in visitor's onboarding read and the sign-in notice sits under the chart (#2357); signed in as account A for two cells; reads only (the onboarding read is delayed or failed, never changed)' },
   { spec: 'arena-overflow-probe', needs: 'free', note: 'measures layout only - reads scrollWidth and element rects, writes nothing; sets its own 390x844 viewport and samples at 600ms and 4.6s, so 16 page loads' },
 ];
 
