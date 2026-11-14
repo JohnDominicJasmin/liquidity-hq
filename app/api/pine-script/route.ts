@@ -1,3 +1,4 @@
+import { AI_TOOL_LIMITS } from '@/lib/aiInputLimits';
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
@@ -71,8 +72,14 @@ export async function POST(req: NextRequest) {
     analysisText?: string;
   };
 
+  if ((body.description != null && typeof body.description !== 'string') || (body.analysisText != null && typeof body.analysisText !== 'string')) {
+    return NextResponse.json({ error: 'INVALID_INPUT', message: 'description and analysisText must be text.' }, { status: 400 });
+  }
   const description  = (body.description ?? '').trim();
   const analysisText = (body.analysisText ?? '').trim();
+  if (description.length > AI_TOOL_LIMITS.text || analysisText.length > AI_TOOL_LIMITS.analysis) {
+    return NextResponse.json({ error: 'INVALID_INPUT', message: 'The description or analysis is too long.' }, { status: 400 });
+  }
 
   if (!description) {
     return NextResponse.json({ error: 'No strategy description provided' }, { status: 400 });

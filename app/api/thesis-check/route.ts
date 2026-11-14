@@ -1,3 +1,4 @@
+import { AI_TOOL_LIMITS } from '@/lib/aiInputLimits';
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
@@ -86,6 +87,14 @@ export async function POST(req: NextRequest) {
 
   if (!symbol || !direction || !thesisText || !assumptions?.length) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  }
+  /* Every field goes into the AI prompt, so each is a bounded string (#1413). */
+  if (typeof symbol !== 'string' || symbol.length > AI_TOOL_LIMITS.symbol || typeof direction !== 'string' || direction.length > AI_TOOL_LIMITS.shortField
+      || typeof thesisText !== 'string' || thesisText.length > AI_TOOL_LIMITS.text
+      || (entryDate != null && (typeof entryDate !== 'string' || entryDate.length > AI_TOOL_LIMITS.shortField))
+      || !Array.isArray(assumptions) || assumptions.length > AI_TOOL_LIMITS.assumptions
+      || assumptions.some(a => typeof a !== 'string' || a.length > AI_TOOL_LIMITS.assumption)) {
+    return NextResponse.json({ error: 'INVALID_INPUT', message: 'One of the fields is the wrong type or too long.' }, { status: 400 });
   }
 
   const prompt = buildThesisPrompt(

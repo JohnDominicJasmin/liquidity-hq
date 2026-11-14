@@ -1,3 +1,4 @@
+import { AI_TOOL_LIMITS } from '@/lib/aiInputLimits';
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
@@ -91,7 +92,9 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({})) as { description?: string };
+  if (body.description != null && typeof body.description !== 'string') return NextResponse.json({ error: 'INVALID_INPUT', message: 'description must be text.' }, { status: 400 });
   const description = (body.description ?? '').trim();
+  if (description.length > AI_TOOL_LIMITS.text) return NextResponse.json({ error: 'INVALID_INPUT', message: `Keep the description under ${AI_TOOL_LIMITS.text} characters.` }, { status: 400 });
   if (!description || description.length < 10) {
     return NextResponse.json({ error: 'Describe a strategy to research' }, { status: 400 });
   }
