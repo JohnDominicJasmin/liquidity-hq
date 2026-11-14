@@ -26,11 +26,16 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
     let timer: ReturnType<typeof setTimeout> | undefined;
     const run = async () => {
       try {
-        const raw = await fetchOHLCV(coin, TF_BN[tf], TF_BY[tf], 300);
+        const wantsBtc = !!def.needsBtc && coin !== 'btc';
+        const [raw, btcRaw] = await Promise.all([
+          fetchOHLCV(coin, TF_BN[tf], TF_BY[tf], 300),
+          wantsBtc ? fetchOHLCV('btc', TF_BN[tf], TF_BY[tf], 300) : Promise.resolve(undefined),
+        ]);
         if (cancelled) return;
+        const btcCandles = btcRaw ? dropForming(btcRaw, tfMs, Date.now()) : undefined;
         const closed = dropForming(raw, tfMs, Date.now());
         if (closed.length < def.minCandles) { setState({ result: null, loading: false, error: true }); }
-        else setState({ result: def.detect(closed, { coin, tf, tfMs, liqLevels: liqRef.current }), loading: false, error: false });
+        else setState({ result: def.detect(closed, { coin, tf, tfMs, liqLevels: liqRef.current, btcCandles }), loading: false, error: false });
       } catch {
         if (!cancelled) setState({ result: null, loading: false, error: true });
       }

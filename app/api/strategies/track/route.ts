@@ -31,7 +31,10 @@ export async function GET(req: Request) {
           /* TOO FEW CANDLES IS UNKNOWN, NOT 'NO SIGNAL': counted as a failure of the pass, so the health row cannot read healthy on a silent venue. */
           if (closed.length < def.minCandles) { errors.push(`${def.id}/${coin}/${tf}: only ${closed.length} candles`); continue; }
           evaluated++;
-          const r = def.detect(closed, { coin, tf, tfMs });
+          const btcCandles = def.needsBtc && coin !== 'btc' ? closedCandles(await fetchRibbonCandles('btc', tf as EMASignalTF), tf as EMASignalTF) : undefined;
+          /* NO BTC READ IS UNKNOWN, NOT 'NO SIGNAL': a strategy that needs BTC is not evaluated for this coin when BTC came back short. */
+          if (def.needsBtc && coin !== 'btc' && (btcCandles?.length ?? 0) < 60) { errors.push(`${def.id}/${coin}/${tf}: no BTC candles`); continue; }
+          const r = def.detect(closed, { coin, tf, tfMs, btcCandles });
           if (r.verdict === 'wait' || !r.signalDir) continue;
           const price = closed[closed.length - 1].close;
           fires.push({
