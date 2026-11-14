@@ -683,6 +683,20 @@ Owner, 2026-11-14, on the security audit Dev had written about Dev's own code: *
 - Findings and decisions go on the tracker the area belongs to, with file:line and the evidence. Never a secret,
   key, email or personal detail: the repo is public.
 
+**Widened the same day: PM leads the team until launch.** Owner, 2026-11-14: *"You are like the basketball
+coach. You have the bird's eye view. You will gatekeep the team member... You shall not pass those outputs.
+Make sure items are quality, aligned, and transparent... If there's any problem or uncertainty, let me know. I
+will be the one who makes the decision... Stop moving the goalposts. We are close to launching."*
+
+- **Output that is not finished does not pass.** A PR merges only with QA's word **and** a PM audit comment on
+  the PR saying what PM checked (diff against the agreed spec, cited run ids on the head sha, the evidence QA
+  quotes). A low-quality or off-spec result goes back to its seat with the reason, before merge.
+- **A problem or an uncertainty goes to the owner, and he decides.** PM still decides routine sequencing; what
+  changes is that PM does not quietly settle a doubt about scope, quality or risk on its own.
+- **No new scope before launch.** A new finding becomes a checkbox on its tracker, not a change to an in-flight PR.
+- **The pipeline is PM's to keep working**, and that includes error tracking: **PostHog and GlitchTip must be
+  shown receiving events from production**, not assumed from a key being set.
+
 ## Keeping this file true
 
 **RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**
