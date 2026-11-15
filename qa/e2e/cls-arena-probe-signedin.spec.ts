@@ -8,7 +8,7 @@ test.describe('signed-in /arena insert probe', () => {
   test.skip(!AUTH_READY, AUTH_SKIP_REASON); test.describe.configure({ timeout: 300_000, retries: 0 });
   for (const width of [390, 1280]) test(`inserts above the chart at ${width}`, async ({ browser }) => {
     for (let run = 1; run <= 3; run++) {
-      const ctx = await signedInContext(browser, 'a');
+      const ctx = await signedInContext(browser, (process.env.PROBE_WHO as 'a' | 'b') || 'b');
       await ctx.addInitScript(() => {
         try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); localStorage.setItem('lhq_lang_v1', 'en'); } catch { /* private */ }
         const w = window as unknown as { __added: unknown[]; __cls: unknown[] }; w.__added = []; w.__cls = []; const t0 = performance.now();
