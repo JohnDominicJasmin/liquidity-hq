@@ -4049,6 +4049,9 @@ html[data-strat="1"] .strat-call-host { min-height: 266px; }
 @media (max-width: 640px) { html[data-strat="1"] .strat-call-host { min-height: 228px; } }
 @media (max-width: 380px) { html[data-strat="1"] .strat-call-host { min-height: 248px; } }
 @media (max-width: 340px) { html[data-strat="1"] .strat-call-host { min-height: 286px; } }
+/* The Arena's Set Alert placeholder while the session resolves: drawn (disabled) only for a visitor with a stored session, so the button row has its final shape from the first paint. */
+.arena-set-alert-pending { display: none; }
+html[data-sess="1"] .arena-set-alert-pending { display: revert; }
 /* The host of the usage meter (app/(main)/arena/page.tsx). `<html data-sess="1">` is set before first paint when a session is stored (components/RootDocument.tsx, `session-hint`), so a signed-in visitor has the
    meter's whole band (2 + 43 + 10 px) reserved from the FIRST paint instead of from the moment the session read resolves. flow-root so the slot's own margins stay inside the host. */
 .usage-meter-host { display: flow-root; }
