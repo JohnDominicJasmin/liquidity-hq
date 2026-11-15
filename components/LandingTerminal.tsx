@@ -308,12 +308,10 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
         </span>
         <span style={{ flex: 1, minWidth: isDesktop ? undefined : 4 }} />
         <LanguageSwitcher locale={locale} />
-        {/* Desktop only: at 320-360 px the brand, language switcher, Sign in and Get started already fill the bar; phones reach /learn from the hero line and the footer. */}
-        {isDesktop && (
-          <Link href="/learn" className="lt-nav-learn">
-            {dict.nav.learn}
-          </Link>
-        )}
+        {/* Desktop only, by CSS (display:none below 768 px), NOT by isDesktop: that value is false on the server, so a JS gate made the link appear after hydration and push the header sideways. At 320-360 px the bar is already full; phones reach /learn from the hero line and the footer. */}
+        <Link href="/learn" className="lt-nav-learn">
+          {dict.nav.learn}
+        </Link>
         <Link href="/login" style={{
           fontFamily: 'var(--font-mono), monospace', fontSize: 11.5, letterSpacing: '.12em',
           color: 'var(--txt2)', border: '1px solid var(--border-input)',
