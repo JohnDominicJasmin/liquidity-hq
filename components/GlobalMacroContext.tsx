@@ -213,7 +213,8 @@ export default function GlobalMacroContext() {
       {state === 'loading' && (
         <div style={{ padding: '4px 0' }} role="status" aria-live="polite">
           <span className="sr-only">{t('GLOBAL_MACRO_CONTEXT_FETCHING_SR')}</span>
-          <SkeletonBar width={90} height={20} radius={20} style={{ marginBottom: 10 }} />
+          {/* The read is built by an AI call on the server and can take a while: say so (honest progress) instead of a bare skeleton. Same 20 px row as the pill it replaces, so nothing moves. */}
+          <div style={{ height: 20, marginBottom: 10, fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: '20px' }}>{t('GLOBAL_MACRO_CONTEXT_PREPARING')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px 8px', marginBottom: 10 }}>
             {[0, 1, 2, 3, 4, 5].map(i => (
               <SkeletonBar key={i} height={28} radius={4} />
