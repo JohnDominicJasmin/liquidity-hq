@@ -3028,6 +3028,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ coin: coinRef.current, tf, candles }),
+        signal: AbortSignal.timeout(60_000),
       });
       const data = await res.json().catch(() => ({})) as
         { structures?: unknown; error?: unknown; message?: unknown };

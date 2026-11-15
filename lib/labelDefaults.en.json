@@ -111,6 +111,7 @@
   "ARENA_READ_TIMEOUT": "The AI read took too long and was stopped. Please try again.",
   "STRAT_TF_UNAVAILABLE": "Strategy calls are not available on this timeframe. Choose 1m to 1d.",
   "DASH_SELECTED_COIN_NO_SIGNAL": "No signal",
+  "CHAT_TIMEOUT": "The AI took too long to answer and was stopped. Please try again.",
   "STRAT_UNAVAILABLE": "Strategy read unavailable right now.",
   "STRAT_UNAVAILABLE_DETAIL": "Price data for this coin and timeframe did not load. Nothing is shown rather than a guess.",
   "STRAT_LOADING": "Reading closed candles…",

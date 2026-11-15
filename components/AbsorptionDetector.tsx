@@ -229,8 +229,8 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
         // existing try/catch, same as the old !r.ok check did - the error
         // state below already surfaces it, so no new UI path needed.
         const [raw15, raw1h] = await Promise.all([
-          fetchBybitKlinesRetry(bytSym, '15', 50),
-          fetchBybitKlinesRetry(bytSym, '60', 20),
+          fetchBybitKlinesRetry(bytSym, '15', 50, { attemptTimeoutMs: 15_000 }),
+          fetchBybitKlinesRetry(bytSym, '60', 20, { attemptTimeoutMs: 15_000 }),
         ]);
         if (raw15 === null || raw1h === null) throw new Error('Bybit klines failed after retry');
         c15 = [...(raw15?.result?.list ?? [])].reverse().map(toC);

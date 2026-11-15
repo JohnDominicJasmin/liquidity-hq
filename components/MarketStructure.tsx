@@ -157,7 +157,7 @@ export default function MarketStructure({ coin, onData }: Props) {
         // lib/bybitKlines.ts). Exhaustion throws into this function's
         // existing catch, same as the old !r.ok check did - the error state
         // below already surfaces it.
-        const d = await fetchBybitKlinesRetry(bytSym, '240', 100);
+        const d = await fetchBybitKlinesRetry(bytSym, '240', 100, { attemptTimeoutMs: 15_000 });
         if (d === null) throw new Error('Bybit klines failed after retry');
         // Per-1000 quoting on 1000PEPEUSDT / 1000BONKUSDT. This card prints the
         // broken level and both swing levels as dollar prices, so without the

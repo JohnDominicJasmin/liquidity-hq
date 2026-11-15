@@ -660,7 +660,7 @@ export default function MarketProvider(
         // but the fix makes that recovery reliable rather than lucky.
         // #1626 C: 121 candles - the RSI reads the 120 CLOSED ones (Wilder needs the history to settle); everything else keeps reading the
         // newest 100 exactly as before (VWAP, volume profile, MA20, volume ratio).
-        const d = await fetchBybitKlinesRetry(sym, '15', 121);
+        const d = await fetchBybitKlinesRetry(sym, '15', 121, { attemptTimeoutMs: 15_000 });
         if (d === null) return;
         // Bybit returns newest-first - reverse to oldest-first
         const allKlines: string[][] = [...(d.result?.list ?? [])].reverse();
@@ -1209,7 +1209,7 @@ export default function MarketProvider(
           // oiTrend staying null until the live 8-min poll eventually
           // builds its own two readings (the wait this bootstrap exists to
           // avoid in the first place).
-          const klData = await fetchBybitKlinesRetry(sym, '5', 13);
+          const klData = await fetchBybitKlinesRetry(sym, '5', 13, { attemptTimeoutMs: 15_000 });
           if (klData === null) return;
 
           // #1617: the rolling last hour, OI and price at the SAME two moments (the newest 5-minute OI point and the one 60 minutes before it, each with the
