@@ -39,6 +39,9 @@ export interface StrategyDef {
   reasonKeyFor?: (r: StrategyResult) => LabelKey | null;
   /** Closed candles the detector needs before it will say anything but wait. */
   minCandles: number;
+  /** The indicator chips the strategy menu switches on when this strategy is picked. ONLY chips that actually draw (SELECTABLE_INDICATOR_IDS: SMA, SAR, MACD, BOLL): the EMA ribbon, RSI,
+   *  S/R and liquidity clusters are always-on chart layers, not chips, and VWAP / Divergence have no chart calculation yet, so a strategy that reads only those maps to none. */
+  chips: readonly string[];
   /** Timeframes the server logs it on (the card works on any timeframe the Arena offers). */
   logTfs: readonly string[];
   /** `candles` are CLOSED candles, oldest first. */

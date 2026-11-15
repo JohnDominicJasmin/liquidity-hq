@@ -27,8 +27,9 @@ export type HealthStatus = 'down' | 'warn' | 'known' | 'ok';
 export const KNOWN_BLOCKED: Record<string, string> = {
   'rss:CryptoSlate':
     'blocked at their WAF for datacenter IPs - 403 from Render, 200 elsewhere. ' +
-    'Kept deliberately (lib/newsFeeds.ts, 2026-07-31): it can recover without a ' +
-    'deploy, and 9 other crypto feeds cover the gap.',
+    'Removed from the feed list 2026-11-15 (lib/newsFeeds.ts): 154,041 consecutive failures, ' +
+    'never one success, and 9 other crypto feeds cover the gap. Its last health row may still ' +
+    'show here until it is deleted.',
 };
 
 export interface HealthInput {

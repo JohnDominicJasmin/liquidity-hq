@@ -57,6 +57,7 @@ export const BOLLINGER_SQUEEZE: StrategyDef = {
   reasonSellKey: 'STRAT_BBSQ_SELL',
   reasonWaitKey: 'STRAT_BBSQ_WAIT',
   minCandles: MIN_CANDLES,
+  chips: ['BOLL'],
   logTfs: ['15m', '1h', '4h'],
   detect: detectBollingerSqueeze,
 };

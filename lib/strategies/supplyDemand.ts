@@ -75,6 +75,7 @@ export const SUPPLY_DEMAND: StrategyDef = {
   reasonKeyFor: (r): LabelKey | null => (r.params.btcBlocked === true ? 'STRAT_SD_WAIT_BTC' : r.verdict === 'wait' ? null : r.params.btcChecked === true ? (r.verdict === 'buy' ? 'STRAT_SD_BUY_BTC' : 'STRAT_SD_SELL_BTC') : null),
   needsBtc: true,
   minCandles: MIN_CANDLES,
+  chips: [],
   logTfs: ['15m', '1h', '4h'],
   detect: detectSupplyDemand,
 };

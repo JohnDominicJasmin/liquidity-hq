@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CoinId } from './marketStore.ts';
 import { fetchOHLCV, TF_BN, TF_BY } from './useEMAStrategy.ts';
 import { TF_MS, dropForming, msUntilNextClose } from './candles.ts';
@@ -9,12 +9,16 @@ export interface StrategySignalState {
   result: StrategyResult | null;
   loading: boolean;
   error: boolean;
+  /** Runs the read again now (the Retry button of the unavailable state). */
+  retry?: () => void;
 }
 
 /* Runs the selected Arena strategy (lib/strategies) over the CLOSED candles of the displayed coin and timeframe, and again at each candle close. No strategy selected
  * means no fetch at all. A failed read is `error`, never a quiet "wait": unknown is not neutral. `liqLevels` only adds a note to the reason, it never changes the verdict. */
 export function useStrategySignal(coin: CoinId, tf: string, strategyId: string | null, liqLevels?: readonly number[]): StrategySignalState {
   const [state, setState] = useState<StrategySignalState>({ result: null, loading: false, error: false });
+  const [nonce, setNonce] = useState(0);
+  const retry = useCallback(() => setNonce(n => n + 1), []);
   const liqRef = useRef(liqLevels);
   liqRef.current = liqLevels;
 
@@ -44,7 +48,7 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
     setState({ result: null, loading: true, error: false });
     run();
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [coin, tf, strategyId]);
+  }, [coin, tf, strategyId, nonce]);
 
-  return state;
+  return useMemo(() => ({ ...state, retry }), [state, retry]);
 }
