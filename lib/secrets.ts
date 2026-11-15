@@ -28,7 +28,7 @@ export const SECRETS: Secret[] = [
   // Sunday 15:00-19:00 UTC. Playbook was teaching a window the signal engine
   // doesn't use.
   { n: 16, name: 'Sunday night is hunting season', cat: 'time', text: 'Sunday 15:00–19:00 UTC. Lowest volume of the entire week. Retail asleep. Easiest time to move price with minimum capital.' },
-  { n: 17, name: 'The 20:45 UTC rule', cat: 'time', text: '20:00–20:45 UTC is the single most consistent reversal window. More violent reversals happen here than any other time of day. Watch this window every single session.' },
+  { n: 17, name: 'The 20:45 UTC rule', cat: 'time', text: '20:00–20:45 UTC falls inside the Prime window (18:00–21:00 UTC). This playbook keeps an eye on it for reversals. We have not measured how often reversals happen here compared with other times of day.' },
   { n: 18, name: 'Dead quiet = storm coming', cat: 'time', text: 'The most boring flat 4H periods are often what precedes a violent raid. When Twitter is silent and volume is near zero - that is when they are loading positions. Stay alert.' },
   // Kept at 09:30 UTC - the number this entry already stated in its own name.
   // Note it sits inside, not at the start of, isLondon()'s 07:00-10:00 UTC
