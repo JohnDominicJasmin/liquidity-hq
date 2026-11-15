@@ -44,6 +44,8 @@ export function detectBollingerSqueeze(candles: readonly OHLCV[], _ctx: Strategy
     return {
       verdict: up ? 'buy' : 'sell', signalTimestamp: candles[k].time, signalDir: up ? 'long' : 'short',
       params: { band: up ? b.up : b.dn, mid: b.mid, countSqueeze: sq, inv: b.mid },
+      /* The bands themselves are the Bollinger chip's (this strategy switches it on); here only the arrow and the middle band it is wrong back through. */
+      overlay: { levels: [{ price: b.mid, role: 'invalid', fromTs: candles[k].time, labelKey: 'STRAT_OV_INVALID' }], zones: [], lines: [], marker: { ts: candles[k].time, dir: up ? 'long' : 'short' } },
     };
   }
   return WAIT;

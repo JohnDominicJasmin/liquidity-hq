@@ -1,5 +1,5 @@
 import type { OHLCV } from '../strategyCore.ts';
-import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } from './types.ts';
+import { WAIT, type StrategyContext, type StrategyDef, type StrategyOverlay, type StrategyResult } from './types.ts';
 
 /* LIQUIDITY SWEEP + MARKET STRUCTURE SHIFT (owner-requested, 2026-11-14). Deterministic rules, closed candles only.
  *
@@ -41,6 +41,34 @@ function nearLiq(ctx: StrategyContext, level: number): boolean {
   return !!ctx.liqLevels?.some(p => Number.isFinite(p) && level > 0 && Math.abs(p - level) / level <= LIQ_TOLERANCE);
 }
 
+/** What a WAIT is watching: a sweep that has happened but whose structure shift has not (the swept level, dashed, and the level that would confirm it, solid), otherwise the latest swing high and low. */
+function watchOverlay(c: readonly OHLCV[]): StrategyOverlay {
+  const n = c.length;
+  for (let i = n - 2; i >= Math.max(SWING * 2 + 1, n - 1 - SWEEP_WINDOW); i--) {
+    const sIdx = lastSwing(c, i, 'high');
+    const lIdx = lastSwing(c, i, 'low');
+    if (sIdx < 0 || lIdx < 0) continue;
+    const S = c[sIdx].high, L = c[lIdx].low;
+    if (c[i].high > S && c[i].close < S && !c.slice(i + 1).some(x => x.close < L)) {
+      return { levels: [
+        { price: S, role: 'watch', fromTs: c[sIdx].time, labelKey: 'STRAT_OV_SWEPT_HIGH' },
+        { price: L, role: 'confirm', fromTs: c[lIdx].time, labelKey: 'STRAT_OV_BREAK' },
+      ], zones: [], lines: [], marker: null };
+    }
+    if (c[i].low < L && c[i].close > L && !c.slice(i + 1).some(x => x.close > S)) {
+      return { levels: [
+        { price: L, role: 'watch', fromTs: c[lIdx].time, labelKey: 'STRAT_OV_SWEPT_LOW' },
+        { price: S, role: 'confirm', fromTs: c[sIdx].time, labelKey: 'STRAT_OV_BREAK' },
+      ], zones: [], lines: [], marker: null };
+    }
+  }
+  const hi = lastSwing(c, n, 'high'), lo = lastSwing(c, n, 'low');
+  const levels: StrategyOverlay['levels'] = [];
+  if (hi >= 0) levels.push({ price: c[hi].high, role: 'watch', fromTs: c[hi].time, labelKey: 'STRAT_OV_SWING_HIGH' });
+  if (lo >= 0) levels.push({ price: c[lo].low, role: 'watch', fromTs: c[lo].time, labelKey: 'STRAT_OV_SWING_LOW' });
+  return { levels, zones: [], lines: [], marker: null };
+}
+
 export function detectLiquiditySweepMss(candles: readonly OHLCV[], ctx: StrategyContext): StrategyResult {
   const n = candles.length;
   if (n < 30) return WAIT;
@@ -58,7 +86,11 @@ export function detectLiquiditySweepMss(candles: readonly OHLCV[], ctx: Strategy
         if (candles[k].close < L) {
           if (k >= n - FRESH_BARS && k > bestK) {
             const inv = Math.max(...candles.slice(i, k + 1).map(b => b.high));
-            best = { verdict: 'sell', signalTimestamp: candles[k].time, signalDir: 'short', params: { swept: S, mss: L, inv, liq: nearLiq(ctx, S) } };
+            best = { verdict: 'sell', signalTimestamp: candles[k].time, signalDir: 'short', params: { swept: S, mss: L, inv, liq: nearLiq(ctx, S) }, overlay: { levels: [
+              { price: S, role: 'watch', fromTs: candles[sIdx].time, labelKey: 'STRAT_OV_SWEPT_HIGH' },
+              { price: L, role: 'confirm', fromTs: candles[lIdx].time, labelKey: 'STRAT_OV_BREAK' },
+              { price: inv, role: 'invalid', fromTs: candles[i].time, labelKey: 'STRAT_OV_INVALID' },
+            ], zones: [], lines: [], marker: { ts: candles[k].time, dir: 'short' } } };
             bestK = k;
           }
           break;
@@ -71,7 +103,11 @@ export function detectLiquiditySweepMss(candles: readonly OHLCV[], ctx: Strategy
         if (candles[k].close > S) {
           if (k >= n - FRESH_BARS && k > bestK) {
             const inv = Math.min(...candles.slice(i, k + 1).map(b => b.low));
-            best = { verdict: 'buy', signalTimestamp: candles[k].time, signalDir: 'long', params: { swept: L, mss: S, inv, liq: nearLiq(ctx, L) } };
+            best = { verdict: 'buy', signalTimestamp: candles[k].time, signalDir: 'long', params: { swept: L, mss: S, inv, liq: nearLiq(ctx, L) }, overlay: { levels: [
+              { price: L, role: 'watch', fromTs: candles[lIdx].time, labelKey: 'STRAT_OV_SWEPT_LOW' },
+              { price: S, role: 'confirm', fromTs: candles[sIdx].time, labelKey: 'STRAT_OV_BREAK' },
+              { price: inv, role: 'invalid', fromTs: candles[i].time, labelKey: 'STRAT_OV_INVALID' },
+            ], zones: [], lines: [], marker: { ts: candles[k].time, dir: 'long' } } };
             bestK = k;
           }
           break;
@@ -79,7 +115,7 @@ export function detectLiquiditySweepMss(candles: readonly OHLCV[], ctx: Strategy
       }
     }
   }
-  return best ?? WAIT;
+  return best ?? { ...WAIT, overlay: watchOverlay(candles) };
 }
 
 export const LIQUIDITY_SWEEP_MSS: StrategyDef = {
