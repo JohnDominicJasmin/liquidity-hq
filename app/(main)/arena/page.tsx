@@ -374,6 +374,7 @@ function ArenaContent() {
      it cost a "the feature does not work on staging" report to find. */
   const liqEmitRef = useRef(0);
   const liqFilledRef = useRef(false);
+  const [liqHistOnly, setLiqHistOnly] = useState<'BN' | 'BB' | null>(null);
   const handleLiqClusters = useCallback((c: Bucket[]) => {
     const now = Date.now();
     if (!acceptClusterEmission({
@@ -2967,7 +2968,7 @@ function ArenaContent() {
         </div>
       )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} strategyOverlay={arenaStrategy ? strategyState.result?.overlay ?? null : null} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
+      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} liqHistOnly={liqHistOnly} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} strategyOverlay={arenaStrategy ? strategyState.result?.overlay ?? null : null} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
       {/* ── Auth / upgrade notice ── BELOW THE CHART (arena layout shift, #1263). It exists only for a signed-out visitor and appears when auth resolves, about half a
           second after first paint. Above the chart it pushed the whole chart workspace down 54 px (QA's element measurement: CLS 0.041 on a CI build, 0.196 on the real network). Down here it can
           only push what is under the chart. */}
@@ -3243,7 +3244,7 @@ function ArenaContent() {
           What replaces it is not the same claim. The heatmap showed PREDICTED
           liquidation levels bought from a vendor; this shows REALIZED ones
           streamed from Binance and Bybit - keyless, free, and not BTC-only. */}
-      <LiqFeed onClusters={handleLiqClusters} coinFilter={selectedCoin.toUpperCase()} headless />
+      <LiqFeed onClusters={handleLiqClusters} onHistoryVenues={setLiqHistOnly} coinFilter={selectedCoin.toUpperCase()} headless />
       {/* GEX / Options Market Pressure table removed here 2026-07-25
           (signal-overload pass): biggest single block on the page (~456px),
           BTC-only, and max-pain/net-gamma is background context rather than a
