@@ -310,10 +310,7 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
         <LanguageSwitcher locale={locale} />
         {/* Desktop only: at 320-360 px the brand, language switcher, Sign in and Get started already fill the bar; phones reach /learn from the hero line and the footer. */}
         {isDesktop && (
-          <Link href="/learn" style={{
-            fontFamily: 'var(--font-mono), monospace', fontSize: 11.5, letterSpacing: '.12em',
-            color: 'var(--txt2)', padding: '9px 10px', textDecoration: 'none', textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0,
-          }}>
+          <Link href="/learn" className="lt-nav-learn">
             {dict.nav.learn}
           </Link>
         )}
@@ -391,8 +388,8 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
                 {dict.hero.ctaGhost}
               </Link>
             </div>
-            <p style={{ margin: 0, marginTop: heroWide ? 16 : 14, fontSize: heroWide ? 14 : 13 }}>
-              <Link href="/learn" className="lt-inline-hit" style={{ color: 'var(--txt2)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{dict.hero.newToTrading}</Link>
+            <p className="lt-hero-learn" style={{ marginTop: heroWide ? 16 : 14, fontSize: heroWide ? 14 : 13 }}>
+              <Link href="/learn" className="lt-inline-hit">{dict.hero.newToTrading}</Link>
             </p>
 
             {heroWide ? (
