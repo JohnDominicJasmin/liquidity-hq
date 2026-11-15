@@ -4020,6 +4020,10 @@ html[data-theme="light"] { background: var(--bg0); }
 .strat-call-dyn { min-height: 201px; }
 @media (max-width: 980px) { .strat-call-dyn { min-height: 142px; } }
 @media (max-width: 640px) { .strat-call-dyn { min-height: 163px; } }
+/* NARROW PHONES (QA run 43690087568, the tallest possible call, dyn only): 360 px en 155, ko 155, ru 175, zh 155; 320 px en 175, ko 193, ru 213, zh 175. So 163 is 12 px short at 360 and 50 px short at 320 in
+   Russian. Each is the maximum + 8: 183 up to 380 px, 221 up to 340 px. (390 to 640 px stays 163: worst 155.) */
+@media (max-width: 380px) { .strat-call-dyn { min-height: 183px; } }
+@media (max-width: 340px) { .strat-call-dyn { min-height: 221px; } }
 /* MEASURED (QA, deployed qa 5b9d1ad, run 43687675270: the tallest possible call, every reason of every strategy at a 7-digit price, en/ru/ko/zh): above 980 px ru 193 (ema_stack BUY), 981-1280; 641-980 px ru 134 at
    641 (114 from 768); at 390 px 155 in every language. Each reserve is that maximum + 8 px. Widths 391-640 (text wraps less) and 1281+ were not measured. */
 /* PROVISIONAL (PM, 2026-11-15): the call block is now verdict + reason at body size + invalidation + liquidity note only (about 19 + 102 + 36 + gaps 18 = 175 px); these three numbers are an
@@ -4043,6 +4047,8 @@ a[data-testid="arena-header-upgrade"]::after { content: ''; position: absolute; 
 html[data-strat="1"] .strat-call-host { min-height: 266px; }
 @media (max-width: 980px) { html[data-strat="1"] .strat-call-host { min-height: 207px; } }
 @media (max-width: 640px) { html[data-strat="1"] .strat-call-host { min-height: 228px; } }
+@media (max-width: 380px) { html[data-strat="1"] .strat-call-host { min-height: 248px; } }
+@media (max-width: 340px) { html[data-strat="1"] .strat-call-host { min-height: 286px; } }
 /* The host of the usage meter (app/(main)/arena/page.tsx). `<html data-sess="1">` is set before first paint when a session is stored (components/RootDocument.tsx, `session-hint`), so a signed-in visitor has the
    meter's whole band (2 + 43 + 10 px) reserved from the FIRST paint instead of from the moment the session read resolves. flow-root so the slot's own margins stay inside the host. */
 .usage-meter-host { display: flow-root; }
