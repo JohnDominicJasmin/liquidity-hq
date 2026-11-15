@@ -34,6 +34,9 @@ const REST_FALLBACK_MS = 30_000;
  * poll whose budget the comment below is about, so the cap is about not hammering a dead endpoint
  * rather than about a ban. */
 const WS_BACKOFF_CAP_MS = 30_000;
+/* How long a socket may stay CONNECTING before it is treated as failed (starts the REST backup), and how long the REST backup poll may wait. */
+const WS_CONNECT_TIMEOUT_MS = 8_000;
+const REST_POLL_TIMEOUT_MS = 15_000;
 
 /* ── Liquidation Cascade (the on-screen banner; no message is sent anywhere) ── */
 const LIQ_CASCADE_THRESHOLDS: Record<string, number> = {
@@ -200,7 +203,7 @@ export default function MarketProvider(
          `BINANCE_SPOT_SYMS` in lib/coins.ts. */
       const syms = Object.values(BINANCE_SPOT_SYMS).filter(s => s !== 'HYPEUSDT');
       const batch = encodeURIComponent(JSON.stringify(syms));
-      const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`);
+      const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`, { signal: AbortSignal.timeout(REST_POLL_TIMEOUT_MS) });
       const data = await res.json();
       /* BOTH EXITS OF THIS POLL WERE SILENT - a thrown error and a body we cannot parse - and the
          panels downstream read the resulting absence as "still loading". An unparseable shape is a
@@ -240,7 +243,12 @@ export default function MarketProvider(
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
+    /* A socket stuck CONNECTING never fires `close`, so the REST backup below never started and the page sat on skeletons forever (OWNER-RULES 21).
+       After WS_CONNECT_TIMEOUT_MS it is closed by hand, which runs the same `onclose` path as any failed connect. */
+    const connectTimer = setTimeout(() => { if (ws.readyState === WebSocket.CONNECTING) { try { ws.close(); } catch { /* */ } } }, WS_CONNECT_TIMEOUT_MS);
+
     ws.onopen = () => {
+      clearTimeout(connectTimer);
       retriesRef.current = 0; urlIdxRef.current = 0;
       if (restTimerRef.current) { clearInterval(restTimerRef.current); restTimerRef.current = null; }
       if (wsRetryRef.current)  { clearTimeout(wsRetryRef.current);   wsRetryRef.current = null; }
@@ -263,6 +271,7 @@ export default function MarketProvider(
     };
 
     ws.onclose = () => {
+      clearTimeout(connectTimer);
       retriesRef.current++;
       urlIdxRef.current++;
 

@@ -1882,6 +1882,11 @@ function ArenaContent() {
          deliberately: the only other BAD_ANSWER thrower is lib/grok.ts's own malformed-200 guard,
          where no refund was ever attempted, and a dropped field should understate what we gave back
          rather than promise a refund that did not happen. */
+      if ((e as { code?: string }).code === 'READ_TIMEOUT') {
+        setReadError(t('ARENA_READ_TIMEOUT'));
+        setReadProLocked(false);
+        return;
+      }
       if ((e as { code?: string }).code === 'BAD_ANSWER') {
         setReadError(t((e as { refunded?: boolean }).refunded === true
           ? 'ARENA_READ_BAD_ANSWER'

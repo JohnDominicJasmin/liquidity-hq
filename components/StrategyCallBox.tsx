@@ -40,7 +40,9 @@ export default function StrategyCallBox({ def, state }: Props) {
   return (
     <div data-testid="strategy-call-box" data-strategy={def.id} aria-live="polite" style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div className="strat-call-dyn" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {state.error ? (
+      {state.unsupportedTf ? (
+        <div data-testid="strategy-call-tf-unavailable" style={{ color: 'var(--txt2)', fontSize: 'var(--fs-caption)' }}>{t('STRAT_TF_UNAVAILABLE')}</div>
+      ) : state.error ? (
         <>
           <div data-testid="strategy-call-unavailable" style={{ color: 'var(--amber)', fontSize: 'var(--fs-label)', fontWeight: 600 }}>{t('STRAT_UNAVAILABLE')}</div>
           <p data-testid="strategy-call-unavailable-detail" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('STRAT_UNAVAILABLE_DETAIL')}</p>
