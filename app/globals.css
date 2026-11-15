@@ -6479,6 +6479,10 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      its left (FAB is 64px wide at right:16), so it clears the footer instead of
      overlapping it. */
   .ob-checklist.ob-checklist-mini { bottom: 76px !important; right: 90px !important; }
+  /* THE EXPANDED SETUP PANEL CLEAR OF THE ASK AI BUTTON ON PHONES. On a phone the FAB sits at bottom: 76 and is 64 px tall, so its top edge is at 140 px; the panel's own bottom was 128 px (420 px and under) or
+     140 px (421 to 640), so it overlapped the button by 12 px at 390 and touched it from 421 px. 152 px leaves a 12 px gap. Both stay position: fixed, so nothing in the page flow changes. The collapsed pill is
+     excluded: it rides in the FAB's row, to its left, by the rule above. */
+  .ob-checklist:not(.ob-checklist-mini) { bottom: 152px; }
   /* Reserve space for tab bar (56px) + the FAB above it (bottom:76 + 64 tall = 140).
      Prevents the fixed "Ask AI" FAB from overlapping the last content on every page. */
   .app-content { padding-bottom: 148px; }
