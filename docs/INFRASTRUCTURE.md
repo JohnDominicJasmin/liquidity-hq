@@ -252,6 +252,18 @@ GitHub, Actions, **"Backup restore test"**, "Run workflow". It restores into a t
 - **How many are kept:** `KEEP_DAYS = 14` in the route: the newest file for each of the last 14 UTC days is protected, and a file may only be deleted if it is also older than 7 days. Counting days (not files) means extra runs in one day cannot push good copies out. So at most about 14 files, a few MB each: tens of MB against the 1 GB, no action needed. The response's `kept`, `listed` and `pruned` fields show what retention did; `listTruncated: true` appears only if the bucket ever holds more than 100,000 objects (it should not).
 - **Residual risk to state to the owner:** same vendor and same account as the database. A second destination (another provider or the owner's own storage) is the next step if the owner wants protection against losing the account.
 
+## 2c. The liquidation collector (a process, not a cron job)
+
+Liquidations are collected by the **production Node process itself** (`lib/liqCollector.ts`, started from `instrumentation.ts`), not by cron-job.org or n8n: they arrive over WebSocket and neither exchange has a history endpoint, so nothing scheduled could fetch them.
+
+| | |
+|---|---|
+| Switch | `LIQ_COLLECTOR=1` on the **production** service only. Unset = nothing runs. Not set on dev, qa or staging (free plan: the service sleeps, so a collector there would write a few minutes a day and look healthy). |
+| Writes | `lhq_liq_events`, service role, batches of up to 500 every 5 s, rows of at least $10K. |
+| Health | `lhq_api_health` sources `liq:collect`, `liq:binance`, `liq:bybit`. |
+| Known gap | A deploy or restart drops both sockets for the seconds it takes to reconnect; that window is not backfilled (no history exists to fetch). |
+| Before the release that removes the browser insert | set the variable, deploy, then confirm `liq:collect` is ok and `max(ts)` moves. Only then apply `20261116g` (revokes the anonymous INSERT). Retention is the existing `/api/liq-events/purge`. |
+
 ## 3. Workflow Automation — n8n
 
 Self-hosted, see §1. Login is separate from Render/Supabase/cron-job.org — another credential silo an assistant can't see into without being handed the URL.
