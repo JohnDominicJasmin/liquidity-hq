@@ -1,0 +1,55 @@
+# Quick-read BLIND PAIRS (#1631, owner decision 2026-11-15: "Blind test first"): Grok and Claude Haiku 5.5 answer the SAME N quick-read inputs so a person can read the
+# answers with the engine names hidden. See scripts/bakeoff/quick/blind-pairs.mjs for the full contract.
+#
+# IT SPENDS REAL MONEY, SO: workflow_dispatch only, a hard cap in code ($0.25 Grok, $0.25 Claude; expected spend for 10 pairs is about $0.10 and about $0.02), and the owner asked for exactly this.
+#
+# THE REPOSITORY AND ITS LOGS ARE PUBLIC. The log carries counts and dollar amounts only. The answers, and which engine wrote which, leave the job ONLY inside one ENCRYPTED artifact
+# (`blind-pairs.enc.json`), hybrid-encrypted to a PUBLIC key supplied as the `public_key_pem` input. The private half never reaches GitHub; whoever generated the pair on their own machine
+# downloads the artifact and opens it locally (scripts/bakeoff/quick/blind-render.mjs). The artifact is kept for one day.
+#
+# SECRETS (repository secrets, set by the OWNER; nobody else handles them): ANTHROPIC_API_KEY and GROK_API_KEY, the same two the quick-read bake-off uses.
+name: Quick-read blind pairs
+
+on:
+  workflow_dispatch:
+    inputs:
+      public_key_pem:
+        description: 'RSA PUBLIC key in PEM form (the private half stays on your machine). Generate: openssl genrsa -out k.pem 3072 && openssl rsa -in k.pem -pubout'
+        required: true
+      pairs:
+        description: 'Number of inputs (1-20).'
+        required: false
+        default: '10'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quick-blind-pairs
+  cancel-in-progress: false
+
+jobs:
+  pairs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Collect the answers (encrypted)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
+          ANTHROPIC_WORKSPACE_ID: ${{ secrets.ANTHROPIC_WORKSPACE_ID || vars.ANTHROPIC_WORKSPACE_ID }}
+          BLIND_PUBKEY_PEM: ${{ inputs.public_key_pem }}
+          BLIND_PAIRS: ${{ inputs.pairs }}
+        run: node --import ./qa/alias-register.mjs scripts/bakeoff/quick/blind-pairs.mjs
+      - name: Keep the encrypted file for one day
+        uses: actions/upload-artifact@v4
+        with:
+          name: blind-pairs-encrypted
+          path: blind-pairs.enc.json
+          retention-days: 1
+          if-no-files-found: error

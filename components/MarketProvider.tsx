@@ -1191,21 +1191,24 @@ export default function MarketProvider(
       if (r.ok) oiAll = (await r.json()).data ?? {};
     } catch { /* leave empty; the length guard below already handles no data */ }
 
+    /* THE KLINES ARE ONE REQUEST TOO (#1651 D). This used to be one `fetchBybitKlinesRetry(sym, '5', 13)` per symbol - 49 requests on every page load, every route (measured 2026-11-15: 61 of the first 97 /api
+       requests of a signed-in /arena load). The batch route returns the same `list` (newest first) for every symbol in one cached fan-out. A failed batch leaves every coin's oiTrend null, which is what a
+       failed per-symbol fetch did for that coin: unknown until the live 8-min poll builds its own two readings. */
+    let klAll: Record<string, Array<Array<unknown>>> = {};
+    try {
+      const r = await fetch('/api/market/kline-batch?interval=5&limit=13');
+      if (r.ok) klAll = (await r.json()).data ?? {};
+    } catch { /* leave empty; the length guard in bootstrapReadings handles no data */ }
+
     await Promise.allSettled(
       Object.entries(BYBIT_SYMS).map(async ([coin, sym]) => {
         try {
-          // #1080: retry + r.ok, same reasoning as fetchBybitKlines above -
-          // this is a one-shot bootstrap with no interval behind it, so a
-          // refused request here isn't a missed cycle, it's this coin's
-          // oiTrend staying null until the live 8-min poll eventually
-          // builds its own two readings (the wait this bootstrap exists to
-          // avoid in the first place).
-          const klData = await fetchBybitKlinesRetry(sym, '5', 13);
-          if (klData === null) return;
+          const klList = klAll[sym];
+          if (!klList) return;
 
           // #1617: the rolling last hour, OI and price at the SAME two moments (the newest 5-minute OI point and the one 60 minutes before it, each with the
           // open of the 5-minute candle that starts then). Anything that does not line up exactly is unknown: nothing is set.
-          const readings = bootstrapReadings(oiAll[sym] as Array<{ openInterest?: unknown; timestamp?: unknown }> | undefined, klData.result?.list);
+          const readings = bootstrapReadings(oiAll[sym] as Array<{ openInterest?: unknown; timestamp?: unknown }> | undefined, klList);
           if (!readings) return;
 
           // Pre-populate history so live polls have a baseline
@@ -1755,30 +1758,44 @@ export default function MarketProvider(
     // OI bootstrap - gives immediate trend signal without waiting for two 8-min Bybit polls
     bootstrapOITrend();
 
-    const intervals = [
-      setInterval(fetchBybit,             8  * 60 * 1000),
-      setInterval(fetchLSR,               5  * 60 * 1000),
-      setInterval(fetchSnapshot,          3  * 60 * 1000),
-      setInterval(fetchBybitKlines,       3  * 60 * 1000),  // same cadence as Binance klines
-      setInterval(fetchFNG,             24  * 60 * 60 * 1000),
-      setInterval(fetchCMCGlobal,         5  * 60 * 1000),   // BTC/ETH dom - CMC, every 5m
-      setInterval(fetchAltSeason,        15  * 60 * 1000),   // 90d score - slow-moving, every 15m
-      setInterval(fetchMacro,            10  * 60 * 1000),
-      setInterval(fetchETF,              30  * 60 * 1000),
-      // 5m RSI's old cadence. The 1h/4h/1d/1w/1M values are cached server-side
-      // at their own 15m TTL, so this does not re-fetch them every 3 minutes.
-      setInterval(fetchRSI,               3  * 60 * 1000),
-      setInterval(fetchCVD,               5  * 60 * 1000),
-      setInterval(fetchOrderBook,         2  * 60 * 1000),
-      setInterval(fetchPremiumIndex,     30  * 1000),        // every 30s - premium changes frequently
-      setInterval(fetchDeribitOptions,   15  * 60 * 1000),
-      setInterval(fetchStablecoinFlows,  30  * 60 * 1000),
-      setInterval(fetchCoinbasePremium,   30 * 1000),      // every 30s
+    /* THE POLLING PAUSES WHILE THE TAB IS HIDDEN (#1651, PM: A). A backgrounded tab kept polling about 8 requests a minute for a page nobody was looking at. Each timer below skips its tick while
+       `document.hidden`, and when the tab comes back every fetcher whose interval has elapsed since it last ran refetches IMMEDIATELY, so a figure that went stale in the background is replaced right away
+       rather than read as current until its next tick. The price WebSocket is not touched (it keeps the live price current), nor are the liquidation feeds. Nothing that must run in a background tab depends
+       on these timers: the Arena's sound alerts and strategy re-read run on the chart's own live bars and their own candle-close timers, and Telegram / push are server-side. */
+    const timers: ReadonlyArray<readonly [() => unknown, number]> = [
+      [fetchBybit, 8  * 60 * 1000],
+      [fetchLSR, 5  * 60 * 1000],
+      [fetchSnapshot, 3  * 60 * 1000],
+      [fetchBybitKlines, 3  * 60 * 1000],  // same cadence as Binance klines
+      [fetchFNG, 24  * 60 * 60 * 1000],
+      [fetchCMCGlobal, 5  * 60 * 1000],  // BTC/ETH dom - CMC, every 5m
+      [fetchAltSeason, 15  * 60 * 1000],  // 90d score - slow-moving, every 15m
+      [fetchMacro, 10  * 60 * 1000],
+      [fetchETF, 30  * 60 * 1000],
+      [fetchRSI, 3  * 60 * 1000],
+      [fetchCVD, 5  * 60 * 1000],
+      [fetchOrderBook, 2  * 60 * 1000],
+      [fetchPremiumIndex, 30  * 1000],  // every 30s - premium changes frequently
+      [fetchDeribitOptions, 15  * 60 * 1000],
+      [fetchStablecoinFlows, 30  * 60 * 1000],
+      [fetchCoinbasePremium, 30 * 1000],  // every 30s
     ];
+    const lastRun = new Map<() => unknown, number>();
+    const mountedAt = Date.now();
+    timers.forEach(([fn]) => lastRun.set(fn, mountedAt));
+    const runTimer = (fn: () => unknown) => { lastRun.set(fn, Date.now()); fn(); };
+    const intervals = timers.map(([fn, ms]) => setInterval(() => { if (!document.hidden) runTimer(fn); }, ms));
+    const onVisible = () => {
+      if (document.hidden) return;
+      const now = Date.now();
+      for (const [fn, ms] of timers) if (now - (lastRun.get(fn) ?? 0) >= ms) runTimer(fn);
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       if (scannerRetryTimer.current) { clearTimeout(scannerRetryTimer.current); scannerRetryTimer.current = null; }
       intervals.forEach(clearInterval);
+      document.removeEventListener('visibilitychange', onVisible);
       /* Detach onclose before closing. Otherwise unmounting fires the handler
          above, which starts the REST fallback and the socket-retry timer for a
          provider that no longer exists - the polling then outlives the page
