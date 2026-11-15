@@ -166,6 +166,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'cls-arena-gate', needs: 'pro', note: 'the /arena layout-shift gate on a deployed site: signed out, and signed in as account A; settings writes stubbed; reads only' },
   { spec: 'strategy-menu-shots', needs: 'pro', note: 'screenshots of the one strategy menu (call open, and Let the read choose) for a visual check; signed in as account A; settings writes stubbed; reads only' },
   { spec: 'overflow-320-probe', needs: 'pro', note: 'a probe: lists the elements past the viewport on /arena at 320 and 360 px; account A and signed out; settings reads only'  },
+  { spec: 'entitlement-timing-probe', needs: 'pro', note: 'a probe: times the plan read and the plan badge after a signed-in /arena load; accounts A and B; reads only' },
   { spec: 'cls-probe-360ru', needs: 'pro', note: 'a probe: logs which elements grow or are inserted on /arena at 360 px in Russian with a saved strategy; account A; settings writes stubbed; reads only' },
   { spec: 'cls-arena-probe-signedin', needs: 'pro', note: 'a probe: logs the nodes inserted above the chart and the layout shifts for a signed-in visitor on /arena; settings writes stubbed; reads only' },
   { spec: 'arena-overflow-probe', needs: 'free', note: 'measures layout only - reads scrollWidth and element rects, writes nothing; sets its own 390x844 viewport and samples at 600ms and 4.6s, so 16 page loads' },
