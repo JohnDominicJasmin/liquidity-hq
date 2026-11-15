@@ -8,7 +8,7 @@ export default function CaptchaStuckHint({ waiting }: { waiting: boolean }) {
   const { t } = useLabels();
   const over = useGraceElapsed(10_000);
   return (
-    <div className="login-error" role="status" data-testid="captcha-stuck-hint" style={{ display: waiting && over ? undefined : 'none' }}>
+    <div role="status" data-testid="captcha-stuck-hint" style={{ display: waiting && over ? undefined : 'none', color: 'var(--red)', fontSize: 'var(--fs-caption)', marginTop: 8 }}>
       {t('LOGIN_CAPTCHA_STUCK')}
     </div>
   );
