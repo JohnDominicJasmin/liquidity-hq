@@ -2267,6 +2267,11 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .klc-draw-item.on { color: var(--accent-2); background: rgba(90,163,255,0.1); }
 .klc-draw-clear { color: var(--red); margin-top: 2px; border-top: 0.5px solid var(--bdr); border-radius: 0 0 5px 5px; }
 .klc-legend { display: flex; gap: 8px; align-items: center; }
+/* THE TOOLBAR NEVER WRAPS ON A WIDE SCREEN (layout shift, batch 3). At 1280 the Arena chart column is about 900 px and the toolbar's content was within a few px of it, so any late arrival (an alert chip, the plan badge, a page scrollbar taking 15 px, a longer translation) flipped it to a second row and back, about 0.25 CLS each flip. From 1200 px up the row stays ONE row: the spacer before the setup-quality badge absorbs slack, and if it ever truly overflows the badge is the item that gives way (it shrinks and clips) while every button and the fullscreen control keep their size. The toolbar itself is NOT given overflow, because the Draw menus hang below it as absolute children. Below 1200 px the row wraps as before. */
+@media (min-width: 1200px) {
+  .klc-toolbar { flex-wrap: nowrap; }
+  .klc-toolbar > .sq-badge { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+}
 /* The alert chips as an overlay on the chart canvas: out of the toolbar's flow, so their late arrival can never wrap the toolbar (CLS). The container ignores the pointer; each chip is display-only. A solid-ish ground so the amber text reads over candles in both themes. */
 .klc-legend-overlay { position: absolute; top: 34px; left: 8px; z-index: 3; pointer-events: none; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 96px); }
 .klc-legend-overlay .klc-price-chip { background: color-mix(in srgb, var(--bg1) 88%, rgba(245,158,11,0.12)) !important; }
