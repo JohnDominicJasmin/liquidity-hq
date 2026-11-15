@@ -392,6 +392,10 @@ on:
         description: 'Allow the onboarding spec to reset its fixture account (DEV database only). Off = that spec skips.'
         type: boolean
         default: false
+      allow_production:
+        description: 'Let a run aimed at PRODUCTION start (sets E2E_ALLOW_PRODUCTION=1). The read-only allowlist in qa/prod-readonly.ts still limits it. Owner approval per run.'
+        type: boolean
+        default: false
 
 # Without this, every push to a PR stacked another run and the superseded one
 # carried on to completion. Nothing was ever cancelled. Costs no coverage.
@@ -1086,6 +1090,9 @@ jobs:
           # skip the build entirely. See the input's own comment for why a remote
           # run is NOT the same measurement as the gate run.
           E2E_BASE_URL: ${{ inputs.base_url }}
+          # Production is refused by playwright.config.ts unless this is '1'; only a dispatch with
+          # allow_production=true sets it (owner approval per run, 2026-11-16 page-load timing).
+          E2E_ALLOW_PRODUCTION: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_production) && '1' || '' }}
 
           # ── RELEASE-GATE EXCHANGE STUB (#1259) ──────────────────────────────
           #
