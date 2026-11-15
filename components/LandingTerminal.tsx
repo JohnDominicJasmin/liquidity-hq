@@ -308,6 +308,15 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
         </span>
         <span style={{ flex: 1, minWidth: isDesktop ? undefined : 4 }} />
         <LanguageSwitcher locale={locale} />
+        {/* Desktop only: at 320-360 px the brand, language switcher, Sign in and Get started already fill the bar; phones reach /learn from the hero line and the footer. */}
+        {isDesktop && (
+          <Link href="/learn" style={{
+            fontFamily: 'var(--font-mono), monospace', fontSize: 11.5, letterSpacing: '.12em',
+            color: 'var(--txt2)', padding: '9px 10px', textDecoration: 'none', textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0,
+          }}>
+            {dict.nav.learn}
+          </Link>
+        )}
         <Link href="/login" style={{
           fontFamily: 'var(--font-mono), monospace', fontSize: 11.5, letterSpacing: '.12em',
           color: 'var(--txt2)', border: '1px solid var(--border-input)',
@@ -382,6 +391,9 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
                 {dict.hero.ctaGhost}
               </Link>
             </div>
+            <p style={{ margin: 0, marginTop: heroWide ? 16 : 14, fontSize: heroWide ? 14 : 13 }}>
+              <Link href="/learn" className="lt-inline-hit" style={{ color: 'var(--txt2)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{dict.hero.newToTrading}</Link>
+            </p>
 
             {heroWide ? (
               <div style={{ display: 'flex', marginTop: 40, borderTop: '1px solid var(--bdr)', paddingTop: 24 }}>
@@ -651,6 +663,7 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
               { title: dict.footer.columns.product, links: [
                 ['/dashboard', dict.footer.links.dashboard], ['/arena', dict.footer.links.arena],
                 ['/briefing', dict.footer.links.briefing], ['/news', dict.footer.links.news],
+                ['/learn', dict.footer.links.learn],
               ] },
               { title: dict.footer.columns.analysis, links: [
                 ['/scanner', dict.footer.links.scanner], ['/liq', dict.footer.links.liq],
