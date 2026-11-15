@@ -4031,8 +4031,6 @@ html[data-theme="light"] { background: var(--bg0); }
 /* The usage meter's slot (components/UsageMeter.tsx): the margin the meter always had plus a FIXED height. The meter is one line (its reset text ellipsizes), so 43 px (QA run 43649222730) holds on a
    phone and in every language. */
 .usage-meter-slot { margin: 2px 0 10px; height: 43px; }
-/* The Arena header's Free upgrade pill is 26 px tall so it fits the header row; its 44 px touch target is this pseudo-element (no layout space). */
-a[data-testid="arena-header-upgrade"]::after { content: ''; position: absolute; inset: -9px -4px; }
 /* THE USAGE METER ON A PHONE (QA, deployed qa 5b9d1ad: the Free pill was pushed past the row's right edge at 390 px in Korean and Russian, because the two stat blocks do not shrink). At 480 px and under the
    reset time is dropped (the numbers and the Upgrade pill matter more), the stat blocks may narrow to 80 px and the gap is 12 px: 2 x 80 + 24 + the widest pill (108, Russian) = 292 of the 322 px row. */
 @media (max-width: 480px) {
@@ -4057,7 +4055,6 @@ html[data-sess="1"] .arena-set-alert-pending { display: revert; }
 .usage-meter-host { display: flow-root; }
 html[data-sess="1"] .usage-meter-host { min-height: 55px; }
 /* One 43 px slot for every account (PM, #2368). The Upgrade pill is 26 px tall here (it was 44, which made the Free row 62 px); a pseudo-element gives it back a 44 px touch target without taking layout space. */
-.usage-meter-slot a[data-testid="usage-meter-upgrade"]::after { content: ''; position: absolute; inset: -9px -4px; }
 .usage-auth-link {
   color: var(--accent-2); text-decoration: none; font-weight: 600;
   padding: 4px 2px; display: inline-flex; align-items: center;

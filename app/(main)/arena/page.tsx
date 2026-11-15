@@ -2089,7 +2089,7 @@ function ArenaContent() {
           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent-2)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
           {/* Free accounts only (owner, 2026-10-07: they could not find Upgrade on this page). The same 44px pill TrialBanner
               uses, at the right of the header; nothing for Pro, a trial, or an unknown plan. */}
-          <FreeUpgradePill testId="arena-header-upgrade" style={{ marginLeft: 'auto', minHeight: 26, position: 'relative' }} />
+          <FreeUpgradePill testId="arena-header-upgrade" style={{ marginLeft: 'auto' }} tap />
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
