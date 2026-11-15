@@ -333,6 +333,9 @@ function ArenaContent() {
   });
   // Which Pro feature the user just tried to open (null = modal closed)
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
+  /* "Checking your plan…": shown for a few seconds when a gated timeframe is clicked while the plan has not been read yet (the plan arrives 2-5 s after load), instead of an Upgrade modal that would pitch Pro to someone who may already have it. */
+  const [planChecking, setPlanChecking] = useState(false);
+  const planCheckingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const arenaInitRef  = useRef(false);
   // #1263: set by the real user-facing coin/tf change handlers ONLY (the
   // scanner's coin pick, the toolbar's TF click) - not by the seed effect's
@@ -957,6 +960,13 @@ function ArenaContent() {
     // assertion the owner's ruling forbids (the modal pitches Pro, it never
     // claims the user IS on the free plan).
     if (entitlementStatus !== 'entitled' && GATED_TFS.includes(tf)) {
+      /* A signed-in visitor whose plan is still being read (or whose read has not answered) is NOT told to upgrade: the gate stays shut (nothing opens), and a neutral line says the plan is being checked. A confirmed free account, and a signed-out visitor, still get the Upgrade modal. */
+      if (user && (authLoading || entitlementsLoading || entitlementStatus === 'unknown')) {
+        setPlanChecking(true);
+        if (planCheckingTimer.current) clearTimeout(planCheckingTimer.current);
+        planCheckingTimer.current = setTimeout(() => setPlanChecking(false), 4000);
+        return;
+      }
       setUpgradeGate(t(TF_FEATURE_LABEL_KEYS[tf] ?? 'ARENA_TF_LABEL_FALLBACK'));
       return;
     }
@@ -2966,6 +2976,9 @@ function ArenaContent() {
           <span style={{ flex: '1 1 220px', minWidth: 0, fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.4 }}>{t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() })}</span>
           <Link href="/upgrade" data-testid="arena-coin-lock-upgrade" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 14px', border: '1px solid var(--accent)', color: 'var(--accent)', fontSize: 'var(--fs-label)', fontWeight: 700, textDecoration: 'none' }}>{t('TNAV_UPGRADE_LABEL')}</Link>
         </div>
+      )}
+      {planChecking && (
+        <div role="status" aria-live="polite" data-testid="arena-plan-checking" style={{ margin: '0 0 8px', fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('ARENA_PLAN_CHECKING')}</div>
       )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
       <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} liqHistOnly={liqHistOnly} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} strategyOverlay={arenaStrategy ? strategyState.result?.overlay ?? null : null} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
