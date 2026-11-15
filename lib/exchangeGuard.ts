@@ -37,6 +37,8 @@ const MAX_IN_FLIGHT: Record<Exchange, number> = { binance: 8, bybit: 8, okx: 4, 
 const MAX_WAITING = 400;
 const WAIT_TIMEOUT_MS = 15_000;
 const DEFAULT_TIMEOUT_MS = 15_000;
+/** Non-exchange upstreams (Deribit, DefiLlama, alternative.me ...) went straight to fetch with NO timeout, so a slow one held a page's skeleton for as long as the platform allowed (OWNER-RULES 21). A caller that passes its own signal keeps it. */
+const NON_EXCHANGE_TIMEOUT_MS = 5_000;
 export const BINANCE_WEIGHT_SOFT_LIMIT = 1200;        // half of Binance's 2,400 per minute
 export const BYBIT_WINDOW_MS = 5_000;
 export const BYBIT_WINDOW_MAX = 250;                   // under half of Bybit's 600 per 5 s per IP
@@ -171,7 +173,7 @@ async function onRefusal(ex: Exchange, s: ExchangeState, r: Response): Promise<v
  *  HttpStatusError(429) without a network call while that exchange is cooling down. Non-exchange URLs go straight to fetch. */
 export async function exchangeFetch(input: string | URL, init: RequestInit = {}): Promise<Response> {
   const ex = exchangeOf(input);
-  if (!ex) return fetch(input, init);
+  if (!ex) return fetch(input, { ...init, signal: init.signal ?? AbortSignal.timeout(NON_EXCHANGE_TIMEOUT_MS) });
   const s = state[ex];
   const cool = exchangeCoolingDown(ex);
   if (cool) { s.refused++; throw new HttpStatusError(429, `${ex}: cooling down`); }

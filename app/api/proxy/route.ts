@@ -128,6 +128,9 @@ const CURSOR_PARAMS = ['startTime', 'endTime', 'start', 'end'] as const;
 
 /** What a passthrough parameter's VALUE may be (#1649): symbols and JSON symbol lists (`["BTCUSDT","ETHUSDT"]`), numbers, and short codes
  *  such as 5m, 5min, BTC, option, true. Anything else is a 400 from us before any upstream call. */
+/** How long a passthrough read with a Bybit fallback waits on its primary before the fallback starts. */
+const FALLBACK_AFTER_MS = 3_000;
+
 const PASSTHROUGH_VALUE = /^[A-Za-z0-9_.,:\-[\]"]{1,1000}$/;
 
 const PASSTHROUGH: Record<string, PassEntry> = {
@@ -576,19 +579,32 @@ export async function GET(req: NextRequest) {
        * origin - the flag travels with whatever `cached()` stored, not just
        * with the call that produced it (#1237). */
       const go = async (): Promise<{ body: unknown; viaFallback: boolean }> => {
-        const r = await exchangeFetch(u, { cache: 'no-store' });
-        if (r.ok) return { body: await r.json(), viaFallback: false };
+        /* A type WITH a Bybit fallback gives its primary read only FALLBACK_AFTER_MS (counted from the call, so a wait for a free slot
+           is part of it). Before this the fallback started only after the primary FAILED, which could be a 15 s slot wait plus a 15 s fetch:
+           a chart or ticker waiting 30 s to be told what Bybit could have said in 300 ms. A primary that times out or throws now falls to
+           the same fallback as one that answers an error; with no fallback the original error is rethrown unchanged. */
+        const fbUrl = entry.bybitFallback?.buildUrl(req);
+        let r: Response | null = null;
+        let primaryFailure: unknown = null;
+        try {
+          r = await exchangeFetch(u, { cache: 'no-store', ...(fbUrl ? { signal: AbortSignal.timeout(FALLBACK_AFTER_MS) } : {}) });
+        } catch (e) {
+          if (!fbUrl) throw e;
+          primaryFailure = e;
+        }
+        if (r?.ok) return { body: await r.json(), viaFallback: false };
 
         /* FAIL LOUDLY (#228). Throwing means cached() stores nothing, so a ban
            is retried rather than pinned, and the caller gets a status instead
            of a plausible-looking empty body. */
-        const err = new Error(`${type} upstream ${r.status}`);
-        (err as Error & { status?: number }).status = r.status;
+        const err = r
+          ? new Error(`${type} upstream ${r.status}`)
+          : (primaryFailure instanceof Error ? primaryFailure : new Error(`${type} upstream unreachable`));
+        if (r) (err as Error & { status?: number }).status = r.status;
 
         /* #1237: try Bybit before giving up, same shape #1240's klines route
            established - never splice, never fabricate, fail loud if the
            fallback also has nothing. */
-        const fbUrl = entry.bybitFallback?.buildUrl(req);
         if (fbUrl) {
           try {
             const fr = await exchangeFetch(fbUrl, { cache: 'no-store' });
