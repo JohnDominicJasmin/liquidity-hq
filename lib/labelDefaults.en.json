@@ -1661,6 +1661,7 @@
   "BRIEFING_NO_EVENTS": "No active events in the next 24h. Clean macro backdrop.",
   "BRIEFING_WHALE_PREFIX": "WHALE {side}",
   "PLAYBOOK_PAGE_TITLE": "Liquidity Playbook",
+  "PLAYBOOK_FOLKLORE_NOTE": "Trading folklore, not measured results.",
   "PLAYBOOK_SUBTITLE": "{count} plays - the complete predator playbook",
   "PLAYBOOK_SEARCH_PLACEHOLDER": "Search plays...",
   "PLAYBOOK_CAT_ALL": "All",

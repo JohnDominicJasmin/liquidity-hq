@@ -49,7 +49,7 @@ export default function LiquidityPlaybook() {
             /learn included - and had no heading at all. A crawler got the richest page on the site
             with nothing telling it what the page was about. */}
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', margin: '0 0 2px' }}>{t('PLAYBOOK_PAGE_TITLE')}</h1>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>{t('PLAYBOOK_SUBTITLE', { count: SECRETS.length })}</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>{t('PLAYBOOK_SUBTITLE', { count: SECRETS.length })}<span data-testid="playbook-folklore-note" style={{ display: 'block', marginTop: 2 }}>{t('PLAYBOOK_FOLKLORE_NOTE')}</span></div>
       </div>
 
       <input
