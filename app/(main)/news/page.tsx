@@ -546,8 +546,12 @@ export default function NewsPage() {
             </div>
           )}
 
-          {!alertsLoaded && alerts.length === 0 && (
+          {!alertsLoaded && alerts.length === 0 && !alertsFailed && (
             <LoadingState message={t('NEWS_LOADING_FEEDS')} />
+          )}
+          {/* A failed read ends the wait with the same line the other tabs show (OWNER-RULES 21), never a loader for ever. */}
+          {!alertsLoaded && alerts.length === 0 && alertsFailed && (
+            <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_FEED_FAILED')}</div>
           )}
 
           {/* THE GATING HERE IS CORRECT AND WAS NOT THE BUG (#1651). `alertsLoaded` already keeps
