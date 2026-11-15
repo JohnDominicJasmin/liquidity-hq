@@ -35,11 +35,12 @@ export function detectEmaStack(candles: readonly OHLCV[], _ctx: StrategyContext)
   const e20 = emaArr(closes, 20), e50 = emaArr(closes, 50), e100 = emaArr(closes, 100), e200 = emaArr(closes, 200);
   const order = (i: number) => orderSide(e20[i], e50[i], e100[i], e200[i]);
   /* The four EMAs themselves (the last EMA_BARS of each), labelled at their right end, whatever the verdict: they are what this strategy reads. */
-  const emaLine = (arr: number[], period: number): StrategyOverlay['lines'][number] => ({
-    points: candles.slice(-EMA_BARS).map((c, k) => ({ ts: c.time, price: arr[n - EMA_BARS + k] })).filter(p => Number.isFinite(p.price)),
+  /* Only EMA 100 is DRAWN: the chart's own ribbon already draws 20, 50 and 200 (PM ruling, #2372), so those three get just a label at their right end (a line of ONE point is a text tag). */
+  const emaLine = (arr: number[], period: number, draw: boolean): StrategyOverlay['lines'][number] => ({
+    points: candles.slice(draw ? -EMA_BARS : -1).map((c, k, a) => ({ ts: c.time, price: arr[n - a.length + k] })).filter(p => Number.isFinite(p.price)),
     role: 'ref', labelKey: 'STRAT_OV_EMA', labelParams: { n: String(period) },
   });
-  const lines = [emaLine(e20, 20), emaLine(e50, 50), emaLine(e100, 100), emaLine(e200, 200)];
+  const lines = [emaLine(e20, 20, false), emaLine(e50, 50, false), emaLine(e100, 100, true), emaLine(e200, 200, false)];
   const now = order(n - 1);
   if (!now) return { ...WAIT, overlay: { levels: [], zones: [], lines, marker: null } };
   const up = now === 'long';

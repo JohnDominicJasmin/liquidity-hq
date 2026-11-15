@@ -1676,15 +1676,26 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           ...base, name: 'strategyLevelLine',
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
-            const { role, text } = overlay.extendData as { role: string; text: string };
+            const { role, text, prices, rank } = overlay.extendData as { role: string; text: string; prices?: number[]; rank?: number };
             const c = coordinates[0];
             if (!c || !isFinite(c.x) || !isFinite(c.y) || c.y < 0) return [];
+            /* LABELS THAT COLLIDE STACK (PM ruling, #2372): this strategy's levels are listed by price (lowest first); a label lifts 11 px for every LOWER level that sits within 12 px of this line on screen, so two
+               close levels (a sweep's swept and break levels on a low timeframe) read as two labels, not one smudge. */
+            let lift = 0;
+            if (prices && rank != null && chartRef.current) {
+              for (let k = 0; k < rank; k++) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const o = (chartRef.current as any).convertToPixel?.({ value: prices[k] }, { paneId: 'candle_pane' });
+                const oy = Array.isArray(o) ? o[0]?.y : o?.y;
+                if (typeof oy === 'number' && isFinite(oy) && Math.abs(oy - c.y) < 12) lift += 11;
+              }
+            }
             const x0 = Math.max(0, c.x), x1 = bounding?.width ?? 9999;
             if (x0 >= x1) return [];
             const ink = roleInk(role);
             return [
               { type: 'line', attrs: { coordinates: [{ x: x0, y: c.y }, { x: x1, y: c.y }] }, styles: { style: role === 'confirm' || role === 'ref' ? 'solid' : 'dashed', color: ink, size: role === 'ref' ? 1 : 1.5, dashedValue: [5, 3] } },
-              { type: 'text', attrs: { x: Math.min(x1 - 6, Math.max(6, x0 + 6)), y: c.y - 3, text, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } },
+              { type: 'text', attrs: { x: Math.min(x1 - 6, Math.max(6, x0 + 6)), y: c.y - 3 - lift, text, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } },
             ];
           },
         });
@@ -1713,11 +1724,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
             const { role, text } = overlay.extendData as { role: string; text: string };
             const pts = coordinates.filter(c => c && isFinite(c.x) && isFinite(c.y));
-            if (pts.length < 2) return [];
+            if (pts.length < 1) return [];
             const ink = roleInk(role);
             const end = pts[pts.length - 1];
+            // ONE point is a text tag only (the existing ribbon line it labels is already drawn by the chart)
             return [
-              { type: 'line', attrs: { coordinates: pts }, styles: { style: 'solid', color: ink, size: 1.25 } },
+              ...(pts.length >= 2 ? [{ type: 'line', attrs: { coordinates: pts }, styles: { style: 'solid', color: ink, size: 1.25 } }] : []),
               { type: 'text', attrs: { x: end.x + 4, y: end.y, text, align: 'left', baseline: 'middle' }, styles: { color: ink, size: 10, weight: '700' } },
             ];
           },
@@ -2733,7 +2745,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     };
     for (const z of ov.zones) add('strategyZone', [{ timestamp: z.fromTs, value: z.top }, { timestamp: z.toTs, value: z.bottom }], { kind: z.kind, text: tl(z.labelKey) });
     for (const l of ov.lines) add('strategyPolyline', l.points.map(p => ({ timestamp: p.ts, value: p.price })), { role: l.role, text: tl(l.labelKey, l.labelParams) });
-    for (const l of ov.levels) add('strategyLevelLine', [{ timestamp: l.fromTs, value: l.price }], { role: l.role, text: `${tl(l.labelKey, l.labelParams)} ${px}${fmtPx(l.price)}` });
+    const byPrice = [...ov.levels].sort((a, b) => a.price - b.price);
+    const prices = byPrice.map(l => l.price);
+    ov.levels.forEach(l => add('strategyLevelLine', [{ timestamp: l.fromTs, value: l.price }], { role: l.role, prices, rank: byPrice.indexOf(l), text: `${tl(l.labelKey, l.labelParams)} ${px}${fmtPx(l.price)}` }));
     if (ov.marker) {
       const bar = chart.getDataList().find(b => b.timestamp === ov.marker!.ts);
       if (bar) add('strategyMarker', [{ timestamp: bar.timestamp, value: ov.marker.dir === 'long' ? bar.low : bar.high }], { dir: ov.marker.dir });
