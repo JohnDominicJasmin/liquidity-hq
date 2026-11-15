@@ -2081,12 +2081,15 @@ function ArenaContent() {
 
       {/* ── PAGE HEADER ── */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>{t('ARENA_PAGE_TITLE')}</div>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent-2)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
+        {/* ONE ROW, NEVER TWO, SO THE FREE UPGRADE PILL ARRIVING MOVES NOTHING (CLS gate, QA run 43686322083: +0.316 at 1280 and +0.041 at 390, Free accounts only). The pill used to be 44 px tall in a row of about
+            30 px, and on a phone it wrapped onto a row of its own when the plan resolved. Now the row does not wrap, the pill is 26 px (its 44 px touch target is a pseudo-element, globals.css), and the live badge
+            gives way (ellipsis) instead of the row growing. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'nowrap' }}>
+          <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px', whiteSpace: 'nowrap', flexShrink: 0 }}>{t('ARENA_PAGE_TITLE')}</div>
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent-2)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
           {/* Free accounts only (owner, 2026-10-07: they could not find Upgrade on this page). The same 44px pill TrialBanner
               uses, at the right of the header; nothing for Pro, a trial, or an unknown plan. */}
-          <FreeUpgradePill testId="arena-header-upgrade" style={{ marginLeft: 'auto' }} />
+          <FreeUpgradePill testId="arena-header-upgrade" style={{ marginLeft: 'auto', minHeight: 26, position: 'relative' }} />
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
@@ -2554,6 +2557,17 @@ function ArenaContent() {
           )}
         </button>
 
+        <button
+          className="arena-ask-grok-btn"
+          style={{ width: 'auto', marginBottom: 0 }}
+          disabled={aboveAnalysisCeiling}
+          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : undefined}
+          onClick={() => runStrategy('ask', strategySelection)}
+        >
+          {t('ARENA_ASK_LIQUIDITYAI_BUTTON')}
+        </button>
+        {/* SET ALERT AND ITS NOTE COME AFTER THE ASK BUTTON, NOT BEFORE IT (CLS gate, QA probe run 43687645312): they render only once the session resolves, and while they stood to the left of the
+            Ask button their arrival moved it 91 px right on every signed-in load. To its right, they arrive at the end of the row and nothing already on screen moves. */}
         {user && (
           <button
             className="arena-ask-grok-btn"
@@ -2571,16 +2585,6 @@ function ArenaContent() {
             {t('ARENA_ALERT_MAIN_COINS_ONLY')}
           </span>
         )}
-
-        <button
-          className="arena-ask-grok-btn"
-          style={{ width: 'auto', marginBottom: 0 }}
-          disabled={aboveAnalysisCeiling}
-          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : undefined}
-          onClick={() => runStrategy('ask', strategySelection)}
-        >
-          {t('ARENA_ASK_LIQUIDITYAI_BUTTON')}
-        </button>
       </div>
 
       {/* Live daily-usage meter - remaining Quick/Deep + reset countdown. Visible
