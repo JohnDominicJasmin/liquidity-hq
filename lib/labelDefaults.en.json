@@ -2668,7 +2668,7 @@
   "UPGRADE_METHOD_PANEL_CLOSE_ARIA": "Close payment options",
   "ARENA_ERROR_BYBIT_API": "Bybit data unavailable",
   "ARENA_AUTH_NOTICE": "Sign in to run Quick and Deep analysis.",
-  "HOURS_WIN_PRIME_DESC": "The US afternoon session, up to the US stock market close.",
+  "HOURS_WIN_PRIME_DESC": "The US afternoon session.",
   "NEWS_EVENTS_FOOTER_NOTE": "High-impact US events · Times in your local timezone",
   "ARENA_STOP_HIT_HEADER": "Stop hit - thesis invalidated",
   "ARENA_STOP_HIT_BODY": "Price crossed your stop at {price}. This setup no longer applies - re-run the analysis for a fresh read.",

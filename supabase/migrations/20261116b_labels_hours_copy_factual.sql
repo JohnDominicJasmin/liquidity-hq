@@ -23,10 +23,10 @@ insert into lhq_labels (key, locale, value) values
 ('HOURS_GO_HUNT','ko','이 시간대는 지금 열려 있습니다.'),
 ('HOURS_GO_HUNT','zh','此时段目前开放。'),
 ('HOURS_GO_HUNT','ru','Это окно сейчас открыто.'),
-('HOURS_WIN_PRIME_DESC','en','The US afternoon session, up to the US stock market close.'),
-('HOURS_WIN_PRIME_DESC','ko','미국 오후 세션으로, 미국 증시 마감까지의 시간대입니다.'),
-('HOURS_WIN_PRIME_DESC','zh','美国下午交易时段，直到美股收盘。'),
-('HOURS_WIN_PRIME_DESC','ru','Американская дневная сессия, до закрытия фондового рынка США.')
+('HOURS_WIN_PRIME_DESC','en','The US afternoon session.'),
+('HOURS_WIN_PRIME_DESC','ko','미국 오후 세션입니다.'),
+('HOURS_WIN_PRIME_DESC','zh','美国下午交易时段。'),
+('HOURS_WIN_PRIME_DESC','ru','Американская дневная сессия.')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 
 -- ============ DEV (shared by dev/qa/staging, wdtjhrilakoitfcezxpx), COMMENTED OUT per 20260912b's convention (the rollout test reads it this way): uncomment to apply ============
@@ -47,8 +47,8 @@ on conflict (key, locale) do update set value = excluded.value, updated_at = now
 -- ('HOURS_GO_HUNT','ko','이 시간대는 지금 열려 있습니다.'),
 -- ('HOURS_GO_HUNT','zh','此时段目前开放。'),
 -- ('HOURS_GO_HUNT','ru','Это окно сейчас открыто.'),
--- ('HOURS_WIN_PRIME_DESC','en','The US afternoon session, up to the US stock market close.'),
--- ('HOURS_WIN_PRIME_DESC','ko','미국 오후 세션으로, 미국 증시 마감까지의 시간대입니다.'),
--- ('HOURS_WIN_PRIME_DESC','zh','美国下午交易时段，直到美股收盘。'),
--- ('HOURS_WIN_PRIME_DESC','ru','Американская дневная сессия, до закрытия фондового рынка США.')
+-- ('HOURS_WIN_PRIME_DESC','en','The US afternoon session.'),
+-- ('HOURS_WIN_PRIME_DESC','ko','미국 오후 세션입니다.'),
+-- ('HOURS_WIN_PRIME_DESC','zh','美国下午交易时段。'),
+-- ('HOURS_WIN_PRIME_DESC','ru','Американская дневная сессия.')
 -- on conflict (key, locale) do update set value = excluded.value, updated_at = now();
