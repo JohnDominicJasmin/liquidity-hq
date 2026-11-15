@@ -701,6 +701,26 @@ will be the one who makes the decision... Stop moving the goalposts. We are clos
 - **The pipeline is PM's to keep working**, and that includes error tracking: **PostHog and GlitchTip must be
   shown receiving events from production**, not assumed from a key being set.
 
+## 21. EVERY PAGE LOADS FAST AND NEVER GETS STUCK LOADING
+
+Owner, 2026-11-16: *"check all pages, make sure refreshing it and loading it does not run slow"*,
+*"or stuck in loading, loading the page must be fast"*, *"check all pages, ping the team and lead them."*
+
+This is a standing bar for every page, not a one-off sweep:
+
+- **LCP ≤ 2.5 s.** Every loading, skeleton, "Loading…" or "Scanning…" state resolves to data **or to an
+  honest error/empty state** within **8 s**. **Nothing is still loading at 15 s.** Measured at 360 and
+  1280, signed out and signed in, on a **first visit and on a reload**.
+- **Every wait has a timeout** that ends in an honest state. A wait with no timeout can spin forever,
+  which is the "stuck in loading" he named. That is a defect, even when the data usually arrives.
+- **A new page or a new loading state is checked against this bar before it ships.** QA measures on a
+  deployed URL; Dev states in the PR what each new wait waits on and its timeout.
+- Measure on production for real numbers. `dev`/`qa`/`staging` are on Render's free plan and spin down
+  when idle, so a first request there pays a wake-up that production (always on) does not. Wake the
+  host first and say so.
+
+Tracked on #1651.
+
 ## Keeping this file true
 
 **RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**
