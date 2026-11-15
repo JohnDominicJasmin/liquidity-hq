@@ -72,7 +72,7 @@ test.describe('plan checking', () => {
       const shown = await sma.count();
       console.log(`[PLANCHK] P4 panel at 3 s with the plan unknown: SMA chip present=${shown}, unknown-plan card=${await page.getByText(/Couldn't verify your plan|Checking your plan/i).count()}`);
       if (shown) {
-        const before = await sma.getAttribute('aria-pressed'); await macd.click().catch(() => {}); await page.waitForTimeout(800);
+        const before = await sma.getAttribute('aria-pressed'); await macd.click({ force: true, timeout: 2_000 }).catch(() => {}); /* disabled while the plan loads (#2406): a tap is a no-op and must not wait 30 s to become enabled */ await page.waitForTimeout(800);
         const after = await sma.getAttribute('aria-pressed');
         console.log(`[PLANCHK] P4 SMA pressed before the MACD tap=${before}, after=${after}, MACD pressed=${await macd.getAttribute('aria-pressed')}`);
         expect(after, 'a chip tap while the plan was unknown changed the saved selection').toBe(before);
