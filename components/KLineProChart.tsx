@@ -3472,6 +3472,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         <div className="klc-sep" />
         <button
           className={`klc-tool-btn${showSR ? ' on' : ''}`}
+          aria-pressed={showSR}
           onClick={() => onShowSRChange(!showSR)}
           title="Toggle auto support &amp; resistance levels"
         >
@@ -3480,6 +3481,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
         <button
           className={`klc-tool-btn${showPA ? ' on' : ''}`}
+          aria-pressed={showPA}
           onClick={() => setShowPA(v => !v)}
           title="Toggle market structure breaks - price-action signals, separate from the EMA buy/sell markers"
         >
@@ -3489,6 +3491,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         {liqClusters && liqClusters.length > 0 && (
           <button
             className={`klc-tool-btn${showLiq ? ' on' : ''}`}
+            aria-pressed={showLiq}
             onClick={() => onShowLiqChange(!showLiq)}
             title={`Toggle realized liquidation clusters - the heaviest price levels where positions were actually liquidated in the last 24h. Price memory, not predicted liquidation levels.${liqHistOnly ? ` The stored history comes from ${liqHistOnly === 'BN' ? 'Binance' : 'Bybit'} only.` : ''}`}
           >

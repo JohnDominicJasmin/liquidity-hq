@@ -1778,11 +1778,13 @@ function Inner() {
                   value={thesisFormSymbol}
                   onChange={e => setThesisFormSymbol(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
                   placeholder={t('TRADE_JOURNAL_THESIS_TICKER_PLACEHOLDER')}
+                  aria-label={t('TRADE_JOURNAL_THESIS_TICKER_ARIA')}
                   maxLength={10}
                   style={{ width: 110, padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', fontFamily: 'var(--font-mono), monospace', fontWeight: 700 }}
                 />
                 <select
                   value={thesisFormDirection}
+                  aria-label={t('TRADE_JOURNAL_THESIS_DIRECTION_ARIA')}
                   onChange={e => setThesisFormDirection(e.target.value as 'LONG' | 'SHORT')}
                   style={{ padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
                 >
@@ -1791,6 +1793,7 @@ function Inner() {
                 </select>
                 <input
                   type="date"
+                  aria-label={t('TRADE_JOURNAL_THESIS_DATE_ARIA')}
                   value={thesisFormDate}
                   onChange={e => setThesisFormDate(e.target.value)}
                   style={{ padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)' }}

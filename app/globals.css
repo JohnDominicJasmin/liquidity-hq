@@ -6339,6 +6339,9 @@ html[lang="ar"] .lp-h1-accent {
 .ob-cl-min {
   background: none; border: none; color: var(--txt3);
   font-size: 1.25rem; cursor: pointer; line-height: 1; padding: 0 0 0 6px;
+  /* a 24 x 24 touch target for the minimise and dismiss controls (WCAG 2.5.8; PM UI audit, #1185) */
+  min-width: 24px; min-height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .ob-cl-min:hover { color: var(--txt); }
 
@@ -9368,4 +9371,15 @@ main.app-content[data-chrome="none"] {
   .mkt-hdr-row > :last-child { grid-column: 2 / -1; grid-row: 2; }
   .dash-right, .dash-right > * { min-width: 0; max-width: 100%; }
   .av-rail-panel { min-width: 0; max-width: 100%; overflow-x: clip; }
+}
+
+/* NATIVE CONTROLS FOLLOW THE THEME (PM UI audit, #1185): without a declared color-scheme the browser draws date pickers, scrollbars and select popups in light chrome on the dark theme, so the picker's icon and text could not be seen. */
+html { color-scheme: dark; }
+html[data-theme="light"] { color-scheme: light; }
+
+/* NEWS > EVENTS TABLE (PM UI audit, #1185). One class for the header and every row so the columns cannot drift. Phones (under 480 px) drop Prev and Impact (every listed event is high impact by construction, so that column carries no information) and give the event name a real minimum. */
+.ne-row { display: grid; grid-template-columns: 70px minmax(140px, 1fr) 72px 72px 72px 52px; gap: 4px; min-width: 370px; }
+@media (max-width: 479px) {
+  .ne-row { grid-template-columns: 56px minmax(140px, 1fr) 60px 60px; min-width: 0; }
+  .ne-prev, .ne-impact { display: none; }
 }
