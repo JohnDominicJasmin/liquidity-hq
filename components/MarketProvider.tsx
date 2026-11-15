@@ -1191,21 +1191,24 @@ export default function MarketProvider(
       if (r.ok) oiAll = (await r.json()).data ?? {};
     } catch { /* leave empty; the length guard below already handles no data */ }
 
+    /* THE KLINES ARE ONE REQUEST TOO (#1651 D). This used to be one `fetchBybitKlinesRetry(sym, '5', 13)` per symbol - 49 requests on every page load, every route (measured 2026-11-15: 61 of the first 97 /api
+       requests of a signed-in /arena load). The batch route returns the same `list` (newest first) for every symbol in one cached fan-out. A failed batch leaves every coin's oiTrend null, which is what a
+       failed per-symbol fetch did for that coin: unknown until the live 8-min poll builds its own two readings. */
+    let klAll: Record<string, Array<Array<unknown>>> = {};
+    try {
+      const r = await fetch('/api/market/kline-batch?interval=5&limit=13');
+      if (r.ok) klAll = (await r.json()).data ?? {};
+    } catch { /* leave empty; the length guard in bootstrapReadings handles no data */ }
+
     await Promise.allSettled(
       Object.entries(BYBIT_SYMS).map(async ([coin, sym]) => {
         try {
-          // #1080: retry + r.ok, same reasoning as fetchBybitKlines above -
-          // this is a one-shot bootstrap with no interval behind it, so a
-          // refused request here isn't a missed cycle, it's this coin's
-          // oiTrend staying null until the live 8-min poll eventually
-          // builds its own two readings (the wait this bootstrap exists to
-          // avoid in the first place).
-          const klData = await fetchBybitKlinesRetry(sym, '5', 13);
-          if (klData === null) return;
+          const klList = klAll[sym];
+          if (!klList) return;
 
           // #1617: the rolling last hour, OI and price at the SAME two moments (the newest 5-minute OI point and the one 60 minutes before it, each with the
           // open of the 5-minute candle that starts then). Anything that does not line up exactly is unknown: nothing is set.
-          const readings = bootstrapReadings(oiAll[sym] as Array<{ openInterest?: unknown; timestamp?: unknown }> | undefined, klData.result?.list);
+          const readings = bootstrapReadings(oiAll[sym] as Array<{ openInterest?: unknown; timestamp?: unknown }> | undefined, klList);
           if (!readings) return;
 
           // Pre-populate history so live polls have a baseline
