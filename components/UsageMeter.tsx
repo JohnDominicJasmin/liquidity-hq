@@ -49,7 +49,7 @@ export default function UsageMeter() {
 
   if (!user) return null;
   /* ONE HEIGHT FOR EVERY ACCOUNT, from first paint (PM audit of #2368): the plan is unknown until the subscription read settles, so a per-tier slot shifts. The Free row used to be 62 px because the Upgrade
-     pill was 44 px tall; here the pill's VISUAL height is 26 px (the row fits the 43 px slot) and its 44 px touch target is kept by a pseudo-element hit area (globals.css). */
+     pill was 44 px tall; here the pill's VISUAL height is 28 px (the row fits the 43 px slot) and its 44 px touch target is the link itself (UpgradePillLink `tap`). */
   const slotClass = 'usage-meter-slot';
   /* ONE LINE, FIXED HEIGHT: the row never wraps (the reset text ellipsizes), so the box is the same height in every language and width (PM, #2365). */
   /* THE SLOT IS RESERVED FOR A SIGNED-IN VISITOR FROM FIRST PAINT (arena layout shift, #1263). The meter used to render nothing until the usage numbers arrived (3 to 6 seconds on the real network) and then
