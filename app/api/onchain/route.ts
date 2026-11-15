@@ -4,7 +4,7 @@ import { answerWasCutOff, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
-import { hasProFeatures, getUsageTier } from '@/lib/entitlements';
+import { getEntitlement, usageTierOf } from '@/lib/entitlements';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -125,7 +125,9 @@ export async function GET(req: NextRequest) {
   // reached by skipping the client gate. Trial users count as Pro here: the
   // route is cached across all visitors (CACHE_TTL), so granting it during the
   // trial adds ~no marginal cost while showing off a headline Pro feature.
-  if (!(await hasProFeatures(token, authData.user.id))) {
+  /* The plan row is read ONCE (it used to be read again for the usage tier inside the cache miss). */
+  const entitlement = await getEntitlement(token, authData.user.id);
+  if (!entitlement.proFeatures) {
     return NextResponse.json({ error: 'PRO_REQUIRED', message: 'On-chain score is a Pro feature.' }, { status: 403 });
   }
 
@@ -140,13 +142,16 @@ export async function GET(req: NextRequest) {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit stays free for everyone (same pattern as
       // token-unlock/smc-snapshot).
-      const role = await getUsageTier(token, authData.user.id);
-      const usageResult = await incrementToolUsage(authData.user.id, 'onchain', role);
+      const role = usageTierOf(entitlement);
+      /* The usage check and the chain-stats read run AT THE SAME TIME; the stats are cached on their own for 5 minutes so an AI failure's retry does not refetch them. */
+      const [usageResult, stats] = await Promise.all([
+        incrementToolUsage(authData.user.id, 'onchain', role),
+        /* A null (the read failed) must NOT be cached for five minutes: it throws so `cached` stores nothing, and the caller carries on without stats exactly as before. */
+        cached('onchain-stats', 5 * 60_000, async () => { const v = await fetchBlockchainStats(); if (!v) throw new Error('no blockchain stats'); return v; }).catch(() => null),
+      ]);
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);
       }
-
-      const stats = await fetchBlockchainStats();
       const prompt = buildOnChainPrompt(stats, btcPrice);
 
       const r = await xaiFetch('https://api.x.ai/v1/responses', {
@@ -169,7 +174,8 @@ export async function GET(req: NextRequest) {
         throw new Error(e.error ?? 'AI error');
       }
       const d = await r.json();
-      await recordAiCall({ userId: authData.user.id, callType: 'onchain', model: d.model ?? 'grok-4.3', usage: d.usage });
+      /* Not awaited: accounting only; recordAiCall swallows and reports its own errors. */
+      void recordAiCall({ userId: authData.user.id, callType: 'onchain', model: d.model ?? 'grok-4.3', usage: d.usage });
       const msg = (d.output as Array<{ type: string; content?: Array<{ text: string }> }>)
         ?.find(o => o.type === 'message');
       const raw = msg?.content?.[0]?.text ?? '';

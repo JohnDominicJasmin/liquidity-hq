@@ -3,7 +3,7 @@ import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
-import { hasProFeatures, getUsageTier } from '@/lib/entitlements';
+import { getEntitlement, usageTierOf } from '@/lib/entitlements';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { pctChange, buildMacroPrompt } from '@/lib/macroContext';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
@@ -105,6 +105,30 @@ async function fetchYF(symbol: string, initialDelayMs = 0): Promise<{ price: num
   }
 }
 
+/* The five Yahoo inputs, cached on their own for 3 minutes and fetched WITHOUT the AI call, so a retry after an AI failure (a failure is never cached) does not re-hit Yahoo, and so the fetch can run at the same time as the usage check. Throws when three or more are missing, which `cached` never stores. */
+type YFResult = { price: number; prev: number | null } | null;
+async function fetchMacroInputs(): Promise<{ dxyData: YFResult; vixData: YFResult; goldData: YFResult; oilData: YFResult; tnxData: YFResult; missing: string[] }> {
+  // Staggered, not a single Promise.all burst - see fetchYF's comment.
+  const [dxyData, vixData, goldData, oilData, tnxData] = await Promise.all([
+    fetchYF('DX-Y.NYB',   0),
+    fetchYF('%5EVIX',   120),
+    fetchYF('GC%3DF',   240),
+    fetchYF('CL%3DF',   360),
+    fetchYF('%5ETNX',   480),
+  ]);
+  const missing = [
+    !dxyData && 'DXY',
+    !vixData && 'VIX',
+    !goldData && 'Gold',
+    !oilData && 'Oil',
+    !tnxData && '10Y Treasury',
+  ].filter(Boolean) as string[];
+  if (missing.length >= 3) {
+    throw new Error(`Could not fetch macro data (${missing.join(', ')})`);
+  }
+  return { dxyData, vixData, goldData, oilData, tnxData, missing };
+}
+
 export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -116,7 +140,9 @@ export async function GET(req: NextRequest) {
   // reached by skipping the client gate. Trial users count as Pro here: the
   // route is cached across all visitors, so granting it during the trial adds
   // ~no marginal cost while showcasing a headline Pro feature.
-  if (!(await hasProFeatures(token, authData.user.id))) {
+  /* The plan row is read ONCE (it used to be read again for the usage tier inside the cache miss). */
+  const entitlement = await getEntitlement(token, authData.user.id);
+  if (!entitlement.proFeatures) {
     return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Global macro context is a Pro feature.' }, { status: 403 });
   }
 
@@ -127,32 +153,17 @@ export async function GET(req: NextRequest) {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit stays free for everyone (same pattern as
       // token-unlock/smc-snapshot).
-      const role = await getUsageTier(token, authData.user.id);
-      const usageResult = await incrementToolUsage(authData.user.id, 'macroContext', role);
+      const role = usageTierOf(entitlement);
+      /* The usage check and the Yahoo read run AT THE SAME TIME. A blocked caller wastes one cheap, cached Yahoo read; an allowed one no longer waits for the usage round trip first. */
+      const [usageResult, inputs] = await Promise.all([
+        incrementToolUsage(authData.user.id, 'macroContext', role),
+        cached('macro-yahoo', 3 * 60_000, fetchMacroInputs).catch((e: unknown) => e),
+      ]);
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);
       }
-
-      // Staggered, not a single Promise.all burst - see fetchYF's comment.
-      const [dxyData, vixData, goldData, oilData, tnxData] = await Promise.all([
-        fetchYF('DX-Y.NYB',   0),
-        fetchYF('%5EVIX',   120),
-        fetchYF('GC%3DF',   240),
-        fetchYF('CL%3DF',   360),
-        fetchYF('%5ETNX',   480),
-      ]);
-
-      const missing = [
-        !dxyData && 'DXY',
-        !vixData && 'VIX',
-        !goldData && 'Gold',
-        !oilData && 'Oil',
-        !tnxData && '10Y Treasury',
-      ].filter(Boolean);
-
-      if (missing.length >= 3) {
-        throw new Error(`Could not fetch macro data (${missing.join(', ')})`);
-      }
+      if (inputs instanceof Error) throw inputs;
+      const { dxyData, vixData, goldData, oilData, tnxData, missing } = inputs as Awaited<ReturnType<typeof fetchMacroInputs>>;
 
       // #1309 item 11: no fallback stand-ins - a metric that failed to fetch
       // stays null all the way through (prompt and response both), instead
@@ -191,7 +202,8 @@ export async function GET(req: NextRequest) {
       }
 
       const aiData = await aiRes.json();
-      await recordAiCall({ userId: authData.user.id, callType: 'macro_context', model: aiData.model ?? 'grok-4.3', usage: aiData.usage });
+      /* Not awaited: the log is for accounting, never for the answer, and recordAiCall swallows its own errors (and reports them to the health table). */
+      void recordAiCall({ userId: authData.user.id, callType: 'macro_context', model: aiData.model ?? 'grok-4.3', usage: aiData.usage });
       const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
 
       return { ...payload, analysis, missingData: missing };
