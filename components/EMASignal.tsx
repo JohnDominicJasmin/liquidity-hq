@@ -155,8 +155,9 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
       padding: '12px 14px',
       marginBottom: 10,
     }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
+      {/* Header. It WRAPS when it must (QA, 320 px: the right-hand pair of chips, "MIXED" and "TRENDING SHORT", is 224 px of nowrap text beside a title that cannot shrink below its longest word, so
+          the row ended at x = 348 on a 320 px screen and the whole page scrolled sideways; 360 px and up are unaffected because nothing wraps there). */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: 10, gap: 10 }}>
         <div>
           <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 3 }}>
             EMA Ribbon Strategy
@@ -165,7 +166,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
             3 moving averages (fast/mid/slow) · {tf.toUpperCase()} chart · daily trend filter
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6, maxWidth: '100%' }}>
           {!signal.loading && signal.chopRegime && (() => {
             const col = signal.chopRegime === 'choppy' ? 'var(--amber)' : signal.chopRegime === 'trending' ? 'var(--green-2)' : 'var(--txt-dim)';
             const label = signal.chopRegime === 'choppy' ? 'CHOPPY' : signal.chopRegime === 'trending' ? 'TRENDING' : 'MIXED';
