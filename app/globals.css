@@ -4025,6 +4025,10 @@ html[data-theme="light"] { background: var(--bg0); }
 /* The usage meter's slot (components/UsageMeter.tsx): the margin the meter always had plus a FIXED height. The meter is one line (its reset text ellipsizes), so 43 px (QA run 43649222730) holds on a
    phone and in every language. */
 .usage-meter-slot { margin: 2px 0 10px; height: 43px; }
+/* The host of the usage meter (app/(main)/arena/page.tsx). `<html data-sess="1">` is set before first paint when a session is stored (components/RootDocument.tsx, `session-hint`), so a signed-in visitor has the
+   meter's whole band (2 + 43 + 10 px) reserved from the FIRST paint instead of from the moment the session read resolves. flow-root so the slot's own margins stay inside the host. */
+.usage-meter-host { display: flow-root; }
+html[data-sess="1"] .usage-meter-host { min-height: 55px; }
 /* One 43 px slot for every account (PM, #2368). The Upgrade pill is 26 px tall here (it was 44, which made the Free row 62 px); a pseudo-element gives it back a 44 px touch target without taking layout space. */
 .usage-meter-slot a[data-testid="usage-meter-upgrade"]::after { content: ''; position: absolute; inset: -9px -4px; }
 .usage-auth-link {

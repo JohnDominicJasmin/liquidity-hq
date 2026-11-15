@@ -2589,7 +2589,7 @@ function ArenaContent() {
           #usage-meter so it scrolls straight here instead of dumping the user
           at the top of the whole Arena page - scroll-margin-top clears the
           sticky ticker+nav bar so the meter doesn't land hidden under them. */}
-      <div id="usage-meter" style={{ scrollMarginTop: 90 }}>
+      <div id="usage-meter" className="usage-meter-host" style={{ scrollMarginTop: 90 }}>
         <UsageMeter />
       </div>
 

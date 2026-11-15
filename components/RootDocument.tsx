@@ -176,6 +176,13 @@ export default function RootDocument({ lang, children }: { lang: string; childre
             data-theme is correct before first paint (no flash of the wrong theme). Mirrors
             lib/theme.ts's getStoredTheme(): explicit localStorage choice wins, otherwise follow the
             device's prefers-color-scheme. */}
+        {/* A STORED SESSION IS KNOWN BEFORE FIRST PAINT (arena layout shift, #1263). The session lives in localStorage, so the server cannot know it and the page used to learn it 1-2 s after paint: the usage meter's
+            slot (43 px) then appeared above the chart and pushed the workspace down (QA, deployed qa 5b9d1ad: +0.044 at 1280, +0.050 at 390 on EVERY signed-in load). This marks <html data-sess="1"> in the
+            initial server HTML's own script, before paint and before hydration, when a Supabase auth-token key holds a value, and globals.css reserves the slot for it (`.usage-meter-host`). A visitor with no
+            stored session gets no reserve and no shift. It decides nothing about access: it only sets a layout hint, and a dead stored session collapses the reserve once, which is the rare case. */}
+        <Script id="session-hint" strategy="beforeInteractive">
+          {`(function(){try{var ls=window.localStorage;for(var i=0;i<ls.length;i++){var k=ls.key(i);if(k&&k.indexOf('sb-')===0&&k.indexOf('-auth-token')>0&&ls.getItem(k)){document.documentElement.setAttribute('data-sess','1');return;}}}catch(e){}})();`}
+        </Script>
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`}
         </Script>
