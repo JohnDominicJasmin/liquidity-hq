@@ -9,8 +9,11 @@ let _client: SupabaseClient | null = null;
  * database; shorter than the 22 s entitlements budget so a retry still fits. */
 export const SUPABASE_FETCH_TIMEOUT_MS = 15000;
 
-/** fetch with a deadline that still honours the caller's own abort signal. */
+/** fetch with a deadline that still honours the caller's own abort signal.
+ *  ONLY READS (GET/HEAD) are abandoned: a write that reaches the database but is slow to answer must not be aborted client-side, or the UI would report a failure for a row that exists and a retry would duplicate it (a journal trade, a settings save). Writes, storage uploads and auth calls keep the platform's own behaviour. */
 export function fetchWithDeadline(input: RequestInfo | URL, init?: RequestInit, ms = SUPABASE_FETCH_TIMEOUT_MS): Promise<Response> {
+  const method = (init?.method ?? (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')).toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD') return fetch(input, init);
   const deadline = AbortSignal.timeout(ms);
   const own = init?.signal;
   let signal: AbortSignal = deadline;
