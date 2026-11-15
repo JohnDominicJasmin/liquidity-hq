@@ -9377,9 +9377,9 @@ main.app-content[data-chrome="none"] {
 html { color-scheme: dark; }
 html[data-theme="light"] { color-scheme: light; }
 
-/* NEWS > EVENTS TABLE (PM UI audit, #1185). One class for the header and every row so the columns cannot drift. Phones (under 480 px) drop Prev and Impact (every listed event is high impact by construction, so that column carries no information) and give the event name a real minimum. */
-.ne-row { display: grid; grid-template-columns: 70px minmax(140px, 1fr) 72px 72px 72px 52px; gap: 4px; min-width: 370px; }
+/* NEWS > EVENTS TABLE (PM UI audit, #1185). One class for the header and every row so the columns cannot drift. There is NO Impact column: the calendar route marks every event it returns as high impact, so a fixed HIGH on each row was a claim the data does not make (data-integrity rule, PM). Phones (under 480 px) also drop Prev and give the event name a real minimum. */
+.ne-row { display: grid; grid-template-columns: 70px minmax(140px, 1fr) 72px 72px 72px; gap: 4px; min-width: 318px; }
 @media (max-width: 479px) {
   .ne-row { grid-template-columns: 56px minmax(140px, 1fr) 60px 60px; min-width: 0; }
-  .ne-prev, .ne-impact { display: none; }
+  .ne-prev { display: none; }
 }

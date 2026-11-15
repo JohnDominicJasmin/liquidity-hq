@@ -749,7 +749,7 @@ export default function NewsPage() {
                 <div style={{ overflowX: 'auto' }}>
                 {/* Column headers */}
                 <div className="ne-row" style={{ padding: '4px 8px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontWeight: 600, letterSpacing: '0.04em' }}>
-                  <span>{t('NEWS_EVENTS_COL_TIME')}</span><span>{t('NEWS_EVENTS_COL_EVENT')}</span><span className="ne-prev" style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_PREV')}</span><span style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_EST')}</span><span style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_ACTUAL')}</span><span className="ne-impact" style={{ textAlign: 'center' }}>{t('NEWS_EVENTS_COL_IMPACT')}</span>
+                  <span>{t('NEWS_EVENTS_COL_TIME')}</span><span>{t('NEWS_EVENTS_COL_EVENT')}</span><span className="ne-prev" style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_PREV')}</span><span style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_EST')}</span><span style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_ACTUAL')}</span>
                 </div>
                 {/* Rows */}
                 {g.events.map((e, ei) => {
@@ -777,9 +777,6 @@ export default function NewsPage() {
                       <span className="ne-prev" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.previous ?? '-'}</span>
                       <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.estimate ?? '-'}</span>
                       <span style={{ fontSize: 'var(--fs-caption)', fontWeight: e.actual ? 700 : 400, color: e.actual ? 'var(--green)' : 'var(--txt3)', textAlign: 'right', paddingTop: 1 }}>{e.actual ?? '-'}</span>
-                      <div className="ne-impact" style={{ display: 'flex', justifyContent: 'center', paddingTop: 1 }}>
-                        <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.15)', color: 'var(--red)', fontWeight: 700, letterSpacing: '0.03em' }}>{t('NEWS_EVENTS_IMPACT_HIGH')}</span>
-                      </div>
                     </div>
                   );
                 })}
