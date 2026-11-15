@@ -39,7 +39,7 @@ function CallbackInner() {
       sb.auth.exchangeCodeForSession(code).then(({ error }) => {
         if (error) setErrMsg(friendlyAuthError(error.message));
         else router.push(dest);
-      });
+      }).catch((e: unknown) => setErrMsg(friendlyAuthError(e instanceof Error ? e.message : String(e))));
     } else {
       // Implicit flow: Supabase picks up token from URL hash automatically
       router.push(dest);

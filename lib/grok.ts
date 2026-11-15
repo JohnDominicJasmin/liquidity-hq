@@ -36,6 +36,10 @@ export interface GrokUsageInfo {
  * `selection` travels as indicator IDENTIFIERS. The sentences that tell the model to weigh them live on
  * the server, because they are instructions rather than data and this call is caller-controlled.
  */
+/** Client deadlines for the read call (ms). Exported so the PR table and the tests name the same numbers. */
+export const GROK_QUICK_TIMEOUT_MS = 90_000;
+export const GROK_DEEP_TIMEOUT_MS = 200_000;
+
 export async function callGrokViaProxy(
   ctx: GrokContext,
   chart: ChartData,
@@ -44,14 +48,23 @@ export async function callGrokViaProxy(
 ): Promise<{ result: CombinedResult; usage: GrokUsageInfo | null }> {
   const token = await getAuthToken();
 
-  const res = await fetch('/api/grok', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ context: ctx, chart, type, selection }),
-  });
+  /* A read that never answers must end in an honest error, never a disabled button forever (OWNER-RULES 21). The server aborts its own
+     upstream call at 180 s (lib/xai.ts), so Deep (which searches) is given just over that and Quick a shorter bound. */
+  let res: Response;
+  try {
+    res = await fetch('/api/grok', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ context: ctx, chart, type, selection }),
+      signal: AbortSignal.timeout(type === 'deep' ? GROK_DEEP_TIMEOUT_MS : GROK_QUICK_TIMEOUT_MS),
+    });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'TimeoutError') throw Object.assign(new Error('READ_TIMEOUT'), { code: 'READ_TIMEOUT' });
+    throw e;
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { error?: string; code?: string; refunded?: boolean; usage?: GrokUsageInfo };
@@ -231,6 +244,7 @@ export async function fetchGrokUsage(): Promise<GrokUsageInfo | null> {
   try {
     const res = await fetch('/api/grok', {
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) return null;
     const { usage } = await res.json() as { usage: GrokUsageInfo | null };

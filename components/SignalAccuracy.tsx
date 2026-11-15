@@ -58,7 +58,7 @@ export default function SignalAccuracy() {
   const [err,  setErr]  = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/signal-accuracy')
+    fetch('/api/signal-accuracy', { signal: AbortSignal.timeout(20_000) })
       .then(r => r.ok ? r.json() : Promise.reject(`${r.status}`))
       .then((d: ApiResponse) => {
         if (d.error) setErr(d.error);

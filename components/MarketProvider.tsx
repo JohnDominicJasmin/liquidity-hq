@@ -34,6 +34,9 @@ const REST_FALLBACK_MS = 30_000;
  * poll whose budget the comment below is about, so the cap is about not hammering a dead endpoint
  * rather than about a ban. */
 const WS_BACKOFF_CAP_MS = 30_000;
+/* How long a socket may stay CONNECTING before it is treated as failed (starts the REST backup), and how long the REST backup poll may wait. */
+const WS_CONNECT_TIMEOUT_MS = 8_000;
+const REST_POLL_TIMEOUT_MS = 15_000;
 
 /* ── Liquidation Cascade (the on-screen banner; no message is sent anywhere) ── */
 const LIQ_CASCADE_THRESHOLDS: Record<string, number> = {
@@ -200,7 +203,7 @@ export default function MarketProvider(
          `BINANCE_SPOT_SYMS` in lib/coins.ts. */
       const syms = Object.values(BINANCE_SPOT_SYMS).filter(s => s !== 'HYPEUSDT');
       const batch = encodeURIComponent(JSON.stringify(syms));
-      const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`);
+      const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`, { signal: AbortSignal.timeout(REST_POLL_TIMEOUT_MS) });
       const data = await res.json();
       /* BOTH EXITS OF THIS POLL WERE SILENT - a thrown error and a body we cannot parse - and the
          panels downstream read the resulting absence as "still loading". An unparseable shape is a
@@ -240,7 +243,12 @@ export default function MarketProvider(
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
+    /* A socket stuck CONNECTING never fires `close`, so the REST backup below never started and the page sat on skeletons forever (OWNER-RULES 21).
+       After WS_CONNECT_TIMEOUT_MS it is closed by hand, which runs the same `onclose` path as any failed connect. */
+    const connectTimer = setTimeout(() => { if (ws.readyState === WebSocket.CONNECTING) { try { ws.close(); } catch { /* */ } } }, WS_CONNECT_TIMEOUT_MS);
+
     ws.onopen = () => {
+      clearTimeout(connectTimer);
       retriesRef.current = 0; urlIdxRef.current = 0;
       if (restTimerRef.current) { clearInterval(restTimerRef.current); restTimerRef.current = null; }
       if (wsRetryRef.current)  { clearTimeout(wsRetryRef.current);   wsRetryRef.current = null; }
@@ -263,6 +271,7 @@ export default function MarketProvider(
     };
 
     ws.onclose = () => {
+      clearTimeout(connectTimer);
       retriesRef.current++;
       urlIdxRef.current++;
 
@@ -651,7 +660,7 @@ export default function MarketProvider(
         // but the fix makes that recovery reliable rather than lucky.
         // #1626 C: 121 candles - the RSI reads the 120 CLOSED ones (Wilder needs the history to settle); everything else keeps reading the
         // newest 100 exactly as before (VWAP, volume profile, MA20, volume ratio).
-        const d = await fetchBybitKlinesRetry(sym, '15', 121);
+        const d = await fetchBybitKlinesRetry(sym, '15', 121, { attemptTimeoutMs: 15_000 });
         if (d === null) return;
         // Bybit returns newest-first - reverse to oldest-first
         const allKlines: string[][] = [...(d.result?.list ?? [])].reverse();
@@ -1196,7 +1205,7 @@ export default function MarketProvider(
        failed per-symbol fetch did for that coin: unknown until the live 8-min poll builds its own two readings. */
     let klAll: Record<string, Array<Array<unknown>>> = {};
     try {
-      const r = await fetch('/api/market/kline-batch?interval=5&limit=13');
+      const r = await fetch('/api/market/kline-batch?interval=5&limit=13', { signal: AbortSignal.timeout(20_000) });
       if (r.ok) klAll = (await r.json()).data ?? {};
     } catch { /* leave empty; the length guard in bootstrapReadings handles no data */ }
 
@@ -1232,7 +1241,7 @@ export default function MarketProvider(
         const bybitPrice = s.coins.btc?.price;
         /* #1631 C: Coinbase quotes USD, the exchange price is USDT. Converted to USD first; without the USDT rate the premium is
            unknown, not a raw difference that is mostly USDT's own discount. */
-        if (!bybitPrice || !usdtUsd) return { ...s, cbPremium: null, cbPremiumPct: null };
+        if (!bybitPrice || !usdtUsd) return { ...s, cbPremium: null, cbPremiumPct: null, cbPremiumStatus: s.cbPremiumStatus === 'ok' ? 'ok' : 'failed' };
         const bybitUsd   = bybitPrice * usdtUsd;
         const premium    = cbPrice - bybitUsd;
         const premiumPct = (premium / bybitUsd) * 100;

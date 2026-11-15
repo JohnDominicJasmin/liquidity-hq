@@ -315,7 +315,8 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     /* No client means no news was read, so alertsLoaded stays false (PM's re-audit of #1668): the Arena prompt then says the feed is
        unavailable instead of "No recent alerts", which the model reads as a quiet tape. */
     const sb = getSupabase();
-    if (!sb) { setEventsLoaded(true); return; }
+    /* alertsFailed too, so the panels waiting on alerts end in their failed state instead of a skeleton for ever (OWNER-RULES 21). */
+    if (!sb) { setEventsLoaded(true); setAlertsFailed(true); return; }
 
     let live = true;
 

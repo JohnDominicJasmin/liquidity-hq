@@ -551,11 +551,16 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
           <span className="sr-only">
             {anyLive ? t('LIQ_FEED_SR_WATCHING', { coin: coinFilter === 'ALL' ? t('LIQ_FEED_ALL_MARKETS') : coinFilter }) : t('LIQ_FEED_SR_CONNECTING')}
           </span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[0, 1, 2].map(i => (
-              <SkeletonBar key={i} height={30} radius={8} style={{ opacity: 1 - i * 0.18 }} />
-            ))}
-          </div>
+          {anyLive ? (
+            /* A connected feed with nothing yet is a quiet market, not a loading one; same height as the skeleton so nothing below moves. */
+            <div style={{ minHeight: 106, color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>{t('LIQ_FEED_SR_WATCHING', { coin: coinFilter === 'ALL' ? t('LIQ_FEED_ALL_MARKETS') : coinFilter })}</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[0, 1, 2].map(i => (
+                <SkeletonBar key={i} height={30} radius={8} style={{ opacity: 1 - i * 0.18 }} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 

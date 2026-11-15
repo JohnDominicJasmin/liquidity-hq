@@ -87,7 +87,7 @@ export function useOI1h(coin: CoinId): OI1hData {
           try {
           const r = await fetch(
             `/api/proxy?type=oi-hist&symbol=${binSym}&period=5m&limit=13`,
-            { cache: 'no-store' }
+            { cache: 'no-store', signal: AbortSignal.timeout(20_000) }
           );
           if (r.ok) {
             const d = await r.json() as Array<{ sumOpenInterest: string; sumOpenInterestValue?: string; timestamp?: number }>;
@@ -138,7 +138,7 @@ export function useOI1h(coin: CoinId): OI1hData {
         if (result.reason === 'failed' && bbtSym) {
           const r = await fetch(
             `/api/proxy?type=open-interest-1&symbol=${bbtSym}&intervalTime=5min&limit=13`,
-            { cache: 'no-store' }
+            { cache: 'no-store', signal: AbortSignal.timeout(20_000) }
           );
           if (r.ok) {
             const d = await r.json() as { result?: { list?: Array<{ openInterest: string; timestamp?: string }> } };

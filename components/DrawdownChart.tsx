@@ -50,7 +50,7 @@ export default function DrawdownChart() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/ath')
+    fetch('/api/ath', { signal: AbortSignal.timeout(20_000) })
       .then(r => r.ok ? r.json() : Promise.reject(`${r.status}`))
       .then(setAth)
       .catch(e => setErr(String(e)));

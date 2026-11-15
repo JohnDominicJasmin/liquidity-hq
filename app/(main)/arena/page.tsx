@@ -1698,7 +1698,7 @@ function ArenaContent() {
       setReadStep('Reading chart…');
       let raw: (string|number)[][];
       if (binanceSym) {
-        const r = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=${readTf}&limit=300`);
+        const r = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=${readTf}&limit=300`, { signal: AbortSignal.timeout(20_000) });
         if (!r.ok) throw new Error(t('ARENA_ERROR_BINANCE_API'));
         raw = await r.json();
       } else {
@@ -1715,7 +1715,7 @@ function ArenaContent() {
         // `bybitSym!`) so a future edit to that guard fails loudly at this
         // call instead of silently reaching `undefined` inside a URL again.
         if (!bybitSym) throw new Error(t('ARENA_ERROR_NO_DATA_SOURCE', { coin: selectedCoin.toUpperCase() }));
-        const d = await fetchBybitKlinesRetry(bybitSym, bybitInterval, 300);
+        const d = await fetchBybitKlinesRetry(bybitSym, bybitInterval, 300, { attemptTimeoutMs: 15_000 });
         if (d === null) throw new Error(t('ARENA_ERROR_BYBIT_API'));
         raw = [...(d.result?.list ?? [])].reverse(); // oldest-first to match Binance
       }
@@ -1750,7 +1750,7 @@ function ArenaContent() {
       try {
         if (binanceSym) {
           // #1626 C: 120 daily candles (Wilder needs the history), CLOSED ones only (Binance rows carry their close time at index 6).
-          const dr = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=1d&limit=120`);
+          const dr = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=1d&limit=120`, { signal: AbortSignal.timeout(20_000) });
           const dd = await dr.json() as (string|number)[][];
           const nowMs = Date.now();
           const dc = dd.filter(k => Number(k[6]) < nowMs).map(k => Number(k[4]));
@@ -1764,7 +1764,7 @@ function ArenaContent() {
           // this block sits inside the same function as the outer try at
           // the top of this handler, so `return` here would exit the whole
           // read early instead of just skipping the daily-RSI line.
-          const d = await fetchBybitKlinesRetry(bybitSym, 'D', 121);
+          const d = await fetchBybitKlinesRetry(bybitSym, 'D', 121, { attemptTimeoutMs: 15_000 });
           if (d === null) throw new Error('Bybit daily RSI klines failed after retry');
           // Newest-first, and the first row is today's forming candle: drop it.
           const dc = [...(d.result?.list ?? [])].slice(1).reverse().map(k => parseFloat(k[4]));
@@ -1882,6 +1882,11 @@ function ArenaContent() {
          deliberately: the only other BAD_ANSWER thrower is lib/grok.ts's own malformed-200 guard,
          where no refund was ever attempted, and a dropped field should understate what we gave back
          rather than promise a refund that did not happen. */
+      if ((e as { code?: string }).code === 'READ_TIMEOUT') {
+        setReadError(t('ARENA_READ_TIMEOUT'));
+        setReadProLocked(false);
+        return;
+      }
       if ((e as { code?: string }).code === 'BAD_ANSWER') {
         setReadError(t((e as { refunded?: boolean }).refunded === true
           ? 'ARENA_READ_BAD_ANSWER'

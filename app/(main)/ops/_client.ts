@@ -12,6 +12,8 @@ export async function adminFetch(path: string, init?: RequestInit): Promise<Resp
   return fetch(path, {
     ...init,
     cache: 'no-store',
+    /* Never waits for ever (OWNER-RULES 21); a caller's own signal wins. */
+    signal: init?.signal ?? AbortSignal.timeout(30_000),
     headers: { ...(init?.headers ?? {}), Authorization: `Bearer ${token}` },
   });
 }

@@ -58,7 +58,7 @@ export default function HigherTfMoveBadge({ coin, tf, signalDir }: Props) {
           // [], the length check below bails, the badge just doesn't render -
           // it's informational only, so silence on failure was already
           // correct and stays correct).
-          const d = await fetchBybitKlinesRetry(by, '240', LOOKBACK_BARS + 1);
+          const d = await fetchBybitKlinesRetry(by, '240', LOOKBACK_BARS + 1, { attemptTimeoutMs: 15_000 });
           // #1085 audit: the badge's normal resting state IS invisible (most
           // 4h windows don't clear MOVE_THRESHOLD_PCT), so a silent UI is
           // right - but that means "no qualifying move" and "retry exhausted"

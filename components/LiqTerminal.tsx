@@ -9,6 +9,8 @@ import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { useGraceElapsed } from '@/lib/useGrace';
+import ReadingGap from '@/components/ReadingGap';
 import { computeBands, type Band } from '@/lib/liqBands';
 import { parseRatioPair } from '@/lib/ratioPair';
 
@@ -224,6 +226,7 @@ export function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; c
 
 export default function LiqTerminal() {
   const { t } = useLabels();
+  const graceOver = useGraceElapsed();
   const { store }  = useMarket();
   const [coin, setCoin]   = useState<CoinId>('btc');
   const [range, setRange] = useState<TimeRange>('24h');
@@ -366,7 +369,7 @@ export default function LiqTerminal() {
       {!cd?.price && (
         <TPanel style={{ textAlign: 'center', padding: '2rem' }}>
           <span className="sr-only">{t('LIQ_LOADING_SR', { coin: coin.toUpperCase() })}</span>
-          <SkeletonBar width={140} height={14} radius={4} style={{ margin: '0 auto' }} />
+          {graceOver ? <ReadingGap loading={false} /> : <SkeletonBar width={140} height={14} radius={4} style={{ margin: '0 auto' }} />}
         </TPanel>
       )}
       {cd?.price && !cd?.oi && (
