@@ -103,6 +103,8 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
   const [clusters, setClusters] = useState<Bucket[]>([]);
   const [bnStatus, setBnStatus] = useState<'connecting'|'live'|'error'>('connecting');
   const [bbStatus, setBbStatus] = useState<'connecting'|'live'|'error'>('connecting');
+  /* Which venue is the ONLY one in the stored 24 h history, if one is. A venue the server cannot reach would otherwise leave history that looks complete and is not (the cluster read is stored rows). */
+  const [histOnly, setHistOnly] = useState<'BN' | 'BB' | null>(null);
   const [msgCount, setMsgCount] = useState(0);
   const coinFilterRef = useRef(coinFilter);
 
@@ -322,6 +324,8 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
         .limit(5000)
         .then(({ data }) => {
           if (!data || data.length === 0) return;
+          const venues = new Set((data as Array<{ source: string }>).map(r => r.source));
+          setHistOnly(venues.size === 1 ? (venues.has('BN') ? 'BN' : venues.has('BB') ? 'BB' : null) : null);
           const seen = new Set(
             historyRef.current.map(e => `${e.ts}_${e.coin}_${e.price}_${e.side}_${e.source}`)
           );
@@ -387,6 +391,7 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
         </div>
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
           {t('LIQ_FEED_SOURCES_LINE', { status: msgCount > 0 ? t('LIQ_FEED_EVENTS_COUNT', { count: msgCount }) : t('LIQ_FEED_WAITING') })}
+          {histOnly && <> · {t('LIQ_FEED_HISTORY_ONE_VENUE', { venue: histOnly === 'BN' ? 'Binance' : 'Bybit' })}</>}
         </span>
       </div>
 

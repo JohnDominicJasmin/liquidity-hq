@@ -32,6 +32,12 @@ export function coinFromSymbol(sym: string): string {
   return sym.replace(/^\d+/, '').replace(/USDT$|BUSD$|USDC$/, '');
 }
 
+/** The exchange's own event time when it sent a sane one, else the receipt time. The EXCHANGE time is what makes a restart overlap (two processes briefly both subscribed) produce the same key for the same liquidation, which the unique index then drops. */
+function eventTs(raw: unknown, receivedAt: number): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 && Math.abs(n - receivedAt) < 60 * 60 * 1000 ? Math.round(n) : receivedAt;
+}
+
 function toRow(sym: string, side: 'LONG' | 'SHORT', usd: number, price: number, source: 'BN' | 'BB', ts: number): LiqRow | null {
   if (!sym || !Number.isFinite(usd) || !Number.isFinite(price) || price <= 0 || usd < LIQ_MIN_USD) return null;
   const coin = coinFromSymbol(sym);
@@ -52,7 +58,7 @@ export function parseBinanceForceOrder(raw: string, ts: number): LiqRow | null {
     const price = priceAp > 0 ? priceAp : priceP;
     const qty = parseFloat(o.z ?? o.q ?? '0');
     if (!(price > 0) || !(qty > 0)) return null;
-    return toRow(String(o.s ?? ''), o.S === 'SELL' ? 'LONG' : 'SHORT', price * qty, price, 'BN', ts);
+    return toRow(String(o.s ?? ''), o.S === 'SELL' ? 'LONG' : 'SHORT', price * qty, price, 'BN', eventTs(o.T ?? msg?.data?.E, ts));
   } catch { return null; }
 }
 
@@ -68,7 +74,7 @@ export function parseBybitLiquidation(raw: string, ts: number): LiqRow[] {
       const price = parseFloat(d.p ?? '0');
       const qty = parseFloat(d.v ?? '0');
       if (!(price > 0) || !(qty > 0)) continue;
-      const row = toRow(String(d.s ?? ''), d.S === 'Buy' ? 'LONG' : 'SHORT', price * qty, price, 'BB', ts);
+      const row = toRow(String(d.s ?? ''), d.S === 'Buy' ? 'LONG' : 'SHORT', price * qty, price, 'BB', eventTs(d.T ?? msg.ts, ts));
       if (row) out.push(row);
     }
     return out;
@@ -83,7 +89,13 @@ async function flush(c: Collector): Promise<void> {
   c.flushing = true;
   const batch = c.queue.splice(0, MAX_BATCH);
   try {
-    const { error } = await getSupabaseAdmin().from(T.liq_events).insert(batch);
+    const admin = getSupabaseAdmin();
+    /* UPSERT-IGNORE on the natural key, so a second process (a restart overlap) cannot double a row. It needs the unique index of 20261116i; until that exists Postgres answers
+       42P10 (no matching constraint) and this falls back to a plain insert, so the order of deploy and migration does not matter. */
+    let { error } = await admin.from(T.liq_events).upsert(batch, { onConflict: 'source,coin,ts,side,usd', ignoreDuplicates: true });
+    if (error && (error.code === '42P10' || /no unique or exclusion constraint/i.test(error.message))) {
+      ({ error } = await admin.from(T.liq_events).insert(batch));
+    }
     if (error) throw new Error(error.message);
     reportHealth('liq:collect', 'other', true, `${batch.length} rows written`, batch.length);
   } catch (e) {
@@ -108,9 +120,11 @@ function connect(c: Collector, idx: number, name: string, open: () => WebSocket,
     c.sockets[idx] = ws;
     ws.addEventListener('open', () => { attempts = 0; reportHealth(`liq:${name}`, 'other', true, 'connected'); onOpen(ws); });
     ws.addEventListener('message', (ev: MessageEvent) => { if (typeof ev.data === 'string') onMessage(ev.data); });
-    ws.addEventListener('error', () => { /* the close that follows does the reconnect */ });
-    ws.addEventListener('close', () => {
-      reportHealth(`liq:${name}`, 'other', false, 'socket closed, reconnecting');
+    let lastError = '';
+    ws.addEventListener('error', (ev: Event) => { lastError = String((ev as ErrorEvent).message ?? '').slice(0, 120); /* the close that follows does the reconnect */ });
+    ws.addEventListener('close', (ev: CloseEvent) => {
+      /* Reported as FAILED with what the socket said, so a venue that refuses this server (Binance has before) shows up in lhq_api_health as that venue being down; the feed then says its history is one-venue (LiqFeed). */
+      reportHealth(`liq:${name}`, 'other', false, `socket closed (code ${ev.code}${lastError ? ', ' + lastError : ''}), reconnecting`);
       setTimeout(go, Math.min(BACKOFF_CAP_MS, 2_000 * ++attempts));
     });
   };
