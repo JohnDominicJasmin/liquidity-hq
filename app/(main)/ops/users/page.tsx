@@ -36,7 +36,8 @@ export default function UsersListPage() {
     const params = new URLSearchParams({ page: String(page), perPage: String(PER_PAGE) });
     if (debounced) params.set('search', debounced);
     (async () => {
-      const res = await adminFetch(`/api/ops/users?${params}`);
+      let res: Response | null = null;
+      try { res = await adminFetch(`/api/ops/users?${params}`); } catch { /* timed out or network: shown as the error below */ }
       if (!alive) return;
       if (!res || !res.ok) { setError(res ? `HTTP ${res.status}` : t('OPS_USERS_ERR_NOT_SIGNED_IN')); setLoading(false); return; }
       setData(await res.json());

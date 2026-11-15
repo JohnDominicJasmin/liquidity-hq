@@ -19,6 +19,8 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { fngWord } from '@/lib/shortWords';
 import type { LabelKey } from '@/lib/labelKeys';
+import { useGraceElapsed } from '@/lib/useGrace';
+import ReadingGap from '@/components/ReadingGap';
 import { formatRsi } from '@/lib/rsi';
 import { signedUsd } from '@/lib/numberFormat';
 import AiDisclaimer from '@/components/AiDisclaimer';
@@ -188,6 +190,7 @@ export default function BriefingTerminal() {
   const { user }                               = useAuth();
   const { usage, setUsage }                    = useGrokUsage();
   const { t }                                  = useLabels();
+  const graceOver                              = useGraceElapsed();
 
   const [now, setNow]           = useState<Date | null>(null);
   const nowMs = now?.getTime() ?? 0;
@@ -369,8 +372,10 @@ export default function BriefingTerminal() {
 
         {!pricesLoaded ? (
           <div style={{ padding: '4px 0' }}>
+            {graceOver ? <ReadingGap loading={false} /> : (<>
             <SkeletonBar width="55%" height={13} style={{ marginBottom: 8 }} />
             <SkeletonBar width="38%" height={13} />
+            </>)}
             <span className="sr-only">{t('BRIEFING_LOADING_MARKET_SR')}</span>
           </div>
         ) : top3Setups.length === 0 ? (
@@ -580,8 +585,10 @@ export default function BriefingTerminal() {
 
         {jpyUsd == null ? (
           <div>
+            {graceOver ? <ReadingGap loading={false} /> : (<>
             <SkeletonBar width="34%" height={16} style={{ marginBottom: 12 }} />
             <SkeletonBar width="100%" height={6} radius={3} />
+            </>)}
             <span className="sr-only">{t('BRIEFING_FETCHING_RATE_SR')}</span>
           </div>
         ) : (

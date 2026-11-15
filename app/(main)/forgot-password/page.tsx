@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
 import Link from 'next/link';
+import CaptchaStuckHint from '@/components/CaptchaStuckHint';
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { getSupabase } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
@@ -89,6 +90,7 @@ export default function ForgotPasswordPage() {
               </button>
             </div>
 
+            {TURNSTILE_SITE_KEY && <CaptchaStuckHint waiting={!captchaToken} />}
             {TURNSTILE_SITE_KEY && (
               <Turnstile
                 id="cf-turnstile-forgot-password"

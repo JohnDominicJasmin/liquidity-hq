@@ -343,12 +343,8 @@ export default function WhaleTradesFeed() {
       )}
       {feed.length === 0 && status === 'live' && (
         <div style={{ padding: '10px 14px' }} role="status" aria-live="polite">
-          <span className="sr-only">{t('WHALE_TRADES_FEED_SR_WATCHING')}</span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[0, 1, 2].map(i => (
-              <SkeletonBar key={i} height={30} radius={8} style={{ opacity: 1 - i * 0.18 }} />
-            ))}
-          </div>
+          {/* A connected feed with no whale trade yet is a quiet market, not a loading one. Same height as the skeleton, so nothing below moves. */}
+          <div style={{ minHeight: 106, color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>{t('WHALE_TRADES_FEED_SR_WATCHING')}</div>
         </div>
       )}
 
