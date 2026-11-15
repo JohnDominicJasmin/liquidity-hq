@@ -174,7 +174,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'New to trading? There is a Learn link in the footer and, on larger screens, in the navigation, plus a line under the buttons on the home page that points to the glossary.',
       'Your language arrives sooner after a quiet period, and pages stop refreshing market data while their tab is in the background and catch up when you come back.',
       'Price-alert tags on the Arena chart now sit on the chart itself, so they no longer push the chart down when they appear.',
-      'A paid plan is no longer mistaken for a free one while it is still loading: in the first seconds after you open AI Arena, tapping a fast timeframe or an indicator says "Checking your plan…" instead of offering an upgrade or changing your saved indicators.',
+      'A paid plan is no longer mistaken for a free one while it is still loading: in the first seconds after you open AI Arena, tapping a fast timeframe says "Checking your plan…" instead of offering an upgrade, and the indicator chips are held (with the same note) instead of changing your saved indicators.',
       'The Hours and Playbook pages no longer make claims we cannot back: the descriptions say when a window is, not what price will do, and the Playbook says it is trading folklore, not measured results.',
       'Phones: the Setup panel no longer covers the Ask AI button, the Upgrade buttons are easier to tap, and the trending chip on the Arena signal card no longer widens the page on a very small screen.',
     ],
