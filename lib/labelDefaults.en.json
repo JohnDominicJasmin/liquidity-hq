@@ -1575,7 +1575,7 @@
   "HOURS_DOT_DEAD_ZONE": "· Dead Zone",
   "HOURS_NEXT_WINDOWS": "Next windows",
   "HOURS_WINDOW_ACTIVE_RIGHT_NOW": "{name} is active RIGHT NOW",
-  "HOURS_GO_HUNT": "Open now.",
+  "HOURS_GO_HUNT": "This window is open now.",
   "HOURS_NO_WINDOWS": "No windows detected in next 7 days",
   "HOURS_ALL_WINDOWS": "All windows",
   "HOURS_WIN_GOD_BADGE": "LOW VOLUME",
