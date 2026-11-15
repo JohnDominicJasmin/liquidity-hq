@@ -158,7 +158,7 @@ export const CHANGELOG: ChangelogEntry[] = [
        and security-hardening commit in the range, which are internal.
 
        THE LAYOUT LINE SAYS "MUCH LESS", NOT "NEVER", because the deployed-qa gate decides what is true and this entry is written before it. PM: make it stronger only if the gate reads all cells under 0.1. */
-    date: '2026-11-16',
+    date: '2026-11-15',
     tag: 'v2026.11.15',
     items: [
       'The Strategy card in AI Arena is replaced by one Strategy set menu: Let the read choose, the seven strategies, or Custom. Pick a strategy and its call, buy, sell or wait with the reason, sits right under the menu. Picking one never switches off the indicators you already have on, and Bollinger squeeze breakout adds Bollinger Bands.',
