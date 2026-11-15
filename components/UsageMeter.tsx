@@ -76,8 +76,8 @@ export default function UsageMeter() {
       className="usage-meter-row"
       style={{
         /* THE ROW FILLS THE 43 PX SLOT (QA, deployed qa 5b9d1ad: the Free row measured 44 px, 1 px over, and the row's overflow clipped the pill's touch area on the bottom). Height 100% of the slot and no vertical padding,
-           so Pro and Free are both exactly the slot; only the horizontal axis is clipped, so the pill's 44 px touch area (pseudo-element) is intact above and below. */
-        display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'nowrap', overflowX: 'clip', height: '100%', boxSizing: 'border-box',
+           so Pro and Free are both exactly the slot; NOTHING IS CLIPPED any more (QA, qa e359faca: with overflow-x: clip the pill's ::after was cut at the row's own edge, so the touch box was 41 px, not 44). The row fits by construction (nowrap, the reset text ellipsizes and is hidden at 480 px and under), so the pill's 44 px touch area (pseudo-element) reaches 9 px above and below it. */
+        display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'nowrap', height: '100%', boxSizing: 'border-box',
         margin: 0, padding: '0 14px',
         borderRadius: 'var(--radius-card)', border: '0.5px solid var(--bdr)', background: 'var(--bg2)',
       }}
