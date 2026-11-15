@@ -654,7 +654,7 @@
   "DASH_EDGE_OI1H_TIP": "How much the total value of open futures positions changed in the last hour. A sharp rise means new money is entering aggressively; a sharp drop means mass liquidations or traders closing positions.",
   "DASH_EDGE_OI1H_LABEL": "Open Interest, last hour - {coin}",
   "DASH_COIN_SIGNALS_HEADER": "Coin Signals - {coin}",
-  "DASH_BEST_SETUP_TODAY_HEADER": "Best Setup Today",
+  "DASH_BEST_SETUP_TODAY_HEADER": "Playbook idea of the day",
   "DASH_PLAYBOOK_HEADER": "Playbook",
   "TNAV_WORDMARK": "LIQUIDITYHQ",
   "TNAV_ARIA_LABEL": "Main navigation",

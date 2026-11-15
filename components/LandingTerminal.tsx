@@ -308,6 +308,10 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
         </span>
         <span style={{ flex: 1, minWidth: isDesktop ? undefined : 4 }} />
         <LanguageSwitcher locale={locale} />
+        {/* Desktop only, by CSS (display:none below 768 px), NOT by isDesktop: that value is false on the server, so a JS gate made the link appear after hydration and push the header sideways. At 320-360 px the bar is already full; phones reach /learn from the hero line and the footer. */}
+        <Link href="/learn" className="lt-nav-learn">
+          {dict.nav.learn}
+        </Link>
         <Link href="/login" style={{
           fontFamily: 'var(--font-mono), monospace', fontSize: 11.5, letterSpacing: '.12em',
           color: 'var(--txt2)', border: '1px solid var(--border-input)',
@@ -382,6 +386,9 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
                 {dict.hero.ctaGhost}
               </Link>
             </div>
+            <p className="lt-hero-learn" style={{ marginTop: heroWide ? 16 : 14, fontSize: heroWide ? 14 : 13 }}>
+              <Link href="/learn" className="lt-inline-hit">{dict.hero.newToTrading}</Link>
+            </p>
 
             {heroWide ? (
               <div style={{ display: 'flex', marginTop: 40, borderTop: '1px solid var(--bdr)', paddingTop: 24 }}>
@@ -651,6 +658,7 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
               { title: dict.footer.columns.product, links: [
                 ['/dashboard', dict.footer.links.dashboard], ['/arena', dict.footer.links.arena],
                 ['/briefing', dict.footer.links.briefing], ['/news', dict.footer.links.news],
+                ['/learn', dict.footer.links.learn],
               ] },
               { title: dict.footer.columns.analysis, links: [
                 ['/scanner', dict.footer.links.scanner], ['/liq', dict.footer.links.liq],
