@@ -4,6 +4,7 @@
  *   OUT      signed out
  *   IN       signed in as fixture A, no saved strategy
  *   SAVED-WARM  as IN+SAVED, but the browser already holds the cached settings (lhq_settings_v1 with the saved strategy), as on a RETURN visit: the pre-paint hint can reserve the call box. IN+SAVED is the COLD first visit (no cache).
+ *   SAVED-RU as IN+SAVED in Russian at 360 px (the phone band's narrow end, the tallest call; PM 2026-11-15)
  *   FREE     signed in as fixture B (a Free account: the usage meter carries the Upgrade pill, a taller row than Pro)
  *   IN+SAVED signed in as fixture A with a saved strategy (the call box mounts on load: "the box appears (one shift) when a saved strategy loads")
  * Each load's total is printed with every shift entry's source elements. The cell FAILS when the WORST of the six loads is over 0.1 (the worst, not the average: the owner's rule is about any load).
@@ -23,7 +24,7 @@ const OBSERVER = () => {
   try { new PerformanceObserver((l) => { for (const e of l.getEntries() as unknown as Array<{ value: number; startTime: number; hadRecentInput: boolean; sources?: Array<{ node: Node | null; previousRect: DOMRectReadOnly; currentRect: DOMRectReadOnly }> }>) (w.__cls as unknown[]).push({ value: +e.value.toFixed(4), t: Math.round(e.startTime), hadRecentInput: e.hadRecentInput, sources: (e.sources || []).map((s) => ({ ...d(s.node), prev: r(s.previousRect), cur: r(s.currentRect) })) }); }).observe({ type: 'layout-shift', buffered: true }); } catch { /* unsupported */ }
 };
 
-async function load(browser: Browser, state: 'OUT' | 'IN' | 'IN+SAVED' | 'SAVED-WARM' | 'FREE', width: number) {
+async function load(browser: Browser, state: 'OUT' | 'IN' | 'IN+SAVED' | 'SAVED-WARM' | 'SAVED-RU' | 'FREE', width: number) {
   const height = width < 500 ? 844 : 900;
   if (state === 'OUT') {
     const ctx = await browser.newContext({ viewport: { width, height } }); await ctx.addInitScript(OBSERVER); const page = await ctx.newPage();
@@ -32,16 +33,17 @@ async function load(browser: Browser, state: 'OUT' | 'IN' | 'IN+SAVED' | 'SAVED-
   const ctx = await signedInContext(browser, state === 'FREE' ? 'b' : 'a'); await ctx.addInitScript(OBSERVER); const page = await ctx.newPage(); await page.setViewportSize({ width, height });
   await page.route(/\/api\/settings(\?|$)/, async route => { const q = route.request(); if (q.method() === 'GET') return route.fallback(); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ accepted: Object.keys((q.postDataJSON() ?? {}) as object).filter(k => k !== 'knownAsOf'), rejected: [], settings: null }) }); });
   if (state === 'SAVED-WARM') await ctx.addInitScript(() => { try { localStorage.setItem('lhq_settings_v1', JSON.stringify({ arena_strategy: 'ema_stack' })); } catch { /* private */ } });
-  if (state === 'IN+SAVED' || state === 'SAVED-WARM') await page.route(/\/rest\/v1\/lhq_(dev_)?user_settings\?/, async route => {
+  if (state === 'SAVED-RU') await ctx.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'ru'); } catch { /* private */ } });
+  if (state === 'IN+SAVED' || state === 'SAVED-WARM' || state === 'SAVED-RU') await page.route(/\/rest\/v1\/lhq_(dev_)?user_settings\?/, async route => {
     if (route.request().method() !== 'GET') return route.fallback(); const res = await route.fetch(); const body = await res.json().catch(() => null); if (body == null) return route.fulfill({ response: res });
-    const patch = (r: Record<string, unknown>) => ({ ...r, arena_strategy: 'ema_stack' }); return route.fulfill({ response: res, json: Array.isArray(body) ? body.map(patch) : patch(body as Record<string, unknown>) });
+    const patch = (r: Record<string, unknown>) => ({ ...r, arena_strategy: 'ema_stack', ...(state === 'SAVED-RU' ? { language: 'ru' } : {}) }); return route.fulfill({ response: res, json: Array.isArray(body) ? body.map(patch) : patch(body as Record<string, unknown>) });
   });
   try { await gotoSignedIn(page, '/arena?coin=btc&tf=1h'); await page.waitForTimeout(9_000); return await page.evaluate(() => (window as unknown as { __cls: Shift[] }).__cls); } finally { await ctx.close(); }
 }
 
 test.describe('arena CLS gate (deployed site)', () => {
   test.describe.configure({ timeout: 600_000, retries: 0 });
-  for (const state of ['OUT', 'IN', 'IN+SAVED', 'SAVED-WARM', 'FREE'] as const) for (const width of [1280, 390]) test(`${state} at ${width}: the worst of ${LOADS} loads is at most ${BUDGET}`, async ({ browser }) => {
+  for (const [state, width] of [['OUT', 1280], ['OUT', 390], ['IN', 1280], ['IN', 390], ['IN+SAVED', 1280], ['IN+SAVED', 390], ['SAVED-WARM', 1280], ['SAVED-WARM', 390], ['FREE', 1280], ['FREE', 390], ['SAVED-RU', 360]] as const) test(`${state} at ${width}: the worst of ${LOADS} loads is at most ${BUDGET}`, async ({ browser }) => {
     test.skip(state !== 'OUT' && !AUTH_READY, AUTH_SKIP_REASON);
     const totals: number[] = []; const detail: string[] = [];
     for (let i = 1; i <= LOADS; i++) {
