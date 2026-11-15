@@ -4025,6 +4025,26 @@ html[data-theme="light"] { background: var(--bg0); }
 /* The usage meter's slot (components/UsageMeter.tsx): the margin the meter always had plus a FIXED height. The meter is one line (its reset text ellipsizes), so 43 px (QA run 43649222730) holds on a
    phone and in every language. */
 .usage-meter-slot { margin: 2px 0 10px; height: 43px; }
+/* The Arena header's Free upgrade pill is 26 px tall so it fits the header row; its 44 px touch target is this pseudo-element (no layout space). */
+a[data-testid="arena-header-upgrade"]::after { content: ''; position: absolute; inset: -9px -4px; }
+/* THE USAGE METER ON A PHONE (QA, deployed qa 5b9d1ad: the Free pill was pushed past the row's right edge at 390 px in Korean and Russian, because the two stat blocks do not shrink). At 480 px and under the
+   reset time is dropped (the numbers and the Upgrade pill matter more), the stat blocks may narrow to 80 px and the gap is 12 px: 2 x 80 + 24 + the widest pill (108, Russian) = 292 of the 322 px row. */
+@media (max-width: 480px) {
+  .usage-meter-row { gap: 12px !important; }
+  .usage-meter-row .usage-stat { min-width: 80px !important; }
+  .usage-meter-row .usage-reset { display: none; }
+}
+/* THE STRATEGY CALL BOX'S RESERVE for a visitor whose saved strategy is cached on this browser (`<html data-strat="1">`, components/RootDocument.tsx). The box is the call block (.strat-call-dyn: 180 / 150 / 200 px)
+   + the description row + the note + the gaps + its 10 px top margin, about the block + 55 px; a little more here (+ 10 px), so the saved strategy arriving from settings fills the band instead of inserting it.
+   PROVISIONAL until QA's gate measures the real box per width. Without a cached strategy there is no reserve (picking one is the visitor's own action). */
+.strat-call-host { display: flow-root; }
+html[data-strat="1"] .strat-call-host { min-height: 245px; }
+@media (max-width: 980px) { html[data-strat="1"] .strat-call-host { min-height: 215px; } }
+@media (max-width: 640px) { html[data-strat="1"] .strat-call-host { min-height: 265px; } }
+/* The host of the usage meter (app/(main)/arena/page.tsx). `<html data-sess="1">` is set before first paint when a session is stored (components/RootDocument.tsx, `session-hint`), so a signed-in visitor has the
+   meter's whole band (2 + 43 + 10 px) reserved from the FIRST paint instead of from the moment the session read resolves. flow-root so the slot's own margins stay inside the host. */
+.usage-meter-host { display: flow-root; }
+html[data-sess="1"] .usage-meter-host { min-height: 55px; }
 /* One 43 px slot for every account (PM, #2368). The Upgrade pill is 26 px tall here (it was 44, which made the Free row 62 px); a pseudo-element gives it back a 44 px touch target without taking layout space. */
 .usage-meter-slot a[data-testid="usage-meter-upgrade"]::after { content: ''; position: absolute; inset: -9px -4px; }
 .usage-auth-link {
