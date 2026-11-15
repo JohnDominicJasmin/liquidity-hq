@@ -1238,7 +1238,7 @@ export default function MarketProvider(
         const bybitPrice = s.coins.btc?.price;
         /* #1631 C: Coinbase quotes USD, the exchange price is USDT. Converted to USD first; without the USDT rate the premium is
            unknown, not a raw difference that is mostly USDT's own discount. */
-        if (!bybitPrice || !usdtUsd) return { ...s, cbPremium: null, cbPremiumPct: null };
+        if (!bybitPrice || !usdtUsd) return { ...s, cbPremium: null, cbPremiumPct: null, cbPremiumStatus: s.cbPremiumStatus === 'ok' ? 'ok' : 'failed' };
         const bybitUsd   = bybitPrice * usdtUsd;
         const premium    = cbPrice - bybitUsd;
         const premiumPct = (premium / bybitUsd) * 100;

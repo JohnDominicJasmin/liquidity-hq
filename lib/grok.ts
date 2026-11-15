@@ -244,6 +244,7 @@ export async function fetchGrokUsage(): Promise<GrokUsageInfo | null> {
   try {
     const res = await fetch('/api/grok', {
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) return null;
     const { usage } = await res.json() as { usage: GrokUsageInfo | null };

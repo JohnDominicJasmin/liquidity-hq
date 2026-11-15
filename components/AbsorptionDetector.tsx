@@ -213,8 +213,8 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
 
       if (binSym) {
         const [r15, r1h] = await Promise.all([
-          fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=15m&limit=50`),
-          fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=1h&limit=20`),
+          fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=15m&limit=50`, { signal: AbortSignal.timeout(20_000) }),
+          fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=1h&limit=20`, { signal: AbortSignal.timeout(20_000) }),
         ]);
         if (!r15.ok || !r1h.ok) throw new Error('Binance fetch failed');
         const raw15 = await r15.json() as (string | number)[][];

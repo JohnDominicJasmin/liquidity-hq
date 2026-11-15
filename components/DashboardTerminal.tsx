@@ -32,6 +32,7 @@ import { healthGradeA11y, healthChipStyle } from '@/lib/healthGradeA11y';
 import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useGraceElapsed } from '@/lib/useGrace';
 import { useLabels } from '@/lib/labels';
 import ReadingGap from '@/components/ReadingGap';
 import { fundingWord, setupWord, patternWord } from '@/lib/shortWords';
@@ -329,6 +330,7 @@ function TEdgeSignals() {
   const coin = store.selectedCoin;
   const d    = store.coins[coin];
   const oi1h = useOI1h(coin);
+  const oiGraceOver = useGraceElapsed();
 
   const cbPct = store.cbPremiumPct;
   const cbCol = cbPct == null ? 'var(--txt3)'
@@ -406,7 +408,7 @@ function TEdgeSignals() {
             </>
           ) : (
             <div className="edge-card-signal" style={{ color: 'var(--txt3)', marginTop: 4 }}>
-              {d?.oi != null ? t('DASH_EDGE_OI_FLAT') : <SkeletonBar width={90} height={11} radius={4} />}
+              {d?.oi != null ? t('DASH_EDGE_OI_FLAT') : (oiGraceOver ? <ReadingGap loading={false} /> : <SkeletonBar width={90} height={11} radius={4} />)}
             </div>
           )}
         </div>
