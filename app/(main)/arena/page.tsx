@@ -438,8 +438,9 @@ function ArenaContent() {
   /* ARENA STRATEGY (owner decision 2026-11-14, option A: ONE strategy menu). The saved strategy id lives here next to the chips: the Strategy set menu writes BOTH in one save, and touching a chip by hand
      leaves the strategy (the menu then shows Custom). Persisted on the user's own action only, never echoed by the seed. */
   const [arenaStrategy, setArenaStrategyState] = useState<string | null>(null);
-  /* THE PLAN IS STILL BEING READ (signed in, auth or entitlements loading). Until it is known, chip taps and strategy picks are NO-OPS: they used to run the FREE branch (swap to one chip, or one chip added) and then SAVE the result, so a paying Pro user who tapped before the plan arrived (2.4-5 s after load, longer on a phone) had a saved multi-indicator selection cut to one. Nothing computed under an unknown plan is applied or persisted. The panel shows the same state (chips disabled, 'Checking your plan…'). */
-  const planUnsettled = !!user && (authLoading || entitlementsLoading);
+  /* THE PLAN IS STILL BEING READ (signed in, auth or entitlements loading). Until it is known (loading, or unknown after a failed read), chip taps and strategy picks are NO-OPS: they used to run the FREE branch (swap to one chip, or one chip added) and then SAVE the result, so a paying Pro user who tapped before the plan arrived (2.4-5 s after load, longer on a phone) had a saved multi-indicator selection cut to one. Nothing computed under an unknown plan is applied or persisted. The panel shows the same state (chips disabled, 'Checking your plan…'). */
+  /* 'unknown' (every retry of the plan read failed) counts as unsettled too: it is not a confirmed Free account, so no destructive op and no save; the panel already shows its unknown-plan card with Retry in that state. Only a CONFIRMED 'not_entitled' runs the Free swap. */
+  const planUnsettled = !!user && (authLoading || entitlementsLoading || entitlementStatus === 'unknown');
   const handleStrategySelectionChange = useCallback((next: readonly string[]) => {
     if (planUnsettled) return;
     // #1246/#1347: belt-and-suspenders alongside StrategyPanel's own gate -
