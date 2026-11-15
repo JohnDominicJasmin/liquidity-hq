@@ -22,7 +22,7 @@
  * labels pass is a separate DB-driven change. The one exception is the params verdict note, which
  * carries the owner's exact wording through a real label key. */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from './AuthProvider';
 import { SkeletonBar } from './Skeleton';
@@ -155,6 +155,11 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
 
   const limit = indicatorLimit(entitled);
   const pickedStrategy = findStrategy(strategy);
+  /* THE CALL BOX'S FIRST-PAINT RESERVE ENDS WITH THE ANSWER. `<html data-strat="1">` (components/RootDocument.tsx) reserves the box's height from a cached saved strategy; once the settings have loaded and no strategy is
+     picked (none was saved, or the visitor chose "Let the read choose" / Custom), the reserve is removed so it never leaves an empty band. A visitor's own pick is not a layout shift. */
+  useEffect(() => {
+    if (loaded && !pickedStrategy) document.documentElement.removeAttribute('data-strat');
+  }, [loaded, pickedStrategy]);
   const setId = pickedStrategy ? pickedStrategy.id : selected.length > 0 ? CUSTOM_SET_ID : AUTO_SET_ID;
   /* Which indicator's parameters the box shows. One box, not one per selection. */
   const [focused, setFocused] = useState<string | null>(null);
@@ -221,7 +226,11 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
           {STRATEGIES.map(s => <option key={s.id} value={s.id}>{t(s.nameKey)}</option>)}
           {STRATEGY_SETS.filter(s => s.id === CUSTOM_SET_ID).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
-        {pickedStrategy && <StrategyCallBox def={pickedStrategy} state={strategyState} />}
+        {/* THE CALL BOX'S HOST. A visitor whose saved strategy is stored on this browser has this box's whole height reserved from the FIRST paint (`html[data-strat="1"]`, set before paint by
+            components/RootDocument.tsx, sized in globals.css), because the saved strategy arrives from settings 1-2 s later and the box mounted then, pushing the Indicators section 256 px (QA gate, IN+SAVED 1280). */}
+        <div className="strat-call-host">
+          {pickedStrategy && <StrategyCallBox def={pickedStrategy} state={strategyState} />}
+        </div>
       </div>
 
       <div className="strat-sect">

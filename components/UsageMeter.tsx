@@ -19,7 +19,7 @@ function StatBlock({ label, used, limit }: { label: string; used: number; limit:
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   const color = pct >= 100 ? 'var(--red)' : pct >= 80 ? 'var(--amber)' : 'var(--txt2)';
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 96 }}>
+    <div className="usage-stat" style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 96 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 'var(--fs-caption)' }}>
         <span style={{ color: 'var(--txt2)' }}>{label}</span>
         <span style={{ color, fontVariantNumeric: 'tabular-nums' }}>{used}/{limit}</span>
@@ -73,16 +73,19 @@ export default function UsageMeter() {
   return (
     <div className={slotClass}>
     <div
+      className="usage-meter-row"
       style={{
-        display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'nowrap', overflow: 'hidden',
-        margin: 0, padding: '8px 14px',
+        /* THE ROW FILLS THE 43 PX SLOT (QA, deployed qa 5b9d1ad: the Free row measured 44 px, 1 px over, and the row's overflow clipped the pill's touch area on the bottom). Height 100% of the slot and no vertical padding,
+           so Pro and Free are both exactly the slot; NOTHING IS CLIPPED any more (QA, qa e359faca: with overflow-x: clip the pill's ::after was cut at the row's own edge, so the touch box was 41 px, not 44). The row fits by construction (nowrap, the reset text ellipsizes and is hidden at 480 px and under), so the pill's 44 px touch area (pseudo-element) reaches 9 px above and below it. */
+        display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'nowrap', height: '100%', boxSizing: 'border-box',
+        margin: 0, padding: '0 14px',
         borderRadius: 'var(--radius-card)', border: '0.5px solid var(--bdr)', background: 'var(--bg2)',
       }}
     >
       <StatBlock label={t('USAGE_METER_QUICK_LABEL')} used={usage.quick_used} limit={usage.quick_limit} />
       <StatBlock label={t('USAGE_METER_DEEP_LABEL')} used={usage.deep_used} limit={usage.deep_limit} />
       {resetTime != null && (
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: '0 1 auto' }}>
+        <span className="usage-reset" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: '0 1 auto' }}>
           {t('USAGE_METER_RESET_FACT', { time: resetTime })}
         </span>
       )}

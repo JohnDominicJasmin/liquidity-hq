@@ -2081,12 +2081,15 @@ function ArenaContent() {
 
       {/* ── PAGE HEADER ── */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>{t('ARENA_PAGE_TITLE')}</div>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent-2)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
+        {/* ONE ROW, NEVER TWO, SO THE FREE UPGRADE PILL ARRIVING MOVES NOTHING (CLS gate, QA run 43686322083: +0.316 at 1280 and +0.041 at 390, Free accounts only). The pill used to be 44 px tall in a row of about
+            30 px, and on a phone it wrapped onto a row of its own when the plan resolved. Now the row does not wrap, the pill is 26 px (its 44 px touch target is a pseudo-element, globals.css), and the live badge
+            gives way (ellipsis) instead of the row growing. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'nowrap' }}>
+          <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px', whiteSpace: 'nowrap', flexShrink: 0 }}>{t('ARENA_PAGE_TITLE')}</div>
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent-2)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
           {/* Free accounts only (owner, 2026-10-07: they could not find Upgrade on this page). The same 44px pill TrialBanner
               uses, at the right of the header; nothing for Pro, a trial, or an unknown plan. */}
-          <FreeUpgradePill testId="arena-header-upgrade" style={{ marginLeft: 'auto' }} />
+          <FreeUpgradePill testId="arena-header-upgrade" style={{ marginLeft: 'auto', minHeight: 26, position: 'relative' }} />
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
@@ -2554,12 +2557,26 @@ function ArenaContent() {
           )}
         </button>
 
-        {user && (
+        <button
+          className="arena-ask-grok-btn"
+          style={{ width: 'auto', marginBottom: 0 }}
+          disabled={aboveAnalysisCeiling}
+          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : undefined}
+          onClick={() => runStrategy('ask', strategySelection)}
+        >
+          {t('ARENA_ASK_LIQUIDITYAI_BUTTON')}
+        </button>
+        {/* SET ALERT AND ITS NOTE COME AFTER THE ASK BUTTON, NOT BEFORE IT (CLS gate, QA probe run 43687645312): they render only once the session resolves, and while they stood to the left of the
+            Ask button their arrival moved it 91 px right on every signed-in load. To its right, they arrive at the end of the row and nothing already on screen moves. */}
+        {/* HELD IN PLACE WHILE THE SESSION RESOLVES (CLS gate on qa fe67c601, QA run 43693801753: at 360 px in Russian the row of buttons WRAPPED when this button arrived, 145 -> 230 px, pushing the workspace 141 px).
+            For a visitor with a stored session (<html data-sess="1">, set before paint) a disabled placeholder takes the button's place from the first paint (CSS below shows it only then); for everyone else it
+            is not drawn until the user is known. */}
+        {(user || authLoading) && (
           <button
-            className="arena-ask-grok-btn"
+            className={`arena-ask-grok-btn${user ? '' : ' arena-set-alert-pending'}`}
             style={{ width: 'auto', marginBottom: 0, background: alertFormOpen && alertCoinCovered ? 'rgba(26,122,255,0.15)' : undefined }}
             onClick={() => alertFormOpen ? setAlertFormOpen(false) : openAlertForm()}
-            disabled={!alertCoinCovered}
+            disabled={!user || !alertCoinCovered}
             title={alertCoinCovered ? t('ARENA_SET_ALERT_TITLE') : t('ARENA_ALERT_MAIN_COINS_ONLY')}
           >
             {t('ARENA_SET_ALERT_BUTTON')}
@@ -2571,16 +2588,6 @@ function ArenaContent() {
             {t('ARENA_ALERT_MAIN_COINS_ONLY')}
           </span>
         )}
-
-        <button
-          className="arena-ask-grok-btn"
-          style={{ width: 'auto', marginBottom: 0 }}
-          disabled={aboveAnalysisCeiling}
-          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : undefined}
-          onClick={() => runStrategy('ask', strategySelection)}
-        >
-          {t('ARENA_ASK_LIQUIDITYAI_BUTTON')}
-        </button>
       </div>
 
       {/* Live daily-usage meter - remaining Quick/Deep + reset countdown. Visible
@@ -2589,7 +2596,7 @@ function ArenaContent() {
           #usage-meter so it scrolls straight here instead of dumping the user
           at the top of the whole Arena page - scroll-margin-top clears the
           sticky ticker+nav bar so the meter doesn't land hidden under them. */}
-      <div id="usage-meter" style={{ scrollMarginTop: 90 }}>
+      <div id="usage-meter" className="usage-meter-host" style={{ scrollMarginTop: 90 }}>
         <UsageMeter />
       </div>
 
@@ -3166,9 +3173,6 @@ function ArenaContent() {
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
       <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} strategyState={strategyState} />
-      {/* THE FIRST-VISIT SOUND QUESTION sits HERE, below the Strategy card, not above the chart. It appears only after settings load, so above the chart it pushed the whole chart
-          down (CLS 0.164 against a 0.1 budget on /arena: release run 43595134120, measured again in 43602526829). Down here it can only push the panels beneath it. */}
-      <ArenaSoundPrompt />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
@@ -3200,6 +3204,9 @@ function ArenaContent() {
           onUnlock={() => setUpgradeGate(t('ARENA_CONFLUENCE_GATE_FEATURE_LABEL'))}
         />
       )}
+      {/* THE FIRST-VISIT SOUND QUESTION is the LAST thing in the rail. It appears only after settings load: above the chart it pushed the whole chart down (CLS 0.164, release run 43595134120), and directly under
+          the Strategy card it still pushed Market snapshot and the panels beneath it while they were on screen (QA gate on qa 5b9d1ad, FREE 1280). At the end of the rail there is nothing beneath it in the rail. */}
+      <ArenaSoundPrompt />
         </aside>
       </div>
 
