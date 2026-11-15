@@ -2568,12 +2568,15 @@ function ArenaContent() {
         </button>
         {/* SET ALERT AND ITS NOTE COME AFTER THE ASK BUTTON, NOT BEFORE IT (CLS gate, QA probe run 43687645312): they render only once the session resolves, and while they stood to the left of the
             Ask button their arrival moved it 91 px right on every signed-in load. To its right, they arrive at the end of the row and nothing already on screen moves. */}
-        {user && (
+        {/* HELD IN PLACE WHILE THE SESSION RESOLVES (CLS gate on qa fe67c601, QA run 43693801753: at 360 px in Russian the row of buttons WRAPPED when this button arrived, 145 -> 230 px, pushing the workspace 141 px).
+            For a visitor with a stored session (<html data-sess="1">, set before paint) a disabled placeholder takes the button's place from the first paint (CSS below shows it only then); for everyone else it
+            is not drawn until the user is known. */}
+        {(user || authLoading) && (
           <button
-            className="arena-ask-grok-btn"
+            className={`arena-ask-grok-btn${user ? '' : ' arena-set-alert-pending'}`}
             style={{ width: 'auto', marginBottom: 0, background: alertFormOpen && alertCoinCovered ? 'rgba(26,122,255,0.15)' : undefined }}
             onClick={() => alertFormOpen ? setAlertFormOpen(false) : openAlertForm()}
-            disabled={!alertCoinCovered}
+            disabled={!user || !alertCoinCovered}
             title={alertCoinCovered ? t('ARENA_SET_ALERT_TITLE') : t('ARENA_ALERT_MAIN_COINS_ONLY')}
           >
             {t('ARENA_SET_ALERT_BUTTON')}
