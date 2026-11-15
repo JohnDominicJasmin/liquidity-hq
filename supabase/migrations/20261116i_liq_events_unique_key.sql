@@ -1,4 +1,4 @@
--- NOT YET APPLIED TO ANY DATABASE. DDL, and it DELETES DUPLICATE ROWS: PM/DevOps applies it, the prod block only with the owner's OK. Prod Supabase has no backups: read the count first.
+-- NOT YET APPLIED TO ANY DATABASE. DDL, and it DELETES DUPLICATE ROWS: PM/DevOps applies it, the prod block only with the owner's OK. Daily backups to the private db-backups bucket have run since 2026-11-14 (restore drill passed); PM takes a fresh backup run immediately before this and reads the count first.
 --
 -- A unique key on the natural key of a liquidation, so the server collector's upsert-ignore (lib/liqCollector.ts) drops a row a second process wrote too (a restart overlap). The collector works
 -- WITHOUT this index (it falls back to a plain insert), so the order of deploy and migration does not matter.

@@ -407,6 +407,8 @@ interface Props {
   onShowSRChange:  (next: boolean) => void;
   showLiq:       boolean;
   onShowLiqChange: (next: boolean) => void;
+  /** The only venue in the stored 24 h liquidation history, when it is just one: the Liq button then says so instead of looking complete. */
+  liqHistOnly?: 'BN' | 'BB' | null;
   /* Called when a confirmed-Free visitor taps the locked Draw Structure button. The PAGE owns the
      upsell, the same way it owns the fast-timeframe gate - this chart has no router and no opinion
      about what an upgrade prompt looks like, and `onUnlock` is already the established prop name for
@@ -674,7 +676,7 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, onUnlock, strategyOverlay }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, onUnlock, strategyOverlay }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -3488,9 +3490,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           <button
             className={`klc-tool-btn${showLiq ? ' on' : ''}`}
             onClick={() => onShowLiqChange(!showLiq)}
-            title="Toggle realized liquidation clusters - the heaviest price levels where positions were actually liquidated in the last 24h. Price memory, not predicted liquidation levels."
+            title={`Toggle realized liquidation clusters - the heaviest price levels where positions were actually liquidated in the last 24h. Price memory, not predicted liquidation levels.${liqHistOnly ? ` The stored history comes from ${liqHistOnly === 'BN' ? 'Binance' : 'Bybit'} only.` : ''}`}
           >
-            Liq
+            Liq{liqHistOnly ? ` · ${liqHistOnly === 'BN' ? 'Binance' : 'Bybit'} only` : ''}
           </button>
         )}
 

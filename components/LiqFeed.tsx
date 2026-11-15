@@ -95,7 +95,7 @@ function fmtEventPrice(price: number): string {
  *  The live event ticker goes with it. The owner was offered "keep the ticker,
  *  drop the duplicated bars" and chose to hide the card - recorded here so it
  *  does not come back as an oversight. */
-export default function LiqFeed({ onClusters, coinFilter, headless = false }: { onClusters?: (clusters: Bucket[]) => void; coinFilter: string; headless?: boolean }) {
+export default function LiqFeed({ onClusters, coinFilter, headless = false, onHistoryVenues }: { onClusters?: (clusters: Bucket[]) => void; coinFilter: string; headless?: boolean; onHistoryVenues?: (only: 'BN' | 'BB' | null) => void }) {
   const { t } = useLabels();
   const [feed,     setFeed]     = useState<LiqEvent[]>([]);
   const [stats,    setStats]    = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
@@ -325,7 +325,9 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
         .then(({ data }) => {
           if (!data || data.length === 0) return;
           const venues = new Set((data as Array<{ source: string }>).map(r => r.source));
-          setHistOnly(venues.size === 1 ? (venues.has('BN') ? 'BN' : venues.has('BB') ? 'BB' : null) : null);
+          const only = venues.size === 1 ? (venues.has('BN') ? 'BN' : venues.has('BB') ? 'BB' : null) : null;
+          setHistOnly(only);
+          onHistoryVenues?.(only);   // the /liq ladder and the Arena chart read the same table and say the same thing
           const seen = new Set(
             historyRef.current.map(e => `${e.ts}_${e.coin}_${e.price}_${e.side}_${e.source}`)
           );
