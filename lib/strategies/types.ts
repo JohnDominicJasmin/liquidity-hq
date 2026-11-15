@@ -17,6 +17,22 @@ export interface StrategyContext {
   btcCandles?: readonly OHLCV[];
 }
 
+/* WHAT THE STRATEGY DRAWS ON THE CHART (owner, 2026-11-15: picking a strategy must change the chart, not only the text). PURE data from the SAME closed candles as the verdict, so a test can assert it and the
+ * server never needs the chart. It is the LATEST state only: no history. A WAIT carries the levels the strategy is WATCHING; a BUY / SELL adds the signal candle's marker and the "wrong if" line. A level or zone
+ * starts at `fromTs` (the candle it stood on) and runs to the right edge. Text comes from `labelKey` through t(), never from here. */
+export type OverlayRole = 'watch' | 'confirm' | 'invalid' | 'ref';
+export interface OverlayLevel { price: number; role: OverlayRole; fromTs: number; labelKey: LabelKey; labelParams?: Record<string, string> }
+export interface OverlayZone { top: number; bottom: number; fromTs: number; toTs: number; kind: 'supply' | 'demand'; labelKey: LabelKey }
+export interface OverlayLine { points: Array<{ ts: number; price: number }>; role: OverlayRole; labelKey: LabelKey; labelParams?: Record<string, string> }
+export interface StrategyOverlay {
+  levels: OverlayLevel[];
+  zones: OverlayZone[];
+  lines: OverlayLine[];
+  /** The arrow on the signal candle, BUY / SELL only. */
+  marker: { ts: number; dir: 'long' | 'short' } | null;
+}
+export const EMPTY_OVERLAY: StrategyOverlay = { levels: [], zones: [], lines: [], marker: null };
+
 export interface StrategyResult {
   verdict: Verdict;
   /** Open time of the closed candle the signal formed on (null for wait). With signalDir it is the signal's IDENTITY: a different identity is a NEW signal. */
@@ -24,6 +40,8 @@ export interface StrategyResult {
   signalDir: 'long' | 'short' | null;
   /** Numbers for the plain-language sentence; the card formats them and the label carries the words. */
   params: Record<string, number | boolean>;
+  /** What to draw on the main price chart for this state (see StrategyOverlay). Absent when the strategy cannot say anything yet (too few candles, an unsupported timeframe). */
+  overlay?: StrategyOverlay;
 }
 
 export interface StrategyDef {

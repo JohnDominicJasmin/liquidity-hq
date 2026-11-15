@@ -1,6 +1,6 @@
 import { emaArr, type OHLCV } from '../strategyCore.ts';
 import type { LabelKey } from '../labelKeys.ts';
-import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } from './types.ts';
+import { WAIT, type StrategyContext, type StrategyDef, type StrategyOverlay, type StrategyResult } from './types.ts';
 
 /* SUPPLY / DEMAND ZONE RETEST, WITH A BTC CHECK (owner-requested, 2026-11-14). Deterministic rules, closed candles only.
  *
@@ -38,7 +38,9 @@ export function btcSide(btc: readonly OHLCV[] | undefined): 1 | -1 | 0 {
 export function detectSupplyDemand(candles: readonly OHLCV[], ctx: StrategyContext): StrategyResult {
   const n = candles.length;
   if (n < MIN_CANDLES) return WAIT;
-  let best: { k: number; up: boolean; zHi: number; zLo: number } | null = null;
+  let best: { k: number; up: boolean; zHi: number; zLo: number; baseTs: number } | null = null;
+  /* The most recent zone that is still alive (no close through its far side), used or not: this is what a WAIT is watching. */
+  let alive: { up: boolean; zHi: number; zLo: number; baseTs: number } | null = null;
   for (let j = n - 3; j >= Math.max(ATR_LEN + 1, n - LOOKBACK); j--) {
     const atr = atrBefore(candles, j);
     const c = candles[j], base = candles[j - 1];
@@ -46,23 +48,28 @@ export function detectSupplyDemand(candles: readonly OHLCV[], ctx: StrategyConte
     const up = c.close > c.open;
     if (up ? !(c.close > base.high) : !(c.close < base.low)) continue;
     const zHi = base.high, zLo = base.low;
+    let broken = false;
     for (let k = j + 1; k < n; k++) {
       const x = candles[k];
-      if (up ? x.close < zLo : x.close > zHi) break;                     // zone broken
+      if (up ? x.close < zLo : x.close > zHi) { broken = true; break; }  // zone broken
       const touched = up ? x.low <= zHi : x.high >= zLo;
       if (!touched) continue;
       const rejected = up ? x.close > zHi : x.close < zLo;               // first touch decides: used once
-      if (rejected && k >= n - FRESH_BARS && (!best || k > best.k)) best = { k, up, zHi, zLo };
+      if (rejected && k >= n - FRESH_BARS && (!best || k > best.k)) best = { k, up, zHi, zLo, baseTs: base.time };
       break;
     }
+    if (!broken && !alive) alive = { up, zHi, zLo, baseTs: base.time };
   }
-  if (!best) return WAIT;
+  const lastTs = candles[n - 1].time;
+  const zoneOf = (z: { up: boolean; zHi: number; zLo: number; baseTs: number }): StrategyOverlay['zones'][number] => ({ top: z.zHi, bottom: z.zLo, fromTs: z.baseTs, toTs: lastTs, kind: z.up ? 'demand' : 'supply', labelKey: z.up ? 'STRAT_OV_DEMAND' : 'STRAT_OV_SUPPLY' });
+  if (!best) return alive ? { ...WAIT, overlay: { levels: [], zones: [zoneOf(alive)], lines: [], marker: null } } : WAIT;
   const isBtc = ctx.coin === 'btc';
   const side = isBtc ? (best.up ? 1 : -1) : btcSide(ctx.btcCandles);
   const params: Record<string, number | boolean> = { zoneHi: best.zHi, zoneLo: best.zLo, inv: best.up ? best.zLo : best.zHi, btcChecked: !isBtc };
-  if (!isBtc && side === 0) return { ...WAIT, params: { ...params, btcUnknown: true } };
-  if (side !== (best.up ? 1 : -1)) return { ...WAIT, params: { ...params, btcBlocked: true } };
-  return { verdict: best.up ? 'buy' : 'sell', signalTimestamp: candles[best.k].time, signalDir: best.up ? 'long' : 'short', params };
+  const zoneOverlay: StrategyOverlay = { levels: [], zones: [zoneOf(best)], lines: [], marker: null };
+  if (!isBtc && side === 0) return { ...WAIT, params: { ...params, btcUnknown: true }, overlay: zoneOverlay };
+  if (side !== (best.up ? 1 : -1)) return { ...WAIT, params: { ...params, btcBlocked: true }, overlay: zoneOverlay };
+  return { verdict: best.up ? 'buy' : 'sell', signalTimestamp: candles[best.k].time, signalDir: best.up ? 'long' : 'short', params, overlay: { levels: [{ price: best.up ? best.zLo : best.zHi, role: 'invalid', fromTs: candles[best.k].time, labelKey: 'STRAT_OV_INVALID' }], zones: zoneOverlay.zones, lines: [], marker: { ts: candles[best.k].time, dir: best.up ? 'long' : 'short' } } };
 }
 
 export const SUPPLY_DEMAND: StrategyDef = {

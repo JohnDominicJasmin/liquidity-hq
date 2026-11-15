@@ -1,6 +1,6 @@
 import { detectRSIDivergence } from '../divergence.ts';
 import type { OHLCV } from '../strategyCore.ts';
-import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } from './types.ts';
+import { WAIT, type StrategyContext, type StrategyDef, type StrategyOverlay, type StrategyResult } from './types.ts';
 
 /* RSI DIVERGENCE, WITH A TRIGGER (owner-requested, 2026-11-14). Deterministic rules, closed candles only. The divergence itself is the Arena's existing detector.
  *
@@ -21,6 +21,16 @@ export function detectRsiDivergenceTrigger(candles: readonly OHLCV[], _ctx: Stra
   const n = candles.length;
   if (n < MIN_CANDLES) return WAIT;
   const events = detectRSIDivergence([...candles]);
+  /* The line joining the two price swings of a divergence (lows for a bullish one, highs for a bearish one), and for a WAIT the trigger it is waiting for. */
+  const drawing = (ev: (typeof events)[number], withInvalid: boolean, signalAt: number | null): StrategyOverlay => {
+    const bull = ev.dir === 'bullish';
+    const a = candles[ev.priorSwingIndex], b = candles[ev.index];
+    const pa = bull ? a.low : a.high, pb = bull ? b.low : b.high;
+    const levels: StrategyOverlay['levels'] = [{ price: bull ? b.high : b.low, role: withInvalid ? 'confirm' : 'watch', fromTs: b.time, labelKey: 'STRAT_OV_TRIGGER' }];
+    if (withInvalid) levels.push({ price: pb, role: 'invalid', fromTs: b.time, labelKey: 'STRAT_OV_INVALID' });
+    return { levels, zones: [], lines: [{ points: [{ ts: a.time, price: pa }, { ts: b.time, price: pb }], role: 'ref', labelKey: 'STRAT_OV_DIVERGENCE' }], marker: signalAt == null ? null : { ts: candles[signalAt].time, dir: bull ? 'long' : 'short' } };
+  };
+  let watching: StrategyOverlay | null = null;
   for (let e = events.length - 1; e >= 0; e--) {
     const ev = events[e];
     if (ev.index < n - 1 - MAX_AGE) break;
@@ -33,16 +43,18 @@ export function detectRsiDivergenceTrigger(candles: readonly OHLCV[], _ctx: Stra
       if (bull ? x.low < sw.low : x.high > sw.high) { invalid = true; break; }   // a new extreme: the divergence failed
       if (trigger < 0 && (bull ? x.close > sw.high : x.close < sw.low)) { trigger = k; }
     }
-    if (invalid || trigger < 0) continue;
+    if (invalid) continue;
+    if (trigger < 0) { if (!watching && ev.priorSwingIndex >= 0) watching = drawing(ev, false, null); continue; }
     /* The signal is the first candle on which BOTH are known: the divergence is confirmed and a candle has closed back through the swing. */
     const signalAt = Math.max(trigger, ev.index + CONFIRM_BARS);
     if (signalAt >= n || signalAt < n - FRESH_BARS) continue;
     return {
       verdict: bull ? 'buy' : 'sell', signalTimestamp: candles[signalAt].time, signalDir: bull ? 'long' : 'short',
       params: { swing: bull ? sw.low : sw.high, trigger: bull ? sw.high : sw.low, inv: bull ? sw.low : sw.high },
+      overlay: ev.priorSwingIndex >= 0 ? drawing(ev, true, signalAt) : undefined,
     };
   }
-  return WAIT;
+  return watching ? { ...WAIT, overlay: watching } : WAIT;
 }
 
 export const RSI_DIVERGENCE: StrategyDef = {
