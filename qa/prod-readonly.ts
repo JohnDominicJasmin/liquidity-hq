@@ -163,6 +163,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'hype-oi1h-live', needs: 'none', note: 'OI 1h on BTC and HYPE on a live build (#2275); anonymous; reads only' },
   { spec: 'strategy-menu', needs: 'pro', note: 'the one strategy menu on /arena (#2358); signed in as account A; the settings write is stubbed and the read patched; reads only' },
   { spec: 'landing-2302-2303', needs: 'none', note: 'the AI disclosure on the landing page and the hero breakpoint (#2302 #2303); anonymous; reads only' },
+  { spec: 'plan-checking', needs: 'pro', note: 'taps while the plan is being read: Checking your plan, no modal, no selection change; accounts A and B; the plan read is held in the browser; reads only' },
   { spec: 'arena-overflow-probe', needs: 'free', note: 'measures layout only - reads scrollWidth and element rects, writes nothing; sets its own 390x844 viewport and samples at 600ms and 4.6s, so 16 page loads' },
 ];
 
