@@ -181,11 +181,11 @@ export default function EconCalendarPage() {
                 {next.estimated ? '~' : ''}{fmtTime(next.isoDate)}
                 {next.estimated && (
                   <span
-                    title="This date is computed from a typical release pattern, not a published schedule. It can be off by several days."
+                    title={t('ECON_ESTIMATED_TIP_HERO')}
                     style={{ marginLeft: 6, fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.04em',
                              textTransform: 'uppercase', color: 'var(--amber)' }}
                   >
-                    estimated
+                    {t('ECON_ESTIMATED')}
                   </span>
                 )}
               </div>
@@ -314,7 +314,7 @@ export default function EconCalendarPage() {
                   >
                     {/* TIME */}
                     <div
-                      title={e.estimated ? 'Estimated date - computed from a typical release pattern, not a published schedule' : undefined}
+                      title={e.estimated ? t('ECON_ESTIMATED_TIP_ROW') : undefined}
                       style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}
                     >
                       {e.estimated ? '~' : ''}{fmtTime(e.isoDate)}
@@ -339,7 +339,7 @@ export default function EconCalendarPage() {
                       {e.estimated && (
                         <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.04em',
                                       textTransform: 'uppercase', color: 'var(--amber)', marginTop: 1 }}>
-                          estimated
+                          {t('ECON_ESTIMATED')}
                         </div>
                       )}
                       {!isPast && !ctObj.released && (

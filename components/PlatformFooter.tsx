@@ -11,30 +11,37 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 
 /* The AI Analysis entry reads the legal key (labelKey) instead of carrying its own copy of the processor sentence (#1185, PM): one source, so the wording cannot drift from the disclaimer page. */
-const DISCLOSURES: { label: string; text: string; labelKey?: LabelKey }[] = [
+/* The BODIES stay English on purpose: they are legal disclosure text, and an AI-drafted translation of them is a decision for the owner or counsel, not for this file (#1185, flagged to PM). Only the headings are translated. */
+const DISCLOSURES: { label: string; headingKey: LabelKey; text: string; labelKey?: LabelKey }[] = [
   {
     label: 'Educational Use',
+    headingKey: 'PF_ITEM_EDUCATIONAL',
     text: 'All content - signals, scores, alerts, and AI commentary - is for informational purposes only. Nothing constitutes a recommendation to buy, sell, or hold any asset.',
   },
   {
     label: 'Trading Risk',
+    headingKey: 'PF_ITEM_TRADING_RISK',
     text: 'Crypto trading involves substantial risk. Prices are volatile, leverage magnifies losses, and most active traders lose money. Only trade with money you can afford to lose.',
   },
   {
     label: 'No Investment Advice',
+    headingKey: 'PF_ITEM_NO_ADVICE',
     text: 'We are not a registered investment advisor. You are solely responsible for your own trading decisions. Consult a licensed professional before making any investment decision.',
   },
   {
     label: 'AI Analysis',
+    headingKey: 'PF_ITEM_AI',
     text: '',
     labelKey: 'DISCLAIMER_SECTION_AI_ANALYSIS_BODY',
   },
   {
     label: 'Data Sources',
+    headingKey: 'PF_ITEM_DATA',
     text: 'Price, funding, and OI data sourced from Binance and Bybit. News from Finnhub, Fear & Greed from Alternative.me. We do not guarantee accuracy, completeness, or availability of third-party feeds.',
   },
   {
     label: 'No Affiliation',
+    headingKey: 'PF_ITEM_NO_AFFILIATION',
     text: 'LiquidityHQ is not affiliated with, endorsed by, or sponsored by any exchange or data provider referenced here. All trademarks belong to their respective owners.',
   },
 ];
@@ -89,32 +96,32 @@ export default function PlatformFooter() {
           <BrandMark size={40} tone={theme} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span className="pf-footer-logo">LiquidityHQ</span>
-            <span className="pf-footer-tagline">Market intelligence for active crypto traders</span>
+            <span className="pf-footer-tagline">{t('PF_TAGLINE')}</span>
           </div>
         </div>
         <nav className="pf-footer-nav">
-          <Link href="/about" className="pf-footer-link">About</Link>
-          <Link href="/faq" className="pf-footer-link">FAQ</Link>
-          <Link href="/help" className="pf-footer-link">Help</Link>
-          <Link href="/learn" className="pf-footer-link">Learn</Link>
+          <Link href="/about" className="pf-footer-link">{t('PF_LINK_ABOUT')}</Link>
+          <Link href="/faq" className="pf-footer-link">{t('PF_LINK_FAQ')}</Link>
+          <Link href="/help" className="pf-footer-link">{t('PF_LINK_HELP')}</Link>
+          <Link href="/learn" className="pf-footer-link">{t('PF_LINK_LEARN')}</Link>
           {/* #1810. The footer is the only route to these five from anywhere on
               the site, so leaving one out ships a page nothing links to. Ordered
               product-first then legal, matching the existing run. The labels are
               literals like every other entry here, not label keys. */}
-          <Link href="/changelog" className="pf-footer-link">Changelog</Link>
-          <Link href="/status" className="pf-footer-link">Status</Link>
-          <Link href="/security" className="pf-footer-link">Security</Link>
-          <Link href="/accessibility" className="pf-footer-link">Accessibility</Link>
-          <Link href="/terms" className="pf-footer-link">Terms of Use</Link>
-          <Link href="/privacy" className="pf-footer-link">Privacy Policy</Link>
+          <Link href="/changelog" className="pf-footer-link">{t('PF_LINK_CHANGELOG')}</Link>
+          <Link href="/status" className="pf-footer-link">{t('PF_LINK_STATUS')}</Link>
+          <Link href="/security" className="pf-footer-link">{t('PF_LINK_SECURITY')}</Link>
+          <Link href="/accessibility" className="pf-footer-link">{t('PF_LINK_ACCESSIBILITY')}</Link>
+          <Link href="/terms" className="pf-footer-link">{t('PF_LINK_TERMS')}</Link>
+          <Link href="/privacy" className="pf-footer-link">{t('PF_LINK_PRIVACY')}</Link>
           {/* Restored 2026-10-31. The link was pulled when /refund was withdrawn until payments
               went live (owner, 2026-10-08); payments went live 2026-10-28, so the condition the
               withdrawal named has fired. Placed in the legal run beside Terms and Privacy rather
               than at its former position, which is not recoverable from the history - the earlier
               markup differed, so there is nothing to restore it to. */}
-          <Link href="/refund" className="pf-footer-link">Refund Policy</Link>
-          <Link href="/disclaimer" className="pf-footer-link">Full Disclaimer</Link>
-          <Link href="/contact" className="pf-footer-link">Contact</Link>
+          <Link href="/refund" className="pf-footer-link">{t('PF_LINK_REFUND')}</Link>
+          <Link href="/disclaimer" className="pf-footer-link">{t('PF_LINK_DISCLAIMER')}</Link>
+          <Link href="/contact" className="pf-footer-link">{t('PF_LINK_CONTACT')}</Link>
           {/* The support address itself, as a working link, on every page (owner, 2026-10-07). */}
           <a href={SUPPORT_MAILTO} className="pf-footer-link" data-testid="footer-support-email">{SUPPORT_EMAIL}</a>
         </nav>
@@ -122,7 +129,7 @@ export default function PlatformFooter() {
 
       {/* Risk disclosure section label */}
       <div className="pf-footer-divider">
-        <span className="pf-footer-divider-label">RISK DISCLOSURE</span>
+        <span className="pf-footer-divider-label">{t('PF_RISK_LABEL')}</span>
         <div className="pf-footer-divider-line" />
       </div>
 
@@ -142,7 +149,7 @@ export default function PlatformFooter() {
         onClick={() => setExpanded(v => !v)}
         aria-expanded={expanded}
       >
-        {expanded ? 'Hide full risk disclosures' : 'Show full risk disclosures'}
+        {expanded ? t('PF_HIDE_DISCLOSURES') : t('PF_SHOW_DISCLOSURES')}
         <span aria-hidden="true" className={`pf-footer-expand-chevron${expanded ? ' up' : ''}`}>▾</span>
       </button>
 
@@ -151,7 +158,7 @@ export default function PlatformFooter() {
         <div className="pf-footer-grid">
           {DISCLOSURES.map(item => (
             <div key={item.label} className="pf-footer-item">
-              <div className="pf-footer-item-label">{item.label}</div>
+              <div className="pf-footer-item-label">{t(item.headingKey)}</div>
               <p className="pf-footer-item-text">{item.labelKey ? t(item.labelKey) : item.text}</p>
             </div>
           ))}
@@ -160,7 +167,7 @@ export default function PlatformFooter() {
 
       {/* Acknowledgment + copyright */}
       <div className="pf-footer-bottom">
-        <span>© {new Date().getFullYear()} LiquidityHQ. All rights reserved.</span>
+        <span>© {new Date().getFullYear()} LiquidityHQ. {t('PF_RIGHTS_RESERVED')}</span>
         <span className="pf-footer-bottom-note">
           By using LiquidityHQ, you acknowledge that you understand and agree to our{' '}
           <Link href="/disclaimer" className="pf-footer-bottom-link">Disclaimer</Link>,{' '}
