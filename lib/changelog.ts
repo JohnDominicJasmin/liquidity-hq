@@ -154,7 +154,10 @@ export const CHANGELOG: ChangelogEntry[] = [
        flight, and this is it.
 
        EVERY ITEM IS A SURFACE A READER LOOKS AT, tied to its pull requests: #2358 (one Strategy set menu), #2366 + #2369 (the smaller call box, its Expand arrow, the loading and unavailable states),
-       #2365 + #2371 + #2368 (the Arena layout holding its place), #2366 (the phone meter). Not listed on purpose: the chart overlays (next release), and every test, doc, label migration, database grant
+       #2365 + #2371 + #2368 (the Arena layout holding its place), #2366 (the phone meter). ONE RELEASE, ONE TAG: release 2 never shipped on its own, so the batch that followed it is folded into this entry
+       (PM, 2026-11-16): #2372 (strategies drawn on the chart), #2389 + #2399 (nothing waits for ever; the dashboard headline wording), #2390 (Learn link, the dashboard card heading), #2385 + #2375 (language and
+       background tabs), #2404 (alert tags off the toolbar), #2401 + #2406 (the plan no longer misread while it loads), #2379 + #2380 (Hours and Playbook wording), #2370 + #2367 + #2384 + #2386 (phone layout).
+       Not listed on purpose: every test, doc, label migration, database grant
        and security-hardening commit in the range, which are internal.
 
        THE LAYOUT LINE SAYS "MUCH LESS", NOT "NEVER", because the deployed-qa gate decides what is true and this entry is written before it. PM: make it stronger only if the gate reads all cells under 0.1. */
@@ -165,6 +168,15 @@ export const CHANGELOG: ChangelogEntry[] = [
       'The strategy call is smaller and answers first: the verdict and the reason, then a one-line description that opens with an arrow beside it. While a call loads you see a placeholder in its shape, and if the candles cannot be read it says so and offers a Try again button.',
       'The Arena page now jumps around much less while it loads: the usage meter, the Set Alert button, the Upgrade button in the page header, the cookie bar and the panels on the right hold their place instead of pushing the chart down.',
       'On phones the usage meter hides its reset time so the Upgrade button fits; the reset time is still in the message you see when you reach a daily limit.',
+      'Pick a strategy in AI Arena and the chart now draws it: the levels the call is built on, a marker where it triggers and a "wrong if" level where the idea stops holding. Labels that would land on top of each other stack instead.',
+      'Nothing waits for ever now. If prices, a panel, an AI read or the sign-in check cannot load, you get a plain message after a short wait instead of a skeleton or a button that stays disabled. Strategy calls on the weekly and monthly chart now say they are not available there.',
+      'The dashboard headline now describes the market instead of telling you what to do: "Most signals agree", "Signals are mixed" or "Few signals agree", with a line saying it is a description, not advice. The card that read "Best Setup Today" is now "Playbook idea of the day".',
+      'New to trading? There is a Learn link in the footer and, on larger screens, in the navigation, plus a line under the buttons on the home page that points to the glossary.',
+      'Your language arrives sooner after a quiet period, and pages stop refreshing market data while their tab is in the background and catch up when you come back.',
+      'Price-alert tags on the Arena chart now sit on the chart itself, so they no longer push the chart down when they appear.',
+      'A paid plan is no longer mistaken for a free one while it is still loading: in the first seconds after you open AI Arena, tapping a fast timeframe or an indicator says "Checking your plan…" instead of offering an upgrade or changing your saved indicators.',
+      'The Hours and Playbook pages no longer make claims we cannot back: the descriptions say when a window is, not what price will do, and the Playbook says it is trading folklore, not measured results.',
+      'Phones: the Setup panel no longer covers the Ask AI button, the Upgrade buttons are easier to tap, and the trending chip on the Arena signal card no longer widens the page on a very small screen.',
     ],
   },
   {
