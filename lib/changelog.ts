@@ -150,7 +150,7 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    /* v2026.11.15. Written before the tag is cut, so whoever tags checks the date against `git tag --points-at main` (PHT, the same rule as v2026.11.14's entry). C1 permits exactly one untagged entry in
+    /* v2026.11.16 (was written as v2026.11.15; the release slipped past PHT midnight). Written before the tag is cut, so whoever tags checks the date against `git tag --points-at main` (PHT, the same rule as v2026.11.14's entry). C1 permits exactly one untagged entry in
        flight, and this is it.
 
        EVERY ITEM IS A SURFACE A READER LOOKS AT, tied to its pull requests: #2358 (one Strategy set menu), #2366 + #2369 (the smaller call box, its Expand arrow, the loading and unavailable states),
@@ -158,8 +158,8 @@ export const CHANGELOG: ChangelogEntry[] = [
        and security-hardening commit in the range, which are internal.
 
        THE LAYOUT LINE SAYS "MUCH LESS", NOT "NEVER", because the deployed-qa gate decides what is true and this entry is written before it. PM: make it stronger only if the gate reads all cells under 0.1. */
-    date: '2026-11-15',
-    tag: 'v2026.11.15',
+    date: '2026-11-16',
+    tag: 'v2026.11.16',
     items: [
       'The Strategy card in AI Arena is replaced by one Strategy set menu: Let the read choose, the seven strategies, or Custom. Pick a strategy and its call, buy, sell or wait with the reason, sits right under the menu. Picking one never switches off the indicators you already have on, and Bollinger squeeze breakout adds Bollinger Bands.',
       'The strategy call is smaller and answers first: the verdict and the reason, then a one-line description that opens with an arrow beside it. While a call loads you see a placeholder in its shape, and if the candles cannot be read it says so and offers a Try again button.',
