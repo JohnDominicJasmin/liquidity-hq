@@ -221,7 +221,11 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
           {STRATEGIES.map(s => <option key={s.id} value={s.id}>{t(s.nameKey)}</option>)}
           {STRATEGY_SETS.filter(s => s.id === CUSTOM_SET_ID).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
-        {pickedStrategy && <StrategyCallBox def={pickedStrategy} state={strategyState} />}
+        {/* THE CALL BOX'S HOST. A visitor whose saved strategy is stored on this browser has this box's whole height reserved from the FIRST paint (`html[data-strat="1"]`, set before paint by
+            components/RootDocument.tsx, sized in globals.css), because the saved strategy arrives from settings 1-2 s later and the box mounted then, pushing the Indicators section 256 px (QA gate, IN+SAVED 1280). */}
+        <div className="strat-call-host">
+          {pickedStrategy && <StrategyCallBox def={pickedStrategy} state={strategyState} />}
+        </div>
       </div>
 
       <div className="strat-sect">

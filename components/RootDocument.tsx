@@ -179,9 +179,10 @@ export default function RootDocument({ lang, children }: { lang: string; childre
         {/* A STORED SESSION IS KNOWN BEFORE FIRST PAINT (arena layout shift, #1263). The session lives in localStorage, so the server cannot know it and the page used to learn it 1-2 s after paint: the usage meter's
             slot (43 px) then appeared above the chart and pushed the workspace down (QA, deployed qa 5b9d1ad: +0.044 at 1280, +0.050 at 390 on EVERY signed-in load). This marks <html data-sess="1"> in the
             initial server HTML's own script, before paint and before hydration, when a Supabase auth-token key holds a value, and globals.css reserves the slot for it (`.usage-meter-host`). A visitor with no
-            stored session gets no reserve and no shift. It decides nothing about access: it only sets a layout hint, and a dead stored session collapses the reserve once, which is the rare case. */}
+            stored session gets no reserve and no shift. `data-strat="1"` is set too when that session's locally cached settings (lhq_settings_v1, written on every settings change and every sign-in read) hold a saved Arena
+            strategy, so the strategy call box's height is reserved from the first paint as well (`.strat-call-host`). It decides nothing about access: it only sets a layout hint, and a dead stored session collapses the reserve once, which is the rare case. */}
         <Script id="session-hint" strategy="beforeInteractive">
-          {`(function(){try{var ls=window.localStorage;for(var i=0;i<ls.length;i++){var k=ls.key(i);if(k&&k.indexOf('sb-')===0&&k.indexOf('-auth-token')>0&&ls.getItem(k)){document.documentElement.setAttribute('data-sess','1');return;}}}catch(e){}})();`}
+          {`(function(){try{var ls=window.localStorage,h=document.documentElement,s=0;for(var i=0;i<ls.length;i++){var k=ls.key(i);if(k&&k.indexOf('sb-')===0&&k.indexOf('-auth-token')>0&&ls.getItem(k)){s=1;break;}}if(!s)return;h.setAttribute('data-sess','1');try{var j=JSON.parse(ls.getItem('lhq_settings_v1')||'null');if(j&&typeof j.arena_strategy==='string'&&j.arena_strategy)h.setAttribute('data-strat','1');}catch(e){}}catch(e){}})();`}
         </Script>
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`}

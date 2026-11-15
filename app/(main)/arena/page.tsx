@@ -3170,9 +3170,6 @@ function ArenaContent() {
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
       <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} strategyState={strategyState} />
-      {/* THE FIRST-VISIT SOUND QUESTION sits HERE, below the Strategy card, not above the chart. It appears only after settings load, so above the chart it pushed the whole chart
-          down (CLS 0.164 against a 0.1 budget on /arena: release run 43595134120, measured again in 43602526829). Down here it can only push the panels beneath it. */}
-      <ArenaSoundPrompt />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
@@ -3204,6 +3201,9 @@ function ArenaContent() {
           onUnlock={() => setUpgradeGate(t('ARENA_CONFLUENCE_GATE_FEATURE_LABEL'))}
         />
       )}
+      {/* THE FIRST-VISIT SOUND QUESTION is the LAST thing in the rail. It appears only after settings load: above the chart it pushed the whole chart down (CLS 0.164, release run 43595134120), and directly under
+          the Strategy card it still pushed Market snapshot and the panels beneath it while they were on screen (QA gate on qa 5b9d1ad, FREE 1280). At the end of the rail there is nothing beneath it in the rail. */}
+      <ArenaSoundPrompt />
         </aside>
       </div>
 
