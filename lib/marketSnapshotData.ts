@@ -63,7 +63,7 @@
  */
 
 import { COINS, BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, bybitPriceFactor } from './coins.ts';
-import { cached } from './apiCache.ts';
+import { cachedRefresh, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
 import { runPool, HttpStatusError, isRateLimitStatus } from './pool.ts';
 import { parseRatioPair } from './ratioPair.ts';
 import { reportHealth, healthError } from './apiHealth.ts';
@@ -453,9 +453,9 @@ export async function marketSnapshotData(): Promise<
      whatever arrives and leaves the rest at its previous value, which is how the per-coin version
      behaved when one symbol failed. */
   const [t, k, l] = await Promise.allSettled([
-    cached('mkt:ticker', TICKER_TTL, buildTicker),
-    cached('mkt:klines', KLINES_TTL, buildKlines),
-    cached('mkt:lsr',    LSR_TTL,    buildLsr),
+    cachedRefresh('mkt:ticker', TICKER_TTL, STALE_WHILE_REFRESH_MS, buildTicker),
+    cachedRefresh('mkt:klines', KLINES_TTL, STALE_WHILE_REFRESH_MS, buildKlines),
+    cachedRefresh('mkt:lsr',    LSR_TTL,    STALE_WHILE_REFRESH_MS, buildLsr),
   ]);
 
   if (t.status === 'rejected' && k.status === 'rejected' && l.status === 'rejected') {
