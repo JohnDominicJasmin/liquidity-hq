@@ -438,7 +438,10 @@ function ArenaContent() {
   /* ARENA STRATEGY (owner decision 2026-11-14, option A: ONE strategy menu). The saved strategy id lives here next to the chips: the Strategy set menu writes BOTH in one save, and touching a chip by hand
      leaves the strategy (the menu then shows Custom). Persisted on the user's own action only, never echoed by the seed. */
   const [arenaStrategy, setArenaStrategyState] = useState<string | null>(null);
+  /* THE PLAN IS STILL BEING READ (signed in, auth or entitlements loading). Until it is known, chip taps and strategy picks are NO-OPS: they used to run the FREE branch (swap to one chip, or one chip added) and then SAVE the result, so a paying Pro user who tapped before the plan arrived (2.4-5 s after load, longer on a phone) had a saved multi-indicator selection cut to one. Nothing computed under an unknown plan is applied or persisted. The panel shows the same state (chips disabled, 'Checking your plan…'). */
+  const planUnsettled = !!user && (authLoading || entitlementsLoading);
   const handleStrategySelectionChange = useCallback((next: readonly string[]) => {
+    if (planUnsettled) return;
     // #1246/#1347: belt-and-suspenders alongside StrategyPanel's own gate -
     // this is the only path that writes strategy_selection, and it must not
     // run against the pre-load [] regardless of what calls it. Gating on
@@ -449,12 +452,12 @@ function ArenaContent() {
     if (settingsLoadStatus !== 'ready') return;
     setStrategySelection(next);
     update({ strategy_selection: next as string[] });
-  }, [update, settingsLoadStatus]);
+  }, [update, settingsLoadStatus, planUnsettled]);
   /* The Strategy set menu (PM rules, #2358): picking a strategy never removes the user's chips: a strategy with no drawable chip leaves the chip row as it was, one that reads a chip ADDS it to the
      existing chips (no-op if already on; a Free account, limited to one chip, swaps it in as a tap would). 'Let the read choose' and 'Custom' clear the saved strategy (the call box goes) and leave
      the chips alone. Touching a chip while a strategy is picked keeps the strategy. One request per change. */
   const handleStrategyMenuPick = useCallback((id: string) => {
-    if (settingsLoadStatus !== 'ready') return;
+    if (settingsLoadStatus !== 'ready' || planUnsettled) return;
     if (id === AUTO_SET_ID || id === CUSTOM_SET_ID) { if (arenaStrategy !== null) { setArenaStrategyState(null); update({ arena_strategy: null }); } return; }
     const def = findStrategy(id);
     if (!def) return;
@@ -464,7 +467,7 @@ function ArenaContent() {
     setArenaStrategyState(def.id);
     setStrategySelection(chips);
     update({ arena_strategy: def.id, strategy_selection: chips as string[] });
-  }, [update, settingsLoadStatus, arenaStrategy, strategySelection, entitlementStatus]);
+  }, [update, settingsLoadStatus, arenaStrategy, strategySelection, entitlementStatus, planUnsettled]);
   const handleStrategyParamsChange = useCallback((next: Record<string, Record<string, string | number | boolean>>) => {
     setStrategyParams(next);
     update({ strategy_params: next });
@@ -3191,7 +3194,7 @@ function ArenaContent() {
           before readLoading is ever set - so the button never visibly
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
-      <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} strategyState={strategyState} />
+      <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} strategyState={strategyState} planChecking={planUnsettled} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
