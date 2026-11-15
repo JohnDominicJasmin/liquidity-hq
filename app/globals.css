@@ -2267,6 +2267,9 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .klc-draw-item.on { color: var(--accent-2); background: rgba(90,163,255,0.1); }
 .klc-draw-clear { color: var(--red); margin-top: 2px; border-top: 0.5px solid var(--bdr); border-radius: 0 0 5px 5px; }
 .klc-legend { display: flex; gap: 8px; align-items: center; }
+/* The alert chips as an overlay on the chart canvas: out of the toolbar's flow, so their late arrival can never wrap the toolbar (CLS). The container ignores the pointer; each chip is display-only. A solid-ish ground so the amber text reads over candles in both themes. */
+.klc-legend-overlay { position: absolute; top: 34px; left: 8px; z-index: 3; pointer-events: none; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 96px); }
+.klc-legend-overlay .klc-price-chip { background: color-mix(in srgb, var(--bg1) 88%, rgba(245,158,11,0.12)) !important; }
 .klc-ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--txt3); flex-shrink: 0; }
 /* The fullscreen button and the feed dot: the dot is positioned OUTSIDE the button's right edge, so it adds no width to the toolbar row and can never wrap onto a row of its own (the 13 px chart push). */
 .klc-fs-wrap { position: relative; display: inline-flex; flex-shrink: 0; }
@@ -4031,8 +4034,6 @@ html[data-theme="light"] { background: var(--bg0); }
 /* The usage meter's slot (components/UsageMeter.tsx): the margin the meter always had plus a FIXED height. The meter is one line (its reset text ellipsizes), so 43 px (QA run 43649222730) holds on a
    phone and in every language. */
 .usage-meter-slot { margin: 2px 0 10px; height: 43px; }
-/* The Arena header's Free upgrade pill is 26 px tall so it fits the header row; its 44 px touch target is this pseudo-element (no layout space). */
-a[data-testid="arena-header-upgrade"]::after { content: ''; position: absolute; inset: -9px -4px; }
 /* THE USAGE METER ON A PHONE (QA, deployed qa 5b9d1ad: the Free pill was pushed past the row's right edge at 390 px in Korean and Russian, because the two stat blocks do not shrink). At 480 px and under the
    reset time is dropped (the numbers and the Upgrade pill matter more), the stat blocks may narrow to 80 px and the gap is 12 px: 2 x 80 + 24 + the widest pill (108, Russian) = 292 of the 322 px row. */
 @media (max-width: 480px) {
@@ -4056,8 +4057,7 @@ html[data-sess="1"] .arena-set-alert-pending { display: revert; }
    meter's whole band (2 + 43 + 10 px) reserved from the FIRST paint instead of from the moment the session read resolves. flow-root so the slot's own margins stay inside the host. */
 .usage-meter-host { display: flow-root; }
 html[data-sess="1"] .usage-meter-host { min-height: 55px; }
-/* One 43 px slot for every account (PM, #2368). The Upgrade pill is 26 px tall here (it was 44, which made the Free row 62 px); a pseudo-element gives it back a 44 px touch target without taking layout space. */
-.usage-meter-slot a[data-testid="usage-meter-upgrade"]::after { content: ''; position: absolute; inset: -9px -4px; }
+/* One 43 px slot for every account (PM, #2368). The Upgrade pill is 28 px tall here (it was 44, which made the Free row 62 px); its 44 px touch target is the link around it (UpgradePillLink `tap`, negative margins), not a pseudo-element. */
 .usage-auth-link {
   color: var(--accent-2); text-decoration: none; font-weight: 600;
   padding: 4px 2px; display: inline-flex; align-items: center;
@@ -5974,6 +5974,11 @@ html[lang="ko"] .lp-hero-h1 { word-break: keep-all; }
 .pf-footer-bottom-link { color: var(--txt3); text-decoration: underline; text-underline-offset: 2px; }
 /* A 24 PX HIT AREA WITHOUT A VISIBLE CHANGE (#1185, QA: the three legal links in the footer note measured 15 px tall at every width). Inline-block with 5 px of padding above and below and the same amount of negative margin: the line height and the look are unchanged, the clickable box is 25 px. */
 .pf-footer-bottom-link, .lt-inline-hit { display: inline-block; padding-block: 5px; margin-block: -5px; }
+/* Landing Learn entry points (#1113): typography lives here, not inline (terminal-only ratchet). */
+.lt-nav-learn { font-family: var(--font-mono), monospace; font-size: 11.5px; letter-spacing: .12em; color: var(--txt2); padding: 9px 10px; text-decoration: none; text-transform: uppercase; white-space: nowrap; flex-shrink: 0; display: none; }
+@media (min-width: 768px) { .lt-nav-learn { display: inline-block; } }
+.lt-hero-learn { margin: 0; }
+.lt-hero-learn a { color: var(--txt2); text-decoration: underline; text-underline-offset: 3px; }
 .pf-footer-bottom-link:hover { color: var(--txt); }
 @media (max-width: 900px) { .pf-footer-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) {
@@ -6482,6 +6487,10 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      its left (FAB is 64px wide at right:16), so it clears the footer instead of
      overlapping it. */
   .ob-checklist.ob-checklist-mini { bottom: 76px !important; right: 90px !important; }
+  /* THE EXPANDED SETUP PANEL CLEAR OF THE ASK AI BUTTON ON PHONES. On a phone the FAB sits at bottom: 76 and is 64 px tall, so its top edge is at 140 px; the panel's own bottom was 128 px (420 px and under) or
+     140 px (421 to 640), so it overlapped the button by 12 px at 390 and touched it from 421 px. 152 px leaves a 12 px gap. Both stay position: fixed, so nothing in the page flow changes. The collapsed pill is
+     excluded: it rides in the FAB's row, to its left, by the rule above. */
+  .ob-checklist:not(.ob-checklist-mini) { bottom: 152px; }
   /* Reserve space for tab bar (56px) + the FAB above it (bottom:76 + 64 tall = 140).
      Prevents the fixed "Ask AI" FAB from overlapping the last content on every page. */
   .app-content { padding-bottom: 148px; }

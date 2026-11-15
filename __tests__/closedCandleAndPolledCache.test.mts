@@ -155,7 +155,7 @@ const POLLED_ROUTES = [
   'app/api/cmc/route.ts', 'app/api/cycle/route.ts', 'app/api/econ-calendar/route.ts',
   'app/api/forex/jpy/route.ts', 'app/api/funding/route.ts', 'app/api/macro/route.ts',
   'app/api/market/account-ratio/route.ts', 'app/api/market/agg-trades/route.ts',
-  'app/api/market/funding-rate/route.ts', 'app/api/market/klines/route.ts',
+  'app/api/market/funding-rate/route.ts', 'app/api/market/kline-batch/route.ts', 'app/api/market/klines/route.ts',
   'app/api/market/open-interest/route.ts', 'app/api/market/snapshot/route.ts',
   'app/api/proxy/route.ts',
 ];

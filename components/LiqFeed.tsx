@@ -36,7 +36,6 @@ const CASCADE_WIN        = 30_000;                 // 30-second window
 const CASCADE_HIDE_MS    = 12_000;                 // show cascade badge 12s
 const STORAGE_KEY        = 'liq-events-v2';        // localStorage key
 const STORAGE_MAX        = 2000;                   // max events to persist locally
-const SB_SAVE_MS         = 5 * 60 * 1000;          // save to Supabase every 5 min
 /* How often the raw stream is handed to onEvents consumers. Not a render
    cadence - the heatmap buckets 24h into 34 columns, so ~42 minutes per
    column, and emitting faster than the grid can express changes nothing on
@@ -46,7 +45,6 @@ const SB_WIN_MS          = 24 * 60 * 60 * 1000;    // load last 24h from Supabas
 // SB_RETAIN_MS (7 days) lived here while the browser ran the purge. Retention is server-side now -
 // RETAIN_MS in app/api/liq-events/purge/route.ts is the single definition. Not kept as a comment
 // for reference on purpose: two copies of a retention period is how they come to disagree.
-const SB_SAVE_TS_KEY     = 'liq-sb-ts';            // localStorage: last Supabase save timestamp
 const BYBIT_COINS        = Object.values(BYBIT_SYMS);
 
 let idCounter = 0;
@@ -97,7 +95,7 @@ function fmtEventPrice(price: number): string {
  *  The live event ticker goes with it. The owner was offered "keep the ticker,
  *  drop the duplicated bars" and chose to hide the card - recorded here so it
  *  does not come back as an oversight. */
-export default function LiqFeed({ onClusters, coinFilter, headless = false }: { onClusters?: (clusters: Bucket[]) => void; coinFilter: string; headless?: boolean }) {
+export default function LiqFeed({ onClusters, coinFilter, headless = false, onHistoryVenues }: { onClusters?: (clusters: Bucket[]) => void; coinFilter: string; headless?: boolean; onHistoryVenues?: (only: 'BN' | 'BB' | null) => void }) {
   const { t } = useLabels();
   const [feed,     setFeed]     = useState<LiqEvent[]>([]);
   const [stats,    setStats]    = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
@@ -105,6 +103,8 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
   const [clusters, setClusters] = useState<Bucket[]>([]);
   const [bnStatus, setBnStatus] = useState<'connecting'|'live'|'error'>('connecting');
   const [bbStatus, setBbStatus] = useState<'connecting'|'live'|'error'>('connecting');
+  /* Which venue is the ONLY one in the stored 24 h history, if one is. A venue the server cannot reach would otherwise leave history that looks complete and is not (the cluster read is stored rows). */
+  const [histOnly, setHistOnly] = useState<'BN' | 'BB' | null>(null);
   const [msgCount, setMsgCount] = useState(0);
   const coinFilterRef = useRef(coinFilter);
 
@@ -115,16 +115,6 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
   const msgRef          = useRef(0);
   const cascadeTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sbSaveTimer     = useRef<ReturnType<typeof setInterval> | null>(null);
-  // #925: natural-key set of liq_events rows this client already knows are in
-  // Supabase - seeded from the initial DB read, extended after each save. The
-  // flush below inserts ONLY keys not in here, so a client never re-inserts an
-  // event it loaded from the DB or already saved. This kills the dominant
-  // write-amplification source (a fresh browser with lastTs=0 was re-inserting
-  // the whole loaded 24h history) measured at 97.8% duplicate rows on dev
-  // (#1025). Cross-CLIENT races (two tabs saving the same brand-new liquidation)
-  // still need the DB unique constraint - that half is the owner-gated DDL.
-  const persistedKeysRef = useRef<Set<string>>(new Set());
 
   /* ── Rebuild derived state from history ── */
   const rebuild = useCallback((history: LiqEvent[]) => {
@@ -334,12 +324,10 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
         .limit(5000)
         .then(({ data }) => {
           if (!data || data.length === 0) return;
-          // #925: every row returned here is already in Supabase - record its
-          // key so the periodic save never re-inserts it (the fresh-browser
-          // lastTs=0 case used to re-save this entire loaded history).
-          for (const r of data as Array<{ coin: string; side: string; price: number; source: string; ts: number }>) {
-            persistedKeysRef.current.add(`${r.ts}_${r.coin}_${r.price}_${r.side}_${r.source}`);
-          }
+          const venues = new Set((data as Array<{ source: string }>).map(r => r.source));
+          const only = venues.size === 1 ? (venues.has('BN') ? 'BN' : venues.has('BB') ? 'BB' : null) : null;
+          setHistOnly(only);
+          onHistoryVenues?.(only);   // the /liq ladder and the Arena chart read the same table and say the same thing
           const seen = new Set(
             historyRef.current.map(e => `${e.ts}_${e.coin}_${e.price}_${e.side}_${e.source}`)
           );
@@ -364,51 +352,11 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
           // Do NOT update setFeed here - old events should not appear in the live feed
         });
 
-      // ── Periodic save of new events to Supabase ──────────────────────
-      sbSaveTimer.current = setInterval(() => {
-        const lastTs = parseInt(localStorage.getItem(SB_SAVE_TS_KEY) || '0');
-        // #925: dedup before insert. The ts>lastTs filter alone let a client
-        // re-insert events it had loaded from the DB (worst case, a fresh
-        // browser with lastTs=0 re-saved the whole 24h history), which is the
-        // bulk of the 97.8% duplicate rows measured on dev (#1025). Skip any key
-        // already known persisted, and collapse duplicates within this batch.
-        const batchKeys = new Set<string>();
-        const toSave = historyRef.current.filter(e => {
-          if (e.ts <= lastTs) return false;
-          const key = `${e.ts}_${e.coin}_${e.price}_${e.side}_${e.source}`;
-          if (persistedKeysRef.current.has(key) || batchKeys.has(key)) return false;
-          batchKeys.add(key);
-          return true;
-        });
-        if (toSave.length === 0) {
-          // Nothing new, but still advance the cursor so the range shrinks.
-          localStorage.setItem(SB_SAVE_TS_KEY, String(Date.now()));
-          return;
-        }
-        const rows = toSave.map(e => ({
-          coin: e.coin, side: e.side, usd: e.usd, price: e.price, source: e.source, ts: e.ts,
-        }));
-        sb.from(T.liq_events).insert(rows).then(({ error }) => {
-          if (error) { console.error('[liq] sb save failed:', error.message); return; }
-          // Only mark keys persisted once the insert actually succeeded, so a
-          // failed save is retried on the next tick rather than silently dropped.
-          for (const key of batchKeys) persistedKeysRef.current.add(key);
-          localStorage.setItem(SB_SAVE_TS_KEY, String(Date.now()));
-          /* Retention used to run HERE - `delete().lt('ts', cutoff)`, fire and forget - and the
-             policy that allowed it (`liq_events_delete_expired`, DELETE to anon) also let any
-             anonymous caller erase every row older than seven days in one statement (#1632 item 4).
-             It now runs server-side on a schedule: app/api/liq-events/purge, service role (#1730).
-
-             Removed in the SAME window as the revoke, deliberately. Left in afterwards it would
-             fail forever and silently - there is no error branch on that promise - and the next
-             reader would find retention code here and conclude the browser still does it. */
-        });
-      }, SB_SAVE_MS);
+      /* The browser no longer saves liquidations (#1632 item 4): the server process collects them (lib/liqCollector.ts). The tab still READS the last 24 h above and shows its own live events. */
     }
 
     return () => {
       clearInterval(iv);
-      if (sbSaveTimer.current) clearInterval(sbSaveTimer.current);
       if (saveTimer.current) clearTimeout(saveTimer.current);
       bnWsRef.current?.close();
       bbWsRef.current?.close();
@@ -445,6 +393,7 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
         </div>
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
           {t('LIQ_FEED_SOURCES_LINE', { status: msgCount > 0 ? t('LIQ_FEED_EVENTS_COUNT', { count: msgCount }) : t('LIQ_FEED_WAITING') })}
+          {histOnly && <> · {t('LIQ_FEED_HISTORY_ONE_VENUE', { venue: histOnly === 'BN' ? 'Binance' : 'Bybit' })}</>}
         </span>
       </div>
 
@@ -551,11 +500,16 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false }: { 
           <span className="sr-only">
             {anyLive ? t('LIQ_FEED_SR_WATCHING', { coin: coinFilter === 'ALL' ? t('LIQ_FEED_ALL_MARKETS') : coinFilter }) : t('LIQ_FEED_SR_CONNECTING')}
           </span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[0, 1, 2].map(i => (
-              <SkeletonBar key={i} height={30} radius={8} style={{ opacity: 1 - i * 0.18 }} />
-            ))}
-          </div>
+          {anyLive ? (
+            /* A connected feed with nothing yet is a quiet market, not a loading one; same height as the skeleton so nothing below moves. */
+            <div style={{ minHeight: 106, color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>{t('LIQ_FEED_SR_WATCHING', { coin: coinFilter === 'ALL' ? t('LIQ_FEED_ALL_MARKETS') : coinFilter })}</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[0, 1, 2].map(i => (
+                <SkeletonBar key={i} height={30} radius={8} style={{ opacity: 1 - i * 0.18 }} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 

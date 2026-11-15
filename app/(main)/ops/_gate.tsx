@@ -78,10 +78,18 @@ export default function OpsGate({ preAuthLabels, children }: { preAuthLabels: La
          nothing more, and an admin does not wait a second round trip for the console's copy. A
          labels failure never blocks the gate: the console then shows raw keys, legible and fixed
          by a reload, rather than an admin locked out of the kill switches. */
-      const [res, labelsRes] = await Promise.all([
-        adminFetch('/api/ops/me'),
-        adminFetch('/api/ops/labels').catch(() => null),
-      ]);
+      let res: Response | null;
+      let labelsRes: Response | null;
+      try {
+        [res, labelsRes] = await Promise.all([
+          adminFetch('/api/ops/me'),
+          adminFetch('/api/ops/labels').catch(() => null),
+        ]);
+      } catch {
+        /* A request that threw or timed out must not leave the gate on "checking" for ever: it ends on the same screen as any failed check. */
+        if (alive) setState('denied');
+        return;
+      }
       if (!alive) return;
       if (res && res.ok) {
         const j = await res.json().catch(() => ({}));

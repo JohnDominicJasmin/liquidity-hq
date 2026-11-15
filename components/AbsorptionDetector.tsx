@@ -213,8 +213,8 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
 
       if (binSym) {
         const [r15, r1h] = await Promise.all([
-          fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=15m&limit=50`),
-          fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=1h&limit=20`),
+          fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=15m&limit=50`, { signal: AbortSignal.timeout(20_000) }),
+          fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=1h&limit=20`, { signal: AbortSignal.timeout(20_000) }),
         ]);
         if (!r15.ok || !r1h.ok) throw new Error('Binance fetch failed');
         const raw15 = await r15.json() as (string | number)[][];
@@ -229,8 +229,8 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
         // existing try/catch, same as the old !r.ok check did - the error
         // state below already surfaces it, so no new UI path needed.
         const [raw15, raw1h] = await Promise.all([
-          fetchBybitKlinesRetry(bytSym, '15', 50),
-          fetchBybitKlinesRetry(bytSym, '60', 20),
+          fetchBybitKlinesRetry(bytSym, '15', 50, { attemptTimeoutMs: 15_000 }),
+          fetchBybitKlinesRetry(bytSym, '60', 20, { attemptTimeoutMs: 15_000 }),
         ]);
         if (raw15 === null || raw1h === null) throw new Error('Bybit klines failed after retry');
         c15 = [...(raw15?.result?.list ?? [])].reverse().map(toC);

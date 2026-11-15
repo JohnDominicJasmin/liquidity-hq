@@ -25,7 +25,7 @@ export default function SOTD() {
       </div>
       <div suppressHydrationWarning className="sotd-name">{secret.name}</div>
       <div suppressHydrationWarning className="sotd-text">{secret.text}</div>
-      <div className="sotd-footer">{t('SOTD_FOOTER')}</div>
+      <div className="sotd-footer"><span data-testid="sotd-folklore-note" style={{ display: 'block' }}>{t('PLAYBOOK_FOLKLORE_NOTE')}</span>{t('SOTD_FOOTER')}</div>
     </div>
   );
 }

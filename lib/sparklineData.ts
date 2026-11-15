@@ -30,7 +30,7 @@ async function fetchKlines(coin: string): Promise<number[]> {
       // which ensureSparkline24h already treats as "keep the stale cache,
       // try again next refresh" rather than a blank sparkline. The retry
       // only makes that fallback less often necessary.
-      const data = await fetchBybitKlinesRetry(bbSym, '60', 24);
+      const data = await fetchBybitKlinesRetry(bbSym, '60', 24, { attemptTimeoutMs: 15_000 });
       if (data) {
         const list = data.result?.list ?? [];
         const closes = list.map(k => parseFloat(k[4])).reverse().filter(n => isFinite(n));

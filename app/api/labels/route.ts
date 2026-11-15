@@ -1,37 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { SUPPORTED_LOCALES, type Locale } from '@/lib/locales';
-import { T } from '@/lib/tables';
+import { getLabels } from '@/lib/labelsServer';
 
 export const dynamic = 'force-dynamic';
 
-// Public, unauthenticated read of translated UI copy. Cached per locale in
-// memory for a short TTL - this app runs as a persistent Render service,
-// not serverless, so the cache survives across requests (see
-// app/api/config/route.ts for the same pattern) - and fails open to an
-// empty object on any error rather than 500ing the page; the client's t()
-// falls back to the raw key when a lookup misses, so an empty response
-// degrades to visible keys instead of a crash.
-const TTL_MS = 60_000;
-const cache = new Map<string, { data: Record<string, string>; expires: number }>();
-
-// #1025: separate from the success cache above, and for a different reason.
-// The success cache is deliberately never populated on failure (see the
-// comment near the bottom of this route) so a transient blip does not get
-// mistaken for the real answer and served to everyone for 60s. That was the
-// right call for a blip, but it also meant a SUSTAINED outage got retried
-// on literally the next incoming request, forever, with no floor at all -
-// during the 2026-09-12 PostgREST outage this route alone accounted for a
-// chunk of the "hundreds of reads, all 503/504" measured on #1025, because
-// LabelsProvider fires on every page load and nothing stopped each one from
-// re-hitting a service already known to be down.
-//
-// This tracks only "don't retry yet" - it is never served as an answer, and
-// it does not change what a caller receives (still the same fail-open {}
-// with the same no-store header). A short window: it exists to stop
-// hammering a confirmed-down upstream, not to hide a real recovery.
-const FAILURE_BACKOFF_MS = 10_000;
-const lastFailure = new Map<string, number>();
+// Public, unauthenticated read of translated UI copy. The table is read, cached and refreshed by lib/labelsServer.ts (per locale, in memory; this app runs as a persistent Render service, not
+// serverless, so the cache survives across requests): parallel pages, stale-while-revalidate, warmed at server start, never an empty or partial table, and a failed first read answers an empty
+// object on any error rather than 500ing the page; the client's t() falls back to the raw key when a lookup misses, so an empty response degrades to the English defaults instead of a crash.
+// #1025's failure backoff (10 s) lives there too.
 
 // Let Cloudflare serve this instead of every visitor reaching the origin.
 //
@@ -59,112 +35,15 @@ const CACHE_CONTROL = 'public, max-age=0, s-maxage=60, stale-while-revalidate=30
 
 export async function GET(req: NextRequest) {
   const raw = req.nextUrl.searchParams.get('locale') || 'en';
-  // Pin to the known locales BEFORE the cache lookup. Keying the cache on an
-  // arbitrary caller-supplied string made this route a memory bomb: every
-  // unknown locale missed, ran the paged service-role query below, and added
-  // a permanent entry to a Map with no eviction. A few thousand requests to
-  // ?locale=<random> would exhaust the Render instance - and on the way down,
-  // the Supabase pressure makes lib/featureFlags.ts fail open, quietly
-  // disabling the grok/telegram/signups kill switches at the worst moment.
+  // Pin to the known locales BEFORE the cache lookup. Keying the cache on an arbitrary caller-supplied string made this route a memory bomb: every unknown locale missed, ran the
+  // service-role query, and added a permanent entry to a Map with no eviction. A few thousand requests to ?locale=<random> would exhaust the Render instance - and on the way down, the
+  // Supabase pressure makes lib/featureFlags.ts fail open, quietly disabling the grok/telegram/signups kill switches at the worst moment.
   const locale: Locale = (SUPPORTED_LOCALES as string[]).includes(raw) ? raw as Locale : 'en';
 
-  const hit = cache.get(locale);
-  if (hit && hit.expires > Date.now()) {
-    return NextResponse.json(hit.data, { headers: { 'Cache-Control': CACHE_CONTROL } });
-  }
-
-  const failedAt = lastFailure.get(locale);
-  if (failedAt != null && Date.now() - failedAt < FAILURE_BACKOFF_MS) {
-    // Still inside the backoff window from this locale's last failure - fail
-    // open without re-querying an upstream already known to be down.
-    return NextResponse.json({}, { headers: { 'Cache-Control': 'no-store' } });
-  }
-
-  let data: Record<string, string> = {};
-  try {
-    const admin = getSupabaseAdmin();
-    const locales = locale === 'en' ? ['en'] : ['en', locale];
-    // PostgREST enforces a server-side db-max-rows cap (1000 on this project)
-    // that a client-requested .range() cannot override - it silently clamps
-    // to that many rows regardless of what's asked for. This bit us for real
-    // once the i18n migration crossed 1000 total label rows. Page through in
-    // batches under the cap instead of relying on a single request.
-    const PAGE_SIZE = 1000;
-    const rows: { key: string; locale: string; value: string }[] = [];
-    for (let page = 0; ; page++) {
-      const from = page * PAGE_SIZE;
-      const { data: batch, error } = await admin
-        .from(T.labels)
-        .select('key, locale, value')
-        .in('locale', locales)
-        .range(from, from + PAGE_SIZE - 1);
-      if (error) { console.error('/api/labels query error:', error.message); break; }
-      if (!batch || batch.length === 0) break;
-      rows.push(...batch);
-      if (batch.length < PAGE_SIZE) break;
-    }
-
-    // English first, then the requested locale layered on top per key - a
-    // key not yet translated in the target locale still resolves to
-    // English instead of coming back missing.
-    const merged = new Map<string, string>();
-    for (const row of rows) {
-      if (row.locale === 'en') merged.set(row.key, row.value);
-    }
-    for (const row of rows) {
-      if (row.locale === locale) merged.set(row.key, row.value);
-    }
-    /* #1632 item 15: the admin console's copy is not UI copy for this route's audience.
-     *
-     * This endpoint is public and unauthenticated by design - that part is fine, it is translated
-     * interface text. But it was serving all 195 `OPS_*` strings to anyone, which publishes the
-     * model name, the margin formula and the existence of a daily spend cap. Measured on production
-     * with no cookie and no header: 180,842 bytes, 2,651 keys, 195 of them `OPS_*`.
-     *
-     * FILTERED HERE, BEFORE THE CACHE IS POPULATED, deliberately. The obvious alternative - an admin
-     * branch on this route - needs a matching dimension on BOTH caches or a warmed admin payload
-     * gets served to the next anonymous caller and the leak returns looking fixed. The in-memory
-     * cache is keyed on locale alone, and the edge cache (`s-maxage=60`) is keyed on the URL, which
-     * carries no identity at all. Filtering unconditionally means there is no second payload to key
-     * on, so the trap cannot be sprung.
-     *
-     * It also could not have worked: nothing sends credentials here. LabelsProvider fetches this
-     * with no Authorization header, and this app's auth tokens live in localStorage rather than a
-     * cookie, so the server has no way to tell an admin from a visitor on this request.
-     *
-     * /ops takes its copy from lib/labelDefaults.ops.en.json instead: the sign-in and gate strings
-     * as props from the /ops layout (a server component), the rest from the admin-only
-     * /api/ops/labels. The trade-off, stated rather than discovered later: an `OPS_*` row edited in
-     * the database does not reach /ops until that file changes and deploys. Acceptable for admin
-     * console copy; it would not be for customer-facing text.
-     *
-     * THE OTHER PATH IS CLOSED TOO. components/LabelsProvider.tsx bundles lib/labelDefaults.en.json
-     * whole into every page, and that file used to carry these same 195 strings. The split moved
-     * them out. This filter stays regardless - it is also what keeps scripts/regen-label-defaults.mjs,
-     * which snapshots this route, from writing them back into the public file. */
-    data = Object.fromEntries(
-      [...merged].filter(([key]) => !key.startsWith('OPS_'))
-    );
-  } catch { /* fail open to {} */ }
-
-  // An empty map means the query failed and we fell open - never a real answer,
-  // since every locale has thousands of rows. Do not memoise it and do not let
-  // Cloudflare cache it.
-  //
-  // This matters more now than it did before. Previously a fail-open {} was
-  // cached in memory for 60s, which degraded one instance's callers to the
-  // client-side DEFAULT_EN_LABELS fallback. If the same response were also
-  // stored at the edge it would be served to EVERY visitor for 60s, turning a
-  // transient Supabase blip into a site-wide flash of untranslated copy. So the
-  // failure path is explicitly no-store, and the in-memory cache skips it too -
-  // the next request retries (after FAILURE_BACKOFF_MS, not immediately -
-  // #1025) instead of being told the outage is the truth.
-  if (Object.keys(data).length === 0) {
-    lastFailure.set(locale, Date.now());
-    return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store' } });
-  }
-
-  lastFailure.delete(locale);
-  cache.set(locale, { data, expires: Date.now() + TTL_MS });
-  return NextResponse.json(data, { headers: { 'Cache-Control': CACHE_CONTROL } });
+  const { data, state } = await getLabels(locale);
+  /* A FAILED first read (no good table ever loaded) is the one case that answers {}: never memoised, never cached at the edge (a transient Supabase blip must not become a site-wide flash of
+     untranslated copy for 60 s). A STALE answer is served at once while the table refreshes behind it; the edge may hold it for only 5 s, so a refreshed table reaches visitors within the TTL
+     plus a few seconds instead of a whole extra edge window. Fresh and just-read answers use the normal header. */
+  if (state === 'failed') return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json(data, { headers: { 'Cache-Control': state === 'stale' ? 'public, max-age=0, s-maxage=5, stale-while-revalidate=300' : CACHE_CONTROL } });
 }

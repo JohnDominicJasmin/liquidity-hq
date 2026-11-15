@@ -9,6 +9,8 @@ export interface StrategySignalState {
   result: StrategyResult | null;
   loading: boolean;
   error: boolean;
+  /** The picked strategy cannot run on this timeframe (it reads closed candles of 1m to 1d only). An honest end state, not a loading one. */
+  unsupportedTf?: boolean;
   /** Runs the read again now (the Retry button of the unavailable state). */
   retry?: () => void;
 }
@@ -25,7 +27,7 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
   useEffect(() => {
     const def = findStrategy(strategyId);
     const tfMs = TF_MS[tf];
-    if (!def || !tfMs || !TF_BN[tf]) { setState({ result: null, loading: false, error: false }); return; }
+    if (!def || !tfMs || !TF_BN[tf]) { setState({ result: null, loading: false, error: false, unsupportedTf: !!def }); return; }
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const run = async () => {

@@ -23,6 +23,7 @@ import { AI_LIMITS, type ExtraTool, type UsageTier } from '@/lib/limits';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { spendCapBlock, spendCapLabelKey, type SpendReason } from '@/lib/aiSpendCap';
+import { reportHealth, healthError } from '@/lib/apiHealth';
 import labelDefaults from '@/lib/labelDefaults.en.json';
 
 // The ONLY place "what day is it" gets decided for daily-cap bucketing.
@@ -148,6 +149,8 @@ export async function incrementUsageColumn(
   });
   if (error) {
     console.error(`[aiUsage] increment_ai_usage failed for ${column}:`, error.message);
+    /* A failed reserve is reported on its own health row (#1631, PM): until now it was only this console line, and it answers the user with a refusal reason, so a broken write looked like a quiet day. */
+    reportHealth('ai:usage-increment', 'ai', false, healthError(error.message));
     // The RPC is an `elsif p_column = '<name>_count'` chain ending in
     // `raise exception 'increment_ai_usage: invalid column %'`, so an unknown column
     // is the DB telling us this tool's migration has not been applied. Matching on
@@ -160,6 +163,7 @@ export async function incrementUsageColumn(
     }
     return { blocked: true, reason: 'error', limit };
   }
+  reportHealth('ai:usage-increment', 'ai', true, 'ok');   // the RPC answered (a refusal below is a cap, not a failed write)
   // -1 / -2 are the DB sentinels for the two shared caps (distinct from null =
   // this column's own per-user cap). Any increment already made was rolled
   // back in-txn before the sentinel was returned.

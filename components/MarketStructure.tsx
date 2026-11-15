@@ -148,7 +148,7 @@ export default function MarketStructure({ coin, onData }: Props) {
       let candles: Candle[];
 
       if (binSym) {
-        const r = await fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=4h&limit=100`);
+        const r = await fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=4h&limit=100`, { signal: AbortSignal.timeout(20_000) });
         if (!r.ok) throw new Error('Binance 4H fetch failed');
         const raw = await r.json() as (string | number)[][];
         candles = raw.map(k => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] }));
@@ -157,7 +157,7 @@ export default function MarketStructure({ coin, onData }: Props) {
         // lib/bybitKlines.ts). Exhaustion throws into this function's
         // existing catch, same as the old !r.ok check did - the error state
         // below already surfaces it.
-        const d = await fetchBybitKlinesRetry(bytSym, '240', 100);
+        const d = await fetchBybitKlinesRetry(bytSym, '240', 100, { attemptTimeoutMs: 15_000 });
         if (d === null) throw new Error('Bybit klines failed after retry');
         // Per-1000 quoting on 1000PEPEUSDT / 1000BONKUSDT. This card prints the
         // broken level and both swing levels as dollar prices, so without the

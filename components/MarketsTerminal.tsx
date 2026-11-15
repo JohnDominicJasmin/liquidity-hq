@@ -45,7 +45,11 @@ export default function MarketsTerminal() {
   const { t } = useLabels();
   const { store, selectCoin } = useMarket();
   const router = useRouter();
-  const wsReady = store.wsStatus !== 'Connecting...';
+  /* The skeleton ends when ANY of three things is true, not only when the socket status changes: a price has arrived from any source (REST also fills the store), or every price source
+     has failed (`pricesFailed`, set by the REST backup). Keyed on the socket status alone it stayed up for as long as the socket stayed 'Connecting...', which is for ever when the socket is
+     blocked and the backup also cannot answer (QA page-load run, /markets stuck at 15 s). OWNER-RULES 21. */
+  const anyPrice = COINS.some(id => Number.isFinite(store.coins[id]?.price));
+  const wsReady = store.wsStatus !== 'Connecting...' || anyPrice || store.pricesFailed;
   const [query, setQuery]   = useState('');
   const [sort, setSort]     = useState<SortKey>('volume');
   const [sortAsc, setSortAsc] = useState(false);
@@ -228,6 +232,8 @@ export default function MarketsTerminal() {
               <SkeletonBar key={i} height={40} radius={0} style={{ opacity: 1 - i * 0.06 }} />
             ))}
           </div>
+        ) : (!anyPrice && store.pricesFailed) ? (
+          <div className="empty-state"><div className="empty-state-sub">{t('MARKET_FEED_FAILED')}</div></div>
         ) : pageRows.map(id => {
           const d      = store.coins[id];
           const dec    = COIN_DEC[id] ?? 2;

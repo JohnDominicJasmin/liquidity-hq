@@ -51,7 +51,7 @@ async function fetchCloses(id: CoinId, interval: string, limit: number): Promise
     // and looked identical to real data insufficiency - just not the
     // plausible-but-wrong shape #1079 was.
     const bbInt = interval === '1h' ? '60' : '240';
-    const d = await fetchBybitKlinesRetry(bbSym, bbInt, limit);
+    const d = await fetchBybitKlinesRetry(bbSym, bbInt, limit, { attemptTimeoutMs: 15_000 });
     if (d === null) return [];
     return ((d.result?.list ?? []) as string[][]).map(c => parseFloat(c[4])).reverse();
   }

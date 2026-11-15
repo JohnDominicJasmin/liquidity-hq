@@ -285,7 +285,7 @@ export default function GrokChat() {
           // below, same as the old !r.ok check did - setStructureLine('-')
           // already handles it, matching this effect's own "fails silently
           // to '-'" design.
-          const d = await fetchBybitKlinesRetry(by, '60', 300);
+          const d = await fetchBybitKlinesRetry(by, '60', 300, { attemptTimeoutMs: 15_000 });
           if (d === null) throw new Error('bybit');
           raw = [...(d.result?.list ?? [])].reverse();
         } else return;
@@ -416,6 +416,8 @@ export default function GrokChat() {
       const res = await fetch('/api/grok-chat', {
         method:  'POST',
         headers: reqHeaders,
+        // Never waits for ever (OWNER-RULES 21): live search is allowed just over the server's own 180 s abort, a plain answer less.
+        signal:  AbortSignal.timeout(useSearch ? 200_000 : 90_000),
         body:    JSON.stringify({
           mode:       useSearch ? 'search' : 'chat',
           context,
@@ -446,7 +448,7 @@ export default function GrokChat() {
         : [];
       setMsgs(prev => [...prev, { role: 'assistant', content: reply, ts: replyTs, ...(followUps.length ? { followUps } : {}) }]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('CHAT_UNKNOWN_ERROR'));
+      setError(e instanceof DOMException && e.name === 'TimeoutError' ? t('CHAT_TIMEOUT') : e instanceof Error ? e.message : t('CHAT_UNKNOWN_ERROR'));
     } finally {
       setLoading(false);
       setPendingText(null);
