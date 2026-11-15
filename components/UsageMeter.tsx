@@ -49,9 +49,8 @@ export default function UsageMeter() {
 
   if (!user) return null;
   /* ONE HEIGHT FOR EVERY ACCOUNT, from first paint (PM audit of #2368): the plan is unknown until the subscription read settles, so a per-tier slot shifts. The Free row used to be 62 px because the Upgrade
-     pill was 44 px tall; here the pill's VISUAL height is 26 px (the row fits the 43 px slot) and its 44 px touch target is kept by a pseudo-element hit area (globals.css). */
+     pill was 44 px tall; here the pill's VISUAL height is 28 px (the row fits the 43 px slot) and its 44 px touch target is the link itself (UpgradePillLink `tap`). */
   const slotClass = 'usage-meter-slot';
-  const pillStyle = { minHeight: 26, position: 'relative' } as const;
   /* ONE LINE, FIXED HEIGHT: the row never wraps (the reset text ellipsizes), so the box is the same height in every language and width (PM, #2365). */
   /* THE SLOT IS RESERVED FOR A SIGNED-IN VISITOR FROM FIRST PAINT (arena layout shift, #1263). The meter used to render nothing until the usage numbers arrived (3 to 6 seconds on the real network) and then
      appear above the chart, pushing the whole chart workspace down 43 px on a desktop and 81 px on a phone (QA's node-insert probe, run 43649222730: +0.0254 at 1280, +0.0476 at 390). `.usage-meter-slot`
@@ -61,7 +60,7 @@ export default function UsageMeter() {
   if (!usage) {
     return (
       <div className={slotClass} style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
-        {showFreeUpgrade ? <UpgradePillLink testId="usage-meter-upgrade" style={pillStyle} /> : null}
+        {showFreeUpgrade ? <UpgradePillLink testId="usage-meter-upgrade" tap /> : null}
       </div>
     );
   }
@@ -91,7 +90,7 @@ export default function UsageMeter() {
       )}
       {/* Free: a real button-style pill, always (was caption text, only near the cap). A trial keeps the old caption link
           near the cap - TrialBanner already carries its pill. */}
-      {showFreeUpgrade && <UpgradePillLink testId="usage-meter-upgrade" style={{ marginLeft: 'auto', flexShrink: 0, ...pillStyle }} />}
+      {showFreeUpgrade && <UpgradePillLink testId="usage-meter-upgrade" style={{ marginLeft: 'auto' }} tap />}
       {!isPro && !showFreeUpgrade && nearCap && (
         <Link href="/upgrade" style={{ marginLeft: 'auto', color: 'var(--accent)', fontWeight: 700, fontSize: 'var(--fs-caption)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
           {t('USAGE_METER_UPGRADE_LINK')}
