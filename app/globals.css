@@ -2267,6 +2267,9 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .klc-draw-item.on { color: var(--accent-2); background: rgba(90,163,255,0.1); }
 .klc-draw-clear { color: var(--red); margin-top: 2px; border-top: 0.5px solid var(--bdr); border-radius: 0 0 5px 5px; }
 .klc-legend { display: flex; gap: 8px; align-items: center; }
+/* The alert chips as an overlay on the chart canvas: out of the toolbar's flow, so their late arrival can never wrap the toolbar (CLS). The container ignores the pointer; each chip is display-only. A solid-ish ground so the amber text reads over candles in both themes. */
+.klc-legend-overlay { position: absolute; top: 34px; left: 8px; z-index: 3; pointer-events: none; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 96px); }
+.klc-legend-overlay .klc-price-chip { background: color-mix(in srgb, var(--bg1) 88%, rgba(245,158,11,0.12)) !important; }
 .klc-ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--txt3); flex-shrink: 0; }
 /* The fullscreen button and the feed dot: the dot is positioned OUTSIDE the button's right edge, so it adds no width to the toolbar row and can never wrap onto a row of its own (the 13 px chart push). */
 .klc-fs-wrap { position: relative; display: inline-flex; flex-shrink: 0; }
