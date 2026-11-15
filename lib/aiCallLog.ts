@@ -16,6 +16,12 @@
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { parseAiUsage, type AiCallType } from '@/lib/aiCost';
+import { reportHealth, healthError } from '@/lib/apiHealth';
+
+/* THE WRITE'S OWN HEALTH ROW (#1631, PM: a broken write was only a console line, invisible with Render logs unavailable, while the per-user AI caps read these rows). `ai:call-log-write` is ok after a row
+   lands and not ok after a failed insert, throttled like every health source (a state change writes within the floor, a steady state at most once per interval). The detail is the same bounded
+   error text the console line already carried: nothing about the user or the call. */
+const HEALTH_SOURCE = 'ai:call-log-write';
 
 export interface AiCallRecord {
   /** Verified server-side from the caller's token - every call site already has it
@@ -42,8 +48,14 @@ export async function recordAiCall(rec: AiCallRecord): Promise<void> {
       cost_usd:          cost.costUsd,
       cost_source:       cost.source,
     });
-    if (error) console.error(`[aiCallLog] insert failed for ${rec.callType}: ${error.message}`);
+    if (error) {
+      console.error(`[aiCallLog] insert failed for ${rec.callType}: ${error.message}`);
+      reportHealth(HEALTH_SOURCE, 'ai', false, healthError(error.message));
+    } else {
+      reportHealth(HEALTH_SOURCE, 'ai', true, 'ok');
+    }
   } catch (e) {
     console.error(`[aiCallLog] insert threw for ${rec.callType}: ${e instanceof Error ? e.message : String(e)}`);
+    reportHealth(HEALTH_SOURCE, 'ai', false, healthError(e));
   }
 }
