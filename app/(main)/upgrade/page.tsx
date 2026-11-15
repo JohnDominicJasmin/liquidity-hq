@@ -775,7 +775,7 @@ export default function UpgradePage() {
                   {t('UPGRADE_COMING_SOON_SIGNED_IN_POST')}</>
                 ) : (
                   <>{t('UPGRADE_COMING_SOON_SIGNED_OUT_PRE')}{' '}
-                  <Link href="/login?signup=1&next=/upgrade" style={{ color: 'var(--accent)' }}>{t('UPGRADE_COMING_SOON_SIGNUP_LINK')}</Link>{' '}
+                  <Link href="/login?signup=1&next=/upgrade" style={{ color: 'var(--accent)', display: 'inline-block', padding: '4px 0', margin: '-4px 0', minHeight: 24 }}>{t('UPGRADE_COMING_SOON_SIGNUP_LINK')}</Link>{' '}
                   {t('UPGRADE_COMING_SOON_SIGNED_OUT_POST')}</>
                 )}
               </p>
