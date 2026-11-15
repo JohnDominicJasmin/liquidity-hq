@@ -20,6 +20,7 @@ import { findIndicator, toCalcParams, DEFAULT_PANE_INDICATORS, type IndicatorEnt
 import { isStreamStalled, STREAM_WATCH_EVERY_MS, BYBIT_PING_EVERY_MS, STREAM_SUSPECT_MS } from '@/lib/streamWatch';
 import { checkChartSync, historyRetryDelayMs, HISTORY_ATTEMPT_TIMEOUT_MS } from '@/lib/chartSync';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
+import type { StrategyOverlay } from '@/lib/strategies/types';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
 
@@ -418,6 +419,9 @@ interface Props {
      strategyRegistry's defaultParams - see the sync effect below and
      `toCalcParams`. */
   indicatorParams?: Record<string, Record<string, string | number | boolean>>;
+  /** What the PICKED Arena strategy draws on the main price chart (lib/strategies overlay: its key levels, zone or line, and the arrow on a signal candle). Null when no strategy is picked or the read has not
+   *  arrived; the latest state only, cleared and redrawn whenever it changes (a new strategy, coin or timeframe). Canvas overlays only: nothing here takes layout space. */
+  strategyOverlay?: StrategyOverlay | null;
 }
 
 const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d','1w','1M'];
@@ -428,6 +432,7 @@ let srLevelLineRegistered = false;
 let gexLevelLineRegistered = false;
 let liqClusterLineRegistered = false;
 let analysisLevelLineRegistered = false;
+let strategyOverlayRegistered = false;
 let reversalOverlayRegistered = false;
 let structureOverlayRegistered = false;
 
@@ -669,7 +674,7 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, onUnlock }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, onUnlock, strategyOverlay }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -856,6 +861,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const { entitlementStatus } = useAuth();
   const coinData = store.coins[coin];
   const srOverlayIds              = useRef<string[]>([]);
+  const strategyOverlayIds        = useRef<string[]>([]);
   const paOverlayIds              = useRef<string[]>([]);
   const userDrawOverlayIds        = useRef<string[]>([]);
   // Track the last loaded coin/tf so we only re-fetch what actually changed,
@@ -1648,6 +1654,87 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 styles: { color, size: 10, weight: '700' },
               },
             ];
+          },
+        });
+      }
+
+      /* THE PICKED STRATEGY'S DRAWINGS (owner, 2026-11-15): four canvas overlays, all locked, none takes layout space. A level runs from the candle it stood on to the right edge; a zone is a box between two
+         candles; a polyline carries any number of points (like emaRibbonLine); the marker is an arrow on the signal candle. Colours are resolved per paint from the design tokens, so both themes read. The
+         text is resolved through t() by the caller and travels in extendData. */
+      if (!strategyOverlayRegistered) {
+        strategyOverlayRegistered = true;
+        const roleInk = (role: string): string => resolveCssColor(role === 'invalid' ? 'var(--amber)' : role === 'ref' ? 'var(--txt2)' : 'var(--accent)');
+        const withAlpha = (css: string, a: number): string => {
+          const hex = /^#([0-9a-f]{6})$/i.exec(css.trim());
+          if (hex) { const v = parseInt(hex[1], 16); return `rgba(${(v >> 16) & 255}, ${(v >> 8) & 255}, ${v & 255}, ${a})`; }
+          const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(css.trim());
+          return rgb ? `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${a})` : css;
+        };
+        const base = { totalStep: 1, needDefaultPointFigure: false, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          ...base, name: 'strategyLevelLine',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
+            const { role, text } = overlay.extendData as { role: string; text: string };
+            const c = coordinates[0];
+            if (!c || !isFinite(c.x) || !isFinite(c.y) || c.y < 0) return [];
+            const x0 = Math.max(0, c.x), x1 = bounding?.width ?? 9999;
+            if (x0 >= x1) return [];
+            const ink = roleInk(role);
+            return [
+              { type: 'line', attrs: { coordinates: [{ x: x0, y: c.y }, { x: x1, y: c.y }] }, styles: { style: role === 'confirm' || role === 'ref' ? 'solid' : 'dashed', color: ink, size: role === 'ref' ? 1 : 1.5, dashedValue: [5, 3] } },
+              { type: 'text', attrs: { x: Math.min(x1 - 6, Math.max(6, x0 + 6)), y: c.y - 3, text, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } },
+            ];
+          },
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          ...base, name: 'strategyZone',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
+            const { kind, text } = overlay.extendData as { kind: 'supply' | 'demand'; text: string };
+            const a = coordinates[0], b = coordinates[1];
+            if (!a || !b || ![a.x, a.y, b.x, b.y].every(isFinite)) return [];
+            const x0 = Math.max(0, Math.min(a.x, b.x)), x1 = Math.min(bounding?.width ?? 9999, Math.max(a.x, b.x));
+            const y0 = Math.min(a.y, b.y), h = Math.abs(a.y - b.y);
+            if (x1 <= x0) return [];
+            const ink = resolveCssColor(kind === 'demand' ? 'var(--green)' : 'var(--red)');
+            return [
+              { type: 'rect', attrs: { x: x0, y: y0, width: x1 - x0, height: Math.max(h, 1) }, styles: { style: 'stroke_fill', color: withAlpha(ink, 0.14), borderColor: ink, borderSize: 1 } },
+              { type: 'text', attrs: { x: x0 + 4, y: y0 - 3, text, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } },
+            ];
+          },
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          ...base, name: 'strategyPolyline',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
+            const { role, text } = overlay.extendData as { role: string; text: string };
+            const pts = coordinates.filter(c => c && isFinite(c.x) && isFinite(c.y));
+            if (pts.length < 2) return [];
+            const ink = roleInk(role);
+            const end = pts[pts.length - 1];
+            return [
+              { type: 'line', attrs: { coordinates: pts }, styles: { style: 'solid', color: ink, size: 1.25 } },
+              { type: 'text', attrs: { x: end.x + 4, y: end.y, text, align: 'left', baseline: 'middle' }, styles: { color: ink, size: 10, weight: '700' } },
+            ];
+          },
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          ...base, name: 'strategyMarker',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
+            const { dir } = overlay.extendData as { dir: 'long' | 'short' };
+            const c = coordinates[0];
+            if (!c || !isFinite(c.x) || !isFinite(c.y) || c.y < 0) return [];
+            const ink = resolveCssColor(dir === 'long' ? 'var(--green)' : 'var(--red)');
+            // a triangle pointing at the candle: below a long's low, above a short's high
+            const tipY = dir === 'long' ? c.y + 6 : c.y - 6;
+            const baseY = dir === 'long' ? c.y + 18 : c.y - 18;
+            return [{ type: 'polygon', attrs: { coordinates: [{ x: c.x, y: tipY }, { x: c.x - 6, y: baseY }, { x: c.x + 6, y: baseY }] }, styles: { style: 'stroke_fill', color: ink, borderColor: ink, borderSize: 1 } }];
           },
         });
       }
@@ -2627,6 +2714,31 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       if (typeof id === 'string') srOverlayIds.current.push(id);
     }
   }, [srLevels, showSR, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── The picked strategy's drawings: its levels, zone or line, and the arrow on a signal candle ──────────
+  // Latest state only: everything from the previous state is removed first, so a new strategy, coin or timeframe never leaves a stale line. ovLabelProbe changes when the labels or the language do, so the text is redrawn.
+  const ovLabelProbe = tl('STRAT_OV_BREAK');
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    strategyOverlayIds.current.forEach(id => chart.removeOverlay({ id }));
+    strategyOverlayIds.current = [];
+    const ov = strategyOverlay;
+    if (!ov) return;
+    const px = currencyPrefix(coinRef.current);
+    const add = (name: string, points: Array<{ timestamp: number; value: number }>, extendData: Record<string, unknown>) => {
+      if (!points.length || !points.every(p => Number.isFinite(p.timestamp) && Number.isFinite(p.value))) return;
+      const id = chart.createOverlay({ name, groupId: 'strategy_overlay', lock: true, points, extendData } as OverlayCreate);
+      if (typeof id === 'string') strategyOverlayIds.current.push(id);
+    };
+    for (const z of ov.zones) add('strategyZone', [{ timestamp: z.fromTs, value: z.top }, { timestamp: z.toTs, value: z.bottom }], { kind: z.kind, text: tl(z.labelKey) });
+    for (const l of ov.lines) add('strategyPolyline', l.points.map(p => ({ timestamp: p.ts, value: p.price })), { role: l.role, text: tl(l.labelKey, l.labelParams) });
+    for (const l of ov.levels) add('strategyLevelLine', [{ timestamp: l.fromTs, value: l.price }], { role: l.role, text: `${tl(l.labelKey, l.labelParams)} ${px}${fmtPx(l.price)}` });
+    if (ov.marker) {
+      const bar = chart.getDataList().find(b => b.timestamp === ov.marker!.ts);
+      if (bar) add('strategyMarker', [{ timestamp: bar.timestamp, value: ov.marker.dir === 'long' ? bar.low : bar.high }], { dir: ov.marker.dir });
+    }
+  }, [strategyOverlay, chartReady, themeInk, ovLabelProbe]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Publish the newest structure break upward. Separate from the drawing effect
   // below so it is not gated on showPA - a consumer scoring the market wants the
