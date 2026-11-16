@@ -116,10 +116,12 @@ const BULLISH_WORDS = wholeWord(['ath']);
    read Bullish ('record', now only record high / inflows), "risk-on rally" read Bearish ('risk', now only risk-off), and "fall" matched "fallout" (now whole words). A NEGATED approval or launch is Bearish; a lawsuit, charge or case that is
    dropped, dismissed, ended, settled or won is not a bearish keyword. */
 const NEGATED_APPROVAL = /\b(?:not|no|denied|denies|deny|rejects?|rejected|delays?|delayed|blocks?|blocked|postpones?|postponed|without)\b(?:\s+\w+){0,2}\s+(?:approv\w*|launch\w*)/i;
+/* The same negation AFTER the word (QA B6): "Launch delayed again", "ETF approval denied", "ETF launch postponed" read Bullish because only a negator BEFORE the word counted. A real approval ("ETF approved") has no negator either side and stays Bullish. */
+const NEGATED_APPROVAL_AFTER = /\b(?:approv\w*|launch\w*)\b(?:\s+\w+){0,2}\s+(?:denied|rejected|delayed|postponed|blocked|halted|suspended|cancell?ed|shelved|withheld)\b/i;
 const RESOLVED_CASE = /\b(?:drops?|dropped|dismiss\w*|ends?|ended|settles?|settled|wins?|won|closes?|closed|withdraws?|withdrew)\b(?:\s+\w+){0,3}\s+(?:lawsuits?|charges|case|probe|investigation)\b/gi;
 
 function getBtcSentiment(headline: string): BtcSentiment {
-  if (NEGATED_APPROVAL.test(headline)) return 'bearish';
+  if (NEGATED_APPROVAL.test(headline) || NEGATED_APPROVAL_AFTER.test(headline)) return 'bearish';
   const h = headline.replace(RESOLVED_CASE, ' ').toLowerCase();
   if (BEARISH_STEMS.test(h) || BEARISH_WORDS.test(h)) return 'bearish';
   if (BULLISH_STEMS.test(h) || BULLISH_WORDS.test(h)) return 'bullish';
