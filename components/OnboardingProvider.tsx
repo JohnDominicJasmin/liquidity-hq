@@ -68,6 +68,7 @@ export default function OnboardingProvider({ children }: { children: React.React
        returned (user set, loaded true, profileComplete still false), and (b) a second user with no onboarding row inherited the first user's tour / profile / checklist flags. Reset to the empty state on every user change and
        mark it not loaded until THIS user's row has been read (a signed-out visitor has nothing to wait for). */
     setState(EMPTY_ONBOARDING);
+    setLoadError(false);   // a failed read for the PREVIOUS user must not follow the next one (also cleared on the early returns below)
     if (!user) { setLoaded(true); return; }
     setLoaded(false);
     const sb = getSupabase();
