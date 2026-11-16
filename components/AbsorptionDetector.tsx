@@ -2,6 +2,7 @@
 import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS, venueSymbols, computeFibLevels, useMarket } from '@/lib/marketStore';
+import { binanceKlineSource } from '@/lib/coins';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
@@ -214,8 +215,8 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
 
       if (binSym) {
         const [r15, r1h] = await Promise.all([
-          fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=15m&limit=50`, { signal: deadlineSignal(20_000) }),
-          fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=1h&limit=20`, { signal: deadlineSignal(20_000) }),
+          fetch(`/api/market/klines?source=${binanceKlineSource(coin)}&symbol=${binSym}&interval=15m&limit=50`, { signal: deadlineSignal(20_000) }),
+          fetch(`/api/market/klines?source=${binanceKlineSource(coin)}&symbol=${binSym}&interval=1h&limit=20`, { signal: deadlineSignal(20_000) }),
         ]);
         if (!r15.ok || !r1h.ok) throw new Error('Binance fetch failed');
         const raw15 = await r15.json() as (string | number)[][];
