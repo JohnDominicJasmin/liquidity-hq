@@ -21,7 +21,7 @@ const BN_COIN_MAP: Record<string, string> = Object.fromEntries(
   COIN_IDS.map(c => [BINANCE_SYMS[c].toLowerCase(), c.toUpperCase()])
 );
 const BN_STREAMS = BN_SYMBOLS.map(s => `${s}@aggTrade`).join('/');
-const BN_WS_URL  = `wss://fstream.binance.com/stream?streams=${BN_STREAMS}`;
+const BN_WS_URL  = `wss://fstream.binance.com/market/stream?streams=${BN_STREAMS}`;
 
 const BB_SYM_MAP: Record<string, string> = Object.fromEntries(
   COIN_IDS.map(c => [BYBIT_SYMS[c], c.toUpperCase()])

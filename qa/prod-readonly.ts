@@ -125,6 +125,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'no-duplicate-controls', needs: 'none', note: 'route sweep' },
   { spec: 'no-selling-hidden-features', needs: 'none' },
   { spec: 'one-socket-per-screen', needs: 'none', note: 'route sweep' },
+  { spec: 'binance-market-path', needs: 'none', note: 'signed out; futures sockets stubbed' },
   { spec: 'perf', needs: 'none', note: 'performance budgets against the live site: not routine' },
   { spec: 'reconnect', needs: 'none' },
   { spec: 'reconnect-cdp', needs: 'none' },
@@ -163,6 +164,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'hype-oi1h-live', needs: 'none', note: 'OI 1h on BTC and HYPE on a live build (#2275); anonymous; reads only' },
   { spec: 'strategy-menu', needs: 'pro', note: 'the one strategy menu on /arena (#2358); signed in as account A; the settings write is stubbed and the read patched; reads only' },
   { spec: 'landing-2302-2303', needs: 'none', note: 'the AI disclosure on the landing page and the hero breakpoint (#2302 #2303); anonymous; reads only' },
+  { spec: 'legacy-abortsignal', needs: 'pro', note: 'removes AbortSignal.timeout/any in the page to mimic an old Safari, then loads /arena as fixture A and reads the plan; reads only' },
   { spec: 'arena-overflow-probe', needs: 'free', note: 'measures layout only - reads scrollWidth and element rects, writes nothing; sets its own 390x844 viewport and samples at 600ms and 4.6s, so 16 page loads' },
 ];
 
@@ -202,6 +204,7 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'arena-seed-effect-real-selection': 'writes on purpose: PATCHes strategy_selection',
   'arena-stale-result-labelling': 'writes on purpose: PATCHes strategy_selection',
   'arena-sticky-ready-background-refresh': 'writes on purpose: PATCHes settings',
+  'hotfix-three': 'writes on purpose: PATCHes the fixture account saved selection to set up and restore the strategy menu cells',
   'audit-001-item-1-2': 'writes on purpose: PATCHes settings',
   'audit-001-item-23-24-25': 'writes on purpose: PATCHes settings',
   'bola': 'writes on purpose: cross-account requests that must be refused, against seeded row ids',
