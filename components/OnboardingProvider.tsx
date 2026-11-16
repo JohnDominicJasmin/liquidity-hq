@@ -16,6 +16,9 @@ export interface OnboardingState {
   coins:           boolean;
 }
 
+/** Nothing seen, nothing complete: what every user starts from and what a user change resets to. */
+const EMPTY_ONBOARDING: OnboardingState = { tourSeen: false, profileComplete: false, telegram: false, priceAlert: false, grok: false, coins: false };
+
 interface OnboardingCtx {
   state:   OnboardingState;
   loaded:  boolean;
@@ -54,16 +57,19 @@ export default function OnboardingProvider({ children }: { children: React.React
      call here: AppShell's only OnboardingProvider sits inside SettingsProvider (AppShell.tsx:151
      wraps :154), and `useSettings()` falls back to a defined context default anywhere else. */
   const { settings, settingsLoadStatus } = useSettings();
-  const [state, setState] = useState<OnboardingState>({
-    tourSeen: false, profileComplete: false, telegram: false, priceAlert: false, grok: false, coins: false,
-  });
+  const [state, setState] = useState<OnboardingState>(EMPTY_ONBOARDING);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [tourPending, setTourPending] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;          // wait for auth to hydrate first
+    /* STATE IS PER USER. It used to persist across a sign-out and sign-in in one page life, and `loaded` stayed true, so (a) an already-onboarded user who signed in without a reload saw the 5-step wizard until the read
+       returned (user set, loaded true, profileComplete still false), and (b) a second user with no onboarding row inherited the first user's tour / profile / checklist flags. Reset to the empty state on every user change and
+       mark it not loaded until THIS user's row has been read (a signed-out visitor has nothing to wait for). */
+    setState(EMPTY_ONBOARDING);
     if (!user) { setLoaded(true); return; }
+    setLoaded(false);
     const sb = getSupabase();
     if (!sb) { setLoaded(true); return; }
     setLoadError(false);
@@ -100,7 +106,9 @@ export default function OnboardingProvider({ children }: { children: React.React
         setLoaded(true);
       }
     })();
-  }, [user, authLoading]);
+  // Keyed on the user ID, not the user object: a token refresh hands out a new object for the same user and must not reset the state.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading]);
 
   const markDone = useCallback((key: OnboardingKey) => {
     setState(prev => {
