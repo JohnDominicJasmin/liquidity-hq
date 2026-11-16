@@ -1,4 +1,4 @@
-/* #2468: the server liquidation collector reports what it sees (60 s heartbeat into the venue's health row) and replaces an OPEN socket that has gone silent.
+/* #2415 + #2470: the server liquidation collector reports what it sees (60 s heartbeat into the venue health row) and replaces a socket that has gone silent (15 s watchdog; Bybit 60 s, Binance 10 min).
  *
  * THE REAL startLiqCollector RUNS HERE with a fake WebSocket class and mocked timers/clock. Two stand-ins only: lib/apiHealth.ts (every reportHealth call is recorded, no throttle, no network) and
  * lib/supabase-admin.ts (the batch upsert is recorded). The sockets are driven by hand: open, message, close.
