@@ -172,7 +172,8 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
 /** Every other spec, and why it is kept off production. A spec must appear in exactly one
  *  of the two lists; the unit test enforces it. */
 export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
-  'release-cells-2026-11-17': 'the release group-run cells (toolbar one-row at 1024/1280 in four languages, News Events table at 390/768/1280): measured on the qa/staging build under test, signed out, nothing written; excluded from production because the cells assert the unreleased build.',
+  'release-cells-f-2026-11-17': 'signed-in release cells on a build under test (Free fixture B with a patched saved selection, Pro fixture A, /research stablecoin card): DEV-project accounts that do not exist on production; every settings write and the paid AI summary are stubbed; staging/qa only.',
+  'release-cells-2026-11-17':'the release group-run cells (toolbar one-row at 1024/1280 in four languages, News Events table at 390/768/1280): measured on the qa/staging build under test, signed out, nothing written; excluded from production because the cells assert the unreleased build.',
   'cls-arena-gate': 'the /arena layout-shift gate for a build under test: signs in as the Pro and Free DEV fixtures (accounts that do not exist on production) and stubs the settings write; staging/qa only.',
   'page-load': 'page speed and not-stuck-in-loading on a build under test; signs in as the DEV fixtures for the signed-in pages, which do not exist on production; staging/qa only.',
   'explore-real-user': 'the exploratory real-user pass on a build under test: signs in as the DEV fixtures and fences the paid AI routes; staging/qa only.',
