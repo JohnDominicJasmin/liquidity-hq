@@ -55,6 +55,9 @@ function extractCDATA(text: string): string {
 
 const NAMED_ENTITIES: Record<string, string> = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  hellip: '…', ndash: '–', mdash: '—', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', laquo: '«', raquo: '»',
+  pound: '£', euro: '€', yen: '¥', cent: '¢', copy: '©', reg: '®', trade: '™', deg: '°', middot: '·', bull: '•',
+  eacute: 'é', egrave: 'è', agrave: 'à', aacute: 'á', iacute: 'í', oacute: 'ó', uacute: 'ú', ntilde: 'ñ', ccedil: 'ç', uuml: 'ü', ouml: 'ö', auml: 'ä',
 };
 
 // RSS titles carry HTML/XML entities (curly quotes, en/em dashes, &amp; etc.)
@@ -71,12 +74,13 @@ function extractLink(block: string): string | undefined {
   // Prefer <link> that's not an <atom:link>
   // RSS uses bare <link>URL</link> or <link href="..."/>
   const plain = block.match(/<link>(?:<!\[CDATA\[)?(https?:\/\/[^\s<"]+?)(?:\]\]>)?<\/link>/i)?.[1];
-  if (plain) return plain.trim();
+  /* The link is an XML attribute / text node, so its &amp; is an entity: a stored "?a=1&amp;b=2" opened with a broken second parameter (N11). */
+  if (plain) return decodeEntities(plain.trim());
   const href = block.match(/<link[^>]+href=["'](https?:\/\/[^"']+)["']/i)?.[1];
-  if (href) return href.trim();
+  if (href) return decodeEntities(href.trim());
   // guid is often the article URL
   const guid = block.match(/<guid[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^\s<"]+?)(?:\]\]>)?<\/guid>/i)?.[1];
-  if (guid) return guid.trim();
+  if (guid) return decodeEntities(guid.trim());
   return undefined;
 }
 
@@ -101,18 +105,27 @@ function extractImage(block: string): string | undefined {
 
 export function parseRSS(xml: string, source: string, cat: RSSItem['cat']): RSSItem[] {
   const items: RSSItem[] = [];
-  const itemRx = /<item>([\s\S]*?)<\/item>/g;
+  /* RSS <item>, RSS 1.0 <item rdf:about=...> and Atom <entry>. */
+  const itemRx = /<(item|entry)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/g;
   let m: RegExpExecArray | null;
   while ((m = itemRx.exec(xml)) !== null) {
-    const block = m[1];
+    const block = m[2];
 
     const titleRaw = block.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? '';
     const title = decodeEntities(extractCDATA(titleRaw));
     if (!title) continue;
 
-    const dateStr = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1]?.trim() ?? '';
-    const pubDate = dateStr ? Math.floor(new Date(dateStr).getTime() / 1000) : Math.floor(Date.now() / 1000);
-    if (isNaN(pubDate) || pubDate <= 0) continue;
+    /* THE PUBLICATION DATE, OR NO ITEM (N4). A missing date used to become "now", so an old undated story first seen today sorted to the top as fresh; a CDATA-wrapped date parsed to NaN and the item was silently dropped; only
+       <pubDate> was read. Now <pubDate>, <dc:date>, <published> and <updated> are tried, CDATA is stripped, and an item with no parseable date is skipped rather than invented. */
+    const dateRaw = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1]
+      ?? block.match(/<dc:date>([\s\S]*?)<\/dc:date>/)?.[1]
+      ?? block.match(/<published>([\s\S]*?)<\/published>/)?.[1]
+      ?? block.match(/<updated>([\s\S]*?)<\/updated>/)?.[1]
+      ?? '';
+    const dateStr = extractCDATA(dateRaw);
+    const parsed = dateStr ? new Date(dateStr).getTime() : NaN;
+    const pubDate = Math.floor(parsed / 1000);
+    if (!Number.isFinite(pubDate) || pubDate <= 0) continue;
 
     const link  = extractLink(block);
     const image = extractImage(block);
@@ -191,6 +204,7 @@ export interface FinnhubArticle {
   source?:   string;
   datetime?: number;
   image?:    string;
+  url?:      string;
 }
 
 export async function fetchFinnhubCategory(category: 'crypto' | 'general'): Promise<FinnhubArticle[]> {
