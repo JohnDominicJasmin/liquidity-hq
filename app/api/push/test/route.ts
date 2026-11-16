@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import webpush from 'web-push';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { validPushEndpoint } from '@/lib/pushEndpoint';
 import { hasProFeatures } from '@/lib/entitlements';
 import { fetchAuthUser } from '@/lib/authUser';
 
@@ -58,9 +59,12 @@ export async function POST(req: NextRequest) {
   const expired: string[] = [];
   await Promise.allSettled(
     subs.map(async (sub: { endpoint: string; p256dh: string; auth: string }) => {
+      /* Re-checked at SEND time, not only at subscribe time (security audit #1413): a row written before the allowlist existed, or by any other path, must still never make the server call an arbitrary URL. */
+      const endpoint = validPushEndpoint(sub.endpoint);
+      if (!endpoint) return;
       try {
         await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          { endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           payload
         );
       } catch (err: unknown) {

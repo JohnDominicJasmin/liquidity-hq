@@ -2405,6 +2405,7 @@
   "LIQ_FEED_CLUSTERS_SUBTITLE": "- where liqs are concentrating",
   "LIQ_FEED_DOM_LONG_ABBR": "L",
   "LIQ_FEED_DOM_SHORT_ABBR": "S",
+  "LIQ_FEED_HISTORY_ONE_VENUE": "24 h history: {venue} only",
   "LIQ_FEED_SR_WATCHING": "Watching for {coin} liquidations > $10K…",
   "LIQ_FEED_ALL_MARKETS": "all markets",
   "LIQ_FEED_SR_CONNECTING": "Connecting to Binance + Bybit…",
@@ -3159,5 +3160,8 @@
   "MACRO_STRIP_JPY_SAFE": "Safe",
   "MACRO_STRIP_JPY_INTERVENTION": "BOJ intervention risk",
   "MACRO_STRIP_JPY_APPROACHING": "Approaching danger",
-  "MACRO_STRIP_JPY_CARRY_STABLE": "Carry trade stable"
+  "MACRO_STRIP_JPY_CARRY_STABLE": "Carry trade stable",
+  "ARENA_PLAN_CHECKING": "Checking your plan…",
+  "CHART_LIQ_HIST_FROM": "The stored history comes from {venue} only.",
+  "CHART_LIQ_VENUE_ONLY": "{venue} only"
 }
