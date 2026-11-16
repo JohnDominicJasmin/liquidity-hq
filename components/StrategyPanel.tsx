@@ -239,7 +239,6 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
       <div className="strat-sect">
         <div className="strat-lbl">
           <span>{t('STRATEGY_PANEL_SECTION_SET')}</span>
-          {entitled && <span className="strat-cap">{t('STRATEGY_PANEL_EDIT_SAVE_AS')}</span>}
         </div>
         <select className="strat-sel" data-testid="strategy-set-select" value={setId} disabled={!loaded || planChecking} aria-label={t('STRATEGY_PANEL_SECTION_SET')} onChange={e => applySet(e.target.value)}>
           {STRATEGY_SETS.filter(s => s.id === AUTO_SET_ID).map(s => <option key={s.id} value={s.id}>{t('STRATEGY_PANEL_SET_AUTO')}</option>)}

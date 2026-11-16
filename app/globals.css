@@ -9072,7 +9072,6 @@ main.app-content[data-chrome="none"] {
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
   display: flex; justify-content: space-between; margin-bottom: 6px;
 }
-[data-design="terminal"] .strat-cap { color: var(--txt3); }
 /* The plan + used/limit chip beside "Indicators" (owner, 2026-10-07: the 0 of 1 caption was easy to miss). --txt2 on --bg1
    is 5.62 dark / 5.56 light. At the cap it takes the accent border so it reads as "full", with the words saying so as well. */
 [data-design="terminal"] .strat-count {
