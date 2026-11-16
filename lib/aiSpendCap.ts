@@ -89,7 +89,9 @@ export function monthStartIsoUtc(nowMs: number): string {
 }
 
 export type SpendReason = 'pro_daily' | 'pro_monthly' | 'free_daily' | 'fuse';
-export type SpendDecision = { blocked: false } | { blocked: true; reason: SpendReason };
+/* 'ledger_unreadable' is NOT a cap the account hit: it is the answer for an UNKNOWN PLAN (the caller could not confirm Free or Pro) when the ledger could not be read, so the dollar cap cannot be
+   checked. The caller reports it as our own retryable error, never as a limit (see incrementUsageColumn). */
+export type SpendDecision = { blocked: false } | { blocked: true; reason: SpendReason } | { blocked: true; reason: 'ledger_unreadable' };
 
 /** A set-returning RPC comes back as an array of rows; take the first (there is
  *  always exactly one aggregate row), tolerating a non-array shape defensively. */
@@ -118,6 +120,9 @@ export async function spendCapBlock(
   tier: UsageTier,
   userId: string,
   nowMs: number = Date.now(),
+  /** True for a caller whose plan could not be read and is being served as Pro for the COUNT cap (POST /api/grok, #2412): a ledger read that errors then FAILS CLOSED instead of open, because an
+   *  uncapped call on an unconfirmed account would spend money through a fail-open check. A read that succeeded and is over a cap still blocks first, as before. Default false: nothing else changes. */
+  failClosedOnUnreadable: boolean = false,
 ): Promise<SpendDecision> {
   const db = getSupabaseAdmin();
   const dayStart = dayStartIsoUtc(nowMs);
@@ -145,6 +150,8 @@ export async function spendCapBlock(
       // Neither cap confirmed exceeded. A read may have errored (then we could not
       // fully confirm under-cap), but Pro fails OPEN by policy - the count reserve
       // still bounds them; if both reads succeeded, the caller is genuinely under both.
+      // EXCEPT an unknown plan (failClosedOnUnreadable): there an unreadable ledger refuses.
+      if (failClosedOnUnreadable && (monthRes.error || dayRes.error)) return { blocked: true, reason: 'ledger_unreadable' };
       return { blocked: false };
     }
 
@@ -170,7 +177,8 @@ export async function spendCapBlock(
     return { blocked: false };
   } catch {
     // Ledger read failed - the third state.
-    return tier === 'pro' ? { blocked: false } : { blocked: true, reason: 'free_daily' };
+    if (tier === 'pro') return failClosedOnUnreadable ? { blocked: true, reason: 'ledger_unreadable' } : { blocked: false };
+    return { blocked: true, reason: 'free_daily' };
   }
 }
 
