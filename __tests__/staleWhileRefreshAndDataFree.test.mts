@@ -8,7 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as nodeModule from 'node:module';
-import { cached, cachedRefresh, STALE_WHILE_REFRESH_MS } from '../lib/apiCache.ts';
+import { cached, cachedRefresh, STALE_WHILE_REFRESH_MS, REFRESH_FAIL_HOLD_MS } from '../lib/apiCache.ts';
 import { exchangeFetch } from '../lib/exchangeGuard.ts';
 
 /* Cast rather than a named import: stripTypeScriptTypes is experimental and this repo's @types/node does not declare it (TS2305), though it exists at runtime (same pattern as libStrippable.test.mts). */
@@ -104,4 +104,28 @@ test('P1. the proxy: the 3 s primary deadline exists ONLY for a type with a Bybi
   assert.ok(s.includes("...(fbUrl ? { signal: AbortSignal.timeout(FALLBACK_AFTER_MS) } : {})"), 'a type WITHOUT a fallback now gets the 3 s deadline (it would fail where it used to wait)');
   assert.ok(s.includes('if (!fbUrl) throw e;') && s.includes('primaryFailure = e;'), 'a primary that throws no longer falls to the fallback, or a fallback-less type swallows its error');
   assert.ok(s.includes('primaryFailure instanceof Error ? primaryFailure : new Error(`${type} upstream unreachable`)'), 'the original error is not what surfaces when both fail');
+});
+
+/* #2393 follow-up (06461d42): a FAILED background refresh holds the next one off for REFRESH_FAIL_HOLD_MS (10 s), so an outage does not start a refresh attempt on every call inside the stale window. */
+test('R7. a fetcher failing inside the stale window is attempted ONCE per 10 s (not per call), the old value is served throughout, and after TTL + bound the caller waits and sees the real error', async (t) => {
+  assert.equal(REFRESH_FAIL_HOLD_MS, 10_000);
+  t.mock.timers.enable({ apis: ['Date'], now: BASE }); const k = key(); let attempts = 0;
+  await cachedRefresh(k, TTL, BOUND, async () => 'old'); t.mock.timers.tick(TTL + 10);
+  const failing = async () => { attempts++; throw new Error('upstream down'); };
+  const served: string[] = [];
+  for (let s = 0; s < 25; s++) { served.push(await cachedRefresh(k, TTL, BOUND, failing)); await tick(); await tick(); t.mock.timers.tick(1_000); }
+  assert.ok(served.every((v) => v === 'old'), 'the old value stopped being served during the hold');
+  assert.ok(attempts >= 2 && attempts <= 4, `${attempts} refresh attempts in 25 s: expected about one per 10 s (an outage hammered the upstream on every call, or the refresh never retried)`);
+  t.mock.timers.tick(BOUND);
+  await assert.rejects(cachedRefresh(k, TTL, BOUND, failing), /upstream down/, 'after TTL + bound the real error did not surface');
+});
+test('R8. the hold is per key and a success clears it: another key refreshes at once, and after the hold a recovered fetcher refreshes and the new value is served', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: BASE }); const a = key(), b = key(); let aTries = 0, bTries = 0;
+  await cachedRefresh(a, TTL, BOUND, async () => 'a0'); await cachedRefresh(b, TTL, BOUND, async () => 'b0'); t.mock.timers.tick(TTL + 10);
+  await cachedRefresh(a, TTL, BOUND, async () => { aTries++; throw new Error('a down'); }); await tick(); await tick();
+  assert.equal(await cachedRefresh(b, TTL, BOUND, async () => { bTries++; return 'b1'; }), 'b0'); await tick(); await tick(); assert.equal(bTries, 1, 'a failure on one key held off ANOTHER key\'s refresh');
+  assert.equal(await cachedRefresh(a, TTL, BOUND, async () => { aTries++; return 'a1'; }), 'a0'); assert.equal(aTries, 1, 'a refresh started inside the hold');
+  t.mock.timers.tick(REFRESH_FAIL_HOLD_MS + 1);
+  assert.equal(await cachedRefresh(a, TTL, BOUND, async () => { aTries++; return 'a1'; }), 'a0'); await tick(); await tick(); assert.equal(aTries, 2, 'no refresh after the hold elapsed');
+  assert.equal(await cachedRefresh(a, TTL, BOUND, async () => 'unused'), 'a1', 'the recovered value was not served');
 });
