@@ -203,7 +203,7 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'arena-seed-effect-real-selection': 'writes on purpose: PATCHes strategy_selection',
   'arena-stale-result-labelling': 'writes on purpose: PATCHes strategy_selection',
   'arena-sticky-ready-background-refresh': 'writes on purpose: PATCHes settings',
-  'hotfix-three': 'writes on purpose: PATCHes the fixture account's saved selection to set up and restore the strategy menu cells',
+  'hotfix-three': 'writes on purpose: PATCHes the fixture account saved selection to set up and restore the strategy menu cells',
   'audit-001-item-1-2': 'writes on purpose: PATCHes settings',
   'audit-001-item-23-24-25': 'writes on purpose: PATCHes settings',
   'bola': 'writes on purpose: cross-account requests that must be refused, against seeded row ids',
