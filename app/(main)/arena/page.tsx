@@ -460,7 +460,15 @@ function ArenaContent() {
      the chips alone. Touching a chip while a strategy is picked keeps the strategy. One request per change. */
   const handleStrategyMenuPick = useCallback((id: string) => {
     if (settingsLoadStatus !== 'ready' || planUnsettled) return;
-    if (id === AUTO_SET_ID || id === CUSTOM_SET_ID) { if (arenaStrategy !== null) { setArenaStrategyState(null); update({ arena_strategy: null }); } return; }
+    /* 'Let the read choose' clears the strategy AND the chips (the AI picks), in one save: with chips left on the menu derived 'Custom' and snapped back. 'Custom' clears only the strategy and keeps the chips. */
+    if (id === AUTO_SET_ID) {
+      if (arenaStrategy === null && strategySelection.length === 0) return;
+      setArenaStrategyState(null);
+      setStrategySelection([]);
+      update({ arena_strategy: null, strategy_selection: [] });
+      return;
+    }
+    if (id === CUSTOM_SET_ID) { if (arenaStrategy !== null) { setArenaStrategyState(null); update({ arena_strategy: null }); } return; }
     const def = findStrategy(id);
     if (!def) return;
     const add = selectableIds(def.chips).filter(c => !strategySelection.includes(c));
