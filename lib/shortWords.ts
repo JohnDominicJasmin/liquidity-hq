@@ -27,7 +27,7 @@ const PATTERN_KEY: Record<string, LabelKey> = {
   'Higher highs + higher lows': 'PATTERN_UPTREND', 'Lower highs + lower lows': 'PATTERN_DOWNTREND',
   'Bearish engulfing': 'PATTERN_BEARISH_ENGULFING', 'Bullish engulfing': 'PATTERN_BULLISH_ENGULFING',
   'Shooting star': 'PATTERN_SHOOTING_STAR', 'Hammer': 'PATTERN_HAMMER', 'Hanging man': 'PATTERN_HANGING_MAN',
-  'Inverted hammer': 'PATTERN_INVERTED_HAMMER', 'Doji': 'PATTERN_DOJI', 'Tight consolidation': 'PATTERN_TIGHT_CONSOLIDATION',
+  'Inverted hammer': 'PATTERN_INVERTED_HAMMER', 'Doji': 'PATTERN_DOJI', 'Long lower wick': 'PATTERN_LONG_LOWER_WICK', 'Long upper wick': 'PATTERN_LONG_UPPER_WICK', 'Tight consolidation': 'PATTERN_TIGHT_CONSOLIDATION',
 };
 
 export const fundingWord = (t: T, band: FundingBand): string => t(FUNDING_BAND_KEY[band]);
