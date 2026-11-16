@@ -11,6 +11,7 @@
  * W4  a data message resets the clock: silence is counted from the LAST message, not from open
  * W5  a closed socket reconnects once; a replacement that never opens is retired when stale. W6 the 20 min no-liquidation FAILED row. C1 the tuned windows
  * WHAT IT CANNOT PROVE: that real sockets from the production host behave like the fake; the proof of that is the health rows on prod (liq:binance / liq:bybit updating every minute). */
+import type { TestContext } from 'node:test';
 import test, { beforeEach } from 'node:test';
 import { register } from 'node:module';
 import assert from 'node:assert/strict';
@@ -51,7 +52,7 @@ const health = (v: string) => g.__health.filter((h) => h.source === `liq:${v}`);
 const bn = (usd: number) => JSON.stringify({ stream: 'btcusdt@forceOrder', data: { e: 'forceOrder', E: Date.now(), o: { s: 'BTCUSDT', S: 'SELL', X: 'FILLED', ap: String(usd), z: '1', T: Date.now() } } });
 const bbData = JSON.stringify({ topic: 'allLiquidation.BTCUSDT', data: [{ T: Date.now(), s: 'BTCUSDT', S: 'Buy', v: '1', p: '50000' }] });
 
-function boot(t: { mock: { timers: { enable(o: object): void; tick(ms: number): void } } }) {
+function boot(t: TestContext) {
   t.mock.timers.enable({ apis: ['setInterval', 'setTimeout', 'Date'], now: 1_800_000_000_000 });
   startLiqCollector();
   const bnS = venue('binance')[0], bbS = venue('bybit')[0];
