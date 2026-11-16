@@ -235,12 +235,19 @@ export async function POST(req: NextRequest) {
   usageRowP.catch(() => {}); // awaited below; this only stops a refusal that returns early from leaving an unhandled rejection
   const numbersP = coin ? arenaServerNumbers(coin).catch((e): { ok: false; reason: unknown } => ({ ok: false, reason: e })) : null;
   const plan = await planP;
+  /* UNKNOWN IS NOT NO (PM, #2412). A plan read that FAILED (thrown or returned an error) is neither Free nor Pro, so it is answered with a retryable 503 and nothing else: no AI call, no quota charge, and
+     no gate decided on a guess. A paying Pro account whose read fails is never gated, capped or billed as Free. (This used to be answered only for a locked coin; a Free-list coin and a fast timeframe went
+     through on a failed read and were billed against the free row. They are refused now, for the same reason.) */
+  if (plan.failed) {
+    return NextResponse.json({ error: 'Could not check your plan. Try again in a moment.', code: 'PLAN_UNKNOWN' }, { status: 503 });
+  }
 
   // ── Fast timeframes are Pro (#1263) ───────────────────────────────────────
   // Arena only clamps 1m/5m/15m in the browser, so before this a free token
   // could POST tf=5m directly and get a fast-timeframe read. Checked before the
   // usage reservation below so a refused request costs no quota and no xAI.
   //
+  // (A plan read that FAILED never reaches this gate: it is answered 503 PLAN_UNKNOWN above, #2412, so the 'unknown' reasoning below describes the route as it was.)
   // Only a CONFIRMED free account is refused. 'unknown' (the plan read failed)
   // goes through - #1119: a failed read is not evidence the user is free, and
   // refusing it would lock a paying Pro user out of the timeframe they pay for
