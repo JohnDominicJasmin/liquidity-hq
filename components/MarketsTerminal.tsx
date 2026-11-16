@@ -19,8 +19,9 @@ function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): {
   if (!d) return { key: null, col: 'var(--txt-dim)' };
   if (d.fundingRate != null) {
     const fr = d.fundingRate * 100;
-    if (fr >= 0.04) return { key: 'MARKETS_SIGNAL_LONGS_OVERCROWDED', col: 'var(--red)' };
-    if (fr <= -0.02) return { key: 'MARKETS_SIGNAL_SHORTS_SQUEEZED', col: 'var(--green-2)' };
+    // The same funding bands as classifyFunding, the scanner and the dashboard sidebar (S9): +0.05% / -0.03%.
+    if (fr >= 0.05) return { key: 'MARKETS_SIGNAL_LONGS_OVERCROWDED', col: 'var(--red)' };
+    if (fr <= -0.03) return { key: 'MARKETS_SIGNAL_SHORTS_SQUEEZED', col: 'var(--green-2)' };
   }
   if (d.cvdDivergence === 'bullish') return { key: 'MARKETS_SIGNAL_SMART_BUYERS', col: 'var(--green-2)' };
   if (d.cvdDivergence === 'bearish') return { key: 'MARKETS_SIGNAL_SMART_SELLERS', col: 'var(--red)' };

@@ -342,20 +342,19 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
     const fr = coin.fundingRate * 100;
     if (fr >= 0.05)    { longRisk += 40; longSignals++; }
     else if (fr >= 0.02) { longRisk += 22; longSignals++; }
-    else if (fr >= 0.01) { longRisk += 10; longSignals++; }
+    /* The 0.01% and -0.005% rungs are gone (S3): +0.01% per 8 h is the exchanges' BASELINE rate, which classifyFunding itself calls only mildly positive, so counting it as a signal made nearly every coin a 'signal'. Funding counts
+       from the 0.02% rung (22 pts) and the 0.05% rung (40 pts), and negative from -0.015% / -0.03%. */
     else if (fr <= -0.03)  { shortRisk += 40; shortSignals++; }
     else if (fr <= -0.015) { shortRisk += 22; shortSignals++; }
-    else if (fr <= -0.005) { shortRisk += 10; shortSignals++; }
   }
 
   // ── Signal 2: L/S ratio (max 40 pts) ─────────────────────────────────────
   if (coin.longRatio != null && coin.shortRatio != null) {
     if (coin.longRatio >= 0.65)    { longRisk += 40; longSignals++; }
     else if (coin.longRatio >= 0.58) { longRisk += 22; longSignals++; }
-    else if (coin.longRatio >= 0.52) { longRisk += 10; longSignals++; }
+    /* The 52% rung is gone (S3): a long share of 52% is true of almost every coin all the time and is not positioning. The share counts from 58% (22 pts) and 65% (40 pts). */
     else if (coin.shortRatio >= 0.65)  { shortRisk += 40; shortSignals++; }
     else if (coin.shortRatio >= 0.58)  { shortRisk += 22; shortSignals++; }
-    else if (coin.shortRatio >= 0.52)  { shortRisk += 10; shortSignals++; }
   }
 
   // ── Signal 3: Taker buy/sell ratio - aggressor-side pressure (max 15 pts) ─
@@ -378,9 +377,10 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
 
   // ── Gate: ≥2 independent signals required to label as Flush / Squeeze ─────
   const signalsPresent = present.length;
-  if (longRisk > shortRisk && longSignals >= 2)
+  /* A direction also needs the dominant side at 40 points or more (S3): two weak readings (22 + 8, say) are not a setup. */
+  if (longRisk > shortRisk && longSignals >= 2 && longRisk >= 40)
     return { score, dir: 'LONG_LIQ', label: 'Long liquidation risk ↓', color: 'var(--red-soft)', signalsPresent, present, enough: true };
-  if (shortRisk > longRisk && shortSignals >= 2)
+  if (shortRisk > longRisk && shortSignals >= 2 && shortRisk >= 40)
     return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: 'var(--green-soft)', signalsPresent, present, enough: true };
   /* FEWER THAN TWO INPUTS IS "NOT ENOUGH DATA", NOT "BALANCED" (S2). A price-only coin (the usual state of the ~400 universe coins) used to read Balanced, score 0, and was counted among the Neutral coins. */
   if (signalsPresent < 2) return { score: 0, dir: 'NEUTRAL', label: 'Not enough data', color: 'var(--txt-dim)', signalsPresent, present, enough: false };
