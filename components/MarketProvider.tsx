@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
@@ -203,7 +204,7 @@ export default function MarketProvider(
          `BINANCE_SPOT_SYMS` in lib/coins.ts. */
       const syms = Object.values(BINANCE_SPOT_SYMS).filter(s => s !== 'HYPEUSDT');
       const batch = encodeURIComponent(JSON.stringify(syms));
-      const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`, { signal: AbortSignal.timeout(REST_POLL_TIMEOUT_MS) });
+      const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`, { signal: deadlineSignal(REST_POLL_TIMEOUT_MS) });
       const data = await res.json();
       /* BOTH EXITS OF THIS POLL WERE SILENT - a thrown error and a body we cannot parse - and the
          panels downstream read the resulting absence as "still loading". An unparseable shape is a
@@ -1205,7 +1206,7 @@ export default function MarketProvider(
        failed per-symbol fetch did for that coin: unknown until the live 8-min poll builds its own two readings. */
     let klAll: Record<string, Array<Array<unknown>>> = {};
     try {
-      const r = await fetch('/api/market/kline-batch?interval=5&limit=13', { signal: AbortSignal.timeout(20_000) });
+      const r = await fetch('/api/market/kline-batch?interval=5&limit=13', { signal: deadlineSignal(20_000) });
       if (r.ok) klAll = (await r.json()).data ?? {};
     } catch { /* leave empty; the length guard in bootstrapReadings handles no data */ }
 

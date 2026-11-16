@@ -320,9 +320,11 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
       sb.from(T.liq_events)
         .select('coin, side, usd, price, source, ts')
         .gte('ts', since)
-        .order('ts', { ascending: true })
+        /* NEWEST 5000, then put back in time order. Ascending + limit kept the OLDEST 5000 of the window, and with both venues collected server-side a day can exceed 5000 rows, so the clusters and the one-venue note came from the oldest rows and missed the latest hours. */
+        .order('ts', { ascending: false })
         .limit(5000)
-        .then(({ data }) => {
+        .then(({ data: newestFirst }) => {
+          const data = newestFirst ? [...newestFirst].reverse() : newestFirst;
           if (!data || data.length === 0) return;
           const venues = new Set((data as Array<{ source: string }>).map(r => r.source));
           const only = venues.size === 1 ? (venues.has('BN') ? 'BN' : venues.has('BB') ? 'BB' : null) : null;
