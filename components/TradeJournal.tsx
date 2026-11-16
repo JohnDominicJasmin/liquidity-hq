@@ -18,6 +18,7 @@ import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { TEXT_LIMITS } from '@/lib/ownRowLimits';
+import AiDisclaimer from '@/components/AiDisclaimer';
 
 type Direction = 'LONG' | 'SHORT';
 type TradeResult = 'OPEN' | 'WIN' | 'LOSS' | 'BE';
@@ -205,6 +206,7 @@ function ShadowAccountResult({ text }: { text: string }) {
           </div>
         );
       })}
+      <AiDisclaimer />
     </div>
   );
 }
@@ -242,6 +244,7 @@ function BiasResult({ text }: { text: string }) {
           </div>
         );
       })}
+      <AiDisclaimer />
     </div>
   );
 }
@@ -266,11 +269,10 @@ const THESIS_CHECK_SECTIONS: { key: string; labelKey: LabelKey; color?: string }
   { key: 'ASSUMPTION_CHECK', labelKey: 'TRADE_JOURNAL_THESIS_SECTION_ASSUMPTION_CHECK' },
   { key: 'THESIS_HEALTH',    labelKey: 'TRADE_JOURNAL_THESIS_SECTION_HEALTH_SCORE', color: 'var(--accent)' },
   { key: 'KEY_RISK',         labelKey: 'TRADE_JOURNAL_THESIS_SECTION_KEY_RISK',      color: 'var(--red)' },
-  { key: 'RECOMMENDATION',   labelKey: 'TRADE_JOURNAL_THESIS_SECTION_RECOMMENDATION', color: 'var(--green)' },
 ];
 
 function parseThesisSection(text: string, key: string): string {
-  const regex = new RegExp(key + ':\\s*([\\s\\S]*?)(?=' + THESIS_CHECK_SECTIONS.map(s => s.key).join(':|') + ':|$)');
+  const regex = new RegExp(key + ':\\s*([\\s\\S]*?)(?=' + THESIS_CHECK_SECTIONS.map(s => s.key).concat('RECOMMENDATION').join(':|') + ':|$)');   /* RECOMMENDATION stays a boundary so an older stored check still parses */
   return (text.match(regex)?.[1] ?? '').trim();
 }
 
@@ -1955,6 +1957,7 @@ function Inner() {
                           </div>
                         );
                       })}
+                      <AiDisclaimer />
                     </div>
                   )}
 

@@ -9,6 +9,7 @@ import { FullPageUpgradeGate, FullPageEntitlementUnknown } from '@/components/Up
 import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import AiDisclaimer from '@/components/AiDisclaimer';
 
 const OF_YEARS_BACK = 1; // shorter than EMA's lookback - 15m+1h+4h+funding fetch per coin is much heavier
 
@@ -590,6 +591,7 @@ export default function BacktestPage() {
               );
             })}
           </div>
+          <AiDisclaimer style={{ marginBottom: 14 }} />
 
           {/* Pine Script Export */}
           <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 14 }}>
@@ -651,6 +653,12 @@ export default function BacktestPage() {
                   whiteSpace: 'pre', overflowX: 'auto',
                 }}>{psResult}</pre>
               </div>
+            )}
+            {psResult && (
+              <>
+                <div className="mb-subtitle" style={{ marginTop: 8 }}>{t('BACKTEST_PINE_UNVERIFIED_NOTE')}</div>
+                <AiDisclaimer />
+              </>
             )}
           </div>
         </>
@@ -736,6 +744,7 @@ export default function BacktestPage() {
               </div>
             );
           })}
+          <AiDisclaimer />
         </div>
       )}
 
@@ -812,6 +821,7 @@ export default function BacktestPage() {
               </div>
             );
           })}
+          <AiDisclaimer />
         </div>
       )}
     </div>
