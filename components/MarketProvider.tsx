@@ -726,7 +726,8 @@ export default function MarketProvider(
         const vah = minP + (hi + 1) * bSize;
 
         // Chart pattern detection (Bybit klines: [time, open, high, low, close, ...])
-        const patternCandles = klines.slice(-25).map((k: string[]) => ({
+        // Closed bars only (S7): the newest kline is still forming, exactly as RSI and the volume ratio above treat it.
+        const patternCandles = klines.slice(-26, -1).map((k: string[]) => ({
           o: parseFloat(k[1]) * pf, h: parseFloat(k[2]) * pf,
           l: parseFloat(k[3]) * pf, c: parseFloat(k[4]) * pf,
         }));
