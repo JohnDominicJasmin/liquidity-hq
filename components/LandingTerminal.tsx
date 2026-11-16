@@ -108,7 +108,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
 
      IT USED TO BE READ ONLY WHEN THIS COMPONENT RE-RENDERED, which is whenever the market store updates. A quiet or throttled store (a background or idle tab, a slow feed) meant no re-render, so the line could sit an hour
      behind real time on the front page (QA: 16:50 at about 17:55Z). It now has its own state, refreshed every 30 seconds and the moment the tab becomes visible again, so what it shows is never more than about
-     half a minute old. The timer is cleared on unmount and costs one tiny re-render of this panel per tick. (The better label would be the data's own as-of time; the store does not keep the snapshot's `ts`, which is
+     half a minute old. The timer is cleared on unmount and costs one tiny re-render of this panel per tick. A ticking clock over a DEAD feed would read as a live stamp, so it is left blank while the price read has failed with nothing delivered (store.pricesFailed). (The better label would be the data's own as-of time; the store does not keep the snapshot's `ts`, which is
      provider plumbing and a separate item.) */
   const [clockMs, setClockMs] = useState<number | null>(null);
   useEffect(() => {
@@ -216,7 +216,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
           {dict.liveRead.title} · {LIVE_READ_COIN.toUpperCase()}
         </span>
         <span style={{ marginLeft: 'auto', fontSize: 10, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt3)' }}>
-          {clockMs !== null ? new Date(clockMs).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false }) : ''}
+          {clockMs !== null && !store.pricesFailed ? new Date(clockMs).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false }) : ''}
         </span>
       </div>
 
