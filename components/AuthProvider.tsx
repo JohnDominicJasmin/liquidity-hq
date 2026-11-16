@@ -8,6 +8,7 @@ import { T } from '@/lib/tables';
 import { clearPlanBadgeCache } from '@/lib/planBadgeCache';
 import { retryWithBackoff } from '@/lib/retryWithBackoff';
 import { planKindOfRow } from '@/lib/paidPeriod';
+import { takePlanPrefetch } from '@/lib/planPrefetch';
 
 // #1119, owner ruling 2026-09-11: a failed/timed-out subscription read is a
 // DIFFERENT fact than a confirmed free account, and the two must not collapse
@@ -525,8 +526,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
        at the type level, even though it behaves like a real promise at
        runtime. try/catch (not just .catch() below) covers a genuine
        rejection from that same call, for the same reason. */
+    /* PLAN-READ A (lib/planPrefetch.ts): the very first read of a page load may already have been started by the inline script before hydration. Used ONCE, for the SAME user, and only when it
+       answered cleanly; anything else (nothing stashed, another user, an expired token, a failure, a timeout) reads exactly as below, so a failed prefetch is never an answer. */
+    let prefetchTried = false;
     async function attempt(n: number, remainingBudgetMs: number): Promise<{ data: { role?: string; trial_ends_at?: string | null; current_period_end?: string | null } | null; failed: boolean }> {
       if (qaForcedEntitlementsFailure()) return { data: null, failed: true };
+      if (!prefetchTried && firstEntitlementsRef.current) {
+        prefetchTried = true;
+        const pre = await takePlanPrefetch(userId!, Math.min(ENTITLEMENTS_FETCH_MS, remainingBudgetMs));
+        if (pre.ok) return { data: pre.row, failed: false };
+      }
       try {
         // #1173: bound this attempt at whichever is shorter - the per-attempt
         // read timeout, or what's left of the overall sequence budget - so a

@@ -7,6 +7,8 @@ import StructuredData from './StructuredData';
 import { organizationGraph } from '@/lib/structuredData';
 import { SUPPORTED_LOCALES } from '@/lib/i18n/dictionaries';
 import { INACTIVITY_MS, LAST_ACTIVE_KEY } from '@/lib/authSession';
+import { planPrefetchScript } from '@/lib/planPrefetch';
+import { T } from '@/lib/tables';
 
 /* THE ONE <html>/<body> FOR THE WHOLE APP, shared by both root layouts (#1740 item 2).
  *
@@ -184,6 +186,13 @@ export default function RootDocument({ lang, children }: { lang: string; childre
         <Script id="session-hint" strategy="beforeInteractive">
           {`(function(){try{var ls=window.localStorage,h=document.documentElement,s=0;for(var i=0;i<ls.length;i++){var k=ls.key(i);if(k&&k.indexOf('sb-')===0&&k.indexOf('-auth-token')>0&&ls.getItem(k)){s=1;break;}}if(!s)return;h.setAttribute('data-sess','1');try{var j=JSON.parse(ls.getItem('lhq_settings_v1')||'null');if(j&&typeof j.arena_strategy==='string'&&j.arena_strategy)h.setAttribute('data-strat','1');}catch(e){}}catch(e){}})();`}
         </Script>
+        {/* PLAN-READ A (lib/planPrefetch.ts): starts the visitor's own subscription read from the stored session before hydration, so AuthProvider can take the answer instead of asking after the session
+            resolves. Only with a live stored access token; any failure is simply no prefetch. Needs the public Supabase URL and anon key, and writes nothing. */}
+        {process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY && (
+          <Script id="plan-prefetch" strategy="beforeInteractive">
+            {planPrefetchScript(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, T.user_subscriptions)}
+          </Script>
+        )}
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`}
         </Script>
