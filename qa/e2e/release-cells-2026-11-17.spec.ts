@@ -18,8 +18,9 @@ test.describe('#2405 chart toolbar stays one row from 1200 px', () => {
         await gotoGuarded(page, '/arena');
         const tb = page.locator('.klc-toolbar').first(); await tb.waitFor({ state: 'visible', timeout: 60_000 }); await page.waitForTimeout(6_000);   // late chips and the plan badge arrive
         const m = await tb.evaluate((el) => {
-          const kids = Array.from(el.children).filter((c) => (c as HTMLElement).offsetParent !== null) as HTMLElement[]; const tops = new Set(kids.map((k) => Math.round(k.getBoundingClientRect().top)));
-          return { wrap: getComputedStyle(el).flexWrap, h: Math.round(el.getBoundingClientRect().height), rows: tops.size, kids: kids.length, docW: document.documentElement.scrollWidth, winW: window.innerWidth };
+          const kids = Array.from(el.children).filter((c) => (c as HTMLElement).offsetParent !== null) as HTMLElement[]; /* rows = bands of control CENTRES (controls of different heights have different tops even on one row) */
+          const centres = kids.map((k) => { const r = k.getBoundingClientRect(); return r.top + r.height / 2; }).sort((a, b) => a - b); let bands = centres.length ? 1 : 0; for (let i = 1; i < centres.length; i++) if (centres[i] - centres[i - 1] > 14) bands++;
+          return { wrap: getComputedStyle(el).flexWrap, h: Math.round(el.getBoundingClientRect().height), rows: bands, kids: kids.length, docW: document.documentElement.scrollWidth, winW: window.innerWidth };
         });
         console.log(`[CELL] T1 ${width} ${lang}: wrap=${m.wrap} height=${m.h} rows=${m.rows} children=${m.kids} docW=${m.docW}/${m.winW}`);
         expect(m.docW, `sideways scroll at ${width} in ${lang}`).toBeLessThanOrEqual(m.winW);
@@ -36,7 +37,7 @@ test.describe('#2403 News > Events table', () => {
       const ctx = await browser.newContext({ viewport: { width, height: 900 } }); const page = await ctx.newPage();
       try {
         await gotoGuarded(page, '/news');
-        await page.getByRole('button', { name: /^events$/i }).first().click({ timeout: 60_000 });
+        await page.locator('.ntab-btn').filter({ hasText: /^\s*(calendar|events)\s*$/i }).first().click({ timeout: 60_000 });   // the tab is labelled "Calendar" (NEWS_TAB_EVENTS)
         const rows = page.locator('.ne-row'); await rows.first().waitFor({ state: 'visible', timeout: 60_000 });
         const m = await page.evaluate(() => {
           const all = Array.from(document.querySelectorAll('.ne-row')) as HTMLElement[]; const vis = (e: Element) => (e as HTMLElement).offsetParent !== null && getComputedStyle(e).display !== 'none';
