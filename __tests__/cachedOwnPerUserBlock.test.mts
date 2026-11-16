@@ -55,8 +55,8 @@ test('O6. a failed loader caches nothing: the next caller loads again', async ()
 });
 
 const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-test('S1. draw-structure, smc-snapshot, token-unlock, onchain and macro-context load through cachedOwn with the caller\'s id and throw their RateLimitError with blockedUserId = the caller', () => {
-  for (const r of ['draw-structure', 'smc-snapshot', 'token-unlock', 'onchain', 'macro-context']) {
+test('S1. draw-structure, smc-snapshot, token-unlock, onchain, macro-context and dry-powder load through cachedOwn with the caller\'s id and throw their RateLimitError with blockedUserId = the caller', () => {
+  for (const r of ['draw-structure', 'smc-snapshot', 'token-unlock', 'onchain', 'macro-context', 'dry-powder']) {
     const s = code(readFileSync(new URL(`../app/api/${r}/route.ts`, import.meta.url), 'utf8').replace(/\r\n/g, '\n'));
     assert.ok(/cachedOwn\(authData\.user\.id, /.test(s), `${r}: does not load through cachedOwn with the caller's id (one user's block can reach another)`);
     assert.ok(/new RateLimitError\([^)]*, authData\.user\.id\)/.test(s), `${r}: its RateLimitError does not carry blockedUserId = the caller (the retry cannot tell whose block it is)`);
