@@ -125,6 +125,8 @@ export type UsageIncrementResult =
 export async function incrementUsageColumn(
   userId: string, tier: UsageTier, column: string, limit: number,
   poolLimit: number | null = null,
+  /** The caller's plan could not be read and `tier` is the generous one it is being served under (POST /api/grok, #2412): the dollar cap then fails CLOSED on an unreadable ledger. */
+  unknownPlan: boolean = false,
 ): Promise<UsageIncrementResult> {
   // Single choke point for all 15 AI routes (see this file's header comment) -
   // checking here instead of per-route means the admin kill switch
@@ -136,8 +138,10 @@ export async function incrementUsageColumn(
   // count reserve and before the xAI call, so all 15 routes get them. Reads the
   // ledger's measured cost_usd (lib/aiSpendCap.ts); Pro fails OPEN on a read
   // error, free/trial fail CLOSED. `capKey` is the owner-approved message.
-  const dollar = await spendCapBlock(tier, userId);
+  const dollar = await spendCapBlock(tier, userId, undefined, unknownPlan);
   if (dollar.blocked) {
+    // Our own failure, not a limit the account reached: reported as `error` so the caller answers a retryable 503 and never names a cap nobody hit.
+    if (dollar.reason === 'ledger_unreadable') return { blocked: true, reason: 'error', limit: 0 };
     return { blocked: true, reason: dollar.reason, limit: 0 };
   }
 

@@ -42,6 +42,8 @@ import {
 export type RunKind = 'quick' | 'deep' | 'ask';
 
 interface Props {
+  /** The signed-in visitor's plan is still being read: chips and the strategy menu are disabled, and nothing is applied or saved from a click (a Pro account would otherwise be treated as Free and have its saved selection cut). */
+  planChecking?: boolean;
   /** What each chart overlay is doing right now, from strategyRegistry's overlayStates() - the same values the chart draws from.
    *  Absent = every layer reads as always on. */
   overlays?: Record<'EMA_RIBBON' | 'SR' | 'LIQ_CLUSTERS' | 'GEX', OverlayState>;
@@ -139,7 +141,7 @@ function LayerSwitch({ name, on, unavailable, onToggle }: { name: string; on: bo
   );
 }
 
-export default function StrategyPanel({ overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, running = false, strategy, onStrategyPick, strategyState }: Props) {
+export default function StrategyPanel({ planChecking = false, overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, running = false, strategy, onStrategyPick, strategyState }: Props) {
   const loaded = status === 'ready';
   const { user, loading: authLoading, entitlementStatus, retryEntitlements } = useAuth();
   const planLabel = strategyPlanLabel({ signedIn: !!user, authLoading, entitlementStatus });
@@ -221,7 +223,7 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
           <span>{t('STRATEGY_PANEL_SECTION_SET')}</span>
           {entitled && <span className="strat-cap">{t('STRATEGY_PANEL_EDIT_SAVE_AS')}</span>}
         </div>
-        <select className="strat-sel" data-testid="strategy-set-select" value={setId} disabled={!loaded} aria-label={t('STRATEGY_PANEL_SECTION_SET')} onChange={e => applySet(e.target.value)}>
+        <select className="strat-sel" data-testid="strategy-set-select" value={setId} disabled={!loaded || planChecking} aria-label={t('STRATEGY_PANEL_SECTION_SET')} onChange={e => applySet(e.target.value)}>
           {STRATEGY_SETS.filter(s => s.id === AUTO_SET_ID).map(s => <option key={s.id} value={s.id}>{t('STRATEGY_PANEL_SET_AUTO')}</option>)}
           {STRATEGIES.map(s => <option key={s.id} value={s.id}>{t(s.nameKey)}</option>)}
           {STRATEGY_SETS.filter(s => s.id === CUSTOM_SET_ID).map(s => <option key={s.id} value={s.id}>{t('STRATEGY_PANEL_SET_CUSTOM')}</option>)}
@@ -248,7 +250,9 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
             selected indicators' values, #1631/#2161). */}
         {loaded && (
           <p className="strat-ind-note">
-            {entitled
+            {planChecking
+              ? t('ARENA_PLAN_CHECKING')
+              : entitled
               ? t('STRATEGY_PANEL_NOTE_PRO')
               : t('STRATEGY_PANEL_NOTE_FREE')}
           </p>
@@ -284,6 +288,7 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
                   type="button"
                   className={`strat-ind-chip${on ? ' on' : ''}`}
                   aria-pressed={on}
+                  disabled={planChecking}
                   data-testid={`strategy-indicator-${entry.id}`}
                   onClick={() => toggle(entry)}
                 >

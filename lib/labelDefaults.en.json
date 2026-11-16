@@ -2405,6 +2405,7 @@
   "LIQ_FEED_CLUSTERS_SUBTITLE": "- where liqs are concentrating",
   "LIQ_FEED_DOM_LONG_ABBR": "L",
   "LIQ_FEED_DOM_SHORT_ABBR": "S",
+  "LIQ_FEED_HISTORY_ONE_VENUE": "24 h history: {venue} only",
   "LIQ_FEED_SR_WATCHING": "Watching for {coin} liquidations > $10K…",
   "LIQ_FEED_ALL_MARKETS": "all markets",
   "LIQ_FEED_SR_CONNECTING": "Connecting to Binance + Bybit…",
@@ -3184,5 +3185,8 @@
   "EMA_DETAIL_CT_ABOVE_SHORT": "Counter-trend: price is above the daily 200 SMA, so this short is against the daily trend.",
   "EMA_DETAIL_CT_ABOVE_LONG": "Counter-trend: price is above the daily 200 SMA, so this long is against the daily trend.",
   "EMA_DETAIL_CT_BELOW_SHORT": "Counter-trend: price is below the daily 200 SMA, so this short is against the daily trend.",
-  "EMA_DETAIL_CT_BELOW_LONG": "Counter-trend: price is below the daily 200 SMA, so this long is against the daily trend."
+  "EMA_DETAIL_CT_BELOW_LONG": "Counter-trend: price is below the daily 200 SMA, so this long is against the daily trend.",
+  "ARENA_PLAN_CHECKING": "Checking your plan…",
+  "CHART_LIQ_HIST_FROM": "The stored history comes from {venue} only.",
+  "CHART_LIQ_VENUE_ONLY": "{venue} only"
 }

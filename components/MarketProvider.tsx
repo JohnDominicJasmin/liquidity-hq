@@ -35,8 +35,8 @@ const REST_FALLBACK_MS = 30_000;
  * rather than about a ban. */
 const WS_BACKOFF_CAP_MS = 30_000;
 /* How long a socket may stay CONNECTING before it is treated as failed (starts the REST backup), and how long the REST backup poll may wait. */
-const WS_CONNECT_TIMEOUT_MS = 8_000;
-const REST_POLL_TIMEOUT_MS = 15_000;
+const WS_CONNECT_TIMEOUT_MS = 5_000;
+const REST_POLL_TIMEOUT_MS = 8_000;
 
 /* ── Liquidation Cascade (the on-screen banner; no message is sent anywhere) ── */
 const LIQ_CASCADE_THRESHOLDS: Record<string, number> = {

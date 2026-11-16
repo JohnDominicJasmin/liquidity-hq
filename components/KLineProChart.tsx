@@ -416,6 +416,8 @@ interface Props {
   onShowSRChange:  (next: boolean) => void;
   showLiq:       boolean;
   onShowLiqChange: (next: boolean) => void;
+  /** The only venue in the stored 24 h liquidation history, when it is just one: the Liq button then says so instead of looking complete. */
+  liqHistOnly?: 'BN' | 'BB' | null;
   /* Called when a confirmed-Free visitor taps the locked Draw Structure button. The PAGE owns the
      upsell, the same way it owns the fast-timeframe gate - this chart has no router and no opinion
      about what an upgrade prompt looks like, and `onUnlock` is already the established prop name for
@@ -683,7 +685,7 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, onUnlock, strategyOverlay }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, onUnlock, strategyOverlay }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -3497,27 +3499,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           <button
             className={`klc-tool-btn${showLiq ? ' on' : ''}`}
             onClick={() => onShowLiqChange(!showLiq)}
-            title={tl('CHART_LIQ_TITLE')}
+            title={`${tl('CHART_LIQ_TITLE')}${liqHistOnly ? ` ${tl('CHART_LIQ_HIST_FROM', { venue: liqHistOnly === 'BN' ? 'Binance' : 'Bybit' })}` : ''}`}
           >
-            {tl('CHART_LIQ')}
+            {tl('CHART_LIQ')}{liqHistOnly ? ` · ${tl('CHART_LIQ_VENUE_ONLY', { venue: liqHistOnly === 'BN' ? 'Binance' : 'Bybit' })}` : ''}
           </button>
         )}
 
-        {chartAlerts && chartAlerts.length > 0 && (
-          <div className="klc-legend">
-            {chartAlerts.map(alert => (
-              <span
-                key={alert.id}
-                className="klc-price-chip"
-                style={{ color: 'var(--amber)', background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.2)', cursor: 'default' }}
-                title={tl('CHART_ALERT_CHIP_TITLE', { direction: String(alert.direction), price: `${currencyPrefix(coin)}${fmtPx(alert.target_price)}`, label: alert.label ? ` · ${alert.label}` : '' })}
-              >
-                {alert.direction === 'above' ? '↑' : '↓'} {currencyPrefix(coin)}{fmtPx(alert.target_price)}
-                {alert.label ? <>&nbsp;·&nbsp;{alert.label}</> : null}
-              </span>
-            ))}
-          </div>
-        )}
+        {/* The price-alert chips are NOT in this row any more: they arrive about 3 s after load, and one more chip in a row that is nearly full wrapped the toolbar onto a second line (+31 px on the whole chart, CLS 0.248, QA run 43758076073). They are an overlay on the canvas (below). */}
 
         <span style={{ marginLeft: 'auto' }} />
         {setupQuality && (
@@ -3635,6 +3623,22 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           opacity: 0,
           pointerEvents: 'none',
         }} />
+        {/* PRICE-ALERT CHIPS, AN OVERLAY (not toolbar content). Absolutely positioned at the chart's top-left, below the corner badges (rows at top 8 to 30 px); the container takes no pointer events and the chips are display-only, so the chart stays draggable beneath them. It cannot move anything when it appears, whatever the toolbar's width. Kept to the left of the price scale and the S/R tags, which are on the right. */}
+        {chartAlerts && chartAlerts.length > 0 && (
+          <div className="klc-legend klc-legend-overlay" data-testid="chart-alert-chips">
+            {chartAlerts.map(alert => (
+              <span
+                key={alert.id}
+                className="klc-price-chip"
+                style={{ color: 'var(--amber)', background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.2)', cursor: 'default' }}
+                title={tl('CHART_ALERT_CHIP_TITLE', { direction: String(alert.direction), price: `${currencyPrefix(coin)}${fmtPx(alert.target_price)}`, label: alert.label ? ` · ${alert.label}` : '' })}
+              >
+                {alert.direction === 'above' ? '↑' : '↓'} {currencyPrefix(coin)}{fmtPx(alert.target_price)}
+                {alert.label ? <>&nbsp;·&nbsp;{alert.label}</> : null}
+              </span>
+            ))}
+          </div>
+        )}
         {/* While a new timeframe loads the chart still holds the previous one's candles (klinecharts keeps the list until the load calls back),
             so say which timeframe is loading. Text only, theme tokens, no layout change; gone the moment the load lands or fails (#1572). */}
         {loadingTf && (
