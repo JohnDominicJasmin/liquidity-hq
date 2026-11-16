@@ -44,7 +44,7 @@ import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
 import { useStrategySignal } from '@/lib/useStrategySignal';
 import { findStrategy } from '@/lib/strategies';
 import { AUTO_SET_ID, CUSTOM_SET_ID } from '@/lib/strategyRegistry';
-import { describeSelection, overlayStates, selectableIds } from '@/lib/strategyRegistry';
+import { describeSelection, overlayStates, selectableIds, selectionForPlan } from '@/lib/strategyRegistry';
 import { coinLockedForUnpaid, gateSignal, signalPlanFor } from '@/lib/signalCoinGate';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
@@ -441,6 +441,10 @@ function ArenaContent() {
   /* THE PLAN IS STILL BEING READ (signed in, auth or entitlements loading). Until it is known (loading, or unknown after a failed read), chip taps and strategy picks are NO-OPS: they used to run the FREE branch (swap to one chip, or one chip added) and then SAVE the result, so a paying Pro user who tapped before the plan arrived (2.4-5 s after load, longer on a phone) had a saved multi-indicator selection cut to one. Nothing computed under an unknown plan is applied or persisted. The panel shows the same state (chips disabled, 'Checking your plan…'). */
   /* 'unknown' (every retry of the plan read failed) counts as unsettled too: it is not a confirmed Free account, so no destructive op and no save; the panel already shows its unknown-plan card with Retry in that state. Only a CONFIRMED 'not_entitled' runs the Free swap. */
   const planUnsettled = !!user && (authLoading || entitlementsLoading || entitlementStatus === 'unknown');
+  /* THE SELECTION THE PLAN MAY USE (a Free account that still carries a saved multi-indicator list from a past trial/Pro): once the plan is KNOWN Free only the first saved indicator is used by the chips, the chart filter,
+     the read and the chat context. The saved list is left as it is, so an upgrade restores it; unknown/loading plan keeps the saved list (#2406's hold). */
+  const planKnownFree = !authLoading && !entitlementsLoading && entitlementStatus === 'not_entitled';
+  const activeSelection = useMemo(() => selectionForPlan(strategySelection, planKnownFree), [strategySelection, planKnownFree]);
   const handleStrategySelectionChange = useCallback((next: readonly string[]) => {
     if (planUnsettled) return;
     // #1246/#1347: belt-and-suspenders alongside StrategyPanel's own gate -
@@ -529,7 +533,7 @@ function ArenaContent() {
     store.coins[selectedCoin]?.fundingRate ?? null,
     oi1h.pct,
     filterParams,
-    strategySelection,
+    activeSelection,
     feedGraceOver,
   );
   const gatedEmaSignal = useMemo(() => gateSignal(rawEmaSignal, signalPlan, selectedCoin), [rawEmaSignal, signalPlan, selectedCoin]);
@@ -609,8 +613,8 @@ function ArenaContent() {
      whatever the initial value is, [] included), which is a harmless no-op
      for a chat that isn't open yet and correct for one that is. */
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent('strategy-selection-changed', { detail: { selection: strategySelection } }));
-  }, [strategySelection]);
+    window.dispatchEvent(new CustomEvent('strategy-selection-changed', { detail: { selection: activeSelection } }));
+  }, [activeSelection]);
   /* #1631 E: tells the chat which coin this page shows; GrokChat follows it when it opens with no conversation (it used to start on BTC
      on the XRP page). Cleared on leaving Arena, so other pages fall back to the shared selected coin. */
   useEffect(() => { announcePageCoin(selectedCoin); }, [selectedCoin]);
@@ -889,7 +893,7 @@ function ArenaContent() {
        with "no selection", it recorded nothing. Only a real comparison may say the trader changed it. */
     if (!selectionSeeded || cacheEntry?.selectionAtAnalysis === undefined) return false;
     const before = [...cacheEntry.selectionAtAnalysis].sort().join(' ');
-    const now = [...strategySelection].sort().join(' ');
+    const now = [...activeSelection].sort().join(' ');
     return before !== now;
   })();
   const notifCooldown = useRef<Set<string>>(new Set());
@@ -2545,7 +2549,7 @@ function ArenaContent() {
         <button
           className={`arena-fire-btn arena-quick-btn${(!user && !authLoading) || coinLocked ? ' arena-deep-locked' : ''}`}
           disabled={aboveAnalysisCeiling || readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
-          onClick={() => runStrategy('quick', strategySelection)}
+          onClick={() => runStrategy('quick', activeSelection)}
           style={{ width: 'auto', marginBottom: 0 }}
           title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
         >
@@ -2563,7 +2567,7 @@ function ArenaContent() {
         <button
           className={`arena-fire-btn${(!user && !authLoading) || coinLocked ? ' arena-deep-locked' : ''}`}
           disabled={aboveAnalysisCeiling || readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
-          onClick={() => runStrategy('deep', strategySelection)}
+          onClick={() => runStrategy('deep', activeSelection)}
           style={{ width: 'auto', marginBottom: 0 }}
           title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
         >
@@ -2582,7 +2586,7 @@ function ArenaContent() {
           style={{ width: 'auto', marginBottom: 0 }}
           disabled={aboveAnalysisCeiling}
           title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : undefined}
-          onClick={() => runStrategy('ask', strategySelection)}
+          onClick={() => runStrategy('ask', activeSelection)}
         >
           {t('ARENA_ASK_LIQUIDITYAI_BUTTON')}
         </button>
@@ -2869,8 +2873,8 @@ function ArenaContent() {
             {/* #985 gap 3: selection changed since this read was computed */}
             {selectionChanged && (
               <div className="arena-override-notice">
-                {describeSelection(strategySelection)
-                  ? <>{t('ARENA_STALE_SELECTION_PRE')} <strong>{describeSelection(strategySelection)}</strong>{t('ARENA_STALE_SELECTION_POST')}</>
+                {describeSelection(activeSelection)
+                  ? <>{t('ARENA_STALE_SELECTION_PRE')} <strong>{describeSelection(activeSelection)}</strong>{t('ARENA_STALE_SELECTION_POST')}</>
                   : t('ARENA_STALE_SELECTION_CLEARED')}
               </div>
             )}
@@ -3015,8 +3019,8 @@ function ArenaContent() {
               same condition, not a second wording for the same fact. */}
           {selectionChanged && (
             <div className="arena-override-notice" style={{ margin: '0 0 10px' }}>
-              {describeSelection(strategySelection)
-                ? <>{t('ARENA_STALE_SELECTION_PRE')} <strong>{describeSelection(strategySelection)}</strong>{t('ARENA_STALE_SELECTION_POST')}</>
+              {describeSelection(activeSelection)
+                ? <>{t('ARENA_STALE_SELECTION_PRE')} <strong>{describeSelection(activeSelection)}</strong>{t('ARENA_STALE_SELECTION_POST')}</>
                 : t('ARENA_STALE_SELECTION_CLEARED')}
             </div>
           )}
@@ -3195,7 +3199,7 @@ function ArenaContent() {
           before readLoading is ever set - so the button never visibly
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
-      <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} strategyState={strategyState} planChecking={planUnsettled} />
+      <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={activeSelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} strategyState={strategyState} planChecking={planUnsettled} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>

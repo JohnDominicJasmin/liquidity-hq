@@ -18,7 +18,7 @@ import { withAlpha } from '@/lib/color';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
 import { needsLiveSearch } from '@/lib/searchTriggers';
-import { describeSelection } from '@/lib/strategyRegistry';
+import { describeSelection, selectionForPlan } from '@/lib/strategyRegistry';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import CoinMultiSelect from './CoinMultiSelect';
 import { activatable } from '@/lib/activatable';
@@ -161,7 +161,7 @@ function buildChatContext(
 export default function GrokChat() {
   const { store }                      = useMarket();
   const { latestHeadlines, geoEvents } = useNews();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, entitlementStatus, entitlementsLoading } = useAuth();
   const { settings, settingsLoadStatus } = useSettings();
   const { t } = useLabels();
 
@@ -408,7 +408,7 @@ export default function GrokChat() {
       /* #1631 E: the browser sends DATA (the context below) and the conversation; /api/grok-chat writes the system prompt
          (lib/chatPrompt.ts). An educational question with no search gets the short prompt (minimal), as before. #985 gap 2: the
          selection is read fresh on every turn. */
-      const context = buildChatContext(store, activeCoin, latestHeadlines, geoEvents, structureLine, describeSelection(chatSelection));
+      const context = buildChatContext(store, activeCoin, latestHeadlines, geoEvents, structureLine, describeSelection(selectionForPlan(chatSelection, !authLoading && !entitlementsLoading && entitlementStatus === 'not_entitled')));
       // Cap at last 8 messages (4 pairs) - prevents token cost growing unbounded
       const apiMsgs = history.slice(-8).map(m => ({ role: m.role, content: m.content }));
 
@@ -453,7 +453,7 @@ export default function GrokChat() {
       setLoading(false);
       setPendingText(null);
     }
-  }, [msgs, coin, liveActive, store, latestHeadlines, geoEvents, user, authLoading, usage, setUsage, chatSelection]);
+  }, [msgs, coin, liveActive, store, latestHeadlines, geoEvents, user, authLoading, usage, setUsage, chatSelection, entitlementStatus, entitlementsLoading]);
 
   /* ── Open-with-prompt event from Arena ── */
   useEffect(() => {
