@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId, useMarket } from '@/lib/marketStore';
 import { useTheme } from '@/lib/theme';
 import { coinBadgeColor } from '@/lib/coinBadge';
@@ -34,7 +35,7 @@ const RANGE_LABEL_KEYS: Record<RangeKey, LabelKey> = {
 /* `via` = the Binance symbols whose history Binance could not give and Bybit did (the route's viaFallback), so the page can say whose numbers it is showing. */
 async function fetchAllBinanceFR(): Promise<{ out: Record<string, FRPoint[]>; via: string[] }> {
   try {
-    const res = await fetch('/api/market/funding-rate?limit=42');
+    const res = await fetch('/api/market/funding-rate?limit=42', { signal: deadlineSignal(10_000) });
     if (!res.ok) return { out: {}, via: [] };
     const { data, viaFallback } = await res.json() as {
       data: Record<string, Array<{ fundingRate: string; fundingTime: number }>>;
@@ -353,19 +354,27 @@ export default function FundingTerminal() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const result: FRHistory = {};
+      /* THE TABLE PAINTS FROM THE MARKET SNAPSHOT, NOT FROM THIS FETCH. The rows' current rates come from the shared store; this history only feeds the sparklines and the averages. It used to hold the whole page
+         (the table was gated on it) until every coin's history, including one-by-one Bybit fallbacks, had come back: a 3.5 s first paint on a cold desktop load. Now the Binance batch lands first and is shown
+         at once, then each fallback coin is added as it arrives. */
       const { out: binanceAll, via } = await fetchAllBinanceFR();
+      if (cancelled) return;
+      const first: FRHistory = {};
+      const needBybit: CoinId[] = [];
       const fromBybit = new Set<CoinId>();
-      await Promise.all(COINS.map(async id => {
+      for (const id of COINS) {
         const binSym = (BINANCE_SYMS as Record<string, string>)[id];
-        const bbSym  = (BYBIT_SYMS  as Record<string, string>)[id];
-        let pts: FRPoint[] = [];
-        if (binSym) pts = binanceAll[binSym] ?? [];
-        if (binSym && via.includes(binSym) && pts.length) fromBybit.add(id);
-        if (!pts.length && bbSym) { pts = await fetchBybitFR(bbSym); if (pts.length) fromBybit.add(id); }
-        if (pts.length) result[id] = pts;
-      }));
-      if (!cancelled) { setHistory(result); setBybitCoins([...fromBybit]); setLoading(false); }
+        const pts = binSym ? binanceAll[binSym] ?? [] : [];
+        if (pts.length) { first[id] = pts; if (binSym && via.includes(binSym)) fromBybit.add(id); }
+        else if ((BYBIT_SYMS as Record<string, string>)[id]) needBybit.push(id);
+      }
+      setHistory(first);
+      setBybitCoins([...fromBybit]);
+      setLoading(false);
+      needBybit.forEach(async id => {
+        const pts = await fetchBybitFR((BYBIT_SYMS as Record<string, string>)[id]);
+        if (!cancelled && pts.length) { setHistory(prev => ({ ...prev, [id]: pts })); setBybitCoins(prev => (prev.includes(id) ? prev : [...prev, id])); }
+      });
     })();
     return () => { cancelled = true; };
   }, []);
@@ -538,7 +547,7 @@ export default function FundingTerminal() {
 
       {loading && <LoadingState message={t('FUNDING_LOADING_MESSAGE')} />}
 
-      {!loading && (() => {
+      {(() => {
         let longCnt = 0, shortCnt = 0, neutralCnt = 0;
         COINS.forEach(id => {
           const fr = store.coins[id]?.fundingRate;

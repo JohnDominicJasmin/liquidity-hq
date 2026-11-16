@@ -16,6 +16,7 @@ export default function ForgotPasswordPage() {
   const [error, setError]         = useState('');
   const [sent, setSent]           = useState(false);
   const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaErr, setCaptchaErr] = useState(false);
   const turnstileRef = useRef<TurnstileInstance>(null);
 
   const submit = async () => {
@@ -90,15 +91,15 @@ export default function ForgotPasswordPage() {
               </button>
             </div>
 
-            {TURNSTILE_SITE_KEY && <CaptchaStuckHint waiting={!captchaToken} />}
+            {TURNSTILE_SITE_KEY && <CaptchaStuckHint waiting={!captchaToken} widgetId="cf-turnstile-forgot-password" errored={captchaErr} />}
             {TURNSTILE_SITE_KEY && (
               <Turnstile
                 id="cf-turnstile-forgot-password"
                 ref={turnstileRef}
                 siteKey={TURNSTILE_SITE_KEY}
-                onSuccess={setCaptchaToken}
+                onSuccess={t => { setCaptchaErr(false); setCaptchaToken(t); }}
                 onExpire={() => setCaptchaToken('')}
-                onError={() => setCaptchaToken('')}
+                onError={() => { setCaptchaToken(''); setCaptchaErr(true); }}
                 className="login-turnstile"
               />
             )}
