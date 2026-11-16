@@ -417,7 +417,7 @@ export default function FundingTerminal() {
         <h1 className="mb-title">{t('FUNDING_PAGE_TITLE')}</h1>
         <div className="mb-subtitle">{t('FUNDING_PAGE_SUBTITLE')}</div>
         {!loading && bybitCoins.length > 0 && (
-          <div data-testid="funding-via-bybit" style={{ marginTop: 6, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
+          <div data-testid="funding-via-bybit" className="mb-subtitle" style={{ marginTop: 6, marginBottom: 0 }}>
             {t('FUNDING_VIA_BYBIT_NOTE', { coins: bybitCoins.map(c => COIN_LABELS[c] ?? c.toUpperCase()).join(', ') })}
           </div>
         )}
