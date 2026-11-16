@@ -169,6 +169,10 @@ export async function membershipStateForAccount(sb: Admin, accountId: string): P
 }
 
 export const WHOP_PENDING_CLAIM_EVENT = 'lhq.pending_claim';
+/** A pending claim is open for this long after the payment was received, then it expires. An open-ended claim is held against an email address for ever: a mistyped address leaves a claim nobody legitimate
+ *  can use, and whoever later registers and confirms that address would receive someone else's paid Pro. After the window the delivery stays stored (findable by payment id) and support handles it. */
+export const WHOP_CLAIM_DAYS = 30;
+const claimCutoff = (now: Date): string => new Date(now.getTime() - WHOP_CLAIM_DAYS * 86_400_000).toISOString();
 
 /** One pending claim per payment id. The key is the table's primary key, so a second insert for the same payment is a harmless duplicate. */
 export function pendingClaimHash(paymentId: string): string {
@@ -443,6 +447,7 @@ export async function hasPendingClaim(sb: Admin, email: string): Promise<boolean
     .select('payload_hash')
     .eq('event', WHOP_PENDING_CLAIM_EVENT)
     .eq('body->>payer_email', e)
+    .gte('received_at', claimCutoff(new Date()))
     .limit(1);
   if (error) return null;
   return (data ?? []).length > 0;
@@ -463,6 +468,7 @@ export async function claimPendingForAccount(
     .select('payload_hash, resource_id, body')
     .eq('event', WHOP_PENDING_CLAIM_EVENT)
     .eq('body->>payer_email', email)
+    .gte('received_at', claimCutoff(now))
     .limit(10);
   if (error) return { ...out, error };
 
