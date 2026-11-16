@@ -181,7 +181,10 @@ test('B4. the boundary: exactly 64,000 is NOT refused by the size gate', async (
      including the 503 that every case was returning while `GROK_API_KEY` was misnamed. So the one
      cell that went green was the one that could not fail. It now requires the request to have got
      PAST the gates above the bound as well, so a 503 or a 401 fails it. */
-  assert.notEqual(r.status, 503,
+  /* #2437/#2436: a reservation that FAILS (this stand-in has no usage store, so the reserve answers 'error') is now 503 with code UNAVAILABLE, and that answer comes from BELOW the size gate: it is proof the
+     request got past it. A 503 from a gate ABOVE the bound (missing key, the grok flag) carries a different body, so the cell still fails on those. */
+  const reachedReservation = r.status === 503 && r.body.code === 'UNAVAILABLE';
+  assert.ok(r.status !== 503 || reachedReservation,
     `503 means a gate ABOVE the bound answered (missing key at :44 or the grok flag at :47), so this ` +
     `cell never reached the size check: ${JSON.stringify(r.body)}`);
   assert.notEqual(r.status, 401, 'a 401 means auth answered, so the size check was never reached');

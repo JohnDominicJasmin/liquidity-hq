@@ -20,15 +20,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { T } from '@/lib/tables';
-import { getUsageTier } from '@/lib/entitlements';
+import { getUsageTierStatus, getPlanSnapshot } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
-import { AI_LIMITS } from '@/lib/limits';
-import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
+import { AI_LIMITS, type UsageTier } from '@/lib/limits';
+import { incrementUsageColumn, rateLimitMessage, refundUsageColumn, todayUtc, blockedResponse } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { clampMaxTokens } from '@/lib/grokTokenClamp';
 import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
-import { buildChatSystemPrompt, parseChatContext, parseChatHistory, splitFollowUps } from '@/lib/chatPrompt';
+import { buildChatSystemPrompt, capChatSelection, parseChatContext, parseChatHistory, splitFollowUps } from '@/lib/chatPrompt';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -70,10 +70,12 @@ export async function GET(req: NextRequest) {
   if (!userData.user) return NextResponse.json({ error: 'Auth required' }, { status: 401 });
   const userId = userData.user.id;
   const today = todayUtc();
-  const [{ chatUsed, searchUsed }, role] = await Promise.all([
+  const [{ chatUsed, searchUsed }, plan] = await Promise.all([
     getUsageRow(token, userId, today),
-    getUsageTier(token, userId),
+    getUsageTierStatus(token, userId),
   ]);
+  /* U7: an UNKNOWN plan is never billed against the Free cap. Every plan may chat, so it proceeds against the Pro count cap with the dollar cap failing closed, exactly as POST /api/grok does (#2412). */
+  const role: UsageTier = plan.failed ? 'pro' : plan.tier;
   const chatLimit   = AI_LIMITS[role].chat;
   const searchLimit = AI_LIMITS[role].search;
   return NextResponse.json({ chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit });
@@ -115,36 +117,39 @@ export async function POST(req: NextRequest) {
   if (!ctx) return NextResponse.json({ error: 'context.coin must be a coin this app tracks' }, { status: 400 });
   const history = parseChatHistory(body.messages);
   if (!history) return NextResponse.json({ error: 'messages must end with the trader\'s question' }, { status: 400 });
-  const messages = [{ role: 'system', content: buildChatSystemPrompt(ctx, { search: isSearch, minimal: body.minimal === true }) }, ...history];
 
   /* ── Rate limit check ── */
   const today = todayUtc();
-  const [{ chatUsed, searchUsed }, role] = await Promise.all([
+  const [{ chatUsed, searchUsed }, plan] = await Promise.all([
     getUsageRow(token, userId, today),
-    getUsageTier(token, userId),
+    getPlanSnapshot(token, userId),
   ]);
+  /* U7: an UNKNOWN plan is never billed against the Free cap. Every plan may chat, so it proceeds against the Pro count cap with the dollar cap failing closed, exactly as POST /api/grok does (#2412). */
+  const role: UsageTier = plan.failed ? 'pro' : plan.tier;
 
   const chatLimit   = AI_LIMITS[role].chat;
   const searchLimit = AI_LIMITS[role].search;
+
+  /* The system prompt is written AFTER the plan read: the indicators the trader "is weighing" come from the browser, so a plan the server KNOWS is not entitled names only the first one (Free is one at a time).
+     An unknown or failed plan read leaves it as sent. */
+  const messages = [{ role: 'system', content: buildChatSystemPrompt({ ...ctx, selection: capChatSelection(ctx.selection, plan.status === 'not_entitled') }, { search: isSearch, minimal: body.minimal === true }) }, ...history];
 
   // Atomic check-and-increment (reserve before spending on xAI) - closes the
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
   const column = isSearch ? 'chat_search_count' : 'chat_count';
   const limit  = isSearch ? searchLimit : chatLimit;
-  const usageResult = await incrementUsageColumn(userId, role, column, limit);
+  const usageResult = await incrementUsageColumn(userId, role, column, limit, null, plan.failed);
   if (usageResult.blocked) {
     const label = isSearch ? 'live search messages' : 'chat messages';
-    return NextResponse.json(
-      {
-        error: rateLimitMessage(usageResult.reason, limit, label),
-        code: 'RATE_LIMIT',
-        usage: { chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit },
-      },
-      { status: 429 }
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, limit, label), {
+      usage: { chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit },
+    });
   }
 
   /* ── Call xAI ── */
+  /* A reserved use is given back when nothing reached the user (a failed or unusable xAI answer, a thrown call, an empty answer), exactly as /api/grok does; nothing is given back once xAI answered 2xx (the tokens are billed). (U1: this route charged on every failure path and refunded none.) `today` was captured BEFORE the reservation, so a refund credits the row that paid. */
+  let billed = false;
+  const giveBack = () => refundUsageColumn(userId, column, today);
   const xWindow = searchWindow(CHAT_X_DAYS);
   try {
     let data: unknown;
@@ -175,13 +180,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (status >= 200 && status < 300) {
+      billed = true;   // 2xx: the tokens are billed from here
       const raw = data as { usage?: unknown; model?: string } | null;
       await recordAiCall({ userId, callType: isSearch ? 'chat_search' : 'chat', model: raw?.model ?? MODEL, usage: raw?.usage });
-      const newChat   = isSearch ? chatUsed   : usageResult.count;
-      const newSearch = isSearch ? usageResult.count : searchUsed;
+      let reservedCount = usageResult.count;
       /* #1631 E: only the answer, its follow-up questions, any search citations and the usage reach the browser - not xAI's raw JSON
          (reasoning_content, model name, system_fingerprint, cost ticks). */
       const { text, followUps } = splitFollowUps(answerText(data, isSearch));
+      /* An EMPTY answer delivered nothing: the use goes back (the grok route treats an empty answer the same way). */
+      if (!text) { const refunded = await giveBack(); if (refunded !== null) reservedCount = refunded; }
+      const newChat   = isSearch ? chatUsed   : reservedCount;
+      const newSearch = isSearch ? reservedCount : searchUsed;
       return NextResponse.json({
         text: text || '(no response)',
         followUps,
@@ -190,9 +199,11 @@ export async function POST(req: NextRequest) {
       }, { status });
     }
 
-    // xAI refused: say so generically. Its error body is not passed through.
+    // xAI refused: the use goes back, and the answer says so generically. Its error body is not passed through.
+    await giveBack();
     return apiError('grok-chat', new Error(`xAI answered ${status}`), 502, 'AI service error');
   } catch (e) {
+    if (!billed) await giveBack();   // a throw before the 2xx (network error, the 180 s timeout, a non-JSON body)
     return apiError('grok-chat', e, 500, 'AI service error');
   }
 }

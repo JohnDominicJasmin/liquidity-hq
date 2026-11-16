@@ -157,8 +157,9 @@ function TCoinSidebar() {
         let sig: { text: string; col: string } | null = null;
         if (d?.fundingRate != null) {
           const fr = d.fundingRate * 100;
-          if (fr >= 0.04)       sig = { text: t('DASH_SIDEBAR_SIG_LONGS_OVERCROWDED'), col: 'var(--red)' };
-          else if (fr <= -0.02) sig = { text: t('DASH_SIDEBAR_SIG_SHORTS_SQUEEZED'),   col: 'var(--green)' };
+          /* The same funding bands as classifyFunding and the scanner (S9): heavy positive at +0.05%, heavy negative at -0.03% (this used 0.04 / -0.02, so one coin read differently on different screens). */
+          if (fr >= 0.05)       sig = { text: t('DASH_SIDEBAR_SIG_LONGS_OVERCROWDED'), col: 'var(--red)' };
+          else if (fr <= -0.03) sig = { text: t('DASH_SIDEBAR_SIG_SHORTS_SQUEEZED'),   col: 'var(--green)' };
         }
         if (!sig && d?.cvdDivergence === 'bullish') sig = { text: t('DASH_SIDEBAR_SIG_SMART_BUYERS'), col: 'var(--green)' };
         if (!sig && d?.cvdDivergence === 'bearish') sig = { text: t('DASH_SIDEBAR_SIG_SMART_SELLERS'), col: 'var(--red)' };
@@ -167,7 +168,8 @@ function TCoinSidebar() {
         if (!sig && d?.chartPattern) {
           const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(d.chartPattern);
           const isBear = /bear|lower high|engulf.*bear|shooting|double top/i.test(d.chartPattern);
-          const label  = patternWord(t, d.chartPattern.split(';')[0].split('(')[0].trim());
+          /* The window is stated (S8): the pattern is read from the last 25 closed 15-minute bars, about 6 hours. */
+          const label  = patternWord(t, d.chartPattern.split(';')[0].split('(')[0].trim()) + ' · 15m';
           if (isBull)       sig = { text: label, col: 'var(--green)' };
           else if (isBear)  sig = { text: label, col: 'var(--red)' };
           else if (label)   sig = { text: label, col: 'var(--txt3)' };
@@ -436,6 +438,7 @@ function TEdgeSignals() {
           <div className="edge-card-signal" style={{ color: sqCol }}>
             {sq.dir === 'SHORT_SQ' ? t('DASH_EDGE_SETUP_SHORT_SQ')
              : sq.dir === 'LONG_LIQ' ? t('DASH_EDGE_SETUP_LONG_LIQ')
+             : !sq.enough ? t('DASH_EDGE_SETUP_NOT_ENOUGH_DATA')
              : t('DASH_EDGE_SETUP_BALANCED')}
           </div>
         </div>
@@ -502,7 +505,8 @@ function TSelectedCoinCard() {
   const up  = chg != null && chg >= 0;
   const badgeCol = coinBadgeColor(id);
   const oi = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
-  const pattern = patternWord(t, d?.chartPattern?.split(';')[0].split('(')[0].trim());
+  const patternName = patternWord(t, d?.chartPattern?.split(';')[0].split('(')[0].trim());
+  const pattern = patternName ? patternName + ' · 15m' : patternName;   // the window is stated (S8)
   const sigText = oi ? t(oi.txtKey) : (pattern || null);
   const sigCol  = oi?.col ?? 'var(--txt3)';
 

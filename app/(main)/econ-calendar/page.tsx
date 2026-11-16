@@ -5,6 +5,7 @@ import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { econImpactKey, type EconImpact } from '@/lib/classify';
+import { localZoneAbbr } from '@/lib/resetTime';
 import PageHint from '@/components/PageHint';
 import { calendarFromResponse } from '@/lib/econCalendarFeed';
 
@@ -27,8 +28,10 @@ type CalEvent = {
 
 type TFn = (key: LabelKey, vars?: Record<string, string | number>) => string;
 
+/* The time is shown in the viewer's own zone and now says which (PM audit A11); hour12:false could print midnight as "24:30" in some engines, so the
+   24-hour cycle is requested explicitly. */
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) + ' ' + localZoneAbbr();
 }
 
 function fmtHeaderDate(iso: string, t: TFn): string {
@@ -250,7 +253,7 @@ export default function EconCalendarPage() {
                     style={{
                       display: 'grid', gridTemplateColumns: COLS, gap: 8,
                       padding: '11px 16px', alignItems: 'center',
-                      borderLeft: `3px solid ${e.impact === 'HIGH' ? ic.accent : 'transparent'}`,
+                      borderLeft: `3px solid ${econImpactKey(e.impact) === 'HIGH' ? ic.accent : 'transparent'}`,
                       borderBottom: i < dayEvents.length - 1 ? '0.5px solid var(--bdr)' : 'none',
                       /* #684: the overlay that composites this row up is what
                          put --txt3 at 4.46 in dark - four cells, dev's

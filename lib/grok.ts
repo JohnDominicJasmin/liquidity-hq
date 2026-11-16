@@ -1,3 +1,4 @@
+import { deadlineSignal } from './deadlineSignal.ts';
 import { getAuthToken } from './supabase.ts';
 import { nextResetLocalTime } from './resetTime.ts';
 import { wilderRsiSeries } from './rsi.ts';
@@ -59,7 +60,7 @@ export async function callGrokViaProxy(
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ context: ctx, chart, type, selection }),
-      signal: AbortSignal.timeout(type === 'deep' ? GROK_DEEP_TIMEOUT_MS : GROK_QUICK_TIMEOUT_MS),
+      signal: deadlineSignal(type === 'deep' ? GROK_DEEP_TIMEOUT_MS : GROK_QUICK_TIMEOUT_MS),
     });
   } catch (e) {
     if (e instanceof DOMException && e.name === 'TimeoutError') throw Object.assign(new Error('READ_TIMEOUT'), { code: 'READ_TIMEOUT' });
@@ -244,7 +245,7 @@ export async function fetchGrokUsage(): Promise<GrokUsageInfo | null> {
   try {
     const res = await fetch('/api/grok', {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(20_000),
+      signal: deadlineSignal(20_000),
     });
     if (!res.ok) return null;
     const { usage } = await res.json() as { usage: GrokUsageInfo | null };
