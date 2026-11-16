@@ -3,7 +3,7 @@ import { AI_TOOL_LIMITS } from '@/lib/aiInputLimits';
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
+import { incrementToolUsage, rateLimitMessage, blockedResponse } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
@@ -95,10 +95,7 @@ export async function POST(req: NextRequest) {
   const role = await getUsageTier(token, authData.user.id);
   const usageResult = await incrementToolUsage(authData.user.id, 'thesisCheck', role);
   if (usageResult.blocked) {
-    return NextResponse.json(
-      { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'thesis checks'), code: 'RATE_LIMIT' },
-      { status: 429 },
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'thesis checks'));
   }
 
   const prompt = buildThesisPrompt(

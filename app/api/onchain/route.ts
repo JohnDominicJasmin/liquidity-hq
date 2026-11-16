@@ -5,7 +5,7 @@ import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
 import { getEntitlement, usageTierOf } from '@/lib/entitlements';
-import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
+import { incrementToolUsage, rateLimitMessage, blockedResponse, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 
@@ -15,7 +15,7 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const CACHE_TTL = 10 * 60_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, reason: UsageBlockReason) {
+  constructor(public limit: number, public reason: UsageBlockReason) {
     super(rateLimitMessage(reason, limit, 'on-chain score checks'));
   }
 }
@@ -191,7 +191,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(result);
   } catch (e) {
     if (e instanceof RateLimitError) {
-      return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });
+      return blockedResponse(e.reason, e.message);
     }
     return apiError('onchain', e, 502, 'Request failed');
   }

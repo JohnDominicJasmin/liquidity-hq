@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { T } from '@/lib/tables';
-import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
+import { incrementToolUsage, rateLimitMessage, blockedResponse } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
@@ -140,10 +140,7 @@ export async function POST(req: NextRequest) {
   const role = await getUsageTier(token, authData.user.id);
   const usageResult = await incrementToolUsage(authData.user.id, 'behavioralBias', role);
   if (usageResult.blocked) {
-    return NextResponse.json(
-      { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'bias reports'), code: 'RATE_LIMIT' },
-      { status: 429 },
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'bias reports'));
   }
 
   const { data: trades, error } = await sb(token)

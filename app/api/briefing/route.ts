@@ -5,7 +5,7 @@ import { T } from '@/lib/tables';
 import { getUsageTier } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
-import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
+import { incrementUsageColumn, rateLimitMessage, blockedResponse, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -95,14 +95,9 @@ export async function POST(req: NextRequest) {
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
   const usageResult = await incrementUsageColumn(userId, role, 'briefing_count', briefingLimit);
   if (usageResult.blocked) {
-    return NextResponse.json(
-      {
-        error: rateLimitMessage(usageResult.reason, briefingLimit, 'briefings'),
-        code: 'RATE_LIMIT',
-        usage: { briefing_used: briefingUsed, briefing_limit: briefingLimit },
-      },
-      { status: 429 }
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, briefingLimit, 'briefings'), {
+      usage: { briefing_used: briefingUsed, briefing_limit: briefingLimit },
+    });
   }
 
   try {
