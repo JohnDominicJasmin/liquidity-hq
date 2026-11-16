@@ -45,7 +45,7 @@ test('computeSqueezeScore', async (t) => {
     const r = computeSqueezeScore(undefined);
     // Full shape, now including the additive partial-score fields (#2167): with no coin there are
     // zero signals and an empty present list.
-    assert.deepEqual(r, { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)', signalsPresent: 0, present: [] });
+    assert.deepEqual(r, { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)', signalsPresent: 0, present: [], enough: false });   // #2445: `enough` is part of the shape
   });
 
   await t.test('signalsPresent counts the independent signals by presence; present names them; volRatio is a bonus and does not count', () => {
@@ -76,12 +76,15 @@ test('computeSqueezeScore', async (t) => {
   });
 
   await t.test('a single signal, however extreme, cannot label Flush/Squeeze - the >=2-signal gate', () => {
-    // Funding alone at its highest tier (40 pts, 1 signal): real risk, but
-    // the gate requires 2 independent sources before it will say so.
+    // Funding alone at its highest tier (1 signal): real risk, but the gate requires 2 independent
+    // sources before it will say so. #2445: below that floor the coin is UNKNOWN, not "Balanced": it reads
+    // "Not enough data", score 0 (a partial sum is not a score), enough false, so it is kept out of the Neutral count.
     const r = computeSqueezeScore(baseCoin({ fundingRate: 0.10 }));
-    assert.equal(r.score, 40);
+    assert.equal(r.score, 0, 'a partial sum of one signal was published as a score');
     assert.equal(r.dir, 'NEUTRAL', 'one signal must not produce a directional label');
-    assert.equal(r.label, 'Balanced');
+    assert.equal(r.label, 'Not enough data');
+    assert.equal(r.enough, false);
+    assert.equal(r.signalsPresent, 1, 'the signals actually present are still reported');
   });
 
   await t.test('funding rate: top-tier boundary (exact) vs. one tick below every tier', () => {
@@ -124,8 +127,8 @@ test('computeSqueezeScore', async (t) => {
     // gate itself fails, so volRatio changes nothing, and it stays NEUTRAL
     // regardless (one signal).
     const loneWeakSignal = computeSqueezeScore(baseCoin({ fundingRate: 0.0001, volRatio: 2 }));
-    assert.equal(loneWeakSignal.score, 10, 'dominant=10 is not > 10, so the vol bonus gate does not fire');
-    assert.equal(loneWeakSignal.dir, 'NEUTRAL');
+    assert.equal(loneWeakSignal.score, 0, 'one signal is below the two-input floor (#2445): Not enough data, score 0, so volRatio cannot lift it either');
+    assert.equal(loneWeakSignal.dir, 'NEUTRAL'); assert.equal(loneWeakSignal.enough, false);
   });
 
   await t.test('score is capped at 100', () => {
