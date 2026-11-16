@@ -69,7 +69,7 @@ test('S2. exactly two inputs with no direction is a REAL "Balanced" (enough: tru
   assert.equal(complete.label, 'Balanced'); assert.equal(complete.enough, true);
 });
 test('S3. a directional result (two or more inputs) carries enough: true, and no coin is "No data" with enough: false', () => {
-  const sq = computeSqueezeScore(withFields({ fundingRate: -0.10, longRatio: 0.1, shortRatio: 0.52 }));
+  const sq = computeSqueezeScore(withFields({ fundingRate: -0.10, longRatio: 0.1, shortRatio: 0.65 }));
   assert.ok(sq.dir !== 'NEUTRAL', 'CONTROL: this input set must be directional'); assert.equal(sq.enough, true);
   assert.deepEqual([computeSqueezeScore(undefined).label, computeSqueezeScore(undefined).enough], ['No data', false]);
 });
