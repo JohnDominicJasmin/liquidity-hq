@@ -58,6 +58,8 @@ const SOURCES = [
  * are the ones that were wrong before #232 - they bucket UP to 5, 25, 25 and
  * 200 respectively. */
 const LIMITS = [1, 4, 20, 24, 50, 100, 152, 300];
+/* Each limit is fetched from its own cached bucket, so a bucket cached before an hour boundary can legitimately be ONE candle behind a reference cached after it (the #2408 run: 1794783600000 vs 1794787200000, exactly 1 h, at 00:00 UTC). A reversed slice is hundreds of candles behind, so one interval of slack keeps that check meaningful. All three sources here use 1h. */
+const ONE_CANDLE_MS = 3_600_000;
 
 test.describe('server-side klines route', () => {
   test.beforeEach(({}, testInfo) => {
@@ -112,7 +114,7 @@ test.describe('server-side klines route', () => {
           'candles, which renders a chart of the wrong period and looks entirely plausible.\n\n' +
           'Bybit is NEWEST-first and slices (0, n); Binance is OLDEST-first and slices (-n). ' +
           'Getting that backwards is exactly this failure.',
-        ).toBeGreaterThanOrEqual(refNewest);
+        ).toBeGreaterThanOrEqual(refNewest - ONE_CANDLE_MS);
       }
 
       testInfo.annotations.push({ type: 'known-issue', description: `${source} limit->count: ${observed.join(' ')}` });
