@@ -48,10 +48,12 @@ export function retryHash(paymentId: string): string {
   return crypto.createHash('sha256').update(`whop-retry:${paymentId}`).digest('hex');
 }
 
-/** A refusal that a fixed SETTING can turn into a grant: the plan id table (WHOP_PLAN_ID_*), the company id (WHOP_COMPANY_ID), or the payer
- *  email (Whop's member:email:read permission; see the PR: a STORED body that lacks the email cannot gain it on a retry). */
+/** A refusal that a fixed SETTING can turn into a grant: the plan id table (WHOP_PLAN_ID_*) or the company id (WHOP_COMPANY_ID).
+ *  `no_payer_email` is deliberately NOT one: the retry re-runs the STORED body, which lacks the email and cannot gain it, so retrying it for 7 days could never
+ *  succeed. It is reported for support instead (the webhook's review answer), and a corrected re-send of the payment that carries the email can grant (see
+ *  applyWhopDelivery). */
 export function isSettingsRefusal(reason: string): boolean {
-  return reason.startsWith('unknown_plan:') || reason === 'no_payer_email' || reason === 'company_does_not_match';
+  return reason.startsWith('unknown_plan:') || reason === 'company_does_not_match';
 }
 
 /* THE MEMBERSHIP LINK (#1630 Step 1, the cancel flow). ONE MORE SMALL ROW, the same pattern as the three above: same table, no
@@ -167,6 +169,20 @@ export async function membershipStateForAccount(sb: Admin, accountId: string): P
 }
 
 export const WHOP_PENDING_CLAIM_EVENT = 'lhq.pending_claim';
+/** A pending claim is open for WHOP_CLAIM_DAYS after the payment was received, then it expires. An open-ended claim is held against an email address for ever: a mistyped address leaves a claim nobody legitimate
+ *  can use, and whoever later registers and confirms that address would receive someone else's paid Pro. After the window the delivery stays stored (findable by payment id) and support handles it. */
+export const WHOP_CLAIM_DAYS = 365;
+/** The database filter: the claim window plus a day of slack. Each claim's exact end is then applied in claimPendingForAccount (claimWindowEnd). */
+export const WHOP_CLAIM_MAX_DAYS = WHOP_CLAIM_DAYS + 1;
+const claimCutoff = (now: Date): string => new Date(now.getTime() - WHOP_CLAIM_MAX_DAYS * 86_400_000).toISOString();
+
+/** WHEN A PENDING CLAIM STOPS BEING OPEN: 365 days after the payment was received, for EVERY plan (PM, 2026-11-17). PAID TIME IS NEVER FORFEITED (owner rule): a buyer whose period fully elapsed before they claimed
+ *  still gets one full period from the claim (paidAt), so a window shorter than a year would have taken a paid month away from a monthly buyer who claimed on day 40. */
+/** `_add` is accepted and ignored: the window no longer depends on the plan (kept so callers and pins that still pass it compile). */
+export function claimWindowEnd(receivedAt: unknown, _add?: { months?: number; days?: number }): Date {
+  const t = typeof receivedAt === 'string' ? Date.parse(receivedAt) : NaN;
+  return new Date((Number.isFinite(t) ? t : 0) + WHOP_CLAIM_DAYS * 86_400_000);
+}
 
 /** One pending claim per payment id. The key is the table's primary key, so a second insert for the same payment is a harmless duplicate. */
 export function pendingClaimHash(paymentId: string): string {
@@ -185,6 +201,27 @@ export async function recordPendingClaim(sb: Admin, i: { paymentId: string; deli
   });
   if (error && error.code !== '23505') return { ok: false, error };
   return { ok: true };
+}
+
+/** THE CLOCK A DELAYED GRANT COUNTS FROM: when the payment was RECEIVED, not when it was finally applied. A claim at sign-up or the hourly retry used to count the period from "now", so a buyer who paid
+ *  on day 0 and signed up on day 20 got a full period from day 20 (up to a free period). The period runs from the delivery's own received_at (never later than now, never an unparseable value).
+ *  BUT PAID TIME IS NEVER FORFEITED (owner rule): if the period that started at received_at has ALREADY FULLY ELAPSED by now, the buyer paid and never had access, so one full period is granted from now instead.
+ *  A partly elapsed period counts from received_at. `add` is the plan's length. */
+export function paidAt(receivedAt: unknown, now: Date, add?: { months?: number; days?: number }): Date {
+  const t = typeof receivedAt === 'string' ? Date.parse(receivedAt) : NaN;
+  if (!(Number.isFinite(t) && t <= now.getTime())) return now;
+  const received = new Date(t);
+  if (add && extendedPeriodEnd(null, received, add).getTime() <= now.getTime()) return now;
+  return received;
+}
+
+/** For a delivery the route has already RECORDED once (a 23505 on the hash): true when nothing exists that would carry the payment forward - no applied marker, no pending claim, no retry row. Then the
+ *  first delivery died between the record and the grant (a failed cleanup delete, a timeout, a kill) and the replay must be processed, not answered "replay". null = the read failed (answer 500, stay retryable). */
+export async function replayNeedsReprocess(sb: Admin, paymentId: string): Promise<boolean | null> {
+  const { data, error } = await sb.from(T.whop_webhook_events).select('payload_hash')
+    .in('payload_hash', [appliedHash(paymentId), pendingClaimHash(paymentId), retryHash(paymentId)]).limit(1);
+  if (error) return null;
+  return (data ?? []).length === 0;
 }
 
 export type GrantResult =
@@ -277,6 +314,8 @@ export async function applyWhopDelivery(
   i: { event: Record<string, unknown>; payloadHash: string; eventName: string | null },
   env: Record<string, string | undefined> = process.env,
   now: Date = new Date(),
+  /** The stored delivery's received_at for a LATE application (a replay of a delivery that died, the hourly retry): the period counts from it (see paidAt). Omitted for a live delivery. */
+  receivedAt?: unknown,
 ): Promise<ApplyOutcome> {
   const payment = readWhopPayment(i.event);
   const decision = decideWhopEvent(i.event, env, () => payment);
@@ -295,7 +334,13 @@ export async function applyWhopDelivery(
     .order('received_at', { ascending: true }).order('payload_hash', { ascending: true })
     .limit(1).maybeSingle();
   if (earliestErr) return { kind: 'error', what: 'earliest-payment read', err: earliestErr };
-  if (earliest && earliest.payload_hash !== i.payloadHash) return { kind: 'ignored', reason: 'payment_already_counted' };
+  if (earliest && earliest.payload_hash !== i.payloadHash) {
+    /* A different body for a payment that is already on record. It is a repeat ONLY if the payment was actually applied. If the earliest delivery was refused (no payer email, a plan the table did not know yet, a
+       $0 first read) and nothing granted, a corrected re-send must be allowed to try: the applied marker, not the earliest row, is what keeps one payment from granting twice (grantOnce below). */
+    const { data: applied, error: appliedErr } = await sb.from(T.whop_webhook_events).select('payload_hash').eq('payload_hash', appliedHash(paymentId)).maybeSingle();
+    if (appliedErr) return { kind: 'error', what: 'applied-marker read', err: appliedErr };
+    if (applied) return { kind: 'ignored', reason: 'payment_already_counted' };
+  }
 
   // Same prefix switch as lib/tables.ts: the function that exists on prod is not the one that exists on dev (qa uses the dev database).
   const fn = process.env.NEXT_PUBLIC_APP_ENV === 'dev' ? 'lhq_dev_user_id_by_email' : 'lhq_user_id_by_email';
@@ -317,7 +362,7 @@ export async function applyWhopDelivery(
     return { kind: 'review', reason: 'account_email_not_confirmed', paymentId, claimError: r.ok ? undefined : r.error };
   }
 
-  const res = await grantOnce(sb, paymentId, accountId, decision, now);
+  const res = await grantOnce(sb, paymentId, accountId, decision, receivedAt === undefined ? now : paidAt(receivedAt, now, decision.add));
   if (res.kind === 'granted') return { kind: 'granted', plan: res.plan, periodEnd: res.periodEnd };
   if (res.kind === 'already_applied') return { kind: 'ignored', reason: 'payment_already_applied' };
   if (res.kind === 'review') return { kind: 'review', reason: res.reason, paymentId };
@@ -385,11 +430,11 @@ export async function retryRefusedWhopDeliveries(sb: Admin, env: Record<string, 
     }
     if (!paymentId || !deliveryHash) { out.errors++; out.notes.push(`payment ${paymentId || '(none)'}: retry row has no delivery`); continue; }
 
-    const { data: delivery, error: readErr } = await sb.from(T.whop_webhook_events).select('payload_hash, event, body').eq('payload_hash', deliveryHash).maybeSingle();
+    const { data: delivery, error: readErr } = await sb.from(T.whop_webhook_events).select('payload_hash, event, body, received_at').eq('payload_hash', deliveryHash).maybeSingle();
     if (readErr) { await putBack(lastReason, attempts); out.errors++; out.notes.push(`payment ${paymentId}: stored delivery read failed`); continue; }
     if (!delivery || typeof delivery.body !== 'object' || delivery.body === null) { out.errors++; out.notes.push(`payment ${paymentId}: stored delivery missing`); continue; }
 
-    const outcome = await applyWhopDelivery(sb, { event: delivery.body as Record<string, unknown>, payloadHash: String(delivery.payload_hash), eventName: typeof delivery.event === 'string' ? delivery.event : null }, env, now);
+    const outcome = await applyWhopDelivery(sb, { event: delivery.body as Record<string, unknown>, payloadHash: String(delivery.payload_hash), eventName: typeof delivery.event === 'string' ? delivery.event : null }, env, now, delivery.received_at);
     if (outcome.kind === 'granted') { out.granted++; out.notes.push(`payment ${paymentId}: granted ${outcome.plan} on retry ${attempts + 1}`); continue; }
     if (outcome.kind === 'error') { await putBack(lastReason, attempts); out.errors++; out.notes.push(`payment ${paymentId}: ${outcome.what} failed, will retry`); continue; }
     if (outcome.kind === 'review' && isSettingsRefusal(outcome.reason)) { await putBack(outcome.reason, attempts + 1); out.stillRefused++; continue; }
@@ -412,6 +457,7 @@ export async function hasPendingClaim(sb: Admin, email: string): Promise<boolean
     .select('payload_hash')
     .eq('event', WHOP_PENDING_CLAIM_EVENT)
     .eq('body->>payer_email', e)
+    .gte('received_at', claimCutoff(new Date()))
     .limit(1);
   if (error) return null;
   return (data ?? []).length > 0;
@@ -432,10 +478,23 @@ export async function claimPendingForAccount(
     .select('payload_hash, resource_id, body')
     .eq('event', WHOP_PENDING_CLAIM_EVENT)
     .eq('body->>payer_email', email)
+    .gte('received_at', claimCutoff(now))
     .limit(10);
   if (error) return { ...out, error };
 
   for (const p of pending ?? []) {
+    /* THE CLAIM'S OWN WINDOW, BEFORE THE ROW IS TAKEN: the plan's paid period (min 30 days) from the payment's received time. An expired claim is left exactly as it is (not deleted, not granted). */
+    {
+      const pbEarly = (typeof p.body === 'object' && p.body !== null ? p.body : {}) as { delivery_hash?: unknown };
+      let windowEnd: Date | null = null;   // unknown (delivery unreadable, or no valid received_at): not judged here, the checks below answer as before
+      if (typeof pbEarly.delivery_hash === 'string') {
+        const { data: o } = await sb.from(T.whop_webhook_events).select('body, received_at').eq('payload_hash', pbEarly.delivery_hash).maybeSingle();
+        if (o && typeof o.body === 'object' && o.body !== null) {
+          if (typeof o.received_at === 'string' && Number.isFinite(Date.parse(o.received_at))) windowEnd = claimWindowEnd(o.received_at);
+        }
+      }
+      if (windowEnd && now.getTime() > windowEnd.getTime()) { out.refused.push('claim_window_closed'); continue; }
+    }
     const hash = String(p.payload_hash);
     const paymentId = typeof p.resource_id === 'string' ? p.resource_id : '';
     const pb = (typeof p.body === 'object' && p.body !== null ? p.body : {}) as { delivery_hash?: unknown; payer_email?: unknown; reason?: unknown };
@@ -452,7 +511,7 @@ export async function claimPendingForAccount(
     if (!removed || removed.length === 0) continue;
 
     if (typeof pb.delivery_hash !== 'string') { out.refused.push('pending_claim_has_no_delivery'); continue; }
-    const { data: orig, error: origErr } = await sb.from(T.whop_webhook_events).select('body').eq('payload_hash', pb.delivery_hash).maybeSingle();
+    const { data: orig, error: origErr } = await sb.from(T.whop_webhook_events).select('body, received_at').eq('payload_hash', pb.delivery_hash).maybeSingle();
     if (origErr || !orig || typeof orig.body !== 'object' || orig.body === null) { await put(String(pb.reason ?? 'unknown')); out.refused.push('delivery_not_readable'); continue; }
     const event = orig.body as Record<string, unknown>;
 
@@ -467,7 +526,7 @@ export async function claimPendingForAccount(
     // The pending row is found by email, but the delivery is the authority: it must name THIS account's email.
     if (decision.payerEmail !== email) { await put(String(pb.reason ?? 'unknown')); out.refused.push('payer_email_changed'); continue; }
 
-    const res = await grantOnce(sb, decision.paymentId, i.userId, decision, now);
+    const res = await grantOnce(sb, decision.paymentId, i.userId, decision, paidAt(orig.received_at, now, decision.add));
     if (res.kind === 'granted') { out.granted++; continue; }
     // Already applied by another path (the webhook or the hourly retry): the claim is spent, so it is NOT put back.
     if (res.kind === 'already_applied') continue;
