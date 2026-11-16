@@ -125,6 +125,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'no-duplicate-controls', needs: 'none', note: 'route sweep' },
   { spec: 'no-selling-hidden-features', needs: 'none' },
   { spec: 'one-socket-per-screen', needs: 'none', note: 'route sweep' },
+  { spec: 'live-feed-connect-failed', needs: 'none', note: 'signed out; sockets stubbed' },
   { spec: 'perf', needs: 'none', note: 'performance budgets against the live site: not routine' },
   { spec: 'reconnect', needs: 'none' },
   { spec: 'reconnect-cdp', needs: 'none' },
