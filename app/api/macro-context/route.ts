@@ -3,7 +3,7 @@ import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
-import { getEntitlement, usageTierOf } from '@/lib/entitlements';
+import { requireProPlan } from '@/lib/entitlements';
 import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, type UsageBlockReason, blockedResponse } from '@/lib/aiUsage';
 import { pctChange, buildMacroPrompt } from '@/lib/macroContext';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
@@ -141,10 +141,8 @@ export async function GET(req: NextRequest) {
   // route is cached across all visitors, so granting it during the trial adds
   // ~no marginal cost while showcasing a headline Pro feature.
   /* The plan row is read ONCE (it used to be read again for the usage tier inside the cache miss). */
-  const entitlement = await getEntitlement(token, authData.user.id);
-  if (!entitlement.proFeatures) {
-    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Global macro context is a Pro feature.' }, { status: 403 });
-  }
+  const plan = await requireProPlan(token, authData.user.id, 'Global macro context is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
@@ -153,7 +151,7 @@ export async function GET(req: NextRequest) {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit stays free for everyone (same pattern as
       // token-unlock/smc-snapshot).
-      const role = usageTierOf(entitlement);
+      const role = plan.tier;
       /* The usage check and the Yahoo read run AT THE SAME TIME. A blocked caller wastes one cheap, cached Yahoo read; an allowed one no longer waits for the usage round trip first. */
       const reservedOn = todayUtc();
       const [usageResult, inputs] = await Promise.all([

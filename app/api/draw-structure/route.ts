@@ -29,7 +29,7 @@ import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { cached } from '@/lib/apiCache';
 import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, type UsageBlockReason } from '@/lib/aiUsage';
-import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
+import { requireProPlan } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { intervalToMs, closedCandleKey } from '@/lib/candles';
@@ -218,12 +218,8 @@ export async function POST(req: NextRequest) {
   /* Pro-only, server-side, like the other eleven tool routes. The button is Pro-gated in the UI
    * too, but a UI gate is not a gate - without this check the paid xAI call is reachable with a
    * free account's token. */
-  if (!(await hasProFeatures(token, authData.user.id))) {
-    return NextResponse.json(
-      { error: 'PRO_REQUIRED', message: 'Draw Structure is a Pro feature.' },
-      { status: 403 },
-    );
-  }
+  const plan = await requireProPlan(token, authData.user.id, 'Draw Structure is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
@@ -314,7 +310,7 @@ export async function POST(req: NextRequest) {
          * gets the same proposals free. The increment is a RESERVATION taken before the xAI call
          * (see 20261023a), which is also why a missing migration cannot leak a free paid call:
          * the RPC refuses an unknown column and this throws before `xaiFetch`. */
-        const tier = await getUsageTier(token, authData.user.id);
+        const tier = plan.tier;
         /* THE DATE IS CAPTURED HERE, BESIDE THE RESERVATION, and handed to the refund below rather
            than recomputed. `lib/aiUsage.ts` records why: an AI call can outlive UTC midnight, and
            `todayUtc()` at refund time would credit the next day's row - quota minted on one day
