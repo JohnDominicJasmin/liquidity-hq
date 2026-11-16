@@ -3,14 +3,17 @@ import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
-import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
+import { getDryPowderNumbers } from '@/lib/dryPowderSeries';
+import { incrementToolUsage, refundToolUsage, todayUtc, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
-// DeFi Llama's stablecoin series only updates once a day - cache generously.
+// The AI text is cached an hour; the numbers it describes are cached a day (lib/dryPowderSeries.ts).
 const CACHE_TTL = 60 * 60_000;
+/** The AI step's own bound. Past it the card says the analysis is unavailable and keeps showing the numbers. */
+const ANALYSIS_TIMEOUT_MS = 25_000;
 
 class RateLimitError extends Error {
   constructor(public limit: number, reason: UsageBlockReason) {
@@ -20,21 +23,6 @@ class RateLimitError extends Error {
 
 function sb(token: string) {
   return userClient(token);
-}
-
-interface LlamaEntry {
-  date: string;
-  totalCirculatingUSD: Record<string, number>;
-}
-
-async function fetchStablecoinSeries(): Promise<number[]> {
-  const res = await fetch('https://stablecoins.llama.fi/stablecoincharts/all', {
-    headers: { 'User-Agent': 'LiquidityHQ/1.0' },
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!res.ok) throw new Error(`DeFi Llama ${res.status}`);
-  const data = (await res.json()) as LlamaEntry[];
-  return data.slice(-91).map(d => d.totalCirculatingUSD?.peggedUSD ?? 0);
 }
 
 function buildPrompt(current: number, prev30: number, prev90: number): string {
@@ -79,47 +67,58 @@ export async function GET(req: NextRequest) {
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
   try {
-    const result = await cached('dry-powder', CACHE_TTL, async () => {
-      // Only the cache-miss path actually spends on xAI, so only it needs the
-      // daily cap - a cache hit stays free for everyone (same pattern as
-      // token-unlock/smc-snapshot).
-      const role = await getUsageTier(token, authData.user.id);
-      const usageResult = await incrementToolUsage(authData.user.id, 'dryPowder', role);
-      if (usageResult.blocked) {
-        throw new RateLimitError(usageResult.limit, usageResult.reason);
-      }
+    /* ?part=numbers: the supply figures alone, no AI and no usage cost, so the card shows data in about a second (and instantly once the day's series is cached). The default part is the AI text. */
+    if (req.nextUrl.searchParams.get('part') === 'numbers') {
+      return NextResponse.json(await getDryPowderNumbers());
+    }
+    let reserved: { on: string } | null = null;
+    let billed = false;
+    try {
+      const result = await cached('dry-powder', CACHE_TTL, async () => {
+        // Only the cache-miss path actually spends on xAI, so only it needs the
+        // daily cap - a cache hit stays free for everyone (same pattern as
+        // token-unlock/smc-snapshot).
+        const role = await getUsageTier(token, authData.user.id);
+        const on = todayUtc();
+        const usageResult = await incrementToolUsage(authData.user.id, 'dryPowder', role);
+        if (usageResult.blocked) {
+          throw new RateLimitError(usageResult.limit, usageResult.reason);
+        }
+        reserved = { on };
 
-      const series = await fetchStablecoinSeries();
-      if (series.length < 32) throw new Error('Insufficient stablecoin data');
+        const { current, prev30, prev90, series } = await getDryPowderNumbers();
+        const prompt = buildPrompt(current, prev30, prev90);
 
-      const current = series[series.length - 1];
-      const prev30  = series[Math.max(0, series.length - 31)];
-      const prev90  = series[0];
+        const aiRes = await xaiFetch('https://api.x.ai/v1/chat/completions', {
+          signal: AbortSignal.timeout(ANALYSIS_TIMEOUT_MS),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
+          body: JSON.stringify({
+            model: 'grok-4.3',
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 350,
+          }),
+        });
 
-      const prompt = buildPrompt(current, prev30, prev90);
+        if (!aiRes.ok) {
+          const err = await aiRes.json().catch(() => ({})) as { error?: string };
+          throw new Error(err.error ?? 'AI error');
+        }
+        billed = true; // 2xx: the tokens are billed from here
 
-      const aiRes = await xaiFetch('https://api.x.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
-        body: JSON.stringify({
-          model: 'grok-4.3',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 350,
-        }),
+        const aiData = await aiRes.json();
+        await recordAiCall({ userId: authData.user.id, callType: 'dry_powder', model: aiData.model ?? 'grok-4.3', usage: aiData.usage });
+        const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
+
+        return { current, prev30, prev90, series, analysis };
       });
-
-      if (!aiRes.ok) {
-        const err = await aiRes.json().catch(() => ({})) as { error?: string };
-        throw new Error(err.error ?? 'AI error');
-      }
-
-      const aiData = await aiRes.json();
-      await recordAiCall({ userId: authData.user.id, callType: 'dry_powder', model: aiData.model ?? 'grok-4.3', usage: aiData.usage });
-      const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
-
-      return { current, prev30, prev90, series: series.slice(-30), analysis };
-    });
-    return NextResponse.json(result);
+      return NextResponse.json(result);
+    } catch (e) {
+      /* A read that was reserved but never billed (the 25 s bound, a non-2xx, no series) goes back, as in /api/grok. */
+      const r = reserved as { on: string } | null;
+      if (r && !billed) await refundToolUsage(authData.user.id, 'dryPowder', r.on);
+      throw e;
+    }
   } catch (e) {
     if (e instanceof RateLimitError) {
       return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });

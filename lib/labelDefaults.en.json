@@ -2756,6 +2756,8 @@
   "REFUND_FOOTER_COPYRIGHT": "© {year} LiquidityHQ. All rights reserved.",
   "AUTH_GATE_BANNED_DESC": "Your account has been suspended. Contact support at support@liquidity-hq.com if you believe this is a mistake.",
   "DRY_POWDER_LOCKED_DESC": "Stablecoin buying power sitting on exchanges, with an AI read on whether it is building up or draining away - part of Pro.",
+  "DRY_POWDER_ANALYSIS_LOADING_SR": "Writing the summary…",
+  "DRY_POWDER_ANALYSIS_UNAVAILABLE": "The summary is unavailable right now. The figures above are current.",
   "DRY_POWDER_FETCH_FAILED": "Could not load stablecoin supply right now.",
   "TRADE_JOURNAL_SHADOW_LOCKED_DESC": "An AI read of the strategy your trades actually follow, including the rules you keep without noticing and the ones you keep breaking - part of Pro.",
   "TRADE_JOURNAL_BIAS_LOCKED_DESC": "An AI check for the habits that quietly cost you money, such as cutting winners early, overtrading, and chasing moves - part of Pro.",
