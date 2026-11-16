@@ -27,7 +27,7 @@ function sb(token: string) {
 /* `previousClose` IS OPTIONAL, because Yahoo's `range=2d&interval=1d` response does not always
    carry it - which is how "NaN%" reached a paid AI call. It was typed as a required number, so
    nothing made the caller handle its absence. */
-interface YFMeta { regularMarketPrice: number; previousClose?: number; shortName?: string }
+interface YFMeta { regularMarketPrice: number; previousClose?: number; shortName?: string; /** Unix SECONDS of the quote's own last trade. */ regularMarketTime?: number }
 
 /** The daily bars the same response carries, used when `meta.previousClose` is missing. */
 interface YFQuote { close?: Array<number | null> }
@@ -51,7 +51,7 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 // exist, which %255EVIX isn't. DX-Y.NYB has no special characters, so
 // double-encoding was a no-op for it alone - exactly why it was the only
 // one of the 5 that ever worked.
-async function fetchYFOnce(symbol: string): Promise<{ price: number; prev: number | null } | null> {
+async function fetchYFOnce(symbol: string): Promise<{ price: number; prev: number | null; asOf: number | null } | null> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=2d&interval=1d`;
   const res = await fetch(url, {
     headers: {
@@ -86,10 +86,12 @@ async function fetchYFOnce(symbol: string): Promise<{ price: number; prev: numbe
   const prev = typeof meta.previousClose === 'number' ? meta.previousClose
     : (typeof priorBar === 'number' ? priorBar : null);
 
-  return { price: meta.regularMarketPrice, prev };
+  /* The quote's OWN time (ms), so the card can say "Fri close" for a weekend value (#1651). Null when Yahoo sent none. */
+  const asOf = typeof meta.regularMarketTime === 'number' && meta.regularMarketTime > 0 ? meta.regularMarketTime * 1000 : null;
+  return { price: meta.regularMarketPrice, prev, asOf };
 }
 
-async function fetchYF(symbol: string, initialDelayMs = 0): Promise<{ price: number; prev: number | null } | null> {
+async function fetchYF(symbol: string, initialDelayMs = 0): Promise<{ price: number; prev: number | null; asOf: number | null } | null> {
   if (initialDelayMs > 0) await sleep(initialDelayMs);
   try {
     return await fetchYFOnce(symbol);
@@ -106,7 +108,7 @@ async function fetchYF(symbol: string, initialDelayMs = 0): Promise<{ price: num
 }
 
 /* The five Yahoo inputs, cached on their own for 3 minutes and fetched WITHOUT the AI call, so a retry after an AI failure (a failure is never cached) does not re-hit Yahoo, and so the fetch can run at the same time as the usage check. Throws when three or more are missing, which `cached` never stores. */
-type YFResult = { price: number; prev: number | null } | null;
+type YFResult = { price: number; prev: number | null; asOf: number | null } | null;
 async function fetchMacroInputs(): Promise<{ dxyData: YFResult; vixData: YFResult; goldData: YFResult; oilData: YFResult; tnxData: YFResult; missing: string[] }> {
   // Staggered, not a single Promise.all burst - see fetchYF's comment.
   const [dxyData, vixData, goldData, oilData, tnxData] = await Promise.all([
@@ -183,6 +185,7 @@ export async function GET(req: NextRequest) {
         oil:  oil?.price  ?? null, oilChg:  oil?.chg  ?? null,
         tnx:  tnx?.price  ?? null, tnxChg:  tnx?.chg  ?? null,
         goldOilRatio,
+        asOf: { dxy: dxyData?.asOf ?? null, vix: vixData?.asOf ?? null, gold: goldData?.asOf ?? null, oil: oilData?.asOf ?? null, tnx: tnxData?.asOf ?? null },
       };
 
       const prompt = buildMacroPrompt({ dxy, vix, gold, oil, tnx, goldOilRatio });

@@ -19,6 +19,7 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { fngWord } from '@/lib/shortWords';
 import type { LabelKey } from '@/lib/labelKeys';
+import { macroStampDate } from '@/lib/macroStamp';
 import { useGraceElapsed } from '@/lib/useGrace';
 import ReadingGap from '@/components/ReadingGap';
 import { formatRsi } from '@/lib/rsi';
@@ -323,6 +324,8 @@ export default function BriefingTerminal() {
   const etfColor = etfFlow == null || etfFlow === 0 ? 'var(--txt3)' : etfFlow > 0 ? 'var(--green-2)' : 'var(--red)';
 
   const dxyChg    = store.dxyChg;
+  /* A DXY value whose own time is old (weekend, overnight) says "Fri close" (#1651). */
+  const dxyStampDate = macroStampDate(store.macroAsOf.dxy, nowMs);
   const dxySig    = dxyChg == null    ? '-'
     : dxyChg > 0.2  ? t('BRIEFING_DXY_HEADWIND')
     : dxyChg < -0.2 ? t('BRIEFING_DXY_TAILWIND')
@@ -571,6 +574,7 @@ export default function BriefingTerminal() {
             <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_DXY_TIP')}>{t('BRIEFING_DXY_LABEL')}</Tip></div>
             <div className="mb-macro-val">{store.dxy != null ? store.dxy.toFixed(2) : '-'}</div>
             <div className="mb-macro-sub" style={{ color: dxyColor }}>{dxySig}</div>
+            {dxyStampDate && store.dxy != null && <div className="mb-macro-sub" data-testid="macro-stamp" style={{ color: 'var(--txt3)' }}>{t('MACRO_STRIP_CLOSE_STAMP', { day: dxyStampDate.toLocaleDateString(undefined, { weekday: 'short' }) })}</div>}
           </div>
           {etfFlow != null && (
             <div className="mb-macro-item">
