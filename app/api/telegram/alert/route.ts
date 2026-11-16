@@ -1424,8 +1424,7 @@ async function checkFearGreed(
       await tg(token, chatId,
         `🩸 <b>Extreme Fear - Fear &amp; Greed: ${val}</b>\n\n` +
         clsLine +
-        `Signal: Market in panic - historically a contrarian accumulation zone\n` +
-        `Action: Watch for capitulation candle + volume spike as entry signal.\n\n` +
+        `Signal: Market in panic - historically a contrarian accumulation zone\n\n` +
         `<i>${stamp}</i>`);
       markSent('fng_fear'); fired.push(`Fear & Greed extreme fear (${val})`);
     }
@@ -1433,8 +1432,7 @@ async function checkFearGreed(
       await tg(token, chatId,
         `🔥 <b>Extreme Greed - Fear &amp; Greed: ${val}</b>\n\n` +
         clsLine +
-        `Signal: Market euphoria - historically a distribution zone\n` +
-        `Action: Consider tightening stops and reducing position size.\n\n` +
+        `Signal: Market euphoria - historically a distribution zone\n\n` +
         `<i>${stamp}</i>`);
       markSent('fng_greed'); fired.push(`Fear & Greed extreme greed (${val})`);
     }
@@ -1600,8 +1598,7 @@ async function checkSentimentExtremes(
         `😱 F&amp;G: <b>${fng}</b>${fngCls}\n` +
         `💸 BTC funding: <b>+${frPct.toFixed(4)}%</b> - longs paying shorts\n` +
         `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
-        `Signal: All 3 sentiment gauges at extremes - <b>long flush risk elevated</b>\n` +
-        `Action: Tighten stops on longs. Avoid adding longs into this setup.` +
+        `Signal: All 3 sentiment gauges at extremes - <b>long-heavy positioning</b>` +
         `\n\n<i>${stamp}</i>`
       );
       markSent('sentiment_bear');
@@ -1616,8 +1613,7 @@ async function checkSentimentExtremes(
         `😨 F&amp;G: <b>${fng}</b>${fngCls}\n` +
         `💸 BTC FR: <b>${frPct.toFixed(4)}%</b> - Shorts paying\n` +
         `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
-        `Signal: All 3 sentiment gauges at fear extremes - <b>potential contrarian reversal zone</b>\n` +
-        `Action: Watch for capitulation candle + volume spike before entering long.` +
+        `Signal: All 3 sentiment gauges at fear extremes - <b>short-heavy positioning</b>` +
         `\n\n<i>${stamp}</i>`
       );
       markSent('sentiment_bull');
@@ -1735,10 +1731,10 @@ async function checkSqueezeAlerts(
     if (dir === 'SHORT_SQ') {
       // Shorts overcrowded - expect pump to flush them
       queue.push({
-        coin, dir: 'long', ruleKey: 'squeeze', name: `${label} short squeeze building (${score}/100)`, price,
-        title: `Short Squeeze Building - Score ${score}/100`,
+        coin, dir: 'long', ruleKey: 'squeeze', name: `${label} short-heavy positioning (${score}/100)`, price,
+        title: `Short-heavy positioning - Score ${score}/100`,
         body:
-          `⚡ <b>SHORT SQUEEZE BUILDING - ${label}/USDT</b>\n` +
+          `⚡ <b>SHORT-HEAVY POSITIONING - ${label}/USDT</b>\n` +
           `Score: <b>${score}/100</b>\n\n` +
           `Funding: <b>${frPct}</b> (shorts paying heavily)\n` +
           `L/S Ratio: <b>${longPct} long / ${shortPct} short</b>\n\n` +
@@ -1747,14 +1743,14 @@ async function checkSqueezeAlerts(
         metricValue: score, thresholdKind: 'squeeze', canonicalHit,
       });
       markSent(key);
-      fired.push(`${label} short squeeze building (${score}/100)`);
+      fired.push(`${label} short-heavy positioning (${score}/100)`);
     } else {
       // Longs overcrowded - expect dump to flush them
       queue.push({
-        coin, dir: 'short', ruleKey: 'squeeze', name: `${label} long flush building (${score}/100)`, price,
-        title: `Long Flush Building - Score ${score}/100`,
+        coin, dir: 'short', ruleKey: 'squeeze', name: `${label} long-heavy positioning (${score}/100)`, price,
+        title: `Long-heavy positioning - Score ${score}/100`,
         body:
-          `🔥 <b>LONG FLUSH BUILDING - ${label}/USDT</b>\n` +
+          `🔥 <b>LONG-HEAVY POSITIONING - ${label}/USDT</b>\n` +
           `Score: <b>${score}/100</b>\n\n` +
           `Funding: <b>${frPct}</b> (longs paying heavily)\n` +
           `L/S Ratio: <b>${longPct} long / ${shortPct} short</b>\n\n` +
@@ -1763,7 +1759,7 @@ async function checkSqueezeAlerts(
         metricValue: score, thresholdKind: 'squeeze', canonicalHit,
       });
       markSent(key);
-      fired.push(`${label} long flush building (${score}/100)`);
+      fired.push(`${label} long-heavy positioning (${score}/100)`);
     }
   }
   return fired;

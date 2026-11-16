@@ -416,7 +416,7 @@ export const ar: LandingDict = {
     levels: { entry: 'الدخول', stop: 'الوقف', target: 'الهدف' },
     oiTrend: { strong_up: 'صعود قوي', strong_down: 'هبوط قوي', weak_up: 'صعود ضعيف', weak_down: 'هبوط ضعيف' },
     funding: { heavyPos: 'إيجابي بشدة', mildPos: 'إيجابي بدرجة طفيفة', neutral: 'محايد', mildNeg: 'سلبي بدرجة طفيفة', heavyNeg: 'سلبي بشدة' },
-    setup: { noData: 'لا بيانات', balanced: 'متوازن', squeeze: 'ضغط على البائعين ↑', flush: 'خطر تصفية الشراء ↓' },
+    setup: { noData: 'لا بيانات', balanced: 'متوازن', squeeze: 'غلبة مراكز البيع', flush: 'غلبة مراكز الشراء' },
     oi1h: { spikeUp: 'قفزة في OI - ارتفاع', spikeDown: 'قفزة في OI - تراجع', stable: 'مستقر', rising: 'يرتفع', unwinding: 'يتراجع', newLongs: 'مراكز شراء جديدة - اتجاه حقيقي ▲', newShorts: 'مراكز بيع جديدة - هبوط حقيقي ▼', shortCover: 'تغطية مراكز بيع - صعود ضعيف', longExits: 'خروج من الشراء - بلا ذعر' },
   },
   nav: { signIn: 'تسجيل الدخول', getStarted: 'ابدأ مجانًا', learn: 'تعلّم' },
