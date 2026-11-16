@@ -79,8 +79,15 @@ test('X3. the hint x reaches 44x44 WITHOUT making the box taller: every negative
 /* ── item 2: one row on a phone ───────────────────────────────────────────── */
 
 test('R1. the row cannot wrap, the text block is the only thing that shrinks, and the pill is never squeezed', () => {
-  anchorOnce(banner, "flexWrap: 'nowrap'", 'the row');
-  assert.equal(banner.includes("flexWrap: 'wrap'"), false, 'the banner row can wrap again: at 390 px the countdown and the pill stacked');
+  /* THE ROW STILL CANNOT WRAP; ONE THING INSIDE IT MAY (PM, #2413: at most two lines). The outer banner row (the element carrying role="status") is flexWrap 'nowrap'. Exactly ONE flexWrap 'wrap' exists in the file
+     and it belongs to the TEXT BLOCK (the span that is also `flex: '0 1 auto', minWidth: 0` and a flex container), so the label and countdown may break onto a second line, but the pill and the x can never wrap. */
+  const rowAt = anchorOnce(banner, 'role="status"', 'the banner row');
+  const nowrapAt = anchorOnce(banner, "flexWrap: 'nowrap'", 'the row');
+  const wrapAt = anchorOnce(banner, "flexWrap: 'wrap'", 'the one wrapping element (the text block)');
+  assert.ok(nowrapAt > rowAt && nowrapAt < wrapAt, "the row's flexWrap 'nowrap' is not inside the banner row's own style (it must come between role=\"status\" and the text block)");
+  assert.equal(banner.slice(rowAt, wrapAt).includes("flexWrap: 'wrap'"), false, 'the banner ROW can wrap again: at 390 px the countdown and the pill stacked');
+  const wrapLine = banner.split(/\n/).find((l) => l.includes("flexWrap: 'wrap'")) ?? '';
+  assert.ok(wrapLine.includes("flex: '0 1 auto', minWidth: 0") && wrapLine.includes("display: 'flex'"), "the one flexWrap 'wrap' is not on the text block (flex: '0 1 auto', minWidth: 0, display: 'flex'): something else, perhaps the pill or the x, can now wrap");
   anchorOnce(banner, "flex: '0 1 auto', minWidth: 0", 'the text block');
   const pill = /padding: '0 15px', minHeight: 44, borderRadius: 999, flex: 'none'/.exec(banner);
   assert.ok(pill, "the pill lost `flex: 'none'` or its 44 px floor: it is the one control whose entire job is being tapped");
