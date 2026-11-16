@@ -19,7 +19,7 @@ const FNG_KEY: Record<string, LabelKey> = {
   'greed': 'FNG_WORD_GREED', 'extreme greed': 'FNG_WORD_EXTREME_GREED',
 };
 const SETUP_KEY: Record<string, LabelKey> = {
-  'Balanced': 'SETUP_WORD_BALANCED', 'Not enough data': 'SETUP_WORD_NOT_ENOUGH_DATA', 'Short squeeze ↑': 'SETUP_WORD_SQUEEZE', 'Long liquidation risk ↓': 'SETUP_WORD_FLUSH',
+  'Balanced': 'SETUP_WORD_BALANCED', 'Not enough data': 'SETUP_WORD_NOT_ENOUGH_DATA', 'Short-heavy': 'SETUP_WORD_SQUEEZE', 'Long-heavy': 'SETUP_WORD_FLUSH',
 };
 const PATTERN_KEY: Record<string, LabelKey> = {
   'Double top': 'PATTERN_DOUBLE_TOP', 'Double bottom': 'PATTERN_DOUBLE_BOTTOM',
