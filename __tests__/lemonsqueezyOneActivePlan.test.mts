@@ -280,8 +280,12 @@ const db = {
   hashes: new Set<string>(),
   upserts: [] as Row[],
   failStoredRead: false,
+  failWrite: false,                          // the subscription upsert answers 500 (#2429 A2)
+  auth: 'ok' as 'ok' | 'error' | 'notfound',   // the Auth admin read: ok, a transient 500, or a real 404 User not found
+  failHashDelete: false,                     // the dedup row's DELETE answers 500
+  deletes: [] as string[],                   // every dedup hash that was deleted
 };
-const resetDb = () => { db.rows.clear(); db.hashes.clear(); db.upserts.length = 0; db.failStoredRead = false; };
+const resetDb = () => { db.rows.clear(); db.hashes.clear(); db.upserts.length = 0; db.failStoredRead = false; db.failWrite = false; db.auth = 'ok'; db.failHashDelete = false; db.deletes.length = 0; };
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -289,8 +293,18 @@ const json = (body: unknown, status = 200) =>
 globalThis.fetch = (async (input: unknown, init: { method?: string; body?: string } = {}) => {
   const url = new URL(String((input as { url?: string })?.url ?? input));
   const method = init.method ?? 'GET';
-  if (url.pathname.startsWith('/auth/v1/admin/users/')) return json({ id: UID, email: EMAIL });
+  if (url.pathname.startsWith('/auth/v1/admin/users/')) {
+    if (db.auth === 'error') return json({ message: 'stand-in: auth boom' }, 500);
+    if (db.auth === 'notfound') return json({ message: 'User not found' }, 404);
+    return json({ id: UID, email: EMAIL });
+  }
   if (url.pathname.endsWith('_ls_webhook_events')) {
+    /* A DELETE carries its hash in the query (payload_hash=eq.<h>), NOT in a body: the first version of this stand-in read the body for every method, so a delete was recorded as a fresh insert (#2429: the route now deletes the dedup row on a retryable failure). */
+    if (method === 'DELETE') {
+      if (db.failHashDelete) return json({ code: 'XX000', message: 'stand-in: delete failed', details: '', hint: '' }, 500);
+      const h = (url.searchParams.get('payload_hash') ?? '').replace(/^eq\./, ''); db.hashes.delete(h); db.deletes.push(h);
+      return new Response(null, { status: 204 });
+    }
     const { payload_hash } = JSON.parse(init.body ?? '{}');
     if (db.hashes.has(payload_hash)) return json({ code: '23505', message: 'duplicate key value', details: '', hint: '' }, 409);
     db.hashes.add(payload_hash);
@@ -305,6 +319,7 @@ globalThis.fetch = (async (input: unknown, init: { method?: string; body?: strin
       const cols = (url.searchParams.get('select') ?? '*').split(',');
       return json([cols[0] === '*' ? stored : Object.fromEntries(cols.map((c) => [c, stored[c]]))]);
     }
+    if (db.failWrite) return json({ code: 'XX000', message: 'stand-in: write failed', details: '', hint: '' }, 500);
     const body = JSON.parse(init.body ?? '{}') as Row; // POST with merge-duplicates: only the columns sent change
     db.upserts.push(structuredClone(body));
     db.rows.set(String(body.user_id), { ...(db.rows.get(String(body.user_id)) ?? {}), ...body });
@@ -507,31 +522,96 @@ test('R10. CONTROL: a byte-identical redelivery is still dropped as a replay', a
 /* ── Two findings from the #1432 review, fixed in 3359e2a9 ─────────────────────────────────
  * They were `todo` tests (run, fail, never fail the suite) until the fix landed. */
 
-/* A FAILED read of the stored row is a third state, "unknown", not "no row". Treated as "no
-   row" the guard applied whatever arrived - the #1429 defect re-entered through the error
-   path (found by running this against f543fe69). Fails closed: 200, nothing written, reported.
-   200 rather than 5xx on purpose: the replay hash is already recorded, so a retry would be
-   dropped. A consequence worth knowing, and NOT asserted as wanted: an event that arrives
-   while the read is failing is not applied and is not retried. */
+/* A FAILED read of the stored row is a third state, "unknown", not "no row". Treated as "no row" the guard applied whatever arrived - the #1429 defect re-entered through the error path. It still fails CLOSED:
+   nothing is written. NEW CONTRACT (#2429 A2, replaces "200, ignored: stored_read_failed"): the answer is 500 and the dedup row is REMOVED, so LemonSqueezy's retry (the same bytes) is read again and processed
+   instead of being answered "replay" for ever; the failure is reported. */
 const READ_FAILS: { name: string; stored: boolean; event: string; id: string; attrs: Record<string, unknown> }[] = [
   { name: 'a foreign cancel on a live row', stored: true, event: 'subscription_updated', id: 'SUB_OLD_TWO_WEEK', attrs: OLD_CANCELLED },
   { name: "the account's own renewal", stored: true, event: 'subscription_updated', id: 'SUB_MONTHLY', attrs: { status: 'active', renews_at: '2100-01-01T00:00:00.000000Z' } },
   { name: 'a first subscription on an account with no row', stored: false, event: 'subscription_created', id: 'SUB_FIRST', attrs: { status: 'active', renews_at: '2099-01-01T00:00:00.000000Z' } },
 ];
 for (const c of READ_FAILS) {
-  test(`R11. a FAILED stored-row read fails closed - ${c.name}: nothing written, 200 not 5xx, reported`, async (t) => {
+  test(`R11. a FAILED stored-row read fails closed - ${c.name}: nothing written, 500, the dedup row removed, reported; the identical retry is then processed`, async (t) => {
     resetDb();
     const before = c.stored ? seed() : undefined;
     const err = t.mock.method(console, 'error', () => {});
     db.failStoredRead = true;
-    const res = await deliver(c.event, c.id, c.attrs);
-    assert.equal(res.status, 200, 'a 5xx makes Lemon Squeezy retry, and the retry is dropped as a replay');
-    assert.deepEqual(res.body, { received: true, ignored: 'stored_read_failed' });
+    const res = await deliver(c.event, c.id, c.attrs, { repeat: true });
+    assert.equal(res.status, 500, 'the delivery must be retryable: a 200 with the dedup row kept loses it for good');
     assert.equal(db.upserts.length, 0, 'the row was written while the read was failing');
     assert.deepEqual(now(), before, 'the row changed');
+    assert.equal(db.hashes.size, 0, 'the dedup row was NOT removed: the retry would be answered replay');
+    assert.equal(db.deletes.length, 1);
     assert.match(err.mock.calls.map((x) => String(x.arguments[0])).join('\n'), /stored-subscription read failed/, 'a failed read must reach GlitchTip');
+    // the read recovers and LemonSqueezy retries the SAME delivery
+    db.failStoredRead = false;
+    const retry = await deliver(c.event, c.id, c.attrs, { repeat: true });
+    assert.notEqual((retry.body as { ignored?: string }).ignored, 'replay', 'the retry was answered replay: the delivery was lost');
+    assert.equal(retry.status, 200);
   });
 }
+
+test('R11b. the subscription WRITE fails: 500, the dedup row removed, nothing changed, reported; the identical retry grants', async (t) => {
+  resetDb(); seed();
+  const err = t.mock.method(console, 'error', () => {});
+  db.failWrite = true;
+  const attrs = { status: 'active', renews_at: '2100-01-01T00:00:00.000000Z' };
+  const res = await deliver('subscription_updated', 'SUB_MONTHLY', attrs, { repeat: true });
+  assert.equal(res.status, 500, 'a failed write answered 200: the subscriber stays Free for good (it used to)');
+  assert.equal(db.hashes.size, 0, 'the dedup row stayed, so the retry is answered replay');
+  assert.equal(db.rows.get(UID)!.current_period_end, MONTHLY.current_period_end, 'the row changed although the write failed');
+  assert.match(err.mock.calls.map((x) => String(x.arguments[0])).join('\n'), /subscription write failed/);
+  db.failWrite = false;
+  const retry = await deliver('subscription_updated', 'SUB_MONTHLY', attrs, { repeat: true });
+  assert.equal(retry.status, 200); assert.notEqual((retry.body as { ignored?: string }).ignored, 'replay');
+  assert.equal(db.rows.get(UID)!.current_period_end, '2100-01-01T00:00:00.000000Z', 'the retry did not apply the renewal');
+});
+
+test('R11c. a TRANSIENT Auth error on the account read is not an email mismatch: 500, the dedup row removed, nothing written; a real "User not found" is still the old refusal', async (t) => {
+  resetDb(); seed();
+  const err = t.mock.method(console, 'error', () => {});
+  db.auth = 'error';
+  const attrs = { status: 'active', renews_at: '2100-01-01T00:00:00.000000Z' };
+  const res = await deliver('subscription_updated', 'SUB_MONTHLY', attrs, { repeat: true });
+  assert.equal(res.status, 500, 'a transient Auth error was answered like a mismatch (200 email_mismatch with the delivery consumed)');
+  assert.equal(db.hashes.size, 0); assert.equal(db.upserts.length, 0);
+  assert.match(err.mock.calls.map((x) => String(x.arguments[0])).join('\n'), /account read failed/);
+  db.auth = 'ok';
+  const retry = await deliver('subscription_updated', 'SUB_MONTHLY', attrs, { repeat: true });
+  assert.equal(retry.status, 200); assert.equal(db.rows.get(UID)!.current_period_end, '2100-01-01T00:00:00.000000Z');
+  // a genuine 404 is a user that does not exist: the refusal stays, and it is not retryable
+  resetDb(); seed(); db.auth = 'notfound';
+  const nf = await deliver('subscription_updated', 'SUB_MONTHLY', attrs);
+  assert.deepEqual(nf.body, { received: true, ignored: 'email_mismatch' }); assert.equal(db.upserts.length, 0);
+});
+
+test('R11d. if the dedup row CANNOT be removed after a failed write the failure is still reported (the retry will then be answered replay: that residual is visible, not silent)', async (t) => {
+  resetDb(); seed();
+  const err = t.mock.method(console, 'error', () => {});
+  db.failWrite = true; db.failHashDelete = true;
+  const res = await deliver('subscription_updated', 'SUB_MONTHLY', { status: 'active', renews_at: '2100-01-01T00:00:00.000000Z' }, { repeat: true });
+  assert.equal(res.status, 500);
+  const log = err.mock.calls.map((x) => String(x.arguments[0])).join('\n');
+  assert.match(log, /could not remove the dedup row/, 'a failed cleanup delete was swallowed');
+  assert.match(log, /subscription write failed/);
+});
+
+test('R15. an expiry from LemonSqueezy does not cut short paid time that now comes from ANOTHER provider: billing_provider whop with a future period end is ignored (paid_by_other_provider)', async () => {
+  resetDb();
+  const before = seed({ billing_provider: 'whop', current_period_end: '2099-01-01T00:00:00.000Z' });
+  const res = await deliver('subscription_expired', 'SUB_MONTHLY', { status: 'expired', ends_at: '2026-01-01T00:00:00.000000Z' });
+  assert.deepEqual(res.body, { received: true, ignored: 'paid_by_other_provider' });
+  assert.equal(db.upserts.length, 0, 'the row was written'); assert.deepEqual(now(), before, 'the other provider paid time was cut short');
+});
+
+test('R15b. the other-provider protection is exactly that: a lemonsqueezy or empty provider, or another provider whose period has ALREADY ended, is expired as before', async () => {
+  for (const over of [{ billing_provider: 'lemonsqueezy' }, { billing_provider: null }, { billing_provider: 'whop', current_period_end: '2020-01-01T00:00:00.000Z' }]) {
+    resetDb(); seed(over as Row);
+    const res = await deliver('subscription_expired', 'SUB_MONTHLY', { status: 'expired', ends_at: '2026-01-01T00:00:00.000000Z' });
+    assert.notEqual((res.body as { ignored?: string }).ignored, 'paid_by_other_provider', JSON.stringify(over));
+    assert.equal(db.rows.get(UID)!.role, 'free', `${JSON.stringify(over)}: the expiry was not applied`);
+  }
+});
 
 test('R12. a pro row with no subscription id (admin grant / pre-column row) records the customer\'s first purchase', async () => {
   resetDb();

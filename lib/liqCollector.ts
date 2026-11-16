@@ -142,7 +142,7 @@ export function startLiqCollector(): void {
 
   const bnStreams = Object.values(BINANCE_SYMS).map(s => `${s.toLowerCase()}@forceOrder`).join('/');
   connect(c, 0, 'binance',
-    () => new WebSocket(`wss://fstream.binance.com/stream?streams=${bnStreams}`),
+    () => new WebSocket(`wss://fstream.binance.com/market/stream?streams=${bnStreams}`),
     () => { /* the combined stream subscribes by URL */ },
     data => push(parseBinanceForceOrder(data, Date.now())));
 
