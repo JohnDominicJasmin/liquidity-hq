@@ -164,5 +164,6 @@ test('AuthProvider entitlements: ENTITLEMENTS_OVERALL_BUDGET_MS is wired into re
   // The attempt signature must accept the remaining-budget 2nd arg, and use it - not just accept and ignore it
   // (which would silently keep the old ~48s worst case despite the option being wired above).
   anchorOnce(source, 'async function attempt(n: number, remainingBudgetMs: number)', 'attempt\'s updated signature (2nd arg: remainingBudgetMs)');
-  anchorOnce(source, '.abortSignal(AbortSignal.timeout(Math.min(ENTITLEMENTS_FETCH_MS, remainingBudgetMs)))', 'the AbortSignal bounded by min(per-attempt timeout, remaining budget)');
+  /* `deadlineSignal` is `AbortSignal.timeout` where the browser has it and a timer-driven AbortController where it does not (Safari before 16: the native call THREW there, #2408 review). Same bound, same two terms. */
+  anchorOnce(source, '.abortSignal(deadlineSignal(Math.min(ENTITLEMENTS_FETCH_MS, remainingBudgetMs)))', 'the AbortSignal bounded by min(per-attempt timeout, remaining budget)');
 });
