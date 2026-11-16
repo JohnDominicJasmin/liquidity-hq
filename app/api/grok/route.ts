@@ -9,6 +9,7 @@ import { chartFromCandles } from '@/lib/arenaChartServer';
 import { EMA_SIGNAL_TFS, fetchRibbonCandles, type EMASignalTF } from '@/lib/ribbonCandles';
 import { T } from '@/lib/tables';
 import { getPlanSnapshot, getUsageTier } from '@/lib/entitlements';
+import { selectionForPlan } from '@/lib/strategyRegistry';
 import { aiCoinAllowed, normalizeCoinId } from '@/lib/signalCoinGate';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS, GATED_TFS, isGatedTf, type UsageTier } from '@/lib/limits';
@@ -364,7 +365,9 @@ export async function POST(req: NextRequest) {
       console.warn(`[grok] server chart: candle fetch failed for ${logTag(coin)}/${tf}, keeping the browser's`);
     }
   }
-  const prompt = buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, selection);
+  /* The indicators come from the request body, so the server applies the plan's limit itself: its own plan read says NOT ENTITLED -> only the first indicator (Free is one at a time). Unknown/failed read: as sent (#1119). */
+  const planSelection = selectionForPlan(selection, plan.status === 'not_entitled') as string[];
+  const prompt = buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, planSelection);
 
   /* The second bound. The server's fields are short formatted strings, so this cannot realistically
      fire once the first bound passed - which is why it is worth having: if it ever does, the gather
