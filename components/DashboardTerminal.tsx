@@ -36,6 +36,9 @@ import { useGraceElapsed } from '@/lib/useGrace';
 import { useLabels } from '@/lib/labels';
 import ReadingGap from '@/components/ReadingGap';
 import { fundingWord, setupWord, patternWord } from '@/lib/shortWords';
+
+/** A funding percentage with its sign, two decimals, for a label: +0.05% / −0.03%. */
+const fmtSignedPct = (pct: number): string => (pct >= 0 ? '+' : '−') + Math.abs(pct).toFixed(2) + '%';
 import { coinRow } from '@/lib/coins';
 import type { LabelKey } from '@/lib/labelKeys';
 import PageHint from '@/components/PageHint';
@@ -158,8 +161,8 @@ function TCoinSidebar() {
         if (d?.fundingRate != null) {
           const fr = d.fundingRate * 100;
           /* The same funding bands as classifyFunding and the scanner (S9): heavy positive at +0.05%, heavy negative at -0.03% (this used 0.04 / -0.02, so one coin read differently on different screens). */
-          if (fr >= 0.05)       sig = { text: t('DASH_SIDEBAR_SIG_LONGS_OVERCROWDED'), col: 'var(--red)' };
-          else if (fr <= -0.03) sig = { text: t('DASH_SIDEBAR_SIG_SHORTS_SQUEEZED'),   col: 'var(--green)' };
+          if (fr >= 0.05)       sig = { text: t('DASH_SIDEBAR_SIG_LONGS_OVERCROWDED', { pct: fmtSignedPct(fr) }), col: 'var(--red)' };
+          else if (fr <= -0.03) sig = { text: t('DASH_SIDEBAR_SIG_SHORTS_SQUEEZED', { pct: fmtSignedPct(fr) }),   col: 'var(--green)' };
         }
         if (!sig && d?.cvdDivergence === 'bullish') sig = { text: t('DASH_SIDEBAR_SIG_SMART_BUYERS'), col: 'var(--green)' };
         if (!sig && d?.cvdDivergence === 'bearish') sig = { text: t('DASH_SIDEBAR_SIG_SMART_SELLERS'), col: 'var(--red)' };
@@ -440,6 +443,16 @@ function TEdgeSignals() {
              : !sq.enough ? t('DASH_EDGE_SETUP_NOT_ENOUGH_DATA')
              : t('DASH_EDGE_SETUP_BALANCED')}
           </div>
+          {/* The numbers behind the label (funding and the share of the heavier side), so the card states what it saw instead of only a name. */}
+          {sq.enough && (d?.fundingRate != null || d?.longRatio != null) && (
+            <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
+              {[
+                d?.fundingRate != null ? t('DASH_EDGE_SETUP_DETAIL_FUNDING', { pct: fmtSignedPct(d.fundingRate * 100) }) : null,
+                sq.dir === 'SHORT_SQ' && d?.shortRatio != null ? t('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE', { pct: Math.round(d.shortRatio * 100) })
+                  : d?.longRatio != null ? t('DASH_EDGE_SETUP_DETAIL_LONG_SHARE', { pct: Math.round(d.longRatio * 100) }) : null,
+              ].filter(Boolean).join(' · ')}
+            </div>
+          )}
         </div>
       </div>
 

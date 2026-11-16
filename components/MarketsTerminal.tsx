@@ -15,13 +15,14 @@ import type { LabelKey } from '@/lib/labelKeys';
 
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
 
-function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): { key: LabelKey | null; col: string } {
+function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): { key: LabelKey | null; col: string; pct?: string } {
   if (!d) return { key: null, col: 'var(--txt-dim)' };
   if (d.fundingRate != null) {
     const fr = d.fundingRate * 100;
     // The same funding bands as classifyFunding, the scanner and the dashboard sidebar (S9): +0.05% / -0.03%.
-    if (fr >= 0.05) return { key: 'MARKETS_SIGNAL_LONGS_OVERCROWDED', col: 'var(--red)' };
-    if (fr <= -0.03) return { key: 'MARKETS_SIGNAL_SHORTS_SQUEEZED', col: 'var(--green-2)' };
+    const pct = (fr >= 0 ? '+' : '−') + Math.abs(fr).toFixed(2) + '%';
+    if (fr >= 0.05) return { key: 'MARKETS_SIGNAL_LONGS_OVERCROWDED', col: 'var(--red)', pct };
+    if (fr <= -0.03) return { key: 'MARKETS_SIGNAL_SHORTS_SQUEEZED', col: 'var(--green-2)', pct };
   }
   if (d.cvdDivergence === 'bullish') return { key: 'MARKETS_SIGNAL_SMART_BUYERS', col: 'var(--green-2)' };
   if (d.cvdDivergence === 'bearish') return { key: 'MARKETS_SIGNAL_SMART_SELLERS', col: 'var(--red)' };
@@ -330,12 +331,12 @@ export default function MarketsTerminal() {
               </div>
 
               {/* Signal */}
-              <div className="mkt-signal" title={sig.key ? t(sig.key) : undefined} style={{
+              <div className="mkt-signal" title={sig.key ? t(sig.key, { pct: sig.pct ?? '' }) : undefined} style={{
                 paddingLeft: 12, fontSize: 'var(--fs-caption)',
                 color: sig.col === 'var(--txt-dim)' ? 'var(--txt3)' : sig.col,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
-                {sig.key ? t(sig.key) : '-'}
+                {sig.key ? t(sig.key, { pct: sig.pct ?? '' }) : '-'}
               </div>
 
               {/* Bottom accent line = buy pressure */}

@@ -1598,7 +1598,7 @@ async function checkSentimentExtremes(
       await tg(token, chatId,
         `🚨 <b>Sentiment Extremes - All 3 Bearish</b>\n\n` +
         `😱 F&amp;G: <b>${fng}</b>${fngCls}\n` +
-        `💸 BTC FR: <b>+${frPct.toFixed(4)}%</b> - Longs overcrowded\n` +
+        `💸 BTC funding: <b>+${frPct.toFixed(4)}%</b> - longs paying shorts\n` +
         `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
         `Signal: All 3 sentiment gauges at extremes - <b>long flush risk elevated</b>\n` +
         `Action: Tighten stops on longs. Avoid adding longs into this setup.` +
@@ -1742,8 +1742,7 @@ async function checkSqueezeAlerts(
           `Score: <b>${score}/100</b>\n\n` +
           `Funding: <b>${frPct}</b> (shorts paying heavily)\n` +
           `L/S Ratio: <b>${longPct} long / ${shortPct} short</b>\n\n` +
-          `Shorts overcrowded - price likely pumps to flush them.\n` +
-          `Watch for break above key resistance with volume spike.\n\n` +
+          `Positioning is short-heavy.\n\n` +
           `<i>${stamp}</i>`,
         metricValue: score, thresholdKind: 'squeeze', canonicalHit,
       });
@@ -1759,8 +1758,7 @@ async function checkSqueezeAlerts(
           `Score: <b>${score}/100</b>\n\n` +
           `Funding: <b>${frPct}</b> (longs paying heavily)\n` +
           `L/S Ratio: <b>${longPct} long / ${shortPct} short</b>\n\n` +
-          `Longs overcrowded - price likely dumps to flush them.\n` +
-          `Watch for break below key support with volume spike.\n\n` +
+          `Positioning is long-heavy.\n\n` +
           `<i>${stamp}</i>`,
         metricValue: score, thresholdKind: 'squeeze', canonicalHit,
       });
