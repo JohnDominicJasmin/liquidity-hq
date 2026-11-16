@@ -4,7 +4,7 @@ import MacroStrip from '@/components/MacroStrip';
 import LoadingState from '@/components/LoadingState';
 import Tip from '@/components/Tip';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId } from '@/lib/marketStore';
-import { BINANCE_SPOT_SYMS } from '@/lib/coins';
+import { binanceKlineSource } from '@/lib/coins';
 import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
 import { tintPct } from '@/lib/correlationRamp';
@@ -29,7 +29,7 @@ async function fetchCloses(id: CoinId, interval: string, limit: number): Promise
   if (binSym) {
     try {
       /* A coin listed on Binance FUTURES only (SPXUSDT) has no spot market: a spot klines call is a 400 on every load. Route it to the futures klines (lib/coins.ts BINANCE_SPOT_SYMS vs BINANCE_SYMS). */
-      const binSource = (BINANCE_SPOT_SYMS as Record<string, string>)[id] ? 'binance' : 'binance-futures';
+      const binSource = binanceKlineSource(id);
       const res = await fetch(`/api/market/klines?source=${binSource}&symbol=${binSym}&interval=${interval}&limit=${limit}`);
       // #1107: this used to skip straight to `res.json()` with no `res.ok`
       // check. The route (app/api/market/klines/route.ts) always returns a
