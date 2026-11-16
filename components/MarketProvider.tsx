@@ -650,7 +650,7 @@ export default function MarketProvider(
         if (Object.keys(patch).length) updateCoin(id, patch);
       }
       for (const [coin, m] of Object.entries(body.klines ?? {})) {
-        if (m && Object.keys(m).length) updateCoin(coin as CoinId, m as Partial<CoinData>);
+        if (m && Object.keys(m).length) updateCoin(coin as CoinId, (m.takerBuyRatio != null ? { ...m, takerBasis: 'candles' } : m) as Partial<CoinData>);
       }
       for (const [coin, r] of Object.entries(body.lsr ?? {})) {
         if (r && Object.keys(r).length) updateCoin(coin as CoinId, r as Partial<CoinData>);
@@ -761,7 +761,7 @@ export default function MarketProvider(
             totalVol += qty;
             if (t.side === 'Buy') buyVol += qty;
           });
-          if (totalVol > 0) updateCoin(coin, { takerBuyRatio: buyVol / totalVol });
+          if (totalVol > 0) updateCoin(coin, { takerBuyRatio: buyVol / totalVol, takerBasis: 'trades' });   // a sample of the last 500 trades, not the 2 h candle window (S11)
         } catch { /* */ }
 
       } catch { /* */ }
