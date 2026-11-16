@@ -3184,7 +3184,6 @@
   "MACRO_STRIP_JPY_INTERVENTION": "BOJ intervention risk",
   "MACRO_STRIP_JPY_APPROACHING": "Approaching danger",
   "MACRO_STRIP_JPY_CARRY_STABLE": "Carry trade stable",
-  "ARENA_PLAN_CHECKING": "Checking your plan…",
   "CHART_LIQ_HIST_FROM": "The stored history comes from {venue} only.",
   "CHART_LIQ_VENUE_ONLY": "{venue} only"
 }
