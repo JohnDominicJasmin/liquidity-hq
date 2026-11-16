@@ -1311,7 +1311,7 @@
   "CORRELATION_LEGEND_BRIGHTNESS_HINT": "Brighter = stronger relationship",
   "CORRELATION_STRONGEST_PAIRS_TITLE": "Most Correlated Pairs",
   "CORRELATION_WEAKEST_PAIRS_TITLE": "Least Correlated Pairs",
-  "CORRELATION_WEAKEST_PAIRS_HINT": "- potential diversification",
+  "CORRELATION_WEAKEST_PAIRS_HINT": "- nearest zero over this range",
   "BACKTEST_LOADING": "Loading…",
   "BACKTEST_UPGRADE_TITLE": "Backtesting is part of Pro.",
   "BACKTEST_UPGRADE_DESC": "Replay the full signal engine against years of historical candles - every coin, every timeframe, Anti-Chop on and off side by side - plus the order flow backtest and the AI strategy research tools.",
