@@ -71,7 +71,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // declared", and it is only safe by accident: move that call anywhere that
   // runs during render and it becomes a real TDZ crash. Ordering it properly
   // costs nothing - it depends on `user`, which is already available here.
-  const flushToDb = useCallback(async (partial: Partial<UserSettings>) => {
+  const flushNow = useCallback(async (partial: Partial<UserSettings>) => {
     /* Signed out (QA, #1503 follow-up): there is no account to save to. When
        this is a retry from the save toast, the toast already shows "Saving…",
        so say it failed rather than return silently and leave it there. The
@@ -90,6 +90,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     type AttemptResult =
       | { failed: true }
       | { failed: false; accepted: string[]; rejected: string[]; settings: Record<string, unknown> | null };
+    let permanentRefusal = false;
     async function attemptSave(_attemptNumber: number): Promise<AttemptResult> {
       try {
         const token = await getAuthToken();
@@ -109,7 +110,12 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ ...partial, knownAsOf }),
         });
-        if (!res.ok) return { failed: true };
+        if (!res.ok) {
+          /* C4: a 4xx other than 401/408/429 is the server REFUSING this patch (an unknown strategy id from an older build, a bad timezone). Retrying it cannot help; it used to retry three times and then keep the key in the
+             unconfirmed set for ever, so every later load showed this device's refused value instead of the saved one. */
+          if (res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 408 && res.status !== 429) permanentRefusal = true;
+          return { failed: true };
+        }
         const body = await res.json() as { accepted?: string[]; rejected?: string[]; settings?: Record<string, unknown> | null };
         /* #1347 item 10: the route ALWAYS answers a save with both lists (app/api/settings/route.ts). A 200
            without them - an error page, a proxy's body, `{}` - confirmed nothing, and defaulting them to []
@@ -125,7 +131,19 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     const { result } = await retryWithBackoff(attemptSave, {
       maxAttempts: SETTINGS_SAVE_MAX_ATTEMPTS,
       backoffMs: SETTINGS_SAVE_RETRY_BACKOFF_MS,
+      isCancelled: () => permanentRefusal,
     });
+
+    if (permanentRefusal) {
+      // Release this device's protection for the refused keys (the server's value wins on the next read) and do not offer "Try again" for a patch the server will refuse every time.
+      const stuck = loadUnconfirmed(user.id);
+      for (const key of Object.keys(partial)) delete stuck[key];
+      saveUnconfirmed(user.id, stuck);
+      lastFailedRef.current = null;
+      setSaveStatus('error');
+      settleToIdle(3000);
+      return false;
+    }
 
     if (!result.failed) {
       // The row the server actually holds now, regardless of which fields
@@ -189,6 +207,16 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // settleToIdle only touches refs and a state setter, both stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  /* SAVES RUN ONE AT A TIME (C1). Each save sends, per field, the server timestamp this tab last SAW (knownAsOf), and that timestamp is only updated when a save finishes, retries included. Two saves of the same field that
+     overlapped (an edit made while the first was still sending or backing off, up to about 3 s) both carried the OLD timestamp: the second was rejected by the server as a conflict with the first, the user's newer edit was reverted to
+     the older value and a conflict toast showed. A save now waits for the one before it, so it starts from the timestamp that save produced. */
+  const flushChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const flushToDb = useCallback((partial: Partial<UserSettings>): Promise<boolean> => {
+    const run = flushChainRef.current.then(() => flushNow(partial));
+    flushChainRef.current = run.catch(() => false);
+    return run;
+  }, [flushNow]);
 
   /* The save toast's "Try again" (#1498): the toast keeps an error on screen
      until the visitor acts, so this re-sends exactly the patch that failed.
@@ -299,6 +327,19 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     // permanent skeleton. 'error' at least gives StrategyPanel a real state
     // to render instead of pretending the read is still in flight forever.
     if (!sb) { setSettingsLoadStatus('error'); return; }
+    /* C2: an edit made before the account was known (auth still loading, or signed out) is held in the 'anon' unconfirmed bucket; the debounced save found no user and dropped its pending patch, and applyDbSettings never read
+       that bucket, so the account's saved row overwrote the edit when the user resolved. It is now moved into the account's own unconfirmed set and saved once the account's row has been read. */
+    let anonPatch: Record<string, unknown> | null = null;
+    try {
+      const anon = loadUnconfirmed('anon');
+      if (Object.keys(anon).length > 0) {
+        const own = loadUnconfirmed(user.id);
+        for (const [k, v] of Object.entries(anon)) if (!(k in own)) own[k] = v;
+        saveUnconfirmed(user.id, own);
+        saveUnconfirmed('anon', {});
+        anonPatch = anon;
+      }
+    } catch { /* storage unavailable: nothing to carry over */ }
     setLoading(true);
     // #1246: a new account id means its row hasn't been read yet, even
     // though the PREVIOUS account's had - without this, switching accounts
@@ -352,6 +393,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
             }
           } catch { /* ignore */ }
         }
+        if (anonPatch && !error) void flushToDb(anonPatch as Partial<UserSettings>);
         setLoading(false);
         // #1347 item 2: `error` used to be dropped entirely by the
         // `{ data }` destructure above, so a real Postgrest-level failure
