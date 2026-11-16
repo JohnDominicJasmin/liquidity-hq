@@ -29,6 +29,7 @@ import { planKindOfRow } from '@/lib/paidPeriod';
 import { FREE_SIGNAL_COINS } from '@/lib/signalCoinGate';
 import { wilderRsi } from '@/lib/rsi';
 import { exchangeFetch } from '@/lib/exchangeGuard';
+import { validPushEndpoint } from '@/lib/pushEndpoint';
 import { afterSend, dueForRetry, holdExpired, type PendingDelivery, type SendResult } from '@/lib/priceAlertDelivery';
 
 export const dynamic = 'force-dynamic';
@@ -2098,9 +2099,12 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
           ? `${label}: ${eligible[0].title}${eligible[0].ruleKey.startsWith('ema_signal_') ? ' · standard EMA' : ''}`
           : `${label}: ${eligible.length} signals aligned`;
         const payload = JSON.stringify({ title: 'LiquidityHQ', body, tag: `lhq-${coin}`, url: '/' });
+        /* Re-checked at SEND time, not only at subscribe time (security audit #1413): a stored row that is not an https URL on a known push service is skipped, never called. Skipped is not a delivery failure, so it does not touch pushFailed. */
+        const endpoint = validPushEndpoint(sub.endpoint);
+        if (!endpoint) return;
         try {
           await webpush.sendNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            { endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
             payload
           );
           pushSent++;

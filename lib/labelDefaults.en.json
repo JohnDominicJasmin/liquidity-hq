@@ -2405,6 +2405,7 @@
   "LIQ_FEED_CLUSTERS_SUBTITLE": "- where liqs are concentrating",
   "LIQ_FEED_DOM_LONG_ABBR": "L",
   "LIQ_FEED_DOM_SHORT_ABBR": "S",
+  "LIQ_FEED_HISTORY_ONE_VENUE": "24 h history: {venue} only",
   "LIQ_FEED_SR_WATCHING": "Watching for {coin} liquidations > $10K…",
   "LIQ_FEED_ALL_MARKETS": "all markets",
   "LIQ_FEED_SR_CONNECTING": "Connecting to Binance + Bybit…",
@@ -3022,5 +3023,6 @@
   "SETTINGS_ARENA_SOUND_TITLE": "Arena sound alerts",
   "SETTINGS_ARENA_SOUND_ON": "On: a ping on new signals and big moves",
   "SETTINGS_ARENA_SOUND_OFF": "Off",
-  "SETTINGS_ARENA_SOUND_DESC": "A short tone on the Arena when the strategy panel's signal for your coin and timeframe turns to buy or sell, and once per candle when its move and its volume are both at least twice the recent average. It plays only after you have clicked on the page, and also while the tab is in the background."
+  "SETTINGS_ARENA_SOUND_DESC": "A short tone on the Arena when the strategy panel's signal for your coin and timeframe turns to buy or sell, and once per candle when its move and its volume are both at least twice the recent average. It plays only after you have clicked on the page, and also while the tab is in the background.",
+  "ARENA_PLAN_CHECKING": "Checking your plan…"
 }
