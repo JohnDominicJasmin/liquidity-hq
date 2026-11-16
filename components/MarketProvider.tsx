@@ -1514,7 +1514,7 @@ export default function MarketProvider(
 
     function connectBN() {
       if (!alive) return;
-      const ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
+      const ws = new WebSocket('wss://fstream.binance.com/market/ws/!forceOrder@arr');
       bnWs = ws;
       const attemptStartedAt = Date.now();
       // #1228 review: onerror, onclose and the connect timeout below all
