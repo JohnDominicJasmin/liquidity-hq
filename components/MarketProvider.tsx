@@ -439,8 +439,10 @@ export default function MarketProvider(
         if (!(coin in BINANCE_SYMS)) {
           patch.price  = curPrice;
           patch.change = parseFloat(item.price24hPcnt || '0') * 100;
-          patch.high   = parseFloat(item.highPrice24h || '0');
-          patch.low    = parseFloat(item.lowPrice24h  || '0');
+          /* The 24h high and low are PRICES and take the same 1000x factor as the price above (S1): PEPE and BONK come back from Bybit as 1000PEPEUSDT / 1000BONKUSDT, and these two lines were the one place that missed it - a price
+             of 0.0000123 shipped with a high of 0.0125 and a low of 0.0118, and the Arena's Fibonacci levels and the AI context read them. The seed and universe branches below already apply it. */
+          patch.high   = parseFloat(item.highPrice24h || '0') * bybitPriceFactor(coin);
+          patch.low    = parseFloat(item.lowPrice24h  || '0') * bybitPriceFactor(coin);
           patch.vol24  = parseFloat(item.turnover24h  || '0');
         } else if (Number.isFinite(curPrice) && curPrice > 0) {
           /* A dual-listed coin leaves price to the Binance socket, and that is exactly the coin that went blank (HYPE) when the socket never connected on a
@@ -637,7 +639,7 @@ export default function MarketProvider(
         if (Object.keys(patch).length) updateCoin(id, patch);
       }
       for (const [coin, m] of Object.entries(body.klines ?? {})) {
-        if (m && Object.keys(m).length) updateCoin(coin as CoinId, m as Partial<CoinData>);
+        if (m && Object.keys(m).length) updateCoin(coin as CoinId, (m.takerBuyRatio != null ? { ...m, takerBasis: 'candles' } : m) as Partial<CoinData>);
       }
       for (const [coin, r] of Object.entries(body.lsr ?? {})) {
         if (r && Object.keys(r).length) updateCoin(coin as CoinId, r as Partial<CoinData>);
@@ -727,7 +729,8 @@ export default function MarketProvider(
         const vah = minP + (hi + 1) * bSize;
 
         // Chart pattern detection (Bybit klines: [time, open, high, low, close, ...])
-        const patternCandles = klines.slice(-25).map((k: string[]) => ({
+        // Closed bars only (S7): the newest kline is still forming, exactly as RSI and the volume ratio above treat it.
+        const patternCandles = klines.slice(-26, -1).map((k: string[]) => ({
           o: parseFloat(k[1]) * pf, h: parseFloat(k[2]) * pf,
           l: parseFloat(k[3]) * pf, c: parseFloat(k[4]) * pf,
         }));
@@ -747,7 +750,7 @@ export default function MarketProvider(
             totalVol += qty;
             if (t.side === 'Buy') buyVol += qty;
           });
-          if (totalVol > 0) updateCoin(coin, { takerBuyRatio: buyVol / totalVol });
+          if (totalVol > 0) updateCoin(coin, { takerBuyRatio: buyVol / totalVol, takerBasis: 'trades' });   // a sample of the last 500 trades, not the 2 h candle window (S11)
         } catch { /* */ }
 
       } catch { /* */ }

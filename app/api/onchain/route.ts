@@ -5,7 +5,8 @@ import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
 import { requireProPlan } from '@/lib/entitlements';
-import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, type UsageBlockReason, blockedResponse } from '@/lib/aiUsage';
+import { marketSnapshotData } from '@/lib/marketSnapshotData';
+import { incrementToolUsage, rateLimitMessage, blockedResponse, type UsageBlockReason, refundToolUsage, todayUtc } from '@/lib/aiUsage';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 
@@ -131,9 +132,8 @@ export async function GET(req: NextRequest) {
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  /* A price in a sane range or nothing (#1413): it goes into the AI prompt and the result is cached for every visitor under one key, so an absurd value must not get in. */
-  const priceIn = parseFloat(req.nextUrl.searchParams.get('price') ?? '0');
-  const btcPrice = Number.isFinite(priceIn) && priceIn > 0 && priceIn < 10_000_000 ? priceIn : 0;
+  /* THE ON-CHAIN READ USES THE SERVER'S OWN PRICE. The BTC price in the prompt used to come from the request's ?price= (range-checked only), and the result is cached for every visitor under one key, so one caller's number was what
+     everyone's analysis was written around for the cache lifetime. The query parameter is now ignored; the price is read from the server's market snapshot (itself cached) inside the cache miss. */
 
   try {
     const result = await cached('onchain', CACHE_TTL, async () => {
@@ -151,6 +151,9 @@ export async function GET(req: NextRequest) {
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);
       }
+      const snap = await marketSnapshotData().catch(() => null);
+      const serverPrice = snap && snap.ok ? snap.data.ticker.btc?.price : undefined;
+      const btcPrice = typeof serverPrice === 'number' && Number.isFinite(serverPrice) && serverPrice > 0 ? serverPrice : 0;
       /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
       const giveBack = () => refundToolUsage(authData.user.id, 'onchain', reservedOn);
       const prompt = buildOnChainPrompt(stats, btcPrice);
