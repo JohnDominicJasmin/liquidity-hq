@@ -599,6 +599,17 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return () => { cancelled = true; };
   }, [userId, entitlementsRetryNonce]);
 
+  /* A FAILED PLAN READ HEALS ITSELF WHEN THE CAUSE GOES AWAY. After every attempt failed the status is 'unknown' and Arena's chips are no-ops until the Retry button is pressed; a Pro user whose phone
+     lost signal for half a minute stayed in that state after the network came back. While the read is unknown (signed in, error set, none running), the browser coming back online or the tab becoming visible
+     runs one fresh bounded sequence. It listens only in that state, so a healthy page carries no listener. */
+  useEffect(() => {
+    if (!userId || !entitlementsError || entitlementsLoading) return;
+    const again = () => { if (document.visibilityState === 'visible') setEntitlementsRetryNonce(n => n + 1); };
+    window.addEventListener('online', again);
+    document.addEventListener('visibilitychange', again);
+    return () => { window.removeEventListener('online', again); document.removeEventListener('visibilitychange', again); };
+  }, [userId, entitlementsError, entitlementsLoading]);
+
   const signOut = async () => {
     const sb = getSupabase();
     localStorage.removeItem(LAST_ACTIVE_KEY);
