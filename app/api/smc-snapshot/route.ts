@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { cached, cachedOwn } from '@/lib/apiCache';
-import { incrementToolUsage, refundToolUsage, todayUtc, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
-import { requireProPlan } from '@/lib/entitlements';
+import { incrementToolUsage, refundToolUsage, todayUtc, rateLimitMessage, type UsageBlockReason, blockedResponse } from '@/lib/aiUsage';
+import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -236,7 +236,7 @@ export async function POST(req: NextRequest) {
        * when `usage.blocked`, which is BEFORE `reserved.current` is assigned - there is nothing to
        * give back. The guard below would skip it anyway; saying so stops the next reader
        * "fixing" it into a double credit. */
-      return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });
+      return blockedResponse(e.reason, e.message);
     }
 
     /* `reserved.current` is null on a cache hit and on any refusal before the reservation, so this

@@ -23,7 +23,7 @@ import { T } from '@/lib/tables';
 import { getUsageTierStatus } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS, type UsageTier } from '@/lib/limits';
-import { incrementUsageColumn, rateLimitMessage, refundUsageColumn, todayUtc } from '@/lib/aiUsage';
+import { incrementUsageColumn, rateLimitMessage, refundUsageColumn, todayUtc, blockedResponse } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { clampMaxTokens } from '@/lib/grokTokenClamp';
 import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
@@ -138,14 +138,9 @@ export async function POST(req: NextRequest) {
   const usageResult = await incrementUsageColumn(userId, role, column, limit, null, plan.failed);
   if (usageResult.blocked) {
     const label = isSearch ? 'live search messages' : 'chat messages';
-    return NextResponse.json(
-      {
-        error: rateLimitMessage(usageResult.reason, limit, label),
-        code: 'RATE_LIMIT',
-        usage: { chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit },
-      },
-      { status: 429 }
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, limit, label), {
+      usage: { chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit },
+    });
   }
 
   /* ── Call xAI ── */
