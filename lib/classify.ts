@@ -190,10 +190,23 @@ const COIN_PATTERNS: { symbol: string; re: RegExp }[] = [
   { symbol: 'SPX',    re: /\bspx ?6900\b/i },
 ];
 
+/* NAMES THAT ARE ALSO ORDINARY WORDS (N10): "yield curve" tagged CRV, "optimism about rates" OP, "regulatory sandbox" SAND, and likewise cosmos, jupiter, render, stacks, rune, tron, stellar. These symbols are tagged only when the headline
+   is plainly about crypto (a crypto context word) or carries the exact upper-case ticker. */
+const AMBIGUOUS_COIN_TICKERS: Record<string, string | null> = {
+  ATOM: null, OP: null, RUNE: 'RUNE', CRV: 'CRV', STX: 'STX', JUP: null, RENDER: 'RENDER', SAND: null, TRX: 'TRX', XLM: 'XLM',
+};
+const CRYPTO_CONTEXT = /\b(?:crypto(?:currenc\w*)?|token|tokens|coin|coins|blockchain|defi|dex|airdrop|protocol|staking|nft|web3|altcoin|on-?chain|layer ?[12]|stablecoin|wallet|exchange)\b/i;
+
 export function getCoinsInHeadline(headline: string): string[] {
   const found: string[] = [];
+  const crypto = CRYPTO_CONTEXT.test(headline);
   for (const p of COIN_PATTERNS) {
-    if (p.re.test(headline)) found.push(p.symbol);
+    if (!p.re.test(headline)) continue;
+    if (p.symbol in AMBIGUOUS_COIN_TICKERS && !crypto) {
+      const ticker = AMBIGUOUS_COIN_TICKERS[p.symbol];
+      if (!(ticker && new RegExp('\\b' + ticker + '\\b').test(headline))) continue;
+    }
+    found.push(p.symbol);
   }
   return found;
 }
