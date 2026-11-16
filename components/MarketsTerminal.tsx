@@ -61,9 +61,15 @@ export default function MarketsTerminal() {
       const da = store.coins[a];
       const db = store.coins[b];
       let cmp = 0;
-      if (sort === 'volume') cmp = (da?.vol24 ?? 0) - (db?.vol24 ?? 0);
+      /* UNKNOWN SORTS LAST IN BOTH DIRECTIONS (S6). A coin with no volume or change read was sorted as 0, so by change (descending) it landed between the gainers and the losers and by volume (ascending) it came first. */
+      if (sort === 'volume' || sort === 'change') {
+        const num = (v: number | null | undefined) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+        const x = num(sort === 'volume' ? da?.vol24 : da?.change);
+        const y = num(sort === 'volume' ? db?.vol24 : db?.change);
+        if (x === null || y === null) return x === y ? 0 : x === null ? 1 : -1;
+        cmp = x - y;
+      }
       if (sort === 'name')   cmp = a.localeCompare(b);
-      if (sort === 'change') cmp = (da?.change ?? 0) - (db?.change ?? 0);
       if (sort === 'grade') {
         const ga = computeCoinHealth(da).grade;
         const gb = computeCoinHealth(db).grade;
@@ -86,12 +92,15 @@ export default function MarketsTerminal() {
   const rangeStart = rows.length === 0 ? 0 : pageSafe * PAGE_SIZE + 1;
   const rangeEnd   = Math.min(rows.length, pageSafe * PAGE_SIZE + PAGE_SIZE);
 
+  const liveCount = COINS.filter(id => Number.isFinite(store.coins[id]?.price)).length;
   const bullCount = COINS.filter(id => topSignal(store.coins[id]).col === 'var(--green-2)').length;
   const bearCount = COINS.filter(id => topSignal(store.coins[id]).col === 'var(--red)').length;
 
   function handleSort(key: SortKey) {
     if (sort === key) setSortAsc(v => !v);
-    else { setSort(key); setSortAsc(false); }
+    /* THE FIRST CLICK ON A NEW COLUMN SORTS THE USEFUL WAY (S5). Every column started descending, which put grade F (and every no-data coin, graded F) first, bearish rows first, and Name from Z to A. Name, Grade (best first) and Signal
+       (bullish first) start ascending in their own order; Volume and Change start with the largest. */
+    else { setSort(key); setSortAsc(key === 'name' || key === 'grade' || key === 'signal'); }
   }
 
   function goToArena(id: CoinId) {
@@ -158,13 +167,13 @@ export default function MarketsTerminal() {
               {t('MARKETS_PAGE_TITLE')}
             </div>
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 1, letterSpacing: '.02em' }}>
-              {t('MARKETS_COINS_LIVE_SUFFIX', { count: COINS.length })}
+              {t('MARKETS_COINS_LIVE_SUFFIX', { count: liveCount })}
             </div>
           </div>
           <div className="mkt-mono mkt-counts" style={{ marginLeft: 'auto', display: 'flex', gap: 14, fontSize: 'var(--fs-caption)' }}>
             <span style={{ color: 'var(--green-2)' }}>{t('MARKETS_BULLISH_COUNT', { count: bullCount })}</span>
             <span style={{ color: 'var(--red)' }}>{t('MARKETS_BEARISH_COUNT', { count: bearCount })}</span>
-            <span style={{ color: 'var(--txt3)' }}>{t('MARKETS_NEUTRAL_COUNT', { count: COINS.length - bullCount - bearCount })}</span>
+            <span style={{ color: 'var(--txt3)' }}>{t('MARKETS_NEUTRAL_COUNT', { count: Math.max(0, liveCount - bullCount - bearCount) })}</span>
           </div>
         </div>
 
