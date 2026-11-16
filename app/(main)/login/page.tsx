@@ -33,6 +33,7 @@ function LoginInner() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError]               = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaErr, setCaptchaErr] = useState(false);
   const turnstileRef = useRef<TurnstileInstance>(null);
   const { t } = useLabels();
 
@@ -49,6 +50,7 @@ function LoginInner() {
   const [pwLoading, setPwLoading]       = useState(false);
   const [pwError, setPwError]           = useState('');
   const [pwCaptchaToken, setPwCaptchaToken] = useState('');
+  const [pwCaptchaErr, setPwCaptchaErr] = useState(false);
   const [confirmEmailSent, setConfirmEmailSent] = useState(false);
   const pwTurnstileRef = useRef<TurnstileInstance>(null);
 
@@ -284,15 +286,15 @@ function LoginInner() {
 
               {/* CAPTCHA - only rendered once a site key is configured, so the
                   form works unchanged until Turnstile is actually set up. */}
-              {TURNSTILE_SITE_KEY && <CaptchaStuckHint waiting={!captchaToken} />}
+              {TURNSTILE_SITE_KEY && <CaptchaStuckHint waiting={!captchaToken} widgetId="cf-turnstile-magiclink" errored={captchaErr} />}
               {TURNSTILE_SITE_KEY && (
                 <Turnstile
                   id="cf-turnstile-magiclink"
                   ref={turnstileRef}
                   siteKey={TURNSTILE_SITE_KEY}
-                  onSuccess={setCaptchaToken}
+                  onSuccess={t => { setCaptchaErr(false); setCaptchaToken(t); }}
                   onExpire={() => setCaptchaToken('')}
-                  onError={() => setCaptchaToken('')}
+                  onError={() => { setCaptchaToken(''); setCaptchaErr(true); }}
                   className="login-turnstile"
                 />
               )}
@@ -400,15 +402,15 @@ function LoginInner() {
                 </Link>
               )}
 
-              {TURNSTILE_SITE_KEY && <CaptchaStuckHint waiting={!pwCaptchaToken} />}
+              {TURNSTILE_SITE_KEY && <CaptchaStuckHint waiting={!pwCaptchaToken} widgetId="cf-turnstile-password" errored={pwCaptchaErr} />}
               {TURNSTILE_SITE_KEY && (
                 <Turnstile
                   id="cf-turnstile-password"
                   ref={pwTurnstileRef}
                   siteKey={TURNSTILE_SITE_KEY}
-                  onSuccess={setPwCaptchaToken}
+                  onSuccess={t => { setPwCaptchaErr(false); setPwCaptchaToken(t); }}
                   onExpire={() => setPwCaptchaToken('')}
-                  onError={() => setPwCaptchaToken('')}
+                  onError={() => { setPwCaptchaToken(''); setPwCaptchaErr(true); }}
                   className="login-turnstile"
                 />
               )}
