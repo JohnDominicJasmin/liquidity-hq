@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { T } from '@/lib/tables';
-import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc } from '@/lib/aiUsage';
-import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
+import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, blockedResponse } from '@/lib/aiUsage';
+import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 
@@ -94,9 +94,8 @@ export async function POST(req: NextRequest) {
   // check a free account could still spend real xAI budget here, which is
   // what the pricing page says it cannot. Trial users pass - hasProFeatures
   // covers isTrial.
-  if (!(await hasProFeatures(token, authData.user.id))) {
-    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Shadow Account is a Pro feature.' }, { status: 403 });
-  }
+  const plan = await requireProPlan(token, authData.user.id, 'Shadow Account is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
@@ -118,14 +117,11 @@ export async function POST(req: NextRequest) {
 
   /* RESERVE ONLY ONCE THERE IS SOMETHING TO ANALYSE (U2). It used to reserve before the trades were loaded, so a read error, no trades or fewer than 5 closed trades (all answered without an AI call) still cost a use AND a
      slot of the shared tool pool, repeatably up to the cap. A reserved use is given back when nothing reached the user (a failed or unusable xAI answer, a thrown call, an empty answer), exactly as /api/grok does; nothing is given back once xAI answered 2xx (the tokens are billed). */
-  const role = await getUsageTier(token, authData.user.id);
+  const role = plan.tier;
   const reservedOn = todayUtc();
   const usageResult = await incrementToolUsage(authData.user.id, 'shadowAccount', role);
   if (usageResult.blocked) {
-    return NextResponse.json(
-      { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'Shadow Account reports'), code: 'RATE_LIMIT' },
-      { status: 429 },
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'Shadow Account reports'));
   }
 
   const prompt = buildShadowPrompt(trades);
