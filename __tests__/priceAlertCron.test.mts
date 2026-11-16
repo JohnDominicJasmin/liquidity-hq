@@ -67,6 +67,8 @@ const world = {
   fail: false,                                               // price endpoints answer 502 (a failed bulk or klines answer)
   failOff: [] as number[],                                   // alert ids whose switch-off PATCH answers 500 (#2425 B1)
   fng: null as number | null,                                // the Fear & Greed value alternative.me answers with; null = unavailable, as before (#2425 B2)
+  failPrefs: null as null | 'muted' | 'thresholds',          // the per-user mutes / thresholds read answers 500 (#2426 B6)
+  writes: [] as string[],                                    // every non-GET the route made to Supabase: 'METHOD path body'
   allMessages: [] as string[],                               // EVERY Telegram message, whatever it is
   oiSyms: [] as string[],                                    // the symbol of every open-interest request, to count requests per coin
   realistic: false,                                          // serve real klines / tickers / open-interest instead of empty lists (see `realistic` below)                      // extra spot prices by symbol, e.g. ETHUSDT, for the multi-coin cells
@@ -140,6 +142,9 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   if (url.host === 'api.alternative.me' && world.fng !== null) return json(200, { data: [{ value: String(world.fng), value_classification: 'Extreme Fear', timestamp: String(Math.floor(Date.now() / 1000)) }] });
   if (url.origin !== SUPABASE) return new Response('unavailable in the QA stand-in', { status: 503 });
   const p = url.pathname, m = req.method;
+  if (m !== 'GET') world.writes.push(`${m} ${p} ${(await req.clone().text()).slice(0, 300)}`);
+  if (world.failPrefs === 'muted' && p.endsWith('muted_alerts') && m === 'GET') return json(500, { code: 'XX000', message: 'mutes boom' });
+  if (world.failPrefs === 'thresholds' && p.endsWith('user_settings') && m === 'GET' && (url.searchParams.get('select') ?? '').includes('rsi_ob')) return json(500, { code: 'XX000', message: 'thresholds boom' });
   if (p.endsWith('app_config')) {
     if (m !== 'GET') return new Response(null, { status: 201 });
     return json(200, url.searchParams.get('key') === 'eq.feature_flags' && world.sendingOff ? [{ value: { telegram: false } }] : []);
@@ -472,7 +477,7 @@ test('B8. the hour boundary: after it, the next pass refetches the closed hourly
 
 /* ── #2425: B1 switch-off per alert (a failing write for one alert); B2 cooldowns consumed only when the run delivered ─────────────────────────────────────────────────────────────────────── */
 const fngSent = () => world.allMessages.filter((m) => /Fear &amp; Greed/.test(m)).length;
-const resetB = () => { world.failOff = []; world.fng = null; world.telegram = 'ok'; world.sendingOff = false; world.alerts = []; world.realistic = false; };
+const resetB = () => { world.failOff = []; world.fng = null; world.telegram = 'ok'; world.sendingOff = false; world.alerts = []; resetWorld(); };
 
 test('NB1. an alert whose switch-off write FAILS is not sent again on the next tick; the others are consumed; the write is retried and lands when the database recovers', async () => {
   try {
@@ -516,3 +521,38 @@ test('NB2. Telegram answering an error for EVERY send leaves the Fear & Greed co
     assert.ok(fngSent() > c1, 'the alert was lost to the pause: its cooldown was consumed by a run that sent nothing');
   } finally { resetB(); }
 });
+
+/* ── #2426: B6 unreadable mutes or thresholds are UNKNOWN, not "nothing muted / defaults": signal alerts are skipped (price alerts still go), nothing is consumed, a health row says why ───────────────── */
+const firedOf = (b: unknown) => ((b as { fired?: string[] }).fired ?? []);
+const skippedOf = (b: unknown) => (b as { skipped?: string }).skipped;
+
+test('NP1. mutes UNREADABLE: no signal alert is sent (the Fear & Greed alert waits), the price alert still is, the response says why, a health row alert:prefs is written, and the next tick with a readable table sends the signal (its cooldown was not burned)', async () => {
+  try {
+    resetB(); world.failPrefs = null; tick(25 * 3_600_000); setWorld(); world.btc = 101_000; world.fng = 10; world.alerts = [alert(801)];   // 25 h: earlier cells consumed the 23 h Fear & Greed cooldown in this same process
+    world.failPrefs = 'muted';
+    const fng0 = fngSent(), price0 = world.priceAlertMessages.length, w0 = world.writes.length;
+    const r = await run();
+    assert.equal(r.status, 200); assert.equal(skippedOf(r.body), 'prefs_unreadable', JSON.stringify(r.body).slice(0, 300));
+    assert.equal(fngSent(), fng0, 'a signal alert went out while the mutes could not be read: a user who muted it would have received it');
+    assert.equal(world.priceAlertMessages.length - price0, 1, 'the price alert (which needs neither mutes nor thresholds) must still be sent');
+    await new Promise((res) => setTimeout(res, 1_400));            // the health row is queued and flushed on a 1 s timer (lib/apiHealth.ts FLUSH_INTERVAL_MS), in real time
+    assert.ok(world.writes.slice(w0).some((w) => /alert:prefs/.test(w)), `no health row for alert:prefs was written: nobody would know why signal alerts stopped. Writes: ${world.writes.slice(w0).map((w) => w.slice(0, 120)).join(' || ')}`);
+    world.failPrefs = null; tick(6 * MIN); const fng1 = fngSent();
+    await run();
+    assert.ok(fngSent() > fng1, 'the signal alert did not come back once the mutes were readable: its cooldown was burned by the skipped run');
+  } finally { resetB(); world.failPrefs = null; }
+});
+
+test('NP2. THRESHOLDS unreadable behaves the same way: signal alerts skipped, price alerts still sent', async () => {
+  try {
+    resetB(); tick(25 * 3_600_000); setWorld(); world.btc = 101_000; world.fng = 10; world.alerts = [alert(811)];
+    world.failPrefs = 'thresholds';
+    const fng0 = fngSent(), price0 = world.priceAlertMessages.length;
+    const r = await run();
+    assert.equal(skippedOf(r.body), 'prefs_unreadable', JSON.stringify(r.body).slice(0, 300));
+    assert.equal(fngSent(), fng0, 'a signal alert went out on the default thresholds while the user thresholds could not be read');
+    assert.equal(world.priceAlertMessages.length - price0, 1);
+  } finally { resetB(); world.failPrefs = null; }
+});
+
+/* NP3 (the daily summary window) lives in __tests__/dailySummaryWindow.test.mts: a whole cron run per probe costs 10-14 s against this stand-in and the route's own limit is 28 s, so a cell with several runs flaked on a loaded machine. */
