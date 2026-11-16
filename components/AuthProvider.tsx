@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { forceSignOut, INACTIVITY_MS, LAST_ACTIVE_KEY } from '@/lib/authSession';
@@ -535,7 +536,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           sb!.from(T.user_subscriptions)
             .select('role, trial_ends_at, current_period_end')
             .eq('user_id', userId!)
-            .abortSignal(AbortSignal.timeout(Math.min(ENTITLEMENTS_FETCH_MS, remainingBudgetMs)))
+            .abortSignal(deadlineSignal(Math.min(ENTITLEMENTS_FETCH_MS, remainingBudgetMs)))
             .maybeSingle(),
         );
         return { data: data ?? null, failed: Boolean(error) };
