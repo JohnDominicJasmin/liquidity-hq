@@ -14,10 +14,10 @@ const RED_KW = [
   'trump','white house','pentagon','nato','executive order',
   'houthi','hamas','hezbollah','isis','al-qaeda',
   // Economic shock
-  'crash','collapse','default','emergency','ban','sanction','sanctions','freeze','seized',
+  'crash','collapse','default','emergency','ban','banned','banning','sanction','sanctions','freeze','seized',
   'emergency declaration','martial law','state of emergency',
   // Cyber
-  'cyberattack','cyber attack','hack','ransomware','infrastructure hack',
+  'cyberattack','cyber attack','hack','hacked','hacker','hackers','hacking','ransomware','infrastructure hack',
 ];
 
 // ── AMBER: Macro / central banks / regulation ────────────────────────────────
@@ -55,11 +55,34 @@ const PURPLE_KW = [
   'sandbox','decentraland','stepn',
 ];
 
+/* KEYWORDS ARE MATCHED AS WORDS, NOT AS SUBSTRINGS (N1, N2). t.includes('ban') made "bank" and "Urban" Breaking, 'war' matched "award" and "software", 'sec' "second" and "security", 'fed' "federal", 'isis' "crisis", 'pla'
+   "plan" and "place", 'daly' "daily": "Bank of England holds rates" was RED = Breaking (2 h on the ticker, a desktop notification and a Telegram Breaking Alert). A SHORT keyword (4 letters or fewer) must be a whole word (an
+   optional plural s allowed); a longer one must START a word, so "hacked", "sanctions" and "attacks" still match. Compiled once. */
+const kwRegexCache = new Map<string, RegExp>();
+function kwRegex(kw: string): RegExp {
+  let re = kwRegexCache.get(kw);
+  if (!re) {
+    const esc = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    re = kw.length <= 4 ? new RegExp(`(?<![a-z0-9])${esc}s?(?![a-z0-9])`) : new RegExp(`(?<![a-z0-9])${esc}`);
+    kwRegexCache.set(kw, re);
+  }
+  return re;
+}
+/** True when `text` (any case) contains `kw` as a word (short keywords) or as the start of a word (longer ones). */
+export function hasKeyword(text: string, kw: string): boolean {
+  return kwRegex(kw).test(text.toLowerCase());
+}
+/** True when any keyword of the group is present as above. */
+export function hasAnyKeyword(text: string, kws: readonly string[]): boolean {
+  const t = text.toLowerCase();
+  return kws.some(kw => kwRegex(kw).test(t));
+}
+
 export function classifyNews(text: string): NewsType | null {
   const t = text.toLowerCase();
-  for (const kw of RED_KW)    if (t.includes(kw)) return 'red';
-  for (const kw of AMBER_KW)  if (t.includes(kw)) return 'amber';
-  for (const kw of PURPLE_KW) if (t.includes(kw)) return 'purple';
+  for (const kw of RED_KW)    if (kwRegex(kw).test(t)) return 'red';
+  for (const kw of AMBER_KW)  if (kwRegex(kw).test(t)) return 'amber';
+  for (const kw of PURPLE_KW) if (kwRegex(kw).test(t)) return 'purple';
   return null;
 }
 
@@ -112,7 +135,7 @@ export const GEO_KEYWORDS = [
     note: 'Global leaders meeting. Major policy decisions often leak here before markets react.',
   },
   {
-    kw: ['taiwan','china military','pla','south china sea','china invasion','china blockade'],
+    kw: ['taiwan','china military','pla navy','pla army','south china sea','china invasion','china blockade'],
     tag: 'TAIWAN/CHINA', style: 'geopolitical',
     note: 'Taiwan/China tension = extreme risk-off. Crypto dumps hard. Watch for extreme volatility.',
   },
