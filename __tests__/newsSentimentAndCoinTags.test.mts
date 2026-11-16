@@ -59,7 +59,10 @@ test('A1. NewsProvider trims alerts older than 6 hours every 5 minutes, only re-
   assert.ok(NP.includes('}, 5 * 60_000);') && NP.includes('return () => clearInterval(id);'), 'the 5 minute interval or its cleanup changed');
 });
 
-/* FINDING (low, reported on #2448): the negation rule needs the negation word BEFORE the approval/launch word, so the PASSIVE forms read the wrong way: "Launch delayed again" / "ETF approval denied" / "ETF launch postponed" still read Bullish (launch / approval). Written as the assertion that should hold; todo until Dev decides. */
-test('B6. passive negations ("Launch delayed again", "ETF approval denied", "ETF launch postponed") read Bearish', { todo: true }, () => {
-  for (const h of ['Launch delayed again', 'ETF approval denied', 'ETF launch postponed']) assert.equal(sentiment(h), 'bearish', `"${h}" reads ${sentiment(h)}`);
+/* #2448 follow-up (f8e7db35, found by QA): the negation rule also reads a negation AFTER the approval / launch word. Both directions: the passive negations are Bearish and real approvals stay Bullish. */
+test('B6. passive negations (a negation AFTER the word) read Bearish: Launch delayed again / ETF approval denied / ETF launch postponed / approval withheld / launch cancelled', () => {
+  for (const h of ['Launch delayed again', 'ETF approval denied', 'ETF launch postponed', 'SEC approval withheld for the fund', 'Token launch cancelled', 'Fund launch is suspended pending review', 'Approval halted by the regulator']) assert.equal(sentiment(h), 'bearish', `"${h}" reads ${sentiment(h)}`);
+});
+test('B7. and a real approval or launch is still Bullish even when other words sit nearby (approved after delays, launch of the fund approved, ETF launch goes ahead)', () => {
+  for (const h of ['ETF approved after delays', 'Launch of the new fund approved by the SEC', 'ETF launch goes ahead as planned', 'Approval granted for the spot fund']) assert.equal(sentiment(h), 'bullish', `"${h}" lost its bullish read: ${sentiment(h)}`);
 });
