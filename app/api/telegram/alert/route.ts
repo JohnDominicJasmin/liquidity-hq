@@ -1089,7 +1089,7 @@ async function checkNews(
       if (onCooldown(key, CD.news)) continue;
       const emoji    = type === 'red' ? '🚨' : '📊';
       const label    = type === 'red' ? 'Breaking Alert' : 'Macro Alert';
-      await tg(token, chatId, `${emoji} <b>${label}</b>\n\n<b>${item.headline}</b>\nSource: ${item.source}\n\n<i>${stamp}</i>`);
+      await tg(token, chatId, `${emoji} <b>${label}</b>\n\n<b>${escapeHtml(item.headline)}</b>\nSource: ${escapeHtml(item.source)}\n\n<i>${stamp}</i>`);
       markSent(key); fired.push(`news: ${item.headline.slice(0, 50)}`);
     }
   } catch { /* skip */ }
