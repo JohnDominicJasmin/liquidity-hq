@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
-import { cached } from '@/lib/apiCache';
-import { hasProFeatures, getUsageTier } from '@/lib/entitlements';
-import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
+import { cached, cachedOwn } from '@/lib/apiCache';
+import { requireProPlan } from '@/lib/entitlements';
+import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, type UsageBlockReason, blockedResponse } from '@/lib/aiUsage';
 import { pctChange, buildMacroPrompt } from '@/lib/macroContext';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -15,7 +15,7 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const CACHE_TTL = 5 * 60_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, reason: UsageBlockReason) {
+  constructor(public limit: number, public reason: UsageBlockReason, public blockedUserId?: string) {
     super(rateLimitMessage(reason, limit, 'macro context checks'));
   }
 }
@@ -105,6 +105,30 @@ async function fetchYF(symbol: string, initialDelayMs = 0): Promise<{ price: num
   }
 }
 
+/* The five Yahoo inputs, cached on their own for 3 minutes and fetched WITHOUT the AI call, so a retry after an AI failure (a failure is never cached) does not re-hit Yahoo, and so the fetch can run at the same time as the usage check. Throws when three or more are missing, which `cached` never stores. */
+type YFResult = { price: number; prev: number | null } | null;
+async function fetchMacroInputs(): Promise<{ dxyData: YFResult; vixData: YFResult; goldData: YFResult; oilData: YFResult; tnxData: YFResult; missing: string[] }> {
+  // Staggered, not a single Promise.all burst - see fetchYF's comment.
+  const [dxyData, vixData, goldData, oilData, tnxData] = await Promise.all([
+    fetchYF('DX-Y.NYB',   0),
+    fetchYF('%5EVIX',   120),
+    fetchYF('GC%3DF',   240),
+    fetchYF('CL%3DF',   360),
+    fetchYF('%5ETNX',   480),
+  ]);
+  const missing = [
+    !dxyData && 'DXY',
+    !vixData && 'VIX',
+    !goldData && 'Gold',
+    !oilData && 'Oil',
+    !tnxData && '10Y Treasury',
+  ].filter(Boolean) as string[];
+  if (missing.length >= 3) {
+    throw new Error(`Could not fetch macro data (${missing.join(', ')})`);
+  }
+  return { dxyData, vixData, goldData, oilData, tnxData, missing };
+}
+
 export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -116,43 +140,31 @@ export async function GET(req: NextRequest) {
   // reached by skipping the client gate. Trial users count as Pro here: the
   // route is cached across all visitors, so granting it during the trial adds
   // ~no marginal cost while showcasing a headline Pro feature.
-  if (!(await hasProFeatures(token, authData.user.id))) {
-    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Global macro context is a Pro feature.' }, { status: 403 });
-  }
+  /* The plan row is read ONCE (it used to be read again for the usage tier inside the cache miss). */
+  const plan = await requireProPlan(token, authData.user.id, 'Global macro context is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
   try {
-    const result = await cached('macro-context', CACHE_TTL, async () => {
+    const result = await cachedOwn(authData.user.id, 'macro-context', CACHE_TTL, async () => {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit stays free for everyone (same pattern as
       // token-unlock/smc-snapshot).
-      const role = await getUsageTier(token, authData.user.id);
-      const usageResult = await incrementToolUsage(authData.user.id, 'macroContext', role);
-      if (usageResult.blocked) {
-        throw new RateLimitError(usageResult.limit, usageResult.reason);
-      }
-
-      // Staggered, not a single Promise.all burst - see fetchYF's comment.
-      const [dxyData, vixData, goldData, oilData, tnxData] = await Promise.all([
-        fetchYF('DX-Y.NYB',   0),
-        fetchYF('%5EVIX',   120),
-        fetchYF('GC%3DF',   240),
-        fetchYF('CL%3DF',   360),
-        fetchYF('%5ETNX',   480),
+      const role = plan.tier;
+      /* The usage check and the Yahoo read run AT THE SAME TIME. A blocked caller wastes one cheap, cached Yahoo read; an allowed one no longer waits for the usage round trip first. */
+      const reservedOn = todayUtc();
+      const [usageResult, inputs] = await Promise.all([
+        incrementToolUsage(authData.user.id, 'macroContext', role),
+        cached('macro-yahoo', 3 * 60_000, fetchMacroInputs).catch((e: unknown) => e),
       ]);
-
-      const missing = [
-        !dxyData && 'DXY',
-        !vixData && 'VIX',
-        !goldData && 'Gold',
-        !oilData && 'Oil',
-        !tnxData && '10Y Treasury',
-      ].filter(Boolean);
-
-      if (missing.length >= 3) {
-        throw new Error(`Could not fetch macro data (${missing.join(', ')})`);
+      if (usageResult.blocked) {
+        throw new RateLimitError(usageResult.limit, usageResult.reason, authData.user.id);
       }
+      /* U3: the reservation is given back when no AI answer is billed (the market inputs failed, xAI refused, or the call threw). A reserved use is given back when nothing reached the user (a failed or unusable xAI answer, a thrown call, an empty answer), exactly as /api/grok does; nothing is given back once xAI answered 2xx (the tokens are billed). */
+      const giveBack = () => refundToolUsage(authData.user.id, 'macroContext', reservedOn);
+      if (inputs instanceof Error) { await giveBack(); throw inputs; }
+      const { dxyData, vixData, goldData, oilData, tnxData, missing } = inputs as Awaited<ReturnType<typeof fetchMacroInputs>>;
 
       // #1309 item 11: no fallback stand-ins - a metric that failed to fetch
       // stays null all the way through (prompt and response both), instead
@@ -175,23 +187,28 @@ export async function GET(req: NextRequest) {
 
       const prompt = buildMacroPrompt({ dxy, vix, gold, oil, tnx, goldOilRatio });
 
-      const aiRes = await xaiFetch('https://api.x.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
-        body: JSON.stringify({
-          model: 'grok-4.3',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 600,
-        }),
-      });
+      let aiRes: Response;
+      try {
+        aiRes = await xaiFetch('https://api.x.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
+          body: JSON.stringify({
+            model: 'grok-4.3',
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 600,
+          }),
+        });
+      } catch (e) { await giveBack(); throw e; }
 
       if (!aiRes.ok) {
+        await giveBack();
         const err = await aiRes.json().catch(() => ({})) as { error?: string };
         throw new Error(err.error ?? 'AI error');
       }
 
       const aiData = await aiRes.json();
-      await recordAiCall({ userId: authData.user.id, callType: 'macro_context', model: aiData.model ?? 'grok-4.3', usage: aiData.usage });
+      /* Not awaited: the log is for accounting, never for the answer, and recordAiCall swallows its own errors (and reports them to the health table). */
+      void recordAiCall({ userId: authData.user.id, callType: 'macro_context', model: aiData.model ?? 'grok-4.3', usage: aiData.usage });
       const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
 
       return { ...payload, analysis, missingData: missing };
@@ -199,7 +216,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(result);
   } catch (e) {
     if (e instanceof RateLimitError) {
-      return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });
+      return blockedResponse(e.reason, e.message);
     }
     return apiError('macro-context', e, 502, 'Request failed');
   }

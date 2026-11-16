@@ -150,6 +150,14 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* v2026.11.16b, a one-fix patch on v2026.11.16 (tagged 2026-11-17 PHT, a70a1976). Binance moved its futures streams to a new address and the old one still connected but sent nothing, so the Binance side of the liquidation feed, the liquidation map history and the whale feed had gone quiet. Wording from PM. */
+    date: '2026-11-17',
+    tag: 'v2026.11.16b',
+    items: [
+      'Binance liquidations and large trades show again on the liquidation feed, map and whale feed.',
+    ],
+  },
+  {
     /* v2026.11.16 (was written as v2026.11.15; the release slipped past PHT midnight). Written before the tag is cut, so whoever tags checks the date against `git tag --points-at main` (PHT, the same rule as v2026.11.14's entry). C1 permits exactly one untagged entry in
        flight, and this is it.
 

@@ -51,7 +51,7 @@ export const LAST_ACTIVE_KEY = 'lhq_last_active';
  */
 
 type SignOutCapable = {
-  auth: { signOut: () => Promise<{ error: unknown }> };
+  auth: { signOut: (options?: { scope?: 'global' | 'local' | 'others' }) => Promise<{ error: unknown }> };
 };
 
 /** Drop any Supabase session this origin has stored. Never throws. */
@@ -101,7 +101,9 @@ const SIGN_OUT_TIMEOUT_MS = 8000;
  * A hung request is not abandoned either - only this function stops waiting
  * on it; whatever eventually happens on the wire happens regardless.
  */
-export async function forceSignOut(sb: SignOutCapable | null | undefined): Promise<unknown> {
+/** `scope` is supabase-js's: omitted means its default, GLOBAL (every refresh token of the user is revoked, so every device is signed out). The inactivity expiry passes 'local': a stale old browser profile must end ITS OWN
+ *  session, not the one the user is actively using on another device. */
+export async function forceSignOut(sb: SignOutCapable | null | undefined, opts?: { scope?: 'global' | 'local' | 'others' }): Promise<unknown> {
   if (!sb) return null;
   let error: unknown = null;
   // The timeout timer is never cleared when signOut() itself resolves first,
@@ -111,7 +113,7 @@ export async function forceSignOut(sb: SignOutCapable | null | undefined): Promi
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const result = await Promise.race([
-      sb.auth.signOut(),
+      sb.auth.signOut(opts?.scope ? { scope: opts.scope } : undefined),
       new Promise<{ error: unknown }>(resolve => {
         timer = setTimeout(() => resolve({ error: new Error('signOut timed out') }), SIGN_OUT_TIMEOUT_MS);
       }),

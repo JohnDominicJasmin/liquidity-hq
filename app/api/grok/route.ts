@@ -8,7 +8,8 @@ import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xa
 import { chartFromCandles } from '@/lib/arenaChartServer';
 import { EMA_SIGNAL_TFS, fetchRibbonCandles, type EMASignalTF } from '@/lib/ribbonCandles';
 import { T } from '@/lib/tables';
-import { getPlanSnapshot, getUsageTier } from '@/lib/entitlements';
+import { getPlanSnapshot, getUsageTierStatus } from '@/lib/entitlements';
+import { selectionForPlan } from '@/lib/strategyRegistry';
 import { aiCoinAllowed, normalizeCoinId } from '@/lib/signalCoinGate';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS, GATED_TFS, isGatedTf, type UsageTier } from '@/lib/limits';
@@ -103,10 +104,12 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ usage: null });
 
   const today = todayUtc();
-  const [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed }, role] = await Promise.all([
+  const [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed }, plan] = await Promise.all([
     getUsageRow(token, userId, today),
-    getUsageTier(token, userId),
+    getUsageTierStatus(token, userId),
   ]);
+  /* U7: the usage DISPLAY for an account whose plan could not be read shows the Pro numbers, not the Free ones: it used to read as Free, so a Pro user saw 5/3 and the Arena buttons disabled at used >= 5 until a reload. */
+  const role: UsageTier = plan.failed ? 'pro' : plan.tier;
   const deepLimit     = AI_LIMITS[role].deep;
   const quickLimit    = AI_LIMITS[role].quick;
   const chatLimit     = AI_LIMITS[role].chat;
@@ -364,7 +367,9 @@ export async function POST(req: NextRequest) {
       console.warn(`[grok] server chart: candle fetch failed for ${logTag(coin)}/${tf}, keeping the browser's`);
     }
   }
-  const prompt = buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, selection);
+  /* The indicators come from the request body, so the server applies the plan's limit itself: its own plan read says NOT ENTITLED -> only the first indicator (Free is one at a time). Unknown/failed read: as sent (#1119). */
+  const planSelection = selectionForPlan(selection, plan.status === 'not_entitled') as string[];
+  const prompt = buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, planSelection);
 
   /* The second bound. The server's fields are short formatted strings, so this cannot realistically
      fire once the first bound passed - which is why it is worth having: if it ever does, the gather
