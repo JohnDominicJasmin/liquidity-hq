@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { rateLimit, getClientIp } from '@/lib/rateLimit';
+import { rateLimit } from '@/lib/rateLimit';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 
@@ -32,15 +32,16 @@ export async function POST(req: NextRequest) {
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
-  // Kept even with a verified secret: a leaked secret should still not allow
-  // unbounded /start welcome-DM traffic through the bot.
-  if (!rateLimit(`telegram-webhook:${getClientIp(req)}`, 30, 60_000)) {
-    return NextResponse.json({ ok: false }, { status: 429 });
-  }
-
   /* A malformed body is not a reason for a 500: Telegram redelivers on any non-2xx. */
   let update: TgUpdate;
   try { update = await req.json() as TgUpdate; } catch { return NextResponse.json({ ok: true }); }
+
+  /* The limit is per chat, after the secret check: every update arrives from the same Telegram servers, so a limit per caller address was one shared bucket for all users. Kept even with a verified secret so
+     one chat cannot flood the bot with /start traffic; an update with no chat falls into one shared bucket. */
+  const limitKey = update.message?.chat?.id ?? update.callback_query?.message?.chat?.id ?? 'none';
+  if (!rateLimit(`telegram-webhook:${limitKey}`, 30, 60_000)) {
+    return NextResponse.json({ ok: false }, { status: 429 });
+  }
 
   /* NEVER ANSWER A REDELIVERY WITH AN ERROR (PM audit C4). The code used to be burned and then the reply sent with no guard; a timeout threw,
      Telegram redelivered, and the second pass told a successfully linked user the link had "expired". Every send below is guarded and the
