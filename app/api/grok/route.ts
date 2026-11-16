@@ -8,7 +8,7 @@ import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xa
 import { chartFromCandles } from '@/lib/arenaChartServer';
 import { EMA_SIGNAL_TFS, fetchRibbonCandles, type EMASignalTF } from '@/lib/ribbonCandles';
 import { T } from '@/lib/tables';
-import { getPlanSnapshot, getUsageTier } from '@/lib/entitlements';
+import { getPlanSnapshot, getUsageTierStatus } from '@/lib/entitlements';
 import { aiCoinAllowed, normalizeCoinId } from '@/lib/signalCoinGate';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS, GATED_TFS, isGatedTf, type UsageTier } from '@/lib/limits';
@@ -103,10 +103,12 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ usage: null });
 
   const today = todayUtc();
-  const [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed }, role] = await Promise.all([
+  const [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed }, plan] = await Promise.all([
     getUsageRow(token, userId, today),
-    getUsageTier(token, userId),
+    getUsageTierStatus(token, userId),
   ]);
+  /* U7: the usage DISPLAY for an account whose plan could not be read shows the Pro numbers, not the Free ones: it used to read as Free, so a Pro user saw 5/3 and the Arena buttons disabled at used >= 5 until a reload. */
+  const role: UsageTier = plan.failed ? 'pro' : plan.tier;
   const deepLimit     = AI_LIMITS[role].deep;
   const quickLimit    = AI_LIMITS[role].quick;
   const chatLimit     = AI_LIMITS[role].chat;

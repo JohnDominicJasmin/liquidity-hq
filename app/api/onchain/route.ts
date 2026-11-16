@@ -3,9 +3,9 @@ import { xaiFetch } from '@/lib/xai';
 import { answerWasCutOff, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
-import { cached } from '@/lib/apiCache';
-import { getEntitlement, usageTierOf } from '@/lib/entitlements';
-import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
+import { cached, cachedOwn } from '@/lib/apiCache';
+import { requireProPlan } from '@/lib/entitlements';
+import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, type UsageBlockReason, blockedResponse } from '@/lib/aiUsage';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 
@@ -15,7 +15,7 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const CACHE_TTL = 10 * 60_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, reason: UsageBlockReason) {
+  constructor(public limit: number, public reason: UsageBlockReason, public blockedUserId?: string) {
     super(rateLimitMessage(reason, limit, 'on-chain score checks'));
   }
 }
@@ -126,10 +126,8 @@ export async function GET(req: NextRequest) {
   // route is cached across all visitors (CACHE_TTL), so granting it during the
   // trial adds ~no marginal cost while showing off a headline Pro feature.
   /* The plan row is read ONCE (it used to be read again for the usage tier inside the cache miss). */
-  const entitlement = await getEntitlement(token, authData.user.id);
-  if (!entitlement.proFeatures) {
-    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'On-chain score is a Pro feature.' }, { status: 403 });
-  }
+  const plan = await requireProPlan(token, authData.user.id, 'On-chain score is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
@@ -138,20 +136,23 @@ export async function GET(req: NextRequest) {
   const btcPrice = Number.isFinite(priceIn) && priceIn > 0 && priceIn < 10_000_000 ? priceIn : 0;
 
   try {
-    const result = await cached('onchain', CACHE_TTL, async () => {
+    const result = await cachedOwn(authData.user.id, 'onchain', CACHE_TTL, async () => {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit stays free for everyone (same pattern as
       // token-unlock/smc-snapshot).
-      const role = usageTierOf(entitlement);
+      const role = plan.tier;
       /* The usage check and the chain-stats read run AT THE SAME TIME; the stats are cached on their own for 5 minutes so an AI failure's retry does not refetch them. */
+      const reservedOn = todayUtc();
       const [usageResult, stats] = await Promise.all([
         incrementToolUsage(authData.user.id, 'onchain', role),
         /* A null (the read failed) must NOT be cached for five minutes: it throws so `cached` stores nothing, and the caller carries on without stats exactly as before. */
         cached('onchain-stats', 5 * 60_000, async () => { const v = await fetchBlockchainStats(); if (!v) throw new Error('no blockchain stats'); return v; }).catch(() => null),
       ]);
       if (usageResult.blocked) {
-        throw new RateLimitError(usageResult.limit, usageResult.reason);
+        throw new RateLimitError(usageResult.limit, usageResult.reason, authData.user.id);
       }
+      /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
+      const giveBack = () => refundToolUsage(authData.user.id, 'onchain', reservedOn);
       const prompt = buildOnChainPrompt(stats, btcPrice);
 
       const r = await xaiFetch('https://api.x.ai/v1/responses', {
@@ -168,8 +169,9 @@ export async function GET(req: NextRequest) {
           max_output_tokens: 2000,
         }),
         signal: AbortSignal.timeout(45000),
-      });
+      }).catch(async (e: unknown) => { await giveBack(); throw e; });
       if (!r.ok) {
+        await giveBack();
         const e = await r.json().catch(() => ({})) as { error?: string };
         throw new Error(e.error ?? 'AI error');
       }
@@ -184,14 +186,14 @@ export async function GET(req: NextRequest) {
       const m = raw.match(/\{[\s\S]*\}/);
       if (m) { try { parsed = JSON.parse(m[0]) as Record<string, unknown>; } catch { /* fall through */ } }
       /* A cut-off answer is named as one (#1631): the cap, not the model, is what to fix. */
-      if (!parsed) throw new Error(answerWasCutOff(d) ? 'AI answer cut off at the output cap (status incomplete)' : 'Could not parse AI response');
+      if (!parsed) { await giveBack(); throw new Error(answerWasCutOff(d) ? 'AI answer cut off at the output cap (status incomplete)' : 'Could not parse AI response'); }
 
       return { ...parsed, blockchain_stats: stats ?? undefined, timestamp: new Date().toISOString() };
     });
     return NextResponse.json(result);
   } catch (e) {
     if (e instanceof RateLimitError) {
-      return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });
+      return blockedResponse(e.reason, e.message);
     }
     return apiError('onchain', e, 502, 'Request failed');
   }

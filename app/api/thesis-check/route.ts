@@ -3,8 +3,8 @@ import { AI_TOOL_LIMITS } from '@/lib/aiInputLimits';
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
-import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
+import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, blockedResponse } from '@/lib/aiUsage';
+import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -64,9 +64,8 @@ export async function POST(req: NextRequest) {
   // check a free account could still spend real xAI budget here, which is
   // what the pricing page says it cannot. Trial users pass - hasProFeatures
   // covers isTrial.
-  if (!(await hasProFeatures(token, authData.user.id))) {
-    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Thesis Check is a Pro feature.' }, { status: 403 });
-  }
+  const plan = await requireProPlan(token, authData.user.id, 'Thesis Check is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
@@ -100,13 +99,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'INVALID_INPUT', message: 'Direction must be LONG or SHORT, and the thesis and at least one assumption must have text.' }, { status: 400 });
   }
 
-  const role = await getUsageTier(token, authData.user.id);
+  const role = plan.tier;
+  /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
+  const reservedOn = todayUtc();
   const usageResult = await incrementToolUsage(authData.user.id, 'thesisCheck', role);
   if (usageResult.blocked) {
-    return NextResponse.json(
-      { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'thesis checks'), code: 'RATE_LIMIT' },
-      { status: 429 },
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'thesis checks'));
   }
 
   const prompt = buildThesisPrompt(
@@ -125,9 +123,10 @@ export async function POST(req: NextRequest) {
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 700,
     }),
-  });
+  }).catch(async (e: unknown) => { await refundToolUsage(authData.user.id, 'thesisCheck', reservedOn); throw e; });
 
   if (!res.ok) {
+    await refundToolUsage(authData.user.id, 'thesisCheck', reservedOn);
     const err = await res.json().catch(() => ({})) as { error?: string };
     return apiError('thesis-check', err.error ?? 'upstream AI error', 502, 'AI service error');
   }
