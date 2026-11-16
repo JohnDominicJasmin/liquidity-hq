@@ -1723,7 +1723,7 @@ function ArenaContent() {
 
     try {
       // Step 1 - fetch candles (Binance preferred; fall back to Bybit for HYPE etc.)
-      setReadStep('Reading chart…');
+      setReadStep(t('ARENA_STEP_READING_CHART'));
       let raw: (string|number)[][];
       if (binanceSym) {
         const r = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=${readTf}&limit=300`, { signal: deadlineSignal(20_000) });
@@ -1802,11 +1802,11 @@ function ArenaContent() {
       } catch { /* silent */ }
 
       // Step 2 - gather 34 market signals
-      setReadStep('Reading market…');
+      setReadStep(t('ARENA_STEP_READING_MARKET'));
       const ctx = { ...gatherContext(emaLoading), rsiDaily: rsiDailyStr, structureBreak };
 
       // Step 3 - ask Grok via server proxy (key hidden, rate-limited)
-      setReadStep(mode === 'quick' ? 'Quick analysis…' : 'Searching live…');
+      setReadStep(mode === 'quick' ? t('ARENA_STEP_QUICK_ANALYSIS') : t('ARENA_STEP_SEARCHING_LIVE'));
       /* THE SELECTION REACHES THE READ (#930), now as IDENTIFIERS rather than as
          a sentence. This used to assemble the whole prompt here and post the
          text; #1631 item 5 moved that to the server, because a prompt built in
@@ -2230,7 +2230,7 @@ function ArenaContent() {
             </span>
           )}
           {sqzCount === 0 && flushCount === 0 && (
-            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>All neutral</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{t('ARENA_ALL_NEUTRAL')}</span>
           )}
           {/* Coin Health grade badge */}
           {(() => {
