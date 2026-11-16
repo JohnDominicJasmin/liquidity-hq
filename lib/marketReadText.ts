@@ -21,7 +21,7 @@ const KEYS: Record<string, LabelKey> = {
   'Short-heavy': 'MARKET_READ_FUND_SHORT',
   'Bullish': 'MULTI_TF_ALIGNMENT_BIAS_BULLISH',
   'Bearish': 'MULTI_TF_ALIGNMENT_BIAS_BEARISH',
-  'Longs overcrowded': 'DASH_SIDEBAR_SIG_LONGS_OVERCROWDED',
+  'Longs overcrowded': 'MARKET_READ_TXT_LONGS_OVERCROWDED',
   'Reading the market…': 'MARKET_READ_TXT_READING_MARKET',
   'Good time to trade': 'MARKET_READ_TXT_GOOD_TIME',
   'Decent conditions - be selective': 'MARKET_READ_TXT_DECENT',

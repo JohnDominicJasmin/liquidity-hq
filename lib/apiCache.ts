@@ -76,6 +76,11 @@ function remember(key: string, data: unknown): void {
 
 /** Entry count. Exported for tests and for anything that wants to assert the cap
  *  holds - the bound is worth nothing if nobody can see it. */
+/** When the cached value under `key` was fetched (epoch ms), or null when nothing is cached. A response served from cache is only as fresh as this, whatever the time of the request. */
+export function cachedAt(key: string): number | null {
+  return store.get(key)?.ts ?? null;
+}
+
 export function _cacheSize(): number {
   return store.size;
 }
@@ -178,6 +183,46 @@ export async function cached<T>(
   return p;
 }
 
+/** How long past its TTL a hot multi-coin read may still be served while it refreshes behind the caller (see cachedRefresh). */
+export const STALE_WHILE_REFRESH_MS = 60_000;
+
+/** Same as `cached`, but an entry that has JUST expired is served at once while one background refresh runs.
+ *
+ *  `cached` makes the first visitor after an expiry wait for the whole upstream read (the 49-coin snapshot and the RSI tables are hundreds of exchange
+ *  calls behind 8 shared slots, so that wait is seconds and it also queues chart klines behind it: PM's server-slowness audit, #1651). Here the visitor
+ *  gets the previous value and the next one gets the refreshed value.
+ *
+ *  BOUNDED, because these numbers reach users and the AI prompt: an entry older than `ttlMs + maxStaleMs` is NOT served; the caller waits for a fresh read exactly
+ *  as with `cached`. So the oldest data ever shown is `ttlMs + maxStaleMs`, and a failed background refresh does not extend that: it leaves the entry to age out and
+ *  the next caller then waits and sees the real error. Concurrent callers share one refresh (the same `inflight` map as `cached`). */
+/* A FAILED BACKGROUND REFRESH HOLDS OFF THE NEXT ONE (QA watch item, #2393). Without this, an upstream outage inside the stale window started a refresh on EVERY call (each one failing, each one costing an upstream request);
+ *  now a failure sets a short hold per key during which callers still get the stale value and no refresh starts. The hold only suppresses refreshes: it never extends the stale bound (the entry still ages out at
+ *  ttlMs + maxStaleMs and the next caller then waits and sees the real error). Cleared by the next success. */
+export const REFRESH_FAIL_HOLD_MS = 10_000;
+const refreshFailUntil = new Map<string, number>();
+
+export async function cachedRefresh<T>(
+  key: string, ttlMs: number, maxStaleMs: number, fetcher: () => Promise<T>,
+): Promise<T> {
+  const hit = store.get(key) as { ts: number; data: T; bytes: number } | undefined;
+  const age = hit ? Date.now() - hit.ts : Infinity;
+  if (hit && age >= ttlMs && age < ttlMs + maxStaleMs) {
+    touch(key, hit);
+    if (!inflight.has(key) && Date.now() >= (refreshFailUntil.get(key) ?? 0)) {
+      const p = (async () => {
+        const d = await fetcher();
+        remember(key, d);
+        refreshFailUntil.delete(key);
+        return d;
+      })().finally(() => { inflight.delete(key); });
+      inflight.set(key, p);
+      p.catch(() => { /* a failed background refresh keeps the old entry until it ages out and holds the next refresh off for REFRESH_FAIL_HOLD_MS; nobody is waiting on this promise */ refreshFailUntil.set(key, Date.now() + REFRESH_FAIL_HOLD_MS); });
+    }
+    return hit.data;
+  }
+  return cached(key, ttlMs, fetcher);
+}
+
 /* Same as `cached`, but keeps serving the last good value when the fetcher
  * fails instead of propagating the error.
  *
@@ -232,3 +277,21 @@ export async function cachedStale<T>(
     throw e;   // nothing cached yet - the caller has to handle a real failure
   }
 }
+
+/** `cached()` for a loader that RESERVES a per-user use inside the cache miss (the AI tool routes). Concurrent requests for one key share ONE in-flight loader, so when user A's loader threw A's own block (A is at
+ *  their cap, or the usage RPC failed for A), user B, who joined the same in-flight promise and has quota, was handed A's rejection (U10). A block thrown for a DIFFERENT user is not B's answer: the shared entry is gone
+ *  (nothing is cached for a failure), so B asks again and, as the next loader, reserves for B. The thrown error carries `blockedUserId`. At most two retries; a cache hit and a joiner of a successful loader are untouched. */
+export async function cachedOwn<T>(
+  userId: string, key: string, ttlMs: number, fetcher: () => Promise<T>, opts: CachedOptions = {},
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await cached(key, ttlMs, fetcher, opts);
+    } catch (e) {
+      const blockedUserId = (e as { blockedUserId?: unknown } | null)?.blockedUserId;
+      if (typeof blockedUserId === 'string' && blockedUserId !== userId && attempt < 2) continue;
+      throw e;
+    }
+  }
+}
+

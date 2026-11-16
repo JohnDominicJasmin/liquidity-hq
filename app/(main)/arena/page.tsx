@@ -45,7 +45,7 @@ import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
 import { useStrategySignal } from '@/lib/useStrategySignal';
 import { findStrategy } from '@/lib/strategies';
 import { AUTO_SET_ID, CUSTOM_SET_ID } from '@/lib/strategyRegistry';
-import { describeSelection, overlayStates, selectableIds } from '@/lib/strategyRegistry';
+import { describeSelection, overlayStates, selectableIds, selectionForPlan } from '@/lib/strategyRegistry';
 import { coinLockedForUnpaid, gateSignal, signalPlanFor } from '@/lib/signalCoinGate';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
@@ -419,7 +419,7 @@ function ArenaContent() {
   }, []);
   const setShowSR  = useCallback((v: boolean) => { setShowSRState(v);  try { localStorage.setItem('lhq_arena_show_sr',  v ? '1' : '0'); } catch { /* not persisted */ } }, []);
   const setShowLiq = useCallback((v: boolean) => { setShowLiqState(v); try { localStorage.setItem('lhq_arena_show_liq', v ? '1' : '0'); } catch { /* not persisted */ } }, []);
-  const [strategySelection, setStrategySelection] = useState<readonly string[]>([]);
+  const [savedStrategySelection, setStrategySelection] = useState<readonly string[]>([]);
   /* #1347 item 9: `strategySelection` is `[]` until the seed effect below has read the account's saved
      selection, so anything comparing it to a restored result's `selectionAtAnalysis` on a cold load
      briefly read as "you changed your selection". This flips in the SAME commit as the seed's
@@ -442,6 +442,10 @@ function ArenaContent() {
   /* THE PLAN IS STILL BEING READ (signed in, auth or entitlements loading). Until it is known (loading, or unknown after a failed read), chip taps and strategy picks are NO-OPS: they used to run the FREE branch (swap to one chip, or one chip added) and then SAVE the result, so a paying Pro user who tapped before the plan arrived (2.4-5 s after load, longer on a phone) had a saved multi-indicator selection cut to one. Nothing computed under an unknown plan is applied or persisted. The panel shows the same state (chips disabled, 'Checking your plan…'). */
   /* 'unknown' (every retry of the plan read failed) counts as unsettled too: it is not a confirmed Free account, so no destructive op and no save; the panel already shows its unknown-plan card with Retry in that state. Only a CONFIRMED 'not_entitled' runs the Free swap. */
   const planUnsettled = !!user && (authLoading || entitlementsLoading || entitlementStatus === 'unknown');
+  /* THE SELECTION THE PLAN MAY USE (a Free account that still carries a saved multi-indicator list from a past trial/Pro): once the plan is KNOWN Free only the first saved indicator is used by the chips, the chart filter,
+     the read and the chat context. The saved list is left as it is, so an upgrade restores it; unknown/loading plan keeps the saved list (#2406's hold). */
+  const planKnownFree = !authLoading && !entitlementsLoading && entitlementStatus === 'not_entitled';
+  const strategySelection = useMemo(() => selectionForPlan(savedStrategySelection, planKnownFree), [savedStrategySelection, planKnownFree]);
   const handleStrategySelectionChange = useCallback((next: readonly string[]) => {
     if (planUnsettled) return;
     // #1246/#1347: belt-and-suspenders alongside StrategyPanel's own gate -
@@ -1719,7 +1723,7 @@ function ArenaContent() {
 
     try {
       // Step 1 - fetch candles (Binance preferred; fall back to Bybit for HYPE etc.)
-      setReadStep('Reading chart…');
+      setReadStep(t('ARENA_STEP_READING_CHART'));
       let raw: (string|number)[][];
       if (binanceSym) {
         const r = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=${readTf}&limit=300`, { signal: deadlineSignal(20_000) });
@@ -1798,11 +1802,11 @@ function ArenaContent() {
       } catch { /* silent */ }
 
       // Step 2 - gather 34 market signals
-      setReadStep('Reading market…');
+      setReadStep(t('ARENA_STEP_READING_MARKET'));
       const ctx = { ...gatherContext(emaLoading), rsiDaily: rsiDailyStr, structureBreak };
 
       // Step 3 - ask Grok via server proxy (key hidden, rate-limited)
-      setReadStep(mode === 'quick' ? 'Quick analysis…' : 'Searching live…');
+      setReadStep(mode === 'quick' ? t('ARENA_STEP_QUICK_ANALYSIS') : t('ARENA_STEP_SEARCHING_LIVE'));
       /* THE SELECTION REACHES THE READ (#930), now as IDENTIFIERS rather than as
          a sentence. This used to assemble the whole prompt here and post the
          text; #1631 item 5 moved that to the server, because a prompt built in
@@ -2226,7 +2230,7 @@ function ArenaContent() {
             </span>
           )}
           {sqzCount === 0 && flushCount === 0 && (
-            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>All neutral</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{t('ARENA_ALL_NEUTRAL')}</span>
           )}
           {/* Coin Health grade badge */}
           {(() => {
