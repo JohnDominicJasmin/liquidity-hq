@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 // Shared server-side subscription-role lookup - extracted from what was three
 // separate copy-pasted copies (grok, grok-chat, briefing routes). Reads through
 // a user-scoped Supabase client (RLS: "sub_select_own") so a token can only
@@ -146,4 +147,20 @@ export async function getEntitlementStatusFromRequestToken(token: string | null 
   } catch {
     return 'unknown';
   }
+}
+
+/* THE PLAN GATE FOR A PRO-ONLY AI ROUTE (U7). These routes read the plan twice (hasProFeatures for the gate, getUsageTier for the limit) and each read folds a FAILED read into "free": a Pro user on a transient database
+   error was told "this is a Pro feature" or, when only the second read failed, billed against a Free limit of 0 ("Daily limit of 0 reached"). One snapshot now answers both, and an UNKNOWN plan is 503 UNAVAILABLE (same rule as
+   POST /api/grok, #2412: never the Free cap on an unknown plan; a Pro-only feature has nothing a Free account may do, so it waits for the read). A confirmed non-Pro answer is still 403 PRO_REQUIRED. */
+export async function requireProPlan(
+  token: string, userId: string, proMessage: string,
+): Promise<{ ok: true; tier: UsageTier } | { ok: false; response: NextResponse }> {
+  const plan = await getPlanSnapshot(token, userId);
+  if (plan.failed) {
+    return { ok: false, response: NextResponse.json({ error: 'Could not check your plan right now. Try again.', code: 'UNAVAILABLE' }, { status: 503 }) };
+  }
+  if (plan.status !== 'entitled') {
+    return { ok: false, response: NextResponse.json({ error: 'PRO_REQUIRED', message: proMessage }, { status: 403 }) };
+  }
+  return { ok: true, tier: plan.tier };
 }

@@ -2,6 +2,7 @@ import { readJsonCapped, BODY_CAPS } from '@/lib/requestBody';
 import { TEXT_LIMITS } from '@/lib/ownRowLimits';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { isDateOnly } from '@/lib/dateInput';
 import { apiError } from '@/lib/apiError';
 import { T } from '@/lib/tables';
 import { getUserCompat } from '@/lib/authUser';
@@ -36,7 +37,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (('title' in update && (!str(update.title, TEXT_LIMITS.hypothesisTitle) || !(update.title as string).trim()))
     || ('hypothesis' in update && (!str(update.hypothesis, TEXT_LIMITS.hypothesis) || !(update.hypothesis as string).trim()))
     || ('status' in update && !['active', 'confirmed', 'disconfirmed', 'expired'].includes(update.status as string))
-    || ('target_date' in update && update.target_date != null && !str(update.target_date, 40))
+    || ('target_date' in update && update.target_date != null && !isDateOnly(update.target_date))
     || ('acceptance_criteria' in update && (!Array.isArray(update.acceptance_criteria) || update.acceptance_criteria.length > TEXT_LIMITS.criteriaCount
          || update.acceptance_criteria.some((c: unknown) => !str(c, TEXT_LIMITS.criterion))))) {
     return NextResponse.json({ error: 'INVALID_INPUT', message: 'One of the fields is the wrong type or too long.' }, { status: 400 });

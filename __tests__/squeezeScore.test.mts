@@ -45,7 +45,7 @@ test('computeSqueezeScore', async (t) => {
     const r = computeSqueezeScore(undefined);
     // Full shape, now including the additive partial-score fields (#2167): with no coin there are
     // zero signals and an empty present list.
-    assert.deepEqual(r, { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)', signalsPresent: 0, present: [] });
+    assert.deepEqual(r, { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)', signalsPresent: 0, present: [], enough: false });   // #2445: `enough` is part of the shape
   });
 
   await t.test('signalsPresent counts the independent signals by presence; present names them; volRatio is a bonus and does not count', () => {
@@ -76,56 +76,64 @@ test('computeSqueezeScore', async (t) => {
   });
 
   await t.test('a single signal, however extreme, cannot label Flush/Squeeze - the >=2-signal gate', () => {
-    // Funding alone at its highest tier (40 pts, 1 signal): real risk, but
-    // the gate requires 2 independent sources before it will say so.
+    // Funding alone at its highest tier (1 signal): real risk, but the gate requires 2 independent
+    // sources before it will say so. #2445: below that floor the coin is UNKNOWN, not "Balanced": it reads
+    // "Not enough data", score 0 (a partial sum is not a score), enough false, so it is kept out of the Neutral count.
     const r = computeSqueezeScore(baseCoin({ fundingRate: 0.10 }));
-    assert.equal(r.score, 40);
+    assert.equal(r.score, 0, 'a partial sum of one signal was published as a score');
     assert.equal(r.dir, 'NEUTRAL', 'one signal must not produce a directional label');
-    assert.equal(r.label, 'Balanced');
+    assert.equal(r.label, 'Not enough data');
+    assert.equal(r.enough, false);
+    assert.equal(r.signalsPresent, 1, 'the signals actually present are still reported');
   });
 
   await t.test('funding rate: top-tier boundary (exact) vs. one tick below every tier', () => {
-    const withRatio = (fr: number) => computeSqueezeScore(baseCoin({ fundingRate: fr, longRatio: 0.52, shortRatio: 0.1 }));
+    // #2451: the rungs are funding 0.02% (22) / 0.05% (40) and a long share of 58% (22) / 65% (40); a direction needs 2 signals AND the dominant side at 40+.
+    const withRatio = (fr: number) => computeSqueezeScore(baseCoin({ fundingRate: fr, longRatio: 0.58, shortRatio: 0.1 }));
 
     const atTop = withRatio(0.0005); // fr = 0.05 exactly after *100
     assert.equal(atTop.dir, 'LONG_LIQ');
-    assert.equal(atTop.score, 50); // 40 (funding top tier) + 10 (longRatio bottom tier)
+    assert.equal(atTop.score, 62); // 40 (funding top tier) + 22 (long share 58%)
 
-    const belowEveryTier = withRatio(0.00009); // fr = 0.009, under the 0.01 floor
-    assert.equal(belowEveryTier.dir, 'NEUTRAL', 'funding contributes nothing below its lowest tier - longRatio alone is one signal, gate fails');
-    assert.equal(belowEveryTier.score, 10);
+    const atMid = withRatio(0.0002); // fr = 0.02 exactly: the lower rung
+    assert.equal(atMid.dir, 'LONG_LIQ'); assert.equal(atMid.score, 44); // 22 + 22
+
+    const belowEveryTier = withRatio(0.00019); // fr = 0.019, under the 0.02 floor
+    assert.equal(belowEveryTier.dir, 'NEUTRAL', 'funding contributes nothing below its lowest rung - the long share alone is one signal and 22 < 40');
+    assert.equal(belowEveryTier.score, 22);
   });
 
   await t.test('shortRatio top-tier boundary (exact), paired with a weak taker signal', () => {
     const r = computeSqueezeScore(baseCoin({ shortRatio: 0.65, longRatio: 0.1, takerBuyRatio: 0.58 }));
     assert.equal(r.dir, 'SHORT_SQ');
-    assert.equal(r.label, 'Short squeeze ↑');
+    assert.equal(r.label, 'Short-heavy');
     assert.equal(r.score, 48); // 40 (shortRatio top tier) + 8 (taker's WEAK short tier - 0.58 is not the 0.62 top tier)
   });
 
   await t.test('takerBuyRatio: top long tier (exact) vs. the weaker tier one step in', () => {
-    const topTier = computeSqueezeScore(baseCoin({ takerBuyRatio: 0.38, longRatio: 0.52, shortRatio: 0.1 }));
+    // #2451: the long share must now be 65% (40) for a direction on its own side; a 15-point taker reading adds to it.
+    const topTier = computeSqueezeScore(baseCoin({ takerBuyRatio: 0.38, longRatio: 0.65, shortRatio: 0.1 }));
     assert.equal(topTier.dir, 'LONG_LIQ');
-    assert.equal(topTier.score, 25); // 15 (taker top) + 10 (longRatio bottom)
+    assert.equal(topTier.score, 55); // 15 (taker top) + 40 (long share 65%)
 
-    const weakTier = computeSqueezeScore(baseCoin({ takerBuyRatio: 0.42, longRatio: 0.52, shortRatio: 0.1 }));
+    const weakTier = computeSqueezeScore(baseCoin({ takerBuyRatio: 0.42, longRatio: 0.65, shortRatio: 0.1 }));
     assert.equal(weakTier.dir, 'LONG_LIQ');
-    assert.equal(weakTier.score, 18); // 8 (taker weak tier) + 10 (longRatio bottom)
+    assert.equal(weakTier.score, 48); // 8 (taker weak tier) + 40 (long share 65%)
   });
 
   await t.test('volume bonus: gated on dominant risk already exceeding 10, amplifies rather than creates a signal', () => {
-    const withBonus = computeSqueezeScore(baseCoin({ fundingRate: 0.0001, longRatio: 0.52, shortRatio: 0.1, volRatio: 2 }));
-    const withoutBonus = computeSqueezeScore(baseCoin({ fundingRate: 0.0001, longRatio: 0.52, shortRatio: 0.1 }));
-    assert.equal(withoutBonus.score, 20);   // 10 (funding) + 10 (longRatio), dominant=20
-    assert.equal(withBonus.score, 40);      // dominant 20 > 10, volRatio>=2 adds +20
+    const withBonus = computeSqueezeScore(baseCoin({ fundingRate: 0.0005, longRatio: 0.58, shortRatio: 0.1, volRatio: 2 }));
+    const withoutBonus = computeSqueezeScore(baseCoin({ fundingRate: 0.0005, longRatio: 0.58, shortRatio: 0.1 }));
+    assert.equal(withoutBonus.score, 62);   // 40 (funding 0.05%) + 22 (long share 58%), dominant=62 (#2451 rungs)
+    assert.equal(withBonus.score, 82);      // dominant 62 > 10, volRatio>=2 adds +20
     assert.equal(withBonus.dir, 'LONG_LIQ');
 
     // A single 10-point signal: dominant=10, which is NOT > 10 - the bonus
     // gate itself fails, so volRatio changes nothing, and it stays NEUTRAL
     // regardless (one signal).
-    const loneWeakSignal = computeSqueezeScore(baseCoin({ fundingRate: 0.0001, volRatio: 2 }));
-    assert.equal(loneWeakSignal.score, 10, 'dominant=10 is not > 10, so the vol bonus gate does not fire');
-    assert.equal(loneWeakSignal.dir, 'NEUTRAL');
+    const loneWeakSignal = computeSqueezeScore(baseCoin({ fundingRate: 0.0002, volRatio: 2 }));
+    assert.equal(loneWeakSignal.score, 0, 'one signal is below the two-input floor (#2445): Not enough data, score 0, so volRatio cannot lift it either');
+    assert.equal(loneWeakSignal.dir, 'NEUTRAL'); assert.equal(loneWeakSignal.enough, false);
   });
 
   await t.test('score is capped at 100', () => {

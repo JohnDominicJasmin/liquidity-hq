@@ -31,12 +31,14 @@ const RANGE_LABEL_KEYS: Record<RangeKey, LabelKey> = {
 };
 
 /* ── data fetching ── */
-async function fetchAllBinanceFR(): Promise<Record<string, FRPoint[]>> {
+/* `via` = the Binance symbols whose history Binance could not give and Bybit did (the route's viaFallback), so the page can say whose numbers it is showing. */
+async function fetchAllBinanceFR(): Promise<{ out: Record<string, FRPoint[]>; via: string[] }> {
   try {
     const res = await fetch('/api/market/funding-rate?limit=42');
-    if (!res.ok) return {};
-    const { data } = await res.json() as {
+    if (!res.ok) return { out: {}, via: [] };
+    const { data, viaFallback } = await res.json() as {
       data: Record<string, Array<{ fundingRate: string; fundingTime: number }>>;
+      viaFallback?: string[];
     };
     const out: Record<string, FRPoint[]> = {};
     for (const [sym, rows] of Object.entries(data ?? {})) {
@@ -44,8 +46,8 @@ async function fetchAllBinanceFR(): Promise<Record<string, FRPoint[]>> {
         .map(d => ({ rate: parseFloat(d.fundingRate), ts: d.fundingTime }))
         .sort((a, b) => a.ts - b.ts);
     }
-    return out;
-  } catch { return {}; }
+    return { out, via: viaFallback ?? [] };
+  } catch { return { out: {}, via: [] }; }
 }
 
 async function fetchBybitFR(sym: string): Promise<FRPoint[]> {
@@ -339,6 +341,8 @@ export default function FundingTerminal() {
   const [selected, setSelected] = useState<CoinId>('btc');
   const [rangeKey, setRangeKey] = useState<RangeKey>('7d');
   const [loading, setLoading]   = useState(true);
+  /* Coins whose funding history is Bybit's because Binance could not supply it. Said on the page, never shown as Binance's. */
+  const [bybitCoins, setBybitCoins] = useState<CoinId[]>([]);
   const [frSearch, setFrSearch] = useState('');
 
   const fullChartRef = useRef<HTMLCanvasElement>(null);
@@ -350,16 +354,18 @@ export default function FundingTerminal() {
     let cancelled = false;
     (async () => {
       const result: FRHistory = {};
-      const binanceAll = await fetchAllBinanceFR();
+      const { out: binanceAll, via } = await fetchAllBinanceFR();
+      const fromBybit = new Set<CoinId>();
       await Promise.all(COINS.map(async id => {
         const binSym = (BINANCE_SYMS as Record<string, string>)[id];
         const bbSym  = (BYBIT_SYMS  as Record<string, string>)[id];
         let pts: FRPoint[] = [];
         if (binSym) pts = binanceAll[binSym] ?? [];
-        if (!pts.length && bbSym) pts = await fetchBybitFR(bbSym);
+        if (binSym && via.includes(binSym) && pts.length) fromBybit.add(id);
+        if (!pts.length && bbSym) { pts = await fetchBybitFR(bbSym); if (pts.length) fromBybit.add(id); }
         if (pts.length) result[id] = pts;
       }));
-      if (!cancelled) { setHistory(result); setLoading(false); }
+      if (!cancelled) { setHistory(result); setBybitCoins([...fromBybit]); setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -410,6 +416,11 @@ export default function FundingTerminal() {
       <div className="mb-header">
         <h1 className="mb-title">{t('FUNDING_PAGE_TITLE')}</h1>
         <div className="mb-subtitle">{t('FUNDING_PAGE_SUBTITLE')}</div>
+        {!loading && bybitCoins.length > 0 && (
+          <div data-testid="funding-via-bybit" className="mb-subtitle" style={{ marginTop: 6, marginBottom: 0 }}>
+            {t('FUNDING_VIA_BYBIT_NOTE', { coins: bybitCoins.map(c => COIN_LABELS[c] ?? c.toUpperCase()).join(', ') })}
+          </div>
+        )}
       </div>
 
       {/* FR Regime Overview */}

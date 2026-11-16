@@ -1,3 +1,4 @@
+import { deadlineSignal } from './deadlineSignal.ts';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 let _client: SupabaseClient | null = null;
@@ -14,7 +15,7 @@ export const SUPABASE_FETCH_TIMEOUT_MS = 15000;
 export function fetchWithDeadline(input: RequestInfo | URL, init?: RequestInit, ms = SUPABASE_FETCH_TIMEOUT_MS): Promise<Response> {
   const method = (init?.method ?? (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')).toUpperCase();
   if (method !== 'GET' && method !== 'HEAD') return fetch(input, init);
-  const deadline = AbortSignal.timeout(ms);
+  const deadline = deadlineSignal(ms);
   const own = init?.signal;
   let signal: AbortSignal = deadline;
   if (own) {
