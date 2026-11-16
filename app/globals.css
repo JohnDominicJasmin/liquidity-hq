@@ -237,6 +237,9 @@
   --heat-red-deep-fg: #fee2e2;
 
   --amber:     #fbbf24;
+  /* USAGE RINGS (UsageRings.tsx): one hue per ring, so Deep, Chat and Search no longer share a gold (--accent-2 equals --accent in light). Each is at least 4.5:1 as a number and 3:1 as a ring on --bg1, --bg2 and --bg4 (dark 6.7 to 11.2, light 4.5 to 7.3, measured). Orange, not amber, for Briefing: amber is the 70% warning colour and red the 90% one. The track is a wash of the text colour, so it shows on both grounds. */
+  --ring-quick: #34d399; --ring-deep: #5aa3ff; --ring-chat: #a78bfa; --ring-search: #22d3ee; --ring-briefing: #fb923c; --ring-tools: #f472b6;
+  --ring-track: rgba(255,255,255,0.10);
   --amber-2:   #fcd34d;
   --amber-dim: rgba(251,191,36,0.12);
   --amber-bg:  rgba(251,191,36,0.08);
@@ -3057,6 +3060,9 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --heat-red-deep-fg: #6b1414;
   /* was #B45309 - 3.59:1 on --bg4 and the amber-tinted panel #f3eee0. */
   --amber:     #8F4508;
+  /* Light values of the usage-ring tokens (see the dark block): 4.5:1 or better as a number on white, the light grey card and --bg3. The track is a 14% wash of black, visible on white. */
+  --ring-quick: #046B4E; --ring-deep: #0052CC; --ring-chat: #6D28D9; --ring-search: #0A6178; --ring-briefing: #9A3412; --ring-tools: #BE185D;
+  --ring-track: rgba(0,0,0,0.14);
   --amber-2:   #92400E;
   --amber-dim: rgba(180,83,9,0.12);
   --amber-bg:  rgba(180,83,9,0.07);

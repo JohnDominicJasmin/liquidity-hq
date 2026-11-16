@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from './deadlineSignal.ts';
 import { useEffect, useState } from 'react';
 import { BINANCE_SYMS } from './coins.ts';
 import { computePerpSpot, computeAbsorption, type PerpSpotReading, type AbsorptionReading } from './perpSpot.ts';
@@ -28,7 +29,7 @@ const inflight = new Map<string, Promise<Entry>>();
 async function fetchBars(source: 'binance' | 'binance-futures', symbol: string) {
   const r = await fetch(
     `/api/market/klines?source=${source}&symbol=${symbol}&interval=1h&limit=${BARS}`,
-    { signal: AbortSignal.timeout(12_000) },
+    { signal: deadlineSignal(12_000) },
   );
   if (!r.ok) throw new Error(`${source} ${r.status}`);
   const rows = (await r.json()) as Kline[];

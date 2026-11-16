@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { COIN_DEC, CoinId, useMarket, computeSqueezeScore, venueSymbols } from '@/lib/marketStore';
@@ -1811,7 +1812,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               } else if (bnSym) {
                 const res = await fetch(
                   `/api/market/klines?source=binance-futures&symbol=${bnSym}&interval=${periodToBnInterval(period)}&limit=1500&end=${endMs}`,
-                  { signal: AbortSignal.timeout(HISTORY_ATTEMPT_TIMEOUT_MS) },
+                  { signal: deadlineSignal(HISTORY_ATTEMPT_TIMEOUT_MS) },
                 );
                 if (stale()) { callback([], false); return; }
                 if (res.ok) {
@@ -1941,7 +1942,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               // what this used to do.
               const tryFetch = async (url: string): Promise<{ data: (string | number)[][]; viaBybitFallback: boolean } | null> => {
                 try {
-                  const res = await fetch(url, { signal: AbortSignal.timeout(HISTORY_ATTEMPT_TIMEOUT_MS) }); // #1572: a hung request fails over to the next source
+                  const res = await fetch(url, { signal: deadlineSignal(HISTORY_ATTEMPT_TIMEOUT_MS) }); // #1572: a hung request fails over to the next source
                   if (!res.ok) return null;
                   const j = await res.json();
                   if (!Array.isArray(j) || !j.length) return null;
@@ -2071,7 +2072,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // already uses for the initial history load.
                 const d = await fetchBybitKlinesRetry(sym, interval, 500, {
                   isStale: () => cancelled,
-                  signal: AbortSignal.timeout(12_000),
+                  signal: deadlineSignal(12_000),
                 });
                 if (d === null || cancelled) return;
                 const rows = [...(d.result?.list ?? [])].reverse();
@@ -2252,14 +2253,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 if (histSourceRef.current === 'bybit') {
                   const d = await fetchBybitKlinesRetry(sym, interval, 500, {
                     isStale: () => cancelled,
-                    signal: AbortSignal.timeout(12_000),
+                    signal: deadlineSignal(12_000),
                   });
                   if (d === null || cancelled) return;
                   rows = [...(d.result?.list ?? [])].reverse();
                 } else {
                   const r = await fetch(
                     `/api/market/klines?source=${histSourceRef.current}&symbol=${sym}&interval=${interval}&limit=500`,
-                    { signal: AbortSignal.timeout(12_000) },
+                    { signal: deadlineSignal(12_000) },
                   );
                   if (!r.ok || cancelled) return;
                   // #1077: same header this route sets on getBars' own
@@ -3156,7 +3157,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ coin: coinRef.current, tf, candles }),
-        signal: AbortSignal.timeout(60_000),
+        signal: deadlineSignal(60_000),
       });
       const data = await res.json().catch(() => ({})) as
         { structures?: unknown; error?: unknown; message?: unknown };

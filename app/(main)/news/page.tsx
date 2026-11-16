@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useNews } from '@/components/NewsProvider';
-import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline } from '@/lib/classify';
+import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline, hasAnyKeyword } from '@/lib/classify';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
 import { withAlpha } from '@/lib/color';
 import LoadingState from '@/components/LoadingState';
@@ -51,7 +51,7 @@ function timeAgo(ts: number, t: TFn): string {
 function getGeoMeta(headline: string): { tag: string; note: string } | null {
   const h = headline.toLowerCase();
   for (const g of GEO_KEYWORDS) {
-    if (g.kw.some(k => h.includes(k))) return { tag: g.tag, note: g.note };
+    if (hasAnyKeyword(h, g.kw)) return { tag: g.tag, note: g.note };
   }
   return null;
 }
@@ -86,10 +86,10 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const startOfWord = (kws: readonly string[]) => new RegExp(`\\b(?:${kws.map(escapeRe).join('|')})`, 'i');
 const wholeWord   = (kws: readonly string[]) => new RegExp(`\\b(?:${kws.map(escapeRe).join('|')})\\b`, 'i');
 const BEARISH_STEMS = startOfWord([
-  'crash','dump','plunge','collapse','decline','drop','fall','slump',
+  'crash','dump','plunge','collapse','decline','drop','slump',
   'banned','restriction','crackdown','sanction',
   'hack','exploit','theft','stolen','robbery','kidnapping','arrested',
-  'controversy','flaw','underperform','suspicious','warning','risk',
+  'controversy','flaw','underperform','suspicious','warning','risk-off',
   /* QA, #1501: "bankrupt"/"bankruptcy", "warns" and "bank run" read Bearish only by accident
      while "ban" and "war" were substring matches; moving those to whole words lost them.
      "warn" is a whole word below, not a stem, so "Warner" stays neutral. */
@@ -99,9 +99,9 @@ const BEARISH_STEMS = startOfWord([
   'lawsuit','charges','seized','fraud','scam',
   'bearish','bear market','sell-off','liquidation wave','weakening',
 ]);
-const BEARISH_WORDS = wholeWord(['ban','bans','banning','war','wars','warn','warns','warned']);
+const BEARISH_WORDS = wholeWord(['ban','bans','banning','war','wars','warn','warns','warned','fall','falls','falling','fell']);
 const BULLISH_STEMS = startOfWord([
-  'rally','surge','pump','breakout','record','all-time high',
+  'rally','surge','pump','breakout','record high','record-high','record inflow','record buy','all-time high',
   'buy','bought','purchase','accumulate','inflow','flows into','flowing into','returns to crypto',
   'etf approved','approval','approved','adoption','launch',
   'institutional','strategic reserve',
@@ -112,8 +112,17 @@ const BULLISH_STEMS = startOfWord([
 ]);
 const BULLISH_WORDS = wholeWord(['ath']);
 
+/* CONTEXT THE KEYWORD LISTS CANNOT SEE (N9). A keyword hit says nothing about negation or about what was dropped: "ETF not approved" read Bullish ('approved'), "SEC drops lawsuit against Coinbase" read Bearish ('lawsuit'), "record outflows"
+   read Bullish ('record', now only record high / inflows), "risk-on rally" read Bearish ('risk', now only risk-off), and "fall" matched "fallout" (now whole words). A NEGATED approval or launch is Bearish; a lawsuit, charge or case that is
+   dropped, dismissed, ended, settled or won is not a bearish keyword. */
+const NEGATED_APPROVAL = /\b(?:not|no|denied|denies|deny|rejects?|rejected|delays?|delayed|blocks?|blocked|postpones?|postponed|without)\b(?:\s+\w+){0,2}\s+(?:approv\w*|launch\w*)/i;
+/* The same negation AFTER the word (QA B6): "Launch delayed again", "ETF approval denied", "ETF launch postponed" read Bullish because only a negator BEFORE the word counted. A real approval ("ETF approved") has no negator either side and stays Bullish. */
+const NEGATED_APPROVAL_AFTER = /\b(?:approv\w*|launch\w*)\b(?:\s+\w+){0,2}\s+(?:denied|rejected|delayed|postponed|blocked|halted|suspended|cancell?ed|shelved|withheld)\b/i;
+const RESOLVED_CASE = /\b(?:drops?|dropped|dismiss\w*|ends?|ended|settles?|settled|wins?|won|closes?|closed|withdraws?|withdrew)\b(?:\s+\w+){0,3}\s+(?:lawsuits?|charges|case|probe|investigation)\b/gi;
+
 function getBtcSentiment(headline: string): BtcSentiment {
-  const h = headline.toLowerCase();
+  if (NEGATED_APPROVAL.test(headline) || NEGATED_APPROVAL_AFTER.test(headline)) return 'bearish';
+  const h = headline.replace(RESOLVED_CASE, ' ').toLowerCase();
   if (BEARISH_STEMS.test(h) || BEARISH_WORDS.test(h)) return 'bearish';
   if (BULLISH_STEMS.test(h) || BULLISH_WORDS.test(h)) return 'bullish';
   return 'neutral';
