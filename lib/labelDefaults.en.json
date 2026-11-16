@@ -2574,6 +2574,7 @@
   "TRADE_JOURNAL_THESIS_RECHECK_BUTTON": "Re-check Health",
   "TRADE_JOURNAL_THESIS_CHECK_HEALTH_BUTTON": "Check Thesis Health",
   "TRADE_JOURNAL_THESIS_DELETE_BUTTON": "Delete",
+  "TRADE_JOURNAL_STATS_NEWEST_NOTE": "These stats cover your newest {n} trades.",
   "TRADE_JOURNAL_STATS_EMPTY_STATE": "Close at least one trade to see stats",
   "TRADE_JOURNAL_STATS_RULE_COMPLIANCE_LABEL": "Rule Compliance",
   "TRADE_JOURNAL_STATS_RULE_COMPLIANCE_DESC": "{clean} of {total} closed trades followed all rules",
