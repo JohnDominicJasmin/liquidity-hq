@@ -312,6 +312,30 @@ insert into lhq_labels (key, locale, value) values
 ('MARKET_READ_TXT_LONGS_OVERCROWDED','ar','ازدحام مراكز الشراء')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 
+-- Scanner footer, the OI strong-down subtitle and the two funding crowd words, folded in (QA leftovers + one consistency fix, 2026-11-17).
+insert into lhq_labels (key, locale, value) values
+('ARENA_SCANNER_FOOTER_EXPLAINER','en','Funding rate + long/short ratio · ↑ Short-heavy · ↓ Long-heavy'),
+('ARENA_SCANNER_FOOTER_EXPLAINER','ko','펀딩비 + 롱/숏 비율 · ↑ 숏 우세 · ↓ 롱 우세'),
+('ARENA_SCANNER_FOOTER_EXPLAINER','zh','资金费率 + 多空比 · ↑ 空头偏重 · ↓ 多头偏重'),
+('ARENA_SCANNER_FOOTER_EXPLAINER','ru','Ставка фандинга + соотношение лонг/шорт · ↑ Перекос в шорты · ↓ Перекос в лонги'),
+('ARENA_SCANNER_FOOTER_EXPLAINER','ar','معدل التمويل + نسبة الشراء/البيع · ↑ غلبة مراكز البيع · ↓ غلبة مراكز الشراء'),
+('COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB','en','OI up, price down · new shorts opening'),
+('COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB','ko','OI 상승, 가격 하락 · 신규 숏 진입'),
+('COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB','zh','未平仓合约上升,价格下跌 · 新空单开仓'),
+('COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB','ru','OI растёт, цена падает · открываются новые шорты'),
+('COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB','ar','OI لأعلى، السعر لأسفل · فتح مراكز بيع جديدة'),
+('FUNDING_SIG_LONGS_OVERCROWDED_CROWD','en','Longs paying'),
+('FUNDING_SIG_LONGS_OVERCROWDED_CROWD','ko','롱이 지불'),
+('FUNDING_SIG_LONGS_OVERCROWDED_CROWD','zh','多头支付'),
+('FUNDING_SIG_LONGS_OVERCROWDED_CROWD','ru','Платят лонги'),
+('FUNDING_SIG_LONGS_OVERCROWDED_CROWD','ar','المشترون يدفعون'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_CROWD','en','Shorts paying'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_CROWD','ko','숏이 지불'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_CROWD','zh','空头支付'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_CROWD','ru','Платят шорты'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_CROWD','ar','البائعون يدفعون')
+on conflict (key, locale) do update set value = excluded.value, updated_at = now();
+
 -- ============ DEV (shared by dev/qa/staging, wdtjhrilakoitfcezxpx) ============
 insert into lhq_dev_labels (key, locale, value) values
 ('DASH_SIDEBAR_SIG_LONGS_OVERCROWDED','en','Funding {pct}: longs paying'),
@@ -617,4 +641,28 @@ insert into lhq_dev_labels (key, locale, value) values
 ('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ar','نسبة الشراء {pct}%'),
 ('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','ar','نسبة البيع {pct}%'),
 ('MARKET_READ_TXT_LONGS_OVERCROWDED','ar','ازدحام مراكز الشراء')
+on conflict (key, locale) do update set value = excluded.value, updated_at = now();
+
+-- Same four keys on the dev table.
+insert into lhq_dev_labels (key, locale, value) values
+('ARENA_SCANNER_FOOTER_EXPLAINER','en','Funding rate + long/short ratio · ↑ Short-heavy · ↓ Long-heavy'),
+('ARENA_SCANNER_FOOTER_EXPLAINER','ko','펀딩비 + 롱/숏 비율 · ↑ 숏 우세 · ↓ 롱 우세'),
+('ARENA_SCANNER_FOOTER_EXPLAINER','zh','资金费率 + 多空比 · ↑ 空头偏重 · ↓ 多头偏重'),
+('ARENA_SCANNER_FOOTER_EXPLAINER','ru','Ставка фандинга + соотношение лонг/шорт · ↑ Перекос в шорты · ↓ Перекос в лонги'),
+('ARENA_SCANNER_FOOTER_EXPLAINER','ar','معدل التمويل + نسبة الشراء/البيع · ↑ غلبة مراكز البيع · ↓ غلبة مراكز الشراء'),
+('COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB','en','OI up, price down · new shorts opening'),
+('COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB','ko','OI 상승, 가격 하락 · 신규 숏 진입'),
+('COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB','zh','未平仓合约上升,价格下跌 · 新空单开仓'),
+('COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB','ru','OI растёт, цена падает · открываются новые шорты'),
+('COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB','ar','OI لأعلى، السعر لأسفل · فتح مراكز بيع جديدة'),
+('FUNDING_SIG_LONGS_OVERCROWDED_CROWD','en','Longs paying'),
+('FUNDING_SIG_LONGS_OVERCROWDED_CROWD','ko','롱이 지불'),
+('FUNDING_SIG_LONGS_OVERCROWDED_CROWD','zh','多头支付'),
+('FUNDING_SIG_LONGS_OVERCROWDED_CROWD','ru','Платят лонги'),
+('FUNDING_SIG_LONGS_OVERCROWDED_CROWD','ar','المشترون يدفعون'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_CROWD','en','Shorts paying'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_CROWD','ko','숏이 지불'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_CROWD','zh','空头支付'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_CROWD','ru','Платят шорты'),
+('FUNDING_SIG_SHORTS_OVERCROWDED_CROWD','ar','البائعون يدفعون')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
