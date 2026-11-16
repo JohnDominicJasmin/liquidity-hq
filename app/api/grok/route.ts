@@ -235,30 +235,22 @@ export async function POST(req: NextRequest) {
   usageRowP.catch(() => {}); // awaited below; this only stops a refusal that returns early from leaving an unhandled rejection
   const numbersP = coin ? arenaServerNumbers(coin).catch((e): { ok: false; reason: unknown } => ({ ok: false, reason: e })) : null;
   const plan = await planP;
-  /* UNKNOWN IS NOT NO (PM, #2412). A plan read that FAILED (thrown or returned an error) is neither Free nor Pro, so it is answered with a retryable 503 and nothing else: no AI call, no quota charge, and
-     no gate decided on a guess. A paying Pro account whose read fails is never gated, capped or billed as Free. (This used to be answered only for a locked coin; a Free-list coin and a fast timeframe went
-     through on a failed read and were billed against the free row. They are refused now, for the same reason.) */
-  if (plan.failed) {
-    return NextResponse.json({ error: 'Could not check your plan. Try again in a moment.', code: 'PLAN_UNKNOWN' }, { status: 503 });
-  }
-
   // ── Fast timeframes are Pro (#1263) ───────────────────────────────────────
   // Arena only clamps 1m/5m/15m in the browser, so before this a free token
   // could POST tf=5m directly and get a fast-timeframe read. Checked before the
   // usage reservation below so a refused request costs no quota and no xAI.
   //
-  // (A plan read that FAILED never reaches this gate: it is answered 503 PLAN_UNKNOWN above, #2412, so the 'unknown' reasoning below describes the route as it was.)
-  // Only a CONFIRMED free account is refused. 'unknown' (the plan read failed)
-  // goes through - #1119: a failed read is not evidence the user is free, and
-  // refusing it would lock a paying Pro user out of the timeframe they pay for
-  // whenever that read errors. What this lets through is bounded: the daily
-  // quick/deep cap below still applies, and a plan read that fails there too
-  // bills the call against the free row.
+  // UNKNOWN IS NOT NO (PM, #2412). Only a CONFIRMED free account is refused (403). A plan read that FAILED (thrown or returned an error) is neither
+  // Free nor Pro: a fast timeframe is Pro-only, so it is answered 503 PLAN_UNKNOWN (retry) with no AI call and no quota charge, never decided on a guess
+  // (#1119: a paying Pro user must not be told they are Free because a read errored).
   //
   // This gates the timeframe the request DECLARES. The prompt is ASSEMBLED here
   // now, but `chart` still arrives from the browser, so a hand-made request can
   // still describe fast candles under tf=1h. #1631 step 2 closed this for every
   // field in SERVER_SOURCED_FIELDS, and the candle data is the remaining half.
+  if (isGatedTf(tf) && plan.failed) {
+    return NextResponse.json({ error: 'Could not check your plan. Try again in a moment.', code: 'PLAN_UNKNOWN' }, { status: 503 });
+  }
   if (isGatedTf(tf) && plan.status === 'not_entitled') {
     return NextResponse.json(
       { error: 'PRO_REQUIRED', message: `Fast timeframes (${GATED_TFS.join(', ')}) are a Pro feature.` },
@@ -385,7 +377,10 @@ export async function POST(req: NextRequest) {
   // ── Rate limit check ──────────────────────────────────────────────────────
   /* Both were started above: the usage row with the plan read, the tier is the plan read's own answer. */
   const { deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed } = await usageRowP;
-  const role = plan.tier;
+  /* ON AN UNKNOWN PLAN, THE MORE GENEROUS CAP (PM, #2412). A request every plan may make (a Free-list coin on a free timeframe) is not refused because the plan read failed: it goes through and is
+     counted, but checked against the Pro limits, since the Free cap would be a guess that can shut a paying account out. Everything that is Pro-only was already answered 503 PLAN_UNKNOWN above. The tier
+     also picks the dollar-cap row inside incrementUsageColumn, where Pro fails open. */
+  const role: UsageTier = plan.failed ? 'pro' : plan.tier;
   const deepLimit     = AI_LIMITS[role].deep;
   const quickLimit    = AI_LIMITS[role].quick;
   const chatLimit     = AI_LIMITS[role].chat;
