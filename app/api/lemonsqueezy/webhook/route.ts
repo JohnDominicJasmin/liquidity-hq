@@ -14,6 +14,14 @@ import {
 
 const SECRET = process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? '';
 
+/** A failure a retry can fix (A2). The dedup row recorded at the top is the replay guard, so it is REMOVED before answering 500: left in place, LemonSqueezy's retry (same bytes) is answered "replay" and a paying
+ *  customer stays Free with nothing coming to fix it. The delete's own error is reported, not ignored. */
+async function forgetAndFail(sb: ReturnType<typeof getSupabaseAdmin>, payloadHash: string, what: string, err: unknown) {
+  const { error: delErr } = await sb.from(T.ls_webhook_events).delete().eq('payload_hash', payloadHash);
+  if (delErr) apiError('lemonsqueezy/webhook', new Error(`could not remove the dedup row after a failed ${what}: ${delErr.message ?? 'error'} - the retry will be answered replay`));
+  return apiError('lemonsqueezy/webhook', new Error(`${what} failed - nothing granted, delivery left replayable: ${(err as { message?: string })?.message ?? String(err)}`));
+}
+
 export async function POST(req: NextRequest) {
   const signature = req.headers.get('x-signature') ?? '';
   const payload = await req.text();
@@ -86,7 +94,9 @@ export async function POST(req: NextRequest) {
   // signed up with - a real thing) surfaces as something to reconcile by hand
   // rather than a silent refusal the customer has to chase.
   const payerEmail = String(attrs.user_email ?? '').trim().toLowerCase();
-  const { data: acct } = await sb.auth.admin.getUserById(userId);
+  const { data: acct, error: acctErr } = await sb.auth.admin.getUserById(userId);
+  /* A transient Auth error is not an email mismatch (A2): it used to read as an empty account email, answer 200 email_mismatch with the dedup row consumed, and lose a legitimate buyer for good. */
+  if (acctErr && !/not found/i.test(acctErr.message ?? '')) return forgetAndFail(sb, payloadHash, 'account read', acctErr);
   const acctEmail = (acct?.user?.email ?? '').trim().toLowerCase();
 
   if (!payerOwnsAccount(payerEmail, acctEmail)) {
@@ -113,23 +123,14 @@ export async function POST(req: NextRequest) {
   // subscription may write it. patchForEvent already decided WHAT to write.
   const { data: stored, error: readErr } = await sb
     .from(T.user_subscriptions)
-    .select('ls_subscription_id, role, ls_status, current_period_end')
+    .select('ls_subscription_id, role, ls_status, current_period_end, billing_provider')
     .eq('user_id', userId)
     .maybeSingle();
 
-  // A FAILED read is a third state - "unknown", not "no row". Treating it as "no
-  // row" would let a foreign cancel overwrite a live subscription whenever the
-  // read happened to fail (the #1429 defect, re-entered through the error path).
-  // Fail closed: report and do not write. 200, not 500: the replay guard already
-  // recorded this delivery's hash, so a 500 + LemonSqueezy retry would be dropped
-  // as a replay - the retry cannot be the recovery path here.
-  if (readErr) {
-    apiError('lemonsqueezy/webhook', new Error(
-      `stored-subscription read failed before the identity decision - not writing. ` +
-      `event=${eventName} user_id=${userId}: ${readErr.message ?? String(readErr)}`,
-    ));
-    return NextResponse.json({ received: true, ignored: 'stored_read_failed' });
-  }
+  // A FAILED read is a third state - "unknown", not "no row". Treating it as "no row" would let a foreign cancel overwrite a live subscription whenever the read happened to fail (the #1429 defect, re-entered through the
+  // error path). Fail closed: do not write. And do not consume the delivery either (A2): the dedup row is removed and the answer is 500, so LemonSqueezy's retry gets another read. This used to answer 200 "ignored" with the
+  // dedup row in place, which the retry could never recover from.
+  if (readErr) return forgetAndFail(sb, payloadHash, 'stored-subscription read', readErr);
 
   const incomingSubId = incomingSubscriptionId(eventName, attrs, dataId);
   const incomingStatus = typeof attrs.status === 'string' ? attrs.status : '';
@@ -152,11 +153,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true, ignored: 'different_subscription' });
   }
 
-  await sb.from(T.user_subscriptions).upsert({
+  /* A6: an expired or payment-failed event writes role 'free'. If the account's paid time now comes from ANOTHER provider (Whop, BoomFi) and runs into the future, an old LemonSqueezy subscription expiring must not cut it
+     short. The row is left as the other provider wrote it. */
+  const storedRow = stored as (StoredSubscription & { billing_provider?: string | null }) | null;
+  if (patch.role === 'free' && storedRow?.billing_provider && storedRow.billing_provider !== 'lemonsqueezy'
+      && storedRow.current_period_end && new Date(storedRow.current_period_end).getTime() > Date.now()) {
+    return NextResponse.json({ received: true, ignored: 'paid_by_other_provider' });
+  }
+
+  const { error: writeErr } = await sb.from(T.user_subscriptions).upsert({
     user_id:    userId,
     ...patch,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'user_id' });
+  /* A2: the write's error was never read, so a failed write answered 200 {received:true} with the dedup row consumed and the subscriber stayed Free for good. */
+  if (writeErr) return forgetAndFail(sb, payloadHash, 'subscription write', writeErr);
 
   return NextResponse.json({ received: true });
 }

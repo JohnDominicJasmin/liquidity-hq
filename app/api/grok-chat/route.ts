@@ -20,15 +20,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { T } from '@/lib/tables';
-import { getUsageTier } from '@/lib/entitlements';
+import { getUsageTier, getPlanSnapshot } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
-import { incrementUsageColumn, rateLimitMessage, refundUsageColumn, todayUtc } from '@/lib/aiUsage';
+import { incrementUsageColumn, rateLimitMessage, blockedResponse, todayUtc, refundUsageColumn } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { clampMaxTokens } from '@/lib/grokTokenClamp';
 import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
-import { buildChatSystemPrompt, parseChatContext, parseChatHistory, splitFollowUps } from '@/lib/chatPrompt';
+import { buildChatSystemPrompt, capChatSelection, parseChatContext, parseChatHistory, splitFollowUps } from '@/lib/chatPrompt';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -115,17 +115,21 @@ export async function POST(req: NextRequest) {
   if (!ctx) return NextResponse.json({ error: 'context.coin must be a coin this app tracks' }, { status: 400 });
   const history = parseChatHistory(body.messages);
   if (!history) return NextResponse.json({ error: 'messages must end with the trader\'s question' }, { status: 400 });
-  const messages = [{ role: 'system', content: buildChatSystemPrompt(ctx, { search: isSearch, minimal: body.minimal === true }) }, ...history];
 
   /* ── Rate limit check ── */
   const today = todayUtc();
-  const [{ chatUsed, searchUsed }, role] = await Promise.all([
+  const [{ chatUsed, searchUsed }, plan] = await Promise.all([
     getUsageRow(token, userId, today),
-    getUsageTier(token, userId),
+    getPlanSnapshot(token, userId),
   ]);
+  const role = plan.tier;
 
   const chatLimit   = AI_LIMITS[role].chat;
   const searchLimit = AI_LIMITS[role].search;
+
+  /* The system prompt is written AFTER the plan read: the indicators the trader "is weighing" come from the browser, so a plan the server KNOWS is not entitled names only the first one (Free is one at a time).
+     An unknown or failed plan read leaves it as sent. */
+  const messages = [{ role: 'system', content: buildChatSystemPrompt({ ...ctx, selection: capChatSelection(ctx.selection, plan.status === 'not_entitled') }, { search: isSearch, minimal: body.minimal === true }) }, ...history];
 
   // Atomic check-and-increment (reserve before spending on xAI) - closes the
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
@@ -134,14 +138,9 @@ export async function POST(req: NextRequest) {
   const usageResult = await incrementUsageColumn(userId, role, column, limit);
   if (usageResult.blocked) {
     const label = isSearch ? 'live search messages' : 'chat messages';
-    return NextResponse.json(
-      {
-        error: rateLimitMessage(usageResult.reason, limit, label),
-        code: 'RATE_LIMIT',
-        usage: { chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit },
-      },
-      { status: 429 }
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, limit, label), {
+      usage: { chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit },
+    });
   }
 
   /* ── Call xAI ── */
