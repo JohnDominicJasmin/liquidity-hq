@@ -216,7 +216,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
           {dict.liveRead.title} · {LIVE_READ_COIN.toUpperCase()}
         </span>
         <span style={{ marginLeft: 'auto', fontSize: 10, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt3)' }}>
-          {clockMs !== null && !store.pricesFailed ? new Date(clockMs).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false }) : ''}
+          {clockMs !== null && !store.pricesFailed ? new Date(clockMs).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : ''}
         </span>
       </div>
 
