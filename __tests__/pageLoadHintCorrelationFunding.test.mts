@@ -54,5 +54,18 @@ test('H4. /funding paints from the snapshot: no table-wide gate; batch shown fir
   assert.equal(/\{!loading && \(\(\) =>/.test(fund), false, 'the table is gated on the history fetch again'); assert.ok(fund.includes('{(() => {'), 'CONTROL: the ungated table IIFE was not found');
   assert.ok(fund.indexOf('setHistory(first);') > 0 && fund.indexOf('setHistory(first);') < fund.indexOf('setLoading(false);'), 'the batch is not shown before loading clears');
   assert.ok(fund.includes('setHistory(prev => ({ ...prev, [id]: pts }));'), 'a Bybit fallback replaces the history instead of merging into it'); assert.ok(fund.includes('if (!cancelled && pts.length)'), 'a late fallback writes after unmount or with no data');
-  assert.ok(fund.includes("fetch('/api/market/funding-rate?limit=42', { signal: deadlineSignal(10_000) })"), 'the batch has no 10 s deadline'); assert.ok(/catch \{ return \{\}; \}/.test(fund), 'a failed batch does not fall back to {} (the page would wait for ever)');
+  assert.ok(fund.includes("fetch('/api/market/funding-rate?limit=42', { signal: deadlineSignal(10_000) })"), 'the batch has no 10 s deadline');
+});
+const fa = fund.indexOf('async function fetchAllBinanceFR'); assert.ok(fa > 0, 'CONTROL: fetchAllBinanceFR not found'); const fb = fund.indexOf('\n}\n', fa) + 2;
+/* the slice is OUR OWN checked-in source, never input; fetch and deadlineSignal are stubbed */
+const makeFetchAll = (fetchImpl: () => Promise<unknown>) => new Function('fetch', 'deadlineSignal', `${stripTypeScriptTypes(fund.slice(fa, fb).replace(/^async function/, 'async function'))}\nreturn fetchAllBinanceFR;`)(fetchImpl, () => undefined) as () => Promise<{ out: Record<string, { rate: number; ts: number }[]>; via: string[] }>;
+test('H4b. /funding history batch (REAL function, stub fetch): a failure of any kind is an empty answer (never a hang or a throw), rows are parsed and sorted by time, the route\'s viaFallback list is passed on', async () => {
+  const json = (body: unknown, ok = true) => () => Promise.resolve({ ok, json: () => Promise.resolve(body) });
+  const empty = JSON.stringify({ out: {}, via: [] });
+  assert.equal(JSON.stringify(await makeFetchAll(json({}, false))()), empty, 'a non-ok answer is not an empty batch');
+  assert.equal(JSON.stringify(await makeFetchAll(() => Promise.reject(new Error('net')))()), empty, 'a thrown fetch is not an empty batch');
+  assert.equal(JSON.stringify(await makeFetchAll(() => Promise.resolve({ ok: true, json: () => Promise.reject(new Error('bad json')) }))()), empty, 'a malformed body is not an empty batch');
+  const r = await makeFetchAll(json({ data: { BTCUSDT: [{ fundingRate: '0.0002', fundingTime: 2000 }, { fundingRate: '0.0001', fundingTime: 1000 }] }, viaFallback: ['ETHUSDT'] }))();
+  assert.deepEqual(r.out.BTCUSDT.map((p) => [p.rate, p.ts]), [[0.0001, 1000], [0.0002, 2000]], 'rows are not parsed and sorted oldest first'); assert.deepEqual([...r.via], ['ETHUSDT'], 'the route\'s viaFallback was dropped');
+  assert.deepEqual([...(await makeFetchAll(json({ data: {} }))()).via], [], 'a missing viaFallback is not []');
 });
