@@ -191,12 +191,16 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
       await expect(panel.getByText(/Defaults on free/i), 'the free-plan note must NOT show while the plan is unknown').toHaveCount(0);
       await expect(panel.locator(UNKNOWN_CARD), 'the couldn\'t-verify card is for a FAILED read; this read is still in flight').toHaveCount(0);
 
+      /* THE SAVED SELECTION MAY ALREADY SHOW. Account A is shared with other specs and a chip that is `on` before any tap is just the saved selection painting; the release run (43831779582) read one `on` chip and called it
+         a defect. What must not change is the SET that is on: it is read before the forced actions and compared after. */
+      const pressedNow = async () => (await chips.evaluateAll((els) => els.filter((e) => e.classList.contains('on')).map((e) => e.getAttribute('data-testid') ?? e.textContent ?? ''))).sort();
+      const pressedBefore = await pressedNow();
       // A forced tap on a disabled chip and a forced pick on the disabled select must do nothing and save nothing.
       await chips.first().click({ force: true, timeout: 3_000 }).catch(() => { /* disabled: the expected outcome */ });
       await select.selectOption('custom', { force: true, timeout: 3_000 }).catch(() => { /* disabled: the expected outcome */ });
       await page.waitForTimeout(1_500);
       expect(writes, 'a write of the saved selection was issued while the plan was unsettled').toHaveLength(0);
-      await expect(panel.locator('button.strat-ind-chip.on'), 'a chip became selected while the plan was unsettled').toHaveCount(0);
+      expect(await pressedNow(), 'the set of selected chips changed while the plan was unsettled (before: ' + JSON.stringify(pressedBefore) + ')').toEqual(pressedBefore);
     } finally {
       await Promise.allSettled(held.map(r => r.abort()));
       await ctx.close();
