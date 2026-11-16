@@ -147,7 +147,7 @@ Date.now = () => realNow() + clockOffset;
 const expireMarketCaches = () => { clockOffset += 10 * 60_000; };
 
 const db = {
-  ai: [] as string[], reservations: 0, usageWrites: 0, ledgerInserts: 0, failSubsRead: false, banned: false,
+  ai: [] as string[], reservations: 0, usageWrites: 0, ledgerInserts: 0, failSubsRead: false, banned: false, reservedLimits: [] as number[],
   /* The xAI request BODIES, for #1910 item 4: the overwrite is only observable in the prompt the
      model is actually sent, and db.ai records pathnames only. */
   prompts: [] as string[],
@@ -163,7 +163,7 @@ const db = {
   /* Market feeds the gather reached. A cell can assert the gather HAPPENED rather than inferring
      it from a 200 - see the market stand-in below. */
   market: [] as string[],
-  reset() { this.prompts = []; this.emptyTicker = false; this.emptyTickerServed = 0; this.ai = []; this.reservations = 0; this.usageWrites = 0; this.ledgerInserts = 0; this.failSubsRead = false; this.banned = false; this.unknown = []; this.market = []; },
+  reset() { this.prompts = []; this.emptyTicker = false; this.emptyTickerServed = 0; this.ai = []; this.reservations = 0; this.usageWrites = 0; this.ledgerInserts = 0; this.failSubsRead = false; this.reservedLimits = []; this.banned = false; this.unknown = []; this.market = []; },
 };
 const T = (n: string) => (process.env.NEXT_PUBLIC_APP_ENV === 'dev' ? 'lhq_dev_' : 'lhq_') + n;
 const noRow = () => json(406, { code: 'PGRST116', details: 'The result contains 0 rows', message: 'JSON object requested, multiple (or no) rows returned' });
@@ -214,7 +214,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   if (p === '/auth/v1/user') return who ? json(200, { id: who.id, aud: 'authenticated', email: `${who.id}@example.test` }) : json(401, { message: 'invalid JWT' });
   const rpc = p.match(/^\/rest\/v1\/rpc\/(.+)$/);
   if (rpc) {
-    if (rpc[1] === 'increment_ai_usage') { db.reservations++; return json(200, 1); }
+    if (rpc[1] === 'increment_ai_usage') { db.reservations++; try { db.reservedLimits.push(Number((await req.clone().json() as { p_limit?: number }).p_limit)); } catch { db.reservedLimits.push(NaN); } return json(200, 1); }
     if (rpc[1] === 'lhq_ai_spend_user_since' || rpc[1] === 'lhq_ai_spend_all_since') return json(200, [{ cost: 0, null_search: 0, null_other: 0 }]);
     if (/record_api_health/.test(rpc[1])) return json(200, null); // lib/xai.ts reports the outcome of every AI request (only reached when an AI request was made)
     throw new Error(`stand-in does not know rpc ${rpc[1]}`);
@@ -410,6 +410,15 @@ test('R6. the plan read FAILS: a locked coin is 503 PLAN_UNKNOWN (retry) with no
   db.reset(); db.failSubsRead = true;
   r = await call('pro', { coin: 'btc' });
   assert.equal(r.status, 200, 'a paying user on a Free-list coin must not be locked out by a failed read'); assert.equal(db.ai.length, 1);
+  db.reset(); db.failSubsRead = true;
+  /* UNKNOWN IS NOT NO, AND NOT YES (PM, #2412). Free-allowed requests proceed on a failed read but are checked against the PRO limits; a fast timeframe is Pro-only and is refused. */
+  db.reset(); db.failSubsRead = true;
+  r = await call('pro', { tf: '5m', coin: 'btc' });
+  assert.equal(r.status, 503, 'a failed plan read on a fast timeframe is 503'); assert.equal(r.body.code, 'PLAN_UNKNOWN'); nothingSpent('failed read, btc 5m');
+  db.reset(); db.failSubsRead = true;
+  r = await call('pro', { type: 'quick', tf: '1h', coin: 'btc' });
+  assert.equal(r.status, 200, 'a Free-list coin on a free timeframe still goes through on a failed read'); assert.equal(db.ai.length, 1);
+  assert.deepEqual(db.reservedLimits, [30], 'on a failed read the reservation is checked against the PRO quick limit (30), not the Free one (5): a Free cap would be a guess that can shut a paying account out');
   db.reset(); db.failSubsRead = true;
   r = await call('pro', {});
   /* "No coin is not a loophole" holds on both trees; WHERE it is stopped moved. Old: the plan read
