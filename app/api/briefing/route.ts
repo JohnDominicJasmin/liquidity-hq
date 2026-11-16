@@ -5,7 +5,7 @@ import { T } from '@/lib/tables';
 import { getUsageTier } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
-import { incrementUsageColumn, rateLimitMessage, refundUsageColumn, todayUtc } from '@/lib/aiUsage';
+import { incrementUsageColumn, rateLimitMessage, refundUsageColumn, todayUtc, blockedResponse } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -98,14 +98,9 @@ export async function POST(req: NextRequest) {
   let billed = false;
   const usageResult = await incrementUsageColumn(userId, role, 'briefing_count', briefingLimit);
   if (usageResult.blocked) {
-    return NextResponse.json(
-      {
-        error: rateLimitMessage(usageResult.reason, briefingLimit, 'briefings'),
-        code: 'RATE_LIMIT',
-        usage: { briefing_used: briefingUsed, briefing_limit: briefingLimit },
-      },
-      { status: 429 }
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, briefingLimit, 'briefings'), {
+      usage: { briefing_used: briefingUsed, briefing_limit: briefingLimit },
+    });
   }
 
   try {

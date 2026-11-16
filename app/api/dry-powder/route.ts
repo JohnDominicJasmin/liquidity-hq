@@ -4,7 +4,7 @@ import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
 import { getDryPowderNumbers } from '@/lib/dryPowderSeries';
-import { incrementToolUsage, refundToolUsage, todayUtc, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
+import { incrementToolUsage, refundToolUsage, todayUtc, rateLimitMessage, type UsageBlockReason, blockedResponse } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -16,7 +16,7 @@ const CACHE_TTL = 60 * 60_000;
 const ANALYSIS_TIMEOUT_MS = 25_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, reason: UsageBlockReason) {
+  constructor(public limit: number, public reason: UsageBlockReason) {
     super(rateLimitMessage(reason, limit, 'dry powder checks'));
   }
 }
@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
     }
   } catch (e) {
     if (e instanceof RateLimitError) {
-      return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });
+      return blockedResponse(e.reason, e.message);
     }
     return apiError('dry-powder', e, 502, 'Request failed');
   }
