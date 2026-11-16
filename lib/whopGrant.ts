@@ -490,15 +490,15 @@ export async function claimPendingForAccount(
     /* THE CLAIM'S OWN WINDOW, BEFORE THE ROW IS TAKEN: the plan's paid period (min 30 days) from the payment's received time. An expired claim is left exactly as it is (not deleted, not granted). */
     {
       const pbEarly = (typeof p.body === 'object' && p.body !== null ? p.body : {}) as { delivery_hash?: unknown };
-      let windowEnd = claimWindowEnd(null);
+      let windowEnd: Date | null = null;   // unknown (delivery unreadable, or no valid received_at): not judged here, the checks below answer as before
       if (typeof pbEarly.delivery_hash === 'string') {
         const { data: o } = await sb.from(T.whop_webhook_events).select('body, received_at').eq('payload_hash', pbEarly.delivery_hash).maybeSingle();
         if (o && typeof o.body === 'object' && o.body !== null) {
           const d = decideWhopEvent(o.body as Record<string, unknown>, env);
-          windowEnd = claimWindowEnd(o.received_at, d.kind === 'grant' ? d.add : undefined);
+          if (typeof o.received_at === 'string' && Number.isFinite(Date.parse(o.received_at))) windowEnd = claimWindowEnd(o.received_at, d.kind === 'grant' ? d.add : undefined);
         }
       }
-      if (now.getTime() > windowEnd.getTime()) { out.refused.push('claim_window_closed'); continue; }
+      if (windowEnd && now.getTime() > windowEnd.getTime()) { out.refused.push('claim_window_closed'); continue; }
     }
     const hash = String(p.payload_hash);
     const paymentId = typeof p.resource_id === 'string' ? p.resource_id : '';
