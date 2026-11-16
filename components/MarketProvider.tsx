@@ -16,6 +16,12 @@ import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exc
 
 import { WHALE_USD_THRESHOLD, type AggSummary } from '@/lib/aggTradesSummary';
 
+/** The factor that turns a funding rate quoted per `intervalHour` hours into its per-8-hours equivalent (1 when the interval is missing, invalid or already 8). */
+function fundingScaleTo8h(intervalHour: string | undefined): number {
+  const h = parseFloat(intervalHour ?? '');
+  return Number.isFinite(h) && h > 0 && h !== 8 ? 8 / h : 1;
+}
+
 /* How often the REST fallback polls while the WebSocket is down, and how often
    it retries the socket. See ws.onclose for why 5s was dangerous: restPoll
    costs Binance request weight 80, so 5s was 960 weight/min per tab against a
@@ -427,7 +433,12 @@ export default function MarketProvider(
         const patch: Partial<MarketStore['coins'][CoinId]> = {
           // #1613: absent or unparseable is UNKNOWN: the key is left out, so a previous good value stays and a coin with none stays null.
           // `|| '0'` turned a missing rate into "+0.0000% / Neutral" on every surface.
-          ...(Number.isFinite(parseFloat(item.fundingRate ?? '')) ? { fundingRate: parseFloat(item.fundingRate as string) } : {}),
+          /* PER 8 HOURS (S10). Bybit's fundingRate is per the contract's OWN funding interval (`fundingIntervalHour`: 1, 4 or 8 hours; measured on the live tickers: 480 contracts at 8 h, 415 at 4 h, 2 at 1 h, e.g. 1000BONKUSDT is 4 h while
+             BTC, ETH, HYPE and 1000PEPE are 8 h), but every threshold in the squeeze score, classifyFunding and the sidebar is calibrated for an 8-hour rate. A 4-hour contract's rate is scaled to its 8-hour equivalent; a missing or invalid
+             interval is left as it is. */
+          ...(Number.isFinite(parseFloat(item.fundingRate ?? ''))
+            ? { fundingRate: parseFloat(item.fundingRate as string) * fundingScaleTo8h(item.fundingIntervalHour) }
+            : {}),
           oi: curOI,
           perpPrice: curPrice,
           ...(oiRead.answered ? { oiTrend: oiRead.trend } : {}),
