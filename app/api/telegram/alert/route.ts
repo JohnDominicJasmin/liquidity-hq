@@ -14,7 +14,8 @@ import { checkCronAuth } from '@/lib/cronAuth';
 import { readFng, type FNGData } from '@/lib/fng';
 import { selectAllRows } from '@/lib/selectAllRows';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
-import { onCooldown, markSent, exportCooldownState, importCooldownState } from '@/lib/alertCooldown';
+import { onCooldown, markSent, exportCooldownState, importCooldownState, beginStagedMarks, commitStagedMarks, discardStagedMarks } from '@/lib/alertCooldown';
+import { apiError } from '@/lib/apiError';
 import { evaluatePriceAlert, type Candle1m } from '@/lib/priceAlertEval';
 import {
   EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles, closedCandles, BYBIT_KLINE_SYMS,
@@ -408,7 +409,7 @@ function localHourMinute(timeZone: string | null, d: Date): { hour: number; min:
    no reason to thread a counter through their signatures - same shape as the
    dedup maps above, and with the same caveat: it survives between requests in
    a warm process, hence the explicit reset rather than lazy init. */
-const sendTally = { ok: 0, failed: 0, reasons: new Set<string>() };
+const sendTally = { ok: 0, failed: 0, paused: false, reasons: new Set<string>() };
 
 /* #1667: triggered price alerts whose message has not landed yet, by alert id, with the message and its backoff (lib/priceAlertDelivery.ts).
    Process memory, like the tally above: a restart drops them, and the still-active alert fires again on its next touch. Bounded by the
@@ -416,10 +417,14 @@ const sendTally = { ok: 0, failed: 0, reasons: new Set<string>() };
 /** What a hold owes: the touch, and the target / direction it was for (an edited alert drops its hold). */
 interface HeldTouch { target: number; direction: string; level: number; atMs: number }
 const PRICE_ALERT_PENDING = new Map<number, PendingDelivery<HeldTouch>>();
+/** Alerts whose message LANDED but whose switch-off write failed. They are not sent again while they are here; each run retries the write first. Process memory like the holds above: a restart drops it and the still-active alert fires
+ *  once more, which is the most a database outage can now cost (it used to be a repeat on every 5-minute tick for as long as the outage lasted). */
+const PRICE_ALERT_OFF_PENDING = new Set<number>();
 
 function resetSendTally(): void {
   sendTally.ok = 0;
   sendTally.failed = 0;
+  sendTally.paused = false;
   sendTally.reasons.clear();
 }
 
@@ -428,7 +433,7 @@ function resetSendTally(): void {
 async function tg(token: string, chatId: string | string[], text: string): Promise<SendResult> {
   // Send-only kill switch (/ops/config) - detection/tracking above this call
   // keeps running either way, only the actual outbound message stops.
-  if (!(await isFeatureEnabled('telegram'))) return { sent: 0, failed: 0, paused: true };
+  if (!(await isFeatureEnabled('telegram'))) { sendTally.paused = true; return { sent: 0, failed: 0, paused: true }; }
   const result: SendResult = { sent: 0, failed: 0, paused: false };
 
   const ids = Array.isArray(chatId) ? chatId : [chatId];
@@ -1301,9 +1306,14 @@ async function checkPriceAlerts(
       if (id) chatIdByUser.set(userId, id);
     }
 
-    // Collect ids to deactivate and issue ONE batched UPDATE after the loop,
-    // instead of a separate round-trip per triggered alert (N+1).
-    const triggeredIds: number[] = [];
+    /* Each alert is switched off right after ITS OWN message landed, with its own write whose error is read (B1). The old batched update ran once after the whole send loop and its error was never checked: a failed write, or a
+       deploy between the loop and the update, left every alert that had just been delivered active, and each fired again on the next tick. */
+    const switchOff = async (id: number): Promise<boolean> => {
+      const { error } = await admin.from(T.price_alerts)
+        .update({ active: false, triggered_at: new Date().toISOString() })
+        .in('id', [id]).eq('active', true);
+      return !error;
+    };
 
     /* #1626: a wick between two 5-minute checks. Only coins that still have an armed alert the live price did not already hit are read, one
        1-minute kline request per coin. A failed read leaves that coin on the live-price rule, exactly as before. */
@@ -1320,6 +1330,11 @@ async function checkPriceAlerts(
     }), 5);
 
     for (const alert of rows) {
+      /* Already delivered, switch-off still owed: retry the write, never the message. */
+      if (PRICE_ALERT_OFF_PENDING.has(alert.id)) {
+        if (await switchOff(alert.id)) PRICE_ALERT_OFF_PENDING.delete(alert.id);
+        continue;
+      }
       // #1667: a message that failed earlier is resent on its backoff; the touch already happened, so price is not re-checked for it.
       // A hold for an alert whose target or direction was edited since, or one older than a day, is dropped: the alert is judged afresh.
       let pending = PRICE_ALERT_PENDING.get(alert.id);
@@ -1371,7 +1386,10 @@ async function checkPriceAlerts(
       if (next.pending) PRICE_ALERT_PENDING.set(alert.id, next.pending); else PRICE_ALERT_PENDING.delete(alert.id);
       if (!next.consume) continue;
 
-      triggeredIds.push(alert.id);
+      if (!(await switchOff(alert.id))) {
+        PRICE_ALERT_OFF_PENDING.add(alert.id);
+        apiError('telegram/alert', new Error(`price alert ${alert.id} was delivered but could not be switched off; it will not be sent again and the write is retried each run`));
+      }
       // Deliberately NOT added to `fired`. Historically that list fed an
       // app-wide in-memory feed served by /api/telegram/history and shown on
       // /alerts to everyone, so pushing one user's coin and target price into
@@ -1386,13 +1404,7 @@ async function checkPriceAlerts(
     // #1667: a held message for an alert that is no longer active (deleted, or switched off elsewhere) is dropped - the map stays bounded.
     const activeIds = new Set(rows.map(a => a.id));
     for (const id of [...PRICE_ALERT_PENDING.keys()]) if (!activeIds.has(id)) PRICE_ALERT_PENDING.delete(id);
-
-    // Deactivate all fired alerts in a single round-trip
-    if (triggeredIds.length > 0) {
-      await admin.from(T.price_alerts)
-        .update({ active: false, triggered_at: new Date().toISOString() })
-        .in('id', triggeredIds);
-    }
+    for (const id of [...PRICE_ALERT_OFF_PENDING]) if (!activeIds.has(id)) PRICE_ALERT_OFF_PENDING.delete(id);
   } catch { /* skip */ }
   return fired;
 }
@@ -2519,6 +2531,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // would otherwise carry the previous run's counts into this one's health
   // record - reporting a stale failure long after it was resolved.
   resetSendTally();
+  beginStagedMarks();
 
   // Restore EMA signal dedup state from its last persisted snapshot before any
   // checkEMASignal call runs - no-op after the first call in this process's
@@ -2625,14 +2638,21 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // hydrates from here instead of starting empty - see hydrateEMASignalDedup.
   await persistEMASignalDedup();
   await persistStructureDedup();
-  // #1278: every markSent() call from the checks above already landed in
-  // lib/alertCooldown.ts's in-memory ledger by this point - persist it so a
-  // restart between now and the next tick hydrates from here.
-  await persistAlertCooldown();
-
   // Flush: single signals → send as-is, 2+ same coin → confluence alert.
   // Per-recipient coin:/dir:/ruleKey eligibility is decided inside.
   const eligible = await flushSignals(token, recipients, mutedByUser, thresholdsByUser, stamp, signalQueue);
+
+  /* THE COOLDOWNS ARE CONSUMED ONLY IF THE RUN DELIVERED (B2). markSent calls from every check above were staged (lib/alertCooldown.ts). Nothing reached anyone and sends failed or were paused (a 429/5xx, an outage, the /ops pause):
+     the marks are discarded so the next tick tries again instead of silencing each alert for its whole cooldown. Anything delivered (or nothing owed to send at all): committed, as before. Partial failure inside one run still
+     consumes the failed ones (per-alert accounting is a larger change). */
+  if (sendTally.ok === 0 && (sendTally.failed > 0 || sendTally.paused)) {
+    const dropped = discardStagedMarks();
+    if (dropped > 0) console.warn(`[telegram/alert] nothing delivered this run (${sendTally.paused ? 'sends paused' : 'sends failed'}); ${dropped} cooldown mark(s) not consumed, retried next tick`);
+  } else {
+    commitStagedMarks();
+  }
+  // #1278: the committed ledger is persisted so a restart between now and the next tick hydrates from here (this ran BEFORE the flush; it now follows the commit).
+  await persistAlertCooldown();
 
   // Web Push - fire-and-forget, never let it block or throw
   void dispatchPush(signalQueue, mutedByUser, thresholdsByUser, proUserIds).catch(() => {});
