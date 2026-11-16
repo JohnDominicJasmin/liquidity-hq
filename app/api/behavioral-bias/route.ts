@@ -69,7 +69,7 @@ function buildBiasPrompt(trades: Record<string, unknown>[]): string {
   return [
     'You are a trading psychology specialist. Analyze this crypto trader\'s history specifically for cognitive and behavioral biases. Be brutal and specific - use actual trade dates and coins as evidence.',
     '',
-    `SUMMARY STATS: ${closed.length} closed trades | ${wins.length} wins | ${losses.length} losses`,
+    `SUMMARY STATS (your last 500 trades at most): ${closed.length} closed trades | ${wins.length} wins | ${losses.length} losses`,
     `Avg win: $${avgWinUsd.toFixed(2)} (${avgWinR.toFixed(2)}R) | Avg loss: $${avgLossUsd.toFixed(2)} (${avgLossR.toFixed(2)}R)`,
     `Round-number stop losses: ${roundStops} trades | Same-day trades after a loss: ${revengeCount}`,
     '',
@@ -137,12 +137,15 @@ export async function POST(req: NextRequest) {
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  const { data: trades, error } = await sb(token)
+  /* THE NEWEST 500, NOT THE OLDEST (PM audit B7). This read ascending with limit 500, so a trader with more than 500 trades was analysed on their
+     FIRST 500 and the prompt called that their history. Newest first, then turned back into chronological order for the prompt. */
+  const { data: newestFirst, error } = await sb(token)
     .from(T.trades)
     .select('*')
     .eq('user_id', authData.user.id)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(500);
+  const trades = newestFirst ? [...newestFirst].reverse() : newestFirst;
 
   if (error) return NextResponse.json({ error: 'Failed to load trades' }, { status: 500 });
   if (!trades || trades.length === 0) return NextResponse.json({ error: 'NO_TRADES' }, { status: 400 });

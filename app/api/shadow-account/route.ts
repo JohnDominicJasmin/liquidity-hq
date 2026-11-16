@@ -40,9 +40,9 @@ function buildShadowPrompt(trades: Record<string, unknown>[]): string {
   ].filter(Boolean).join(' | ')).join('\n');
 
   return [
-    'You are a trading coach and quantitative analyst specializing in crypto derivatives. Analyze this trader\'s complete trade history and produce a Shadow Account report.',
+    'You are a trading coach and quantitative analyst specializing in crypto derivatives. Analyze this trader\'s most recent trades (your last 500 trades at most) and produce a Shadow Account report.',
     '',
-    `TOTAL TRADES: ${trades.length} | CLOSED: ${closed.length} | WIN RATE: ${winRate}% | AVG R/TRADE: ${avgR}R | TOTAL P&L: $${totalPnL.toFixed(2)}`,
+    `TRADES (your last 500 at most): ${trades.length} | CLOSED: ${closed.length} | WIN RATE: ${winRate}% | AVG R/TRADE: ${avgR}R | TOTAL P&L: $${totalPnL.toFixed(2)}`,
     '',
     '=== TRADE HISTORY (closed trades only) ===',
     tradeLines,
@@ -100,12 +100,15 @@ export async function POST(req: NextRequest) {
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  const { data: trades, error } = await sb(token)
+  /* THE NEWEST 500, NOT THE OLDEST (PM audit B7). This read ascending with limit 500, so a trader with more than 500 trades was analysed on their
+     FIRST 500 and the prompt called that their history. Newest first, then turned back into chronological order for the prompt. */
+  const { data: newestFirst, error } = await sb(token)
     .from(T.trades)
     .select('*')
     .eq('user_id', authData.user.id)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(500);
+  const trades = newestFirst ? [...newestFirst].reverse() : newestFirst;
 
   if (error) return NextResponse.json({ error: 'Failed to load trades' }, { status: 500 });
   if (!trades || trades.length === 0) return NextResponse.json({ error: 'NO_TRADES' }, { status: 400 });

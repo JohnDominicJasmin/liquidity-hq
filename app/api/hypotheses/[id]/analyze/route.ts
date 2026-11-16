@@ -83,11 +83,15 @@ function buildAnalysisPrompt(h: Hypothesis, evidence: Evidence[]): string {
   ].join('\n');
 }
 
-function parseSection(text: string, key: string): string {
-  const start = text.indexOf(`${key}:`);
-  if (start === -1) return '';
-  const after = text.slice(start + key.length + 1).trim();
-  const nextHeader = after.search(/^[A-Z_]+:/m);
+/* HEADERS MAY ARRIVE WITH MARKDOWN (PM audit B10). "**VERDICT:**" did not start a line with a bare capital letter, so the section boundary was
+   missed and one section ran into the next (a confidence value could carry the reasoning). Emphasis marks are stripped before reading, and a
+   header may be preceded by punctuation or a list marker. */
+function parseSection(raw: string, key: string): string {
+  const text = raw.replace(/\*\*|__/g, '');
+  const m = new RegExp(`^\\W*${key}:`, 'm').exec(text);
+  if (!m) return '';
+  const after = text.slice(m.index + m[0].length).trim();
+  const nextHeader = after.search(/^\W*[A-Z_]{4,}:/m);
   return (nextHeader === -1 ? after : after.slice(0, nextHeader)).trim();
 }
 
@@ -163,14 +167,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const keyInsight = parseSection(analysis, 'KEY_INSIGHT');
   const nextCheck = parseSection(analysis, 'NEXT_CHECK');
 
-  const normalizedVerdict = verdict.includes('CONFIRMED') && !verdict.includes('DIS')
-    ? 'CONFIRMED'
-    : verdict.includes('DISCONFIRMED')
-    ? 'DISCONFIRMED'
-    : 'UNCLEAR';
+  /* THE FIRST WORD ONLY (PM audit B10). includes('CONFIRMED') accepted "UNCLEAR (CONFIRMED would need X)" as a confirmation. The verdict is the
+     first word of the section, and anything else is UNCLEAR. */
+  const verdictWord = /^\W*(DISCONFIRMED|CONFIRMED|UNCLEAR)\b/i.exec(verdict)?.[1]?.toUpperCase();
+  const normalizedVerdict = verdictWord === 'CONFIRMED' ? 'CONFIRMED' : verdictWord === 'DISCONFIRMED' ? 'DISCONFIRMED' : 'UNCLEAR';
 
-  // Auto-update status if conclusive
-  const newStatus = normalizedVerdict === 'CONFIRMED'
+  /* THE USER'S OWN STATUS IS NOT OVERWRITTEN (PM audit B9). An UNCLEAR run wrote 'active' over a hypothesis the user had marked confirmed or
+     expired by hand, and a conclusive run moved it without asking. The status only follows the analysis while the hypothesis is still 'active';
+     in every other state the analysis is stored and the status is left as the user set it. */
+  const currentStatus = (hyp as { status?: string }).status ?? 'active';
+  const newStatus = currentStatus !== 'active'
+    ? currentStatus
+    : normalizedVerdict === 'CONFIRMED'
     ? 'confirmed'
     : normalizedVerdict === 'DISCONFIRMED'
     ? 'disconfirmed'
