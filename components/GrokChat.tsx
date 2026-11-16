@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { renderChatMarkdown } from '@/lib/renderChatMarkdown';
 import Link from 'next/link';
@@ -417,7 +418,7 @@ export default function GrokChat() {
         method:  'POST',
         headers: reqHeaders,
         // Never waits for ever (OWNER-RULES 21): live search is allowed just over the server's own 180 s abort, a plain answer less.
-        signal:  AbortSignal.timeout(useSearch ? 200_000 : 90_000),
+        signal:  deadlineSignal(useSearch ? 200_000 : 90_000),
         body:    JSON.stringify({
           mode:       useSearch ? 'search' : 'chat',
           context,
