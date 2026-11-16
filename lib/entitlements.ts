@@ -111,6 +111,18 @@ export async function getUsageTierStatus(token: string, userId: string): Promise
   }
 }
 
+// ONE plan read for a route that needs the entitlement status, the usage tier AND whether the read failed (POST /api/grok read the same user_subscriptions row three times in sequence: the
+// fast-timeframe gate, the coin ladder, then the usage limit). The three answers are derived from the SAME readEntitlement() result, each exactly as its single-purpose helper derives it:
+// status as getEntitlementStatus() ('unknown' on a failed or thrown read), tier and failed as getUsageTierStatus() (a failed or thrown read resolves to 'free' with failed true).
+export async function getPlanSnapshot(token: string, userId: string): Promise<{ status: EntitlementStatus; tier: UsageTier; failed: boolean }> {
+  try {
+    const { entitlement, failed } = await readEntitlement(token, userId);
+    return { status: failed ? 'unknown' : entitlement.proFeatures ? 'entitled' : 'not_entitled', tier: usageTierOf(entitlement), failed };
+  } catch {
+    return { status: 'unknown', tier: 'free', failed: true };
+  }
+}
+
 // The usage tier for a call site that is choosing a USAGE LIMIT: 'trial' is its
 // own value, never collapsed onto 'free'. Every AI route should use this. (The
 // role-only getUserRole / getRoleFromRequestToken helpers are gone (#1630): they
