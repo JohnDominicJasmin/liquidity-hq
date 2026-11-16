@@ -162,7 +162,9 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
   useEffect(() => {
     if (loaded && !pickedStrategy) document.documentElement.removeAttribute('data-strat');
   }, [loaded, pickedStrategy]);
-  const setId = pickedStrategy ? pickedStrategy.id : selected.length > 0 ? CUSTOM_SET_ID : AUTO_SET_ID;
+  /* 'Custom' picked with no chip on has nothing else to derive it from, so it is remembered here: without it the menu fell back to 'Let the read choose' the moment it was picked. */
+  const [customPicked, setCustomPicked] = useState(false);
+  const setId = pickedStrategy ? pickedStrategy.id : (selected.length > 0 || customPicked) ? CUSTOM_SET_ID : AUTO_SET_ID;
   /* Which indicator's parameters the box shows. One box, not one per selection. */
   const [focused, setFocused] = useState<string | null>(null);
 
@@ -173,6 +175,7 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
   /* THE ONE STRATEGY MENU (owner, 2026-11-14, option A). The caller writes the saved strategy AND the chips in one save; here only the params focus follows. */
   const applySet = (id: string) => {
     if (!loaded) return;
+    setCustomPicked(id === CUSTOM_SET_ID);
     onStrategyPick(id);
     const chip = findStrategy(id)?.chips.find(c => SELECTABLE_INDICATOR_IDS.has(c));
     if (chip) setFocused(chip);   // a strategy that reads a chip shows its parameters; otherwise the chips and the focus stay exactly as they were

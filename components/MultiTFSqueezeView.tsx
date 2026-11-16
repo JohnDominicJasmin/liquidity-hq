@@ -43,23 +43,28 @@ function computeTFSignal(
   // RSI must have contributed - FR and L/S only amplify an existing RSI signal
   if (rsiFlush === 0 && rsiSqz === 0) return { dir: 'NEUTRAL', strength: 0, rsi };
 
-  // FR amplifies in the direction RSI already points
+  /* FUNDING AND L/S AMPLIFY ONLY THE SIDE RSI CHOSE (S4). They used to add to flush or squeeze by THEIR own side regardless of RSI, so RSI 38 (oversold, squeeze 10) with funding +0.05% and a 65% long share scored FLUSH 45 and the cell read
+     "FLUSH" on an oversold coin. Funding and L/S are the same for all four timeframes, so they only raise the strength of a direction the timeframe's own RSI already points; the timeframe's direction, and so the confluence count, is RSI-only.
+     The 0.01% / -0.005% rungs are gone, as in computeSqueezeScore. */
+  const flushSide = rsiFlush > 0;
   if (fr != null) {
     const pct = fr * 100;
-    if      (pct >= 0.05)   flushScore += 25;
-    else if (pct >= 0.02)   flushScore += 15;
-    else if (pct >= 0.01)   flushScore += 7;
-    else if (pct <= -0.03)  sqzScore   += 25;
-    else if (pct <= -0.015) sqzScore   += 15;
-    else if (pct <= -0.005) sqzScore   += 7;
+    if (flushSide) {
+      if      (pct >= 0.05) flushScore += 25;
+      else if (pct >= 0.02) flushScore += 15;
+    } else {
+      if      (pct <= -0.03)  sqzScore += 25;
+      else if (pct <= -0.015) sqzScore += 15;
+    }
   }
-
-  // L/S ratio amplifies in the direction RSI already points
   if (longRatio != null && shortRatio != null) {
-    if      (longRatio  >= 0.65) flushScore += 20;
-    else if (longRatio  >= 0.58) flushScore += 10;
-    else if (shortRatio >= 0.65) sqzScore   += 20;
-    else if (shortRatio >= 0.58) sqzScore   += 10;
+    if (flushSide) {
+      if      (longRatio >= 0.65) flushScore += 20;
+      else if (longRatio >= 0.58) flushScore += 10;
+    } else {
+      if      (shortRatio >= 0.65) sqzScore += 20;
+      else if (shortRatio >= 0.58) sqzScore += 10;
+    }
   }
 
   const dominant = Math.max(flushScore, sqzScore);

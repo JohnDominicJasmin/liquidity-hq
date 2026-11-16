@@ -22,7 +22,7 @@
    times because they verified what they CHANGED rather than what the gate
    PROTECTS. That is why this sits here rather than only in a document. #873.
    ───────────────────────────────────────────────────────────────────── */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import MarketProvider from './MarketProvider';
 import NewsProvider from './NewsProvider';
@@ -48,6 +48,7 @@ import MaintenanceScreen from './MaintenanceScreen';
 import AnnouncementBanner from './AnnouncementBanner';
 import TrialBanner from './TrialBanner';
 import { useAppConfig } from '@/lib/useAppConfig';
+import { MARKET_DATA_NEEDED_EVENT } from '@/lib/marketDataNeeded';
 
 // The admin console (/ops) has its own layout/shell and must NOT inherit any of
 // the consumer chrome - nav drawer, news ticker, risk-disclosure footer, the
@@ -78,9 +79,21 @@ const isChromeless = (pathname: string) => pathname === '/ops' || pathname.start
 const AUTH_ROUTES = ['/login', '/forgot-password', '/reset-password', '/auth/callback'];
 const isAuthRoute = (pathname: string) => AUTH_ROUTES.includes(pathname);
 
+/* PAGES THAT SHOW NO MARKET DATA (OWNER-RULES 21, #1651 server-slowness audit). The provider used to run on every page, /about and /privacy included: ~16 API calls per load
+   that also kept the server's shared caches refreshing for a reader who looked at no number. An OPT-OUT list on purpose (the provider's own contract: a route opts out deliberately,
+   so a new data page never silently loses its data). Exact match after trimming a trailing slash. The Ask-AI chat reads the store, so opening it turns the provider on. */
+const DATA_FREE_ROUTES = ['/about', '/faq', '/privacy', '/terms', '/changelog', '/help', '/learn', '/contact', '/disclaimer', '/refund', '/security', '/accessibility', '/status', '/offline'];
+const isDataFree = (pathname: string) => DATA_FREE_ROUTES.includes(pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname);
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const config = useAppConfig();
+  const [marketNeeded, setMarketNeeded] = useState(false);
+  useEffect(() => {
+    const on = () => setMarketNeeded(true);
+    window.addEventListener(MARKET_DATA_NEEDED_EVENT, on);
+    return () => window.removeEventListener(MARKET_DATA_NEEDED_EVENT, on);
+  }, []);
 
   useEffect(() => {
     try {
@@ -149,7 +162,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <LabelsProvider>
         <AuthProvider>
           <SettingsProvider>
-            <MarketProvider>
+            <MarketProvider enabled={marketNeeded || !isDataFree(pathname)}>
               <NewsProvider>
                 <OnboardingProvider>
                   <GrokUsageProvider>

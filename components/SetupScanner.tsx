@@ -33,6 +33,8 @@ interface ScanRow {
   dir: 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL';
   label: string;
   color: string;
+  /** At least two inputs arrived; false = UNKNOWN, kept out of the Neutral filter and count (S2). */
+  enough: boolean;
 }
 
 function OiTrendBadge({ trend }: { trend: CoinData['oiTrend'] }) {
@@ -180,7 +182,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
 
   const filtered = useMemo(() => {
     if (filter === 'all') return sorted;
-    return sorted.filter(r => r.dir === filter);
+    return sorted.filter(r => r.dir === filter && (filter !== 'NEUTRAL' || r.enough));
   }, [sorted, filter]);
 
   const strongCount = useMemo(
@@ -202,7 +204,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
   // Count by direction
   const counts = useMemo(() => {
     const c = { LONG_LIQ: 0, SHORT_SQ: 0, NEUTRAL: 0 };
-    sorted.forEach(r => { c[r.dir]++; });
+    sorted.forEach(r => { if (r.dir === 'NEUTRAL' && !r.enough) return; c[r.dir]++; });
     return c;
   }, [sorted]);
 

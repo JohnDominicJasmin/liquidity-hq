@@ -1,5 +1,6 @@
 import { readJsonCapped, BODY_CAPS } from '@/lib/requestBody';
 import { NextRequest, NextResponse } from 'next/server';
+import { isDateOnly } from '@/lib/dateInput';
 import { apiError } from '@/lib/apiError';
 import { T } from '@/lib/tables';
 import { TEXT_LIMITS, limitRefusal } from '@/lib/ownRowLimits';
@@ -46,8 +47,12 @@ export async function POST(req: NextRequest) {
     target_date?: string;
   };
 
-  if (!body.title?.trim() || !body.hypothesis?.trim()) {
+  /* typeof first: a non-text title (for example {"title":123}) made .trim() throw and answered 500 (PM audit B12). */
+  if (typeof body.title !== 'string' || typeof body.hypothesis !== 'string' || !body.title.trim() || !body.hypothesis.trim()) {
     return NextResponse.json({ error: 'title and hypothesis are required' }, { status: 400 });
+  }
+  if (body.target_date != null && !isDateOnly(body.target_date)) {
+    return NextResponse.json({ error: 'INVALID_INPUT', message: 'target_date must be a date (YYYY-MM-DD).' }, { status: 400 });
   }
   // #1632 H1: the limits the database enforces (migration 20261021e), said first.
   const criteria = Array.isArray(body.acceptance_criteria) ? body.acceptance_criteria.filter((c): c is string => typeof c === 'string' && c.length > 0) : [];
