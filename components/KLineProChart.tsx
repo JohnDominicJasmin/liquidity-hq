@@ -1672,8 +1672,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(css.trim());
           return rgb ? `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${a})` : css;
         };
-        /* A LABEL IS A BOX IN ITS ROLE COLOUR (PM visual sign-off, tracker 1263): a tinted ground with a 1 px border and the text in the same ink, so a label stays readable over candles in both themes and reads as watch/confirm (accent), wrong-if (amber) or reference (neutral) at a glance. The box is 14 px tall, so the stacking step below is 15. */
-        const labelStyles = (ink: string) => ({ style: 'stroke_fill', color: ink, size: 10, weight: '700', backgroundColor: withAlpha(ink, 0.14), borderColor: withAlpha(ink, 0.55), borderSize: 1, borderRadius: 3, paddingLeft: 4, paddingRight: 4, paddingTop: 2, paddingBottom: 2 });
+        /* A LABEL IS A BOX IN ITS ROLE COLOUR (PM visual sign-off, tracker 1263): a tinted ground with a 1 px border and the text in the same ink, so a label stays readable over candles in both themes and reads as watch/confirm (accent), wrong-if (amber) or reference (neutral) at a glance. The box is 14 px tall, so the stacking step below is 15. THE TINT IS OPAQUE (8% of the ink mixed into the panel ground, PM: text keeps at least 4.5:1 on it in both themes; measured dark accent 4.78, dark neutral 4.73, dark amber 10.8, light 6.0 to 8.1): a translucent tint over candles let the ground vary and dropped the dark neutral label to 4.44. */
+        const solidTint = (ink: string, a: number): string => {
+          const parse = (css: string): number[] | null => {
+            const hex = /^#([0-9a-f]{6})$/i.exec(css.trim());
+            if (hex) { const v = parseInt(hex[1], 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; }
+            const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(css.trim());
+            return rgb ? [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])] : null;
+          };
+          const i = parse(ink), g = parse(resolveCssColor('var(--bg1)'));
+          if (!i || !g) return withAlpha(ink, a);
+          return `rgb(${i.map((v, k) => Math.round(v * a + g[k] * (1 - a))).join(', ')})`;
+        };
+        const labelStyles = (ink: string) => ({ style: 'stroke_fill', color: ink, size: 10, weight: '700', backgroundColor: solidTint(ink, 0.08), borderColor: withAlpha(ink, 0.55), borderSize: 1, borderRadius: 3, paddingLeft: 4, paddingRight: 4, paddingTop: 2, paddingBottom: 2 });
         const base = { totalStep: 1, needDefaultPointFigure: false, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (kc as any).registerOverlay({
