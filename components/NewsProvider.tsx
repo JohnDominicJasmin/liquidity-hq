@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { GEO_KEYWORDS } from '@/lib/classify';
+import { GEO_KEYWORDS, hasAnyKeyword } from '@/lib/classify';
 import { useNow } from '@/lib/useNow';
 import { getSupabase } from '@/lib/supabase';
 import { T } from '@/lib/tables';
@@ -438,7 +438,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
       const ts = Math.floor(new Date(row.published_at).getTime() / 1000);
       if (now - ts > 12 * 3600) continue;
       const hay = row.headline.toLowerCase();
-      const g = GEO_KEYWORDS.find(group => group.kw.some(k => hay.includes(k)));
+      const g = GEO_KEYWORDS.find(group => hasAnyKeyword(hay, group.kw));
       if (!g) continue;
       const key = row.headline.slice(0, 50);
       if (seen.has(key)) continue;
