@@ -56,11 +56,11 @@ type Fail = null | 'rpc' | 'auth' | 'subsRead' | 'earliest' | 'subsWrite';
 const db = {
   events: new Map<string, Record<string, unknown>>(), subs: new Map<string, Record<string, unknown>>(),
   users: new Map<string, { id: string; email: string; email_confirmed_at: string | null }>(),
-  writes: [] as string[], tables: new Set<string>(), fail: null as Fail, seq: 0,
+  writes: [] as string[], tables: new Set<string>(), fail: null as Fail, seq: 0, failDelete: false,
   /* #2320: how the atomic extend answers. null = the function is not installed (404 PGRST202), so the old read-compute-write path runs; the rest are what the database function can say. */
   extend: null as null | 'granted' | 'admin' | 'error', extendArgs: [] as Record<string, unknown>[],
   reset() {
-    this.events.clear(); this.subs.clear(); this.users.clear(); this.writes = []; this.tables.clear(); this.fail = null; this.seq = 0; this.extend = null; this.extendArgs = [];
+    this.events.clear(); this.subs.clear(); this.users.clear(); this.writes = []; this.tables.clear(); this.fail = null; this.failDelete = false; this.seq = 0; this.extend = null; this.extendArgs = [];
     this.users.set(USER_ID, { id: USER_ID, email: USER_EMAIL, email_confirmed_at: '2026-01-01T00:00:00Z' });
   },
 };
@@ -129,6 +129,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       if (q.get('limit')) rows = rows.slice(0, Number(q.get('limit')));
       return out(rows.map((r) => ({ payload_hash: r.payload_hash })));
     }
+    if (req.method === 'DELETE' && db.failDelete) { db.writes.push('events:delete-failed'); return json(500, { code: 'XX000', message: 'delete boom' }); }   // the cleanup delete failing, independent of db.fail so both can be on at once
     if (req.method === 'DELETE') { db.events.delete(eq('payload_hash')); db.writes.push('events:delete'); return new Response(null, { status: 204 }); } // a 204 has no body; json(204, null) threw, so every delete read as failed
   }
   if (table === T('user_subscriptions')) {
@@ -512,4 +513,76 @@ test('X5. one payment through the atomic path is counted once however many bodie
   const POST = await load(); fresh(); db.extend = 'granted';
   await POST(req(pay())); await POST(req(pay({ extra: 1 }))); await POST(req(pay({ extra: 2 })));
   assert.equal(db.extendArgs.length, 1, `extended ${db.extendArgs.length} times for one payment`);
+});
+
+/* ── #2423: a payment whose first delivery died is processed on its retry; a corrected re-send of a REFUSED payment grants ───────────────────────────────────────── */
+
+const retryRows = () => [...db.events.values()].filter((r) => r.event === 'lhq.retry').length;
+const subsWrites = () => db.writes.filter((w) => w.startsWith('subs:upsert')).length;
+
+test('A1. the grant write fails AND the cleanup delete fails: the IDENTICAL delivery again now grants (it used to be answered "replay" for ever)', async () => {
+  const POST = await load(); fresh();
+  const bodyText = pay();
+  db.fail = 'subsWrite'; db.failDelete = true;
+  const first = await POST(req(bodyText, { id: 'msg_a1' }));
+  assert.ok(first.status >= 500, `the first delivery should answer a retryable error, got ${first.status}`);
+  assert.equal(db.subs.size, 0, 'nothing granted yet');
+  assert.ok(db.writes.includes('events:delete-failed'), 'the cleanup delete was supposed to fail here');
+  db.fail = null; db.failDelete = false;
+  const again = await POST(req(bodyText, { id: 'msg_a1' }));
+  const b = await body(again);
+  assert.notEqual(b.ignored, 'replay', `the identical retry was answered "replay" and the paid account stays Free: ${JSON.stringify(b)}`);
+  assert.equal(b.granted, 'monthly', JSON.stringify(b));
+  assert.equal(db.subs.get(USER_ID)?.role, 'pro'); assert.equal(subsWrites(), 1);
+});
+
+test('A1b. a replay with an applied marker, a pending claim, or a retry row is STILL a replay (the retry above must not turn every repeat into a re-process)', async () => {
+  const POST = await load();
+  // applied marker: a normal grant, then the same bytes again
+  fresh(); const granted = pay();
+  await POST(req(granted, { id: 'msg_b1' }));
+  assert.equal(subsWrites(), 1);
+  let r = await POST(req(granted, { id: 'msg_b1' })); assert.equal((await body(r)).ignored, 'replay', 'applied marker'); assert.equal(subsWrites(), 1, 'a replay granted again');
+  // pending claim: the buyer has no account yet
+  fresh(); const claimBody = pay({}, { user: { id: 'user_w', email: 'nobody@example.test' } });
+  r = await POST(req(claimBody, { id: 'msg_b2' })); assert.equal((await body(r)).review, 'no_account_for_payer_email');
+  const claimsBefore = [...db.events.values()].filter((e) => e.event === 'lhq.pending_claim').length;
+  r = await POST(req(claimBody, { id: 'msg_b2' })); assert.equal((await body(r)).ignored, 'replay', 'pending claim');
+  assert.equal([...db.events.values()].filter((e) => e.event === 'lhq.pending_claim').length, claimsBefore, 'a replay wrote another claim');
+  // retry row: a plan the table does not know yet
+  fresh(); const refused = pay({}, { plan: { id: 'plan_NOT_YET_KNOWN' } });
+  r = await POST(req(refused, { id: 'msg_b3' })); assert.match(String((await body(r)).review), /^unknown_plan:/);
+  assert.equal(retryRows(), 1, 'a settings refusal leaves exactly one retry row');
+  r = await POST(req(refused, { id: 'msg_b3' })); assert.equal((await body(r)).ignored, 'replay', 'retry row'); assert.equal(retryRows(), 1);
+  assert.equal(db.subs.size, 0);
+});
+
+test('A9. delivery 1 REFUSED (not paid / no plan): a corrected body with different bytes now grants; a granted payment plus different bytes is payment_already_counted and one grant', async () => {
+  const POST = await load();
+  for (const [label, bad] of [['not paid', { status: 'open' }], ['no plan', { plan: undefined }]] as const) {
+    fresh();
+    let r = await POST(req(pay({}, bad), { id: `msg_a9_${label}_1` }));
+    assert.equal(db.subs.size, 0, `${label}: delivery 1 must not grant`); assert.ok((await body(r)).review ?? (await r.clone().json()).ignored, `${label}: refused`);
+    r = await POST(req(pay({ corrected: true }), { id: `msg_a9_${label}_2` }));
+    const b = await body(r);
+    assert.equal(b.granted, 'monthly', `${label}: the corrected re-send was refused as already counted: ${JSON.stringify(b)}`);
+    assert.equal(subsWrites(), 1);
+    const third = await POST(req(pay({ corrected: 'again' }), { id: `msg_a9_${label}_3` }));
+    assert.equal((await body(third)).ignored, 'payment_already_counted', `${label}: a granted payment with new bytes is a repeat`);
+    assert.equal(subsWrites(), 1, `${label}: one payment granted twice`);
+  }
+});
+
+test('A-no_payer_email. a refusal for a missing payer email is NOT a settings refusal: no retry row is left, and the review report is still sent', async () => {
+  const POST = await load(); fresh();
+  const r = await POST(req(pay({}, { user: { id: 'user_w' } }), { id: 'msg_noemail' }));
+  const b = await body(r);
+  assert.equal(b.review, 'no_payer_email', JSON.stringify(b));
+  assert.equal(retryRows(), 0, 'a retry row was left for a refusal a retry can never fix');
+  assert.equal(reviews().length, 1, 'the manual-review report must still be sent');
+  assert.equal(db.subs.size, 0);
+  const { isSettingsRefusal } = await import('../lib/whopGrant.ts');
+  assert.equal(isSettingsRefusal('no_payer_email'), false);
+  assert.equal(isSettingsRefusal('unknown_plan:plan_x'), true, 'a plan the table does not know IS fixed by a setting');
+  assert.equal(isSettingsRefusal('company_does_not_match'), true);
 });
