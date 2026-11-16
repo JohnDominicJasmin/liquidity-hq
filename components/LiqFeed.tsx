@@ -103,6 +103,14 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
   const [clusters, setClusters] = useState<Bucket[]>([]);
   const [bnStatus, setBnStatus] = useState<'connecting'|'live'|'error'>('connecting');
   const [bbStatus, setBbStatus] = useState<'connecting'|'live'|'error'>('connecting');
+  /* A feed that has not connected after 8 s says so instead of staying on skeletons for ever (a socket blocked by a network, a venue refusing us). It keeps retrying underneath; the line goes away when a socket goes live. */
+  const [connectWaited, setConnectWaited] = useState(false);
+  const noneLive = bnStatus !== 'live' && bbStatus !== 'live';
+  useEffect(() => {
+    if (!noneLive) { setConnectWaited(false); return; }
+    const id = setTimeout(() => setConnectWaited(true), 8_000);
+    return () => clearTimeout(id);
+  }, [noneLive]);
   /* Which venue is the ONLY one in the stored 24 h history, if one is. A venue the server cannot reach would otherwise leave history that looks complete and is not (the cluster read is stored rows). */
   const [histOnly, setHistOnly] = useState<'BN' | 'BB' | null>(null);
   const [msgCount, setMsgCount] = useState(0);
@@ -498,11 +506,13 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
       {displayed.length === 0 && (
         <div style={{ padding: '10px 14px' }} role="status" aria-live="polite">
           <span className="sr-only">
-            {anyLive ? t('LIQ_FEED_SR_WATCHING', { coin: coinFilter === 'ALL' ? t('LIQ_FEED_ALL_MARKETS') : coinFilter }) : t('LIQ_FEED_SR_CONNECTING')}
+            {anyLive ? t('LIQ_FEED_SR_WATCHING', { coin: coinFilter === 'ALL' ? t('LIQ_FEED_ALL_MARKETS') : coinFilter }) : connectWaited ? t('LIQ_FEED_CONNECT_FAILED') : t('LIQ_FEED_SR_CONNECTING')}
           </span>
           {anyLive ? (
             /* A connected feed with nothing yet is a quiet market, not a loading one; same height as the skeleton so nothing below moves. */
             <div style={{ minHeight: 106, color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>{t('LIQ_FEED_SR_WATCHING', { coin: coinFilter === 'ALL' ? t('LIQ_FEED_ALL_MARKETS') : coinFilter })}</div>
+          ) : connectWaited ? (
+            <div data-testid="liq-feed-connect-failed" style={{ minHeight: 106, color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>{t('LIQ_FEED_CONNECT_FAILED')}</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[0, 1, 2].map(i => (
