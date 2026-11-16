@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { cached } from '@/lib/apiCache';
+import { cachedOwn } from '@/lib/apiCache';
 import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, type UsageBlockReason, blockedResponse } from '@/lib/aiUsage';
 import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
@@ -14,7 +14,7 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const CACHE_TTL = 6 * 60 * 60_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, public reason: UsageBlockReason) {
+  constructor(public limit: number, public reason: UsageBlockReason, public blockedUserId?: string) {
     super(rateLimitMessage(reason, limit, 'token-unlock checks'));
   }
 }
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await cached(`token-unlock:${symbol}`, CACHE_TTL, async () => {
+    const result = await cachedOwn(authData.user.id, `token-unlock:${symbol}`, CACHE_TTL, async () => {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit for a popular symbol stays free for everyone.
       const role = plan.tier;
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
       const giveBack = () => refundToolUsage(authData.user.id, 'tokenUnlock', reservedOn);
       const usageResult = await incrementToolUsage(authData.user.id, 'tokenUnlock', role);
       if (usageResult.blocked) {
-        throw new RateLimitError(usageResult.limit, usageResult.reason);
+        throw new RateLimitError(usageResult.limit, usageResult.reason, authData.user.id);
       }
 
       const prompt = buildUnlockPrompt(symbol);

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
-import { cached } from '@/lib/apiCache';
+import { cached, cachedOwn } from '@/lib/apiCache';
 import { getDryPowderNumbers } from '@/lib/dryPowderSeries';
 import { incrementToolUsage, refundToolUsage, todayUtc, rateLimitMessage, blockedResponse, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
@@ -16,7 +16,7 @@ const CACHE_TTL = 60 * 60_000;
 const ANALYSIS_TIMEOUT_MS = 25_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, public reason: UsageBlockReason) {
+  constructor(public limit: number, public reason: UsageBlockReason, public blockedUserId?: string) {
     super(rateLimitMessage(reason, limit, 'dry powder checks'));
   }
 }
@@ -74,7 +74,8 @@ export async function GET(req: NextRequest) {
     let reserved: { on: string } | null = null;
     let billed = false;
     try {
-      const result = await cached('dry-powder', CACHE_TTL, async () => {
+      /* cachedOwn, not cached: a block thrown for ANOTHER user while this request joined the same in-flight loader is not this user's answer (they ask again and reserve for themselves), as on the other AI tool routes (U10). */
+      const result = await cachedOwn(authData.user.id, 'dry-powder', CACHE_TTL, async () => {
         // Only the cache-miss path actually spends on xAI, so only it needs the
         // daily cap - a cache hit stays free for everyone (same pattern as
         // token-unlock/smc-snapshot).
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
         const on = todayUtc();
         const usageResult = await incrementToolUsage(authData.user.id, 'dryPowder', role);
         if (usageResult.blocked) {
-          throw new RateLimitError(usageResult.limit, usageResult.reason);
+          throw new RateLimitError(usageResult.limit, usageResult.reason, authData.user.id);
         }
         reserved = { on };
 
