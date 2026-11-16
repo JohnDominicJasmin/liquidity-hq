@@ -62,7 +62,7 @@ const makeFetchAll = (fetchImpl: () => Promise<unknown>) => new Function('fetch'
 test('H4b. /funding history batch (REAL function, stub fetch): a failure of any kind is an empty answer (never a hang or a throw), rows are parsed and sorted by time, the route\'s viaFallback list is passed on', async () => {
   const json = (body: unknown, ok = true) => () => Promise.resolve({ ok, json: () => Promise.resolve(body) });
   const empty = JSON.stringify({ out: {}, via: [] });
-  assert.equal(JSON.stringify(await makeFetchAll(json({}, false))()), empty, 'a non-ok answer is not an empty batch');
+  assert.equal(JSON.stringify(await makeFetchAll(json({ data: { BTCUSDT: [{ fundingRate: '0.1', fundingTime: 1 }] }, viaFallback: ['X'] }, false))()), empty, 'a non-ok answer is not an empty batch');
   assert.equal(JSON.stringify(await makeFetchAll(() => Promise.reject(new Error('net')))()), empty, 'a thrown fetch is not an empty batch');
   assert.equal(JSON.stringify(await makeFetchAll(() => Promise.resolve({ ok: true, json: () => Promise.reject(new Error('bad json')) }))()), empty, 'a malformed body is not an empty batch');
   const r = await makeFetchAll(json({ data: { BTCUSDT: [{ fundingRate: '0.0002', fundingTime: 2000 }, { fundingRate: '0.0001', fundingTime: 1000 }] }, viaFallback: ['ETHUSDT'] }))();
