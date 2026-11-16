@@ -427,7 +427,7 @@ export function buildPrompt(ctx: GrokContext): string {
     `Perp basis - PRICE premium of perps over spot: ${ctx.basis}`,
     `Squeeze score:  ${ctx.squeezeScore}`,
     `Setup Scanner: ${ctx.setupScan}`,
-    '(Setup Scanner score 0-100: measures how overcrowded longs or shorts are. High Long Liq Risk = too many longs, whales incentivised to dump. High Short Squeeze = too many shorts, whales incentivised to pump.)',
+    '(Setup Scanner score 0-100: measures how one-sided the positioning is. Long-heavy = funding positive and most accounts long. Short-heavy = funding negative and most accounts short. It describes positioning; it is not a forecast.)',
     `Distribution score: ${ctx.distribution}`,
     '(Distribution score 0-100: how strongly flow says big players are taking profit INTO strength - CVD sellers into strength, open interest unwinding out of a rally, top traders leaning out of longs, retail still paying positive funding. Only computed after a 24h run-up. ≥70 = active distribution: strong caution on new longs, favour trailing stops / partial exits. 45-69 = early signs.)',
     '',

@@ -84,6 +84,8 @@ export async function POST(req: NextRequest) {
     }
 
     const sent = await sendWelcomeEmail({ to: user.email });
+    /* The claim goes back when the send fails (#5), so the next sign-in tries again; it used to stay, and one failed send meant this account never got its welcome email. */
+    if (!sent) await admin.from(T.user_subscriptions).update({ welcome_email_sent_at: null }).eq('user_id', user.id);
     return NextResponse.json({ ok: true, sent });
   } catch (e) {
     return apiError('auth/welcome-email', e);

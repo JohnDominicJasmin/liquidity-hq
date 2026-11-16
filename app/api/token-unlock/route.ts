@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { cached } from '@/lib/apiCache';
-import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
-import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
+import { cachedOwn } from '@/lib/apiCache';
+import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, type UsageBlockReason, blockedResponse } from '@/lib/aiUsage';
+import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -14,7 +14,7 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const CACHE_TTL = 6 * 60 * 60_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, reason: UsageBlockReason) {
+  constructor(public limit: number, public reason: UsageBlockReason, public blockedUserId?: string) {
     super(rateLimitMessage(reason, limit, 'token-unlock checks'));
   }
 }
@@ -56,9 +56,8 @@ export async function POST(req: NextRequest) {
   // is fully paywalled in the UI - so without a server-side check the paid
   // xAI call was still callable directly with a free account token. Trial
   // users pass (hasProFeatures covers isTrial).
-  if (!(await hasProFeatures(authToken, authData.user.id))) {
-    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Token unlock analysis is a Pro feature.' }, { status: 403 });
-  }
+  const plan = await requireProPlan(authToken, authData.user.id, 'Token unlock analysis is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
@@ -73,13 +72,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await cached(`token-unlock:${symbol}`, CACHE_TTL, async () => {
+    const result = await cachedOwn(authData.user.id, `token-unlock:${symbol}`, CACHE_TTL, async () => {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit for a popular symbol stays free for everyone.
-      const role = await getUsageTier(authToken, authData.user.id);
+      const role = plan.tier;
+      /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
+      const reservedOn = todayUtc();
+      const giveBack = () => refundToolUsage(authData.user.id, 'tokenUnlock', reservedOn);
       const usageResult = await incrementToolUsage(authData.user.id, 'tokenUnlock', role);
       if (usageResult.blocked) {
-        throw new RateLimitError(usageResult.limit, usageResult.reason);
+        throw new RateLimitError(usageResult.limit, usageResult.reason, authData.user.id);
       }
 
       const prompt = buildUnlockPrompt(symbol);
@@ -92,9 +94,10 @@ export async function POST(req: NextRequest) {
           messages: [{ role: 'user', content: prompt }],
           max_tokens: 900,
         }),
-      });
+      }).catch(async (e: unknown) => { await giveBack(); throw e; });
 
       if (!aiRes.ok) {
+        await giveBack();
         const err = await aiRes.json().catch(() => ({})) as { error?: string };
         throw new Error(err.error ?? 'AI error');
       }
@@ -108,7 +111,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (e) {
     if (e instanceof RateLimitError) {
-      return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });
+      return blockedResponse(e.reason, e.message);
     }
     return apiError('token-unlock', e, 502, 'Request failed');
   }

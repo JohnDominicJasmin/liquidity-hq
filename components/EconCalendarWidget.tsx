@@ -7,6 +7,7 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { getAuthToken } from '@/lib/supabase';
 import { econImpactKey, type EconImpact } from '@/lib/classify';
+import { localZoneAbbr } from '@/lib/resetTime';
 import { withAlpha } from '@/lib/color';
 import { calendarFromResponse } from '@/lib/econCalendarFeed';
 
@@ -30,8 +31,10 @@ const IMPACT_COLOR: Record<EconImpact, string> = {
 
 const MAX_ROWS = 5;
 
+/* The time is shown in the viewer's own zone and now says which (PM audit A11); hour12:false could print midnight as "24:30" in some engines, so the
+   24-hour cycle is requested explicitly. */
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) + ' ' + localZoneAbbr();
 }
 
 function fmtDateHeader(iso: string, t: TFn, now: number): string {
@@ -136,7 +139,7 @@ export default function EconCalendarWidget() {
                   one, and carried a real FRED `actual` besides. The tooltip
                   says it in words for anyone who does not read the tilde. */}
               <span
-                title={e.estimated ? 'Estimated date - approximate, not a published release schedule' : undefined}
+                title={e.estimated ? t('ECON_ESTIMATED_TIP_WIDGET') : undefined}
                 style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontVariantNumeric: 'tabular-nums', flexShrink: 0, width: 42 }}
               >
                 {e.estimated ? '~' : ''}{fmtTime(e.isoDate)}

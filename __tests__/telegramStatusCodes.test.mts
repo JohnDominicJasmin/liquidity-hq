@@ -112,11 +112,20 @@ test('every Pro gate speaks the same error code', () => {
     } catch { continue; } // dynamic segment
     // Only routes that actually gate on entitlement - push/test verifies via the
     // admin client and is excluded from the spec for that reason.
-    if (!/hasProFeatures/.test(src)) continue;
-    if (!/PRO_REQUIRED/.test(src)) missing.push(p);
+    if (!/hasProFeatures|requireProPlan\(/.test(src)) continue;
+    /* #2437: a route may gate through requireProPlan (lib/entitlements.ts), which is what emits PRO_REQUIRED for it; the helper is pinned in the next test so this is not satisfied by a helper that stopped emitting it. */
+    if (!/PRO_REQUIRED/.test(src) && !/requireProPlan\(/.test(src)) missing.push(p);
   }
 
   assert.deepEqual(missing, [],
     `these Pro-gated routes do not emit PRO_REQUIRED, so no client can detect the ` +
     `lock and the raw error text reaches the user: ${missing.join(', ')}`);
+});
+
+test('requireProPlan itself emits PRO_REQUIRED for a confirmed non-Pro plan (403) and UNAVAILABLE for an unknown one (503), so a route that gates through it speaks the same code', () => {
+  const e = readFileSync(new URL('../lib/entitlements.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const at = e.indexOf('export async function requireProPlan('); assert.ok(at > 0, 'CONTROL: requireProPlan not found');
+  const body = e.slice(at, e.indexOf('\n}\n', at));
+  assert.ok(body.includes("error: 'PRO_REQUIRED'") && body.includes('{ status: 403 }'), 'requireProPlan no longer answers 403 PRO_REQUIRED');
+  assert.ok(body.includes("code: 'UNAVAILABLE' }, { status: 503 }"), 'requireProPlan no longer answers 503 UNAVAILABLE for an unknown plan');
 });

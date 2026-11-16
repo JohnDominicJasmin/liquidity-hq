@@ -58,7 +58,7 @@
 
 import { apiError } from './apiError.ts';
 import { BINANCE_SYMS, BYBIT_SYMS } from './coins.ts';
-import { cached } from './apiCache.ts';
+import { cached, cachedRefresh, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
 import { runPool, HttpStatusError, isRateLimitStatus } from './pool.ts';
 import { reportHealth, healthError } from './apiHealth.ts';
 import { computeRSI14 } from './rsi.ts';
@@ -400,8 +400,8 @@ export async function rsiGroups(): Promise<RsiGroups> {
      merges whatever arrives and leaves the rest at its previous value, which is the same
      degradation the per-coin fetches had when an individual symbol 429'd. */
   return Promise.allSettled([
-    cached('market-rsi:fast', FAST_TTL, () => buildGroup(true)),
-    cached('market-rsi:slow', SLOW_TTL, () => buildGroup(false)),
+    cachedRefresh('market-rsi:fast', FAST_TTL, STALE_WHILE_REFRESH_MS, () => buildGroup(true)),
+    cachedRefresh('market-rsi:slow', SLOW_TTL, STALE_WHILE_REFRESH_MS, () => buildGroup(false)),
   ]);
 }
 
