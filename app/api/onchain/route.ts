@@ -3,7 +3,7 @@ import { xaiFetch } from '@/lib/xai';
 import { answerWasCutOff, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
-import { cached } from '@/lib/apiCache';
+import { cached, cachedOwn } from '@/lib/apiCache';
 import { requireProPlan } from '@/lib/entitlements';
 import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
@@ -15,7 +15,7 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const CACHE_TTL = 10 * 60_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, reason: UsageBlockReason) {
+  constructor(public limit: number, public reason: UsageBlockReason, public blockedUserId?: string) {
     super(rateLimitMessage(reason, limit, 'on-chain score checks'));
   }
 }
@@ -136,7 +136,7 @@ export async function GET(req: NextRequest) {
   const btcPrice = Number.isFinite(priceIn) && priceIn > 0 && priceIn < 10_000_000 ? priceIn : 0;
 
   try {
-    const result = await cached('onchain', CACHE_TTL, async () => {
+    const result = await cachedOwn(authData.user.id, 'onchain', CACHE_TTL, async () => {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit stays free for everyone (same pattern as
       // token-unlock/smc-snapshot).
@@ -149,7 +149,7 @@ export async function GET(req: NextRequest) {
         cached('onchain-stats', 5 * 60_000, async () => { const v = await fetchBlockchainStats(); if (!v) throw new Error('no blockchain stats'); return v; }).catch(() => null),
       ]);
       if (usageResult.blocked) {
-        throw new RateLimitError(usageResult.limit, usageResult.reason);
+        throw new RateLimitError(usageResult.limit, usageResult.reason, authData.user.id);
       }
       /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
       const giveBack = () => refundToolUsage(authData.user.id, 'onchain', reservedOn);

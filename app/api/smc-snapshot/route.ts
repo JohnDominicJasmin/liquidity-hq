@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { cached } from '@/lib/apiCache';
+import { cached, cachedOwn } from '@/lib/apiCache';
 import { incrementToolUsage, refundToolUsage, todayUtc, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { requireProPlan } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
@@ -16,7 +16,7 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const CACHE_TTL = 2 * 60_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, reason: UsageBlockReason) {
+  constructor(public limit: number, public reason: UsageBlockReason, public blockedUserId?: string) {
     super(rateLimitMessage(reason, limit, 'SMC snapshots'));
   }
 }
@@ -180,13 +180,13 @@ export async function POST(req: NextRequest) {
   const reserved: { current: { userId: string; on: string } | null } = { current: null };
 
   try {
-    const result = await cached(`smc-snapshot:${asset}:${tf}`, CACHE_TTL, async () => {
+    const result = await cachedOwn(authData.user.id, `smc-snapshot:${asset}:${tf}`, CACHE_TTL, async () => {
       // Only the cache-miss path spends on xAI, so only it needs the daily
       // cap - a cache hit within the 2min TTL stays free for everyone.
       const role = plan.tier;
       const usageResult = await incrementToolUsage(authData.user.id, 'smcSnapshot', role);
       if (usageResult.blocked) {
-        throw new RateLimitError(usageResult.limit, usageResult.reason);
+        throw new RateLimitError(usageResult.limit, usageResult.reason, authData.user.id);
       }
       reserved.current = { userId: authData.user.id, on: todayUtc() };
 

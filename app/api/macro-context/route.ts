@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
-import { cached } from '@/lib/apiCache';
+import { cached, cachedOwn } from '@/lib/apiCache';
 import { requireProPlan } from '@/lib/entitlements';
 import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, type UsageBlockReason } from '@/lib/aiUsage';
 import { pctChange, buildMacroPrompt } from '@/lib/macroContext';
@@ -15,7 +15,7 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const CACHE_TTL = 5 * 60_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, reason: UsageBlockReason) {
+  constructor(public limit: number, public reason: UsageBlockReason, public blockedUserId?: string) {
     super(rateLimitMessage(reason, limit, 'macro context checks'));
   }
 }
@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
   try {
-    const result = await cached('macro-context', CACHE_TTL, async () => {
+    const result = await cachedOwn(authData.user.id, 'macro-context', CACHE_TTL, async () => {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit stays free for everyone (same pattern as
       // token-unlock/smc-snapshot).
@@ -159,7 +159,7 @@ export async function GET(req: NextRequest) {
         cached('macro-yahoo', 3 * 60_000, fetchMacroInputs).catch((e: unknown) => e),
       ]);
       if (usageResult.blocked) {
-        throw new RateLimitError(usageResult.limit, usageResult.reason);
+        throw new RateLimitError(usageResult.limit, usageResult.reason, authData.user.id);
       }
       /* U3: the reservation is given back when no AI answer is billed (the market inputs failed, xAI refused, or the call threw). A reserved use is given back when nothing reached the user (a failed or unusable xAI answer, a thrown call, an empty answer), exactly as /api/grok does; nothing is given back once xAI answered 2xx (the tokens are billed). */
       const giveBack = () => refundToolUsage(authData.user.id, 'macroContext', reservedOn);
