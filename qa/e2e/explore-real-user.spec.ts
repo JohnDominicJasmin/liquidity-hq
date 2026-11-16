@@ -107,9 +107,9 @@ for (const persona of PERSONAS) for (const width of WIDTHS) for (const path of P
       let clicked = 0;
       for (const h of handles) {
         if (clicked >= 14) break;
-        const label = (await h.evaluate((e) => ((e as HTMLElement).innerText || e.getAttribute('aria-label') || e.getAttribute('title') || '').trim().replace(/\s+/g, ' ')).catch(() => '')).slice(0, 50);
+        const label = (await h.evaluate((n) => { const e = n as HTMLElement; return (e.innerText || e.getAttribute('aria-label') || e.getAttribute('title') || '').trim().replace(/\s+/g, ' '); }).catch(() => '')).slice(0, 50);
         if (!label || SKIP_CLICK.test(label)) continue;
-        if (await h.evaluate((e) => (e as HTMLButtonElement).disabled === true || e.getAttribute('aria-disabled') === 'true').catch(() => true)) continue;
+        if (await h.evaluate((n) => { const e = n as HTMLButtonElement; return e.disabled === true || e.getAttribute('aria-disabled') === 'true'; }).catch(() => true)) continue;
         const before = await bodyHash(page); const url0 = page.url(); const errs0 = errs.length + bad.length + failed.length; const t1 = Date.now();
         try { await h.click({ timeout: 3_000 }); } catch { found(persona, width, path, 'CLICK-BLOCKED', `"${label}" is visible but could not be clicked in 3 s (covered or detached)`); continue; }
         clicked++;

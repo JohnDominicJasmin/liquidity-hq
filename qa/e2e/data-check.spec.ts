@@ -61,7 +61,7 @@ test.describe('data check: what the app shows vs the exchange, same minute', () 
           for (const path of PAGES) {
             try { await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 45_000 }); } catch (e) { console.log(`[DATA] ${c.id} ${width} ${path}: LOAD-FAILED ${String(e).slice(0, 100)}`); continue; }
             await page.waitForTimeout(9_000);
-            const row = await page.evaluate((names) => {
+            const row = await page.evaluate((names: string[]) => {
               const all = Array.from(document.querySelectorAll('body *')).filter((e) => e.children.length === 0 && names.includes((e.textContent || '').trim()));
               for (const leaf of all) {
                 let el: Element | null = leaf;
