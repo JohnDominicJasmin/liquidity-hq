@@ -439,8 +439,10 @@ export default function MarketProvider(
         if (!(coin in BINANCE_SYMS)) {
           patch.price  = curPrice;
           patch.change = parseFloat(item.price24hPcnt || '0') * 100;
-          patch.high   = parseFloat(item.highPrice24h || '0');
-          patch.low    = parseFloat(item.lowPrice24h  || '0');
+          /* The 24h high and low are PRICES and take the same 1000x factor as the price above (S1): PEPE and BONK come back from Bybit as 1000PEPEUSDT / 1000BONKUSDT, and these two lines were the one place that missed it - a price
+             of 0.0000123 shipped with a high of 0.0125 and a low of 0.0118, and the Arena's Fibonacci levels and the AI context read them. The seed and universe branches below already apply it. */
+          patch.high   = parseFloat(item.highPrice24h || '0') * bybitPriceFactor(coin);
+          patch.low    = parseFloat(item.lowPrice24h  || '0') * bybitPriceFactor(coin);
           patch.vol24  = parseFloat(item.turnover24h  || '0');
         } else if (Number.isFinite(curPrice) && curPrice > 0) {
           /* A dual-listed coin leaves price to the Binance socket, and that is exactly the coin that went blank (HYPE) when the socket never connected on a
