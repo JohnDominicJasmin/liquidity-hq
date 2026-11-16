@@ -63,7 +63,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     source?: string;
   };
 
-  if (!body.content?.trim() || !body.type) {
+  /* typeof first, as on the hypothesis POST (PM audit B12). */
+  if (typeof body.content !== 'string' || !body.content.trim() || typeof body.type !== 'string' || !body.type
+      || (body.source != null && typeof body.source !== 'string')) {
     return NextResponse.json({ error: 'type and content are required' }, { status: 400 });
   }
   if (!['supporting','against','neutral'].includes(body.type)) {

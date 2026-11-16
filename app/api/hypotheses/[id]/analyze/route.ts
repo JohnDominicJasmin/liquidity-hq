@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { T } from '@/lib/tables';
-import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc } from '@/lib/aiUsage';
-import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
+import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, blockedResponse } from '@/lib/aiUsage';
+import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { TEXT_LIMITS, clip } from '@/lib/ownRowLimits';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
@@ -83,11 +83,15 @@ function buildAnalysisPrompt(h: Hypothesis, evidence: Evidence[]): string {
   ].join('\n');
 }
 
-function parseSection(text: string, key: string): string {
-  const start = text.indexOf(`${key}:`);
-  if (start === -1) return '';
-  const after = text.slice(start + key.length + 1).trim();
-  const nextHeader = after.search(/^[A-Z_]+:/m);
+/* HEADERS MAY ARRIVE WITH MARKDOWN (PM audit B10). "**VERDICT:**" did not start a line with a bare capital letter, so the section boundary was
+   missed and one section ran into the next (a confidence value could carry the reasoning). Emphasis marks are stripped before reading, and a
+   header may be preceded by punctuation or a list marker. */
+function parseSection(raw: string, key: string): string {
+  const text = raw.replace(/\*\*|__/g, '');
+  const m = new RegExp(`^\\W*${key}:`, 'm').exec(text);
+  if (!m) return '';
+  const after = text.slice(m.index + m[0].length).trim();
+  const nextHeader = after.search(/^\W*[A-Z_]{4,}:/m);
   return (nextHeader === -1 ? after : after.slice(0, nextHeader)).trim();
 }
 
@@ -102,9 +106,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // check a free account could still spend real xAI budget here, which is
   // what the pricing page says it cannot. Trial users pass - hasProFeatures
   // covers isTrial.
-  if (!(await hasProFeatures(token, authData.user.id))) {
-    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'AI hypothesis analysis is a Pro feature.' }, { status: 403 });
-  }
+  const plan = await requireProPlan(token, authData.user.id, 'AI hypothesis analysis is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
@@ -118,14 +121,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!hyp) return NextResponse.json({ error: 'Hypothesis not found' }, { status: 404 });
 
   /* RESERVE ONLY ONCE THE HYPOTHESIS EXISTS (U3): a bad or foreign id answered 404 after the charge. A reserved use is given back when nothing reached the user (a failed or unusable xAI answer, a thrown call, an empty answer), exactly as /api/grok does; nothing is given back once xAI answered 2xx (the tokens are billed). */
-  const role = await getUsageTier(token, authData.user.id);
+  const role = plan.tier;
   const reservedOn = todayUtc();
   const usageResult = await incrementToolUsage(authData.user.id, 'hypothesisAnalyze', role);
   if (usageResult.blocked) {
-    return NextResponse.json(
-      { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'hypothesis analyses'), code: 'RATE_LIMIT' },
-      { status: 429 },
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'hypothesis analyses'));
   }
 
   const prompt = buildAnalysisPrompt(hyp as Hypothesis, (evs ?? []) as Evidence[]);
@@ -163,14 +163,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const keyInsight = parseSection(analysis, 'KEY_INSIGHT');
   const nextCheck = parseSection(analysis, 'NEXT_CHECK');
 
-  const normalizedVerdict = verdict.includes('CONFIRMED') && !verdict.includes('DIS')
-    ? 'CONFIRMED'
-    : verdict.includes('DISCONFIRMED')
-    ? 'DISCONFIRMED'
-    : 'UNCLEAR';
+  /* THE FIRST WORD ONLY (PM audit B10). includes('CONFIRMED') accepted "UNCLEAR (CONFIRMED would need X)" as a confirmation. The verdict is the
+     first word of the section, and anything else is UNCLEAR. */
+  const verdictWord = /^\W*(DISCONFIRMED|CONFIRMED|UNCLEAR)\b/i.exec(verdict)?.[1]?.toUpperCase();
+  const normalizedVerdict = verdictWord === 'CONFIRMED' ? 'CONFIRMED' : verdictWord === 'DISCONFIRMED' ? 'DISCONFIRMED' : 'UNCLEAR';
 
-  // Auto-update status if conclusive
-  const newStatus = normalizedVerdict === 'CONFIRMED'
+  /* THE USER'S OWN STATUS IS NOT OVERWRITTEN (PM audit B9). An UNCLEAR run wrote 'active' over a hypothesis the user had marked confirmed or
+     expired by hand, and a conclusive run moved it without asking. The status only follows the analysis while the hypothesis is still 'active';
+     in every other state the analysis is stored and the status is left as the user set it. */
+  const currentStatus = (hyp as { status?: string }).status ?? 'active';
+  const newStatus = currentStatus !== 'active'
+    ? currentStatus
+    : normalizedVerdict === 'CONFIRMED'
     ? 'confirmed'
     : normalizedVerdict === 'DISCONFIRMED'
     ? 'disconfirmed'

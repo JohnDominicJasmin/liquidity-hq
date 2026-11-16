@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { T } from '@/lib/tables';
-import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc } from '@/lib/aiUsage';
-import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
+import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, blockedResponse } from '@/lib/aiUsage';
+import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -69,7 +69,7 @@ function buildBiasPrompt(trades: Record<string, unknown>[]): string {
   return [
     'You are a trading psychology specialist. Analyze this crypto trader\'s history specifically for cognitive and behavioral biases. Be brutal and specific - use actual trade dates and coins as evidence.',
     '',
-    `SUMMARY STATS: ${closed.length} closed trades | ${wins.length} wins | ${losses.length} losses`,
+    `SUMMARY STATS (your last 500 trades at most): ${closed.length} closed trades | ${wins.length} wins | ${losses.length} losses`,
     `Avg win: $${avgWinUsd.toFixed(2)} (${avgWinR.toFixed(2)}R) | Avg loss: $${avgLossUsd.toFixed(2)} (${avgLossR.toFixed(2)}R)`,
     `Round-number stop losses: ${roundStops} trades | Same-day trades after a loss: ${revengeCount}`,
     '',
@@ -131,18 +131,20 @@ export async function POST(req: NextRequest) {
   // check a free account could still spend real xAI budget here, which is
   // what the pricing page says it cannot. Trial users pass - hasProFeatures
   // covers isTrial.
-  if (!(await hasProFeatures(token, authData.user.id))) {
-    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Behavioral Bias analysis is a Pro feature.' }, { status: 403 });
-  }
+  const plan = await requireProPlan(token, authData.user.id, 'Behavioral Bias analysis is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  const { data: trades, error } = await sb(token)
+  /* THE NEWEST 500, NOT THE OLDEST (PM audit B7). This read ascending with limit 500, so a trader with more than 500 trades was analysed on their
+     FIRST 500 and the prompt called that their history. Newest first, then turned back into chronological order for the prompt. */
+  const { data: newestFirst, error } = await sb(token)
     .from(T.trades)
     .select('*')
     .eq('user_id', authData.user.id)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(500);
+  const trades = newestFirst ? [...newestFirst].reverse() : newestFirst;
 
   if (error) return NextResponse.json({ error: 'Failed to load trades' }, { status: 500 });
   if (!trades || trades.length === 0) return NextResponse.json({ error: 'NO_TRADES' }, { status: 400 });
@@ -152,14 +154,11 @@ export async function POST(req: NextRequest) {
 
   /* RESERVE ONLY ONCE THERE IS SOMETHING TO ANALYSE (U2). It used to reserve before the trades were loaded, so a read error, no trades or fewer than 5 closed trades (all answered without an AI call) still cost a use AND a
      slot of the shared tool pool, repeatably up to the cap. A reserved use is given back when nothing reached the user (a failed or unusable xAI answer, a thrown call, an empty answer), exactly as /api/grok does; nothing is given back once xAI answered 2xx (the tokens are billed). */
-  const role = await getUsageTier(token, authData.user.id);
+  const role = plan.tier;
   const reservedOn = todayUtc();
   const usageResult = await incrementToolUsage(authData.user.id, 'behavioralBias', role);
   if (usageResult.blocked) {
-    return NextResponse.json(
-      { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'bias reports'), code: 'RATE_LIMIT' },
-      { status: 429 },
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'bias reports'));
   }
 
   const prompt = buildBiasPrompt(trades as Record<string, unknown>[]);

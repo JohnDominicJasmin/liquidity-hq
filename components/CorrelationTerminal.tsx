@@ -10,6 +10,7 @@ import { useLabels } from '@/lib/labels';
 import { tintPct } from '@/lib/correlationRamp';
 import type { LabelKey } from '@/lib/labelKeys';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
+import { closedCloses, pctReturns, pearson, btcAltAverage, weakestPairs } from '@/lib/correlationMath';
 
 const RANGES = [
   { key: '24h', label: '24h', interval: '1h',  limit: 25  },
@@ -66,27 +67,6 @@ async function fetchCloses(id: CoinId, interval: string, limit: number): Promise
   return [];
 }
 
-function pctReturns(closes: number[]): number[] {
-  const r: number[] = [];
-  for (let i = 1; i < closes.length; i++) r.push((closes[i] - closes[i - 1]) / closes[i - 1]);
-  return r;
-}
-
-function pearson(a: number[], b: number[]): number | null {
-  const n = Math.min(a.length, b.length);
-  if (n < 5) return null;
-  const xs = a.slice(0, n), ys = b.slice(0, n);
-  const mx = xs.reduce((s, v) => s + v, 0) / n;
-  const my = ys.reduce((s, v) => s + v, 0) / n;
-  let num = 0, dx2 = 0, dy2 = 0;
-  for (let i = 0; i < n; i++) {
-    const dx = xs[i] - mx, dy = ys[i] - my;
-    num += dx * dy; dx2 += dx * dx; dy2 += dy * dy;
-  }
-  const denom = Math.sqrt(dx2 * dy2);
-  if (denom < 1e-10) return null;
-  return Math.max(-1, Math.min(1, num / denom));
-}
 
 /* #570: was a hardcoded rgba(52,211,153/248,113,113) ramp, uncapped up to
    92-96% alpha, with --txt3 as the default text colour and --txt reserved
@@ -189,7 +169,9 @@ export default function CorrelationTerminal() {
     COINS.forEach(async id => {
       const closes = await withDeadline(fetchCloses(id, interval, limit), COIN_DEADLINE_MS, [] as number[]);
       if (cancelled) return;
-      if (closes.length >= 5) setRets(prev => ({ ...prev, [id]: pctReturns(closes) }));
+      /* The newest bar is still forming, so it is dropped; returns are right-aligned later (lib/correlationMath.ts). */
+      const rets = pctReturns(closedCloses(closes));
+      if (rets.length > 0) setRets(prev => ({ ...prev, [id]: rets }));
       setDone(prev => new Set(prev).add(id));
     });
     return () => { cancelled = true; };
@@ -204,8 +186,7 @@ export default function CorrelationTerminal() {
     }),
   );
 
-  const btcAlts = matrix[0].slice(1).filter((v): v is number => v !== null);
-  const avgCorr = btcAlts.length ? btcAlts.reduce((a, b) => a + b, 0) / btcAlts.length : null;
+  const avgCorr = btcAltAverage(matrix[0].slice(1), COINS.length - 1);
   const sig     = altSignal(avgCorr);
 
   const pairs: { a: CoinId; b: CoinId; r: number }[] = [];
@@ -215,7 +196,7 @@ export default function CorrelationTerminal() {
     if (r !== null) pairs.push({ a, b, r });
   }));
   const strongest = [...pairs].sort((a, b) => b.r - a.r).slice(0, 5);
-  const weakest   = [...pairs].sort((a, b) => a.r - b.r).slice(0, 3);
+  const weakest   = weakestPairs(pairs, 3);
 
   return (
     <div>

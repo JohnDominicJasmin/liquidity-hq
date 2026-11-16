@@ -18,6 +18,11 @@ export async function GET(req: NextRequest) {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
   const webhookUrl = `${base.replace(/\/$/, '')}/api/telegram/webhook`;
   const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  /* A webhook registered WITHOUT a secret_token is answered 401 on every update by /api/telegram/webhook (it fails closed), so linking would
+     silently never complete while this route reported ok. Refuse instead of registering a webhook that cannot work (PM audit C6). */
+  if (!webhookSecret) {
+    return NextResponse.json({ ok: false, error: 'TELEGRAM_WEBHOOK_SECRET is not set; the webhook would reject every update' }, { status: 500 });
+  }
 
   // Check current webhook first
   const infoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`,
@@ -37,7 +42,7 @@ export async function GET(req: NextRequest) {
   const setRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url: webhookUrl, ...(webhookSecret ? { secret_token: webhookSecret } : {}) }),
+    body: JSON.stringify({ url: webhookUrl, secret_token: webhookSecret }),
     signal: AbortSignal.timeout(10_000),
   });
   const setData = await setRes.json();
