@@ -31,7 +31,8 @@ test('H2. the LiqFeed 24 h history asks for the NEWEST rows (order ts desc, limi
   const ctx = await signedInContext(browser, 'a');
   const page = await ctx.newPage();
   const asks: string[] = [];
-  page.on('request', (r) => { if (/\/rest\/v1\/liq_events/.test(r.url())) asks.push(decodeURIComponent(r.url())); });
+  /* THE TABLE CARRIES AN ENVIRONMENT PREFIX (lib/tables.ts: `${p}liq_events`), so match any prefix: the first run matched the bare name and measured nothing */
+  page.on('request', (r) => { if (/\/rest\/v1\/[a-z0-9_]*liq_events/.test(r.url())) asks.push(decodeURIComponent(r.url())); });
   await installSyntheticSocket(page);
   await installPaidAiFence(page);
   try {

@@ -121,15 +121,16 @@ test.describe('one strategy menu (#2358)', () => {
     } finally { await ctx.close(); }
   });
 
-  test('M2d. Let the read choose with chips on writes arena_strategy: null only, leaves the chips, removes the call box, and the menu then reads Custom (chips with no strategy)', async ({ browser }) => {
+  test('M2d. Let the read choose with chips on clears the strategy AND the chips in ONE save, removes the call box, and the menu stays on Let the read choose (hotfix #2408: with the chips left on the menu derived Custom and snapped back)', async ({ browser }) => {
     const { ctx, page, writes } = await openArena(browser, { saved: 'ema_stack', chips: ['SMA', 'MACD'] });
     try {
       await expect(menu(page)).toBeVisible({ timeout: 30_000 }); await expect(box(page)).toBeVisible({ timeout: 20_000 }); const before = writes.length;
       await pick(page, 'auto');
       const mine = strat(writes, before); console.log(`[M2d] writes ${JSON.stringify(mine)}`);
-      expect(mine.length).toBe(1); expect(mine[0]).toMatchObject({ arena_strategy: null }); expect('strategy_selection' in mine[0], 'Let the read choose wrote the chips').toBe(false);
-      await expect(box(page), 'the call box is still showing').toHaveCount(0); expect(await chipOn(page, 'SMA')).toBe('true'); expect(await chipOn(page, 'MACD')).toBe('true');
-      expect(await menu(page).inputValue(), 'chips with no strategy must read as Custom (rule 4)').toBe('custom');
+      expect(mine.length, 'Let the read choose must be ONE request').toBe(1); expect(mine[0]).toMatchObject({ arena_strategy: null, strategy_selection: [] });
+      await expect(box(page), 'the call box is still showing').toHaveCount(0); expect(await chipOn(page, 'SMA'), 'Let the read choose left the SMA chip on').toBe('false'); expect(await chipOn(page, 'MACD'), 'Let the read choose left the MACD chip on').toBe('false');
+      await page.waitForTimeout(2_000);
+      expect(await menu(page).inputValue(), 'the menu must STAY on Let the read choose (it used to snap to Custom from chips that were still on)').toBe('auto');
     } finally { await ctx.close(); }
   });
 
