@@ -2997,6 +2997,8 @@
   "FNG_WORD_NEUTRAL": "Neutral",
   "FNG_WORD_GREED": "Greed",
   "FNG_WORD_EXTREME_GREED": "Extreme Greed",
+  "DASH_EDGE_SETUP_NOT_ENOUGH_DATA": "Not enough data",
+  "SETUP_WORD_NOT_ENOUGH_DATA": "Not enough data",
   "SETUP_WORD_BALANCED": "Balanced",
   "SETUP_WORD_SQUEEZE": "Short squeeze ↑",
   "SETUP_WORD_FLUSH": "Long liquidation risk ↓",
