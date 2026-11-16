@@ -97,7 +97,10 @@ test('the overlay label says REALIZED, and no drawing path can omit it', () => {
   const chart = readFileSync(path.join(ROOT, 'components', 'KLineProChart.tsx'), 'utf8');
   const drawText = chart.match(/text: `REALIZED[^`]*`/);
   assert.ok(drawText, 'the liqClusterLine label no longer starts with REALIZED');
-  assert.ok(/not predicted liquidation levels/i.test(chart),
+  /* #2397: the tooltip text lives in the label table (CHART_LIQ_TITLE); the chart reads it through the key. */
+  const en = JSON.parse(readFileSync(path.join(ROOT, 'lib', 'labelDefaults.en.json'), 'utf8')) as Record<string, string>;
+  assert.ok(/CHART_LIQ_TITLE/.test(chart), 'the Liq toggle no longer reads its tooltip from CHART_LIQ_TITLE');
+  assert.ok(/not predicted liquidation levels/i.test(en.CHART_LIQ_TITLE ?? ''),
     'the Liq toggle tooltip no longer says these are not predicted levels');
   assert.ok(!/PREDICTED LIQ|predicted level[s]? at|liquidation magnet/i.test(drawText[0]),
     'the drawn label implies a forward prediction');

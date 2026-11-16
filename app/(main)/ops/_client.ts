@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useCallback, useEffect, useState } from 'react';
 import { getAuthToken } from '@/lib/supabase';
 
@@ -13,7 +14,7 @@ export async function adminFetch(path: string, init?: RequestInit): Promise<Resp
     ...init,
     cache: 'no-store',
     /* Never waits for ever (OWNER-RULES 21); a caller's own signal wins. */
-    signal: init?.signal ?? AbortSignal.timeout(30_000),
+    signal: init?.signal ?? deadlineSignal(30_000),
     headers: { ...(init?.headers ?? {}), Authorization: `Bearer ${token}` },
   });
 }
