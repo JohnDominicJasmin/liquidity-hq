@@ -116,7 +116,7 @@ test('OS7. the chart draws S/R and Liq from the switch it was given, and its too
 });
 
 test('OS8. the panel counts only slotted chips and enforces the cap in one place', () => {
-  anchorOnce(PANEL, 'const used = slottedIds(selected).length;', 'the counter counts slotted chips only');
+  anchorOnce(PANEL, 'const used = slottedIds(shown).length;', 'the counter counts slotted chips only, of the SHOWN (optimistic) selection (#2465)');
   /* The redesign made Pro unlimited, so nextSelection's cap branch now SWAPS on Free (limit 1)
      instead of the old one-line `return prev` - the condition is the single place the cap is read.
      Anchor on the condition rather than the now tier-dependent body. (Behaviour would be the better
@@ -131,7 +131,7 @@ test('OS9. the indicator grid is plain on/off selectable chips; the always-on la
      and the chart layers moved to their own section: static status rows for the always-on layers
      (EMA ribbon, RSI pane, GEX "Always on · BTC only") and real role="switch" toggles for S/R and
      Liq, synced to the chart toolbar. */
-  anchorOnce(PANEL, 'const on = selected.includes(entry.id);', 'a chip is on exactly when its id is in the selection');
+  anchorOnce(PANEL, 'const on = shown.includes(entry.id);', 'a chip is on exactly when its id is in the SHOWN (optimistic) selection (#2465)');
   /* The strings moved behind t() (#2178), so the ROW is anchored by its keys and the WORDING is
      pinned separately against the English defaults - the claim that RSI is a layer row "Always on",
      and GEX is "Always on · BTC only", has not changed, only where the text lives. */
@@ -149,4 +149,27 @@ test('OS9. the indicator grid is plain on/off selectable chips; the always-on la
   /* The obsolete chip tags are gone - RSI is a layer row now, not a tagged chip. */
   assert.equal(PANEL.includes('pane always on'), false, 'the old RSI "pane always on" chip tag must be gone');
   assert.equal(PANEL.includes('strat-chip-tag'), false, 'the old always-on chip tag class must be gone');
+});
+
+/* #2465: smoother chips. Source anchors: the panel is JSX with no DOM test library here; the rendered proof (tap toggles every time, no numbers, INP) is QA's browser run on a deployed build. */
+test('OS10. the optimistic state is the only thing a chip reads, it is dropped when the parent catches up, and after 1.2 s if the parent refused the change (a refused tap cannot leave a lying chip)', () => {
+  anchorOnce(PANEL, 'const shown = pending ?? selected;', 'chips read the optimistic selection first');
+  anchorOnce(PANEL, 'if (pending && sameList(pending, selected)) setPending(null);', 'pending is dropped when the parent matches it');
+  anchorOnce(PANEL, 'setTimeout(() => setPending(null), 1200)', 'a refused change is dropped after 1.2 s');
+  anchorOnce(PANEL, 'setPending(next);', 'a tap flips the chip on its own render');
+  assert.ok(PANEL.indexOf('setPending(next);') < PANEL.indexOf('startTransition(() => onSelectedChange(next))'), 'the parent is notified before the chip flips: the tap waits on the round trip again');
+});
+test('OS11. a tap ALWAYS toggles: no branch where a tap on an ON chip only moves the params focus (#1027 is gone), and the Free tap at the cap SWAPS to the tapped chip', () => {
+  const t = PANEL.slice(PANEL.indexOf('const toggle = (entry: IndicatorEntry)'), PANEL.indexOf('const layer = ('));
+  assert.ok(t.length > 100, 'the toggle handler was not found');
+  anchorOnce(t, 'if (shown.includes(entry.id)) {\n      next = shown.filter(id => id !== entry.id);', 'an ON chip is removed on tap');
+  assert.equal(/setFocused\(entry\.id\);\s*return;/.test(t), false, 'a tap on an ON chip returns after re-focusing (the #1027 rule): the chip looks dead');
+  anchorOnce(t, 'next = [entry.id];', 'Free at the cap swaps to the tapped chip');
+  assert.ok(/startTransition\(\(\) => onSelectedChange\(next\)\)/.test(t), 'the parent update is not in a transition');
+});
+test('OS12. the order numbers are gone (markup and .strat-n), and the Arena reads a deferred selection for the heavy chart work', () => {
+  const CSS = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
+  assert.equal(/strat-n(?![a-z-])/.test(PANEL), false, 'the order number markup is back in the panel');
+  assert.equal(/[.]strat-n(?![a-z-])/.test(CSS), false, 'the .strat-n rule is back');
+  anchorOnce(PAGE, 'const deferredStrategySelection = useDeferredValue(strategySelection);', 'the Arena defers the selection for chart work');
 });
