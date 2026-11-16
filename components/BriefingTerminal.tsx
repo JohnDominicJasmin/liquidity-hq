@@ -129,9 +129,9 @@ function buildBriefingContext(
     timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false,
   });
   const jpyStatus = jpyUsd == null ? 'N/A'
-    : jpyUsd >= 160 ? `${jpyUsd.toFixed(2)} - DANGER ZONE (BOJ intervention risk, carry trade unwind can trigger BTC liquidations)`
-    : jpyUsd >= 158 ? `${jpyUsd.toFixed(2)} - WARNING (approaching 160 danger zone, watch BOJ signals)`
-    : `${jpyUsd.toFixed(2)} - Safe (below 158, carry trade stable)`;
+    : jpyUsd >= 160 ? `${jpyUsd.toFixed(2)} - at or above 160. If the yen rises quickly from this level, yen carry trades can be unwound, which has coincided with crypto selloffs before.`
+    : jpyUsd >= 158 ? `${jpyUsd.toFixed(2)} - between 158 and 160`
+    : `${jpyUsd.toFixed(2)} - below 158`;
   const lines = [
     `Time: ${nowUtc} UTC`,
     `Fear & Greed: ${store.fng ?? '?'} - ${store.fngLabel ?? '?'}`,
@@ -159,7 +159,7 @@ function buildBriefingContext(
       const lh = (e.dt.getTime() - nowMs) / 3600000;
       if (lh < 0) {
         const minsAgo = Math.round(-lh * 60);
-        lines.push(`  ⚡ JUST RELEASED: ${e.type} - ${e.name} (${minsAgo}m ago - check news for actual print)`);
+        lines.push(`  ⚡ JUST RELEASED: ${e.type} - ${e.name} (${minsAgo}m ago; the result is not in this data)`);
       } else {
         lines.push(`  ${e.type}: ${e.name} in ${hToHM(lh)} (${e.impact} impact)`);
       }

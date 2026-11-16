@@ -38,7 +38,7 @@ function buildThesisPrompt(
     '',
     '=== THESIS HEALTH CHECK ===',
     '',
-    'Using your current knowledge of crypto markets and the specific coin, evaluate each assumption and the overall thesis.',
+    'You have no live price or market data here. Using your general knowledge of crypto markets and the specific coin, evaluate each assumption and the overall thesis, and say "cannot tell" where you cannot judge an assumption without current data. Do not tell the trader to hold, reduce or exit.',
     '',
     'Output using EXACTLY these headers (no markdown bold, no extra text):',
     'ASSUMPTION_CHECK:',
@@ -47,8 +47,6 @@ function buildThesisPrompt(
     '[Overall 1-10 score. Format: "Score: X/10 - [one sentence justification]". 8-10 = thesis intact, 5-7 = concerns emerging, 1-4 = thesis breaking down]',
     'KEY_RISK:',
     '[The single biggest threat to this thesis right now in one sentence]',
-    'RECOMMENDATION:',
-    '[Should the trader hold, reduce exposure, or exit? One specific actionable sentence based on thesis health]',
   ].join('\n');
 }
 
