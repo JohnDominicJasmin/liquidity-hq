@@ -192,43 +192,72 @@ test('T4. the hourly retry of a monthly payment received 20 days ago ends about 
   d = await retryGrantedAfter('not a date'); assert.ok(d > 28 && d < 32, `invalid: expected about 30, got ${d.toFixed(2)}`);
 });
 
-/* ── #2424: a pending claim is open for 30 days after the payment was received, then it expires (an open-ended claim is held against an address for ever) ─────────────────────────────────────── */
-async function claimAged(daysOld: number) {
+/* ── #2424: a pending claim stays open for the plan's OWN paid period counted from the payment (minimum 30 days; annual about 365), then it expires. Paid time is never forfeited (owner rule), and an open-ended
+   claim is not held against an address for ever. hasPendingClaim is only the COARSE database filter (the widest window, 366 days); each claim's own window is checked when it is taken (claimWindowEnd). ────── */
+async function claimAged(daysOld: number, planId: string = PLAN.m) {
   const L = await load(PLANS_SET); fresh();
-  await L.hook(sign(pay(), 'msg_exp_' + daysOld));
+  await L.hook(sign(pay({ plan: { id: planId } }), 'msg_exp_' + daysOld + planId));
   const claim = rows(L.g.WHOP_PENDING_CLAIM_EVENT); assert.equal(claim.length, 1, 'the payment before any account must leave one pending claim');
-  claim[0].received_at = new Date(Date.now() - daysOld * 86400_000).toISOString();
+  /* BOTH rows are aged: the claim row (the coarse database filter) AND the stored delivery (its received_at is what each claim's own window counts from). Aging only the claim row would let the database filter
+     decide every cell, and the window rule would never be exercised. */
+  const at = new Date(Date.now() - daysOld * 86400_000).toISOString();
+  claim[0].received_at = at;
+  for (const r of deliveries()) r.received_at = at;
   db.addUser();
   return L;
 }
+const claimed = async (L: Awaited<ReturnType<typeof claimAged>>) => (await (await L.claim(claimReq())).json() as { granted: number }).granted;
 
-test('X1. a pending claim 29 days old is still claimed; one 31 days old is not (it stays stored, nothing is granted, and hasPendingClaim says false)', async () => {
+test('X1. MONTHLY: a claim 29 days old is still claimed; one 31 days old is not (nothing granted, the claim and the delivery stay stored for support)', async () => {
   let L = await claimAged(29);
-  assert.equal(await L.g.hasPendingClaim(L.sb, EMAIL), true, 'a 29-day claim is open');
   assert.deepEqual(await (await L.claim(claimReq())).json(), { granted: 1 });
   assert.equal(db.subs.get(UID)?.role, 'pro');
-  L = await claimAged(31);
-  assert.equal(await L.g.hasPendingClaim(L.sb, EMAIL), false, 'a 31-day claim has expired');
-  assert.deepEqual(await (await L.claim(claimReq())).json(), { granted: 0 });
+  L = await claimAged(31.01);                              // longer than any calendar month, so closed whichever month the payment fell in
+  assert.equal(await claimed(L), 0, 'a 31-day-old MONTHLY claim was granted');
   assert.equal(db.subs.size, 0, 'an expired claim granted Pro');
   assert.equal(rows(L.g.WHOP_PENDING_CLAIM_EVENT).length, 1, 'an expired claim must stay stored for support, not be deleted');
   assert.equal(deliveries().length, 1, 'the delivery itself stays findable by payment id');
 });
 
-test('X3. claimPendingForAccount itself (not only the fast path in the route) leaves an expired claim alone: 31 days grants nothing and keeps the row, 29 days grants', async () => {
-  let L = await claimAged(31);
+test('X2. ANNUAL: a claim 364 days old is still claimed (the paid year is still running); one 366.01 days old is not', async () => {
+  let L = await claimAged(364, PLAN.a);
+  assert.equal(await claimed(L), 1, 'an annual buyer who signs up on day 364 lost the year they paid for');
+  assert.equal(db.subs.get(UID)?.role, 'pro');
+  L = await claimAged(366.01, PLAN.a);
+  assert.equal(await claimed(L), 0, 'a claim past the annual period was granted'); assert.equal(db.subs.size, 0);
+  assert.equal(rows(L.g.WHOP_PENDING_CLAIM_EVENT).length, 1, 'the expired annual claim was deleted');
+});
+
+test('X2b. the 30-day MINIMUM: a FORTNIGHTLY claim 29 days old is still claimed, 31.01 days is not', async () => {
+  let L = await claimAged(29, PLAN.f); assert.equal(await claimed(L), 1, 'the 30-day minimum was not applied to a two-week plan');
+  L = await claimAged(31.01, PLAN.f); assert.equal(await claimed(L), 0);
+});
+
+test('X3. claimPendingForAccount itself leaves an expired claim alone and says why: monthly 33 days grants nothing, keeps the row, refuses with claim_window_closed; 29 days grants', async () => {
+  let L = await claimAged(33);
   let r = await L.g.claimPendingForAccount(L.sb, { userId: UID, email: EMAIL });
   assert.equal(r.granted, 0, 'an expired claim was granted by the claim function'); assert.equal(db.subs.size, 0);
+  assert.ok(r.refused.includes('claim_window_closed'), 'no reason given: ' + JSON.stringify(r.refused));
   assert.equal(rows(L.g.WHOP_PENDING_CLAIM_EVENT).length, 1, 'an expired claim was deleted: support must still find it');
   L = await claimAged(29);
   r = await L.g.claimPendingForAccount(L.sb, { userId: UID, email: EMAIL });
   assert.equal(r.granted, 1); assert.equal(db.subs.get(UID)?.role, 'pro');
 });
 
-test('X2. the window is 30 days: 29.9 days is open, 30.1 days is closed', async () => {
-  let L = await claimAged(29.9); assert.equal(await L.g.hasPendingClaim(L.sb, EMAIL), true);
-  L = await claimAged(30.1); assert.equal(await L.g.hasPendingClaim(L.sb, EMAIL), false);
-  assert.equal(L.g.WHOP_CLAIM_DAYS, 30);
+test('X4. the constants and the pure rule: WHOP_CLAIM_DAYS 30, the widest database window 366; claimWindowEnd is max(30 days, the plan period) from the payment, and an unusable received_at is closed (epoch)', async () => {
+  const L = await load(PLANS_SET);
+  assert.equal(L.g.WHOP_CLAIM_DAYS, 30); assert.equal(L.g.WHOP_CLAIM_MAX_DAYS, 366);
+  const start = '2026-01-15T00:00:00.000Z', t0 = Date.parse(start), d = (n: number) => n * 86400_000;
+  assert.equal(L.g.claimWindowEnd(start).getTime(), t0 + d(30), 'no plan: the 30-day minimum');
+  assert.equal(L.g.claimWindowEnd(start, { months: 1 }).getTime(), t0 + d(31), 'a month from 15 Jan is 31 days: longer than the minimum');
+  assert.equal(L.g.claimWindowEnd('2026-02-15T00:00:00.000Z', { months: 1 }).getTime(), Date.parse('2026-02-15T00:00:00.000Z') + d(30), 'a month from 15 Feb is 28 days: the 30-day minimum wins');
+  assert.equal(L.g.claimWindowEnd(start, { months: 12 }).getTime(), t0 + d(365), 'annual');
+  assert.ok(L.g.claimWindowEnd('garbage', { months: 12 }).getTime() < Date.now() - d(365), 'an unusable received_at must not open a claim');
+});
+
+test('X5. the coarse filter: hasPendingClaim is true for an annual-length claim (200 days) and false past 366 days', async () => {
+  let L = await claimAged(200, PLAN.a); assert.equal(await L.g.hasPendingClaim(L.sb, EMAIL), true, 'the fast path would hide an annual claim that is still open');
+  L = await claimAged(367, PLAN.a); assert.equal(await L.g.hasPendingClaim(L.sb, EMAIL), false);
 });
 
 test('R3. past 7 days from the first refusal the row is dropped and reported ("gave up"), even if the setting is fixed by then', async () => {
