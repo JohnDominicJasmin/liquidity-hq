@@ -313,8 +313,11 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
      of the three, so it is not counted. */
   signalsPresent: number;
   present: string[];
+  /** TRUE only when at least two of the three inputs arrived, the same floor the Flush / Squeeze gate uses. Below that, `dir` is NEUTRAL only as a placeholder: the coin is UNKNOWN, not balanced, and a caller counting or
+   *  labelling "neutral" coins must skip it (S2). */
+  enough: boolean;
 } {
-  if (!coin) return { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)', signalsPresent: 0, present: [] };
+  if (!coin) return { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)', signalsPresent: 0, present: [], enough: false };
 
   /* The three inputs, counted by PRESENCE (does the datum exist), independent of whether it crossed
      a threshold - a funding rate of 0.001 has still "arrived". Names are the plain words the hero
@@ -371,10 +374,12 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
   // ── Gate: ≥2 independent signals required to label as Flush / Squeeze ─────
   const signalsPresent = present.length;
   if (longRisk > shortRisk && longSignals >= 2)
-    return { score, dir: 'LONG_LIQ', label: 'Long liquidation risk ↓', color: 'var(--red-soft)', signalsPresent, present };
+    return { score, dir: 'LONG_LIQ', label: 'Long liquidation risk ↓', color: 'var(--red-soft)', signalsPresent, present, enough: true };
   if (shortRisk > longRisk && shortSignals >= 2)
-    return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: 'var(--green-soft)', signalsPresent, present };
-  return { score, dir: 'NEUTRAL', label: 'Balanced', color: 'var(--txt-dim)', signalsPresent, present };
+    return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: 'var(--green-soft)', signalsPresent, present, enough: true };
+  /* FEWER THAN TWO INPUTS IS "NOT ENOUGH DATA", NOT "BALANCED" (S2). A price-only coin (the usual state of the ~400 universe coins) used to read Balanced, score 0, and was counted among the Neutral coins. */
+  if (signalsPresent < 2) return { score: 0, dir: 'NEUTRAL', label: 'Not enough data', color: 'var(--txt-dim)', signalsPresent, present, enough: false };
+  return { score, dir: 'NEUTRAL', label: 'Balanced', color: 'var(--txt-dim)', signalsPresent, present, enough: true };
 }
 
 /* ── Coin Health Score ─────────────────────────────────────────────────────
