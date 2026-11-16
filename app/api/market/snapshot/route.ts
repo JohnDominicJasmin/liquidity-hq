@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   try {
     const res = await marketSnapshotData();
     if (!res.ok) return apiError('market-snapshot', res.reason, 502, 'Upstream unavailable');
-    const { ticker, klines, lsr, partial, viaFallback } = res.data;
+    const { ticker, klines, lsr, partial, viaFallback, fetchedAt } = res.data;
 
     return NextResponse.json({
       ticker,
@@ -28,7 +28,8 @@ export async function GET(req: NextRequest) {
          `'partial' in body` stays a valid check. */
       ...(partial.length ? { partial } : {}),
       ...(Object.keys(viaFallback).length ? { viaFallback } : {}),
-      ts: Date.now(),
+      /* The DATA's age, not the request's: this is served from three caches, so Date.now() made 3-minute-old numbers look fresh. */
+      ts: fetchedAt ?? Date.now(),
     }, {
       /* Public and visitor-independent, and already only as fresh as the shortest TTL. Letting any
          shared cache in front of this serve it removes the origin hit for the common case. */

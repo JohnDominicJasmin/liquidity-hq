@@ -12,8 +12,8 @@ export async function GET(req: NextRequest) {
 
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
-    // Legacy check: env-var only
-    return NextResponse.json({ configured: !!(botToken && process.env.TELEGRAM_CHAT_ID) });
+    /* The legacy answer here was whether the OWNER's env chat id is set, to anyone without a session (PM audit C10). The only caller (Settings) always sends the header. */
+    return NextResponse.json({ error: 'Sign in required' }, { status: 401 });
   }
 
   // QA, #1499: every failure below used to answer 200 `{configured:false}`, so a backend

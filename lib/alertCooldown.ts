@@ -12,15 +12,34 @@
 
 const lastSent = new Map<string, number>();
 
+/* STAGED MARKS (B2). A cooldown used to be consumed the moment an alert was QUEUED, before anything was sent, so a Telegram 429/5xx, an outage or the /ops send pause lost the alert for its whole cooldown (4 h for a signal, 23 h for
+ * Fear & Greed). While a run is staging, markSent writes to a side map that onCooldown also reads (so two checks in one run still dedupe); the route then COMMITS it into the ledger once something was actually delivered, or
+ * DISCARDS it when the run delivered nothing and sends failed or were paused, so the next tick tries again. Outside a run (staging null) markSent writes straight to the ledger, exactly as before. */
+let staging: Map<string, number> | null = null;
+
+/** Starts a run's staging. Any marks left by a run that never finished are dropped. */
+export function beginStagedMarks(): void { staging = new Map(); }
+/** Writes the staged marks into the ledger and stops staging. */
+export function commitStagedMarks(): void {
+  if (staging) for (const [k, v] of staging) lastSent.set(k, v);
+  staging = null;
+}
+/** Drops the staged marks (nothing was delivered) and stops staging. Returns how many were dropped. */
+export function discardStagedMarks(): number {
+  const n = staging?.size ?? 0;
+  staging = null;
+  return n;
+}
+
 /** True if `key` fired within the last `ms` milliseconds. */
 export function onCooldown(key: string, ms: number): boolean {
-  const t = lastSent.get(key);
+  const t = staging?.get(key) ?? lastSent.get(key);
   return t !== undefined && Date.now() - t < ms;
 }
 
 /** Records `key` as having fired just now. */
 export function markSent(key: string): void {
-  lastSent.set(key, Date.now());
+  (staging ?? lastSent).set(key, Date.now());
 }
 
 /** Clears the cooldown ledger. Exported for tests only (#1227) - a real
