@@ -603,6 +603,31 @@ test('R13. Pro: only a CONFIRMED overage blocks; a failed read next to an under-
   assert.deepEqual(await spendCapBlock('pro', PRO, NOW), { blocked: false }, 'both failed, nothing confirmed');
 });
 
+/* UNKNOWN PLAN (#2412, PM): the caller's plan could not be read, so it is counted as Pro but the dollar cap FAILS CLOSED when the ledger cannot be read. Default (false) keeps Pro fail-open (R1, R13). */
+test('R14. unknown plan (failClosedOnUnreadable = true): an unreadable ledger blocks as ledger_unreadable; the default keeps Pro open', async () => {
+  reset();
+  world.ledger = rows(3, PRO, Q, TODAY);                          // under both caps: only the unreadable read decides
+  world.fault = () => 'error';
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW, true), { blocked: true, reason: 'ledger_unreadable' }, 'both reads errored, unknown plan');
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW), { blocked: false }, 'the default must stay fail-open for Pro');
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW, false), { blocked: false }, 'an explicit false is the default');
+  world.fault = failing(`user@${MONTH_START}`);
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW, true), { blocked: true, reason: 'ledger_unreadable' }, 'ONE read errored is also unreadable on an unknown plan');
+  world.fault = () => 'throw';
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW, true), { blocked: true, reason: 'ledger_unreadable' }, 'the network failing is also unreadable');
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW), { blocked: false }, 'and the default is still open when the network fails');
+});
+
+test('R15. unknown plan: a CONFIRMED overage still blocks with its own reason before the unreadable rule, and a readable ledger under both caps is let through', async () => {
+  reset();
+  world.ledger = rows(50, PRO, Q, EARLIER);
+  world.fault = failing(`user@${DAY_START}`);
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW, true), { blocked: true, reason: 'pro_monthly' }, 'month confirmed over, day unreadable');
+  reset();
+  world.ledger = rows(3, PRO, Q, TODAY);
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW, true), { blocked: false }, 'both reads fine and under: an unknown plan is not blocked by the flag alone');
+});
+
 /* ══ A: the choke point, incrementUsageColumn ═════════════════════════════════════════════ */
 
 const { incrementUsageColumn, rateLimitMessage } = await import('../lib/aiUsage.ts');
