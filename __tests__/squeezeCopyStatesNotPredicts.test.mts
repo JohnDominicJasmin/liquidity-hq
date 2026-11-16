@@ -25,7 +25,7 @@ test('W1. no setup / funding / signal label predicts or instructs (the old texts
   const keys = Object.keys(en).filter((k) => GROUPS.test(k)); assert.ok(keys.length > 80, `CONTROL: only ${keys.length} keys matched the groups`);
   const bad = keys.filter((k) => PREDICT.test(en[k])).map((k) => `${k}: ${en[k]}`);
   assert.deepEqual(bad, [], 'a label still predicts or instructs');
-  const overcrowded = keys.filter((k) => /overcrowded|squeezed/i.test(en[k]) && !/_CROWD$/.test(k)).map((k) => `${k}: ${en[k]}`);
+  const overcrowded = keys.filter((k) => /overcrowded|squeezed/i.test(en[k])).map((k) => `${k}: ${en[k]}`);
   assert.deepEqual(overcrowded, [], 'a label outside the short "crowd" tags still says overcrowded / squeezed');
 });
 test('W2. sidebar and Markets signals carry the funding figure and say who pays; the coin snapshot says who pays whom', () => {
@@ -49,12 +49,17 @@ test('W4. the tip says it describes positioning and names the 2-hour taker windo
   const all = Object.entries(en).filter(([k]) => k !== 'ARENA_SCANNER_FOOTER_EXPLAINER').map(([, v]) => v).join('\n');
   assert.equal(/↑ Squeeze = shorts overcrowded|↓ Flush = longs overcrowded|bounce likely|drop likely|Whales incentivised/i.test(all), false, 'an old multi-timeframe or scanner legend text is still shipped');
 });
-/* FINDINGS (low, reported on #2452; written as the assertion that should hold, todo until Dev decides): two leftovers the PR's table does not list. */
-test('W4b. the Arena scanner footer (ARENA_SCANNER_FOOTER_EXPLAINER) no longer says "↑ Squeeze = shorts overcrowded · ↓ Flush = longs overcrowded" (row 7 changed the multi-timeframe legend, this key still carries the old wording)', { todo: true }, () => {
-  assert.doesNotMatch(en.ARENA_SCANNER_FOOTER_EXPLAINER, /Squeeze = shorts overcrowded|Flush = longs overcrowded/, en.ARENA_SCANNER_FOOTER_EXPLAINER);
+/* #2452 leftovers, decided by PM and folded in by Dev (d3201a3f): found by QA, now real pins. */
+test('W4b. the Arena scanner footer states the two sides as positioning: "Funding rate + long/short ratio · ↑ Short-heavy · ↓ Long-heavy"', () => {
+  assert.equal(en.ARENA_SCANNER_FOOTER_EXPLAINER, 'Funding rate + long/short ratio · ↑ Short-heavy · ↓ Long-heavy');
+  assert.doesNotMatch(en.ARENA_SCANNER_FOOTER_EXPLAINER, /Squeeze|Flush|overcrowded/);
 });
-test('W1b. the coin snapshot OI sub-label no longer says "real dump" (COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB: "OI up, price down · real dump"): a prediction outside the PR\'s table', { todo: true }, () => {
-  assert.doesNotMatch(en.COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB, /dump/i, en.COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB);
+test('W1b. the coin snapshot OI sub-label states the flow, not a prediction: "OI up, price down · new shorts opening"', () => {
+  assert.equal(en.COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB, 'OI up, price down · new shorts opening'); assert.doesNotMatch(en.COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB, /dump/i);
+});
+test('W6b. the funding page\'s two extreme short tags say who pays, like the rest of the page ("Longs paying" / "Shorts paying"); the milder tags are unchanged', () => {
+  assert.equal(en.FUNDING_SIG_LONGS_OVERCROWDED_CROWD, 'Longs paying'); assert.equal(en.FUNDING_SIG_SHORTS_OVERCROWDED_CROWD, 'Shorts paying');
+  for (const k of Object.keys(en).filter((x) => /^FUNDING_SIG_.*_CROWD$/.test(x))) assert.doesNotMatch(en[k], /overcrowded/i, `${k}: ${en[k]}`);
 });
 test('W5. REAL classifyFunding: the notes state who is paying, with no direction call', () => {
   const notes = [0.001, 0.0002, -0.0005, -0.0001, 0].map((r) => classifyFunding(r).note);
