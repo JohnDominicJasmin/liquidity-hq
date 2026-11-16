@@ -3014,6 +3014,8 @@
   "PATTERN_HAMMER": "Hammer",
   "PATTERN_HANGING_MAN": "Hanging man",
   "PATTERN_INVERTED_HAMMER": "Inverted hammer",
+  "PATTERN_LONG_LOWER_WICK": "Long lower wick",
+  "PATTERN_LONG_UPPER_WICK": "Long upper wick",
   "PATTERN_DOJI": "Doji",
   "PATTERN_TIGHT_CONSOLIDATION": "Tight consolidation",
   "ARENA_SOUND_PROMPT_TEXT": "Play a sound on new signals and big moves?",

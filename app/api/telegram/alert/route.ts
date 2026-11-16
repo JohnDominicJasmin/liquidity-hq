@@ -918,7 +918,7 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[], skipCounts: S
             body: `${emoji} <b>${label} Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})</b>\n\n` +
               `Price: <b>$${fmtAlertPrice(currClose)}</b>\n` +
               `Signal: ${Math.abs(pct).toFixed(1)}% candle - ${pct > 0 ? 'momentum surge' : 'flash dump'}\n` +
-              (patternStr ? `Pattern: <b>${patternStr}</b>\n` : '') +
+              (patternStr ? `Pattern: <b>${patternStr}</b> (${bybitInterval === '60' ? '1h' : bybitInterval + 'm'})\n` : '') +
               `Action: Check volume + OI. Next candle direction is key.` +
               `\n\n<i>${stamp}</i>`,
           });

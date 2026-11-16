@@ -134,10 +134,21 @@ export function detectPatterns(candles: Candle[]): string[] {
   const body  = Math.abs(last.c - last.o);
   const lower = Math.min(last.o, last.c) - last.l;
   const upper = last.h - Math.max(last.o, last.c);
-  if (body > 0 && lower >= body * 2 && upper < body * 0.5)
-    found.push(last.c >= last.o ? 'Hammer' : 'Hanging man');
-  if (body > 0 && upper >= body * 2 && lower < body * 0.5)
-    found.push(last.c <= last.o ? 'Shooting star' : 'Inverted hammer');
+  /* THE NAME NEEDS THE PRIOR TREND (S8). Hammer and Hanging man are the same candle shape; so are Shooting star and Inverted hammer. What makes each name true is the trend BEFORE the candle (a hammer follows a decline, a hanging man
+     follows a rise, a shooting star follows a rise, an inverted hammer follows a decline), and the colour rule alone never checked it, so a long lower wick in a flat or rising market was called a Hammer. The prior trend is the net
+     close-to-close move over the five closed bars before the last one, at least 1%. Without that trend the shape is reported as what it is: a long lower or upper wick. */
+  const base = candles[candles.length - 6].c;
+  const priorMove = base > 0 ? (candles[candles.length - 2].c - base) / base : 0;
+  const priorDown = priorMove <= -0.01;
+  const priorUp   = priorMove >= 0.01;
+  if (body > 0 && lower >= body * 2 && upper < body * 0.5) {
+    if (last.c >= last.o) found.push(priorDown ? 'Hammer' : 'Long lower wick');
+    else                  found.push(priorUp   ? 'Hanging man' : 'Long lower wick');
+  }
+  if (body > 0 && upper >= body * 2 && lower < body * 0.5) {
+    if (last.c <= last.o) found.push(priorUp   ? 'Shooting star' : 'Long upper wick');
+    else                  found.push(priorDown ? 'Inverted hammer' : 'Long upper wick');
+  }
 
   // ── 5. Tight consolidation → flag detection ──
   const last6  = candles.slice(-6);
@@ -221,6 +232,8 @@ const RANK: readonly string[] = [
   'Hammer',
   'Hanging man',
   'Inverted hammer',
+  'Long lower wick',
+  'Long upper wick',
   'Doji',
   'Tight consolidation',
 ];

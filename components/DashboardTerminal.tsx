@@ -167,7 +167,8 @@ function TCoinSidebar() {
         if (!sig && d?.chartPattern) {
           const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(d.chartPattern);
           const isBear = /bear|lower high|engulf.*bear|shooting|double top/i.test(d.chartPattern);
-          const label  = patternWord(t, d.chartPattern.split(';')[0].split('(')[0].trim());
+          /* The window is stated (S8): the pattern is read from the last 25 closed 15-minute bars, about 6 hours. */
+          const label  = patternWord(t, d.chartPattern.split(';')[0].split('(')[0].trim()) + ' · 15m';
           if (isBull)       sig = { text: label, col: 'var(--green)' };
           else if (isBear)  sig = { text: label, col: 'var(--red)' };
           else if (label)   sig = { text: label, col: 'var(--txt3)' };
@@ -502,7 +503,8 @@ function TSelectedCoinCard() {
   const up  = chg != null && chg >= 0;
   const badgeCol = coinBadgeColor(id);
   const oi = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
-  const pattern = patternWord(t, d?.chartPattern?.split(';')[0].split('(')[0].trim());
+  const patternName = patternWord(t, d?.chartPattern?.split(';')[0].split('(')[0].trim());
+  const pattern = patternName ? patternName + ' · 15m' : patternName;   // the window is stated (S8)
   const sigText = oi ? t(oi.txtKey) : (pattern || null);
   const sigCol  = oi?.col ?? 'var(--txt3)';
 
