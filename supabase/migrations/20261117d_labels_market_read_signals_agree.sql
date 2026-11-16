@@ -1,10 +1,15 @@
 -- NOT YET APPLIED TO ANY DATABASE. Apply ONE block per project: the PROD block on prod (qdpwhnvmhqgzijuwopso) by PM/DevOps with the release; the DEV block on dev (wdtjhrilakoitfcezxpx, shared by dev/qa/staging).
 --
--- The dashboard Market Read card title, scale and tooltip, and the dashboard page hint, say what the card measures (how many signals agree) instead of asking whether it is a good time to trade (PM visual sign-off, 2026-11-16, tracker 1263). English ships in lib/labelDefaults.en.json and needs no row.
+-- The dashboard Market Read card title, scale and tooltip, and the dashboard page hint, say what the card measures (how many signals agree) instead of asking whether it is a good time to trade (PM visual sign-off, 2026-11-16, tracker 1263). English ships in lib/labelDefaults.en.json, BUT a stored 'en' row overrides the default and these five keys already have one (20260727a, 20260928a), so their en rows are written here too, equal to the new defaults. STRAT_WATCHING has no older row.
 -- ko/zh/ru are AI-drafted and not native-reviewed, under the owner's 2026-11-13 ruling. ar is not offered but a stored 'ar' preference still serves its rows, so ar is overwritten too. Upserts by (key, locale).
 --
 -- ===================== PROD (liquidity-hq, qdpwhnvmhqgzijuwopso) =====================
 insert into lhq_labels (key, locale, value) values
+('DASHBOARD_HINT_BODY','en','Your at-a-glance market read - overall conditions and the signals worth a look.'),
+('MARKET_READ_TIP','en','A plain read on how many signals agree for this coin right now. A description, not advice. Blends session timing, day of week, Fear & Greed, funding, order-wall proximity and a 6-signal smart-money composite into one 0-100 score.'),
+('MARKET_READ_EYEBROW_Q','en',' · how many signals agree'),
+('MARKET_READ_SCALE_GOOD','en','≥ 70 most agree'),
+('MARKET_READ_GOOD_TICK_TITLE','en','Most signals agree ≥ 70'),
 ('STRAT_WATCHING','ko','주시 중'),
 ('STRAT_WATCHING','zh','关注中'),
 ('STRAT_WATCHING','ru','Следим'),
@@ -33,6 +38,11 @@ on conflict (key, locale) do update set value = excluded.value, updated_at = now
 
 -- ============ DEV (shared by dev/qa/staging, wdtjhrilakoitfcezxpx) ============
 insert into lhq_dev_labels (key, locale, value) values
+('DASHBOARD_HINT_BODY','en','Your at-a-glance market read - overall conditions and the signals worth a look.'),
+('MARKET_READ_TIP','en','A plain read on how many signals agree for this coin right now. A description, not advice. Blends session timing, day of week, Fear & Greed, funding, order-wall proximity and a 6-signal smart-money composite into one 0-100 score.'),
+('MARKET_READ_EYEBROW_Q','en',' · how many signals agree'),
+('MARKET_READ_SCALE_GOOD','en','≥ 70 most agree'),
+('MARKET_READ_GOOD_TICK_TITLE','en','Most signals agree ≥ 70'),
 ('STRAT_WATCHING','ko','주시 중'),
 ('STRAT_WATCHING','zh','关注中'),
 ('STRAT_WATCHING','ru','Следим'),
@@ -58,3 +68,6 @@ insert into lhq_dev_labels (key, locale, value) values
 ('MARKET_READ_TIP','ru','Простое описание того, сколько сигналов по этой монете сейчас совпадает. Это описание, а не совет. Учитывает время сессии, день недели, индекс страха и жадности, ставку финансирования, близость крупных заявок и составной показатель «умных денег» из 6 сигналов, сводя всё в оценку от 0 до 100.'),
 ('MARKET_READ_TIP','ar','قراءة واضحة لعدد الإشارات المتفقة لهذه العملة الآن. وصف وليس نصيحة. تجمع توقيت الجلسة ويوم الأسبوع ومؤشر الخوف والطمع ومعدل التمويل والقرب من جدران الأوامر ومؤشرًا مركبًا من 6 إشارات للأموال الذكية في درجة واحدة من 0 إلى 100.')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
+
+-- The page-hint pin (__tests__/pageHintRollout.test.mts L2b) reads the DEV rows of a hint key from commented lines, so the dashboard hint's English row is mirrored here, equal to the live block above:
+-- ('DASHBOARD_HINT_BODY','en','Your at-a-glance market read - overall conditions and the signals worth a look.'),
