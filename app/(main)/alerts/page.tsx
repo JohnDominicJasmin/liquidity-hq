@@ -1,4 +1,5 @@
 ﻿'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AuthGate from '@/components/AuthGate';
 import UpgradeGateModal, { LockedFeatureCard, EntitlementUnknownCard } from '@/components/UpgradeGateModal';
@@ -516,7 +517,7 @@ export default function AlertsPage() {
       const res = await fetch('/api/alerts/preview', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-        signal: AbortSignal.timeout(30_000),
+        signal: deadlineSignal(30_000),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
