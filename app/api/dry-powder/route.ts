@@ -41,22 +41,22 @@ function buildPrompt(current: number, prev30: number, prev90: number): string {
   const chg30 = ((current - prev30) / prev30 * 100).toFixed(1);
   const chg90 = ((current - prev90) / prev90 * 100).toFixed(1);
   return [
-    'You are a crypto market liquidity analyst. Analyze the following stablecoin supply data from DeFi Llama and provide a concise dry powder assessment.',
+    'You are a crypto market liquidity analyst. Analyze the following stablecoin supply data from DeFi Llama and write a short factual summary of it.',
     '',
     'STABLECOIN SUPPLY DATA:',
     `Current total stablecoin market cap: $${(current / 1e9).toFixed(1)}B`,
     `30 days ago: $${(prev30 / 1e9).toFixed(1)}B (${chg30}% change)`,
     `90 days ago: $${(prev90 / 1e9).toFixed(1)}B (${chg90}% change)`,
     '',
-    'Context: Stablecoin supply expansion = fresh liquidity entering crypto (bullish dry powder). Contraction = capital already deployed or exiting.',
+    'Rules: state only what the numbers show. No price predictions, no advice, no words like bullish or bearish, no "dry powder" framing, no things to watch.',
     '',
     'Output using EXACTLY these headers:',
     'SIGNAL:',
-    '[One of: EXPANDING, CONTRACTING, or NEUTRAL - followed by a colon and a one-sentence reason on the same line]',
+    '[One of: EXPANDING, CONTRACTING, or NEUTRAL - followed by a colon and a one-sentence reason on the same line, stating the 30-day change]',
     'NARRATIVE:',
-    '[2-3 sentences explaining what this trend means for crypto prices over the next 2-4 weeks]',
+    '[2-3 sentences stating how total stablecoin supply changed over the last 30 and 90 days, using the figures above]',
     'KEY_LEVEL:',
-    '[One specific supply level or trend inflection point traders should watch]',
+    '[The supply 30 days ago and 90 days ago as dollar figures only, for example: 30d ago $X.XB, 90d ago $Y.YB]',
   ].join('\n');
 }
 
