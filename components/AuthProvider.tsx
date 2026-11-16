@@ -191,10 +191,15 @@ function touchActivity() {
   localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
 }
 
-function isSessionExpired(): boolean {
+/* `lastSignInAt` is the session's own sign-in time. A session created AFTER the stored last-active stamp is brand new (a magic link, Google or confirm-email full-page load on a browser whose stamp had gone stale), and
+   signing it out for the old stamp's sake stranded the user, who then had to request another link. Only a stamp newer than the sign-in can expire a session. */
+function isSessionExpired(lastSignInAt?: string | null): boolean {
   const raw = localStorage.getItem(LAST_ACTIVE_KEY);
   if (!raw) return false; // first visit or cleared - let Supabase decide
-  return Date.now() - Number(raw) > INACTIVITY_MS;
+  const lastActive = Number(raw);
+  const signedInAt = lastSignInAt ? Date.parse(lastSignInAt) : NaN;
+  if (Number.isFinite(signedInAt) && signedInAt > lastActive) return false;
+  return Date.now() - lastActive > INACTIVITY_MS;
 }
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -319,7 +324,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       sessionReadMsRef.current = Math.min(SESSION_RESOLVE_MS, Date.now() - readStartedAt);
       const data = res?.data;
       const sessionUser = data?.session?.user ?? null;
-      if (sessionUser && isSessionExpired()) {
+      if (sessionUser && isSessionExpired(sessionUser.last_sign_in_at)) {
         /* Bounded for the same reason as the read above: signOut() is a network
            call and this branch awaits it, so a hang here would keep `loading`
            true just as effectively. forceSignOut itself is now also
