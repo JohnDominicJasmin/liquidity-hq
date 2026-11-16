@@ -3,8 +3,8 @@ import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
-import { getEntitlement, usageTierOf } from '@/lib/entitlements';
-import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
+import { requireProPlan } from '@/lib/entitlements';
+import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, type UsageBlockReason, blockedResponse } from '@/lib/aiUsage';
 import { pctChange, buildMacroPrompt } from '@/lib/macroContext';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -15,7 +15,7 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const CACHE_TTL = 5 * 60_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, reason: UsageBlockReason) {
+  constructor(public limit: number, public reason: UsageBlockReason) {
     super(rateLimitMessage(reason, limit, 'macro context checks'));
   }
 }
@@ -141,10 +141,8 @@ export async function GET(req: NextRequest) {
   // route is cached across all visitors, so granting it during the trial adds
   // ~no marginal cost while showcasing a headline Pro feature.
   /* The plan row is read ONCE (it used to be read again for the usage tier inside the cache miss). */
-  const entitlement = await getEntitlement(token, authData.user.id);
-  if (!entitlement.proFeatures) {
-    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Global macro context is a Pro feature.' }, { status: 403 });
-  }
+  const plan = await requireProPlan(token, authData.user.id, 'Global macro context is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
@@ -153,8 +151,9 @@ export async function GET(req: NextRequest) {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit stays free for everyone (same pattern as
       // token-unlock/smc-snapshot).
-      const role = usageTierOf(entitlement);
+      const role = plan.tier;
       /* The usage check and the Yahoo read run AT THE SAME TIME. A blocked caller wastes one cheap, cached Yahoo read; an allowed one no longer waits for the usage round trip first. */
+      const reservedOn = todayUtc();
       const [usageResult, inputs] = await Promise.all([
         incrementToolUsage(authData.user.id, 'macroContext', role),
         cached('macro-yahoo', 3 * 60_000, fetchMacroInputs).catch((e: unknown) => e),
@@ -162,7 +161,9 @@ export async function GET(req: NextRequest) {
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);
       }
-      if (inputs instanceof Error) throw inputs;
+      /* U3: the reservation is given back when no AI answer is billed (the market inputs failed, xAI refused, or the call threw). A reserved use is given back when nothing reached the user (a failed or unusable xAI answer, a thrown call, an empty answer), exactly as /api/grok does; nothing is given back once xAI answered 2xx (the tokens are billed). */
+      const giveBack = () => refundToolUsage(authData.user.id, 'macroContext', reservedOn);
+      if (inputs instanceof Error) { await giveBack(); throw inputs; }
       const { dxyData, vixData, goldData, oilData, tnxData, missing } = inputs as Awaited<ReturnType<typeof fetchMacroInputs>>;
 
       // #1309 item 11: no fallback stand-ins - a metric that failed to fetch
@@ -186,17 +187,21 @@ export async function GET(req: NextRequest) {
 
       const prompt = buildMacroPrompt({ dxy, vix, gold, oil, tnx, goldOilRatio });
 
-      const aiRes = await xaiFetch('https://api.x.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
-        body: JSON.stringify({
-          model: 'grok-4.3',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 600,
-        }),
-      });
+      let aiRes: Response;
+      try {
+        aiRes = await xaiFetch('https://api.x.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
+          body: JSON.stringify({
+            model: 'grok-4.3',
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 600,
+          }),
+        });
+      } catch (e) { await giveBack(); throw e; }
 
       if (!aiRes.ok) {
+        await giveBack();
         const err = await aiRes.json().catch(() => ({})) as { error?: string };
         throw new Error(err.error ?? 'AI error');
       }
@@ -211,7 +216,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(result);
   } catch (e) {
     if (e instanceof RateLimitError) {
-      return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });
+      return blockedResponse(e.reason, e.message);
     }
     return apiError('macro-context', e, 502, 'Request failed');
   }

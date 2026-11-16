@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -68,7 +69,7 @@ export default function EconCalendarWidget() {
     let cancelled = false;
     getAuthToken().then(token => fetch('/api/econ-calendar', {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      signal: AbortSignal.timeout(20_000),
+      signal: deadlineSignal(20_000),
     }))
       .then(async r => calendarFromResponse<CalEvent>(r.ok, await r.json().catch(() => null)))
       // #1637: a 429, a 500 or a body without events is a failed load, like source 'none' - never "no upcoming events".

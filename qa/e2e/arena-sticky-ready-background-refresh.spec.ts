@@ -66,9 +66,11 @@ test.describe('A failed background settings refresh must not demote an already-r
       await resetStrategySelection(page, ['SMA']);
 
       await page.goto('/arena');
+      /* the saved selection only paints once the plan is known (#2406): wait for the PRO badge, then allow a phone its time (the release run read 10 s as too short) */
+      await expect(page.locator('.plan-badge-pro').first(), "the Pro account's plan never resolved").toBeVisible({ timeout: 45_000 });
       const smaChip    = chip(page, 'SMA');
       const errorAlert = page.locator('[role="alert"]', { hasText: /couldn.?t load your saved indicators/i });
-      await expect(smaChip, 'must reach ready with the real saved selection before this test can mean anything').toHaveAttribute('aria-pressed', 'true', { timeout: 10_000 });
+      await expect(smaChip, 'must reach ready with the real saved selection before this test can mean anything').toHaveAttribute('aria-pressed', 'true', { timeout: 30_000 });
 
       // NOW inject the failure - status is already 'ready', this is
       // deliberately after the fact, not a slow/failed initial load.
