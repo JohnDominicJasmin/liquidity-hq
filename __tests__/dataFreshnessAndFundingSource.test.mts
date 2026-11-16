@@ -42,8 +42,9 @@ test('V1. the page reads the route\'s viaFallback and returns it with the series
   assert.ok(FUND.includes('if (!res.ok) return { out: {}, via: [] };') && FUND.includes('} catch { return { out: {}, via: [] }; }'), 'the failure paths lost their shape');
 });
 test('V2. a coin is marked Bybit-sourced when the route fell back to Bybit for its Binance symbol AND when the page\'s own Bybit fallback supplied it; a coin with no data is not marked', () => {
-  assert.ok(FUND.includes('if (binSym && via.includes(binSym) && pts.length) fromBybit.add(id);'), 'the route-fallback case is not marked');
-  assert.ok(FUND.includes('if (!pts.length && bbSym) { pts = await fetchBybitFR(bbSym); if (pts.length) fromBybit.add(id); }'), 'the page-fallback case is not marked, or an empty result is');
+  /* progressive paint (#2471): the Binance batch is marked in the loop, each Bybit fallback coin is marked as it arrives */
+  assert.ok(FUND.includes('if (pts.length) { first[id] = pts; if (binSym && via.includes(binSym)) fromBybit.add(id); }'), 'the route-fallback case is not marked (or an empty result is)');
+  assert.ok(FUND.includes('if (!cancelled && pts.length) { setHistory(prev => ({ ...prev, [id]: pts })); setBybitCoins(prev => (prev.includes(id) ? prev : [...prev, id])); }'), 'the page-fallback case is not marked, marked twice, or an empty result is');
   assert.ok(FUND.includes('setBybitCoins([...fromBybit]);'), 'the marked coins are not kept');
 });
 test('V3. the note shows only after loading, only with at least one such coin, names the coins, and never blanks the data', () => {
