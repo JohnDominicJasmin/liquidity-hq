@@ -1672,6 +1672,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(css.trim());
           return rgb ? `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${a})` : css;
         };
+        /* A LABEL IS A BOX IN ITS ROLE COLOUR (PM visual sign-off, tracker 1263): a tinted ground with a 1 px border and the text in the same ink, so a label stays readable over candles in both themes and reads as watch/confirm (accent), wrong-if (amber) or reference (neutral) at a glance. The box is 14 px tall, so the stacking step below is 15. */
+        const labelStyles = (ink: string) => ({ style: 'stroke_fill', color: ink, size: 10, weight: '700', backgroundColor: withAlpha(ink, 0.14), borderColor: withAlpha(ink, 0.55), borderSize: 1, borderRadius: 3, paddingLeft: 4, paddingRight: 4, paddingTop: 2, paddingBottom: 2 });
         const base = { totalStep: 1, needDefaultPointFigure: false, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (kc as any).registerOverlay({
@@ -1681,7 +1683,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const { role, text, prices, rank } = overlay.extendData as { role: string; text: string; prices?: number[]; rank?: number };
             const c = coordinates[0];
             if (!c || !isFinite(c.x) || !isFinite(c.y) || c.y < 0) return [];
-            /* LABELS THAT COLLIDE STACK (PM ruling, #2372): this strategy's levels are listed by price (lowest first); a label lifts 11 px for every LOWER level that sits within 12 px of this line on screen, so two
+            /* LABELS THAT COLLIDE STACK (PM ruling, #2372): this strategy's levels are listed by price (lowest first); a label lifts 15 px for every LOWER level that sits within 16 px of this line on screen, so two
                close levels (a sweep's swept and break levels on a low timeframe) read as two labels, not one smudge. */
             let lift = 0;
             if (prices && rank != null && chartRef.current) {
@@ -1689,7 +1691,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const o = (chartRef.current as any).convertToPixel?.({ value: prices[k] }, { paneId: 'candle_pane' });
                 const oy = Array.isArray(o) ? o[0]?.y : o?.y;
-                if (typeof oy === 'number' && isFinite(oy) && Math.abs(oy - c.y) < 12) lift += 11;
+                if (typeof oy === 'number' && isFinite(oy) && Math.abs(oy - c.y) < 16) lift += 15;
               }
             }
             const x0 = Math.max(0, c.x), x1 = bounding?.width ?? 9999;
@@ -1697,7 +1699,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const ink = roleInk(role);
             return [
               { type: 'line', attrs: { coordinates: [{ x: x0, y: c.y }, { x: x1, y: c.y }] }, styles: { style: role === 'confirm' || role === 'ref' ? 'solid' : 'dashed', color: ink, size: role === 'ref' ? 1 : 1.5, dashedValue: [5, 3] } },
-              { type: 'text', attrs: { x: Math.min(x1 - 6, Math.max(6, x0 + 6)), y: c.y - 3 - lift, text, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } },
+              { type: 'text', attrs: { x: Math.min(x1 - 6, Math.max(6, x0 + 6)), y: c.y - 3 - lift, text, align: 'left', baseline: 'bottom' }, styles: labelStyles(ink) },
             ];
           },
         });
@@ -1732,7 +1734,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             // ONE point is a text tag only (the existing ribbon line it labels is already drawn by the chart)
             return [
               ...(pts.length >= 2 ? [{ type: 'line', attrs: { coordinates: pts }, styles: { style: 'solid', color: ink, size: 1.25 } }] : []),
-              { type: 'text', attrs: { x: end.x + 4, y: end.y, text, align: 'left', baseline: 'middle' }, styles: { color: ink, size: 10, weight: '700' } },
+              { type: 'text', attrs: { x: end.x + 4, y: end.y, text, align: 'left', baseline: 'middle' }, styles: labelStyles(ink) },
             ];
           },
         });
