@@ -3,7 +3,7 @@
  *   R1-R4  app/api/dry-powder/route.ts, source anchors (the route cannot be imported by the unit runner: its RateLimitError uses a TypeScript parameter property, which node's strip-only mode rejects; the same limit
  *          applies on dev). Pinned: the numbers part returns before the reservation and after the Pro gate, the AI step has its 25 s bound, the reservation is refunded unless billed, billed is set only after a 2xx
  * WHAT IT CANNOT PROVE: the route's behaviour end to end and the card's order of rendering (skeleton, figures, summary, unavailable line): the browser cell in the group run. */
-import test from 'node:test';
+import test, { after, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { getDryPowderNumbers, warmDryPowderSeries, DRY_POWDER_SERIES_TTL_MS } from '../lib/dryPowderSeries.ts';
@@ -17,12 +17,11 @@ globalThis.fetch = (async (input: RequestInfo | URL) => {
   const n = mode === 'short' ? 10 : 120;
   return new Response(JSON.stringify(Array.from({ length: n }, (_, i) => ({ date: String(1_700_000_000 + i * 86400), totalCirculatingUSD: { peggedUSD: 150e9 + i * 1e9 } }))), { status: 200, headers: { 'content-type': 'application/json' } });
 }) as typeof fetch;
-import { after } from 'node:test';
 after(() => { globalThis.fetch = realFetch; });
 
 let epoch = 0; const BASE = 1_800_000_000_000;
 /* each test starts its mocked clock 100 h after the last, so the module's caches (24 h series, 1 min failure hold) are expired */
-const start = (t: { mock: { timers: { enable(o: object): void; tick(ms: number): void } } }) => { llamaReads = 0; t.mock.timers.enable({ apis: ['Date'], now: BASE + (++epoch) * 100 * 3_600_000 }); };
+const start = (t: TestContext) => { llamaReads = 0; t.mock.timers.enable({ apis: ['Date'], now: BASE + (++epoch) * 100 * 3_600_000 }); };
 
 test('N1. the figures are the last, 30-days-ago and 90-days-ago totals and the last 30 daily points', async (t) => {
   start(t); mode = 'ok';
