@@ -3498,6 +3498,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         <div className="klc-sep" />
         <button
           className={`klc-tool-btn${showSR ? ' on' : ''}`}
+          aria-pressed={showSR}
           onClick={() => onShowSRChange(!showSR)}
           title={tl('CHART_SR_TITLE')}
         >
@@ -3506,6 +3507,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
         <button
           className={`klc-tool-btn${showPA ? ' on' : ''}`}
+          aria-pressed={showPA}
           onClick={() => setShowPA(v => !v)}
           title={tl('CHART_STRUCTURE_TITLE')}
         >
@@ -3515,6 +3517,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         {liqClusters && liqClusters.length > 0 && (
           <button
             className={`klc-tool-btn${showLiq ? ' on' : ''}`}
+            aria-pressed={showLiq}
             onClick={() => onShowLiqChange(!showLiq)}
             title={`${tl('CHART_LIQ_TITLE')}${liqHistOnly ? ` ${tl('CHART_LIQ_HIST_FROM', { venue: liqHistOnly === 'BN' ? 'Binance' : 'Bybit' })}` : ''}`}
           >
