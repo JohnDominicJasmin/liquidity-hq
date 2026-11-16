@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { cached } from '@/lib/apiCache';
-import { incrementToolUsage, refundToolUsage, todayUtc, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
-import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
+import { incrementToolUsage, refundToolUsage, todayUtc, rateLimitMessage, type UsageBlockReason, blockedResponse } from '@/lib/aiUsage';
+import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -16,7 +16,7 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const CACHE_TTL = 2 * 60_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, reason: UsageBlockReason) {
+  constructor(public limit: number, public reason: UsageBlockReason) {
     super(rateLimitMessage(reason, limit, 'SMC snapshots'));
   }
 }
@@ -125,9 +125,8 @@ export async function POST(req: NextRequest) {
   // is fully paywalled in the UI - so without a server-side check the paid
   // xAI call was still callable directly with a free account token. Trial
   // users pass (hasProFeatures covers isTrial).
-  if (!(await hasProFeatures(token, authData.user.id))) {
-    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Smart-money snapshot is a Pro feature.' }, { status: 403 });
-  }
+  const plan = await requireProPlan(token, authData.user.id, 'Smart-money snapshot is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
@@ -184,7 +183,7 @@ export async function POST(req: NextRequest) {
     const result = await cached(`smc-snapshot:${asset}:${tf}`, CACHE_TTL, async () => {
       // Only the cache-miss path spends on xAI, so only it needs the daily
       // cap - a cache hit within the 2min TTL stays free for everyone.
-      const role = await getUsageTier(token, authData.user.id);
+      const role = plan.tier;
       const usageResult = await incrementToolUsage(authData.user.id, 'smcSnapshot', role);
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);
@@ -237,7 +236,7 @@ export async function POST(req: NextRequest) {
        * when `usage.blocked`, which is BEFORE `reserved.current` is assigned - there is nothing to
        * give back. The guard below would skip it anyway; saying so stops the next reader
        * "fixing" it into a double credit. */
-      return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });
+      return blockedResponse(e.reason, e.message);
     }
 
     /* `reserved.current` is null on a cache hit and on any refusal before the reservation, so this

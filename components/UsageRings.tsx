@@ -7,15 +7,15 @@ const R = 21; // ring radius
 const C = 2 * Math.PI * R; // arc circumference
 
 const RINGS = [
-  { id: 'quick',    labelKey: 'USAGE_RINGS_QUICK',    color: 'var(--green-2)', used: 'quick_used',     limit: 'quick_limit'     },
-  { id: 'deep',     labelKey: 'USAGE_RINGS_DEEP',     color: 'var(--accent-2)', used: 'deep_used',      limit: 'deep_limit'      },
-  { id: 'chat',     labelKey: 'USAGE_RINGS_CHAT',     color: 'var(--accent-2)', used: 'chat_used',      limit: 'chat_limit'      },
-  { id: 'search',   labelKey: 'USAGE_RINGS_SEARCH',   color: 'var(--accent)', used: 'search_used',    limit: 'search_limit'    },
-  { id: 'briefing', labelKey: 'USAGE_RINGS_BRIEFING', color: 'var(--amber)', used: 'briefing_used',  limit: 'briefing_limit'  },
+  { id: 'quick',    labelKey: 'USAGE_RINGS_QUICK',    color: 'var(--ring-quick)', used: 'quick_used',     limit: 'quick_limit'     },
+  { id: 'deep',     labelKey: 'USAGE_RINGS_DEEP',     color: 'var(--ring-deep)', used: 'deep_used',      limit: 'deep_limit'      },
+  { id: 'chat',     labelKey: 'USAGE_RINGS_CHAT',     color: 'var(--ring-chat)', used: 'chat_used',      limit: 'chat_limit'      },
+  { id: 'search',   labelKey: 'USAGE_RINGS_SEARCH',   color: 'var(--ring-search)', used: 'search_used',    limit: 'search_limit'    },
+  { id: 'briefing', labelKey: 'USAGE_RINGS_BRIEFING', color: 'var(--ring-briefing)', used: 'briefing_used',  limit: 'briefing_limit'  },
   // Shared budget across all 11 one-shot tools. Pro-only, so this ring is
   // filtered out below when the limit is 0 - free is capped per tool and has
   // no single number to show.
-  { id: 'tools',    labelKey: 'USAGE_RINGS_TOOLS',    color: '#a78bfa', used: 'tool_pool_used', limit: 'tool_pool_limit' },
+  { id: 'tools',    labelKey: 'USAGE_RINGS_TOOLS',    color: 'var(--ring-tools)', used: 'tool_pool_used', limit: 'tool_pool_limit' },
 ] as const;
 
 export default function UsageRings({ usage }: { usage: GrokUsageInfo }) {
@@ -38,7 +38,7 @@ export default function UsageRings({ usage }: { usage: GrokUsageInfo }) {
             <div key={id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
               <div style={{ position: 'relative', width: 56, height: 56 }}>
                 <svg width="56" height="56" viewBox="0 0 56 56" style={{ display: 'block' }}>
-                  <circle cx="28" cy="28" r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="4" />
+                  <circle cx="28" cy="28" r={R} fill="none" stroke="var(--ring-track)" strokeWidth="4" />
                   <circle
                     cx="28" cy="28" r={R} fill="none"
                     stroke={col} strokeWidth="4"

@@ -13,7 +13,7 @@ const CR = String.fromCharCode(13), LF = String.fromCharCode(10);
 const M = [
   { name: 'K1 Pro daily cap changed', f: CAP, from: 'export const PRO_DAILY_CAP_USD    = 1.00;', to: 'export const PRO_DAILY_CAP_USD    = 1.50;', red: ['C1.'] },
   { name: 'K2 Pro monthly cap changed', f: CAP, from: 'export const PRO_MONTHLY_CAP_USD   = 10.00;', to: 'export const PRO_MONTHLY_CAP_USD   = 12.00;', red: ['C1.'] },
-  { name: 'K3 free daily cap changed', f: CAP, from: 'export const FREE_DAILY_CAP_USD    = 0.15;', to: 'export const FREE_DAILY_CAP_USD    = 0.25;', red: ['C1.'] },
+  { name: 'K3 free daily cap changed', f: CAP, from: 'export const FREE_DAILY_CAP_USD    = 0.25;', to: 'export const FREE_DAILY_CAP_USD    = 0.15;', red: ['C1.'] },
   { name: 'K4 site fuse changed', f: CAP, from: 'export const SITE_FUSE_DAILY_USD   = 10.00;', to: 'export const SITE_FUSE_DAILY_USD   = 20.00;', red: ['C1.'] },
   { name: 'K5 a Pro day is allowed to exceed the Pro month', f: CAP, from: 'export const PRO_DAILY_CAP_USD    = 1.00;', to: 'export const PRO_DAILY_CAP_USD    = 11.00;', red: ['C1.', 'C2.'] },
   { name: 'D1 the day window starts one millisecond late', f: CAP, from: "+ 'T00:00:00.000Z';", to: "+ 'T00:00:00.001Z';", red: ['W1.', 'W4.'] },   // W3 only compares month start with day start, which a 1 ms shift keeps ordered

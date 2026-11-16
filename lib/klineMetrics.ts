@@ -133,7 +133,9 @@ export function computeKlineMetrics(allKlines: string[][]): KlineMetrics | null 
   });
   const vwap = sumVol > 0 ? sumTPV / sumVol : null;
 
-  const patternCandles = klines.slice(-PATTERN_WINDOW).map(k => ({
+  /* CLOSED BARS ONLY (S7): the newest kline is still forming (RSI and the volume ratio above already leave it out). A Doji, Hammer or Engulfing judged on a candle that is seconds old flips on the next tick, and the Telegram
+     alert sends the first pattern. The window is the PATTERN_WINDOW bars BEFORE the forming one. */
+  const patternCandles = klines.slice(-PATTERN_WINDOW - 1, -1).map(k => ({
     o: parseFloat(k[1]), h: parseFloat(k[2]), l: parseFloat(k[3]), c: parseFloat(k[4]),
   }));
   const patterns = detectPatterns(patternCandles);

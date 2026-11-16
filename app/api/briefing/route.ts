@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { T } from '@/lib/tables';
-import { getUsageTier } from '@/lib/entitlements';
+import { getUsageTierStatus } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
-import { AI_LIMITS } from '@/lib/limits';
-import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
+import { AI_LIMITS, type UsageTier } from '@/lib/limits';
+import { incrementUsageColumn, rateLimitMessage, refundUsageColumn, todayUtc, blockedResponse } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -85,24 +85,24 @@ export async function POST(req: NextRequest) {
 
   /* ── Rate limit check ── */
   const today = todayUtc();
-  const [{ briefingUsed }, role] = await Promise.all([
+  const [{ briefingUsed }, plan] = await Promise.all([
     getUsageRow(token, userId, today),
-    getUsageTier(token, userId),
+    getUsageTierStatus(token, userId),
   ]);
+  /* U7: an UNKNOWN plan is never billed against the Free cap: Pro count cap, dollar cap fails closed (POST /api/grok's rule, #2412). */
+  const role: UsageTier = plan.failed ? 'pro' : plan.tier;
   const briefingLimit = AI_LIMITS[role].briefing;
 
   // Atomic check-and-increment (reserve before spending on xAI) - closes the
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
-  const usageResult = await incrementUsageColumn(userId, role, 'briefing_count', briefingLimit);
+  /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
+  const reservedOn = todayUtc();
+  let billed = false;
+  const usageResult = await incrementUsageColumn(userId, role, 'briefing_count', briefingLimit, null, plan.failed);
   if (usageResult.blocked) {
-    return NextResponse.json(
-      {
-        error: rateLimitMessage(usageResult.reason, briefingLimit, 'briefings'),
-        code: 'RATE_LIMIT',
-        usage: { briefing_used: briefingUsed, briefing_limit: briefingLimit },
-      },
-      { status: 429 }
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, briefingLimit, 'briefings'), {
+      usage: { briefing_used: briefingUsed, briefing_limit: briefingLimit },
+    });
   }
 
   try {
@@ -123,11 +123,13 @@ export async function POST(req: NextRequest) {
     });
 
     if (!res.ok) {
+      await refundUsageColumn(userId, 'briefing_count', reservedOn);
       const txt = await res.text();
       return apiError('briefing', txt, res.status, 'AI service error');
     }
 
     const data = await res.json();
+    billed = true;   // 2xx: the tokens are billed from here
     await recordAiCall({ userId, callType: 'briefing', model: data.model ?? 'grok-4.3', usage: data.usage });
     const briefing = (data.choices?.[0]?.message?.content ?? '').trim();
 
@@ -136,6 +138,7 @@ export async function POST(req: NextRequest) {
       _usage: { briefing_used: usageResult.count, briefing_limit: briefingLimit },
     });
   } catch (e) {
+    if (!billed) await refundUsageColumn(userId, 'briefing_count', reservedOn);
     return apiError('briefing', e, 500, 'Request failed');
   }
 }
