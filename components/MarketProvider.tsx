@@ -1310,11 +1310,13 @@ export default function MarketProvider(
 
       setStore(s => ({
         ...s,
-        ...(d.oil  ? { oilPrice: d.oil.price, oilChg: d.oil.chg }        : {}),
-        ...(d.dxy  ? { dxy:  d.dxy.price,  dxyChg:  d.dxy.chg  }       : {}),
-        ...(d.spx  ? { spx:  d.spx.price,  spxChg:  d.spx.chg  }       : {}),
-        ...(d.gold ? { gold: d.gold.price, goldChg: d.gold.chg  }       : {}),
-        ...(d.jpy  ? { jpy:  d.jpy.price,  jpyChg:  d.jpy.chg  }       : {}),
+        /* PM audit A7: only ^TNX was cleared on a failed read. DXY, S&P, gold, oil and yen kept their LAST value with no age, so a blocked quote
+           source left an old DXY on the page indefinitely. Every reading is now unavailable when its read fails, the same rule as the 10Y below. */
+        ...(d.oil  ? { oilPrice: d.oil.price, oilChg: d.oil.chg }        : { oilPrice: null, oilChg: null }),
+        ...(d.dxy  ? { dxy:  d.dxy.price,  dxyChg:  d.dxy.chg  }       : { dxy: null, dxyChg: null }),
+        ...(d.spx  ? { spx:  d.spx.price,  spxChg:  d.spx.chg  }       : { spx: null, spxChg: null }),
+        ...(d.gold ? { gold: d.gold.price, goldChg: d.gold.chg  }       : { gold: null, goldChg: null }),
+        ...(d.jpy  ? { jpy:  d.jpy.price,  jpyChg:  d.jpy.chg  }       : { jpy: null, jpyChg: null }),
         // PM audit of #1665: a failed ^TNX read is "unavailable", not the last yield shown as current with no age.
         ...(d.tnx  ? { bonds10y: d.tnx.price, bonds10yChgBp: tnxBp }   : { bonds10y: null, bonds10yChgBp: null }),
         // No truthiness guard: the route always returns an object, and its

@@ -6,6 +6,7 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { getAuthToken } from '@/lib/supabase';
 import { econImpactKey, type EconImpact } from '@/lib/classify';
+import { localZoneAbbr } from '@/lib/resetTime';
 import { withAlpha } from '@/lib/color';
 import { calendarFromResponse } from '@/lib/econCalendarFeed';
 
@@ -29,8 +30,10 @@ const IMPACT_COLOR: Record<EconImpact, string> = {
 
 const MAX_ROWS = 5;
 
+/* The time is shown in the viewer's own zone and now says which (PM audit A11); hour12:false could print midnight as "24:30" in some engines, so the
+   24-hour cycle is requested explicitly. */
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) + ' ' + localZoneAbbr();
 }
 
 function fmtDateHeader(iso: string, t: TFn, now: number): string {

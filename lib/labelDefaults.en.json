@@ -1680,6 +1680,8 @@
   "BRIEFING_TAG_CVD_BULL": "CVD Bull",
   "BRIEFING_TAG_CVD_BEAR": "CVD Bear",
   "BRIEFING_EVENTS_NEWS_TITLE": "Events & News",
+  "BRIEFING_CALENDAR_UNAVAILABLE": "Economic calendar unavailable right now. Scheduled events are not shown.",
+  "BRIEFING_ETF_FLAT": "Flat",
   "BRIEFING_NO_EVENTS": "No active events in the next 24h. Clean macro backdrop.",
   "BRIEFING_WHALE_PREFIX": "WHALE {side}",
   "PLAYBOOK_PAGE_TITLE": "Liquidity Playbook",
