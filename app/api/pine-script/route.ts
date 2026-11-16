@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'INVALID_INPUT', message: 'The description or analysis is too long.' }, { status: 400 });
   }
 
-  if (!description) {
+  if (description.length < 10) {
     return NextResponse.json({ error: 'No strategy description provided' }, { status: 400 });
   }
 
