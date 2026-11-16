@@ -15,6 +15,6 @@ test('D1. no "Edit · Save as" caption and no orphan .strat-cap rule', () => {
   assert.equal(/\.strat-cap\b/.test(css), false, 'a CSS rule still styles .strat-cap although nothing uses it');
 });
 test('D2. the header still has its title, its select and the indicators section', () => {
-  assert.ok(panel.includes("t('STRATEGY_PANEL_SECTION_SET')"), 'the Strategy set header title is gone');
+  assert.ok(/<div className="strat-lbl">\s*<span>\{t\('STRATEGY_PANEL_SECTION_SET'\)\}<\/span>/.test(panel), 'the Strategy set header title is gone');
   assert.ok(panel.includes('data-testid="strategy-set-select"') && panel.includes("t('STRATEGY_PANEL_SECTION_INDICATORS')"), 'the strategy select or the indicators section header is gone');
 });
