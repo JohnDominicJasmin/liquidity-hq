@@ -89,6 +89,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'INVALID_INPUT', message: 'One of the fields is the wrong type or too long.' }, { status: 400 });
   }
 
+  /* The direction goes into the first line of the prompt, so it is one of two words and not free text; a whitespace-only thesis or an assumption list
+     that is empty once blanks are removed is refused before it can cost a use (PM audit B12). */
+  const directionWord = direction.trim().toUpperCase();
+  const cleanAssumptions = assumptions.map(a => a.trim()).filter(Boolean);
+  if ((directionWord !== 'LONG' && directionWord !== 'SHORT') || !thesisText.trim() || cleanAssumptions.length === 0) {
+    return NextResponse.json({ error: 'INVALID_INPUT', message: 'Direction must be LONG or SHORT, and the thesis and at least one assumption must have text.' }, { status: 400 });
+  }
+
   const role = plan.tier;
   /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
   const reservedOn = todayUtc();
@@ -99,10 +107,10 @@ export async function POST(req: NextRequest) {
 
   const prompt = buildThesisPrompt(
     symbol.toUpperCase(),
-    direction,
+    directionWord,
     entryDate ?? new Date().toISOString().slice(0, 10),
-    thesisText,
-    assumptions.filter(Boolean),
+    thesisText.trim(),
+    cleanAssumptions,
   );
 
   const res = await xaiFetch('https://api.x.ai/v1/chat/completions', {
