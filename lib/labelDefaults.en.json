@@ -3167,6 +3167,7 @@
   "ECON_ESTIMATED_TIP_ROW": "Estimated date - computed from a typical release pattern, not a published schedule",
   "ECON_ESTIMATED_TIP_WIDGET": "Estimated date - approximate, not a published release schedule",
   "MACRO_STRIP_TITLE": "Macro Correlations",
+  "MACRO_STRIP_CLOSE_STAMP": "{day} close",
   "MACRO_STRIP_GOLD": "Gold",
   "MACRO_STRIP_NEUTRAL": "Neutral",
   "MACRO_STRIP_DXY_UP": "USD strength → BTC headwind",

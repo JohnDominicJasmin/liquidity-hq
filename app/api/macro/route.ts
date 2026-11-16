@@ -20,9 +20,11 @@ type YFMeta = {
   previousClose?: number;
   chartPreviousClose?: number;
   regularMarketChangePercent?: number;
+  /** Unix SECONDS of the quote's own last trade (Yahoo's regularMarketTime). */
+  regularMarketTime?: number;
 };
 
-function extract(json: unknown): { price: number; chg: number | null } | null {
+function extract(json: unknown): { price: number; chg: number | null; asOf: number | null } | null {
   try {
     const r0 = (json as { chart?: { result?: Array<{ meta?: YFMeta; indicators?: { quote?: Array<{ close?: Array<number | null> }> } }> } })
       ?.chart?.result?.[0];
@@ -47,7 +49,9 @@ function extract(json: unknown): { price: number; chg: number | null } | null {
     const chg = prev != null ? ((price - prev) / prev) * 100
       : typeof ycp === 'number' && Number.isFinite(ycp) ? ycp
       : null;
-    return { price, chg };
+    /* THE QUOTE'S OWN TIME, in ms, so the page can say "Fri close" for a weekend value instead of showing Friday's price as if it were now (#1651). Null when Yahoo sent none. */
+    const asOf = typeof result.regularMarketTime === 'number' && result.regularMarketTime > 0 ? result.regularMarketTime * 1000 : null;
+    return { price, chg, asOf };
   } catch { return null; }
 }
 
@@ -86,7 +90,7 @@ const YF_FAIL_TTL_MS = 30_000;
 /** Distinguishes "already reported to health" from an unexpected throw. */
 class YfUnavailable extends Error {}
 
-async function fetchYf(sym: string, label: string): Promise<{ price: number; chg: number | null }> {
+async function fetchYf(sym: string, label: string): Promise<{ price: number; chg: number | null; asOf: number | null }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   const source = `yahoo:${label}`;

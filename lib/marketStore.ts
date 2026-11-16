@@ -205,6 +205,8 @@ export type MarketStore = {
   btcLiqLevels: LiqLevel[];
   /* Google Trends */
   /* Macro correlations */
+  /** The quote's OWN time (ms) per macro reading, from /api/macro; null when unknown. Lets a surface say "Fri close" for a weekend value instead of showing it as current (#1651). */
+  macroAsOf: { dxy: number | null; spx: number | null; gold: number | null; oil: number | null };
   dxy: number | null;        // US Dollar Index
   dxyChg: number | null;     // 24h % change
   jpy: number | null;        // USD/JPY spot
@@ -269,6 +271,7 @@ export const defaultStore: MarketStore = {
   stablecoinChg30d: null,
   btcExchangeNetFlow: null,
   btcLiqLevels: [],
+  macroAsOf: { dxy: null, spx: null, gold: null, oil: null },
   dxy: null, dxyChg: null,
   jpy: null, jpyChg: null,
   real10y: null,

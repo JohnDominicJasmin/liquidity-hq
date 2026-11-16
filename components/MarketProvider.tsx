@@ -1305,10 +1305,10 @@ export default function MarketProvider(
       if (!res.ok) return;
       const d: {
         // chg is null when the one-day change is unknown (#1631 C, PM audit) - never a 0 standing in for it.
-        oil:  { price: number; chg: number | null } | null;
-        dxy:  { price: number; chg: number | null } | null;
-        spx:  { price: number; chg: number | null } | null;
-        gold: { price: number; chg: number | null } | null;
+        oil:  { price: number; chg: number | null; asOf?: number | null } | null;
+        dxy:  { price: number; chg: number | null; asOf?: number | null } | null;
+        spx:  { price: number; chg: number | null; asOf?: number | null } | null;
+        gold: { price: number; chg: number | null; asOf?: number | null } | null;
         jpy:  { price: number; chg: number | null } | null;
         tnx:  { price: number; chg: number | null } | null;
         real10y: RealYield | null;
@@ -1319,6 +1319,7 @@ export default function MarketProvider(
 
       setStore(s => ({
         ...s,
+        macroAsOf: { dxy: d.dxy?.asOf ?? null, spx: d.spx?.asOf ?? null, gold: d.gold?.asOf ?? null, oil: d.oil?.asOf ?? null },
         /* PM audit A7: only ^TNX was cleared on a failed read. DXY, S&P, gold, oil and yen kept their LAST value with no age, so a blocked quote
            source left an old DXY on the page indefinitely. Every reading is now unavailable when its read fails, the same rule as the 10Y below. */
         ...(d.oil  ? { oilPrice: d.oil.price, oilChg: d.oil.chg }        : { oilPrice: null, oilChg: null }),
