@@ -3,7 +3,7 @@ import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { cached } from '@/lib/apiCache';
 import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, type UsageBlockReason } from '@/lib/aiUsage';
-import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
+import { requireProPlan } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -56,9 +56,8 @@ export async function POST(req: NextRequest) {
   // is fully paywalled in the UI - so without a server-side check the paid
   // xAI call was still callable directly with a free account token. Trial
   // users pass (hasProFeatures covers isTrial).
-  if (!(await hasProFeatures(authToken, authData.user.id))) {
-    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Token unlock analysis is a Pro feature.' }, { status: 403 });
-  }
+  const plan = await requireProPlan(authToken, authData.user.id, 'Token unlock analysis is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
@@ -76,7 +75,7 @@ export async function POST(req: NextRequest) {
     const result = await cached(`token-unlock:${symbol}`, CACHE_TTL, async () => {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit for a popular symbol stays free for everyone.
-      const role = await getUsageTier(authToken, authData.user.id);
+      const role = plan.tier;
       /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
       const reservedOn = todayUtc();
       const giveBack = () => refundToolUsage(authData.user.id, 'tokenUnlock', reservedOn);

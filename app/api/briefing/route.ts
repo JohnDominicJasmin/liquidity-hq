@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { T } from '@/lib/tables';
-import { getUsageTier } from '@/lib/entitlements';
+import { getUsageTierStatus } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
-import { AI_LIMITS } from '@/lib/limits';
+import { AI_LIMITS, type UsageTier } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage, refundUsageColumn, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
@@ -85,10 +85,12 @@ export async function POST(req: NextRequest) {
 
   /* ── Rate limit check ── */
   const today = todayUtc();
-  const [{ briefingUsed }, role] = await Promise.all([
+  const [{ briefingUsed }, plan] = await Promise.all([
     getUsageRow(token, userId, today),
-    getUsageTier(token, userId),
+    getUsageTierStatus(token, userId),
   ]);
+  /* U7: an UNKNOWN plan is never billed against the Free cap: Pro count cap, dollar cap fails closed (POST /api/grok's rule, #2412). */
+  const role: UsageTier = plan.failed ? 'pro' : plan.tier;
   const briefingLimit = AI_LIMITS[role].briefing;
 
   // Atomic check-and-increment (reserve before spending on xAI) - closes the
@@ -96,7 +98,7 @@ export async function POST(req: NextRequest) {
   /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
   const reservedOn = todayUtc();
   let billed = false;
-  const usageResult = await incrementUsageColumn(userId, role, 'briefing_count', briefingLimit);
+  const usageResult = await incrementUsageColumn(userId, role, 'briefing_count', briefingLimit, null, plan.failed);
   if (usageResult.blocked) {
     return NextResponse.json(
       {
