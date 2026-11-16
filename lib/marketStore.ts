@@ -63,8 +63,10 @@ export interface CoinData {
   vwap: number | null;
   /* OI Trend vs Price divergence signal */
   oiTrend: 'strong_up' | 'weak_up' | 'strong_down' | 'weak_down' | null;
-  /* Taker Buy/Sell ratio - who's being aggressive (last 20 × 15m candles ≈ 5h) */
+  /* Taker Buy/Sell ratio - who's being aggressive (buy vol / total vol, 0.0–1.0). The WINDOW depends on the coin (S11): Binance-listed coins read the last 8 x 15m candles' taker-buy volume (about 2 hours, takerBasis 'candles');
+     Bybit-only coins (PEPE, BONK, XAU, SPX, HYPE ...) have no taker split in their klines, so it comes from the last 500 trades (seconds to minutes, takerBasis 'trades'). */
   takerBuyRatio: number | null;  // 0.0–1.0 (buy vol / total vol)
+  takerBasis?: 'candles' | 'trades';
   /* Detected chart patterns from 15m klines (e.g. "Bull flag", "Bearish engulfing") */
   chartPattern: string | null;
   /* Next funding rate prediction (mark–index premium spread) */
@@ -322,7 +324,10 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
   const present: string[] = [];
   if (coin.fundingRate != null) present.push('funding');
   if (coin.longRatio != null && coin.shortRatio != null) present.push('long/short');
-  if (coin.takerBuyRatio != null) present.push('taker flow');
+  /* The taker input is scored only from the 2-hour candle window. The 500-trade sample (Bybit-only coins) covers seconds to minutes, so the same 0.38 / 0.62 bands are mostly noise on it; it stays on the coin for display but is
+     not a score input (S11). */
+  const takerScored = coin.takerBuyRatio != null && coin.takerBasis !== 'trades';
+  if (takerScored) present.push('taker flow');
 
   let longRisk = 0;    // longs overleveraged → price dump incoming
   let shortRisk = 0;   // shorts overleveraged → price pump incoming
@@ -353,7 +358,7 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
   // ── Signal 3: Taker buy/sell ratio - aggressor-side pressure (max 15 pts) ─
   // takerBuyRatio < 0.40 → sellers are aggressive (long-flush pressure)
   // takerBuyRatio > 0.60 → buyers are aggressive (short-squeeze pressure)
-  if (coin.takerBuyRatio != null) {
+  if (takerScored && coin.takerBuyRatio != null) {
     if (coin.takerBuyRatio <= 0.38)      { longRisk += 15; longSignals++; }
     else if (coin.takerBuyRatio <= 0.42) { longRisk += 8;  longSignals++; }
     else if (coin.takerBuyRatio >= 0.62) { shortRisk += 15; shortSignals++; }
