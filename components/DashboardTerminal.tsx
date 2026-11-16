@@ -436,6 +436,7 @@ function TEdgeSignals() {
           <div className="edge-card-signal" style={{ color: sqCol }}>
             {sq.dir === 'SHORT_SQ' ? t('DASH_EDGE_SETUP_SHORT_SQ')
              : sq.dir === 'LONG_LIQ' ? t('DASH_EDGE_SETUP_LONG_LIQ')
+             : !sq.enough ? t('DASH_EDGE_SETUP_NOT_ENOUGH_DATA')
              : t('DASH_EDGE_SETUP_BALANCED')}
           </div>
         </div>

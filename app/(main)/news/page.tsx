@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useNews } from '@/components/NewsProvider';
-import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline } from '@/lib/classify';
+import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline, hasAnyKeyword } from '@/lib/classify';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
 import { withAlpha } from '@/lib/color';
 import LoadingState from '@/components/LoadingState';
@@ -51,7 +51,7 @@ function timeAgo(ts: number, t: TFn): string {
 function getGeoMeta(headline: string): { tag: string; note: string } | null {
   const h = headline.toLowerCase();
   for (const g of GEO_KEYWORDS) {
-    if (g.kw.some(k => h.includes(k))) return { tag: g.tag, note: g.note };
+    if (hasAnyKeyword(h, g.kw)) return { tag: g.tag, note: g.note };
   }
   return null;
 }

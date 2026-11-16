@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { forceSignOut, INACTIVITY_MS, LAST_ACTIVE_KEY } from '@/lib/authSession';
@@ -189,10 +190,15 @@ function touchActivity() {
   localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
 }
 
-function isSessionExpired(): boolean {
+/* `lastSignInAt` is the session's own sign-in time. A session created AFTER the stored last-active stamp is brand new (a magic link, Google or confirm-email full-page load on a browser whose stamp had gone stale), and
+   signing it out for the old stamp's sake stranded the user, who then had to request another link. Only a stamp newer than the sign-in can expire a session. */
+function isSessionExpired(lastSignInAt?: string | null): boolean {
   const raw = localStorage.getItem(LAST_ACTIVE_KEY);
   if (!raw) return false; // first visit or cleared - let Supabase decide
-  return Date.now() - Number(raw) > INACTIVITY_MS;
+  const lastActive = Number(raw);
+  const signedInAt = lastSignInAt ? Date.parse(lastSignInAt) : NaN;
+  if (Number.isFinite(signedInAt) && signedInAt > lastActive) return false;
+  return Date.now() - lastActive > INACTIVITY_MS;
 }
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -317,7 +323,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       sessionReadMsRef.current = Math.min(SESSION_RESOLVE_MS, Date.now() - readStartedAt);
       const data = res?.data;
       const sessionUser = data?.session?.user ?? null;
-      if (sessionUser && isSessionExpired()) {
+      if (sessionUser && isSessionExpired(sessionUser.last_sign_in_at)) {
         /* Bounded for the same reason as the read above: signOut() is a network
            call and this branch awaits it, so a hang here would keep `loading`
            true just as effectively. forceSignOut itself is now also
@@ -328,7 +334,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         // forceSignOut, not sb.auth.signOut: this path exists to END a session
         // that has outlived its window, so it failing quietly would keep the
         // user signed in past the expiry it is enforcing (#304).
-        await withTimeout(forceSignOut(sb));
+        /* scope 'local': this device's own stale session ends; the user's other devices (one they are using right now) are not signed out with it. */
+        await withTimeout(forceSignOut(sb, { scope: 'local' }));
         localStorage.removeItem(LAST_ACTIVE_KEY);
         setUserStable(null);
       } else {
@@ -535,7 +542,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           sb!.from(T.user_subscriptions)
             .select('role, trial_ends_at, current_period_end')
             .eq('user_id', userId!)
-            .abortSignal(AbortSignal.timeout(Math.min(ENTITLEMENTS_FETCH_MS, remainingBudgetMs)))
+            .abortSignal(deadlineSignal(Math.min(ENTITLEMENTS_FETCH_MS, remainingBudgetMs)))
             .maybeSingle(),
         );
         return { data: data ?? null, failed: Boolean(error) };
@@ -625,8 +632,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [clock, setClock] = useState(() => Date.now());
   useEffect(() => {
     if (trialEndsAt === null) return;
+    /* The clock is taken fresh whenever the trial end changes: it was set once at mount, so a provider mounted on /login (before a later sign-in, or before a laptop woke from sleep) kept an old `clock` and an ended trial still read as active. */
+    setClock(Date.now());
     const ms = trialEndsAt - Date.now();
-    if (ms <= 0) return; // already past; `clock` is newer than trialEndsAt already
+    if (ms <= 0) return; // already past
     const id = setTimeout(() => setClock(Date.now()), ms + 1_000);
     return () => clearTimeout(id);
   }, [trialEndsAt]);
