@@ -50,19 +50,21 @@ test.describe('anon write grants (dev project)', () => {
     expect(bad, 'anon still holds a write grant (or the refusal is not a privilege one)').toEqual([]);
   });
 
-  test('F1. signed in as fixture A: a journal trade is created, edited and deleted', async ({ request }) => {
+  test('F1. signed in as fixture A: a journal trade is created, edited and deleted', async ({ request }, testInfo) => {
+    /* a marker UNIQUE TO THIS PROJECT: the desktop and mobile projects run this cell at the same time against one shared database, and the cleanup below used to delete every row marked qa-anon-grants, so one project removed the other's row mid-test (release 2 run 43740024018: 'the edit did not take', undefined) */
+    const tag = `qa-anon-grants-${testInfo.project.name}`;
     const token = await signIn(FIXTURES.aEmail, FIXTURES.aPassword); const H = { apikey: SUPABASE_ANON, authorization: `Bearer ${token}`, 'content-type': 'application/json', prefer: 'return=representation' };
     let id = '';
     try {
-      const c = await request.post(rest(`${P}trades`), { headers: H, data: { coin: 'QATEST', direction: 'LONG', entry_price: 1, stop_loss: 1, notes: 'qa-anon-grants create', user_id: FIXTURES.aId } });
+      const c = await request.post(rest(`${P}trades`), { headers: H, data: { coin: 'QATEST', direction: 'LONG', entry_price: 1, stop_loss: 1, notes: `${tag} create`, user_id: FIXTURES.aId } });
       console.log(`[F1] create -> ${c.status()}`); expect(c.status(), `a signed-in user could not save a trade: ${await c.text()}`).toBe(201); id = (await c.json())[0].id;
-      const u = await request.patch(rest(`${P}trades?id=eq.${id}`), { headers: H, data: { notes: 'qa-anon-grants edited' } });
+      const u = await request.patch(rest(`${P}trades?id=eq.${id}`), { headers: H, data: { notes: `${tag} edited` } });
       console.log(`[F1] edit -> ${u.status()}`); expect(u.status(), `a signed-in user could not EDIT a trade: ${await u.text()}`).toBeLessThan(300);
-      const got = await (await request.get(rest(`${P}trades?id=eq.${id}&select=notes`), { headers: H })).json(); expect(got[0]?.notes, 'the edit did not take').toBe('qa-anon-grants edited');
+      const got = await (await request.get(rest(`${P}trades?id=eq.${id}&select=notes`), { headers: H })).json(); expect(got[0]?.notes, 'the edit did not take').toBe(`${tag} edited`);
       const d = await request.delete(rest(`${P}trades?id=eq.${id}`), { headers: H });
       console.log(`[F1] delete -> ${d.status()}`); expect(d.status(), `a signed-in user could not DELETE a trade: ${await d.text()}`).toBeLessThan(300);
       const gone = await (await request.get(rest(`${P}trades?id=eq.${id}&select=id`), { headers: H })).json(); expect(gone, 'the trade is still there').toEqual([]); id = '';
-    } finally { await request.delete(rest(`${P}trades?coin=eq.QATEST&notes=like.qa-anon-grants*`), { headers: H }).catch(() => {}); /* also clears rows an earlier failed run left behind */ }
+    } finally { await request.delete(rest(`${P}trades?coin=eq.QATEST&notes=like.${tag}*`), { headers: H }).catch(() => {}); /* also clears rows an earlier failed run left behind */ }
   });
 
   test('F2. signed in as fixture A: onboarding progress can be saved (re-written with its own value)', async ({ request }) => {
