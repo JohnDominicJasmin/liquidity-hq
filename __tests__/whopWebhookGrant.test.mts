@@ -116,6 +116,15 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       let rows = [...db.events.values()];
       if (q.get('event')) rows = rows.filter((r) => r.event === eq('event'));
       if (q.get('resource_id')) rows = rows.filter((r) => r.resource_id === eq('resource_id'));
+      /* THE FAKE MUST HONOUR THE FILTER THE ROUTE SENDS, or a read for ONE delivery answers with every row and any cell about "was this delivery seen" measures the fake, not the code (#2423: G5b and
+         R2 were red for exactly that reason). payload_hash=eq.<h> and payload_hash=in.(<h1>,<h2>,...) (PostgREST: values may be double-quoted). An unknown operator throws, so a new filter cannot pass silently. */
+      const ph = q.get('payload_hash');
+      if (ph) {
+        const m = /^(eq|in)\.(.*)$/.exec(ph);
+        if (!m) throw new Error(`stand-in does not know the payload_hash filter ${ph}`);
+        const want = m[1] === 'eq' ? [m[2]] : m[2].replace(/^\(/, '').replace(/\)$/, '').split(',').map((x) => x.replace(/^"|"$/g, ''));
+        rows = rows.filter((r) => want.includes(String(r.payload_hash)));
+      }
       rows.sort((a, b) => String(a.received_at).localeCompare(String(b.received_at)) || String(a.payload_hash).localeCompare(String(b.payload_hash)));
       if (q.get('limit')) rows = rows.slice(0, Number(q.get('limit')));
       return out(rows.map((r) => ({ payload_hash: r.payload_hash })));

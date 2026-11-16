@@ -76,7 +76,15 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     }
     if (req.method === 'GET') {
       let rows = [...db.events.values()];
-      for (const k of ['event', 'resource_id', 'payload_hash']) if (q.get(k)) rows = rows.filter((r) => r[k] === eq(k));
+      for (const k of ['event', 'resource_id']) if (q.get(k)) rows = rows.filter((r) => r[k] === eq(k));
+      /* payload_hash may arrive as eq.<h> OR in.(<h1>,<h2>,...) (#2423): the fake honours both, and refuses an operator it does not know, so a changed filter cannot pass by being ignored. */
+      const ph = q.get('payload_hash');
+      if (ph) {
+        const m = /^(eq|in)\.(.*)$/.exec(ph);
+        if (!m) throw new Error(`stand-in does not know the payload_hash filter ${ph}`);
+        const want = m[1] === 'eq' ? [m[2]] : m[2].replace(/^\(/, '').replace(/\)$/, '').split(',').map((x) => x.replace(/^"|"$/g, ''));
+        rows = rows.filter((r) => want.includes(String(r.payload_hash)));
+      }
       if (q.get('body->>payer_email') && !db.relaxEmailFilter) rows = rows.filter((r) => (r.body as Record<string, unknown>)?.payer_email === eq('body->>payer_email'));
       rows.sort((a, b) => String(a.received_at).localeCompare(String(b.received_at)) || String(a.payload_hash).localeCompare(String(b.payload_hash)));
       if (q.get('limit')) rows = rows.slice(0, Number(q.get('limit')));
