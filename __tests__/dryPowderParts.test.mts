@@ -72,5 +72,5 @@ test('R3. a reservation that was never billed goes back; billed is set only afte
 });
 test('R4. the AI text is cached an hour and only the cache-miss path reserves (a hit is free)', () => {
   assert.ok(route.includes('const CACHE_TTL = 60 * 60_000;'));
-  assert.ok(at("cached('dry-powder', CACHE_TTL, async () => {") < at("incrementToolUsage(authData.user.id, 'dryPowder'"), 'the reservation is outside the cache miss: a cache hit would spend a use');
+  assert.ok(at("cachedOwn(authData.user.id, 'dry-powder', CACHE_TTL") < at("incrementToolUsage(authData.user.id, 'dryPowder'"), 'the reservation is outside the cache miss: a cache hit would spend a use');
 });
