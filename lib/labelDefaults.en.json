@@ -2904,7 +2904,7 @@
   "HELP_Q_START_Q": "How do I get started?",
   "HELP_Q_START_A": "Create an account and open the Dashboard. Everything on the Free plan is available straight away, and the Pro features are unlocked for your first 14 days so you can see what they do before deciding.",
   "HELP_Q_TRIAL_Q": "What is in the 14-day trial?",
-  "HELP_Q_TRIAL_A": "Full Pro access, with no card required: the faster timeframes, the Confluence Score, on-chain and macro data, Telegram alerts, unlimited price alerts, and the larger AI allowance. When the 14 days end your account moves to the Free plan unless you upgrade.",
+  "HELP_Q_TRIAL_A": "Full Pro access, with no card required: the faster timeframes, the Confluence Score, on-chain and macro data, Telegram alerts, unlimited price alerts, and the one-shot AI tools. Quick and Deep reads, chat and briefings have the same daily limits as the Free plan. When the 14 days end your account moves to the Free plan unless you upgrade.",
   "HELP_Q_FIRST_LOOK_Q": "What should I look at first?",
   "HELP_Q_FIRST_LOOK_A": "Start with the Setup Scanner, which screens all 50 markets for crowded positioning - a score of 70 or above flags a possible squeeze. Then open the Liquidation Map for the coin you are interested in, to see where the estimated liquidation zones sit and how dense each cluster is.",
   "HELP_Q_READ_MARKER_Q": "How do I read a buy or sell marker on the chart?",
