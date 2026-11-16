@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from './deadlineSignal.ts';
 import { useState, useEffect, useRef } from 'react';
 import { CoinId, venueSymbols } from './marketStore.ts';
 import { OKX_SYMS } from './coins.ts';
@@ -19,6 +20,7 @@ import { getWaveTrendConfirmation } from './waveTrend.ts';
 import { fetchBybitKlinesRetry } from './bybitKlines.ts';
 import { firstVenueThatAnswers } from './venueFallback.ts';
 import { priceText } from './numberFormat.ts';
+import type { LabelKey } from './labelKeys.ts';
 
 export type { SignalFilterParams } from './strategyCore.ts';
 export { DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from './strategyCore.ts';
@@ -37,6 +39,8 @@ export interface StrategyCondition {
   pass: boolean | null; // null = not yet relevant / n/a
   detail: string;
   warn?: boolean;       // an amber caution row (e.g. counter-trend); never counted as passing or failing
+  /** The row's `detail` as a label key, for the card to show in the reader's language. `detail` stays English: it is what the AI prompt is built from. Set only where the card shows the detail (the amber counter-trend row). */
+  detailKey?: LabelKey;
 }
 
 export interface StrategySignal {
@@ -134,7 +138,7 @@ interface OHLCV { time: number; open: number; high: number; low: number; close: 
 async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: number): Promise<OHLCV[]> {
   const r = await fetch(
     `/api/market/klines?source=binance-futures&symbol=${sym}&interval=${interval}&limit=${limit}&closed=1`,
-    { signal: AbortSignal.timeout(12_000) }
+    { signal: deadlineSignal(12_000) }
   );
   if (!r.ok) throw new Error(`Binance futures klines ${r.status}`);
   const raw = await r.json() as (string | number)[][];
@@ -172,7 +176,7 @@ async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: n
 async function fetchOkxKlines(instId: string, bar: string, limit: number): Promise<OHLCV[]> {
   const r = await fetch(
     `/api/market/klines?source=okx&symbol=${instId}&interval=${bar}&limit=${limit}&closed=1`,
-    { signal: AbortSignal.timeout(12_000) },
+    { signal: deadlineSignal(12_000) },
   );
   if (!r.ok) throw new Error(`OKX klines ${r.status}`);
   const raw = await r.json() as (string | number)[][];
@@ -191,7 +195,7 @@ async function fetchBybitKlines(sym: string, interval: string, limit: number): P
      as EMA_SIGNAL_FAILED. No new failure UI needed - reusing what's there. */
   const d = await fetchBybitKlinesRetry(sym, interval, limit, {
     extraParams: { closed: '1' },
-    signal: AbortSignal.timeout(12_000),
+    signal: deadlineSignal(12_000),
   });
   if (d === null) throw new Error('Bybit klines failed after retry');
   const list = [...(d?.result?.list ?? [])].reverse();
@@ -655,6 +659,7 @@ export function useEMAStrategy(
             pass:  null,
             warn:  true,
             detail: `Counter-trend: price is ${above200D ? 'above' : 'below'} the daily 200 SMA, so this ${judged.setupDir === 'short' ? 'short' : 'long'} is against the daily trend.`,
+            detailKey: (above200D ? (judged.setupDir === 'short' ? 'EMA_DETAIL_CT_ABOVE_SHORT' : 'EMA_DETAIL_CT_ABOVE_LONG') : (judged.setupDir === 'short' ? 'EMA_DETAIL_CT_BELOW_SHORT' : 'EMA_DETAIL_CT_BELOW_LONG')) as LabelKey,
           } as StrategyCondition] : []),
           {
             label: 'Ribbon Aligned',

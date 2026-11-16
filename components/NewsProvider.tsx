@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { GEO_KEYWORDS } from '@/lib/classify';
+import { GEO_KEYWORDS, hasAnyKeyword } from '@/lib/classify';
 import { useNow } from '@/lib/useNow';
 import { getSupabase } from '@/lib/supabase';
 import { T } from '@/lib/tables';
@@ -283,6 +283,15 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     });
   }, [pushAlert]);
 
+  /* ALERTS ARE ALSO TRIMMED BY AGE (N12). They were trimmed only by count (ALERT_LIMIT), so a tab left open all day kept items older than 6 hours, the All and Crypto tabs showed "9h ago" stories as current and the alert count never
+     shrank, while the ticker already filters by age. Every five minutes anything older than six hours is dropped. */
+  useEffect(() => {
+    const id = setInterval(() => {
+      const cutoff = Math.floor(Date.now() / 1000) - 6 * 3600;
+      setAlerts(prev => (prev.some(a => a.ts < cutoff) ? prev.filter(a => a.ts >= cutoff) : prev));
+    }, 5 * 60_000);
+    return () => clearInterval(id);
+  }, []);
   useEffect(() => { alertsLoadedRef.current = alertsLoaded; }, [alertsLoaded]);
   useEffect(() => { eventsLoadedRef.current = eventsLoaded; }, [eventsLoaded]);
 
@@ -438,7 +447,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
       const ts = Math.floor(new Date(row.published_at).getTime() / 1000);
       if (now - ts > 12 * 3600) continue;
       const hay = row.headline.toLowerCase();
-      const g = GEO_KEYWORDS.find(group => group.kw.some(k => hay.includes(k)));
+      const g = GEO_KEYWORDS.find(group => hasAnyKeyword(hay, group.kw));
       if (!g) continue;
       const key = row.headline.slice(0, 50);
       if (seen.has(key)) continue;

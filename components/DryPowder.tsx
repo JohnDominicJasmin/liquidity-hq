@@ -16,6 +16,8 @@ interface DPData {
   signal:    string;
   narrative: string;
   keyLevel:  string;
+  /** The AI text arrives separately from the numbers: 'loading' while it is being written, 'unavailable' when it timed out or failed. The numbers never wait for it. */
+  analysis?: 'loading' | 'ready' | 'unavailable';
 }
 
 const CACHE_KEY = 'lhq_dry_powder';
@@ -78,10 +80,13 @@ export default function DryPowder() {
       const token = await getAuthToken();
       if (!token) { setState('unauth'); return; }
 
-      const res  = await fetch('/api/dry-powder', { headers: { Authorization: `Bearer ${token}` } });
+      const headers = { Authorization: `Bearer ${token}` };
+      /* TWO REQUESTS, STARTED TOGETHER: the supply figures (about a second, no AI) and the AI text (up to 25 s on the server). The card shows the figures as soon as they arrive and fills the text in after. */
+      const aiReq = fetch('/api/dry-powder', { headers }).then(r => r.json().then(j => ({ ok: r.ok, status: r.status, json: j as { analysis?: string; error?: string } }))).catch(() => null);
+      const res  = await fetch('/api/dry-powder?part=numbers', { headers });
       const json = await res.json() as {
         current?: number; prev30?: number; prev90?: number;
-        series?: number[]; analysis?: string; error?: string;
+        series?: number[]; error?: string;
       };
 
       // Entitlement can lapse while the tab is still open (a trial ending
@@ -91,18 +96,29 @@ export default function DryPowder() {
 
       if (!res.ok) { setErrMsg(json.error ?? ''); setState('error'); return; }
 
-      const signal    = parseDPSection(json.analysis ?? '', 'SIGNAL');
-      const narrative = parseDPSection(json.analysis ?? '', 'NARRATIVE');
-      const keyLevel  = parseDPSection(json.analysis ?? '', 'KEY_LEVEL');
-
-      const data: DPData = {
+      const nums: DPData = {
         current:   json.current ?? 0,
         prev30:    json.prev30  ?? 0,
         prev90:    json.prev90  ?? 0,
         series:    json.series  ?? [],
-        signal, narrative, keyLevel,
+        signal: '', narrative: '', keyLevel: '', analysis: 'loading',
       };
-      setState(data);
+      setState(nums);
+
+      const ai = await aiReq;
+      if (!ai || !ai.ok || !ai.json.analysis) {
+        setState(prev => (typeof prev === 'object' && prev !== null ? { ...prev, analysis: 'unavailable' } : prev));
+        return;
+      }
+      const text = ai.json.analysis;
+      const data: DPData = {
+        ...nums,
+        signal:    parseDPSection(text, 'SIGNAL'),
+        narrative: parseDPSection(text, 'NARRATIVE'),
+        keyLevel:  parseDPSection(text, 'KEY_LEVEL'),
+        analysis: 'ready',
+      };
+      setState(prev => (typeof prev === 'object' && prev !== null ? data : prev));
       try {
         localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
       } catch { /* ignore */ }
@@ -123,7 +139,7 @@ export default function DryPowder() {
       const raw = localStorage.getItem(CACHE_KEY);
       if (raw) {
         const { ts, data } = JSON.parse(raw) as { ts: number; data: DPData };
-        if (Date.now() - ts < CACHE_TTL) { setState(data); return; }
+        if (Date.now() - ts < CACHE_TTL && (data.analysis === undefined || data.analysis === 'ready')) { setState(data); return; }
       }
     } catch { /* ignore */ }
     fetchData();
@@ -214,8 +230,8 @@ export default function DryPowder() {
               <Sparkline series={d.series} />
             </div>
 
-            {/* Signal badge */}
-            <div style={{
+            {/* Signal badge (from the AI text, so only once it has arrived) */}
+            {d.analysis !== 'loading' && d.analysis !== 'unavailable' && <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
               padding: '3px 9px', borderRadius: 20, marginBottom: 8,
               background: sm.bg, border: `0.5px solid ${sm.bdr}`,
@@ -225,7 +241,18 @@ export default function DryPowder() {
               <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: sm.col, letterSpacing: '0.04em' }}>
                 {signalKey}
               </span>
-            </div>
+            </div>}
+
+            {d.analysis === 'loading' && (
+              <div role="status" aria-live="polite" data-testid="dry-powder-analysis-loading">
+                <span className="sr-only">{t('DRY_POWDER_ANALYSIS_LOADING_SR')}</span>
+                <SkeletonBar height={11} radius={4} style={{ marginBottom: 6 }} />
+                <SkeletonBar width="70%" height={11} radius={4} />
+              </div>
+            )}
+            {d.analysis === 'unavailable' && (
+              <div data-testid="dry-powder-analysis-unavailable" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('DRY_POWDER_ANALYSIS_UNAVAILABLE')}</div>
+            )}
 
             {/* Narrative */}
             {d.narrative && (

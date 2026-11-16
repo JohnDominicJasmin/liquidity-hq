@@ -162,7 +162,9 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
   useEffect(() => {
     if (loaded && !pickedStrategy) document.documentElement.removeAttribute('data-strat');
   }, [loaded, pickedStrategy]);
-  const setId = pickedStrategy ? pickedStrategy.id : selected.length > 0 ? CUSTOM_SET_ID : AUTO_SET_ID;
+  /* 'Custom' picked with no chip on has nothing else to derive it from, so it is remembered here: without it the menu fell back to 'Let the read choose' the moment it was picked. */
+  const [customPicked, setCustomPicked] = useState(false);
+  const setId = pickedStrategy ? pickedStrategy.id : (selected.length > 0 || customPicked) ? CUSTOM_SET_ID : AUTO_SET_ID;
   /* Which indicator's parameters the box shows. One box, not one per selection. */
   const [focused, setFocused] = useState<string | null>(null);
 
@@ -173,6 +175,7 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
   /* THE ONE STRATEGY MENU (owner, 2026-11-14, option A). The caller writes the saved strategy AND the chips in one save; here only the params focus follows. */
   const applySet = (id: string) => {
     if (!loaded) return;
+    setCustomPicked(id === CUSTOM_SET_ID);
     onStrategyPick(id);
     const chip = findStrategy(id)?.chips.find(c => SELECTABLE_INDICATOR_IDS.has(c));
     if (chip) setFocused(chip);   // a strategy that reads a chip shows its parameters; otherwise the chips and the focus stay exactly as they were
@@ -207,26 +210,26 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
   return (
     <div className="strat-panel">
       <div className="strat-head">
-        <span>Strategy</span>
+        <span>{t('STRAT_CARD_TITLE')}</span>
         {/* #1119: 'unknown' must not read as a confident plan tier. */}
-        <span className="strat-aux" title={entitlementStatus === 'unknown' ? "Couldn't verify your plan" : undefined}>
-          {planLabel.head}
+        <span className="strat-aux" title={entitlementStatus === 'unknown' ? t('STRATEGY_PANEL_PLAN_UNVERIFIED') : undefined}>
+          {planLabel.plan === 'signed_out' ? t('STRATEGY_PANEL_PLAN_SIGNED_OUT') : planLabel.head}
         </span>
       </div>
 
       {entitlementUnknown ? (
-        <EntitlementUnknownCard title="Strategy indicators" onRetry={retryEntitlements} />
+        <EntitlementUnknownCard title={t('STRATEGY_PANEL_INDICATORS_TITLE')} onRetry={retryEntitlements} />
       ) : (
       <>
       <div className="strat-sect">
         <div className="strat-lbl">
           <span>{t('STRATEGY_PANEL_SECTION_SET')}</span>
-          {entitled && <span className="strat-cap">Edit · Save as</span>}
+          {entitled && <span className="strat-cap">{t('STRATEGY_PANEL_EDIT_SAVE_AS')}</span>}
         </div>
         <select className="strat-sel" data-testid="strategy-set-select" value={setId} disabled={!loaded || planChecking} aria-label={t('STRATEGY_PANEL_SECTION_SET')} onChange={e => applySet(e.target.value)}>
-          {STRATEGY_SETS.filter(s => s.id === AUTO_SET_ID).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          {STRATEGY_SETS.filter(s => s.id === AUTO_SET_ID).map(s => <option key={s.id} value={s.id}>{t('STRATEGY_PANEL_SET_AUTO')}</option>)}
           {STRATEGIES.map(s => <option key={s.id} value={s.id}>{t(s.nameKey)}</option>)}
-          {STRATEGY_SETS.filter(s => s.id === CUSTOM_SET_ID).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          {STRATEGY_SETS.filter(s => s.id === CUSTOM_SET_ID).map(s => <option key={s.id} value={s.id}>{t('STRATEGY_PANEL_SET_CUSTOM')}</option>)}
         </select>
         {/* THE CALL BOX'S HOST. A visitor whose saved strategy is stored on this browser has this box's whole height reserved from the FIRST paint (`html[data-strat="1"]`, set before paint by
             components/RootDocument.tsx, sized in globals.css), because the saved strategy arrives from settings 1-2 s later and the box mounted then, pushing the Indicators section 256 px (QA gate, IN+SAVED 1280). */}
@@ -260,19 +263,19 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
 
         {status === 'loading' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} role="status" aria-live="polite">
-            <span className="sr-only">Loading your saved strategy…</span>
+            <span className="sr-only">{t('STRATEGY_PANEL_LOADING_SAVED')}</span>
             {[0, 1, 2].map(i => <SkeletonBar key={i} height={40} radius={8} style={{ opacity: 1 - i * 0.18 }} />)}
           </div>
         )}
 
         {status === 'error' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }} role="alert">
-            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>Couldn&apos;t load your saved indicators.</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>{t('STRATEGY_PANEL_LOAD_FAILED')}</span>
             <button
               onClick={handleRetry} disabled={retrying}
               style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '2px 8px', cursor: retrying ? 'default' : 'pointer', opacity: retrying ? 0.6 : 1 }}
             >
-              {retrying ? 'Retrying…' : 'Retry'}
+              {retrying ? t('STRATEGY_PANEL_RETRYING') : t('SETTINGS_SAVE_RETRY_BUTTON')}
             </button>
           </div>
         )}
@@ -332,7 +335,7 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
                 onChange={v => onParamsChange({ ...params, [focusedEntry.id]: { ...paramsFor(focusedEntry), [spec.key]: v } })}
               />
             ))}
-            {!entitled && <div className="strat-ro">Defaults on free · editable on Pro</div>}
+            {!entitled && <div className="strat-ro">{t('STRATEGY_PANEL_FREE_DEFAULTS')}</div>}
             {entitled && <div className="strat-ro">{t('STRATEGY_PANEL_PARAMS_VERDICT_NOTE')}</div>}
           </div>
         )}
