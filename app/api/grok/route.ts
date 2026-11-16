@@ -378,8 +378,8 @@ export async function POST(req: NextRequest) {
   /* Both were started above: the usage row with the plan read, the tier is the plan read's own answer. */
   const { deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed } = await usageRowP;
   /* ON AN UNKNOWN PLAN, THE MORE GENEROUS CAP (PM, #2412). A request every plan may make (a Free-list coin on a free timeframe) is not refused because the plan read failed: it goes through and is
-     counted, but checked against the Pro limits, since the Free cap would be a guess that can shut a paying account out. Everything that is Pro-only was already answered 503 PLAN_UNKNOWN above. The tier
-     also picks the dollar-cap row inside incrementUsageColumn, where Pro fails open. */
+     counted, but checked against the Pro limits, since the Free cap would be a guess that can shut a paying account out. Everything that is Pro-only was already answered 503 PLAN_UNKNOWN above. The DOLLAR cap on this path
+     fails CLOSED (the last argument below): if the ledger cannot be read the call is refused with a retryable 503, never run uncapped on an unconfirmed account. */
   const role: UsageTier = plan.failed ? 'pro' : plan.tier;
   const deepLimit     = AI_LIMITS[role].deep;
   const quickLimit    = AI_LIMITS[role].quick;
@@ -408,7 +408,7 @@ export async function POST(req: NextRequest) {
      VALUE ("SIGNAL: **BULLISH**"), a shape these regexes reject while accepting every other markdown variant. This line settles that
      on the next failure at no cost. Newlines become a marker so a crafted answer cannot forge a second log line. */
   const logHead = (v: string) => v.replace(/\s*[\r\n]+\s*/g, ' | ').replace(/[^\x20-\x7E]/g, '').slice(0, 160);
-  const usageResult = await incrementUsageColumn(userId, role, column, limit);
+  const usageResult = await incrementUsageColumn(userId, role, column, limit, null, plan.failed);
   if (usageResult.blocked) {
     const label = type === 'deep' ? 'deep analyses' : 'quick analyses';
     /* A BLOCK THAT IS OUR STATE IS NOT A RATE LIMIT, AND 429 TOLD THE USER A LIE.
