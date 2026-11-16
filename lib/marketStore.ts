@@ -139,11 +139,11 @@ export interface FundingClass {
 
 export function classifyFunding(rate: number): FundingClass {
   const r = rate * 100;
-  if (r >= 0.05) return { label: 'Heavily positive', cls: 'fund-pos', rpm: 'pos', band: 'heavyPos', note: 'Too many longs overleveraged. Whales dump DOWN to liquidate them. Go SHORT.' };
-  if (r >= 0.01) return { label: 'Mildly positive', cls: 'fund-pos', rpm: 'pos', band: 'mildPos', note: 'Longs paying shorts. Slight bullish bias but not extreme.' };
-  if (r <= -0.03) return { label: 'Heavily negative', cls: 'fund-neg', rpm: 'neg', band: 'heavyNeg', note: 'Too many shorts overleveraged. Whales squeeze UP to liquidate them. Go LONG.' };
-  if (r <= -0.005) return { label: 'Mildly negative', cls: 'fund-neg', rpm: 'neg', band: 'mildNeg', note: 'Shorts paying longs. Slight bearish bias but not extreme.' };
-  return { label: 'Neutral', cls: 'fund-neu', rpm: 'neu', band: 'neutral', note: 'No extreme positioning. Lower raid probability. Trade with caution.' };
+  if (r >= 0.05) return { label: 'Heavily positive', cls: 'fund-pos', rpm: 'pos', band: 'heavyPos', note: 'Longs are paying shorts at a high rate.' };
+  if (r >= 0.01) return { label: 'Mildly positive', cls: 'fund-pos', rpm: 'pos', band: 'mildPos', note: 'Longs are paying shorts.' };
+  if (r <= -0.03) return { label: 'Heavily negative', cls: 'fund-neg', rpm: 'neg', band: 'heavyNeg', note: 'Shorts are paying longs at a high rate.' };
+  if (r <= -0.005) return { label: 'Mildly negative', cls: 'fund-neg', rpm: 'neg', band: 'mildNeg', note: 'Shorts are paying longs.' };
+  return { label: 'Neutral', cls: 'fund-neu', rpm: 'neu', band: 'neutral', note: 'Funding is near zero: neither side is paying a premium.' };
 }
 
 export type ScannerFeedState = 'pending' | 'ok' | 'failed';
@@ -379,9 +379,9 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
   const signalsPresent = present.length;
   /* A direction also needs the dominant side at 40 points or more (S3): two weak readings (22 + 8, say) are not a setup. */
   if (longRisk > shortRisk && longSignals >= 2 && longRisk >= 40)
-    return { score, dir: 'LONG_LIQ', label: 'Long liquidation risk ↓', color: 'var(--red-soft)', signalsPresent, present, enough: true };
+    return { score, dir: 'LONG_LIQ', label: 'Long-heavy', color: 'var(--red-soft)', signalsPresent, present, enough: true };
   if (shortRisk > longRisk && shortSignals >= 2 && shortRisk >= 40)
-    return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: 'var(--green-soft)', signalsPresent, present, enough: true };
+    return { score, dir: 'SHORT_SQ', label: 'Short-heavy', color: 'var(--green-soft)', signalsPresent, present, enough: true };
   /* FEWER THAN TWO INPUTS IS "NOT ENOUGH DATA", NOT "BALANCED" (S2). A price-only coin (the usual state of the ~400 universe coins) used to read Balanced, score 0, and was counted among the Neutral coins. */
   if (signalsPresent < 2) return { score: 0, dir: 'NEUTRAL', label: 'Not enough data', color: 'var(--txt-dim)', signalsPresent, present, enough: false };
   return { score, dir: 'NEUTRAL', label: 'Balanced', color: 'var(--txt-dim)', signalsPresent, present, enough: true };
