@@ -147,7 +147,7 @@ Date.now = () => realNow() + clockOffset;
 const expireMarketCaches = () => { clockOffset += 10 * 60_000; };
 
 const db = {
-  ai: [] as string[], reservations: 0, usageWrites: 0, ledgerInserts: 0, failSubsRead: false, banned: false, reservedLimits: [] as number[],
+  ai: [] as string[], reservations: 0, usageWrites: 0, ledgerInserts: 0, failSubsRead: false, failLedger: false, banned: false, reservedLimits: [] as number[],
   /* The xAI request BODIES, for #1910 item 4: the overwrite is only observable in the prompt the
      model is actually sent, and db.ai records pathnames only. */
   prompts: [] as string[],
@@ -163,7 +163,7 @@ const db = {
   /* Market feeds the gather reached. A cell can assert the gather HAPPENED rather than inferring
      it from a 200 - see the market stand-in below. */
   market: [] as string[],
-  reset() { this.prompts = []; this.emptyTicker = false; this.emptyTickerServed = 0; this.ai = []; this.reservations = 0; this.usageWrites = 0; this.ledgerInserts = 0; this.failSubsRead = false; this.reservedLimits = []; this.banned = false; this.unknown = []; this.market = []; },
+  reset() { this.prompts = []; this.emptyTicker = false; this.emptyTickerServed = 0; this.ai = []; this.reservations = 0; this.usageWrites = 0; this.ledgerInserts = 0; this.failSubsRead = false; this.failLedger = false; this.reservedLimits = []; this.banned = false; this.unknown = []; this.market = []; },
 };
 const T = (n: string) => (process.env.NEXT_PUBLIC_APP_ENV === 'dev' ? 'lhq_dev_' : 'lhq_') + n;
 const noRow = () => json(406, { code: 'PGRST116', details: 'The result contains 0 rows', message: 'JSON object requested, multiple (or no) rows returned' });
@@ -215,6 +215,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const rpc = p.match(/^\/rest\/v1\/rpc\/(.+)$/);
   if (rpc) {
     if (rpc[1] === 'increment_ai_usage') { db.reservations++; try { db.reservedLimits.push(Number((await req.clone().json() as { p_limit?: number }).p_limit)); } catch { db.reservedLimits.push(NaN); } return json(200, 1); }
+    if ((rpc[1] === 'lhq_ai_spend_user_since' || rpc[1] === 'lhq_ai_spend_all_since') && db.failLedger) return json(500, { code: 'XX000', message: 'ledger read boom' });
     if (rpc[1] === 'lhq_ai_spend_user_since' || rpc[1] === 'lhq_ai_spend_all_since') return json(200, [{ cost: 0, null_search: 0, null_other: 0 }]);
     if (/record_api_health/.test(rpc[1])) return json(200, null); // lib/xai.ts reports the outcome of every AI request (only reached when an AI request was made)
     throw new Error(`stand-in does not know rpc ${rpc[1]}`);
@@ -426,6 +427,15 @@ test('R6. the plan read FAILS: a locked coin is 503 PLAN_UNKNOWN (retry) with no
      malformed before the plan is read at all. The assertion that matters - refused, nothing spent
      - is unchanged, and the status is named per tree rather than relaxed to "not 200". */
   assert.equal(r.status, SERVER_BUILDS_PROMPT ? 400 : 503); nothingSpent('failed read, no coin');
+});
+
+test('R6b. the plan read AND the spend ledger both fail: a free-allowed request is 503 UNAVAILABLE, no AI request, no reservation, no count (the dollar cap fails closed on an unknown plan)', async () => {
+  db.reset(); db.failSubsRead = true; db.failLedger = true;
+  const r = await call('pro', { type: 'quick', tf: '1h', coin: 'btc' });
+  assert.equal(r.status, 503); assert.equal(r.body.code, 'UNAVAILABLE'); nothingSpent('failed plan + failed ledger, btc 1h');
+  db.reset(); db.failLedger = true;
+  const ok = await call('pro', { type: 'quick', tf: '1h', coin: 'btc' });
+  assert.equal(ok.status, 200, 'a KNOWN Pro plan with an unreadable ledger keeps the fail-open policy: only an unknown plan fails closed'); assert.equal(db.ai.length, 1);
 });
 
 test('R7. no token, or a token the database does not know: 401 and nothing is spent', async () => {
