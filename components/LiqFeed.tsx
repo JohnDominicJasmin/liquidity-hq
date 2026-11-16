@@ -214,7 +214,7 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
     try { bnWsRef.current?.close(); } catch { /* */ }
     // Combined stream: each symbol has its own forceOrder feed
     const streams = BN_SYMBOLS.map(s => `${s}@forceOrder`).join('/');
-    const ws = new WebSocket(`wss://fstream.binance.com/stream?streams=${streams}`);
+    const ws = new WebSocket(`wss://fstream.binance.com/market/stream?streams=${streams}`);
     bnWsRef.current = ws;
     ws.onopen  = () => setBnStatus('live');
     ws.onerror = () => setBnStatus('error');
