@@ -464,3 +464,12 @@ test('R15. source (#2320): the atomic extend is tried first with provider boomfi
   assert.doesNotMatch(ids, /failAndForget/, 'a failed id write removes the replay guard: a Replay could extend the period a second time');
   assert.ok(src.indexOf("atomic.kind === 'admin_grant'") > 0, 'the admin-grant outcome is no longer handled');
 });
+
+test('R16. source (#2429): the compensating removal of a failed grant\'s record READS its error and reports it (a failed delete used to leave a record that made the Replay answer "replay" with nothing visible)', () => {
+  const src = stripTsComments(read('app/api/boomfi/webhook/route.ts'));
+  const m = /const\s*\{\s*error:\s*(\w+)\s*\}\s*=\s*await\s+sb\.from\(T\.boomfi_webhook_events\)\.delete\(\)\.eq\('payload_hash',\s*payloadHash\)/.exec(src);
+  assert.ok(m, 'the delete no longer reads its error: a failed cleanup is silent again');
+  const name = m![1];
+  assert.ok(src.includes(`if (${name}) apiError('boomfi/webhook'`), 'a failed cleanup delete is read but not reported');
+  assert.match(src, /could not remove the stored record after a failed grant/, 'the report no longer says what happened');
+});

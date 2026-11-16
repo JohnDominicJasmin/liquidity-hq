@@ -103,11 +103,33 @@ test('W6. first load: the newest 5-minute OI point and the one 60 minutes before
   const oi = Array.from({ length: 13 }, (_, i) => ({ timestamp: String(t1 - i * 5 * MIN), openInterest: String(1000 + i) }));   // newest first
   const kl = Array.from({ length: 13 }, (_, i) => [String(t1 - i * 5 * MIN), String(50 + i), '0', '0', String(99 + i)]);        // open, h, l, close
   const r = bootstrapReadings(oi, kl);
-  assert.deepEqual(r, [{ t: t1 - 60 * MIN, oi: 1012, price: 62 }, { t: t1, oi: 1000, price: 50 }]);
+  /* ONE UNIT END TO END: USD (Dev, hotfix 2026-11-16). Bybit's history is in CONTRACTS; the live poll stores USD. The bootstrap now returns contracts x the price at that moment: 1012 x 62 and 1000 x 50. */
+  assert.deepEqual(r, [{ t: t1 - 60 * MIN, oi: 1012 * 62, price: 62 }, { t: t1, oi: 1000 * 50, price: 50 }]);
+  assert.deepEqual(r, [{ t: t1 - 60 * MIN, oi: 62744, price: 62 }, { t: t1, oi: 50000, price: 50 }], 'the same expectation as literals');
   assert.equal(bootstrapReadings(oi.slice(0, 12), kl), null, 'no point 60 minutes back must be unknown, not a 55-minute window');
   assert.equal(bootstrapReadings(oi, kl.filter((k) => k[0] !== String(t1 - 60 * MIN))), null, 'a missing candle must be unknown, not a neighbour\'s price');
   assert.equal(bootstrapReadings(oi.map((p, i) => (i === 0 ? { ...p, openInterest: 'n/a' } : p)), kl), null);
 });
+
+test('W6b. a bootstrap reading next to a live USD reading never gives a change beyond 1000% (the contracts-vs-USD defect read +6,000,000% and a false strong_up)', () => {
+  /* BTC-sized numbers, from the rule: 10,000 contracts an hour ago at a 60,000 open, 10,100 contracts now at 60,300. The LIVE poll stores USD (openInterestValue): about 606.0 M. */
+  const t1 = 1_800_000_000_000;
+  const oi = Array.from({ length: 13 }, (_, i) => ({ timestamp: String(t1 - i * 5 * MIN), openInterest: String(i === 0 ? 10_100 : i === 12 ? 10_000 : 10_050) }));
+  const kl = Array.from({ length: 13 }, (_, i) => [String(t1 - i * 5 * MIN), String(i === 0 ? 60_300 : i === 12 ? 60_000 : 60_100), '0', '0', '0']);
+  const boot = bootstrapReadings(oi, kl);
+  assert.ok(boot, 'the bootstrap gave no readings');
+  const now = t1 + 5 * MIN;
+  const live: OiReading = { t: now, oi: 10_150 * 60_400, price: 60_400 };       // the live poll's USD reading
+  const answer = liveOiTrend(boot!, live, now);
+  assert.equal(answered(answer), true, 'a baseline from the bootstrap should answer');
+  const base = pickBaseline(answer.history.filter((r) => r !== live && r.t < live.t), now);
+  assert.ok(base, 'no baseline picked');
+  const oiPct = ((live.oi - base!.oi) / base!.oi) * 100;
+  assert.ok(Math.abs(oiPct) <= 1000, `the OI change between the bootstrap baseline and a live USD reading is ${oiPct.toFixed(0)}%: a unit mismatch (contracts against USD)`);
+  assert.ok(Math.abs(oiPct - 2.18) < 0.1, `expected +2.18% (10,150 x 60,400 against 10,000 x 60,000), got ${oiPct.toFixed(2)}%`);
+  assert.equal(answer.trend, 'strong_up', 'OI +2.18% and price +0.67% over the hour is strong_up (floors 0.3% / 0.2%)');
+});
+function answered(a: { answered: boolean }) { return a.answered; }
 
 test('W7. the Distribution alert reads OI trend by the same 60-minute rule as the screens', { todo: 'finding for Dev/PM 2026-10-21: the alert cron uses 24 hourly points and 2% / 0.5% floors' }, () => {
   const route = readFileSync(new URL('../app/api/telegram/alert/route.ts', import.meta.url), 'utf8');
