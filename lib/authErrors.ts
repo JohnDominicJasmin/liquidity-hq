@@ -3,6 +3,8 @@
 // screen. Swap it for a message that tells the user what actually happened
 // without echoing GoTrue's phrasing.
 export function friendlyAuthError(message: string): string {
+  /* GoTrue's raw "Email not confirmed" left a user with an expired confirmation link guessing; the sign-in screen now says what to do and offers a resend (isEmailNotConfirmed). */
+  if (isEmailNotConfirmed(message)) return 'Please confirm your email first. Check your inbox, or resend the confirmation email.';
   if (/banned/i.test(message)) {
     return 'This account has been suspended. Contact support if you believe this is a mistake.';
   }
@@ -28,4 +30,9 @@ export function friendlyAuthError(message: string): string {
     return 'That password does not meet the requirements. Use at least 12 characters with an uppercase letter, a lowercase letter and a number.';
   }
   return message;
+}
+
+/** GoTrue's answer to a password sign-in on an account whose email link was never clicked. */
+export function isEmailNotConfirmed(message: string): boolean {
+  return /email not confirmed/i.test(message);
 }

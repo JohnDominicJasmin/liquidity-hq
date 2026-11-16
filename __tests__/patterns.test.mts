@@ -148,29 +148,44 @@ test('D1. doji: body under 10% of range, and the 10% negative', () => {
     'a zero-range candle has no doji ratio to compute');
 });
 
-test('H1. hammer family: all four names are reachable and named by direction', () => {
-  /* Long LOWER wick, small upper. Green close -> Hammer, red close -> Hanging man.
-     body 1, lower 2 (>= body*2), upper 0.2 (< body*0.5 = 0.5). */
-  const hammer = detectPatterns(withLast({ o: 100, h: 101.2, l: 98, c: 101 }));
-  assert.ok(hammer.includes('Hammer'), `expected Hammer, got ${hammer.join(', ')}`);
+/* #2453 (S8): the hammer family is NAMED only where the PRIOR TREND is checked. The four names are two candle shapes (long lower wick / long upper wick); what makes each name true is the trend before the candle: the net
+   close-to-close move over the five closed bars before the last one, at least 1%. Hammer = bullish candle after a decline; Hanging man = bearish after a rise; Shooting star = bearish after a rise; Inverted hammer = bullish
+   after a decline. Without the trend the shape is reported as what it is: "Long lower wick" / "Long upper wick". */
+const LOWER_GREEN: Candle = { o: 100, h: 101.2, l: 98, c: 101 }, LOWER_RED: Candle = { o: 101, h: 101.2, l: 98, c: 100 };
+const UPPER_RED: Candle = { o: 101, h: 104, l: 100.8, c: 100 }, UPPER_GREEN: Candle = { o: 100, h: 104, l: 99.8, c: 101 };
+/** ten candles; the close of the bar five before the last is 100, of the bar before the last is 100 x (1 + move), linear between; the last candle is the fixture. Highs/lows hug the closes so no other pattern is needed. */
+const afterMove = (move: number, last: Candle): Candle[] => {
+  const closes = [100, 100, 100, 100, 100, 100, ...[1, 2, 3, 4].map((k) => 100 * (1 + (move * k) / 4))];
+  const rows: Candle[] = closes.map((c, i) => ({ o: i === 0 ? c : closes[i - 1], h: Math.max(c, i === 0 ? c : closes[i - 1]) + 0.05, l: Math.min(c, i === 0 ? c : closes[i - 1]) - 0.05, c }));
+  return [...rows.slice(0, 6), ...rows.slice(6), last];
+};
+const names = (cs: Candle[]) => detectPatterns(cs).filter((p) => /Hammer|Hanging|Shooting|Inverted|Long (lower|upper) wick/.test(p));
 
-  const hanging = detectPatterns(withLast({ o: 101, h: 101.2, l: 98, c: 100 }));
-  assert.ok(hanging.includes('Hanging man'), `expected Hanging man, got ${hanging.join(', ')}`);
-
-  /* Long UPPER wick. Red close -> Shooting star, green close -> Inverted hammer. */
-  const star = detectPatterns(withLast({ o: 101, h: 104, l: 100.8, c: 100 }));
-  assert.ok(star.includes('Shooting star'), `expected Shooting star, got ${star.join(', ')}`);
-
-  const inverted = detectPatterns(withLast({ o: 100, h: 104, l: 99.8, c: 101 }));
-  assert.ok(inverted.includes('Inverted hammer'), `expected Inverted hammer, got ${inverted.join(', ')}`);
-
-  /* NEGATIVE: the lower wick is 1.5x the body - under the 2x floor but OVER 1x, which is what
-     makes it a real negative. My first version used 0.5x; it passed, and a mutation lowering the
-     multiple from 2 to 1 left it green, because 0.5x fails either way. A negative has to sit
-     between the real threshold and the loosened one or it tests nothing. */
+test('H1. hammer family: with NO prior trend (a flat run) every wick candle is just a Long lower / upper wick, never one of the four names', () => {
+  assert.deepEqual(names(withLast(LOWER_GREEN)), ['Long lower wick']); assert.deepEqual(names(withLast(LOWER_RED)), ['Long lower wick']);
+  assert.deepEqual(names(withLast(UPPER_RED)), ['Long upper wick']); assert.deepEqual(names(withLast(UPPER_GREEN)), ['Long upper wick']);
+  /* NEGATIVE: the lower wick is 1.5x the body - under the 2x floor but OVER 1x, which is what makes it a real negative (a lowered multiple would let it through). */
   const shallow = detectPatterns(withLast({ o: 100, h: 101.2, l: 98.5, c: 101 }));
-  assert.ok(!shallow.some(p => /Hammer|Hanging/.test(p)),
-    'a 1.5x lower wick must not qualify - the threshold is 2x');
+  assert.ok(!shallow.some(p => /Hammer|Hanging|wick/.test(p)), 'a 1.5x lower wick must not qualify - the threshold is 2x');
+});
+test('H2. THE DEFECT: the four names, each ONLY after its own prior trend (decline -> Hammer / Inverted hammer; rise -> Hanging man / Shooting star)', () => {
+  assert.deepEqual(names(afterMove(-0.02, LOWER_GREEN)), ['Hammer']); assert.deepEqual(names(afterMove(-0.02, UPPER_GREEN)), ['Inverted hammer']);
+  assert.deepEqual(names(afterMove(+0.02, LOWER_RED)), ['Hanging man']); assert.deepEqual(names(afterMove(+0.02, UPPER_RED)), ['Shooting star']);
+});
+test('H3. the WRONG trend gives the plain wick, not a name: a green long-lower-wick after a RISE, a red one after a DECLINE, and the upper-wick mirrors', () => {
+  assert.deepEqual(names(afterMove(+0.02, LOWER_GREEN)), ['Long lower wick'], 'a long lower wick in a rising market was called a Hammer'); assert.deepEqual(names(afterMove(-0.02, LOWER_RED)), ['Long lower wick']);
+  assert.deepEqual(names(afterMove(+0.02, UPPER_GREEN)), ['Long upper wick']); assert.deepEqual(names(afterMove(-0.02, UPPER_RED)), ['Long upper wick']);
+});
+test('H4. the trend threshold is 1% net: -0.9% is not a decline (plain wick), -1.0% is; +0.9% / +1.0% likewise', () => {
+  assert.deepEqual(names(afterMove(-0.009, LOWER_GREEN)), ['Long lower wick']); assert.deepEqual(names(afterMove(-0.0101, LOWER_GREEN)), ['Hammer']);
+  assert.deepEqual(names(afterMove(+0.009, LOWER_RED)), ['Long lower wick']); assert.deepEqual(names(afterMove(+0.0101, LOWER_RED)), ['Hanging man']);
+});
+test('H5. the new names are ranked (a caller taking only the first item still gets a stable order) and have short words, labels and keys', () => {
+  const src = readFileSync(path.join(ROOT, 'lib/patterns.ts'), 'utf8');
+  assert.ok(src.includes("'Long lower wick',") && src.includes("'Long upper wick',"), 'the new names are not in the rank list');
+  const sw = readFileSync(path.join(ROOT, 'lib/shortWords.ts'), 'utf8'); assert.ok(sw.includes("'Long lower wick': 'PATTERN_LONG_LOWER_WICK'") && sw.includes("'Long upper wick': 'PATTERN_LONG_UPPER_WICK'"), 'no short word for the new names');
+  const en = JSON.parse(readFileSync(path.join(ROOT, 'lib/labelDefaults.en.json'), 'utf8')) as Record<string, string>; assert.equal(en.PATTERN_LONG_LOWER_WICK, 'Long lower wick'); assert.equal(en.PATTERN_LONG_UPPER_WICK, 'Long upper wick');
+  assert.deepEqual(rankPatterns(['Long upper wick', 'Hammer', 'Long lower wick', 'Doji']).slice(0, 2), ['Hammer', 'Long lower wick']);
 });
 
 test('C1. consolidation and flags: all three outcomes, plus the tightness negative', () => {
