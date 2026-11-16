@@ -1216,6 +1216,7 @@
   "FUNDING_RANGE_7D": "7 days",
   "FUNDING_RANGE_14D": "14 days",
   "FUNDING_RANGE_ROW_HINT": "- avg column · sparklines · chart",
+  "FUNDING_VIA_BYBIT_NOTE": "Binance was unavailable for {coins}. The funding history shown for these is Bybit’s.",
   "FUNDING_LOADING_MESSAGE": "Fetching funding history…",
   "FUNDING_MARKET_LEAN_HEADING": "Market lean",
   "FUNDING_LONG_HEAVY_LABEL": "Long-heavy",
