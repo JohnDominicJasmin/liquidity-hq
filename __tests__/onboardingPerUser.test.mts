@@ -3,7 +3,7 @@
  *   O1  EMPTY_ONBOARDING is all-false and is the initial state AND what every user change resets to, BEFORE the signed-out check
  *   O2  loaded goes false until THIS user's row has been read (so the wizard cannot flash on a stale false profileComplete); a signed-out visitor is loaded at once
  *   O3  the effect is keyed on the user ID, not the user object: a token refresh (a new object for the same user) must not reset the state
- *   O4  FINDING (todo): loadError is not cleared on the signed-out path, so a failed read for user A can leave an error showing for the signed-out visitor / next screen */
+ *   O4  loadError is cleared with the reset, before the signed-out return (found by QA, fixed in 749956ba) */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -27,8 +27,8 @@ test('O3. the effect is keyed on user?.id and authLoading, not the user object (
   once('}, [user?.id, authLoading]);', 'the dependency list');
   assert.equal(/\[user, authLoading\]/.test(src), false, 'the effect depends on the whole user object again');
 });
-test('O4. a signed-out visitor / a new user starts with no load error from the previous user\'s failed read', { todo: true }, () => {
-  const at = src.indexOf('if (!user) { setLoaded(true); return; }');
-  const before = src.slice(src.indexOf('setState(EMPTY_ONBOARDING);'), at + 40);
-  assert.ok(before.includes('setLoadError(false)'), 'loadError survives a user change on the signed-out path');
+test('O4. a signed-out visitor / a new user starts with no load error from the previous user\'s failed read (cleared right after the reset, before the signed-out return)', () => {
+  const reset = src.indexOf('setState(EMPTY_ONBOARDING);'), signedOut = src.indexOf('if (!user) { setLoaded(true); return; }'), clear = src.indexOf('setLoadError(false);', reset);
+  assert.ok(reset > 0 && signedOut > reset, 'CONTROL: the reset or the signed-out return moved');
+  assert.ok(clear > reset && clear < signedOut, 'loadError survives a user change on the signed-out path (the error screen would follow the next user)');
 });
