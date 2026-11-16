@@ -79,6 +79,10 @@ export default function BtcRiskLevel() {
           {score ?? '-'}
         </span>
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('BTC_RISK_LEVEL_OUT_OF_100')}</span>
+        {/* A score from fewer than the three inputs is rescaled over what exists, so it says how many it is built from. */}
+        {score != null && signals.length < 3 && (
+          <span data-testid="btc-crowding-inputs" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('BTC_RISK_LEVEL_INPUTS_COUNT', { n: signals.length })}</span>
+        )}
         {btcDom != null && (
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 'auto' }}>
             {t('BTC_RISK_LEVEL_BTC_DOM', { value: btcDom.toFixed(1) })}

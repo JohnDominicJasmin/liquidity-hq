@@ -57,11 +57,11 @@ test('a different host with the same path stays distinct', () => {
   );
 });
 
-test('linkless items (Finnhub) fall back to the headline prefix', () => {
+test('linkless items (Finnhub) fall back to the normalised headline (#2447: the full headline, not a 60-character prefix)', () => {
   // Both Finnhub branches in the ingest route pass link: null.
-  assert.equal(dedupKey(HEADLINE_V1, null), HEADLINE_V1.slice(0, 60).toLowerCase());
-  assert.equal(dedupKey(HEADLINE_V1, undefined), HEADLINE_V1.slice(0, 60).toLowerCase());
-  assert.equal(dedupKey(HEADLINE_V1, ''), HEADLINE_V1.slice(0, 60).toLowerCase());
+  assert.equal(dedupKey(HEADLINE_V1, null), 'todd blanche reaches deal with holdout senators to scrap anti weaponization fund');
+  assert.equal(dedupKey(HEADLINE_V1, undefined), 'todd blanche reaches deal with holdout senators to scrap anti weaponization fund');
+  assert.equal(dedupKey(HEADLINE_V1, ''), 'todd blanche reaches deal with holdout senators to scrap anti weaponization fund');
 });
 
 // This previously asserted the OPPOSITE - that a linkless item and a linked
@@ -107,8 +107,9 @@ test('genuinely different stories still do not collide', () => {
   ));
 });
 
-test('headlineKey is the historical 60-char prefix, so it matches old rows', () => {
-  assert.equal(headlineKey(HEADLINE_V1), HEADLINE_V1.slice(0, 60).toLowerCase());
+test('headlineKey is the FULL normalised headline (NFKC, lowercase, punctuation runs to one space, 160 chars), written out literally', () => {
+  assert.equal(headlineKey(HEADLINE_V1), 'todd blanche reaches deal with holdout senators to scrap anti weaponization fund');
+  assert.equal(headlineKey('x'.repeat(300)).length, 160, 'the cap is 160 characters');
 });
 
 test('unparseable links still yield a stable key rather than throwing', () => {

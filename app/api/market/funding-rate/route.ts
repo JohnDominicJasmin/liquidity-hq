@@ -11,6 +11,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { symbolFanout } from '@/lib/bybitFanout';
+import { cachedAt } from '@/lib/apiCache';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
@@ -127,7 +128,8 @@ export async function GET(req: NextRequest) {
       data, ok, total,
       ...(stopped ? { stopped: true } : {}),
       ...(viaFallback?.length ? { viaFallback } : {}),
-      ts: Date.now(),
+      /* The DATA's age (the 15-minute cache entry), not the request's. */
+      ts: cachedAt(`binance:funding-rate:${limit}`) ?? Date.now(),
     }, {
       headers: { 'Cache-Control': polledCacheControl(900) },
     });

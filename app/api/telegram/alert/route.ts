@@ -14,7 +14,8 @@ import { checkCronAuth } from '@/lib/cronAuth';
 import { readFng, type FNGData } from '@/lib/fng';
 import { selectAllRows } from '@/lib/selectAllRows';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
-import { onCooldown, markSent, exportCooldownState, importCooldownState } from '@/lib/alertCooldown';
+import { onCooldown, markSent, exportCooldownState, importCooldownState, beginStagedMarks, commitStagedMarks, discardStagedMarks } from '@/lib/alertCooldown';
+import { apiError } from '@/lib/apiError';
 import { evaluatePriceAlert, type Candle1m } from '@/lib/priceAlertEval';
 import {
   EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles, closedCandles, BYBIT_KLINE_SYMS,
@@ -212,11 +213,10 @@ function recipientChatIds(recipients: Recipient[], mutedByUser: Map<string, Set<
 interface UserThresholds { rsiOb: number; rsiOs: number; squeezeThreshold: number; antiChopEnabled: boolean }
 const DEFAULT_THRESHOLDS: UserThresholds = { rsiOb: 70, rsiOs: 30, squeezeThreshold: 70, antiChopEnabled: false };
 
-// Fail-open: if Supabase is unreachable, every recipient falls back to
-// DEFAULT_THRESHOLDS - identical to what an unconfigured user already gets,
-// so a fetch failure never changes delivery behavior.
-async function fetchThresholdsByUser(): Promise<Map<string, UserThresholds>> {
-  const fallback = new Map<string, UserThresholds>();
+/* UNKNOWN IS NOT "DEFAULT" (B6). A read that failed or took over 5 s used to hand every recipient the canonical thresholds (and, for mutes, an empty set), so a slow database meant users got alerts they had muted
+   and the 4 h cooldown was then consumed. The result is now null when it could not be read, and the run does not send signal alerts without it (the caller). */
+async function fetchThresholdsByUser(): Promise<Map<string, UserThresholds> | null> {
+  const fallback = null;
   const query = (async () => {
     try {
       const db = getSupabaseAdmin();
@@ -237,8 +237,8 @@ async function fetchThresholdsByUser(): Promise<Map<string, UserThresholds>> {
       return map;
     } catch { return fallback; }
   })();
-  // 5s cap - if Supabase is slow, fail-open (canonical defaults for everyone)
-  const cap = new Promise<Map<string, UserThresholds>>(res => setTimeout(() => res(fallback), 5_000));
+  // 5s cap - a slow read is UNKNOWN (null), not the defaults
+  const cap = new Promise<Map<string, UserThresholds> | null>(res => setTimeout(() => res(fallback), 5_000));
   return Promise.race([query, cap]);
 }
 
@@ -408,7 +408,7 @@ function localHourMinute(timeZone: string | null, d: Date): { hour: number; min:
    no reason to thread a counter through their signatures - same shape as the
    dedup maps above, and with the same caveat: it survives between requests in
    a warm process, hence the explicit reset rather than lazy init. */
-const sendTally = { ok: 0, failed: 0, reasons: new Set<string>() };
+const sendTally = { ok: 0, failed: 0, paused: false, reasons: new Set<string>() };
 
 /* #1667: triggered price alerts whose message has not landed yet, by alert id, with the message and its backoff (lib/priceAlertDelivery.ts).
    Process memory, like the tally above: a restart drops them, and the still-active alert fires again on its next touch. Bounded by the
@@ -416,10 +416,14 @@ const sendTally = { ok: 0, failed: 0, reasons: new Set<string>() };
 /** What a hold owes: the touch, and the target / direction it was for (an edited alert drops its hold). */
 interface HeldTouch { target: number; direction: string; level: number; atMs: number }
 const PRICE_ALERT_PENDING = new Map<number, PendingDelivery<HeldTouch>>();
+/** Alerts whose message LANDED but whose switch-off write failed. They are not sent again while they are here; each run retries the write first. Process memory like the holds above: a restart drops it and the still-active alert fires
+ *  once more, which is the most a database outage can now cost (it used to be a repeat on every 5-minute tick for as long as the outage lasted). */
+const PRICE_ALERT_OFF_PENDING = new Set<number>();
 
 function resetSendTally(): void {
   sendTally.ok = 0;
   sendTally.failed = 0;
+  sendTally.paused = false;
   sendTally.reasons.clear();
 }
 
@@ -428,7 +432,7 @@ function resetSendTally(): void {
 async function tg(token: string, chatId: string | string[], text: string): Promise<SendResult> {
   // Send-only kill switch (/ops/config) - detection/tracking above this call
   // keeps running either way, only the actual outbound message stops.
-  if (!(await isFeatureEnabled('telegram'))) return { sent: 0, failed: 0, paused: true };
+  if (!(await isFeatureEnabled('telegram'))) { sendTally.paused = true; return { sent: 0, failed: 0, paused: true }; }
   const result: SendResult = { sent: 0, failed: 0, paused: false };
 
   const ids = Array.isArray(chatId) ? chatId : [chatId];
@@ -552,7 +556,12 @@ async function flushSignals(
    SHARED: Fetch funding rates + spot prices
    ════════════════════════════════════════ */
 interface BNTicker { symbol: string; lastFundingRate: string }
-interface BBTicker  { symbol: string; fundingRate: string }
+/** The factor that turns a funding rate quoted per `intervalHour` hours into its per-8-hours equivalent (1 when the interval is missing, invalid or already 8). Bybit lists 1, 4 and 8 hour contracts; the alert thresholds are 8-hour figures (S10). */
+function fundingScaleTo8h(intervalHour: string | undefined): number {
+  const h = parseFloat(intervalHour ?? '');
+  return Number.isFinite(h) && h > 0 && h !== 8 ? 8 / h : 1;
+}
+interface BBTicker  { symbol: string; fundingRate: string; fundingIntervalHour?: string }
 
 /* #1266: the owner's rule ("if bybit can do the job then remove binance")
  * applied in full. Bybit is now the PRIMARY (only) source for every coin
@@ -581,7 +590,7 @@ async function fetchAllFR(skipCounts: SkipCounts): Promise<Record<string, number
     const d = await bbR.value.json() as { result?: { list?: BBTicker[] } };
     for (const item of d.result?.list ?? []) {
       const coin = Object.entries(BYBIT_PERP).find(([, s]) => s === item.symbol)?.[0];
-      if (coin && !BINANCE_ONLY_FR_COINS.has(coin) && item.fundingRate) result[coin] = parseFloat(item.fundingRate);
+      if (coin && !BINANCE_ONLY_FR_COINS.has(coin) && item.fundingRate) result[coin] = parseFloat(item.fundingRate) * fundingScaleTo8h(item.fundingIntervalHour);   // per 8 hours, like the page (S10)
     }
   } else {
     // One shared upstream call feeding every migrated coin's funding rate -
@@ -1085,7 +1094,7 @@ async function checkNews(
       if (onCooldown(key, CD.news)) continue;
       const emoji    = type === 'red' ? '🚨' : '📊';
       const label    = type === 'red' ? 'Breaking Alert' : 'Macro Alert';
-      await tg(token, chatId, `${emoji} <b>${label}</b>\n\n<b>${item.headline}</b>\nSource: ${item.source}\n\n<i>${stamp}</i>`);
+      await tg(token, chatId, `${emoji} <b>${label}</b>\n\n<b>${escapeHtml(item.headline)}</b>\nSource: ${escapeHtml(item.source)}\n\n<i>${stamp}</i>`);
       markSent(key); fired.push(`news: ${item.headline.slice(0, 50)}`);
     }
   } catch { /* skip */ }
@@ -1301,9 +1310,14 @@ async function checkPriceAlerts(
       if (id) chatIdByUser.set(userId, id);
     }
 
-    // Collect ids to deactivate and issue ONE batched UPDATE after the loop,
-    // instead of a separate round-trip per triggered alert (N+1).
-    const triggeredIds: number[] = [];
+    /* Each alert is switched off right after ITS OWN message landed, with its own write whose error is read (B1). The old batched update ran once after the whole send loop and its error was never checked: a failed write, or a
+       deploy between the loop and the update, left every alert that had just been delivered active, and each fired again on the next tick. */
+    const switchOff = async (id: number): Promise<boolean> => {
+      const { error } = await admin.from(T.price_alerts)
+        .update({ active: false, triggered_at: new Date().toISOString() })
+        .in('id', [id]).eq('active', true);
+      return !error;
+    };
 
     /* #1626: a wick between two 5-minute checks. Only coins that still have an armed alert the live price did not already hit are read, one
        1-minute kline request per coin. A failed read leaves that coin on the live-price rule, exactly as before. */
@@ -1320,6 +1334,11 @@ async function checkPriceAlerts(
     }), 5);
 
     for (const alert of rows) {
+      /* Already delivered, switch-off still owed: retry the write, never the message. */
+      if (PRICE_ALERT_OFF_PENDING.has(alert.id)) {
+        if (await switchOff(alert.id)) PRICE_ALERT_OFF_PENDING.delete(alert.id);
+        continue;
+      }
       // #1667: a message that failed earlier is resent on its backoff; the touch already happened, so price is not re-checked for it.
       // A hold for an alert whose target or direction was edited since, or one older than a day, is dropped: the alert is judged afresh.
       let pending = PRICE_ALERT_PENDING.get(alert.id);
@@ -1371,7 +1390,10 @@ async function checkPriceAlerts(
       if (next.pending) PRICE_ALERT_PENDING.set(alert.id, next.pending); else PRICE_ALERT_PENDING.delete(alert.id);
       if (!next.consume) continue;
 
-      triggeredIds.push(alert.id);
+      if (!(await switchOff(alert.id))) {
+        PRICE_ALERT_OFF_PENDING.add(alert.id);
+        apiError('telegram/alert', new Error(`price alert ${alert.id} was delivered but could not be switched off; it will not be sent again and the write is retried each run`));
+      }
       // Deliberately NOT added to `fired`. Historically that list fed an
       // app-wide in-memory feed served by /api/telegram/history and shown on
       // /alerts to everyone, so pushing one user's coin and target price into
@@ -1386,13 +1408,7 @@ async function checkPriceAlerts(
     // #1667: a held message for an alert that is no longer active (deleted, or switched off elsewhere) is dropped - the map stays bounded.
     const activeIds = new Set(rows.map(a => a.id));
     for (const id of [...PRICE_ALERT_PENDING.keys()]) if (!activeIds.has(id)) PRICE_ALERT_PENDING.delete(id);
-
-    // Deactivate all fired alerts in a single round-trip
-    if (triggeredIds.length > 0) {
-      await admin.from(T.price_alerts)
-        .update({ active: false, triggered_at: new Date().toISOString() })
-        .in('id', triggeredIds);
-    }
+    for (const id of [...PRICE_ALERT_OFF_PENDING]) if (!activeIds.has(id)) PRICE_ALERT_OFF_PENDING.delete(id);
   } catch { /* skip */ }
   return fired;
 }
@@ -1450,7 +1466,7 @@ async function checkDailySummary(
   frMap: Record<string, number | null>
 ): Promise<string[]> {
   const d = new Date();
-  // Each recipient's OWN local 7:00-7:10am window, not one fixed instant that
+  // Each recipient's OWN local 7:00-7:30am window, not one fixed instant that
   // only actually meant "morning" for subscribers in one particular zone. This used to
   // gate the entire function on a single `(getUTCHours()+8)%24 === 7` check -
   // correct for that zone, but a "7am summary" that always lands at 7pm the
@@ -1465,7 +1481,8 @@ async function checkDailySummary(
     /* UTC when we do not know the recipient's zone (owner, 2026-10-31) - see localHourMinute. */
     const zone = CHAT_TZ.get(r.chatId) || 'UTC';
     const { hour, min } = localHourMinute(zone, d);
-    if (hour !== 7 || min > 10) continue;
+    /* The first 30 minutes of the local 7 o'clock (was 10): the cron ticks every 5 minutes and two missed or slow ticks in a row used to skip the whole day's briefing. One send per day is still guaranteed by the per-chat cooldown. */
+    if (hour !== 7 || min > 30) continue;
     const cdKey = `daily_summary_${r.chatId}`;
     if (onCooldown(cdKey, CD.daily)) continue;
     markSent(cdKey);
@@ -2147,10 +2164,9 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
 /* Muted alert groups - set on /alerts page, stored in Supabase, one row per
    (user_id, key) since 2026-07-17 (previously a single global table - any
    user's mute silenced everyone's Telegram feed, see
-   supabase/migrations/20260717_muted_alerts_per_user.sql). Fail-open: if
-   Supabase is unreachable, nothing is muted for anyone. */
-async function fetchMutedKeysByUser(): Promise<Map<string, Set<string>>> {
-  const fallback = new Map<string, Set<string>>();
+   supabase/migrations/20260717_muted_alerts_per_user.sql). null = the read failed or timed out: UNKNOWN, not "nothing muted" (B6, see fetchThresholdsByUser). */
+async function fetchMutedKeysByUser(): Promise<Map<string, Set<string>> | null> {
+  const fallback = null;
   const query = (async () => {
     try {
       const db = getSupabaseAdmin();
@@ -2170,8 +2186,8 @@ async function fetchMutedKeysByUser(): Promise<Map<string, Set<string>>> {
       return map;
     } catch { return fallback; }
   })();
-  // 5s cap - if Supabase is slow, fail-open (no keys muted)
-  const cap = new Promise<Map<string, Set<string>>>(res => setTimeout(() => res(fallback), 5_000));
+  // 5s cap - a slow read is UNKNOWN (null), not an empty mute list
+  const cap = new Promise<Map<string, Set<string>> | null>(res => setTimeout(() => res(fallback), 5_000));
   return Promise.race([query, cap]);
 }
 
@@ -2519,6 +2535,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // would otherwise carry the previous run's counts into this one's health
   // record - reporting a stale failure long after it was resolved.
   resetSendTally();
+  beginStagedMarks();
 
   // Restore EMA signal dedup state from its last persisted snapshot before any
   // checkEMASignal call runs - no-op after the first call in this process's
@@ -2555,9 +2572,20 @@ async function runAlerts(token: string): Promise<NextResponse> {
   resetRunCounters(); // #1651: klines requests made, cache reads and the per-pass open-interest memo
 
   // Fetch shared data once (+ per-user muted alert groups + threshold settings)
-  const [frMap, prices, lsMap, mutedByUser, thresholdsByUser] = await Promise.all([
+  const [frMap, prices, lsMap, mutedRaw, thresholdsRaw] = await Promise.all([
     fetchAllFR(skipCounts), fetchSpotPrices(skipCounts), fetchAllLSR(skipCounts), fetchMutedKeysByUser(), fetchThresholdsByUser(),
   ]);
+
+  /* MUTES OR THRESHOLDS UNREADABLE (B6): the signal alerts are NOT sent this run. Without them every recipient would be treated as having muted nothing and as using the default thresholds, and the alerts they muted would go out and
+     burn their cooldowns. Price alerts depend on neither, so they still run; every cooldown mark is dropped; the next tick tries again; a health row says why. */
+  if (!mutedRaw || !thresholdsRaw) {
+    const priceFired = await checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds);
+    discardStagedMarks();
+    reportHealth('alert:prefs', 'delivery', false, `${!mutedRaw ? 'mutes' : 'thresholds'} could not be read; signal alerts skipped this run, price alerts still sent (${priceFired.length})`);
+    return NextResponse.json({ ok: true, skipped: 'prefs_unreadable', fired: priceFired, delivery: { sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons] } });
+  }
+  const mutedByUser = mutedRaw;
+  const thresholdsByUser = thresholdsRaw;
 
   /* #1630 GO-LIVE 2: a trial gets signals on BTC / ETH / SOL only (owner rule, #1596), the same ladder as Free - paid Pro gets every coin. The page
      already withheld the rest; the Telegram cron did not, so a trial user received server-sent signals on every coin. The per-recipient mute path
@@ -2625,14 +2653,21 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // hydrates from here instead of starting empty - see hydrateEMASignalDedup.
   await persistEMASignalDedup();
   await persistStructureDedup();
-  // #1278: every markSent() call from the checks above already landed in
-  // lib/alertCooldown.ts's in-memory ledger by this point - persist it so a
-  // restart between now and the next tick hydrates from here.
-  await persistAlertCooldown();
-
   // Flush: single signals → send as-is, 2+ same coin → confluence alert.
   // Per-recipient coin:/dir:/ruleKey eligibility is decided inside.
   const eligible = await flushSignals(token, recipients, mutedByUser, thresholdsByUser, stamp, signalQueue);
+
+  /* THE COOLDOWNS ARE CONSUMED ONLY IF THE RUN DELIVERED (B2). markSent calls from every check above were staged (lib/alertCooldown.ts). Nothing reached anyone and sends failed or were paused (a 429/5xx, an outage, the /ops pause):
+     the marks are discarded so the next tick tries again instead of silencing each alert for its whole cooldown. Anything delivered (or nothing owed to send at all): committed, as before. Partial failure inside one run still
+     consumes the failed ones (per-alert accounting is a larger change). */
+  if (sendTally.ok === 0 && (sendTally.failed > 0 || sendTally.paused)) {
+    const dropped = discardStagedMarks();
+    if (dropped > 0) console.warn(`[telegram/alert] nothing delivered this run (${sendTally.paused ? 'sends paused' : 'sends failed'}); ${dropped} cooldown mark(s) not consumed, retried next tick`);
+  } else {
+    commitStagedMarks();
+  }
+  // #1278: the committed ledger is persisted so a restart between now and the next tick hydrates from here (this ran BEFORE the flush; it now follows the commit).
+  await persistAlertCooldown();
 
   // Web Push - fire-and-forget, never let it block or throw
   void dispatchPush(signalQueue, mutedByUser, thresholdsByUser, proUserIds).catch(() => {});
