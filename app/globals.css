@@ -2267,7 +2267,13 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .klc-draw-item.on { color: var(--accent-2); background: rgba(90,163,255,0.1); }
 .klc-draw-clear { color: var(--red); margin-top: 2px; border-top: 0.5px solid var(--bdr); border-radius: 0 0 5px 5px; }
 .klc-legend { display: flex; gap: 8px; align-items: center; }
+/* The alert chips as an overlay on the chart canvas: out of the toolbar's flow, so their late arrival can never wrap the toolbar (CLS). The container ignores the pointer; each chip is display-only. A solid-ish ground so the amber text reads over candles in both themes. */
+.klc-legend-overlay { position: absolute; top: 34px; left: 8px; z-index: 3; pointer-events: none; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 96px); }
+.klc-legend-overlay .klc-price-chip { background: color-mix(in srgb, var(--bg1) 88%, rgba(245,158,11,0.12)) !important; }
 .klc-ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--txt3); flex-shrink: 0; }
+/* The fullscreen button and the feed dot: the dot is positioned OUTSIDE the button's right edge, so it adds no width to the toolbar row and can never wrap onto a row of its own (the 13 px chart push). */
+.klc-fs-wrap { position: relative; display: inline-flex; flex-shrink: 0; }
+.klc-fs-wrap .klc-ws-dot { position: absolute; left: 100%; top: 50%; margin: -3px 0 0 4px; }
 .klc-ws-dot.live { background: var(--green); box-shadow: 0 0 5px var(--green); }
 .klc-ws-dot.err  { background: transparent; box-shadow: inset 0 0 0 1.5px var(--red); } /* a RING, not a filled dot: the state differs by shape too (#1185, not colour alone) */
 .sq-badge { display: inline-flex; align-items: center; }
@@ -4003,6 +4009,55 @@ html[data-theme="light"] { background: var(--bg0); }
   background: rgba(255,255,255,0.03); border: 0.5px solid var(--bdr);
   margin: 2px 0 10px;
 }
+/* THE STRATEGY CALL BOX's changing part (components/StrategyCallBox.tsx): keeps the height of the tallest call (verdict + a four-line reason + the invalidation line + the liquidity note) so the
+   call arriving or changing pushes nothing below it. Taller on a phone, where the same text wraps to more lines. */
+/* Measured by QA on a CI build in English, Russian, Korean and Chinese (runs 43637299794 and 43639284647, with a seven-digit price in the invalidation line): the tallest possible call needs 264 px (Russian) in the
+   narrow 320 px rail, which is the layout from 981 px up (.arena-ws is two columns above 980 px); 150 px when the rail is full width (641-980 px); 222 px on a phone (Korean, Russian). Each value is the tallest + a margin.
+   QA's strategy-call-height cell fails if any reserve is shorter than the tallest call. */
+/* The strategy call box's Expand / Collapse icon (components/StrategyCallBox.tsx): 28 px hit area pulled back by -6 px top and bottom so the description row keeps its one-line height; the global focus ring applies. */
+.strat-desc-toggle { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: -6px -7px -6px 0; padding: 0; background: none; border: none; border-radius: 6px; cursor: pointer; color: var(--txt3); }
+.strat-desc-toggle:hover, .strat-desc-toggle:focus-visible { color: var(--accent); }
+.strat-desc-chevron { transition: transform 150ms; }
+.strat-desc-chevron[data-open="true"] { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .strat-desc-chevron { transition: none; } }
+.strat-call-dyn { min-height: 201px; }
+@media (max-width: 980px) { .strat-call-dyn { min-height: 142px; } }
+@media (max-width: 640px) { .strat-call-dyn { min-height: 163px; } }
+/* NARROW PHONES (QA run 43690087568, the tallest possible call, dyn only): 360 px en 155, ko 155, ru 175, zh 155; 320 px en 175, ko 193, ru 213, zh 175. So 163 is 12 px short at 360 and 50 px short at 320 in
+   Russian. Each is the maximum + 8: 183 up to 380 px, 221 up to 340 px. (390 to 640 px stays 163: worst 155.) */
+@media (max-width: 380px) { .strat-call-dyn { min-height: 183px; } }
+@media (max-width: 340px) { .strat-call-dyn { min-height: 221px; } }
+/* MEASURED (QA, deployed qa 5b9d1ad, run 43687675270: the tallest possible call, every reason of every strategy at a 7-digit price, en/ru/ko/zh): above 980 px ru 193 (ema_stack BUY), 981-1280; 641-980 px ru 134 at
+   641 (114 from 768); at 390 px 155 in every language. Each reserve is that maximum + 8 px. Widths 391-640 (text wraps less) and 1281+ were not measured. */
+/* PROVISIONAL (PM, 2026-11-15): the call block is now verdict + reason at body size + invalidation + liquidity note only (about 19 + 102 + 36 + gaps 18 = 175 px); these three numbers are an
+   estimate until QA measures the tallest call per width across en/ru/ko/zh at the new size, then each is set to that maximum + 8 px. */
+/* The usage meter's slot (components/UsageMeter.tsx): the margin the meter always had plus a FIXED height. The meter is one line (its reset text ellipsizes), so 43 px (QA run 43649222730) holds on a
+   phone and in every language. */
+.usage-meter-slot { margin: 2px 0 10px; height: 43px; }
+/* THE USAGE METER ON A PHONE (QA, deployed qa 5b9d1ad: the Free pill was pushed past the row's right edge at 390 px in Korean and Russian, because the two stat blocks do not shrink). At 480 px and under the
+   reset time is dropped (the numbers and the Upgrade pill matter more), the stat blocks may narrow to 80 px and the gap is 12 px: 2 x 80 + 24 + the widest pill (108, Russian) = 292 of the 322 px row. */
+@media (max-width: 480px) {
+  .usage-meter-row { gap: 12px !important; }
+  .usage-meter-row .usage-stat { min-width: 80px !important; }
+  .usage-meter-row .usage-reset { display: none; }
+}
+/* THE STRATEGY CALL BOX'S RESERVE for a visitor whose saved strategy is cached on this browser (`<html data-strat="1">`, components/RootDocument.tsx). The box is the call block (.strat-call-dyn: 180 / 150 / 200 px)
+   + the description row + the note + the gaps + its 10 px top margin, about the block + 55 px; a little more here (+ 10 px), so the saved strategy arriving from settings fills the band instead of inserting it.
+   PROVISIONAL until QA's gate measures the real box per width. Without a cached strategy there is no reserve (picking one is the visitor's own action). */
+.strat-call-host { display: flow-root; }
+html[data-strat="1"] .strat-call-host { min-height: 266px; }
+@media (max-width: 980px) { html[data-strat="1"] .strat-call-host { min-height: 207px; } }
+@media (max-width: 640px) { html[data-strat="1"] .strat-call-host { min-height: 228px; } }
+@media (max-width: 380px) { html[data-strat="1"] .strat-call-host { min-height: 248px; } }
+@media (max-width: 340px) { html[data-strat="1"] .strat-call-host { min-height: 286px; } }
+/* The Arena's Set Alert placeholder while the session resolves: drawn (disabled) only for a visitor with a stored session, so the button row has its final shape from the first paint. */
+.arena-set-alert-pending { display: none; }
+html[data-sess="1"] .arena-set-alert-pending { display: revert; }
+/* The host of the usage meter (app/(main)/arena/page.tsx). `<html data-sess="1">` is set before first paint when a session is stored (components/RootDocument.tsx, `session-hint`), so a signed-in visitor has the
+   meter's whole band (2 + 43 + 10 px) reserved from the FIRST paint instead of from the moment the session read resolves. flow-root so the slot's own margins stay inside the host. */
+.usage-meter-host { display: flow-root; }
+html[data-sess="1"] .usage-meter-host { min-height: 55px; }
+/* One 43 px slot for every account (PM, #2368). The Upgrade pill is 28 px tall here (it was 44, which made the Free row 62 px); its 44 px touch target is the link around it (UpgradePillLink `tap`, negative margins), not a pseudo-element. */
 .usage-auth-link {
   color: var(--accent-2); text-decoration: none; font-weight: 600;
   padding: 4px 2px; display: inline-flex; align-items: center;
@@ -5919,6 +5974,11 @@ html[lang="ko"] .lp-hero-h1 { word-break: keep-all; }
 .pf-footer-bottom-link { color: var(--txt3); text-decoration: underline; text-underline-offset: 2px; }
 /* A 24 PX HIT AREA WITHOUT A VISIBLE CHANGE (#1185, QA: the three legal links in the footer note measured 15 px tall at every width). Inline-block with 5 px of padding above and below and the same amount of negative margin: the line height and the look are unchanged, the clickable box is 25 px. */
 .pf-footer-bottom-link, .lt-inline-hit { display: inline-block; padding-block: 5px; margin-block: -5px; }
+/* Landing Learn entry points (#1113): typography lives here, not inline (terminal-only ratchet). */
+.lt-nav-learn { font-family: var(--font-mono), monospace; font-size: 11.5px; letter-spacing: .12em; color: var(--txt2); padding: 9px 10px; text-decoration: none; text-transform: uppercase; white-space: nowrap; flex-shrink: 0; display: none; }
+@media (min-width: 768px) { .lt-nav-learn { display: inline-block; } }
+.lt-hero-learn { margin: 0; }
+.lt-hero-learn a { color: var(--txt2); text-decoration: underline; text-underline-offset: 3px; }
 .pf-footer-bottom-link:hover { color: var(--txt); }
 @media (max-width: 900px) { .pf-footer-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) {
@@ -6427,6 +6487,10 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
      its left (FAB is 64px wide at right:16), so it clears the footer instead of
      overlapping it. */
   .ob-checklist.ob-checklist-mini { bottom: 76px !important; right: 90px !important; }
+  /* THE EXPANDED SETUP PANEL CLEAR OF THE ASK AI BUTTON ON PHONES. On a phone the FAB sits at bottom: 76 and is 64 px tall, so its top edge is at 140 px; the panel's own bottom was 128 px (420 px and under) or
+     140 px (421 to 640), so it overlapped the button by 12 px at 390 and touched it from 421 px. 152 px leaves a 12 px gap. Both stay position: fixed, so nothing in the page flow changes. The collapsed pill is
+     excluded: it rides in the FAB's row, to its left, by the rule above. */
+  .ob-checklist:not(.ob-checklist-mini) { bottom: 152px; }
   /* Reserve space for tab bar (56px) + the FAB above it (bottom:76 + 64 tall = 140).
      Prevents the fixed "Ask AI" FAB from overlapping the last content on every page. */
   .app-content { padding-bottom: 148px; }

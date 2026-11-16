@@ -132,6 +132,10 @@ async function arrange(browser: import('@playwright/test').Browser) {
   await resetStrategySelection(page);
   await page.goto('/arena');
 
+  /* THE PLAN MUST BE KNOWN BEFORE ANY TIMEFRAME IS CLICKED: handleTfChange blocks 1m / 5m / 30m (the upgrade modal) whenever entitlementStatus is not 'entitled', and 'unknown' counts (#1119). Release 2 CI (43740024018)
+     and deployed qa both failed here with the 'Upgrade to Pro' modal intercepting the QUICK click: the spec clicked the first timeframe while the Pro account's plan was still unresolved. The PRO badge in the
+     header is the visible proof the plan is known. */
+  await expect(page.locator('.plan-badge-pro').first(), "the Pro account's plan never resolved, so a gated timeframe click would open the upgrade modal").toBeVisible({ timeout: 45_000 });
   const quick = page.getByRole('button', { name: 'QUICK', exact: true });
   await expect(quick).toBeVisible({ timeout: 30_000 });
   await expect(quick).toBeEnabled({ timeout: 30_000 });

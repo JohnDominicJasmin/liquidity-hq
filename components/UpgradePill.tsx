@@ -19,10 +19,30 @@ export function useShowFreeUpgrade(): boolean {
 
 /* A bordered button with a 44px touch target, in the app's own data radius (not a capsule), reading plain "Upgrade" with no
    arrow: nothing here needs a direction cue. */
-export function UpgradePillLink({ labelKey = 'TNAV_UPGRADE_LABEL', testId = 'upgrade-pill', style }: {
+export function UpgradePillLink({ labelKey = 'TNAV_UPGRADE_LABEL', testId = 'upgrade-pill', style, tap = false }: {
   labelKey?: LabelKey; testId?: string; style?: React.CSSProperties;
+  /** A COMPACT PILL WITH A REAL 44 PX TOUCH TARGET (QA, qa e359faca: the pseudo-element version measured 41 px). The link itself is the 44 px target (transparent), pulled back with negative
+   *  margins so it takes only 28 px of layout, and the visible bordered pill is a 28 px child. No pseudo-element and nothing to clip. */
+  tap?: boolean;
 }) {
   const { t } = useLabels();
+  if (tap) {
+    return (
+      <Link
+        href="/upgrade"
+        data-testid={testId}
+        style={{
+          display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 4px', margin: '-8px -4px',
+          color: 'var(--accent)', textDecoration: 'none', flexShrink: 0,
+          ...style,
+        }}
+      >
+        <span data-testid={`${testId}-visual`} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 28, padding: '0 11px', borderRadius: 'var(--radius-data)', border: '1px solid var(--accent)', fontSize: 'var(--fs-label)', fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap' }}>
+          {t(labelKey)}
+        </span>
+      </Link>
+    );
+  }
   return (
     <Link
       href="/upgrade"
@@ -43,7 +63,7 @@ export function UpgradePillLink({ labelKey = 'TNAV_UPGRADE_LABEL', testId = 'upg
 
 /* The pill for a page header: renders only for a Free account (see useShowFreeUpgrade), so a page can mount it
    without a hook of its own. */
-export function FreeUpgradePill({ testId = 'header-upgrade', style }: { testId?: string; style?: React.CSSProperties }) {
+export function FreeUpgradePill({ testId = 'header-upgrade', style, tap = false }: { testId?: string; style?: React.CSSProperties; tap?: boolean }) {
   const show = useShowFreeUpgrade();
-  return show ? <UpgradePillLink labelKey="TNAV_UPGRADE_LABEL" testId={testId} style={style} /> : null;
+  return show ? <UpgradePillLink labelKey="TNAV_UPGRADE_LABEL" testId={testId} style={style} tap={tap} /> : null;
 }

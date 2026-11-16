@@ -1,6 +1,6 @@
 import { emaArr, type OHLCV } from '../strategyCore.ts';
 import type { LabelKey } from '../labelKeys.ts';
-import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } from './types.ts';
+import { WAIT, type StrategyContext, type StrategyDef, type StrategyOverlay, type StrategyResult } from './types.ts';
 
 /* EMA 20 / 50 / 100 / 200 STACK, TRADED ON THE PULLBACK (owner-requested, 2026-11-14: trade WITH the stack, wait for price to pull back to the 20 or 50 and show a
  * confirmation, enter in the trend direction). Deterministic rules, closed candles only.
@@ -17,6 +17,7 @@ import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } fro
 
 export const FRESH_BARS = 3;
 export const MIN_CANDLES = 230;
+const EMA_BARS = 120; // how many of the latest bars each drawn EMA line covers
 
 type Side = 'long' | 'short';
 
@@ -33,12 +34,20 @@ export function detectEmaStack(candles: readonly OHLCV[], _ctx: StrategyContext)
   const closes = candles.map(c => c.close);
   const e20 = emaArr(closes, 20), e50 = emaArr(closes, 50), e100 = emaArr(closes, 100), e200 = emaArr(closes, 200);
   const order = (i: number) => orderSide(e20[i], e50[i], e100[i], e200[i]);
+  /* The four EMAs themselves (the last EMA_BARS of each), labelled at their right end, whatever the verdict: they are what this strategy reads. */
+  /* Only EMA 100 is DRAWN: the chart's own ribbon already draws 20, 50 and 200 (PM ruling, #2372), so those three get just a label at their right end (a line of ONE point is a text tag). */
+  const emaLine = (arr: number[], period: number, draw: boolean): StrategyOverlay['lines'][number] => ({
+    points: candles.slice(draw ? -EMA_BARS : -1).map((c, k, a) => ({ ts: c.time, price: arr[n - a.length + k] })).filter(p => Number.isFinite(p.price)),
+    role: 'ref', labelKey: 'STRAT_OV_EMA', labelParams: { n: String(period) },
+  });
+  const lines = [emaLine(e20, 20, false), emaLine(e50, 50, false), emaLine(e100, 100, true), emaLine(e200, 200, false)];
   const now = order(n - 1);
-  if (!now) return WAIT;
+  if (!now) return { ...WAIT, overlay: { levels: [], zones: [], lines, marker: null } };
   const up = now === 'long';
   const params = (i: number, pullback: boolean, tag: number, inv: number) => ({ pullback, tag, ema20: e20[i], ema50: e50[i], ema100: e100[i], ema200: e200[i], inv });
   const result = (i: number, pullback: boolean, tag: number, inv: number): StrategyResult => ({
     verdict: up ? 'buy' : 'sell', signalTimestamp: candles[i].time, signalDir: now, params: params(n - 1, pullback, tag, inv),
+    overlay: { levels: [{ price: inv, role: 'invalid', fromTs: candles[i].time, labelKey: 'STRAT_OV_INVALID' }], zones: [], lines, marker: { ts: candles[i].time, dir: now } },
   });
 
   // PULLBACK: the latest candle (within FRESH_BARS) that reached the 20 and closed back on the trend side of it, with the stack in order on that candle.
@@ -60,7 +69,7 @@ export function detectEmaStack(candles: readonly OHLCV[], _ctx: StrategyContext)
     while (first - 1 >= 0 && holds(first - 1)) first--;
     if (first >= n - FRESH_BARS) return result(first, false, 0, e50[n - 1]);
   }
-  return WAIT;
+  return { ...WAIT, overlay: { levels: [], zones: [], lines, marker: null } };
 }
 
 export const EMA_STACK: StrategyDef = {
@@ -72,6 +81,7 @@ export const EMA_STACK: StrategyDef = {
   reasonWaitKey: 'STRAT_EMASTACK_WAIT',
   reasonKeyFor: (r): LabelKey | null => (r.params.pullback === true ? (r.verdict === 'buy' ? 'STRAT_EMASTACK_BUY_PULLBACK' : 'STRAT_EMASTACK_SELL_PULLBACK') : null),
   minCandles: MIN_CANDLES,
+  chips: [],
   logTfs: ['15m', '1h', '4h'],
   detect: detectEmaStack,
 };

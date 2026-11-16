@@ -1,4 +1,5 @@
 ﻿'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useNow } from '@/lib/useNow';
@@ -41,9 +42,9 @@ import { computeDistributionScore, distributionColor, DistributionInputs } from 
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
-import ArenaStrategyCard from '@/components/ArenaStrategyCard';
 import { useStrategySignal } from '@/lib/useStrategySignal';
 import { findStrategy } from '@/lib/strategies';
+import { AUTO_SET_ID, CUSTOM_SET_ID } from '@/lib/strategyRegistry';
 import { describeSelection, overlayStates, selectableIds } from '@/lib/strategyRegistry';
 import { coinLockedForUnpaid, gateSignal, signalPlanFor } from '@/lib/signalCoinGate';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
@@ -333,6 +334,9 @@ function ArenaContent() {
   });
   // Which Pro feature the user just tried to open (null = modal closed)
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
+  /* "Checking your plan…": shown for a few seconds when a gated timeframe is clicked while the plan has not been read yet (the plan arrives 2-5 s after load), instead of an Upgrade modal that would pitch Pro to someone who may already have it. */
+  const [planChecking, setPlanChecking] = useState(false);
+  const planCheckingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const arenaInitRef  = useRef(false);
   // #1263: set by the real user-facing coin/tf change handlers ONLY (the
   // scanner's coin pick, the toolbar's TF click) - not by the seed effect's
@@ -374,6 +378,7 @@ function ArenaContent() {
      it cost a "the feature does not work on staging" report to find. */
   const liqEmitRef = useRef(0);
   const liqFilledRef = useRef(false);
+  const [liqHistOnly, setLiqHistOnly] = useState<'BN' | 'BB' | null>(null);
   const handleLiqClusters = useCallback((c: Bucket[]) => {
     const now = Date.now();
     if (!acceptClusterEmission({
@@ -431,7 +436,14 @@ function ArenaContent() {
      seed effect's OWN setStrategySelection/setStrategyParams calls above,
      echoing the just-read value straight back to the server on every load.
      Passed to StrategyPanel below in place of the raw setters. */
+  /* ARENA STRATEGY (owner decision 2026-11-14, option A: ONE strategy menu). The saved strategy id lives here next to the chips: the Strategy set menu writes BOTH in one save, and touching a chip by hand
+     leaves the strategy (the menu then shows Custom). Persisted on the user's own action only, never echoed by the seed. */
+  const [arenaStrategy, setArenaStrategyState] = useState<string | null>(null);
+  /* THE PLAN IS STILL BEING READ (signed in, auth or entitlements loading). Until it is known (loading, or unknown after a failed read), chip taps and strategy picks are NO-OPS: they used to run the FREE branch (swap to one chip, or one chip added) and then SAVE the result, so a paying Pro user who tapped before the plan arrived (2.4-5 s after load, longer on a phone) had a saved multi-indicator selection cut to one. Nothing computed under an unknown plan is applied or persisted. The panel shows the same state (chips disabled, 'Checking your plan…'). */
+  /* 'unknown' (every retry of the plan read failed) counts as unsettled too: it is not a confirmed Free account, so no destructive op and no save; the panel already shows its unknown-plan card with Retry in that state. Only a CONFIRMED 'not_entitled' runs the Free swap. */
+  const planUnsettled = !!user && (authLoading || entitlementsLoading || entitlementStatus === 'unknown');
   const handleStrategySelectionChange = useCallback((next: readonly string[]) => {
+    if (planUnsettled) return;
     // #1246/#1347: belt-and-suspenders alongside StrategyPanel's own gate -
     // this is the only path that writes strategy_selection, and it must not
     // run against the pre-load [] regardless of what calls it. Gating on
@@ -442,18 +454,34 @@ function ArenaContent() {
     if (settingsLoadStatus !== 'ready') return;
     setStrategySelection(next);
     update({ strategy_selection: next as string[] });
-  }, [update, settingsLoadStatus]);
+  }, [update, settingsLoadStatus, planUnsettled]);
+  /* The Strategy set menu (PM rules, #2358): picking a strategy never removes the user's chips: a strategy with no drawable chip leaves the chip row as it was, one that reads a chip ADDS it to the
+     existing chips (no-op if already on; a Free account, limited to one chip, swaps it in as a tap would). 'Let the read choose' and 'Custom' clear the saved strategy (the call box goes) and leave
+     the chips alone. Touching a chip while a strategy is picked keeps the strategy. One request per change. */
+  const handleStrategyMenuPick = useCallback((id: string) => {
+    if (settingsLoadStatus !== 'ready' || planUnsettled) return;
+    /* 'Let the read choose' clears the strategy AND the chips (the AI picks), in one save: with chips left on the menu derived 'Custom' and snapped back. 'Custom' clears only the strategy and keeps the chips. */
+    if (id === AUTO_SET_ID) {
+      if (arenaStrategy === null && strategySelection.length === 0) return;
+      setArenaStrategyState(null);
+      setStrategySelection([]);
+      update({ arena_strategy: null, strategy_selection: [] });
+      return;
+    }
+    if (id === CUSTOM_SET_ID) { if (arenaStrategy !== null) { setArenaStrategyState(null); update({ arena_strategy: null }); } return; }
+    const def = findStrategy(id);
+    if (!def) return;
+    const add = selectableIds(def.chips).filter(c => !strategySelection.includes(c));
+    if (add.length === 0) { setArenaStrategyState(def.id); update({ arena_strategy: def.id }); return; }
+    const chips = entitlementStatus === 'entitled' ? [...strategySelection, ...add] : (strategySelection.length === 0 ? add.slice(0, 1) : [add[0]]);
+    setArenaStrategyState(def.id);
+    setStrategySelection(chips);
+    update({ arena_strategy: def.id, strategy_selection: chips as string[] });
+  }, [update, settingsLoadStatus, arenaStrategy, strategySelection, entitlementStatus, planUnsettled]);
   const handleStrategyParamsChange = useCallback((next: Record<string, Record<string, string | number | boolean>>) => {
     setStrategyParams(next);
     update({ strategy_params: next });
   }, [update]);
-  /* ARENA STRATEGY (owner-requested, 2026-11-14): one saved rule set (lib/strategies) with a buy/sell/wait card under the Strategy panel. Separate from the indicator chips above. Persisted on the user's own action only, never echoed by the seed. */
-  const [arenaStrategy, setArenaStrategyState] = useState<string | null>(null);
-  const handleArenaStrategyChange = useCallback((next: string | null) => {
-    if (settingsLoadStatus !== 'ready') return;
-    setArenaStrategyState(next);
-    update({ arena_strategy: next });
-  }, [update, settingsLoadStatus]);
   const strategyLiqLevels = useMemo(() => (chartLiqClusters ?? []).map(c => c.price), [chartLiqClusters]);
   const strategyState = useStrategySignal(selectedCoin, readTf, arenaStrategy, strategyLiqLevels);
   const oi1h          = useOI1h(selectedCoin);
@@ -945,6 +973,13 @@ function ArenaContent() {
     // assertion the owner's ruling forbids (the modal pitches Pro, it never
     // claims the user IS on the free plan).
     if (entitlementStatus !== 'entitled' && GATED_TFS.includes(tf)) {
+      /* A signed-in visitor whose plan is still being read (or whose read has not answered) is NOT told to upgrade: the gate stays shut (nothing opens), and a neutral line says the plan is being checked. A confirmed free account, and a signed-out visitor, still get the Upgrade modal. */
+      if (user && (authLoading || entitlementsLoading || entitlementStatus === 'unknown')) {
+        setPlanChecking(true);
+        if (planCheckingTimer.current) clearTimeout(planCheckingTimer.current);
+        planCheckingTimer.current = setTimeout(() => setPlanChecking(false), 4000);
+        return;
+      }
       setUpgradeGate(t(TF_FEATURE_LABEL_KEYS[tf] ?? 'ARENA_TF_LABEL_FALLBACK'));
       return;
     }
@@ -1687,7 +1722,7 @@ function ArenaContent() {
       setReadStep('Reading chart…');
       let raw: (string|number)[][];
       if (binanceSym) {
-        const r = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=${readTf}&limit=300`);
+        const r = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=${readTf}&limit=300`, { signal: deadlineSignal(20_000) });
         if (!r.ok) throw new Error(t('ARENA_ERROR_BINANCE_API'));
         raw = await r.json();
       } else {
@@ -1704,7 +1739,7 @@ function ArenaContent() {
         // `bybitSym!`) so a future edit to that guard fails loudly at this
         // call instead of silently reaching `undefined` inside a URL again.
         if (!bybitSym) throw new Error(t('ARENA_ERROR_NO_DATA_SOURCE', { coin: selectedCoin.toUpperCase() }));
-        const d = await fetchBybitKlinesRetry(bybitSym, bybitInterval, 300);
+        const d = await fetchBybitKlinesRetry(bybitSym, bybitInterval, 300, { attemptTimeoutMs: 15_000 });
         if (d === null) throw new Error(t('ARENA_ERROR_BYBIT_API'));
         raw = [...(d.result?.list ?? [])].reverse(); // oldest-first to match Binance
       }
@@ -1739,7 +1774,7 @@ function ArenaContent() {
       try {
         if (binanceSym) {
           // #1626 C: 120 daily candles (Wilder needs the history), CLOSED ones only (Binance rows carry their close time at index 6).
-          const dr = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=1d&limit=120`);
+          const dr = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=1d&limit=120`, { signal: deadlineSignal(20_000) });
           const dd = await dr.json() as (string|number)[][];
           const nowMs = Date.now();
           const dc = dd.filter(k => Number(k[6]) < nowMs).map(k => Number(k[4]));
@@ -1753,7 +1788,7 @@ function ArenaContent() {
           // this block sits inside the same function as the outer try at
           // the top of this handler, so `return` here would exit the whole
           // read early instead of just skipping the daily-RSI line.
-          const d = await fetchBybitKlinesRetry(bybitSym, 'D', 121);
+          const d = await fetchBybitKlinesRetry(bybitSym, 'D', 121, { attemptTimeoutMs: 15_000 });
           if (d === null) throw new Error('Bybit daily RSI klines failed after retry');
           // Newest-first, and the first row is today's forming candle: drop it.
           const dc = [...(d.result?.list ?? [])].slice(1).reverse().map(k => parseFloat(k[4]));
@@ -1871,6 +1906,11 @@ function ArenaContent() {
          deliberately: the only other BAD_ANSWER thrower is lib/grok.ts's own malformed-200 guard,
          where no refund was ever attempted, and a dropped field should understate what we gave back
          rather than promise a refund that did not happen. */
+      if ((e as { code?: string }).code === 'READ_TIMEOUT') {
+        setReadError(t('ARENA_READ_TIMEOUT'));
+        setReadProLocked(false);
+        return;
+      }
       if ((e as { code?: string }).code === 'BAD_ANSWER') {
         setReadError(t((e as { refunded?: boolean }).refunded === true
           ? 'ARENA_READ_BAD_ANSWER'
@@ -2070,12 +2110,15 @@ function ArenaContent() {
 
       {/* ── PAGE HEADER ── */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>{t('ARENA_PAGE_TITLE')}</div>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent-2)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
+        {/* ONE ROW, NEVER TWO, SO THE FREE UPGRADE PILL ARRIVING MOVES NOTHING (CLS gate, QA run 43686322083: +0.316 at 1280 and +0.041 at 390, Free accounts only). The pill used to be 44 px tall in a row of about
+            30 px, and on a phone it wrapped onto a row of its own when the plan resolved. Now the row does not wrap, the pill is 28 px (its 44 px touch target is the link around it, UpgradePillLink `tap`), and the live badge
+            gives way (ellipsis) instead of the row growing. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'nowrap' }}>
+          <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px', whiteSpace: 'nowrap', flexShrink: 0 }}>{t('ARENA_PAGE_TITLE')}</div>
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent-2)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
           {/* Free accounts only (owner, 2026-10-07: they could not find Upgrade on this page). The same 44px pill TrialBanner
               uses, at the right of the header; nothing for Pro, a trial, or an unknown plan. */}
-          <FreeUpgradePill testId="arena-header-upgrade" style={{ marginLeft: 'auto' }} />
+          <FreeUpgradePill testId="arena-header-upgrade" style={{ marginLeft: 'auto' }} tap />
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
@@ -2543,12 +2586,26 @@ function ArenaContent() {
           )}
         </button>
 
-        {user && (
+        <button
+          className="arena-ask-grok-btn"
+          style={{ width: 'auto', marginBottom: 0 }}
+          disabled={aboveAnalysisCeiling}
+          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : undefined}
+          onClick={() => runStrategy('ask', strategySelection)}
+        >
+          {t('ARENA_ASK_LIQUIDITYAI_BUTTON')}
+        </button>
+        {/* SET ALERT AND ITS NOTE COME AFTER THE ASK BUTTON, NOT BEFORE IT (CLS gate, QA probe run 43687645312): they render only once the session resolves, and while they stood to the left of the
+            Ask button their arrival moved it 91 px right on every signed-in load. To its right, they arrive at the end of the row and nothing already on screen moves. */}
+        {/* HELD IN PLACE WHILE THE SESSION RESOLVES (CLS gate on qa fe67c601, QA run 43693801753: at 360 px in Russian the row of buttons WRAPPED when this button arrived, 145 -> 230 px, pushing the workspace 141 px).
+            For a visitor with a stored session (<html data-sess="1">, set before paint) a disabled placeholder takes the button's place from the first paint (CSS below shows it only then); for everyone else it
+            is not drawn until the user is known. */}
+        {(user || authLoading) && (
           <button
-            className="arena-ask-grok-btn"
+            className={`arena-ask-grok-btn${user ? '' : ' arena-set-alert-pending'}`}
             style={{ width: 'auto', marginBottom: 0, background: alertFormOpen && alertCoinCovered ? 'rgba(26,122,255,0.15)' : undefined }}
             onClick={() => alertFormOpen ? setAlertFormOpen(false) : openAlertForm()}
-            disabled={!alertCoinCovered}
+            disabled={!user || !alertCoinCovered}
             title={alertCoinCovered ? t('ARENA_SET_ALERT_TITLE') : t('ARENA_ALERT_MAIN_COINS_ONLY')}
           >
             {t('ARENA_SET_ALERT_BUTTON')}
@@ -2560,16 +2617,6 @@ function ArenaContent() {
             {t('ARENA_ALERT_MAIN_COINS_ONLY')}
           </span>
         )}
-
-        <button
-          className="arena-ask-grok-btn"
-          style={{ width: 'auto', marginBottom: 0 }}
-          disabled={aboveAnalysisCeiling}
-          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : undefined}
-          onClick={() => runStrategy('ask', strategySelection)}
-        >
-          {t('ARENA_ASK_LIQUIDITYAI_BUTTON')}
-        </button>
       </div>
 
       {/* Live daily-usage meter - remaining Quick/Deep + reset countdown. Visible
@@ -2578,7 +2625,7 @@ function ArenaContent() {
           #usage-meter so it scrolls straight here instead of dumping the user
           at the top of the whole Arena page - scroll-margin-top clears the
           sticky ticker+nav bar so the meter doesn't land hidden under them. */}
-      <div id="usage-meter" style={{ scrollMarginTop: 90 }}>
+      <div id="usage-meter" className="usage-meter-host" style={{ scrollMarginTop: 90 }}>
         <UsageMeter />
       </div>
 
@@ -2684,13 +2731,6 @@ function ArenaContent() {
         </div>
       )}
 
-      {/* ── Auth / upgrade notice ── */}
-      {!user && !authLoading && (
-        <div className="usage-auth-notice">
-          {t('ARENA_AUTH_NOTICE')}{' '}
-          <Link href="/login" className="usage-auth-link">{t('ARENA_AUTH_SIGN_IN_LINK')}</Link>
-        </div>
-      )}
       {/* Free-tier usage now shown live by the UsageMeter under the buttons
           (remaining Quick/Deep + reset + Upgrade), so the old static "7 Quick +
           5 Deep / day" notice was a redundant second Upgrade prompt - removed. */}
@@ -2950,8 +2990,20 @@ function ArenaContent() {
           <Link href="/upgrade" data-testid="arena-coin-lock-upgrade" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 14px', border: '1px solid var(--accent)', color: 'var(--accent)', fontSize: 'var(--fs-label)', fontWeight: 700, textDecoration: 'none' }}>{t('TNAV_UPGRADE_LABEL')}</Link>
         </div>
       )}
+      {planChecking && (
+        <div role="status" aria-live="polite" data-testid="arena-plan-checking" style={{ margin: '0 0 8px', fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('ARENA_PLAN_CHECKING')}</div>
+      )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
+      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} liqHistOnly={liqHistOnly} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} strategyOverlay={arenaStrategy ? strategyState.result?.overlay ?? null : null} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
+      {/* ── Auth / upgrade notice ── BELOW THE CHART (arena layout shift, #1263). It exists only for a signed-out visitor and appears when auth resolves, about half a
+          second after first paint. Above the chart it pushed the whole chart workspace down 54 px (QA's element measurement: CLS 0.041 on a CI build, 0.196 on the real network). Down here it can
+          only push what is under the chart. */}
+      {!user && !authLoading && (
+        <div className="usage-auth-notice">
+          {t('ARENA_AUTH_NOTICE')}{' '}
+          <Link href="/login" className="usage-auth-link">{t('ARENA_AUTH_SIGN_IN_LINK')}</Link>
+        </div>
+      )}
       {/* Directly under the chart, on the owner's request (#370). The read
           refers to what the chart shows - "price below EMAs", "closing below
           the swing low", "lower wick at Fib support" - so anything between
@@ -3152,11 +3204,7 @@ function ArenaContent() {
           before readLoading is ever set - so the button never visibly
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
-      <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} />
-      <ArenaStrategyCard selected={arenaStrategy} onSelect={handleArenaStrategyChange} state={strategyState} disabled={settingsLoadStatus !== 'ready'} />
-      {/* THE FIRST-VISIT SOUND QUESTION sits HERE, below the Strategy card, not above the chart. It appears only after settings load, so above the chart it pushed the whole chart
-          down (CLS 0.164 against a 0.1 budget on /arena: release run 43595134120, measured again in 43602526829). Down here it can only push the panels beneath it. */}
-      <ArenaSoundPrompt />
+      <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} strategyState={strategyState} planChecking={planUnsettled} />
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
@@ -3188,6 +3236,9 @@ function ArenaContent() {
           onUnlock={() => setUpgradeGate(t('ARENA_CONFLUENCE_GATE_FEATURE_LABEL'))}
         />
       )}
+      {/* THE FIRST-VISIT SOUND QUESTION is the LAST thing in the rail. It appears only after settings load: above the chart it pushed the whole chart down (CLS 0.164, release run 43595134120), and directly under
+          the Strategy card it still pushed Market snapshot and the panels beneath it while they were on screen (QA gate on qa 5b9d1ad, FREE 1280). At the end of the rail there is nothing beneath it in the rail. */}
+      <ArenaSoundPrompt />
         </aside>
       </div>
 
@@ -3219,7 +3270,7 @@ function ArenaContent() {
           What replaces it is not the same claim. The heatmap showed PREDICTED
           liquidation levels bought from a vendor; this shows REALIZED ones
           streamed from Binance and Bybit - keyless, free, and not BTC-only. */}
-      <LiqFeed onClusters={handleLiqClusters} coinFilter={selectedCoin.toUpperCase()} headless />
+      <LiqFeed onClusters={handleLiqClusters} onHistoryVenues={setLiqHistOnly} coinFilter={selectedCoin.toUpperCase()} headless />
       {/* GEX / Options Market Pressure table removed here 2026-07-25
           (signal-overload pass): biggest single block on the page (~456px),
           BTC-only, and max-pain/net-gamma is background context rather than a

@@ -1,5 +1,5 @@
 import type { OHLCV } from '../strategyCore.ts';
-import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } from './types.ts';
+import { WAIT, type StrategyContext, type StrategyDef, type StrategyOverlay, type StrategyResult } from './types.ts';
 
 /* VWAP RECLAIM (owner-requested, 2026-11-14). Deterministic rules, closed candles only.
  *
@@ -33,6 +33,8 @@ export function detectVwapReclaim(candles: readonly OHLCV[], ctx: StrategyContex
     vwap.push(vol > 0 ? pv / vol : NaN);
   }
   if (!Number.isFinite(vwap[vwap.length - 1])) return WAIT;
+  /* The session VWAP line from 00:00 UTC, whatever the verdict: it is the level this strategy watches. */
+  const vwapLine: StrategyOverlay['lines'][number] = { points: session.map((c, i) => ({ ts: c.time, price: vwap[i] })).filter(p => Number.isFinite(p.price)), role: 'ref', labelKey: 'STRAT_OV_VWAP' };
   const m = session.length;
   const side = (i: number): 1 | -1 | 0 => (!Number.isFinite(vwap[i]) ? 0 : session[i].close > vwap[i] ? 1 : session[i].close < vwap[i] ? -1 : 0);
   for (let k = m - 1; k >= Math.max(1, m - FRESH_BARS); k--) {
@@ -44,9 +46,10 @@ export function detectVwapReclaim(candles: readonly OHLCV[], ctx: StrategyContex
     return {
       verdict: s === 1 ? 'buy' : 'sell', signalTimestamp: session[k].time, signalDir: s === 1 ? 'long' : 'short',
       params: { vwap: vwap[k], countBars: run, inv: vwap[k] },
+      overlay: { levels: [{ price: vwap[k], role: 'invalid', fromTs: session[k].time, labelKey: 'STRAT_OV_INVALID' }], zones: [], lines: [vwapLine], marker: { ts: session[k].time, dir: s === 1 ? 'long' : 'short' } },
     };
   }
-  return WAIT;
+  return { ...WAIT, overlay: { levels: [], zones: [], lines: [vwapLine], marker: null } };
 }
 
 export const VWAP_RECLAIM: StrategyDef = {
@@ -57,6 +60,7 @@ export const VWAP_RECLAIM: StrategyDef = {
   reasonSellKey: 'STRAT_VWAP_SELL',
   reasonWaitKey: 'STRAT_VWAP_WAIT',
   minCandles: 10,
+  chips: [],
   logTfs: ['5m', '15m', '1h'],
   detect: detectVwapReclaim,
 };

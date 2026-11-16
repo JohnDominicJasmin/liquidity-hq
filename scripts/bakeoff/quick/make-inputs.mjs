@@ -15,7 +15,8 @@ function rng(seed) {
 const COINS = [['BTC', 74000], ['ETH', 3100], ['SOL', 160], ['XRP', 0.62], ['DOGE', 0.14], ['AVAX', 28], ['LINK', 15], ['ADA', 0.42], ['BNB', 590], ['SUI', 2.1]];
 const fx = (n, d = 2) => n.toFixed(d);
 
-export function makePrompts(n) {
+/** The same inputs as makePrompts, with the context each prompt was built from (the blind-pairs script shows a reader the numbers an answer was given). */
+export function makeInputs(n) {
   const rand = rng(20261113);
   const out = [];
   for (let i = 0; i < n; i++) {
@@ -40,7 +41,11 @@ export function makePrompts(n) {
       liqLevels: `LONG CLUSTER ${fx(px * 0.96, px < 1 ? 4 : 2)} | SHORT CLUSTER ${fx(px * 1.05, px < 1 ? 4 : 2)}`,
       news: 'News feed unavailable (not loaded) - do not assume there is no news', upcomingEvents: 'No events in window', oilPrice: '$70',
     };
-    out.push(buildArenaPrompt(ctx, {}, 'quick', []));
+    out.push({ ctx, prompt: buildArenaPrompt(ctx, {}, 'quick', []) });
   }
   return out;
+}
+
+export function makePrompts(n) {
+  return makeInputs(n).map((x) => x.prompt);
 }

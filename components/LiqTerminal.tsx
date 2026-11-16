@@ -9,6 +9,8 @@ import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { useGraceElapsed } from '@/lib/useGrace';
+import ReadingGap from '@/components/ReadingGap';
 import { computeBands, type Band } from '@/lib/liqBands';
 import { parseRatioPair } from '@/lib/ratioPair';
 
@@ -112,7 +114,7 @@ function BandRow({ b }: { b: Band }) {
    #635 and #661 both ruled against. The component takes plain props, so a
    harness can mount it with whatever rows it likes and nothing synthetic ever
    reaches a visitor. */
-export function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentPrice: number }) {
+export function RealClusters({ clusters, currentPrice, histOnly = null }: { clusters: Bucket[]; currentPrice: number; histOnly?: 'BN' | 'BB' | null }) {
   const { t } = useLabels();
   if (clusters.length === 0) {
     return (
@@ -164,7 +166,7 @@ export function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; c
             border: '0.5px solid rgba(52,211,153,0.25)',
           }}>{t('LIQ_CLUSTERS_LIVE_BADGE')}</span>
         </div>
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_CLUSTERS_WINDOW_LABEL')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_CLUSTERS_WINDOW_LABEL')}{histOnly && <> · {t('LIQ_FEED_HISTORY_ONE_VENUE', { venue: histOnly === 'BN' ? 'Binance' : 'Bybit' })}</>}</span>
       </div>
 
       <div style={{
@@ -224,11 +226,13 @@ export function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; c
 
 export default function LiqTerminal() {
   const { t } = useLabels();
+  const graceOver = useGraceElapsed();
   const { store }  = useMarket();
   const [coin, setCoin]   = useState<CoinId>('btc');
   const [range, setRange] = useState<TimeRange>('24h');
   const [realClusters, setRealClusters] = useState<Bucket[]>([]);
   const handleClusters = useCallback((c: Bucket[]) => setRealClusters(c), []);
+  const [histOnly, setHistOnly] = useState<'BN' | 'BB' | null>(null);
   const [whalePos, setWhalePos] = useState<{ longRatio: number; shortRatio: number } | null>(null);
   const [retailPos, setRetailPos] = useState<{ longRatio: number; shortRatio: number } | null>(null);
   const [bybitPos, setBybitPos] = useState<{ longRatio: number; shortRatio: number } | null>(null);
@@ -366,7 +370,7 @@ export default function LiqTerminal() {
       {!cd?.price && (
         <TPanel style={{ textAlign: 'center', padding: '2rem' }}>
           <span className="sr-only">{t('LIQ_LOADING_SR', { coin: coin.toUpperCase() })}</span>
-          <SkeletonBar width={140} height={14} radius={4} style={{ margin: '0 auto' }} />
+          {graceOver ? <ReadingGap loading={false} /> : <SkeletonBar width={140} height={14} radius={4} style={{ margin: '0 auto' }} />}
         </TPanel>
       )}
       {cd?.price && !cd?.oi && (
@@ -384,7 +388,7 @@ export default function LiqTerminal() {
             </div>
           )}
 
-          <RealClusters clusters={realClusters.filter(c => c.coin.toLowerCase() === coin).slice(0, 8)} currentPrice={cd.price} />
+          <RealClusters clusters={realClusters.filter(c => c.coin.toLowerCase() === coin).slice(0, 8)} currentPrice={cd.price} histOnly={histOnly} />
 
           <div className="liq-stats-row">
             <div className="liq-stat-item">
@@ -623,7 +627,7 @@ export default function LiqTerminal() {
         </>
       )}
 
-      <LiqFeed onClusters={handleClusters} coinFilter={coin.toUpperCase()} />
+      <LiqFeed onClusters={handleClusters} onHistoryVenues={setHistOnly} coinFilter={coin.toUpperCase()} />
       <WhaleTradesFeed />
       <GexTable />
     </div>

@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { htmlLangFor } from '@/lib/htmlLang';
@@ -69,7 +70,7 @@ export default function LabelsProvider({
     // while letting Cloudflare serve the response from an edge PoP. Keeping
     // no-store here would have opted this request out of that entirely, which
     // is the whole point of the change.
-    fetch(`/api/labels?locale=${encodeURIComponent(l)}`)
+    fetch(`/api/labels?locale=${encodeURIComponent(l)}`, { signal: deadlineSignal(20_000) })
       .then(r => r.json())
       .then(data => {
         if (reqId.current !== id) return; // a newer locale switch has since started

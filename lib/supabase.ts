@@ -1,6 +1,36 @@
+import { deadlineSignal } from './deadlineSignal.ts';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 let _client: SupabaseClient | null = null;
+
+/* Longest any one request to Supabase may take before it is abandoned and the
+ * caller sees an ordinary network error (no stuck-forever loading, OWNER-RULES
+ * 21). supabase-js has no timeout of its own, so every browser read of a table
+ * could wait until the browser gave up. Generous enough for a slow but working
+ * database; shorter than the 22 s entitlements budget so a retry still fits. */
+export const SUPABASE_FETCH_TIMEOUT_MS = 15000;
+
+/** fetch with a deadline that still honours the caller's own abort signal.
+ *  ONLY READS (GET/HEAD) are abandoned: a write that reaches the database but is slow to answer must not be aborted client-side, or the UI would report a failure for a row that exists and a retry would duplicate it (a journal trade, a settings save). Writes, storage uploads and auth calls keep the platform's own behaviour. */
+export function fetchWithDeadline(input: RequestInfo | URL, init?: RequestInit, ms = SUPABASE_FETCH_TIMEOUT_MS): Promise<Response> {
+  const method = (init?.method ?? (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')).toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD') return fetch(input, init);
+  const deadline = deadlineSignal(ms);
+  const own = init?.signal;
+  let signal: AbortSignal = deadline;
+  if (own) {
+    if (typeof AbortSignal.any === 'function') signal = AbortSignal.any([own, deadline]);
+    else {
+      const c = new AbortController();
+      const abort = () => c.abort();
+      own.addEventListener('abort', abort, { once: true });
+      deadline.addEventListener('abort', abort, { once: true });
+      if (own.aborted || deadline.aborted) c.abort();
+      signal = c.signal;
+    }
+  }
+  return fetch(input, { ...init, signal });
+}
 
 export function getSupabase(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,7 +50,7 @@ export function getSupabase(): SupabaseClient | null {
   // reliability over the token-in-URL hardening for now. If PKCE is revisited,
   // it needs real multi-browser mobile testing before going anywhere near prod
   // again, not just a local dev-machine smoke test.
-  if (!_client) _client = createClient(url, key);
+  if (!_client) _client = createClient(url, key, { global: { fetch: fetchWithDeadline } });
   return _client;
 }
 

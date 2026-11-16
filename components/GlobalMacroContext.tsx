@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuthToken } from '@/lib/supabase';
@@ -70,7 +71,7 @@ export default function GlobalMacroContext() {
       const token = await getAuthToken();
       if (!token) { setState('unauth'); return; }
 
-      const res  = await fetch('/api/macro-context', { headers: { Authorization: `Bearer ${token}` } });
+      const res  = await fetch('/api/macro-context', { headers: { Authorization: `Bearer ${token}` }, signal: deadlineSignal(20_000) });
       const json = await res.json() as {
         dxy?: number | null; dxyChg?: number | null; vix?: number | null; vixChg?: number | null;
         gold?: number | null; goldChg?: number | null; oil?: number | null; oilChg?: number | null;

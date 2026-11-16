@@ -28,6 +28,12 @@ export async function register() {
     // #1397: a memory line in the log every 10 minutes (lib/memWatch.ts), so a rise in the instance's memory names what grew.
     const { startMemWatch } = await import('@/lib/memWatch');
     startMemWatch();
+    // #1263: load the label tables once at server start, so the first visitor after a deploy or a restart does not pay the 2.5-3 s read (lib/labelsServer.ts). Never throws; a failed warm leaves it cold.
+    const { warmLabels } = await import('@/lib/labelsServer');
+    warmLabels();
+    // #1632 item 4: the liquidation collector runs in this process, on the production service only (LIQ_COLLECTOR=1; a no-op otherwise). See lib/liqCollector.ts.
+    const { startLiqCollector } = await import('@/lib/liqCollector');
+    startLiqCollector();
   }
 }
 

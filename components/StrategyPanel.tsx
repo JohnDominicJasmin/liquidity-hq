@@ -22,10 +22,13 @@
  * labels pass is a separate DB-driven change. The one exception is the params verdict note, which
  * carries the owner's exact wording through a real label key. */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from './AuthProvider';
 import { SkeletonBar } from './Skeleton';
+import StrategyCallBox from './StrategyCallBox';
+import { STRATEGIES, findStrategy } from '@/lib/strategies';
+import type { StrategySignalState } from '@/lib/useStrategySignal';
 import { EntitlementUnknownCard } from './UpgradeGateModal';
 import type { SettingsLoadStatus } from '@/lib/settings';
 import { useLabels } from '@/lib/labels';
@@ -39,6 +42,8 @@ import {
 export type RunKind = 'quick' | 'deep' | 'ask';
 
 interface Props {
+  /** The signed-in visitor's plan is still being read: chips and the strategy menu are disabled, and nothing is applied or saved from a click (a Pro account would otherwise be treated as Free and have its saved selection cut). */
+  planChecking?: boolean;
   /** What each chart overlay is doing right now, from strategyRegistry's overlayStates() - the same values the chart draws from.
    *  Absent = every layer reads as always on. */
   overlays?: Record<'EMA_RIBBON' | 'SR' | 'LIQ_CLUSTERS' | 'GEX', OverlayState>;
@@ -59,6 +64,12 @@ interface Props {
   onRun: (kind: RunKind, selection: readonly string[]) => void;
   /** Whether a read is already in flight - disables the run buttons (#1309 item 24). */
   running?: boolean;
+  /** The saved Arena strategy id (lib/strategies), or null. An unknown id is treated as none by the caller. The menu's value is DERIVED from this and `selected`: a known id shows that strategy, no id with chips on shows Custom, nothing shows Let the read choose. */
+  strategy: string | null;
+  /** The menu was changed: 'auto', 'custom' or a strategy id. The caller writes arena_strategy and strategy_selection together, in one save. */
+  onStrategyPick: (id: string) => void;
+  /** The picked strategy's live call (closed candles), shown in the call box under the menu. */
+  strategyState: StrategySignalState;
 }
 
 function ParamRow({ spec, value, readOnly, onChange }: {
@@ -130,7 +141,7 @@ function LayerSwitch({ name, on, unavailable, onToggle }: { name: string; on: bo
   );
 }
 
-export default function StrategyPanel({ overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, running = false }: Props) {
+export default function StrategyPanel({ planChecking = false, overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, running = false, strategy, onStrategyPick, strategyState }: Props) {
   const loaded = status === 'ready';
   const { user, loading: authLoading, entitlementStatus, retryEntitlements } = useAuth();
   const planLabel = strategyPlanLabel({ signedIn: !!user, authLoading, entitlementStatus });
@@ -145,38 +156,33 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
   };
 
   const limit = indicatorLimit(entitled);
-  const [setId, setSetId] = useState<string>(AUTO_SET_ID);
+  const pickedStrategy = findStrategy(strategy);
+  /* THE CALL BOX'S FIRST-PAINT RESERVE ENDS WITH THE ANSWER. `<html data-strat="1">` (components/RootDocument.tsx) reserves the box's height from a cached saved strategy; once the settings have loaded and no strategy is
+     picked (none was saved, or the visitor chose "Let the read choose" / Custom), the reserve is removed so it never leaves an empty band. A visitor's own pick is not a layout shift. */
+  useEffect(() => {
+    if (loaded && !pickedStrategy) document.documentElement.removeAttribute('data-strat');
+  }, [loaded, pickedStrategy]);
+  /* 'Custom' picked with no chip on has nothing else to derive it from, so it is remembered here: without it the menu fell back to 'Let the read choose' the moment it was picked. */
+  const [customPicked, setCustomPicked] = useState(false);
+  const setId = pickedStrategy ? pickedStrategy.id : (selected.length > 0 || customPicked) ? CUSTOM_SET_ID : AUTO_SET_ID;
   /* Which indicator's parameters the box shows. One box, not one per selection. */
   const [focused, setFocused] = useState<string | null>(null);
-  const [dropped, setDropped] = useState(0);
 
   const paramsFor = (entry: IndicatorEntry) => params[entry.id] ?? defaultParams(entry);
   const focusedEntry = focused ? findIndicator(focused) : undefined;
   const used = slottedIds(selected).length;
 
+  /* THE ONE STRATEGY MENU (owner, 2026-11-14, option A). The caller writes the saved strategy AND the chips in one save; here only the params focus follows. */
   const applySet = (id: string) => {
     if (!loaded) return;
-    setSetId(id);
-    const preset = STRATEGY_SETS.find(s => s.id === id);
-    if (!preset || id === CUSTOM_SET_ID) { setDropped(0); return; }
-    /* A preset can name more indicators than Free may combine (Pro is unlimited). Overlays and the
-       always-on RSI are not selectable here, so keep only the preset's selectable ids, capped to the
-       plan. Truncate rather than refuse, and say so (`dropped`). */
-    let room = limit;
-    const next = preset.indicators.filter(i => {
-      if (!SELECTABLE_INDICATOR_IDS.has(i)) return false;
-      if (room > 0) { room--; return true; }
-      return false;
-    });
-    setDropped(preset.indicators.filter(i => SELECTABLE_INDICATOR_IDS.has(i)).length - next.length);
-    onSelectedChange(next);
-    setFocused(next[0] ?? null);
+    setCustomPicked(id === CUSTOM_SET_ID);
+    onStrategyPick(id);
+    const chip = findStrategy(id)?.chips.find(c => SELECTABLE_INDICATOR_IDS.has(c));
+    if (chip) setFocused(chip);   // a strategy that reads a chip shows its parameters; otherwise the chips and the focus stay exactly as they were
   };
 
   const toggle = (entry: IndicatorEntry) => {
     if (!loaded || !canRender(entry)) return;
-    setSetId(CUSTOM_SET_ID);
-    setDropped(0);
     if (selected.includes(entry.id)) {
       /* #1027: with 2+ on, clicking an earlier chip re-shows its params; only the chip already
          showing its params deselects. With Pro unlimited this is the common path. */
@@ -220,9 +226,16 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
           <span>{t('STRATEGY_PANEL_SECTION_SET')}</span>
           {entitled && <span className="strat-cap">Edit · Save as</span>}
         </div>
-        <select className="strat-sel" value={setId} disabled={!loaded} aria-label={t('STRATEGY_PANEL_SECTION_SET')} onChange={e => applySet(e.target.value)}>
-          {STRATEGY_SETS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+        <select className="strat-sel" data-testid="strategy-set-select" value={setId} disabled={!loaded || planChecking} aria-label={t('STRATEGY_PANEL_SECTION_SET')} onChange={e => applySet(e.target.value)}>
+          {STRATEGY_SETS.filter(s => s.id === AUTO_SET_ID).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          {STRATEGIES.map(s => <option key={s.id} value={s.id}>{t(s.nameKey)}</option>)}
+          {STRATEGY_SETS.filter(s => s.id === CUSTOM_SET_ID).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
+        {/* THE CALL BOX'S HOST. A visitor whose saved strategy is stored on this browser has this box's whole height reserved from the FIRST paint (`html[data-strat="1"]`, set before paint by
+            components/RootDocument.tsx, sized in globals.css), because the saved strategy arrives from settings 1-2 s later and the box mounted then, pushing the Indicators section 256 px (QA gate, IN+SAVED 1280). */}
+        <div className="strat-call-host">
+          {pickedStrategy && <StrategyCallBox def={pickedStrategy} state={strategyState} />}
+        </div>
       </div>
 
       <div className="strat-sect">
@@ -240,7 +253,9 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
             selected indicators' values, #1631/#2161). */}
         {loaded && (
           <p className="strat-ind-note">
-            {entitled
+            {planChecking
+              ? t('ARENA_PLAN_CHECKING')
+              : entitled
               ? t('STRATEGY_PANEL_NOTE_PRO')
               : t('STRATEGY_PANEL_NOTE_FREE')}
           </p>
@@ -276,6 +291,7 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
                   type="button"
                   className={`strat-ind-chip${on ? ' on' : ''}`}
                   aria-pressed={on}
+                  disabled={planChecking}
                   data-testid={`strategy-indicator-${entry.id}`}
                   onClick={() => toggle(entry)}
                 >
@@ -305,14 +321,6 @@ export default function StrategyPanel({ overlays, onOverlayToggle, status, onRet
 
         {isAuto && (
           <div className="strat-auto">{t('STRATEGY_PANEL_AUTO_NOTE')}</div>
-        )}
-
-        {dropped > 0 && (
-          <div className="strat-trunc" role="status">
-            {dropped === 1
-              ? `1 indicator in this set is beyond your limit - showing the first ${limit}.`
-              : `${dropped} indicators in this set are beyond your limit - showing the first ${limit}.`}
-          </div>
         )}
 
         {focusedEntry && focusedEntry.paramSchema.length > 0 && (

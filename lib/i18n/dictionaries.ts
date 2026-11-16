@@ -40,7 +40,7 @@ export function dirForLocale(locale: string): 'ltr' | 'rtl' {
 }
 
 export interface LandingDict {
-  nav: { signIn: string; getStarted: string };
+  nav: { signIn: string; getStarted: string; learn: string };
   hero: {
     badge: string;
     h1Line1: string;
@@ -48,6 +48,8 @@ export interface LandingDict {
     sub: string;
     ctaPrimary: string;
     ctaGhost: string;
+    /** One line under the hero buttons pointing a beginner at the glossary (/learn). */
+    newToTrading: string;
     stats: { coins: string; ai: string; telegram: string };
   };
   features: {
@@ -95,6 +97,7 @@ export interface LandingDict {
       dashboard: string; arena: string; briefing: string; news: string;
       scanner: string; liq: string; funding: string; correlation: string;
       journal: string; calc: string; alerts: string; hours: string;
+      learn: string;
       signIn: string; createAccount: string; pricing: string; about: string; disclaimer: string;
     };
     copyright: string;
@@ -115,7 +118,7 @@ export const en: LandingDict = {
     setup: { noData: 'No data', balanced: 'Balanced', squeeze: 'Short squeeze ↑', flush: 'Long liquidation risk ↓' },
     oi1h: { spikeUp: 'OI spike - rising', spikeDown: 'OI spike - unwinding', stable: 'Stable', rising: 'Rising', unwinding: 'Unwinding', newLongs: 'New longs - real trend ▲', newShorts: 'New shorts - real dump ▼', shortCover: 'Short covering - weak pump', longExits: 'Long exits - no panic' },
   },
-  nav: { signIn: 'Sign In', getStarted: 'Get Started Free' },
+  nav: { signIn: 'Sign In', getStarted: 'Get Started Free', learn: 'Learn' },
   hero: {
     badge: '50 markets · Signals + alerts',
     h1Line1: 'Read the map.',
@@ -123,6 +126,7 @@ export const en: LandingDict = {
     sub: 'Professional-grade crypto intelligence for retail traders. Squeeze scores, whale alerts, AI analysis, and macro events - all in one dashboard.',
     ctaPrimary: 'Start for free →',
     ctaGhost: 'See live briefing',
+    newToTrading: 'New to trading? Start with the glossary →',
     stats: { coins: 'Markets tracked', ai: 'AI analysis', telegram: 'Telegram alerts' },
   },
   features: {
@@ -200,6 +204,7 @@ export const en: LandingDict = {
       dashboard: 'Dashboard', arena: 'AI Arena', briefing: 'Briefing', news: 'News',
       scanner: 'Setup Scanner', liq: 'Liquidation Map', funding: 'FR History', correlation: 'Correlation',
       journal: 'Journal', calc: 'Position Sizer', alerts: 'Alerts', hours: 'Best Hours',
+      learn: 'Learn',
       signIn: 'Sign In', createAccount: 'Create Account', pricing: 'Pricing', about: 'About', disclaimer: 'Disclaimer',
     },
     copyright: '© 2026 LiquidityHQ · Educational content only, not financial advice ·',
@@ -220,7 +225,7 @@ export const ko: LandingDict = {
     setup: { noData: '데이터 없음', balanced: '균형', squeeze: '숏 스퀴즈 ↑', flush: '롱 청산 위험 ↓' },
     oi1h: { spikeUp: 'OI 급증 - 증가', spikeDown: 'OI 급증 - 감소', stable: '안정', rising: '증가', unwinding: '감소', newLongs: '신규 롱 - 실제 추세 ▲', newShorts: '신규 숏 - 실제 하락 ▼', shortCover: '숏 커버링 - 약한 상승', longExits: '롱 청산 - 패닉 아님' },
   },
-  nav: { signIn: '로그인', getStarted: '무료로 시작하기' },
+  nav: { signIn: '로그인', getStarted: '무료로 시작하기', learn: '배우기' },
   hero: {
     badge: '50개 마켓 · 신호 + 알림',
     h1Line1: '지도를 읽으세요.',
@@ -228,6 +233,7 @@ export const ko: LandingDict = {
     sub: '리테일 트레이더를 위한 전문가급 암호화폐 인텔리전스. 스퀴즈 점수, 고래 알림, AI 분석, 매크로 이벤트까지 하나의 대시보드에서 확인하세요.',
     ctaPrimary: '무료로 시작하기 →',
     ctaGhost: '실시간 브리핑 보기',
+    newToTrading: '트레이딩이 처음이신가요? 용어집부터 시작하세요 →',
     stats: { coins: '추적 마켓', ai: 'AI 분석', telegram: '텔레그램 알림' },
   },
   features: {
@@ -295,6 +301,7 @@ export const ko: LandingDict = {
       dashboard: '대시보드', arena: 'AI 아레나', briefing: '브리핑', news: '뉴스',
       scanner: '셋업 스캐너', liq: '청산 맵', funding: '펀딩비 히스토리', correlation: '상관관계',
       journal: '매매일지', calc: '포지션 사이저', alerts: '알림', hours: '최적 시간대',
+      learn: '배우기',
       signIn: '로그인', createAccount: '계정 만들기', pricing: '요금제', about: '소개', disclaimer: '면책조항',
     },
     copyright: '© 2026 LiquidityHQ · 교육 목적의 콘텐츠이며 투자 자문이 아닙니다 ·',
@@ -315,7 +322,7 @@ export const zh: LandingDict = {
     setup: { noData: '暂无数据', balanced: '均衡', squeeze: '空头挤压 ↑', flush: '多头清算风险 ↓' },
     oi1h: { spikeUp: '持仓激增 - 上升', spikeDown: '持仓激增 - 回落', stable: '稳定', rising: '上升', unwinding: '回落', newLongs: '新增多头 - 真实趋势 ▲', newShorts: '新增空头 - 真实下跌 ▼', shortCover: '空头回补 - 弱势上涨', longExits: '多头离场 - 无恐慌' },
   },
-  nav: { signIn: '登录', getStarted: '免费开始使用' },
+  nav: { signIn: '登录', getStarted: '免费开始使用', learn: '学习' },
   hero: {
     badge: '50个市场 · 信号 + 提醒',
     h1Line1: '读懂地图。',
@@ -323,6 +330,7 @@ export const zh: LandingDict = {
     sub: '为散户交易者打造的专业级加密货币情报系统。挤压评分、巨鲸警报、AI分析和宏观事件--尽在一个仪表盘。',
     ctaPrimary: '免费开始 →',
     ctaGhost: '查看实时简报',
+    newToTrading: '刚接触交易？从术语表开始 →',
     stats: { coins: '追踪市场', ai: 'AI分析', telegram: 'Telegram提醒' },
   },
   features: {
@@ -390,6 +398,7 @@ export const zh: LandingDict = {
       dashboard: '仪表盘', arena: 'AI Arena', briefing: '简报', news: '新闻',
       scanner: '形态扫描器', liq: '清算地图', funding: '资金费率历史', correlation: '关联性',
       journal: '交易日志', calc: '仓位计算器', alerts: '提醒', hours: '最佳时段',
+      learn: '学习',
       signIn: '登录', createAccount: '创建账户', pricing: '定价', about: '关于我们', disclaimer: '免责声明',
     },
     copyright: '© 2026 LiquidityHQ · 仅供教育用途,非投资建议 ·',
@@ -410,7 +419,7 @@ export const ar: LandingDict = {
     setup: { noData: 'لا بيانات', balanced: 'متوازن', squeeze: 'ضغط على البائعين ↑', flush: 'خطر تصفية الشراء ↓' },
     oi1h: { spikeUp: 'قفزة في OI - ارتفاع', spikeDown: 'قفزة في OI - تراجع', stable: 'مستقر', rising: 'يرتفع', unwinding: 'يتراجع', newLongs: 'مراكز شراء جديدة - اتجاه حقيقي ▲', newShorts: 'مراكز بيع جديدة - هبوط حقيقي ▼', shortCover: 'تغطية مراكز بيع - صعود ضعيف', longExits: 'خروج من الشراء - بلا ذعر' },
   },
-  nav: { signIn: 'تسجيل الدخول', getStarted: 'ابدأ مجانًا' },
+  nav: { signIn: 'تسجيل الدخول', getStarted: 'ابدأ مجانًا', learn: 'تعلّم' },
   hero: {
     badge: 'مباشر · 50 عملة · إشارات لحظية',
     h1Line1: 'اقرأ الخريطة.',
@@ -418,6 +427,7 @@ export const ar: LandingDict = {
     sub: 'معلومات احترافية عن العملات الرقمية لصالح المتداولين الأفراد. درجات الانضغاط، تنبيهات الحيتان، تحليل الذكاء الاصطناعي، والأحداث الاقتصادية الكلية - كل ذلك في لوحة تحكم واحدة.',
     ctaPrimary: 'ابدأ مجانًا ←',
     ctaGhost: 'شاهد الموجز المباشر',
+    newToTrading: 'جديد في التداول؟ ابدأ بالقاموس ←',
     stats: { coins: 'عملات متتبعة', ai: 'تحليل الذكاء الاصطناعي', telegram: 'تنبيهات تيليجرام' },
   },
   features: {
@@ -485,6 +495,7 @@ export const ar: LandingDict = {
       dashboard: 'لوحة التحكم', arena: 'AI Arena', briefing: 'الموجز', news: 'الأخبار',
       scanner: 'ماسح الإعدادات', liq: 'خريطة التصفية', funding: 'سجل معدل التمويل', correlation: 'الارتباط',
       journal: 'سجل التداول', calc: 'حاسبة حجم المركز', alerts: 'التنبيهات', hours: 'أفضل الأوقات',
+      learn: 'تعلّم',
       signIn: 'تسجيل الدخول', createAccount: 'إنشاء حساب', pricing: 'الأسعار', about: 'من نحن', disclaimer: 'إخلاء المسؤولية',
     },
     copyright: '© 2026 LiquidityHQ · محتوى تعليمي فقط، وليس نصيحة مالية ·',
@@ -537,7 +548,7 @@ export const ru: LandingDict = {
     setup: { noData: 'Нет данных', balanced: 'Баланс', squeeze: 'Шорт-сквиз ↑', flush: 'Риск ликвидации лонгов ↓' },
     oi1h: { spikeUp: 'Всплеск OI - рост', spikeDown: 'Всплеск OI - сокращение', stable: 'Стабильно', rising: 'Растёт', unwinding: 'Сокращается', newLongs: 'Новые лонги - реальный тренд ▲', newShorts: 'Новые шорты - реальное падение ▼', shortCover: 'Закрытие шортов - слабый рост', longExits: 'Выход из лонгов - без паники' },
   },
-  nav: { signIn: 'Войти', getStarted: 'Начать бесплатно' },
+  nav: { signIn: 'Войти', getStarted: 'Начать бесплатно', learn: 'Обучение' },
   hero: {
     badge: '50 рынков · Сигналы + оповещения',
     h1Line1: 'Читайте карту.',
@@ -545,6 +556,7 @@ export const ru: LandingDict = {
     sub: 'Профессиональная крипто-аналитика для частных трейдеров. Оценки сквиза, оповещения о китах, AI-анализ и макрособытия - всё в одной панели.',
     ctaPrimary: 'Начать бесплатно →',
     ctaGhost: 'Посмотреть брифинг',
+    newToTrading: 'Впервые в трейдинге? Начните со словаря →',
     stats: { coins: 'Отслеживаемых рынков', ai: 'AI-анализ', telegram: 'Оповещения в Telegram' },
   },
   features: {
@@ -612,6 +624,7 @@ export const ru: LandingDict = {
       dashboard: 'Панель', arena: 'AI Арена', briefing: 'Брифинг', news: 'Новости',
       scanner: 'Сканер сетапов', liq: 'Карта ликвидаций', funding: 'История фандинга', correlation: 'Корреляция',
       journal: 'Дневник сделок', calc: 'Расчёт позиции', alerts: 'Оповещения', hours: 'Лучшие часы',
+      learn: 'Обучение',
       signIn: 'Войти', createAccount: 'Создать аккаунт', pricing: 'Тарифы', about: 'О нас', disclaimer: 'Отказ от ответственности',
     },
     copyright: '© 2026 LiquidityHQ · Только образовательный контент, не финансовая рекомендация ·',

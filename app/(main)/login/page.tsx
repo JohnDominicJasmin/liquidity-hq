@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import CaptchaStuckHint from '@/components/CaptchaStuckHint';
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { getSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
@@ -283,6 +284,7 @@ function LoginInner() {
 
               {/* CAPTCHA - only rendered once a site key is configured, so the
                   form works unchanged until Turnstile is actually set up. */}
+              {TURNSTILE_SITE_KEY && <CaptchaStuckHint waiting={!captchaToken} />}
               {TURNSTILE_SITE_KEY && (
                 <Turnstile
                   id="cf-turnstile-magiclink"
@@ -398,6 +400,7 @@ function LoginInner() {
                 </Link>
               )}
 
+              {TURNSTILE_SITE_KEY && <CaptchaStuckHint waiting={!pwCaptchaToken} />}
               {TURNSTILE_SITE_KEY && (
                 <Turnstile
                   id="cf-turnstile-password"

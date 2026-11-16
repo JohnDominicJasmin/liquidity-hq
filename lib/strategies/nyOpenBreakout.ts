@@ -1,5 +1,5 @@
 import type { OHLCV } from '../strategyCore.ts';
-import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } from './types.ts';
+import { WAIT, type StrategyContext, type StrategyDef, type StrategyOverlay, type StrategyResult } from './types.ts';
 
 /* NEW YORK OPEN BREAKOUT (owner-requested, 2026-11-14). Deterministic rules, closed candles only.
  *
@@ -54,16 +54,27 @@ export function detectNyOpenBreakout(candles: readonly OHLCV[], ctx: StrategyCon
   if (last.time < rangeEnd) return WAIT;
   const hi = Math.max(...inRange.map(c => c.high));
   const lo = Math.min(...inRange.map(c => c.low));
+  /* The chart shows the NY open price and the opening range for as long as the session is live: the range edges are what this strategy is watching. A break turns the broken edge solid and the other edge into the
+     "wrong if" line, and puts the arrow on the signal candle. */
+  const watch: StrategyOverlay = { levels: [
+    { price: inRange[0].open, role: 'ref', fromTs: open, labelKey: 'STRAT_OV_NY_OPEN' },
+    { price: hi, role: 'watch', fromTs: open, labelKey: 'STRAT_OV_RANGE_HIGH' },
+    { price: lo, role: 'watch', fromTs: open, labelKey: 'STRAT_OV_RANGE_LOW' },
+  ], zones: [], lines: [], marker: null };
   for (let i = 0; i < n; i++) {
     const c = candles[i];
     if (c.time < rangeEnd) continue;
     if (c.close > hi || c.close < lo) {
-      if (i < n - FRESH_BARS) return WAIT; // the first break is old news
+      if (i < n - FRESH_BARS) return { ...WAIT, overlay: watch }; // the first break is old news
       const up = c.close > hi;
-      return { verdict: up ? 'buy' : 'sell', signalTimestamp: c.time, signalDir: up ? 'long' : 'short', params: { hi, lo, inv: up ? lo : hi, breakAt: up ? hi : lo } };
+      return { verdict: up ? 'buy' : 'sell', signalTimestamp: c.time, signalDir: up ? 'long' : 'short', params: { hi, lo, inv: up ? lo : hi, breakAt: up ? hi : lo }, overlay: { levels: [
+        { price: inRange[0].open, role: 'ref', fromTs: open, labelKey: 'STRAT_OV_NY_OPEN' },
+        { price: up ? hi : lo, role: 'confirm', fromTs: open, labelKey: up ? 'STRAT_OV_RANGE_HIGH' : 'STRAT_OV_RANGE_LOW' },
+        { price: up ? lo : hi, role: 'invalid', fromTs: open, labelKey: 'STRAT_OV_INVALID' },
+      ], zones: [], lines: [], marker: { ts: c.time, dir: up ? 'long' : 'short' } } };
     }
   }
-  return WAIT;
+  return { ...WAIT, overlay: watch };
 }
 
 export const NY_OPEN_BREAKOUT: StrategyDef = {
@@ -74,6 +85,7 @@ export const NY_OPEN_BREAKOUT: StrategyDef = {
   reasonSellKey: 'STRAT_NYOPEN_SELL',
   reasonWaitKey: 'STRAT_NYOPEN_WAIT',
   minCandles: 10,
+  chips: [],
   logTfs: ['5m', '15m'],
   detect: detectNyOpenBreakout,
 };

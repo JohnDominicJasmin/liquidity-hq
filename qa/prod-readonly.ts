@@ -161,14 +161,16 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'plan-badge-trial-flip', needs: 'free' },
   { spec: 'layout-2268-2269', needs: 'none', note: 'markets layout at 390 and hours cosmetics in ru and zh (#2268 #2269); anonymous; reads only' },
   { spec: 'hype-oi1h-live', needs: 'none', note: 'OI 1h on BTC and HYPE on a live build (#2275); anonymous; reads only' },
-  { spec: 'strategy-card', needs: 'pro', note: 'the Arena strategy card (#2307..#2316); signed in as account A; the settings write is stubbed; reads only' },
+  { spec: 'strategy-menu', needs: 'pro', note: 'the one strategy menu on /arena (#2358); signed in as account A; the settings write is stubbed and the read patched; reads only' },
   { spec: 'landing-2302-2303', needs: 'none', note: 'the AI disclosure on the landing page and the hero breakpoint (#2302 #2303); anonymous; reads only' },
+  { spec: 'legacy-abortsignal', needs: 'pro', note: 'removes AbortSignal.timeout/any in the page to mimic an old Safari, then loads /arena as fixture A and reads the plan; reads only' },
   { spec: 'arena-overflow-probe', needs: 'free', note: 'measures layout only - reads scrollWidth and element rects, writes nothing; sets its own 390x844 viewport and samples at 600ms and 4.6s, so 16 page loads' },
 ];
 
 /** Every other spec, and why it is kept off production. A spec must appear in exactly one
  *  of the two lists; the unit test enforces it. */
 export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
+  'anon-grants': 'API-level cells against the shared DEV database: sends write-verb requests as the anon role and as the A fixture (a DEV-project account that does not exist on production); writes one tiny liquidation event and a throwaway trade it deletes; not a production spec',
   'briefing-row-opens-that-coin': 'signs in as the A fixture, which is a DEV-project Supabase account that does not exist on the production project at all - same first reason as upgrade-purchase-marker. Two stronger ones follow. C1 and C2 INTERCEPT the Supabase user_settings read and serve a stubbed row, so against production they would interpose on a real signed-in account\'s settings read; and C3 deliberately does NOT stub, it OBSERVES the real response to compare the settled URL against whatever the account has saved - which on production means reading a real person\'s saved coin and timeframe. Neither is a write, and the exclusion is not about writes: it is about interposing on, and reading, a real account\'s data. The two annotated cells also pin an OPEN defect (#1263, a cold /arena load ignoring saved settings), so on production they would fail by design and say nothing new.',
   '_record-proxy': 'a recorder of live upstream payloads, not a test',
   'cross-browser-surface': 'the #1410 cross-browser pass: staging-scoped by its own tracker, run through qa/crossbrowser.config.ts against Firefox and Brave, and it writes to the visitor\'s own localStorage to prove storage round-trips',
@@ -201,6 +203,7 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'arena-seed-effect-real-selection': 'writes on purpose: PATCHes strategy_selection',
   'arena-stale-result-labelling': 'writes on purpose: PATCHes strategy_selection',
   'arena-sticky-ready-background-refresh': 'writes on purpose: PATCHes settings',
+  'hotfix-three': 'writes on purpose: PATCHes the fixture account saved selection to set up and restore the strategy menu cells',
   'audit-001-item-1-2': 'writes on purpose: PATCHes settings',
   'audit-001-item-23-24-25': 'writes on purpose: PATCHes settings',
   'bola': 'writes on purpose: cross-account requests that must be refused, against seeded row ids',

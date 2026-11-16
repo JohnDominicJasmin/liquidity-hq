@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from '@/lib/theme';
 import { useAuth } from '@/components/AuthProvider';
+import { useOnboarding } from '@/components/OnboardingProvider';
 import BrandMark from '@/components/BrandMark';
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from '@/lib/supportContact';
 import { useLabels } from '@/lib/labels';
@@ -47,7 +48,8 @@ export default function PlatformFooter() {
   // tone - the one surface in this rollout where that's actually true.
   const { theme } = useTheme();
   const { t } = useLabels();
-  const { loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { loaded: onboardingLoaded, loadError: onboardingFailed } = useOnboarding();
   if (pathname === '/' || pathname === '/login') return null;
 
   /* Do not paint the page's closing chrome before the page body exists.
@@ -72,6 +74,12 @@ export default function PlatformFooter() {
    * the footer too early. */
   if (authLoading) return null;
 
+  /* ... AND NOT BEFORE A SIGNED-IN VISITOR'S ONBOARDING STATE HAS LOADED (production /arena, signed in, CLS 0.906 and 1.037, #1263).
+   * Auth settles first. Right after it, OnboardingGate is still showing a short stub for a signed-in account (it renders the real page only once the onboarding
+   * read has finished), so the footer painted in view and was thrown below the fold when the page arrived about a second later: the same one-frame move as above,
+   * one step later in the load. A failed read (`loadError`) is 'unknown', which the gate does not block on, so the footer does not wait for it either. */
+  if (user && !onboardingLoaded && !onboardingFailed) return null;
+
   return (
     <footer className="pf-footer">
 
@@ -88,7 +96,7 @@ export default function PlatformFooter() {
           <Link href="/about" className="pf-footer-link">About</Link>
           <Link href="/faq" className="pf-footer-link">FAQ</Link>
           <Link href="/help" className="pf-footer-link">Help</Link>
-          <Link href="/learn" className="pf-footer-link">Glossary</Link>
+          <Link href="/learn" className="pf-footer-link">Learn</Link>
           {/* #1810. The footer is the only route to these five from anywhere on
               the site, so leaving one out ships a page nothing links to. Ordered
               product-first then legal, matching the existing run. The labels are

@@ -150,6 +150,36 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* v2026.11.16 (was written as v2026.11.15; the release slipped past PHT midnight). Written before the tag is cut, so whoever tags checks the date against `git tag --points-at main` (PHT, the same rule as v2026.11.14's entry). C1 permits exactly one untagged entry in
+       flight, and this is it.
+
+       EVERY ITEM IS A SURFACE A READER LOOKS AT, tied to its pull requests: #2358 (one Strategy set menu), #2366 + #2369 (the smaller call box, its Expand arrow, the loading and unavailable states),
+       #2365 + #2371 + #2368 (the Arena layout holding its place), #2366 (the phone meter). ONE RELEASE, ONE TAG: release 2 never shipped on its own, so the batch that followed it is folded into this entry
+       (PM, 2026-11-16): #2372 (strategies drawn on the chart), #2389 + #2399 (nothing waits for ever; the dashboard headline wording), #2390 (Learn link, the dashboard card heading), #2385 + #2375 (language and
+       background tabs), #2404 (alert tags off the toolbar), #2401 + #2406 (the plan no longer misread while it loads), #2379 + #2380 (Hours and Playbook wording), #2370 + #2367 + #2384 + #2386 (phone layout).
+       Not listed on purpose: every test, doc, label migration, database grant
+       and security-hardening commit in the range, which are internal.
+
+       THE LAYOUT LINE SAYS "MUCH LESS", NOT "NEVER", because the deployed-qa gate decides what is true and this entry is written before it. PM: make it stronger only if the gate reads all cells under 0.1. */
+    date: '2026-11-16',
+    tag: 'v2026.11.16',
+    items: [
+      'The Strategy card in AI Arena is replaced by one Strategy set menu: Let the read choose, the seven strategies, or Custom. Pick a strategy and its call, buy, sell or wait with the reason, sits right under the menu. Picking one never switches off the indicators you already have on, and Bollinger squeeze breakout adds Bollinger Bands.',
+      'The strategy call is smaller and answers first: the verdict and the reason, then a one-line description that opens with an arrow beside it. While a call loads you see a placeholder in its shape, and if the candles cannot be read it says so and offers a Try again button.',
+      'The Arena page now jumps around much less while it loads: the usage meter, the Set Alert button, the Upgrade button in the page header, the cookie bar and the panels on the right hold their place instead of pushing the chart down.',
+      'On phones the usage meter hides its reset time so the Upgrade button fits; the reset time is still in the message you see when you reach a daily limit.',
+      'Pick a strategy in AI Arena and the chart now draws it: the levels the call is built on, a marker where it triggers and a "wrong if" level where the idea stops holding. Labels that would land on top of each other stack instead.',
+      'Pages no longer wait for ever. If prices, a panel, an AI read or the sign-in check cannot load, you now get a plain message after a short wait instead of a skeleton or a button that stays disabled; a few slow AI panels can still take a moment to fill in. Strategy calls on the weekly and monthly chart now say they are not available there.',
+      'The dashboard headline now describes the market instead of telling you what to do: "Most signals agree", "Signals are mixed" or "Few signals agree", with a line saying it is a description, not advice. The card that read "Best Setup Today" is now "Playbook idea of the day".',
+      'New to trading? There is a Learn link in the footer and, on larger screens, in the navigation, plus a line under the buttons on the home page that points to the glossary.',
+      'Your language arrives sooner after a quiet period, and pages stop refreshing market data while their tab is in the background and catch up when you come back.',
+      'Price-alert tags on the Arena chart now sit on the chart itself, so they no longer push the chart down when they appear.',
+      'A paid plan is no longer mistaken for a free one while it is still loading: in the first seconds after you open AI Arena, tapping a fast timeframe says "Checking your plan…" instead of offering an upgrade, and the indicator chips are held (with the same note) instead of changing your saved indicators.',
+      'The Hours and Playbook pages no longer make claims we cannot back: the descriptions say when a window is, not what price will do, and the Playbook says it is trading folklore, not measured results.',
+      'Phones: the Setup panel no longer covers the Ask AI button, the Upgrade buttons are easier to tap, and the trending chip on the Arena signal card no longer widens the page on a very small screen.',
+    ],
+  },
+  {
     /* v2026.11.12. Written before the tag is cut, so whoever tags checks this against
        `git tag --points-at main` rather than against the day they are working. C1 permits exactly
        one untagged entry in flight, and this is it.
@@ -201,8 +231,8 @@ export const CHANGELOG: ChangelogEntry[] = [
        to a reader: the feature is offered on more timeframes, each line it draws is now labelled,
        and a Free account can see it exists. Splitting them would describe our PRs rather than their
        experience. */
-    date: '2026-11-13',
-    tag: 'v2026.11.13',
+    date: '2026-11-15',
+    tag: 'v2026.11.14',
     items: [
       'The chart, the scanner and open interest in AI Arena now work for every coin it offers, not just the main list: pick something like XMR, CYBER or XAUT and the chart draws candles, the scanner shows a signal and a score, and open interest shows a figure - where before the chart sat on "Loading" and the signal columns read "n/a".',
       'The Arena chart loads older candles as you scroll left, instead of stopping at the batch it opened with.',

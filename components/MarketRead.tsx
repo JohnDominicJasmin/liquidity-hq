@@ -5,6 +5,7 @@ import { computeMarketRead, type FundingSide } from '@/lib/marketRead';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
 import { trText } from '@/lib/marketReadText';
+import { useGraceElapsed } from '@/lib/useGrace';
 
 // The dashboard's answer-first hero. Replaces the RaidMeter + Smart Money Score
 // + Sentiment Extremes stack with one plain-language verdict (see lib/marketRead
@@ -15,6 +16,7 @@ export default function MarketRead() {
   const [manualFund, setManualFund] = useState<FundingSide | null>(null);
   const [showOverride, setShowOverride] = useState(false);
   const [, setTick] = useState(0);
+  const graceOver = useGraceElapsed();
   // The dashboard is prerendered, so the Day factor in the server HTML is the
   // BUILD day, and suppressHydrationWarning keeps that text on screen rather
   // than correcting it - it read "Saturday" on other days. Shown after mount
@@ -51,6 +53,8 @@ export default function MarketRead() {
   }, [read.score]);
 
   const c = read.contrarian;
+  /* An input that never arrives ends in a plain "not available", never a read that says Reading for ever (OWNER-RULES 21). */
+  const gaveUp = read.pending && graceOver;
 
   return (
     <section className="mr" data-band={read.band ?? 'pending'} aria-busy={read.pending || undefined}>
@@ -63,8 +67,8 @@ export default function MarketRead() {
 
       <div className="mr-top">
         <div className="mr-lead">
-          <div suppressHydrationWarning className="mr-verdict">{trText(t, read.verdict)}</div>
-          <p suppressHydrationWarning className="mr-sub">{trText(t, read.sub)}</p>
+          <div suppressHydrationWarning className="mr-verdict">{gaveUp ? t('MARKET_READ_UNAVAILABLE') : trText(t, read.verdict)}</div>
+          <p suppressHydrationWarning className="mr-sub">{gaveUp ? t('MARKET_READ_UNAVAILABLE_SUB') : trText(t, read.sub)}</p>
         </div>
         <div className="mr-score-block">
           <div className="mr-score-label">{t('MARKET_READ_CONDITIONS_LABEL')}</div>

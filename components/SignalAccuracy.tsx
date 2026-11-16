@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useEffect, useState } from 'react';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -58,7 +59,7 @@ export default function SignalAccuracy() {
   const [err,  setErr]  = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/signal-accuracy')
+    fetch('/api/signal-accuracy', { signal: deadlineSignal(20_000) })
       .then(r => r.ok ? r.json() : Promise.reject(`${r.status}`))
       .then((d: ApiResponse) => {
         if (d.error) setErr(d.error);
