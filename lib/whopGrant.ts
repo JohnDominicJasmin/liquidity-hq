@@ -169,23 +169,19 @@ export async function membershipStateForAccount(sb: Admin, accountId: string): P
 }
 
 export const WHOP_PENDING_CLAIM_EVENT = 'lhq.pending_claim';
-/** A pending claim is open for this long after the payment was received, then it expires. An open-ended claim is held against an email address for ever: a mistyped address leaves a claim nobody legitimate
+/** A pending claim is open for WHOP_CLAIM_DAYS after the payment was received, then it expires. An open-ended claim is held against an email address for ever: a mistyped address leaves a claim nobody legitimate
  *  can use, and whoever later registers and confirms that address would receive someone else's paid Pro. After the window the delivery stays stored (findable by payment id) and support handles it. */
-export const WHOP_CLAIM_DAYS = 30;
-/** The widest any claim can stay open (an annual plan plus a day of slack). The database filter uses this; each claim's own window is then applied from its plan (claimWindowEnd). */
-export const WHOP_CLAIM_MAX_DAYS = 366;
+export const WHOP_CLAIM_DAYS = 365;
+/** The database filter: the claim window plus a day of slack. Each claim's exact end is then applied in claimPendingForAccount (claimWindowEnd). */
+export const WHOP_CLAIM_MAX_DAYS = WHOP_CLAIM_DAYS + 1;
 const claimCutoff = (now: Date): string => new Date(now.getTime() - WHOP_CLAIM_MAX_DAYS * 86_400_000).toISOString();
 
-/** WHEN A PENDING CLAIM STOPS BEING OPEN: the plan's OWN paid period counted from when the payment was received, never less than WHOP_CLAIM_DAYS. PAID TIME IS NEVER FORFEITED (owner rule): a flat 30 days
- *  closed an annual buyer's claim after a month while the year they paid for was still running. A monthly or two-week plan keeps the 30-day minimum; an annual plan stays open 365 days. */
-export function claimWindowEnd(receivedAt: unknown, add?: { months?: number; days?: number }): Date {
+/** WHEN A PENDING CLAIM STOPS BEING OPEN: 365 days after the payment was received, for EVERY plan (PM, 2026-11-17). PAID TIME IS NEVER FORFEITED (owner rule): a buyer whose period fully elapsed before they claimed
+ *  still gets one full period from the claim (paidAt), so a window shorter than a year would have taken a paid month away from a monthly buyer who claimed on day 40. */
+/** `_add` is accepted and ignored: the window no longer depends on the plan (kept so callers and pins that still pass it compile). */
+export function claimWindowEnd(receivedAt: unknown, _add?: { months?: number; days?: number }): Date {
   const t = typeof receivedAt === 'string' ? Date.parse(receivedAt) : NaN;
-  const start = new Date(Number.isFinite(t) ? t : 0);
-  const minimum = new Date(start.getTime() + WHOP_CLAIM_DAYS * 86_400_000);
-  const period = new Date(start.getTime());
-  if (add?.months) period.setUTCMonth(period.getUTCMonth() + add.months);
-  if (add?.days) period.setUTCDate(period.getUTCDate() + add.days);
-  return period.getTime() > minimum.getTime() ? period : minimum;
+  return new Date((Number.isFinite(t) ? t : 0) + WHOP_CLAIM_DAYS * 86_400_000);
 }
 
 /** One pending claim per payment id. The key is the table's primary key, so a second insert for the same payment is a harmless duplicate. */
@@ -494,8 +490,7 @@ export async function claimPendingForAccount(
       if (typeof pbEarly.delivery_hash === 'string') {
         const { data: o } = await sb.from(T.whop_webhook_events).select('body, received_at').eq('payload_hash', pbEarly.delivery_hash).maybeSingle();
         if (o && typeof o.body === 'object' && o.body !== null) {
-          const d = decideWhopEvent(o.body as Record<string, unknown>, env);
-          if (typeof o.received_at === 'string' && Number.isFinite(Date.parse(o.received_at))) windowEnd = claimWindowEnd(o.received_at, d.kind === 'grant' ? d.add : undefined);
+          if (typeof o.received_at === 'string' && Number.isFinite(Date.parse(o.received_at))) windowEnd = claimWindowEnd(o.received_at);
         }
       }
       if (windowEnd && now.getTime() > windowEnd.getTime()) { out.refused.push('claim_window_closed'); continue; }
