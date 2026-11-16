@@ -58,7 +58,7 @@ test('S1. THE BROWSER NEVER WRITES THE TABLE: LiqFeed.tsx has no insert / upsert
 test('S2. the read stays: the same six columns, the 24 h window, ordered by ts, limited (the table every visitor loads)', () => {
   const src = strip(read('components/LiqFeed.tsx'));
   assert.ok(src.includes(".select('coin, side, usd, price, source, ts')"), 'the select changed');
-  assert.ok(/\.gte\('ts', since\)/.test(src) && /\.order\('ts', \{ ascending: true \}\)/.test(src) && /\.limit\(5000\)/.test(src), 'the 24 h window / order / limit changed');
+  assert.ok(/\.gte\('ts', since\)/.test(src) && /\.order\('ts', \{ ascending: false \}\)/.test(src) && /\.limit\(5000\)/.test(src), 'the 24 h window / order / limit changed (the order is NEWEST first since the hotfix: ascending + limit kept the oldest 5000 rows; liqFeedNewestRows.test.mts pins the reverse)');
   assert.ok(/SB_WIN_MS\s*=\s*24\s*\*\s*60\s*\*\s*60\s*\*\s*1000/.test(src), 'the window is no longer 24 h');
 });
 test('S3. the one-venue note stays: histOnly is derived from the venues in the read, passed up through onHistoryVenues, and shown with LIQ_FEED_HISTORY_ONE_VENUE', () => {

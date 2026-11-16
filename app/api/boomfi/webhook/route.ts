@@ -233,6 +233,8 @@ function reviewResponse(eventName: string | null, id: string | null, reason: str
 /** The write that would have granted Pro failed. The row recorded at the top is the replay guard, so it is removed again: with it
  *  left in place a BoomFi Replay would be answered "replay" and a paid account would stay Free. 500 so the delivery shows as failed. */
 async function failAndForget(sb: ReturnType<typeof getSupabaseAdmin>, payloadHash: string, what: string, err: unknown) {
-  await sb.from(T.boomfi_webhook_events).delete().eq('payload_hash', payloadHash);
+  const { error: delErr } = await sb.from(T.boomfi_webhook_events).delete().eq('payload_hash', payloadHash);
+  /* The delete's error is read (same class as the Whop route, A1): if it fails the record stays and a Replay would be answered "replay". Reported so it is visible. */
+  if (delErr) apiError('boomfi/webhook', new Error(`could not remove the stored record after a failed grant (${delErr.message ?? 'error'}); a Replay of this delivery will be answered replay`));
   return apiError('boomfi/webhook', new Error(`${what} failed after a verified payment - nothing granted, delivery left replayable: ${(err as { message?: string })?.message ?? String(err)}`));
 }
