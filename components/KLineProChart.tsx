@@ -10,6 +10,7 @@ import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
 import { Lock, Warn } from '@/components/icons';
 import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 import { useAuth } from '@/components/AuthProvider';
 import { getAuthToken } from '@/lib/supabase';
 import { drawStructureAvailable, DRAW_STRUCTURE_NOISY_TFS, type DrawableStructure } from '@/lib/drawStructure';
@@ -90,6 +91,14 @@ const TOOLS = [
   { id: 'segment',                label: '╱ Seg'     },
   { id: 'rect',                   label: '▭ Rect'    },
 ] as const;
+/* The labels above stay as the English defaults; the toolbar shows these keys through the label table so each language gets its own. */
+const TOOL_LABEL_KEYS: Record<(typeof TOOLS)[number]['id'], LabelKey> = {
+  horizontalStraightLine: 'CHART_TOOL_HLINE',
+  straightLine: 'CHART_TOOL_TREND',
+  fibonacciLine: 'CHART_TOOL_FIB',
+  segment: 'CHART_TOOL_SEG',
+  rect: 'CHART_TOOL_RECT',
+};
 
 // ── Drawing persistence - user-drawn lines survive a page refresh, per coin ──
 const DRAWING_GROUP = 'user_drawing';
@@ -3319,7 +3328,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             trading app, where people read entries and stops straight off the
             chart. Rendering it as real DOM here makes it unconditional. */}
         {chartDisplaySymbol(coin).startsWith('1000') && (
-          <span className="klc-scale-badge" title="Bybit quotes this perp per 1000 tokens, so the chart axis is 1000x the per-token price shown elsewhere in the app">
+          <span className="klc-scale-badge" title={tl('CHART_SCALE_BADGE_TITLE')}>
             {chartDisplaySymbol(coin)}
           </span>
         )}
@@ -3451,22 +3460,22 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             className={`klc-tool-btn klc-draw-btn${activeTool ? ' on' : ''}`}
             onClick={() => setDrawMenuOpen(v => !v)}
             aria-expanded={drawMenuOpen}
-            title="Drawing tools"
+            title={tl('CHART_DRAW_TITLE')}
           >
-            {activeTool ? (TOOLS.find(t => t.id === activeTool)?.label ?? 'Draw') : 'Draw'} <span aria-hidden="true">{drawMenuOpen ? '▴' : '▾'}</span>
+            {activeTool ? tl(TOOL_LABEL_KEYS[activeTool as keyof typeof TOOL_LABEL_KEYS] ?? 'CHART_DRAW') : tl('CHART_DRAW')} <span aria-hidden="true">{drawMenuOpen ? '▴' : '▾'}</span>
           </button>
           {drawMenuOpen && (
             <div className="klc-draw-menu">
-              {TOOLS.map(({ id, label }) => (
+              {TOOLS.map(({ id }) => (
                 <button
                   key={id}
                   className={`klc-draw-item${activeTool === id ? ' on' : ''}`}
                   onClick={() => { handleTool(id); setDrawMenuOpen(false); }}
                 >
-                  {label}
+                  {tl(TOOL_LABEL_KEYS[id])}
                 </button>
               ))}
-              <button className="klc-draw-item klc-draw-clear" onClick={() => { handleClear(); setDrawMenuOpen(false); }}>✕ Clear all</button>
+              <button className="klc-draw-item klc-draw-clear" onClick={() => { handleClear(); setDrawMenuOpen(false); }}>{tl('CHART_CLEAR_ALL')}</button>
             </div>
           )}
         </div>
@@ -3475,18 +3484,18 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           className={`klc-tool-btn${showSR ? ' on' : ''}`}
           aria-pressed={showSR}
           onClick={() => onShowSRChange(!showSR)}
-          title="Toggle auto support &amp; resistance levels"
+          title={tl('CHART_SR_TITLE')}
         >
-          S/R
+          {tl('CHART_SR')}
         </button>
 
         <button
           className={`klc-tool-btn${showPA ? ' on' : ''}`}
           aria-pressed={showPA}
           onClick={() => setShowPA(v => !v)}
-          title="Toggle market structure breaks - price-action signals, separate from the EMA buy/sell markers"
+          title={tl('CHART_STRUCTURE_TITLE')}
         >
-          Structure
+          {tl('CHART_STRUCTURE')}
         </button>
 
         {liqClusters && liqClusters.length > 0 && (
@@ -3494,9 +3503,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             className={`klc-tool-btn${showLiq ? ' on' : ''}`}
             aria-pressed={showLiq}
             onClick={() => onShowLiqChange(!showLiq)}
-            title={`Toggle realized liquidation clusters - the heaviest price levels where positions were actually liquidated in the last 24h. Price memory, not predicted liquidation levels.${liqHistOnly ? ` The stored history comes from ${liqHistOnly === 'BN' ? 'Binance' : 'Bybit'} only.` : ''}`}
+            title={`${tl('CHART_LIQ_TITLE')}${liqHistOnly ? ` ${tl('CHART_LIQ_HIST_FROM', { venue: liqHistOnly === 'BN' ? 'Binance' : 'Bybit' })}` : ''}`}
           >
-            Liq{liqHistOnly ? ` · ${liqHistOnly === 'BN' ? 'Binance' : 'Bybit'} only` : ''}
+            {tl('CHART_LIQ')}{liqHistOnly ? ` · ${tl('CHART_LIQ_VENUE_ONLY', { venue: liqHistOnly === 'BN' ? 'Binance' : 'Bybit' })}` : ''}
           </button>
         )}
 
@@ -3562,15 +3571,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           <button
             className="klc-tool-btn klc-fullscreen-btn"
             onClick={handleFullscreen}
-            title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-            aria-label={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            title={fullscreen ? tl('CHART_EXIT_FULLSCREEN') : tl('CHART_FULLSCREEN')}
+            aria-label={fullscreen ? tl('CHART_EXIT_FULLSCREEN') : tl('CHART_FULLSCREEN')}
           >
             {fullscreen ? '⊠' : '⛶'}
           </button>
           <span
             className={`klc-ws-dot${wsStatus === 'live' ? ' live' : wsStatus === 'error' ? ' err' : ''}`}
             role="img"
-            aria-label={wsStatus === 'live' ? 'Live price feed' : wsStatus === 'error' ? 'Price feed offline' : 'Price feed connecting'}
+            aria-label={wsStatus === 'live' ? tl('CHART_FEED_LIVE') : wsStatus === 'error' ? tl('CHART_FEED_OFFLINE') : tl('CHART_FEED_CONNECTING')}
             title={wsStatus}
           />
         </span>
@@ -3626,7 +3635,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 key={alert.id}
                 className="klc-price-chip"
                 style={{ color: 'var(--amber)', background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.2)', cursor: 'default' }}
-                title={`Alert: ${alert.direction} ${currencyPrefix(coin)}${fmtPx(alert.target_price)}${alert.label ? ` · ${alert.label}` : ''} - drag the dashed line to adjust`}
+                title={tl('CHART_ALERT_CHIP_TITLE', { direction: String(alert.direction), price: `${currencyPrefix(coin)}${fmtPx(alert.target_price)}`, label: alert.label ? ` · ${alert.label}` : '' })}
               >
                 {alert.direction === 'above' ? '↑' : '↓'} {currencyPrefix(coin)}{fmtPx(alert.target_price)}
                 {alert.label ? <>&nbsp;·&nbsp;{alert.label}</> : null}
@@ -3648,7 +3657,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               color: 'var(--txt2)', background: 'var(--bg1)', border: '1px solid var(--bdr3)',
             }}
           >
-            Loading {loadingTf.toUpperCase()}&hellip;
+            {tl('CHART_LOADING_TF', { tf: loadingTf.toUpperCase() })}
           </div>
         )}
         {/* THE CHART SAYS THE MARKERS ARE FILTERED (#1263/#985, owner 2026-11-12). When a selected
@@ -3669,7 +3678,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               color: 'var(--txt2)', background: 'var(--bg1)', border: '1px solid var(--bdr3)',
             }}
           >
-            Markers filtered by your selection
+            {tl('CHART_MARKERS_FILTERED')}
           </div>
         )}
         {/* Drag-to-resize handle - grab and drag to set chart height (Bybit-style),
@@ -3679,8 +3688,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             className="klc-resize-handle"
             onPointerDown={(e) => { e.preventDefault(); onResizeStart(e.clientY); }}
             role="separator"
-            aria-label="Drag to resize chart height"
-            title="Drag to resize chart height"
+            aria-label={tl('CHART_RESIZE')}
+            title={tl('CHART_RESIZE')}
           >
             <span className="klc-resize-grip" />
           </div>
@@ -3710,8 +3719,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           }}>
             <span style={{ color: 'var(--amber)', marginRight: 5, lineHeight: 0 }}><Warn size={13} /></span>
             {rwTooltip.dir === 'bearish'
-              ? 'Trend reversal - RSI divergence detected'
-              : 'Potential bottom - RSI divergence detected'}
+              ? tl('CHART_RW_BEARISH')
+              : tl('CHART_RW_BULLISH')}
           </div>
         )}
 
@@ -3771,7 +3780,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               color: 'rgba(255,255,255,0.80)',
             }}>
               <Warn size={13} />
-              Couldn&apos;t load price history for {coin.toUpperCase()}. Try switching timeframe or reloading.
+              {tl('CHART_HISTORY_FAILED', { coin: coin.toUpperCase() })}
             </div>
           </div>
         )}
@@ -3800,7 +3809,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               borderRadius: 4,
               padding: '3px 8px',
             }}>
-              Bybit (Binance unreachable)
+              {tl('CHART_BYBIT_FALLBACK')}
             </div>
           </div>
         )}
@@ -3821,7 +3830,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               borderRadius: 4,
               padding: '3px 8px',
             }}>
-              Couldn&apos;t draw: {chartSyncIssues.join(', ')}
+              {tl('CHART_COULDNT_DRAW', { issues: chartSyncIssues.join(', ') })}
             </div>
           </div>
         )}

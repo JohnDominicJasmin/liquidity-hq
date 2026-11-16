@@ -7,21 +7,41 @@ import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { activatable } from '@/lib/activatable';
 import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 import Link from 'next/link';
 import { Lock } from '@/components/icons';
 import { signalLockCopy } from '@/lib/signalCoinGate';
 import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
 
-const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg: string; border: string }> = {
-  LONG_SETUP:     { label: '▲ LONG SETUP',     color: 'var(--green-2)', bg: 'color-mix(in srgb, var(--green-2) 8%, transparent)',  border: 'color-mix(in srgb, var(--green-2) 25%, transparent)'  },
-  SHORT_SETUP:    { label: '▼ SHORT SETUP',    color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 8%, transparent)', border: 'color-mix(in srgb, var(--red) 25%, transparent)' },
-  TRENDING_LONG:  { label: '↗ TRENDING LONG',  color: 'var(--green-soft)', bg: 'color-mix(in srgb, var(--green-soft) 6%, transparent)', border: 'color-mix(in srgb, var(--green-soft) 20%, transparent)'  },
-  TRENDING_SHORT: { label: '↘ TRENDING SHORT', color: 'var(--red-soft)', bg: 'color-mix(in srgb, var(--red-soft) 6%, transparent)', border: 'color-mix(in srgb, var(--red-soft) 20%, transparent)'  },
+const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; labelKey: LabelKey | null; color: string; bg: string; border: string }> = {
+  LONG_SETUP:     { label: '▲ LONG SETUP', labelKey: 'EMA_SIGNAL_V_LONG_SETUP',     color: 'var(--green-2)', bg: 'color-mix(in srgb, var(--green-2) 8%, transparent)',  border: 'color-mix(in srgb, var(--green-2) 25%, transparent)'  },
+  SHORT_SETUP:    { label: '▼ SHORT SETUP', labelKey: 'EMA_SIGNAL_V_SHORT_SETUP',    color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 8%, transparent)', border: 'color-mix(in srgb, var(--red) 25%, transparent)' },
+  TRENDING_LONG:  { label: '↗ TRENDING LONG', labelKey: 'EMA_SIGNAL_V_TRENDING_LONG',  color: 'var(--green-soft)', bg: 'color-mix(in srgb, var(--green-soft) 6%, transparent)', border: 'color-mix(in srgb, var(--green-soft) 20%, transparent)'  },
+  TRENDING_SHORT: { label: '↘ TRENDING SHORT', labelKey: 'EMA_SIGNAL_V_TRENDING_SHORT', color: 'var(--red-soft)', bg: 'color-mix(in srgb, var(--red-soft) 6%, transparent)', border: 'color-mix(in srgb, var(--red-soft) 20%, transparent)'  },
   /* #6b7280 was 4.01:1 - the same grey-500 the econ calendar used for its
      (never-reachable) LOW bucket. FREEZE is a live signal state, not a
      placeholder, so it takes the AA-safe neutral. */
-  FREEZE:         { label: '⏸ FREEZE',          color: 'var(--txt-dim)', bg: 'rgba(107,114,128,0.06)', border: 'rgba(107,114,128,0.2)'  },
-  LOADING:        { label: '…',                 color: 'var(--txt-dim)',    bg: 'transparent',             border: 'transparent'            },
+  FREEZE:         { label: '⏸ FREEZE', labelKey: 'EMA_SIGNAL_V_FREEZE',          color: 'var(--txt-dim)', bg: 'rgba(107,114,128,0.06)', border: 'rgba(107,114,128,0.2)'  },
+  LOADING:        { label: '…', labelKey: null,                 color: 'var(--txt-dim)',    bg: 'transparent',             border: 'transparent'            },
+};
+
+/* The hook (lib/useEMAStrategy.ts) names each checklist row in English, and the same string goes into the AI prompt, so it is translated HERE for display and left alone there. A label not in this map shows as the hook wrote it. */
+const COND_LABEL_KEYS: Record<string, LabelKey> = {
+  '200 SMA Filter (Daily)': 'EMA_SIGNAL_COND_200SMA',
+  'Counter-trend': 'EMA_SIGNAL_COND_COUNTER',
+  'Ribbon Aligned': 'EMA_SIGNAL_COND_RIBBON',
+  'Trend Signal (fast/slow cross)': 'EMA_SIGNAL_COND_CROSS',
+  'Close vs EMA 50': 'EMA_SIGNAL_COND_CLOSE50',
+  'Price in Value Zone': 'EMA_SIGNAL_COND_VALUE',
+  'Funding Rate': 'EMA_SIGNAL_COND_FUNDING',
+  'Open Interest Confirming': 'EMA_SIGNAL_COND_OI',
+  'Volume Above MA': 'EMA_SIGNAL_COND_VOL',
+  'WaveTrend Confirming': 'EMA_SIGNAL_COND_WT',
+  'RSI Confirming': 'EMA_SIGNAL_COND_RSI',
+  'SMA Confirming': 'EMA_SIGNAL_COND_SMA',
+  'Bollinger Confirming': 'EMA_SIGNAL_COND_BOLL',
+  'PSAR Confirming': 'EMA_SIGNAL_COND_PSAR',
+  'MACD Confirming': 'EMA_SIGNAL_COND_MACD',
 };
 
 function fmt(n: number | null, decimals = 2): string {
@@ -105,13 +125,11 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
   /* ABOVE THE ANALYSIS CEILING (#1263): the chart is on a weekly or monthly timeframe, which the EMA
      signal, the AI read and Draw Structure do not operate at (owner's scope: those stay <= 1d). The
      panel says so rather than showing a 1d verdict under a weekly chart - the same honesty the rest
-     of this page applies to a reading it does not have. Literal English, matching this component's
-     other static chrome ("EMA Ribbon Strategy", "Fast avg") which is not translated either. Placed
-     before every other branch because none of them apply at this timeframe. */
+     of this page applies to a reading it does not have. Placed before every other branch because none of them apply at this timeframe. */
   if (aboveCeiling) {
     return (
       <div data-testid="signal-above-ceiling" style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 10, padding: '12px 14px', marginBottom: 10 }}>
-        <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>EMA Ribbon Strategy</div>
+        <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>{t('EMA_SIGNAL_TITLE')}</div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.5 }}>
           {t('EMA_SIGNAL_ABOVE_CEILING', { tf: tf.toUpperCase() })}
         </div>
@@ -127,21 +145,24 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
   // a confident-looking SETUP badge when this coin+timeframe has recently lost more
   // than it's won.
   const weak = isSetup && signal.weakEdge;
+  /* `cfg.label` stays ENGLISH: it is what the AI prompt below is built from. What the reader sees is `shownLabel`, in their language. */
   const cfg = weak
     ? { label: `${VERDICT_CONFIG[v].label} · WEAK EDGE`, color: 'var(--amber)', bg: 'rgba(251,191,36,0.08)', border: 'rgba(251,191,36,0.25)' }
     : VERDICT_CONFIG[v];
+  const vKey = VERDICT_CONFIG[v].labelKey;
+  const shownLabel = vKey ? (weak ? `${t(vKey)} · ${t('EMA_SIGNAL_WEAK_EDGE')}` : t(vKey)) : cfg.label;
   const canExplain = coin && !signal.loading && signal.verdict !== 'LOADING' && !signal.signalLock;
 
   /* Locked coin: the verdict, checklist, levels, pending setup and record are replaced by the lock; the ribbon values stay. */
   if (signal.signalLock) {
     return (
       <div style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 10, padding: '12px 14px', marginBottom: 10 }}>
-        <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 8 }}>EMA Ribbon Strategy</div>
+        <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 8 }}>{t('EMA_SIGNAL_TITLE')}</div>
         <LockedSignal lock={signal.signalLock} />
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10 }}>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: 'var(--amber)' }}>{currencyPrefix(coin)}{fmt(signal.ema9_4h)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: 'var(--accent-2)' }}>{currencyPrefix(coin)}{fmt(signal.ema20_4h ?? null)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: 'var(--txt2)' }}>{currencyPrefix(coin)}{fmt(signal.ema50_4h ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('EMA_SIGNAL_FAST_AVG')} <b style={{ color: 'var(--amber)' }}>{currencyPrefix(coin)}{fmt(signal.ema9_4h)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('EMA_SIGNAL_MID_AVG')} <b style={{ color: 'var(--accent-2)' }}>{currencyPrefix(coin)}{fmt(signal.ema20_4h ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('EMA_SIGNAL_SLOW_AVG')} <b style={{ color: 'var(--txt2)' }}>{currencyPrefix(coin)}{fmt(signal.ema50_4h ?? null)}</b></span>
         </div>
       </div>
     );
@@ -160,25 +181,20 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: 10, gap: 10 }}>
         <div>
           <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 3 }}>
-            EMA Ribbon Strategy
+            {t('EMA_SIGNAL_TITLE')}
           </div>
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
-            3 moving averages (fast/mid/slow) · {tf.toUpperCase()} chart · daily trend filter
+            {t('EMA_SIGNAL_SUBTITLE', { tf: tf.toUpperCase() })}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6, maxWidth: '100%' }}>
           {!signal.loading && signal.chopRegime && (() => {
             const col = signal.chopRegime === 'choppy' ? 'var(--amber)' : signal.chopRegime === 'trending' ? 'var(--green-2)' : 'var(--txt-dim)';
-            const label = signal.chopRegime === 'choppy' ? 'CHOPPY' : signal.chopRegime === 'trending' ? 'TRENDING' : 'MIXED';
+            const label = signal.chopRegime === 'choppy' ? t('EMA_SIGNAL_CHOP_CHOPPY') : signal.chopRegime === 'trending' ? t('EMA_SIGNAL_CHOP_TRENDING') : t('EMA_SIGNAL_CHOP_MIXED');
+            const tipKey: LabelKey = signal.chopRegime === 'choppy' ? 'EMA_SIGNAL_CHOP_TIP_CHOPPY' : signal.chopRegime === 'trending' ? 'EMA_SIGNAL_CHOP_TIP_TRENDING' : 'EMA_SIGNAL_CHOP_TIP_MIXED';
             return (
               <span
-                title={`Choppiness Index ${signal.chopIndex?.toFixed(0)}/100 on the ${tf.toUpperCase()} chart. ${
-                  signal.chopRegime === 'choppy'
-                    ? 'Range-bound right now - price is moving a lot but not covering ground. Ribbon signals are more likely to whipsaw here.'
-                    : signal.chopRegime === 'trending'
-                    ? 'Genuinely trending - price is covering real ground, not just oscillating.'
-                    : 'Neither clearly trending nor clearly choppy - a transitional read.'
-                } Warns rather than filters - the persistence rule still decides which signals actually fire.`}
+                title={t(tipKey, { index: String(signal.chopIndex?.toFixed(0) ?? '-'), tf: tf.toUpperCase() })}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 4,
                   fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
@@ -202,9 +218,9 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
             {signal.loading ? (
               <>
                 <SkeletonBar width={44} height={12} radius={6} />
-                <span className="sr-only">Loading…</span>
+                <span className="sr-only">{t('ARENA_SCANNER_LOADING_TITLE')}</span>
               </>
-            ) : cfg.label}
+            ) : shownLabel}
           </span>
         </div>
       </div>
@@ -254,9 +270,9 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
         }}>
           <span aria-hidden style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--amber)', flexShrink: 0 }} />
           {signal.verdictChangedBySelection ? (
-            <span>Your selection ({signal.selectionLabel}) changed this call - see the checklist below for which condition disagreed. A Telegram/push alert for {coin ? coin.toUpperCase() : 'this coin'} still uses the standard EMA rule and may show a different call right now.</span>
+            <span>{t('EMA_SIGNAL_SEL_CHANGED', { selection: signal.selectionLabel ?? '', coin: coin ? coin.toUpperCase() : t('EMA_SIGNAL_THIS_COIN') })}</span>
           ) : (
-            <span>The checklist below now weighs your selection ({signal.selectionLabel}). It has not changed the BUY/SELL call this time - see the checklist for whether each part agrees.</span>
+            <span>{t('EMA_SIGNAL_SEL_WEIGHED', { selection: signal.selectionLabel ?? '' })}</span>
           )}
         </div>
       )}
@@ -272,7 +288,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
           marginBottom: 10, lineHeight: 1.4,
         }}>
           <span aria-hidden style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--txt3)', flexShrink: 0 }} />
-          <span>The chart&apos;s BUY/SELL markers show only the bars where your selected indicators agree with the ribbon.</span>
+          <span>{t('EMA_SIGNAL_MARKERS_FILTERED')}</span>
         </div>
       )}
 
@@ -286,6 +302,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
         }}>
           {signal.conditions.map((c, i) => {
             const pass = c.pass;
+            const condLabel = (l: string) => { const k = COND_LABEL_KEYS[l]; return k ? t(k) : l; };
             /* --green-fg for the PASS text, not --green-2 (#738). The row is a
                7% wash of its own signal colour, and in terminal light --green
                (#14702c) on that wash measures 4.66 by token arithmetic, 4.41
@@ -313,7 +330,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
                  focus, or the keyboard tab order fills with dead stops. */
               <div
                 key={i}
-                title={canExplain ? `Click to explain "${c.label}" in plain English` : c.detail}
+                title={canExplain ? t('EMA_SIGNAL_COND_EXPLAIN_TITLE', { label: condLabel(c.label) }) : c.detail}
                 {...(canExplain
                   ? activatable(() => fireExplain(buildConditionPrompt(c.label, c.pass, c.detail, coin!, tf), coin!))
                   : {})}
@@ -329,7 +346,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
               >
                 <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: col, flexShrink: 0 }}>{icon}</span>
                 <span style={{ fontSize: 'var(--fs-caption)', color: warn ? 'var(--txt2)' : pass === null ? 'var(--txt-dim)' : 'var(--txt2)', lineHeight: 1.2 }}>
-                  {warn ? c.detail : c.label}
+                  {warn ? c.detail : condLabel(c.label)}
                 </span>
               </div>
             );
@@ -346,17 +363,17 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
           border: '0.5px solid var(--bdr)',
           borderRadius: 7,
         }}>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginRight: 4 }}>Levels:</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginRight: 4 }}>{t('EMA_SIGNAL_LEVELS')}</span>
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--red)' }}>
-            SL {currencyPrefix(coin)}{fmt(signal.sl)}
+            {t('EMA_SIGNAL_SL_LINE', { price: `${currencyPrefix(coin)}${fmt(signal.sl)}` })}
           </span>
           <span style={{ fontSize: '0.6875rem', color: 'var(--txt-dim)' }}>·</span>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
-            Entry ~{currencyPrefix(coin)}{fmt(signal.ema20_4h)} (20 EMA)
+            {t('EMA_SIGNAL_ENTRY_LINE', { price: `${currencyPrefix(coin)}${fmt(signal.ema20_4h)}` })}
           </span>
           <span style={{ fontSize: '0.6875rem', color: 'var(--txt-dim)' }}>·</span>
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--green-2)' }}>
-            TP {currencyPrefix(coin)}{fmt(signal.tp)} (2:1)
+            {t('EMA_SIGNAL_TP_LINE', { price: `${currencyPrefix(coin)}${fmt(signal.tp)}` })}
           </span>
         </div>
       )}
@@ -369,8 +386,8 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
           paddingTop: 8,
           borderTop: '0.5px solid var(--bdr)',
         }}>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: 'var(--amber)' }}>{currencyPrefix(coin)}{fmt(signal.ema9_4h)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: 'var(--accent-2)' }}>{currencyPrefix(coin)}{fmt(signal.ema20_4h ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('EMA_SIGNAL_FAST_AVG')} <b style={{ color: 'var(--amber)' }}>{currencyPrefix(coin)}{fmt(signal.ema9_4h)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('EMA_SIGNAL_MID_AVG')} <b style={{ color: 'var(--accent-2)' }}>{currencyPrefix(coin)}{fmt(signal.ema20_4h ?? null)}</b></span>
           {/* --txt2, not #f97316 (#638). This was the only literal in a row
               whose three siblings all use tokens, and a literal chosen against
               a dark ground: it measures 2.59:1 on terminal light and fails in
@@ -383,8 +400,8 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
               border-weight grey that fails as text on dark, and there is no
               governed orange in the terminal palette at all - #614 established
               that. */}
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: 'var(--txt2)' }}>{currencyPrefix(coin)}{fmt(signal.ema50_4h ?? null)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Daily trend <b style={{ color: 'var(--accent)' }}>{currencyPrefix(coin)}{fmt(signal.sma200_1d ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('EMA_SIGNAL_SLOW_AVG')} <b style={{ color: 'var(--txt2)' }}>{currencyPrefix(coin)}{fmt(signal.ema50_4h ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('EMA_SIGNAL_DAILY_TREND')} <b style={{ color: 'var(--accent)' }}>{currencyPrefix(coin)}{fmt(signal.sma200_1d ?? null)}</b></span>
         </div>
       )}
 
@@ -393,7 +410,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
           around it. */}
       {!signal.loading && signal.pendingSetup && (
         <div data-testid="pending-setup" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 8 }}>
-          {signal.pendingSetup.dir === 'long' ? 'Buy' : 'Sell'} setup pending: <b style={{ color: 'var(--txt2)' }}>{Math.min(signal.pendingSetup.held, signal.pendingSetup.need)} of {signal.pendingSetup.need}</b> candles held
+          {signal.pendingSetup.dir === 'long' ? t('EMA_SIGNAL_PENDING_BUY') : t('EMA_SIGNAL_PENDING_SELL')} <b style={{ color: 'var(--txt2)' }}>{t('EMA_SIGNAL_HELD_OF', { held: String(Math.min(signal.pendingSetup.held, signal.pendingSetup.need)), need: String(signal.pendingSetup.need) })}</b> {t('EMA_SIGNAL_CANDLES_HELD')}
         </div>
       )}
 
@@ -446,7 +463,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
         >
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" /></svg>
-            Explain signal
+            {t('EMA_SIGNAL_EXPLAIN')}
           </span>
         </button>
       )}

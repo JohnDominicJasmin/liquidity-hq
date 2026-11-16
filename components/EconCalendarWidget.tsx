@@ -139,7 +139,7 @@ export default function EconCalendarWidget() {
                   one, and carried a real FRED `actual` besides. The tooltip
                   says it in words for anyone who does not read the tilde. */}
               <span
-                title={e.estimated ? 'Estimated date - approximate, not a published release schedule' : undefined}
+                title={e.estimated ? t('ECON_ESTIMATED_TIP_WIDGET') : undefined}
                 style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontVariantNumeric: 'tabular-nums', flexShrink: 0, width: 42 }}
               >
                 {e.estimated ? '~' : ''}{fmtTime(e.isoDate)}

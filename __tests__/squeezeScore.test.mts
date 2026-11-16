@@ -106,7 +106,7 @@ test('computeSqueezeScore', async (t) => {
   await t.test('shortRatio top-tier boundary (exact), paired with a weak taker signal', () => {
     const r = computeSqueezeScore(baseCoin({ shortRatio: 0.65, longRatio: 0.1, takerBuyRatio: 0.58 }));
     assert.equal(r.dir, 'SHORT_SQ');
-    assert.equal(r.label, 'Short squeeze ↑');
+    assert.equal(r.label, 'Short-heavy');
     assert.equal(r.score, 48); // 40 (shortRatio top tier) + 8 (taker's WEAK short tier - 0.58 is not the 0.62 top tier)
   });
 
