@@ -23,6 +23,6 @@ test('N2. no source file under app/components/lib builds a retired fstream /stre
   const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) =>
     e.isDirectory() ? walk(`${d}/${e.name}`) : /\.(ts|tsx)$/.test(e.name) ? [`${d}/${e.name}`] : []);
   const bad = ['app', 'components', 'lib'].flatMap(walk).filter((f) =>
-    /fstream\.binance\.com\/(stream|ws)\b/.test(fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')));
+    /fstream\.binance\.com\/(stream|ws)\b/.test(fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1')));
   assert.deepEqual(bad, []);
 });
