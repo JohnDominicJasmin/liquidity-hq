@@ -328,7 +328,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         // forceSignOut, not sb.auth.signOut: this path exists to END a session
         // that has outlived its window, so it failing quietly would keep the
         // user signed in past the expiry it is enforcing (#304).
-        await withTimeout(forceSignOut(sb));
+        /* scope 'local': this device's own stale session ends; the user's other devices (one they are using right now) are not signed out with it. */
+        await withTimeout(forceSignOut(sb, { scope: 'local' }));
         localStorage.removeItem(LAST_ACTIVE_KEY);
         setUserStable(null);
       } else {
@@ -625,8 +626,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [clock, setClock] = useState(() => Date.now());
   useEffect(() => {
     if (trialEndsAt === null) return;
+    /* The clock is taken fresh whenever the trial end changes: it was set once at mount, so a provider mounted on /login (before a later sign-in, or before a laptop woke from sleep) kept an old `clock` and an ended trial still read as active. */
+    setClock(Date.now());
     const ms = trialEndsAt - Date.now();
-    if (ms <= 0) return; // already past; `clock` is newer than trialEndsAt already
+    if (ms <= 0) return; // already past
     const id = setTimeout(() => setClock(Date.now()), ms + 1_000);
     return () => clearTimeout(id);
   }, [trialEndsAt]);
