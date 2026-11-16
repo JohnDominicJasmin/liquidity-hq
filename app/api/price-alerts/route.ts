@@ -166,6 +166,9 @@ export async function PATCH(req: NextRequest) {
     patch.direction = body.direction;
   }
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'nothing to update' }, { status: 400 });
+  /* AN EDITED ALERT IS ARMED AGAIN FROM THE EDIT (B5). The evaluator treats created_at as "set after": a wick from before the alert was set must not fire it. Editing the target or direction changes what the alert is, so a
+     1-minute candle that touched the NEW level before the edit must not fire it either. */
+  patch.created_at = new Date().toISOString();
 
   /* maybeSingle, not single - see the same fix in app/api/hypotheses/[id].
      .eq('user_id') is the ownership filter, so patching someone else's alert

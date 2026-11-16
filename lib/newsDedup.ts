@@ -21,13 +21,21 @@
 // Strip everything that varies between two links to the same article: scheme,
 // www., trailing slash, case, fragment, and the whole query string (utm_* and
 // friends). What's left - host + path - is stable across those rewrites.
+const ID_PARAMS = new Set(['p', 'id', 'article', 'articleid', 'story', 'storyid', 'post', 'postid', 'nid', 'newsid']);
+
 export function normalizeLink(link?: string | null): string | null {
   if (!link) return null;
   try {
     const u = new URL(link);
     const host = u.hostname.replace(/^www\./, '').toLowerCase();
     const path = u.pathname.replace(/\/+$/, '').toLowerCase();
-    const key = host + path;
+    /* A site whose article identity is in the QUERY ("?p=123", "article.php?id=9") must keep it, or every story from that site collapses to one host+path key and all but the first are dropped. Only these id-bearing parameters are
+       kept (sorted, so their order does not matter); utm_* and every other tracking parameter is still stripped. */
+    const keep = [...u.searchParams.entries()]
+      .filter(([k]) => ID_PARAMS.has(k.toLowerCase()))
+      .map(([k, v]) => k.toLowerCase() + '=' + v)
+      .sort();
+    const key = host + path + (keep.length ? '?' + keep.join('&') : '');
     return key ? key.slice(0, 300) : null;
   } catch {
     // Not a parseable URL - fall back to the raw string rather than dropping
@@ -37,10 +45,16 @@ export function normalizeLink(link?: string | null): string | null {
   }
 }
 
-// Identity #2. Deliberately the same 60-char prefix the table's keys have
-// always used, so it still matches rows written before URL keys existed.
+// Identity #2. THE FULL NORMALISED HEADLINE, not a 60-character prefix (S/N5, N6). The prefix collapsed templated headlines ("Bitcoin ETF sees $120M in net inflows on Monday ..." and "... on Tuesday ...") into one story, and the
+// later one was dropped for the whole 12 h window; and the key only lowercased, so curly vs straight quotes, "-" vs an em dash, a double space or a trailing ellipsis made two rows of one story. Normalised: NFKC, lowercased, every
+// punctuation or symbol run becomes one space, spaces collapsed; capped at 160 characters. The held-row check recomputes this from each stored headline, so rows written under the old 60-character key are still recognised.
 export function headlineKey(headline: string): string {
-  return headline.slice(0, 60).toLowerCase();
+  return headline
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+    .slice(0, 160);
 }
 
 // The value stored in dedup_key (the table's primary key). Prefers the URL so
