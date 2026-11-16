@@ -1,4 +1,5 @@
 ﻿'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useNow } from '@/lib/useNow';
@@ -459,7 +460,15 @@ function ArenaContent() {
      the chips alone. Touching a chip while a strategy is picked keeps the strategy. One request per change. */
   const handleStrategyMenuPick = useCallback((id: string) => {
     if (settingsLoadStatus !== 'ready' || planUnsettled) return;
-    if (id === AUTO_SET_ID || id === CUSTOM_SET_ID) { if (arenaStrategy !== null) { setArenaStrategyState(null); update({ arena_strategy: null }); } return; }
+    /* 'Let the read choose' clears the strategy AND the chips (the AI picks), in one save: with chips left on the menu derived 'Custom' and snapped back. 'Custom' clears only the strategy and keeps the chips. */
+    if (id === AUTO_SET_ID) {
+      if (arenaStrategy === null && strategySelection.length === 0) return;
+      setArenaStrategyState(null);
+      setStrategySelection([]);
+      update({ arena_strategy: null, strategy_selection: [] });
+      return;
+    }
+    if (id === CUSTOM_SET_ID) { if (arenaStrategy !== null) { setArenaStrategyState(null); update({ arena_strategy: null }); } return; }
     const def = findStrategy(id);
     if (!def) return;
     const add = selectableIds(def.chips).filter(c => !strategySelection.includes(c));
@@ -1713,7 +1722,7 @@ function ArenaContent() {
       setReadStep('Reading chart…');
       let raw: (string|number)[][];
       if (binanceSym) {
-        const r = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=${readTf}&limit=300`, { signal: AbortSignal.timeout(20_000) });
+        const r = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=${readTf}&limit=300`, { signal: deadlineSignal(20_000) });
         if (!r.ok) throw new Error(t('ARENA_ERROR_BINANCE_API'));
         raw = await r.json();
       } else {
@@ -1765,7 +1774,7 @@ function ArenaContent() {
       try {
         if (binanceSym) {
           // #1626 C: 120 daily candles (Wilder needs the history), CLOSED ones only (Binance rows carry their close time at index 6).
-          const dr = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=1d&limit=120`, { signal: AbortSignal.timeout(20_000) });
+          const dr = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=1d&limit=120`, { signal: deadlineSignal(20_000) });
           const dd = await dr.json() as (string|number)[][];
           const nowMs = Date.now();
           const dc = dd.filter(k => Number(k[6]) < nowMs).map(k => Number(k[4]));
