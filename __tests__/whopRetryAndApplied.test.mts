@@ -76,6 +76,9 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       let rows = [...db.events.values()];
       for (const k of ['event', 'resource_id', 'payload_hash']) if (q.get(k)) rows = rows.filter((r) => r[k] === eq(k));
       if (q.get('body->>payer_email')) rows = rows.filter((r) => (r.body as Record<string, unknown>)?.payer_email === eq('body->>payer_email'));
+      /* received_at=gte.<iso> (#2424: a pending claim is read only while it is inside its window); any other operator on it is refused so a changed filter cannot pass by being ignored */
+      const ra = q.get('received_at');
+      if (ra) { const m = /^gte.(.+)$/.exec(ra); if (!m) throw new Error(`stand-in does not know the received_at filter ${ra}`); rows = rows.filter((r) => String(r.received_at) >= m[1]); }
       rows.sort((a, b) => String(a.received_at).localeCompare(String(b.received_at)) || String(a.payload_hash).localeCompare(String(b.payload_hash)));
       if (q.get('limit')) rows = rows.slice(0, Number(q.get('limit')));
       return out(rows.map((r) => ({ payload_hash: r.payload_hash, resource_id: r.resource_id, body: r.body, event: r.event, received_at: r.received_at })));
@@ -187,6 +190,45 @@ test('T4. the hourly retry of a monthly payment received 20 days ago ends about 
   let d = await retryGrantedAfter(20); assert.ok(d > 8 && d < 12, `20 days ago: expected about 10, got ${d.toFixed(2)}`);
   d = await retryGrantedAfter(40); assert.ok(d > 28 && d < 32, `40 days ago: expected about 30, got ${d.toFixed(2)}`);
   d = await retryGrantedAfter('not a date'); assert.ok(d > 28 && d < 32, `invalid: expected about 30, got ${d.toFixed(2)}`);
+});
+
+/* ── #2424: a pending claim is open for 30 days after the payment was received, then it expires (an open-ended claim is held against an address for ever) ─────────────────────────────────────── */
+async function claimAged(daysOld: number) {
+  const L = await load(PLANS_SET); fresh();
+  await L.hook(sign(pay(), 'msg_exp_' + daysOld));
+  const claim = rows(L.g.WHOP_PENDING_CLAIM_EVENT); assert.equal(claim.length, 1, 'the payment before any account must leave one pending claim');
+  claim[0].received_at = new Date(Date.now() - daysOld * 86400_000).toISOString();
+  db.addUser();
+  return L;
+}
+
+test('X1. a pending claim 29 days old is still claimed; one 31 days old is not (it stays stored, nothing is granted, and hasPendingClaim says false)', async () => {
+  let L = await claimAged(29);
+  assert.equal(await L.g.hasPendingClaim(L.sb, EMAIL), true, 'a 29-day claim is open');
+  assert.deepEqual(await (await L.claim(claimReq())).json(), { granted: 1 });
+  assert.equal(db.subs.get(UID)?.role, 'pro');
+  L = await claimAged(31);
+  assert.equal(await L.g.hasPendingClaim(L.sb, EMAIL), false, 'a 31-day claim has expired');
+  assert.deepEqual(await (await L.claim(claimReq())).json(), { granted: 0 });
+  assert.equal(db.subs.size, 0, 'an expired claim granted Pro');
+  assert.equal(rows(L.g.WHOP_PENDING_CLAIM_EVENT).length, 1, 'an expired claim must stay stored for support, not be deleted');
+  assert.equal(deliveries().length, 1, 'the delivery itself stays findable by payment id');
+});
+
+test('X3. claimPendingForAccount itself (not only the fast path in the route) leaves an expired claim alone: 31 days grants nothing and keeps the row, 29 days grants', async () => {
+  let L = await claimAged(31);
+  let r = await L.g.claimPendingForAccount(L.sb, { userId: UID, email: EMAIL });
+  assert.equal(r.granted, 0, 'an expired claim was granted by the claim function'); assert.equal(db.subs.size, 0);
+  assert.equal(rows(L.g.WHOP_PENDING_CLAIM_EVENT).length, 1, 'an expired claim was deleted: support must still find it');
+  L = await claimAged(29);
+  r = await L.g.claimPendingForAccount(L.sb, { userId: UID, email: EMAIL });
+  assert.equal(r.granted, 1); assert.equal(db.subs.get(UID)?.role, 'pro');
+});
+
+test('X2. the window is 30 days: 29.9 days is open, 30.1 days is closed', async () => {
+  let L = await claimAged(29.9); assert.equal(await L.g.hasPendingClaim(L.sb, EMAIL), true);
+  L = await claimAged(30.1); assert.equal(await L.g.hasPendingClaim(L.sb, EMAIL), false);
+  assert.equal(L.g.WHOP_CLAIM_DAYS, 30);
 });
 
 test('R3. past 7 days from the first refusal the row is dropped and reported ("gave up"), even if the setting is fixed by then', async () => {
