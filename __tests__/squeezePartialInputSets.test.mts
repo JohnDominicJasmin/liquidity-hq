@@ -25,7 +25,7 @@ import { computeSqueezeScore } from '../lib/marketStore.ts';
 /** Price only - what the universe ticker pass delivers before any signal arrives. */
 const withFields = (f: Record<string, number> = {}) => ({ price: 100, ...f }) as never;
 
-test('S1. every partial input set scores 0 and labels "Balanced" - the premise a readiness gate rests on', () => {
+test('S1. every partial input set scores 0 and reads "Not enough data" (#2445: it used to say "Balanced") - the premise a readiness gate rests on', () => {
   const stages: ReadonlyArray<readonly [string, never]> = [
     ['price only, no signals',       withFields()],
     ['volRatio only (the trap)',     withFields({ volRatio: 3.2 })],
@@ -36,7 +36,8 @@ test('S1. every partial input set scores 0 and labels "Balanced" - the premise a
   for (const [name, coin] of stages) {
     const r = computeSqueezeScore(coin);
     assert.equal(r.score, 0, `${name}: expected 0, got ${r.score} - if a partial set now scores, re-derive whether a readiness gate is still needed at all`);
-    assert.equal(r.label, 'Balanced', `${name}: expected the "Balanced" label beside that zero, got "${r.label}"`);
+    assert.equal(r.label, 'Not enough data', `${name}: a coin with fewer than two inputs is UNKNOWN, not balanced; got "${r.label}"`);
+    assert.equal(r.enough, false, `${name}: enough must be false below two inputs`);
     assert.equal(r.dir, 'NEUTRAL', `${name}: a partial set must not produce a direction`);
   }
 
@@ -56,4 +57,32 @@ test('S1. every partial input set scores 0 and labels "Balanced" - the premise a
      show this one - it is measured, and suppressing it would swap a false number for a false absence. */
   assert.equal(computeSqueezeScore(withFields({ fundingRate: 0.00005, longRatio: 0.5, shortRatio: 0.5, takerBuyRatio: 0.5 })).score, 0,
     'a complete set with nothing firing is a REAL zero and must still compute as 0');
+});
+
+/* #2445: the two-input floor is the line between UNKNOWN and BALANCED, and the consumers keep unknown coins out of "neutral". */
+test('S2. exactly two inputs with no direction is a REAL "Balanced" (enough: true); one input never is; a complete set with nothing firing is Balanced too', () => {
+  const two = computeSqueezeScore(withFields({ fundingRate: 0.00005, longRatio: 0.5, shortRatio: 0.5 }));
+  assert.equal(two.label, 'Balanced'); assert.equal(two.enough, true); assert.equal(two.signalsPresent, 2);
+  const one = computeSqueezeScore(withFields({ fundingRate: 0.00005 }));
+  assert.equal(one.enough, false); assert.equal(one.signalsPresent, 1);
+  const complete = computeSqueezeScore(withFields({ fundingRate: 0.00005, longRatio: 0.5, shortRatio: 0.5, takerBuyRatio: 0.5 }));
+  assert.equal(complete.label, 'Balanced'); assert.equal(complete.enough, true);
+});
+test('S3. a directional result (two or more inputs) carries enough: true, and no coin is "No data" with enough: false', () => {
+  const sq = computeSqueezeScore(withFields({ fundingRate: -0.10, longRatio: 0.1, shortRatio: 0.65 }));
+  assert.ok(sq.dir !== 'NEUTRAL', 'CONTROL: this input set must be directional'); assert.equal(sq.enough, true);
+  assert.deepEqual([computeSqueezeScore(undefined).label, computeSqueezeScore(undefined).enough], ['No data', false]);
+});
+
+import { readFileSync } from 'node:fs';
+const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+const read = (rel: string) => strip(readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n'));
+test('S4. the consumers: the scanner keeps not-enough rows out of the Neutral filter and count (still under All); the dashboard says "Not enough data"; the short word is mapped; the keys have English text', () => {
+  const sc = read('components/SetupScanner.tsx');
+  assert.ok(sc.includes("r.dir === filter && (filter !== 'NEUTRAL' || r.enough)"), 'the Neutral filter lists unknown coins again');
+  assert.ok(sc.includes("if (r.dir === 'NEUTRAL' && !r.enough) return; c[r.dir]++;"), 'the Neutral count includes unknown coins again');
+  assert.ok(read('components/DashboardTerminal.tsx').includes("!sq.enough ? t('DASH_EDGE_SETUP_NOT_ENOUGH_DATA')"), 'the Setup card says Balanced for a coin with no data again');
+  assert.ok(read('lib/shortWords.ts').includes("'Not enough data': 'SETUP_WORD_NOT_ENOUGH_DATA'"), 'the label has no short word');
+  const en = JSON.parse(readFileSync(new URL('../lib/labelDefaults.en.json', import.meta.url), 'utf8')) as Record<string, string>;
+  assert.equal(en.DASH_EDGE_SETUP_NOT_ENOUGH_DATA, 'Not enough data'); assert.equal(en.SETUP_WORD_NOT_ENOUGH_DATA, 'Not enough data');
 });

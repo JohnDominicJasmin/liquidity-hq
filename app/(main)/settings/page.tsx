@@ -353,7 +353,7 @@ export default function SettingsPage() {
   if (!authLoading && !user) {
     const LOCKED = [
       t('SETTINGS_SECTION_ACCOUNT'), t('SETTINGS_SECTION_WATCHLIST'), t('SETTINGS_SECTION_TRADING_PROFILE'),
-      t('SETTINGS_SECTION_ARENA_DEFAULTS'), t('SETTINGS_SECTION_NOTIFICATIONS'), 'Dashboard Sections',
+      t('SETTINGS_SECTION_ARENA_DEFAULTS'), t('SETTINGS_SECTION_NOTIFICATIONS'), t('SETTINGS_SECTION_DASHBOARD_SECTIONS'),
       t('SETTINGS_SECTION_TELEGRAM'),
     ];
     return (
@@ -382,7 +382,7 @@ export default function SettingsPage() {
         </Section>
 
         <div className="st-section">
-          <div className="st-section-title">Sign in to continue</div>
+          <div className="st-section-title">{t('SETTINGS_SIGNED_OUT_TITLE')}</div>
           <div className="st-locked-list" style={{ display: 'flex', flexDirection: 'column', marginBottom: 20, pointerEvents: 'none' }}>
             {LOCKED.map(name => (
               <div key={name} style={{
@@ -400,14 +400,14 @@ export default function SettingsPage() {
               background: 'var(--accent-bg)', border: '0.5px solid var(--accent-bdr)', color: 'var(--accent)',
               fontSize: 'var(--fs-caption)', fontWeight: 700, textAlign: 'center', textDecoration: 'none',
             }}>
-              Create free account
+              {t('SETTINGS_CREATE_FREE_ACCOUNT')}
             </Link>
             <Link href="/login" style={{
               flex: 1, display: 'block', padding: '9px 0', borderRadius: 'var(--radius-card)',
               border: '0.5px solid var(--bdr)', color: 'var(--txt2)',
               fontSize: 'var(--fs-caption)', fontWeight: 600, textAlign: 'center', textDecoration: 'none',
             }}>
-              Sign in
+              {t('LOGIN_SIGNIN_BUTTON')}
             </Link>
           </div>
         </div>

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { T } from '@/lib/tables';
-import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
-import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
+import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, blockedResponse } from '@/lib/aiUsage';
+import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 
@@ -40,9 +40,9 @@ function buildShadowPrompt(trades: Record<string, unknown>[]): string {
   ].filter(Boolean).join(' | ')).join('\n');
 
   return [
-    'You are a trading coach and quantitative analyst specializing in crypto derivatives. Analyze this trader\'s complete trade history and produce a Shadow Account report.',
+    'You are a trading coach and quantitative analyst specializing in crypto derivatives. Analyze this trader\'s most recent trades (your last 500 trades at most) and produce a Shadow Account report.',
     '',
-    `TOTAL TRADES: ${trades.length} | CLOSED: ${closed.length} | WIN RATE: ${winRate}% | AVG R/TRADE: ${avgR}R | TOTAL P&L: $${totalPnL.toFixed(2)}`,
+    `TRADES (your last 500 at most): ${trades.length} | CLOSED: ${closed.length} | WIN RATE: ${winRate}% | AVG R/TRADE: ${avgR}R | TOTAL P&L: $${totalPnL.toFixed(2)}`,
     '',
     '=== TRADE HISTORY (closed trades only) ===',
     tradeLines,
@@ -94,33 +94,35 @@ export async function POST(req: NextRequest) {
   // check a free account could still spend real xAI budget here, which is
   // what the pricing page says it cannot. Trial users pass - hasProFeatures
   // covers isTrial.
-  if (!(await hasProFeatures(token, authData.user.id))) {
-    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Shadow Account is a Pro feature.' }, { status: 403 });
-  }
+  const plan = await requireProPlan(token, authData.user.id, 'Shadow Account is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  const role = await getUsageTier(token, authData.user.id);
-  const usageResult = await incrementToolUsage(authData.user.id, 'shadowAccount', role);
-  if (usageResult.blocked) {
-    return NextResponse.json(
-      { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'Shadow Account reports'), code: 'RATE_LIMIT' },
-      { status: 429 },
-    );
-  }
-
-  const { data: trades, error } = await sb(token)
+  /* THE NEWEST 500, NOT THE OLDEST (PM audit B7). This read ascending with limit 500, so a trader with more than 500 trades was analysed on their
+     FIRST 500 and the prompt called that their history. Newest first, then turned back into chronological order for the prompt. */
+  const { data: newestFirst, error } = await sb(token)
     .from(T.trades)
     .select('*')
     .eq('user_id', authData.user.id)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(500);
+  const trades = newestFirst ? [...newestFirst].reverse() : newestFirst;
 
   if (error) return NextResponse.json({ error: 'Failed to load trades' }, { status: 500 });
   if (!trades || trades.length === 0) return NextResponse.json({ error: 'NO_TRADES' }, { status: 400 });
 
   const closed = trades.filter(t => t.result !== 'OPEN');
   if (closed.length < 5) return NextResponse.json({ error: 'NEED_MORE_TRADES', count: closed.length }, { status: 400 });
+
+  /* RESERVE ONLY ONCE THERE IS SOMETHING TO ANALYSE (U2). It used to reserve before the trades were loaded, so a read error, no trades or fewer than 5 closed trades (all answered without an AI call) still cost a use AND a
+     slot of the shared tool pool, repeatably up to the cap. A reserved use is given back when nothing reached the user (a failed or unusable xAI answer, a thrown call, an empty answer), exactly as /api/grok does; nothing is given back once xAI answered 2xx (the tokens are billed). */
+  const role = plan.tier;
+  const reservedOn = todayUtc();
+  const usageResult = await incrementToolUsage(authData.user.id, 'shadowAccount', role);
+  if (usageResult.blocked) {
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'Shadow Account reports'));
+  }
 
   const prompt = buildShadowPrompt(trades);
 
@@ -135,6 +137,7 @@ export async function POST(req: NextRequest) {
   });
 
   if (!res.ok) {
+    await refundToolUsage(authData.user.id, 'shadowAccount', reservedOn);
     const err = await res.json().catch(() => ({}));
     return NextResponse.json({ error: (err as { error?: string }).error ?? 'AI error' }, { status: 502 });
   }
