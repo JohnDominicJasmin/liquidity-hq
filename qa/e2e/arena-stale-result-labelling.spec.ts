@@ -119,6 +119,8 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
   await gotoSignedIn(page, '/about');
   await resetStrategySelection(page, []);
   await page.goto('/arena');
+  /* CHIP TAPS ARE NO-OPS UNTIL THE PLAN IS KNOWN (#2406): wait for the PRO badge before the first tap, or a tap on a phone, where the plan read lands late, does nothing (release run 43831779582, mobile, passed on retry). */
+  await expect(page.locator('.plan-badge-pro').first(), "the Pro account's plan never resolved, so a chip tap would be a no-op").toBeVisible({ timeout: 45_000 });
 
   await page.locator('select.strat-sel').selectOption('custom');
   for (const name of firstPick) {

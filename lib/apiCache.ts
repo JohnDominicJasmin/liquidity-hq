@@ -76,6 +76,11 @@ function remember(key: string, data: unknown): void {
 
 /** Entry count. Exported for tests and for anything that wants to assert the cap
  *  holds - the bound is worth nothing if nobody can see it. */
+/** When the cached value under `key` was fetched (epoch ms), or null when nothing is cached. A response served from cache is only as fresh as this, whatever the time of the request. */
+export function cachedAt(key: string): number | null {
+  return store.get(key)?.ts ?? null;
+}
+
 export function _cacheSize(): number {
   return store.size;
 }
