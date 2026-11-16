@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { fetchFredRows, FRED_TTL_DEFAULT } from '@/lib/fred';
+import { FRED_CFG, fredActual, scheduledImpact } from '@/lib/econActual';
 import { cached } from '@/lib/apiCache';
 import { etToUtcMs, scheduledInstants, SCHEDULE_READ_ON, SCHEDULE_COVERS_THROUGH } from '@/lib/econSchedule';
 import { polledCacheControl } from '@/lib/cacheHeaders';
@@ -69,27 +70,7 @@ async function tryFedFOMC(now: Date): Promise<CalEvent[]> {
 // The fetch/parse/cache lives in lib/fred.ts - /api/macro needs the same thing
 // for the 10Y real yield (#311), and two copies of a CSV parser is one too many.
 
-const FRED_CFG: Record<string, { id: string; fmt: 'rate' | 'mom_change' | 'mom_pct' | 'qoq_ann' }> = {
-  FOMC:   { id: 'DFEDTARU', fmt: 'rate' },       // Fed Funds target upper bound (daily)
-  NFP:    { id: 'PAYEMS',   fmt: 'mom_change' },  // Nonfarm payrolls level (monthly K)
-  CPI:    { id: 'CPIAUCSL', fmt: 'mom_pct' },     // CPI seasonally adjusted (monthly)
-  PPI:    { id: 'PPIACO',   fmt: 'mom_pct' },     // PPI all commodities (monthly)
-  PCE:    { id: 'PCE',      fmt: 'mom_pct' },     // PCE (monthly)
-  GDP:    { id: 'GDP',      fmt: 'qoq_ann' },     // GDP (quarterly)
-  RETAIL: { id: 'RSAFS',   fmt: 'mom_pct' },      // Retail sales (monthly)
-};
-
-function fredActual(rows: [number, number][], eventTs: number, fmt: string): string | undefined {
-  if (rows.length < 2) return undefined;
-  let i = rows.length - 1;
-  while (i >= 0 && rows[i][0] > eventTs) i--;
-  if (i < 1) return undefined;
-  const cur = rows[i][1], prev = rows[i - 1][1];
-  if (fmt === 'rate')       return cur.toFixed(2) + '%';
-  if (fmt === 'mom_change') { const d = Math.round(cur - prev); return (d >= 0 ? '+' : '') + d + 'K'; }
-  if (fmt === 'mom_pct')    { if (!prev) return; const p = ((cur - prev) / prev) * 100; return (p >= 0 ? '+' : '') + p.toFixed(1) + '%'; }
-  if (fmt === 'qoq_ann')    { if (!prev) return; const a = (Math.pow(cur / prev, 4) - 1) * 100; return (a >= 0 ? '+' : '') + a.toFixed(1) + '%'; }
-}
+/* The series, the reference-period match and the formatting live in lib/econActual.ts. */
 
 async function enrichWithFRED(events: CalEvent[], now: Date): Promise<void> {
   const windowMs = 30 * 24 * 3600_000;
@@ -106,7 +87,7 @@ async function enrichWithFRED(events: CalEvent[], now: Date): Promise<void> {
   for (const e of past) {
     const cfg = FRED_CFG[e.type];
     if (!cfg || !data[cfg.id]?.length) continue;
-    const v = fredActual(data[cfg.id], new Date(e.isoDate).getTime(), cfg.fmt);
+    const v = fredActual(data[cfg.id], new Date(e.isoDate).getTime(), e.type);
     if (v) e.actual = v;
   }
 }
@@ -133,7 +114,7 @@ async function buildCalendar(): Promise<{ events: CalEvent[]; source: string; sc
   const events: CalEvent[] = [...fomc];
   for (const r of scheduledInstants(now)) {
     if (r.type === 'FOMC' && fomcMonths.has(r.isoDate.slice(0, 7))) continue;
-    events.push({ name: DISPLAY_NAMES[r.type], type: r.type, isoDate: r.isoDate, impact: 'high' });
+    events.push({ name: DISPLAY_NAMES[r.type], type: r.type, isoDate: r.isoDate, impact: scheduledImpact(r.type) });
   }
   if (events.length === 0) throw new NoCalendarData();
 

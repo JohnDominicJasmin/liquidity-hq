@@ -250,7 +250,7 @@ export default function EconCalendarPage() {
                     style={{
                       display: 'grid', gridTemplateColumns: COLS, gap: 8,
                       padding: '11px 16px', alignItems: 'center',
-                      borderLeft: `3px solid ${e.impact === 'HIGH' ? ic.accent : 'transparent'}`,
+                      borderLeft: `3px solid ${econImpactKey(e.impact) === 'HIGH' ? ic.accent : 'transparent'}`,
                       borderBottom: i < dayEvents.length - 1 ? '0.5px solid var(--bdr)' : 'none',
                       /* #684: the overlay that composites this row up is what
                          put --txt3 at 4.46 in dark - four cells, dev's
