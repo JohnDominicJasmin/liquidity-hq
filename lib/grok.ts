@@ -38,8 +38,8 @@ export interface GrokUsageInfo {
  * the server, because they are instructions rather than data and this call is caller-controlled.
  */
 /** Client deadlines for the read call (ms). Exported so the PR table and the tests name the same numbers. */
-export const GROK_QUICK_TIMEOUT_MS = 90_000;
-export const GROK_DEEP_TIMEOUT_MS = 200_000;
+export { GROK_QUICK_TIMEOUT_MS, GROK_DEEP_TIMEOUT_MS } from './grokDeadlines.ts';
+import { GROK_QUICK_TIMEOUT_MS, GROK_DEEP_TIMEOUT_MS } from './grokDeadlines.ts';
 
 export async function callGrokViaProxy(
   ctx: GrokContext,

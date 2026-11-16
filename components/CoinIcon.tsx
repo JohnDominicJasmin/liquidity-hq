@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import type { CoinId } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
+import { COIN_ICON_IDS } from '@/lib/coinIconSet';
 
 /** Crypto coin icon - locally bundled real logo for every supported coin (public/coin-icons/{coin}.png). */
 /* `square` exists because the radius is set INLINE below, and an inline style
@@ -37,11 +38,12 @@ export default function CoinIcon({ coin, size = 22, color, bg, square = false, d
   const round = !square && size <= 24;   // radius-ruling.md: 50% only at 24px or under
   const cls = round ? 'coin-icon coin-icon-round' : 'coin-icon';
   const [failed, setFailed] = useState(false);
+  const hasIcon = COIN_ICON_IDS.has(coin);   // a coin with no bundled file never requests one
   const src = `/coin-icons/${coin}.png`;
-  // Every supported coin has a bundled icon file, so this should never trigger. If a file is
-  // ever missing, fall back to a plain neutral shape in the same silhouette as
+  // A coin with no bundled file (COIN_ICON_IDS) lands here without any request; a listed file that still fails to load lands here too.
+  // The fallback is a plain neutral shape in the same silhouette as
   // the icon it replaces - never a letter/text abbreviation.
-  if (failed) {
+  if (failed || !hasIcon) {
     return (
       <span className={cls} style={{
         width: size, height: size, borderRadius: radius, flexShrink: 0,

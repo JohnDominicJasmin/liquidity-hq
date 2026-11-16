@@ -1,4 +1,3 @@
-import { deadlineSignal } from './deadlineSignal.ts';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 let _client: SupabaseClient | null = null;
@@ -9,27 +8,32 @@ let _client: SupabaseClient | null = null;
  * could wait until the browser gave up. Generous enough for a slow but working
  * database; shorter than the 22 s entitlements budget so a retry still fits. */
 export const SUPABASE_FETCH_TIMEOUT_MS = 15000;
+/** The most a read may take from start to the last byte of its body (the 15 s above only covers the answer starting). */
+export const SUPABASE_BODY_TIMEOUT_MS = 60000;
 
 /** fetch with a deadline that still honours the caller's own abort signal.
  *  ONLY READS (GET/HEAD) are abandoned: a write that reaches the database but is slow to answer must not be aborted client-side, or the UI would report a failure for a row that exists and a retry would duplicate it (a journal trade, a settings save). Writes, storage uploads and auth calls keep the platform's own behaviour. */
 export function fetchWithDeadline(input: RequestInfo | URL, init?: RequestInit, ms = SUPABASE_FETCH_TIMEOUT_MS): Promise<Response> {
   const method = (init?.method ?? (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')).toUpperCase();
   if (method !== 'GET' && method !== 'HEAD') return fetch(input, init);
-  const deadline = deadlineSignal(ms);
+  /* THE 15 s IS FOR THE ANSWER TO START, NOT FOR THE WHOLE BODY. AbortSignal.timeout(ms) also cuts a body that is still arriving, so a big read (a long history, a large list) on a slow phone failed with a false error
+   * while data was flowing. Now: no response headers within `ms` aborts as before (the owner rule: nothing waits forever); once they arrive the body gets until SUPABASE_BODY_TIMEOUT_MS from the start, still finite. */
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(new DOMException('The operation timed out.', 'TimeoutError')), ms);
   const own = init?.signal;
-  let signal: AbortSignal = deadline;
   if (own) {
-    if (typeof AbortSignal.any === 'function') signal = AbortSignal.any([own, deadline]);
-    else {
-      const c = new AbortController();
-      const abort = () => c.abort();
-      own.addEventListener('abort', abort, { once: true });
-      deadline.addEventListener('abort', abort, { once: true });
-      if (own.aborted || deadline.aborted) c.abort();
-      signal = c.signal;
-    }
+    if (own.aborted) ctl.abort(own.reason);
+    else own.addEventListener('abort', () => ctl.abort(own.reason), { once: true });
   }
-  return fetch(input, { ...init, signal });
+  const startedAt = Date.now();
+  return fetch(input, { ...init, signal: ctl.signal }).then(res => {
+    clearTimeout(timer);
+    const left = Math.max(0, SUPABASE_BODY_TIMEOUT_MS - (Date.now() - startedAt));
+    const bodyTimer = setTimeout(() => ctl.abort(new DOMException('The operation timed out.', 'TimeoutError')), left);
+    /* Aborting after the body has finished is a no-op, so the timer needs no completion tracking; it only cuts a body that is still arriving at the cap. */
+    ctl.signal.addEventListener('abort', () => clearTimeout(bodyTimer), { once: true });
+    return res;
+  }, e => { clearTimeout(timer); throw e; });
 }
 
 export function getSupabase(): SupabaseClient | null {
