@@ -213,11 +213,10 @@ function recipientChatIds(recipients: Recipient[], mutedByUser: Map<string, Set<
 interface UserThresholds { rsiOb: number; rsiOs: number; squeezeThreshold: number; antiChopEnabled: boolean }
 const DEFAULT_THRESHOLDS: UserThresholds = { rsiOb: 70, rsiOs: 30, squeezeThreshold: 70, antiChopEnabled: false };
 
-// Fail-open: if Supabase is unreachable, every recipient falls back to
-// DEFAULT_THRESHOLDS - identical to what an unconfigured user already gets,
-// so a fetch failure never changes delivery behavior.
-async function fetchThresholdsByUser(): Promise<Map<string, UserThresholds>> {
-  const fallback = new Map<string, UserThresholds>();
+/* UNKNOWN IS NOT "DEFAULT" (B6). A read that failed or took over 5 s used to hand every recipient the canonical thresholds (and, for mutes, an empty set), so a slow database meant users got alerts they had muted
+   and the 4 h cooldown was then consumed. The result is now null when it could not be read, and the run does not send signal alerts without it (the caller). */
+async function fetchThresholdsByUser(): Promise<Map<string, UserThresholds> | null> {
+  const fallback = null;
   const query = (async () => {
     try {
       const db = getSupabaseAdmin();
@@ -238,8 +237,8 @@ async function fetchThresholdsByUser(): Promise<Map<string, UserThresholds>> {
       return map;
     } catch { return fallback; }
   })();
-  // 5s cap - if Supabase is slow, fail-open (canonical defaults for everyone)
-  const cap = new Promise<Map<string, UserThresholds>>(res => setTimeout(() => res(fallback), 5_000));
+  // 5s cap - a slow read is UNKNOWN (null), not the defaults
+  const cap = new Promise<Map<string, UserThresholds> | null>(res => setTimeout(() => res(fallback), 5_000));
   return Promise.race([query, cap]);
 }
 
@@ -1462,7 +1461,7 @@ async function checkDailySummary(
   frMap: Record<string, number | null>
 ): Promise<string[]> {
   const d = new Date();
-  // Each recipient's OWN local 7:00-7:10am window, not one fixed instant that
+  // Each recipient's OWN local 7:00-7:30am window, not one fixed instant that
   // only actually meant "morning" for subscribers in one particular zone. This used to
   // gate the entire function on a single `(getUTCHours()+8)%24 === 7` check -
   // correct for that zone, but a "7am summary" that always lands at 7pm the
@@ -1477,7 +1476,8 @@ async function checkDailySummary(
     /* UTC when we do not know the recipient's zone (owner, 2026-10-31) - see localHourMinute. */
     const zone = CHAT_TZ.get(r.chatId) || 'UTC';
     const { hour, min } = localHourMinute(zone, d);
-    if (hour !== 7 || min > 10) continue;
+    /* The first 30 minutes of the local 7 o'clock (was 10): the cron ticks every 5 minutes and two missed or slow ticks in a row used to skip the whole day's briefing. One send per day is still guaranteed by the per-chat cooldown. */
+    if (hour !== 7 || min > 30) continue;
     const cdKey = `daily_summary_${r.chatId}`;
     if (onCooldown(cdKey, CD.daily)) continue;
     markSent(cdKey);
@@ -2159,10 +2159,9 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
 /* Muted alert groups - set on /alerts page, stored in Supabase, one row per
    (user_id, key) since 2026-07-17 (previously a single global table - any
    user's mute silenced everyone's Telegram feed, see
-   supabase/migrations/20260717_muted_alerts_per_user.sql). Fail-open: if
-   Supabase is unreachable, nothing is muted for anyone. */
-async function fetchMutedKeysByUser(): Promise<Map<string, Set<string>>> {
-  const fallback = new Map<string, Set<string>>();
+   supabase/migrations/20260717_muted_alerts_per_user.sql). null = the read failed or timed out: UNKNOWN, not "nothing muted" (B6, see fetchThresholdsByUser). */
+async function fetchMutedKeysByUser(): Promise<Map<string, Set<string>> | null> {
+  const fallback = null;
   const query = (async () => {
     try {
       const db = getSupabaseAdmin();
@@ -2182,8 +2181,8 @@ async function fetchMutedKeysByUser(): Promise<Map<string, Set<string>>> {
       return map;
     } catch { return fallback; }
   })();
-  // 5s cap - if Supabase is slow, fail-open (no keys muted)
-  const cap = new Promise<Map<string, Set<string>>>(res => setTimeout(() => res(fallback), 5_000));
+  // 5s cap - a slow read is UNKNOWN (null), not an empty mute list
+  const cap = new Promise<Map<string, Set<string>> | null>(res => setTimeout(() => res(fallback), 5_000));
   return Promise.race([query, cap]);
 }
 
@@ -2568,9 +2567,20 @@ async function runAlerts(token: string): Promise<NextResponse> {
   resetRunCounters(); // #1651: klines requests made, cache reads and the per-pass open-interest memo
 
   // Fetch shared data once (+ per-user muted alert groups + threshold settings)
-  const [frMap, prices, lsMap, mutedByUser, thresholdsByUser] = await Promise.all([
+  const [frMap, prices, lsMap, mutedRaw, thresholdsRaw] = await Promise.all([
     fetchAllFR(skipCounts), fetchSpotPrices(skipCounts), fetchAllLSR(skipCounts), fetchMutedKeysByUser(), fetchThresholdsByUser(),
   ]);
+
+  /* MUTES OR THRESHOLDS UNREADABLE (B6): the signal alerts are NOT sent this run. Without them every recipient would be treated as having muted nothing and as using the default thresholds, and the alerts they muted would go out and
+     burn their cooldowns. Price alerts depend on neither, so they still run; every cooldown mark is dropped; the next tick tries again; a health row says why. */
+  if (!mutedRaw || !thresholdsRaw) {
+    const priceFired = await checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds);
+    discardStagedMarks();
+    reportHealth('alert:prefs', 'delivery', false, `${!mutedRaw ? 'mutes' : 'thresholds'} could not be read; signal alerts skipped this run, price alerts still sent (${priceFired.length})`);
+    return NextResponse.json({ ok: true, skipped: 'prefs_unreadable', fired: priceFired, delivery: { sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons] } });
+  }
+  const mutedByUser = mutedRaw;
+  const thresholdsByUser = thresholdsRaw;
 
   /* #1630 GO-LIVE 2: a trial gets signals on BTC / ETH / SOL only (owner rule, #1596), the same ladder as Free - paid Pro gets every coin. The page
      already withheld the rest; the Telegram cron did not, so a trial user received server-sent signals on every coin. The per-recipient mute path
