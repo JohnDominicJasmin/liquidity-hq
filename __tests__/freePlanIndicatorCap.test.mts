@@ -144,3 +144,16 @@ test('S1. /api/grok applies selectionForPlan from its own plan read BEFORE build
   assert.ok(cap > 0 && build > cap, 'the cap is missing or runs after the prompt is built');
   assert.ok(src.slice(build, build + 140).startsWith('buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, planSelection)'), 'the prompt is built from the UNCAPPED selection');
 });
+
+/* #2466 follow-up (c2b15cd0): the chart still drew all four for Free because KLineProChart got the raw saved list. Now `savedStrategySelection` is the stored state and `strategySelection` is the plan-capped value that EVERY reader uses. */
+const arena = (() => { const t = readFileSync(new URL('../app/(main)/arena/page.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n'); return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1'); })();
+test('S2. the Arena page: the SAVED list is read in exactly one place (the cap); every other reader gets the plan-capped strategySelection', () => {
+  assert.ok(arena.includes('const [savedStrategySelection, setStrategySelection] = useState<readonly string[]>([]);'), 'CONTROL: the saved state declaration moved');
+  assert.ok(arena.includes('const strategySelection = useMemo(() => selectionForPlan(savedStrategySelection, planKnownFree), [savedStrategySelection, planKnownFree]);'), 'the cap is not the only derivation of strategySelection');
+  assert.equal(arena.split('savedStrategySelection').length - 1, 3, 'savedStrategySelection is read somewhere besides the declaration and the cap (a reader that sees the raw saved list shows a Free account four indicators)');
+});
+test('S3. the chart\'s indicators prop is the plan-capped selection', () => {
+  const chart = /<KLineProChart [^>]*indicators=\{([A-Za-z]+)\}/.exec(arena);
+  assert.ok(chart, 'CONTROL: the KLineProChart element or its indicators prop was not found');
+  assert.equal(chart![1], 'strategySelection', `the chart reads ${chart![1]}: for a Free account that is the raw saved list, so all four are drawn`);
+});
