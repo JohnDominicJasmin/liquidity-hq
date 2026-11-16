@@ -59,7 +59,8 @@ async function bodyHash(page: Page): Promise<string> {
 
 for (const persona of PERSONAS) for (const width of WIDTHS) for (const path of PAGES) {
   test(`explore ${persona} ${width} ${path}`, async ({ browser }) => {
-    test.skip(persona !== 'out' && !AUTH_READY, 'fixture accounts are not configured');
+    /* ON PRODUCTION (E2E_ALLOW_PRODUCTION=1) ONLY THE SIGNED-OUT PERSONA RUNS: there is no production test account (#1259), and this pass never signs in or creates anything there. The click pass skips sign-in, sign-up, send, submit, save, subscribe and buy controls, and every write is stubbed to an empty success before it leaves the browser. */
+    test.skip(persona !== 'out' && (!AUTH_READY || process.env.E2E_ALLOW_PRODUCTION === '1'), 'fixture accounts are not configured, or this is a production run (signed out only)');
     test.setTimeout(300_000);
     const ctx = await open(browser, persona, width);
     const page = await ctx.newPage();
