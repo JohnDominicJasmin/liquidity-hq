@@ -3,8 +3,8 @@ import { AI_TOOL_LIMITS } from '@/lib/aiInputLimits';
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
-import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
+import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, blockedResponse } from '@/lib/aiUsage';
+import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -38,7 +38,7 @@ function buildThesisPrompt(
     '',
     '=== THESIS HEALTH CHECK ===',
     '',
-    'Using your current knowledge of crypto markets and the specific coin, evaluate each assumption and the overall thesis.',
+    'You have no live price or market data here. Using your general knowledge of crypto markets and the specific coin, evaluate each assumption and the overall thesis, and say "cannot tell" where you cannot judge an assumption without current data. Do not tell the trader to hold, reduce or exit.',
     '',
     'Output using EXACTLY these headers (no markdown bold, no extra text):',
     'ASSUMPTION_CHECK:',
@@ -47,8 +47,6 @@ function buildThesisPrompt(
     '[Overall 1-10 score. Format: "Score: X/10 - [one sentence justification]". 8-10 = thesis intact, 5-7 = concerns emerging, 1-4 = thesis breaking down]',
     'KEY_RISK:',
     '[The single biggest threat to this thesis right now in one sentence]',
-    'RECOMMENDATION:',
-    '[Should the trader hold, reduce exposure, or exit? One specific actionable sentence based on thesis health]',
   ].join('\n');
 }
 
@@ -64,9 +62,8 @@ export async function POST(req: NextRequest) {
   // check a free account could still spend real xAI budget here, which is
   // what the pricing page says it cannot. Trial users pass - hasProFeatures
   // covers isTrial.
-  if (!(await hasProFeatures(token, authData.user.id))) {
-    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Thesis Check is a Pro feature.' }, { status: 403 });
-  }
+  const plan = await requireProPlan(token, authData.user.id, 'Thesis Check is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
@@ -92,21 +89,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'INVALID_INPUT', message: 'One of the fields is the wrong type or too long.' }, { status: 400 });
   }
 
-  const role = await getUsageTier(token, authData.user.id);
+  /* The direction goes into the first line of the prompt, so it is one of two words and not free text; a whitespace-only thesis or an assumption list
+     that is empty once blanks are removed is refused before it can cost a use (PM audit B12). */
+  const directionWord = direction.trim().toUpperCase();
+  const cleanAssumptions = assumptions.map(a => a.trim()).filter(Boolean);
+  if ((directionWord !== 'LONG' && directionWord !== 'SHORT') || !thesisText.trim() || cleanAssumptions.length === 0) {
+    return NextResponse.json({ error: 'INVALID_INPUT', message: 'Direction must be LONG or SHORT, and the thesis and at least one assumption must have text.' }, { status: 400 });
+  }
+
+  const role = plan.tier;
+  /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
+  const reservedOn = todayUtc();
   const usageResult = await incrementToolUsage(authData.user.id, 'thesisCheck', role);
   if (usageResult.blocked) {
-    return NextResponse.json(
-      { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'thesis checks'), code: 'RATE_LIMIT' },
-      { status: 429 },
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'thesis checks'));
   }
 
   const prompt = buildThesisPrompt(
     symbol.toUpperCase(),
-    direction,
+    directionWord,
     entryDate ?? new Date().toISOString().slice(0, 10),
-    thesisText,
-    assumptions.filter(Boolean),
+    thesisText.trim(),
+    cleanAssumptions,
   );
 
   const res = await xaiFetch('https://api.x.ai/v1/chat/completions', {
@@ -117,9 +121,10 @@ export async function POST(req: NextRequest) {
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 700,
     }),
-  });
+  }).catch(async (e: unknown) => { await refundToolUsage(authData.user.id, 'thesisCheck', reservedOn); throw e; });
 
   if (!res.ok) {
+    await refundToolUsage(authData.user.id, 'thesisCheck', reservedOn);
     const err = await res.json().catch(() => ({})) as { error?: string };
     return apiError('thesis-check', err.error ?? 'upstream AI error', 502, 'AI service error');
   }

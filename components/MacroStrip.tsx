@@ -1,9 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useMarket } from '@/lib/marketStore';
+import { useLabels } from '@/lib/labels';
 
 export default function MacroStrip() {
   const { store } = useMarket();
+  const { t } = useLabels();
   const [jpyUsd, setJpyUsd] = useState<number | null>(null);
 
   useEffect(() => {
@@ -13,8 +15,8 @@ export default function MacroStrip() {
         .then((d: { jpy?: number }) => { if (d?.jpy) setJpyUsd(d.jpy); })
         .catch(() => {});
     load();
-    const t = setInterval(load, 5 * 60_000);
-    return () => clearInterval(t);
+    const timer = setInterval(load, 5 * 60_000);
+    return () => clearInterval(timer);
   }, []);
 
   const jpyCol = jpyUsd == null ? 'var(--txt3)'
@@ -22,9 +24,9 @@ export default function MacroStrip() {
     : jpyUsd >= 158 ? 'var(--amber)'
     : 'var(--green)';
   const jpySig = jpyUsd == null ? null
-    : jpyUsd >= 160 ? { txt: 'BOJ intervention risk', col: 'var(--red)' }
-    : jpyUsd >= 158 ? { txt: 'Approaching danger', col: 'var(--amber)' }
-    : { txt: 'Carry trade stable', col: 'var(--green)' };
+    : jpyUsd >= 160 ? { txt: t('MACRO_STRIP_JPY_INTERVENTION'), col: 'var(--red)' }
+    : jpyUsd >= 158 ? { txt: t('MACRO_STRIP_JPY_APPROACHING'), col: 'var(--amber)' }
+    : { txt: t('MACRO_STRIP_JPY_CARRY_STABLE'), col: 'var(--green)' };
 
   const items = [
     {
@@ -32,33 +34,33 @@ export default function MacroStrip() {
       price: store.dxy,
       chg: store.dxyChg,
       fmt: (v: number) => v.toFixed(2),
-      signal: (chg: number) => chg > 0.2 ? { txt: 'USD strength → BTC headwind', col: 'var(--red)' }
-                              : chg < -0.2 ? { txt: 'USD weakness → BTC tailwind', col: 'var(--green)' }
-                              : { txt: 'Neutral', col: 'var(--txt3)' },
+      signal: (chg: number) => chg > 0.2 ? { txt: t('MACRO_STRIP_DXY_UP'), col: 'var(--red)' }
+                              : chg < -0.2 ? { txt: t('MACRO_STRIP_DXY_DOWN'), col: 'var(--green)' }
+                              : { txt: t('MACRO_STRIP_NEUTRAL'), col: 'var(--txt3)' },
     },
     {
       label: 'SPX',
       price: store.spx,
       chg: store.spxChg,
       fmt: (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 }),
-      signal: (chg: number) => chg > 0.3 ? { txt: 'Risk-on → crypto tailwind', col: 'var(--green)' }
-                              : chg < -0.5 ? { txt: 'Risk-off → crypto headwind', col: 'var(--red)' }
-                              : { txt: 'Neutral', col: 'var(--txt3)' },
+      signal: (chg: number) => chg > 0.3 ? { txt: t('MACRO_STRIP_SPX_UP'), col: 'var(--green)' }
+                              : chg < -0.5 ? { txt: t('MACRO_STRIP_SPX_DOWN'), col: 'var(--red)' }
+                              : { txt: t('MACRO_STRIP_NEUTRAL'), col: 'var(--txt3)' },
     },
     {
-      label: 'Gold',
+      label: t('MACRO_STRIP_GOLD'),
       price: store.gold,
       chg: store.goldChg,
       fmt: (v: number) => '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }),
-      signal: (chg: number) => chg > 0.5 ? { txt: 'Safe haven bid → mild risk-off', col: 'var(--amber)' }
-                              : chg < -0.5 ? { txt: 'Gold falling → risk appetite up', col: 'var(--green)' }
-                              : { txt: 'Neutral', col: 'var(--txt3)' },
+      signal: (chg: number) => chg > 0.5 ? { txt: t('MACRO_STRIP_GOLD_UP'), col: 'var(--amber)' }
+                              : chg < -0.5 ? { txt: t('MACRO_STRIP_GOLD_DOWN'), col: 'var(--green)' }
+                              : { txt: t('MACRO_STRIP_NEUTRAL'), col: 'var(--txt3)' },
     },
   ];
 
   return (
     <div className="macro-strip">
-      <div className="macro-strip-title">Macro Correlations</div>
+      <div className="macro-strip-title">{t('MACRO_STRIP_TITLE')}</div>
       <div className="macro-strip-row">
         {items.map(({ label, price, chg, fmt, signal }) => {
           const sig = chg != null ? signal(chg) : null;
@@ -88,7 +90,7 @@ export default function MacroStrip() {
           </div>
           <div className="macro-item-chg" style={{ color: jpyCol }}>
             {jpyUsd != null
-              ? jpyUsd >= 160 ? 'Danger' : jpyUsd >= 158 ? 'Warning' : 'Safe'
+              ? jpyUsd >= 160 ? t('MACRO_STRIP_JPY_DANGER') : jpyUsd >= 158 ? t('MACRO_STRIP_JPY_WARNING') : t('MACRO_STRIP_JPY_SAFE')
               : '-'}
           </div>
           {jpySig && (

@@ -18,6 +18,7 @@ import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { TEXT_LIMITS } from '@/lib/ownRowLimits';
+import AiDisclaimer from '@/components/AiDisclaimer';
 
 type Direction = 'LONG' | 'SHORT';
 type TradeResult = 'OPEN' | 'WIN' | 'LOSS' | 'BE';
@@ -145,6 +146,9 @@ function fmtUSD(v: number | null | undefined, showSign = true) {
    Falls back to this whenever a trade's stored pnl_r is null (legacy rows
    closed before risk_usd was reliably captured - see QA-1), so a real
    winning/losing trade never silently drops out of the R stats. */
+/** How many of a user's newest trades the journal loads. The stats cover these, and say so when the cap is reached. */
+const JOURNAL_TRADES_LIMIT = 200;
+
 function tradeR(tr: Trade): number | null {
   if (tr.pnl_r != null) return tr.pnl_r;
   if (tr.exit_price == null) return null;
@@ -202,6 +206,7 @@ function ShadowAccountResult({ text }: { text: string }) {
           </div>
         );
       })}
+      <AiDisclaimer />
     </div>
   );
 }
@@ -239,6 +244,7 @@ function BiasResult({ text }: { text: string }) {
           </div>
         );
       })}
+      <AiDisclaimer />
     </div>
   );
 }
@@ -263,11 +269,10 @@ const THESIS_CHECK_SECTIONS: { key: string; labelKey: LabelKey; color?: string }
   { key: 'ASSUMPTION_CHECK', labelKey: 'TRADE_JOURNAL_THESIS_SECTION_ASSUMPTION_CHECK' },
   { key: 'THESIS_HEALTH',    labelKey: 'TRADE_JOURNAL_THESIS_SECTION_HEALTH_SCORE', color: 'var(--accent)' },
   { key: 'KEY_RISK',         labelKey: 'TRADE_JOURNAL_THESIS_SECTION_KEY_RISK',      color: 'var(--red)' },
-  { key: 'RECOMMENDATION',   labelKey: 'TRADE_JOURNAL_THESIS_SECTION_RECOMMENDATION', color: 'var(--green)' },
 ];
 
 function parseThesisSection(text: string, key: string): string {
-  const regex = new RegExp(key + ':\\s*([\\s\\S]*?)(?=' + THESIS_CHECK_SECTIONS.map(s => s.key).join(':|') + ':|$)');
+  const regex = new RegExp(key + ':\\s*([\\s\\S]*?)(?=' + THESIS_CHECK_SECTIONS.map(s => s.key).concat('RECOMMENDATION').join(':|') + ':|$)');   /* RECOMMENDATION stays a boundary so an older stored check still parses */
   return (text.match(regex)?.[1] ?? '').trim();
 }
 
@@ -406,7 +411,7 @@ function Inner() {
       .from(T.trades)
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(200);
+      .limit(JOURNAL_TRADES_LIMIT);
     // #1342: an error (a failed read, a 401 before the token is ready) must NOT
     // leave `trades` at [] and fall through to the "no trades yet" empty state -
     // that reads as "you have no trades" to someone who has trades. Flag it so
@@ -702,7 +707,9 @@ function Inner() {
       error = res2.error;
     }
 
+    if (error) setSaveFailed(true);
     if (!error) {
+      setSaveFailed(false);
       track.journalSaved('OPEN');
       await loadTrades();
       setEntry(''); setStopLoss(''); setTpPrice(''); setPosUSD(''); setLeverage(8); setNotes('');
@@ -740,7 +747,9 @@ function Inner() {
       result = exitNum === trade.entry_price ? 'BE' : profitable ? 'WIN' : 'LOSS';
     }
 
-    await db.from(T.trades).update({ exit_price: exitNum, result, pnl_usd, pnl_r }).eq('id', trade.id);
+    setSaveFailed(false);
+    const { error: closeErr } = await db.from(T.trades).update({ exit_price: exitNum, result, pnl_usd, pnl_r }).eq('id', trade.id);
+    if (closeErr) { setSaveFailed(true); return; }   // keep the exit price typed and the form open
     setClosingId(null);
     setExitInput('');
     await loadTrades();
@@ -750,6 +759,8 @@ function Inner() {
      looked like a success until the next reload brought the trade back. Only a delete the database confirmed
      removes it, and a failure says so. */
   const [deleteFailed, setDeleteFailed] = useState(false);
+  /* J2: a failed save, close or edit used to look like it worked (the form cleared, the list reloaded, the trade silently stayed as it was). Only a write the database confirmed closes the form; a failure says so and keeps what was typed. */
+  const [saveFailed, setSaveFailed] = useState(false);
   const deleteTrade = async (id: string) => {
     const db = getSupabase();
     if (!db) return;
@@ -773,12 +784,40 @@ function Inner() {
   const saveEdit = async (trade: Trade) => {
     const db = getSupabase();
     if (!db || !trade.id) return;
-    await db.from(T.trades).update({
+    const exitNum = editDraft.exit_price ? parseFloat(editDraft.exit_price) : null;
+    const pnlTyped = editDraft.pnl_usd ? parseFloat(editDraft.pnl_usd) : null;
+    const exitChanged = (exitNum ?? null) !== (trade.exit_price ?? null);
+    const pnlTouched = (pnlTyped ?? null) !== (trade.pnl_usd ?? null);
+    const resultTouched = editDraft.result !== trade.result;
+    const patch: Record<string, unknown> = {
       result:     editDraft.result,
-      exit_price: editDraft.exit_price ? parseFloat(editDraft.exit_price) : null,
-      pnl_usd:    editDraft.pnl_usd    ? parseFloat(editDraft.pnl_usd)    : null,
+      exit_price: exitNum,
+      pnl_usd:    pnlTyped,
       notes:      editDraft.notes || null,
-    }).eq('id', trade.id);
+    };
+    /* J1: the stored R and PnL followed the OLD exit price, so an edited exit left the result, the PnL and the R contradicting each other (the stats read the stored pnl_r first). When the exit price changed, they are
+       recomputed with the same formulas closeTrade uses. A PnL the user typed by hand is theirs and is kept; a result they changed by hand is kept too. */
+    if (exitChanged) {
+      const dir = trade.direction === 'LONG' ? 1 : -1;
+      const stopDist = Math.abs(trade.entry_price - trade.stop_loss);
+      if (exitNum != null && Number.isFinite(exitNum) && exitNum > 0) {
+        patch.pnl_r = stopDist > 0 ? ((exitNum - trade.entry_price) * dir) / stopDist : null;
+        if (!pnlTouched && trade.position_size_usd && trade.entry_price) {
+          patch.pnl_usd = (exitNum - trade.entry_price) * (trade.position_size_usd / trade.entry_price) * dir;
+        }
+        if (!resultTouched) {
+          const usd = patch.pnl_usd as number | null;
+          patch.result = usd != null
+            ? (usd > 0.01 ? 'WIN' : usd < -0.01 ? 'LOSS' : 'BE')
+            : (exitNum === trade.entry_price ? 'BE' : ((exitNum > trade.entry_price) === (trade.direction === 'LONG') ? 'WIN' : 'LOSS'));
+        }
+      } else {
+        patch.pnl_r = null;   // no exit price: no R to report
+      }
+    }
+    setSaveFailed(false);
+    const { error: editErr } = await db.from(T.trades).update(patch).eq('id', trade.id);
+    if (editErr) { setSaveFailed(true); return; }   // keep the edit form and what was typed
     setEditingId(null);
     await loadTrades();
   };
@@ -1073,6 +1112,11 @@ function Inner() {
         </div>
       )}
 
+      {saveFailed && (
+        <div role="alert" data-testid="journal-save-failed" style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 8 }}>
+          {t('TRADE_JOURNAL_NETWORK_ERROR')}
+        </div>
+      )}
       {/* ──────── HISTORY TAB ──────── */}
       {tab === 'history' && (
         <div>
@@ -1913,6 +1957,7 @@ function Inner() {
                           </div>
                         );
                       })}
+                      <AiDisclaimer />
                     </div>
                   )}
 
@@ -1988,6 +2033,11 @@ function Inner() {
                 </div>
               )}
 
+              {trades.length >= JOURNAL_TRADES_LIMIT && (
+                <div data-testid="journal-stats-capped" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 10 }}>
+                  {t('TRADE_JOURNAL_STATS_NEWEST_NOTE', { n: JOURNAL_TRADES_LIMIT })}
+                </div>
+              )}
               <div className="tj-stats-grid">
                 <div className="tj-stat">
                   <div className="tj-stat-lbl"><Tip width={230} text={t('TRADE_JOURNAL_STATS_WIN_RATE_TOOLTIP')}>{t('TRADE_JOURNAL_STATS_WIN_RATE_LABEL')}</Tip></div>

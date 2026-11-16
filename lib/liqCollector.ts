@@ -60,12 +60,13 @@ export function parseBinanceForceOrder(raw: string, ts: number): LiqRow | null {
     const msg = JSON.parse(raw);
     const o = msg?.data?.o ?? msg?.o;
     if (!o) return null;
-    /* PARTIALLY_FILLED counts: `z` is the accumulated FILLED quantity, which was really liquidated. NEW/EXPIRED/CANCELED with nothing filled fall out below on z. */
-    if (o.X && o.X !== 'FILLED' && o.X !== 'PARTIALLY_FILLED') return null;
+    /* ONLY FILLED IS STORED. `z` is the ACCUMULATED filled quantity of the order, so a PARTIALLY_FILLED event carries a running total and the payload has no order id to tell its successive events apart: counting each partial event as its own row
+       would double-count the same order. A FILLED event's z (equal to q) is the whole order, once. Value = z x ap (average price), as Binance documents. */
+    if (o.X && o.X !== 'FILLED') return null;
     const priceAp = parseFloat(o.ap ?? '0');
     const priceP = parseFloat(o.p ?? '0');
     const price = priceAp > 0 ? priceAp : priceP;
-    const qty = parseFloat(o.X === 'PARTIALLY_FILLED' ? (o.z ?? '0') : (o.z ?? o.q ?? '0'));
+    const qty = parseFloat(o.z ?? o.q ?? '0');
     if (!(price > 0) || !(qty > 0)) return null;
     return toRow(String(o.s ?? ''), o.S === 'SELL' ? 'LONG' : 'SHORT', price * qty, price, 'BN', eventTs(o.T ?? msg?.data?.E, ts));
   } catch { return null; }
@@ -164,7 +165,7 @@ export function startLiqCollector(): void {
 
   const bnStreams = Object.values(BINANCE_SYMS).map(s => `${s.toLowerCase()}@forceOrder`).join('/');
   connect(c, 0, 'binance', BINANCE_STALE_MS,
-    () => new WebSocket(`wss://fstream.binance.com/stream?streams=${bnStreams}`),
+    () => new WebSocket(`wss://fstream.binance.com/market/stream?streams=${bnStreams}`),
     () => { /* the combined stream subscribes by URL */ },
     data => push(parseBinanceForceOrder(data, Date.now())));
 

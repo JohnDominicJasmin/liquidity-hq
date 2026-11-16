@@ -82,7 +82,18 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({ chat_id: chatId, text: sanitizeTelegramHtml(message), parse_mode: 'HTML' }),
     signal: AbortSignal.timeout(10_000),
   });
-  const data = await res.json().catch(() => null) as { ok?: boolean } | null;
+  let data = await res.json().catch(() => null) as { ok?: boolean } | null;
+  if (!data?.ok && res.status === 400) {
+    /* An unbalanced <b> or <i> makes Telegram refuse the whole message (PM audit C11). Send it again as plain text, tags removed, rather than failing. */
+    const plain = message.replace(/<\/?(b|i)>/gi, '');
+    const retry = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: plain }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    data = await retry.json().catch(() => null) as { ok?: boolean } | null;
+  }
   if (!data?.ok) return NextResponse.json({ error: 'Telegram send failed' }, { status: 502 });
   return NextResponse.json({ ok: true });
 }
