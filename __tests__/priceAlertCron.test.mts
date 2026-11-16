@@ -65,6 +65,9 @@ const world = {
   prices: {} as Record<string, number>,
   omit: [] as string[],                                      // symbols the bulk TICKERS answer leaves out (a coin the bulk price map does not carry)
   fail: false,                                               // price endpoints answer 502 (a failed bulk or klines answer)
+  failOff: [] as number[],                                   // alert ids whose switch-off PATCH answers 500 (#2425 B1)
+  fng: null as number | null,                                // the Fear & Greed value alternative.me answers with; null = unavailable, as before (#2425 B2)
+  allMessages: [] as string[],                               // EVERY Telegram message, whatever it is
   oiSyms: [] as string[],                                    // the symbol of every open-interest request, to count requests per coin
   realistic: false,                                          // serve real klines / tickers / open-interest instead of empty lists (see `realistic` below)                      // extra spot prices by symbol, e.g. ETHUSDT, for the multi-coin cells
 };
@@ -124,6 +127,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = new URL(req.url);
   if (url.host === 'api.telegram.org') {
     const body = JSON.parse(await req.text()) as { text: string };
+    world.allMessages.push(body.text);
     if (body.text.includes('Price Alert Triggered')) world.priceAlertMessages.push(body.text);
     return world.telegram === 'ok' ? json(200, { ok: true }) : json(403, { ok: false, description: 'Forbidden: bot was blocked by the user' });
   }
@@ -133,6 +137,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const spot = [{ symbol: 'BTCUSDT', lastPrice: String(world.btc) }, ...Object.entries(world.prices).map(([symbol, p]) => ({ symbol, lastPrice: String(p) }))];
     return json(200, { retCode: 0, result: { list: url.searchParams.get('category') === 'spot' ? spot : [] } });
   }
+  if (url.host === 'api.alternative.me' && world.fng !== null) return json(200, { data: [{ value: String(world.fng), value_classification: 'Extreme Fear', timestamp: String(Math.floor(Date.now() / 1000)) }] });
   if (url.origin !== SUPABASE) return new Response('unavailable in the QA stand-in', { status: 503 });
   const p = url.pathname, m = req.method;
   if (p.endsWith('app_config')) {
@@ -146,6 +151,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (m === 'PATCH') {
       const ids = (url.searchParams.get('id') ?? '').replace(/^in\.\(|\)$/g, '').split(',').filter(Boolean).map(Number);
       const patch = JSON.parse(await req.text()) as { active?: boolean };
+      if (patch.active === false && ids.some((i) => world.failOff.includes(i))) return json(500, { code: 'XX000', message: 'switch-off boom' });
       if (patch.active === false) { world.switchedOff.push(ids); for (const a of world.alerts) if (ids.includes(a.id)) a.active = false; }
       return new Response(null, { status: 204 });
     }
@@ -462,4 +468,51 @@ test('B8. the hour boundary: after it, the next pass refetches the closed hourly
       assert.ok(after300 >= 40, 'after the hour boundary the series was not refetched once per coin (' + after300 + ' reads): stale candles would be served');
     }
   } finally { resetWorld(); }
+});
+
+/* ── #2425: B1 switch-off per alert (a failing write for one alert); B2 cooldowns consumed only when the run delivered ─────────────────────────────────────────────────────────────────────── */
+const fngSent = () => world.allMessages.filter((m) => /Fear &amp; Greed/.test(m)).length;
+const resetB = () => { world.failOff = []; world.fng = null; world.telegram = 'ok'; world.sendingOff = false; world.alerts = []; world.realistic = false; };
+
+test('NB1. an alert whose switch-off write FAILS is not sent again on the next tick; the others are consumed; the write is retried and lands when the database recovers', async () => {
+  try {
+    resetB(); tick(30 * MIN); world.btc = 101_000;
+    world.alerts = [alert(701), alert(702), alert(703)]; world.failOff = [702];
+    const sent0 = world.priceAlertMessages.length, off0 = world.switchedOff.length;
+    await run();
+    assert.equal(sentSince(sent0).length, 3, 'all three triggered alerts should be delivered once');
+    assert.deepEqual(world.switchedOff.slice(off0).flat().sort(), [701, 703], 'the two writes that worked must each have been issued for their own alert');
+    assert.equal(world.alerts.find((a) => a.id === 702)?.active, true, 'the failed switch-off leaves 702 active in the database');
+    // next tick: 702 is delivered already; it must NOT be sent again, while the write is retried
+    tick(6 * MIN); const sent1 = world.priceAlertMessages.length;
+    await run();
+    assert.deepEqual(sentSince(sent1), [], 'an alert that was already delivered was sent AGAIN because its switch-off had failed (the old batched write repeated it every tick)');
+    // the database recovers: the retried write lands, still with no resend
+    world.failOff = []; tick(6 * MIN); const sent2 = world.priceAlertMessages.length, off2 = world.switchedOff.length;
+    await run();
+    assert.deepEqual(sentSince(sent2), [], 'the recovery run re-sent the message');
+    assert.deepEqual(world.switchedOff.slice(off2).flat(), [702], 'the pending switch-off was not written when the database recovered');
+    assert.equal(world.alerts.find((a) => a.id === 702)?.active, false);
+    tick(6 * MIN); const off3 = world.switchedOff.length; await run();
+    assert.equal(world.switchedOff.length, off3, 'a switch-off that already landed was written again');
+  } finally { resetB(); }
+});
+
+test('NB2. Telegram answering an error for EVERY send leaves the Fear & Greed cooldown unconsumed: the next tick sends it; a run that delivers consumes it; a paused run leaves it for the resume', async () => {
+  try {
+    resetB(); tick(30 * MIN); world.fng = 10;
+    // (a) every send fails: nothing delivered, so the cooldown is NOT consumed
+    world.telegram = 'blocked'; await run();
+    const attempted = fngSent(); assert.ok(attempted >= 1, 'the extreme-fear alert was never even attempted: this cell measured nothing');
+    world.telegram = 'ok'; tick(6 * MIN); const a0 = fngSent(); await run();
+    assert.ok(fngSent() > a0, 'the alert whose send FAILED was silenced for its whole cooldown (it must be retried on the next tick)');
+    // (b) that run delivered, so the cooldown IS consumed: the very next tick does not send it again
+    tick(6 * MIN); const b0 = fngSent(); await run();
+    assert.equal(fngSent(), b0, 'a DELIVERED alert was sent again on the next tick: its cooldown was not consumed');
+    // (c) a paused run (kill switch) leaves a fresh cooldown unconsumed
+    resetB(); tick(25 * 3_600_000); world.fng = 10; world.sendingOff = true; tick(16_000);
+    const c0 = fngSent(); await run(); assert.equal(fngSent(), c0, 'a message went out with the kill switch on');
+    world.sendingOff = false; tick(16_000); const c1 = fngSent(); await run();
+    assert.ok(fngSent() > c1, 'the alert was lost to the pause: its cooldown was consumed by a run that sent nothing');
+  } finally { resetB(); }
 });

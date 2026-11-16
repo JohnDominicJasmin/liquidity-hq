@@ -3,7 +3,7 @@ import { AI_TOOL_LIMITS } from '@/lib/aiInputLimits';
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
+import { incrementToolUsage, rateLimitMessage, blockedResponse, refundToolUsage, todayUtc } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -95,12 +95,11 @@ export async function POST(req: NextRequest) {
   }
 
   const role = await getUsageTier(token, authData.user.id);
+  /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
+  const reservedOn = todayUtc();
   const usageResult = await incrementToolUsage(authData.user.id, 'strategyResearch', role);
   if (usageResult.blocked) {
-    return NextResponse.json(
-      { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'strategy research runs'), code: 'RATE_LIMIT' },
-      { status: 429 },
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'strategy research runs'));
   }
 
   const prompt = buildStrategyPrompt(description);
@@ -113,9 +112,10 @@ export async function POST(req: NextRequest) {
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 1200,
     }),
-  });
+  }).catch(async (e: unknown) => { await refundToolUsage(authData.user.id, 'strategyResearch', reservedOn); throw e; });
 
   if (!res.ok) {
+    await refundToolUsage(authData.user.id, 'strategyResearch', reservedOn);
     const err = await res.json().catch(() => ({}));
     return NextResponse.json({ error: (err as { error?: string }).error ?? 'AI error' }, { status: 502 });
   }
