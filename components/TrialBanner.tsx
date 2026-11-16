@@ -103,20 +103,21 @@ export default function TrialBanner() {
         lineHeight: 1.45,
       }}
     >
-      {/* Wraps between "PRO TRIAL ·" and the countdown, never inside either: each part is nowrap. */}
+      {/* Wraps between "PRO TRIAL ·" and the countdown. The LABEL may also wrap between its own words: nowrap here made a long label (Russian, about 180 px) overflow the text block and run under the "Keep Pro" pill at 360 to 390 px. The countdown stays nowrap. */}
       <span style={{ color: 'var(--txt2)', flex: '0 1 auto', minWidth: 0 }}>
-        <span ref={labelRef} style={{ whiteSpace: 'nowrap' }}>
+        <span ref={labelRef}>
           <span
             style={{
               fontFamily: 'var(--font-mono, monospace)',
               fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
               fontSize: 'var(--fs-label)',
               color: accent, marginRight: 10,
+              overflowWrap: 'anywhere',
             }}
           >
             {t('TRIAL_BANNER_LABEL')}
           </span>
-          <span aria-hidden="true" style={{ color: 'var(--txt3)', marginInlineEnd: 8, visibility: wrapped ? 'hidden' : undefined }}>·</span>
+          <span aria-hidden="true" style={{ color: 'var(--txt3)', marginInlineEnd: 8, visibility: wrapped ? 'hidden' : undefined }}>{'\u2060'}·</span>
         </span>
         <wbr />
         <strong ref={countRef} style={{ color: 'var(--txt)', fontWeight: 700, whiteSpace: 'nowrap' }}>{label}</strong>
