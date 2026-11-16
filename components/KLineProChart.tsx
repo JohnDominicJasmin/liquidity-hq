@@ -768,6 +768,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
      cleared by the load that answers for the CURRENT generation (landed or failed): a load superseded by a newer switch never clears it, so
      it is tied to the same load token as the data and cannot outlive the load. A 90 s cap is the last resort. */
   const [loadingTf, setLoadingTf] = useState<string | null>(null);
+  /* Bumped each time a history load delivers its bars. The strategy marker is placed on a bar found in the chart's own data, so it must be tried again when the data arrives: the signal can land first after a coin or timeframe switch (or at first load), and the arrow was then skipped for good. */
+  const [barsTick, setBarsTick] = useState(0);
   /* #1077: true only in the rare double-fallback case - this chart already
      tries Bybit, then Binance spot, then Binance futures itself before ever
      reaching /api/market/klines?source=binance-futures, and that route now
@@ -2025,6 +2027,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             }
             endFade();
             setLoadingTf(null);
+            setBarsTick(n => n + 1);
           } catch { if (!stale()) { setHistoryFailed(true); deliveredGenRef.current = myGen; callback([], false); endFade(); setLoadingTf(null); } }
           void symbol; // suppress unused
         },
@@ -2777,7 +2780,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       const bar = chart.getDataList().find(b => b.timestamp === ov.marker!.ts);
       if (bar) add('strategyMarker', [{ timestamp: bar.timestamp, value: ov.marker.dir === 'long' ? bar.low : bar.high }], { dir: ov.marker.dir });
     }
-  }, [strategyOverlay, chartReady, themeInk, ovLabelProbe]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [strategyOverlay, chartReady, themeInk, ovLabelProbe, barsTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Publish the newest structure break upward. Separate from the drawing effect
   // below so it is not gated on showPA - a consumer scoring the market wants the

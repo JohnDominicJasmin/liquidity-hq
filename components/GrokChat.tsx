@@ -20,6 +20,7 @@ import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
 import { needsLiveSearch } from '@/lib/searchTriggers';
 import { describeSelection, selectionForPlan } from '@/lib/strategyRegistry';
+import { binanceKlineSource } from '@/lib/coins';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import CoinMultiSelect from './CoinMultiSelect';
 import { activatable } from '@/lib/activatable';
@@ -281,7 +282,7 @@ export default function GrokChat() {
         const by = BYBIT_SYMS[coin] as string | undefined;
         let raw: (string | number)[][];
         if (bn) {
-          const r = await fetch(`/api/market/klines?source=binance&symbol=${bn}&interval=1h&limit=300`);
+          const r = await fetch(`/api/market/klines?source=${binanceKlineSource(coin)}&symbol=${bn}&interval=1h&limit=300`);
           if (!r.ok) throw new Error('binance');
           raw = await r.json();
         } else if (by) {
