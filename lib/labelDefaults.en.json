@@ -1789,6 +1789,8 @@
   "WHALE_TRADES_FEED_BIAS_NET_SELL": "Whales net selling",
   "WHALE_TRADES_FEED_BIAS_BALANCED": "Balanced whale flow - watching both sides",
   "WHALE_TRADES_FEED_SR_CONNECTING": "Connecting to live trade feed…",
+  "LIQ_FEED_CONNECT_FAILED": "Could not connect to the live liquidation feed. Retrying…",
+  "WHALE_TRADES_FEED_CONNECT_FAILED": "Could not connect to the live trades feed. Retrying…",
   "WHALE_TRADES_FEED_SR_WATCHING": "Watching for trades > $50K…",
   "WHALE_TRADES_FEED_BADGE_MEGA": "MEGA",
   "WHALE_TRADES_FEED_BADGE_WHALE": "WHALE",
