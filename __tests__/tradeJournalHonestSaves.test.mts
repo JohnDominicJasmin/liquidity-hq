@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { stripTypeScriptTypes } from 'node:module';
+import * as nodeModule from 'node:module';
 
 const SRC = readFileSync(new URL('../components/TradeJournal.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const slice = (from: string, to: string, after = 0) => {
@@ -27,6 +27,8 @@ const closeBody = slice('const dir = trade.direction', 'setSaveFailed(false);\n 
 type Trade = { direction: 'LONG' | 'SHORT'; entry_price: number; stop_loss: number; exit_price: number | null; pnl_usd: number | null; result: string; position_size_usd: number | null };
 type Draft = { exit_price: string; pnl_usd: string; result: string; notes: string };
 /* The slices come from OUR OWN checked-in source file, never from input: this test reads the repository, so evaluating them is not an injection path. The wrapper is type-stripped whole so its types go too. */
+/* Cast rather than a named import: stripTypeScriptTypes is experimental and this repo's @types/node does not declare it (TS2305), though it exists at runtime (same pattern as libStrippable.test.mts). */
+const stripTypeScriptTypes = (nodeModule as unknown as { stripTypeScriptTypes: (source: string) => string }).stripTypeScriptTypes;
 const compile = (params: string, body: string, ret: string) => new Function(`return (${stripTypeScriptTypes(`function f(${params}) {\n${body}\nreturn ${ret};\n}`)});`)();
 const editFn = compile('trade, editDraft', editBody, 'patch') as (t: Trade, d: Draft) => Record<string, unknown>;
 const closeFn = compile('trade, exitNum', closeBody, '{ pnl_usd, pnl_r, result }') as (t: Trade, x: number) => { pnl_usd: number | null; pnl_r: number | null; result: string };
