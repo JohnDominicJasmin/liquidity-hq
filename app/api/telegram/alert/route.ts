@@ -552,7 +552,12 @@ async function flushSignals(
    SHARED: Fetch funding rates + spot prices
    ════════════════════════════════════════ */
 interface BNTicker { symbol: string; lastFundingRate: string }
-interface BBTicker  { symbol: string; fundingRate: string }
+/** The factor that turns a funding rate quoted per `intervalHour` hours into its per-8-hours equivalent (1 when the interval is missing, invalid or already 8). Bybit lists 1, 4 and 8 hour contracts; the alert thresholds are 8-hour figures (S10). */
+function fundingScaleTo8h(intervalHour: string | undefined): number {
+  const h = parseFloat(intervalHour ?? '');
+  return Number.isFinite(h) && h > 0 && h !== 8 ? 8 / h : 1;
+}
+interface BBTicker  { symbol: string; fundingRate: string; fundingIntervalHour?: string }
 
 /* #1266: the owner's rule ("if bybit can do the job then remove binance")
  * applied in full. Bybit is now the PRIMARY (only) source for every coin
@@ -581,7 +586,7 @@ async function fetchAllFR(skipCounts: SkipCounts): Promise<Record<string, number
     const d = await bbR.value.json() as { result?: { list?: BBTicker[] } };
     for (const item of d.result?.list ?? []) {
       const coin = Object.entries(BYBIT_PERP).find(([, s]) => s === item.symbol)?.[0];
-      if (coin && !BINANCE_ONLY_FR_COINS.has(coin) && item.fundingRate) result[coin] = parseFloat(item.fundingRate);
+      if (coin && !BINANCE_ONLY_FR_COINS.has(coin) && item.fundingRate) result[coin] = parseFloat(item.fundingRate) * fundingScaleTo8h(item.fundingIntervalHour);   // per 8 hours, like the page (S10)
     }
   } else {
     // One shared upstream call feeding every migrated coin's funding rate -
