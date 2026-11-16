@@ -190,10 +190,15 @@ export async function recordPendingClaim(sb: Admin, i: { paymentId: string; deli
 }
 
 /** THE CLOCK A DELAYED GRANT COUNTS FROM: when the payment was RECEIVED, not when it was finally applied. A claim at sign-up or the hourly retry used to count the period from "now", so a buyer who paid
- *  on day 0 and signed up on day 20 got a full period from day 20 (up to a free period). The period runs from the delivery's own received_at (never later than now, never an unparseable value). */
-export function paidAt(receivedAt: unknown, now: Date): Date {
+ *  on day 0 and signed up on day 20 got a full period from day 20 (up to a free period). The period runs from the delivery's own received_at (never later than now, never an unparseable value).
+ *  BUT PAID TIME IS NEVER FORFEITED (owner rule): if the period that started at received_at has ALREADY FULLY ELAPSED by now, the buyer paid and never had access, so one full period is granted from now instead.
+ *  A partly elapsed period counts from received_at. `add` is the plan's length. */
+export function paidAt(receivedAt: unknown, now: Date, add?: { months?: number; days?: number }): Date {
   const t = typeof receivedAt === 'string' ? Date.parse(receivedAt) : NaN;
-  return Number.isFinite(t) && t <= now.getTime() ? new Date(t) : now;
+  if (!(Number.isFinite(t) && t <= now.getTime())) return now;
+  const received = new Date(t);
+  if (add && extendedPeriodEnd(null, received, add).getTime() <= now.getTime()) return now;
+  return received;
 }
 
 /** For a delivery the route has already RECORDED once (a 23505 on the hash): true when nothing exists that would carry the payment forward - no applied marker, no pending claim, no retry row. Then the
@@ -295,6 +300,8 @@ export async function applyWhopDelivery(
   i: { event: Record<string, unknown>; payloadHash: string; eventName: string | null },
   env: Record<string, string | undefined> = process.env,
   now: Date = new Date(),
+  /** The stored delivery's received_at for a LATE application (a replay of a delivery that died, the hourly retry): the period counts from it (see paidAt). Omitted for a live delivery. */
+  receivedAt?: unknown,
 ): Promise<ApplyOutcome> {
   const payment = readWhopPayment(i.event);
   const decision = decideWhopEvent(i.event, env, () => payment);
@@ -341,7 +348,7 @@ export async function applyWhopDelivery(
     return { kind: 'review', reason: 'account_email_not_confirmed', paymentId, claimError: r.ok ? undefined : r.error };
   }
 
-  const res = await grantOnce(sb, paymentId, accountId, decision, now);
+  const res = await grantOnce(sb, paymentId, accountId, decision, receivedAt === undefined ? now : paidAt(receivedAt, now, decision.add));
   if (res.kind === 'granted') return { kind: 'granted', plan: res.plan, periodEnd: res.periodEnd };
   if (res.kind === 'already_applied') return { kind: 'ignored', reason: 'payment_already_applied' };
   if (res.kind === 'review') return { kind: 'review', reason: res.reason, paymentId };
@@ -413,7 +420,7 @@ export async function retryRefusedWhopDeliveries(sb: Admin, env: Record<string, 
     if (readErr) { await putBack(lastReason, attempts); out.errors++; out.notes.push(`payment ${paymentId}: stored delivery read failed`); continue; }
     if (!delivery || typeof delivery.body !== 'object' || delivery.body === null) { out.errors++; out.notes.push(`payment ${paymentId}: stored delivery missing`); continue; }
 
-    const outcome = await applyWhopDelivery(sb, { event: delivery.body as Record<string, unknown>, payloadHash: String(delivery.payload_hash), eventName: typeof delivery.event === 'string' ? delivery.event : null }, env, paidAt(delivery.received_at, now));
+    const outcome = await applyWhopDelivery(sb, { event: delivery.body as Record<string, unknown>, payloadHash: String(delivery.payload_hash), eventName: typeof delivery.event === 'string' ? delivery.event : null }, env, now, delivery.received_at);
     if (outcome.kind === 'granted') { out.granted++; out.notes.push(`payment ${paymentId}: granted ${outcome.plan} on retry ${attempts + 1}`); continue; }
     if (outcome.kind === 'error') { await putBack(lastReason, attempts); out.errors++; out.notes.push(`payment ${paymentId}: ${outcome.what} failed, will retry`); continue; }
     if (outcome.kind === 'review' && isSettingsRefusal(outcome.reason)) { await putBack(outcome.reason, attempts + 1); out.stillRefused++; continue; }
@@ -491,7 +498,7 @@ export async function claimPendingForAccount(
     // The pending row is found by email, but the delivery is the authority: it must name THIS account's email.
     if (decision.payerEmail !== email) { await put(String(pb.reason ?? 'unknown')); out.refused.push('payer_email_changed'); continue; }
 
-    const res = await grantOnce(sb, decision.paymentId, i.userId, decision, paidAt(orig.received_at, now));
+    const res = await grantOnce(sb, decision.paymentId, i.userId, decision, paidAt(orig.received_at, now, decision.add));
     if (res.kind === 'granted') { out.granted++; continue; }
     // Already applied by another path (the webhook or the hourly retry): the claim is spent, so it is NOT put back.
     if (res.kind === 'already_applied') continue;

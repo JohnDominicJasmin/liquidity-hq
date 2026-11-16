@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { verifyWhopWebhook } from '@/lib/whop';
 import { readWhopPayment } from '@/lib/whopEntitlement';
-import { applyWhopDelivery, applyWhopMembershipEvent, isSettingsRefusal, paidAt, recordRetry, replayNeedsReprocess } from '@/lib/whopGrant';
+import { applyWhopDelivery, applyWhopMembershipEvent, isSettingsRefusal, recordRetry, replayNeedsReprocess } from '@/lib/whopGrant';
 
 /* Whop webhook (#1567). Phase 1 was a recording shell; Phase 3 (below the record) turns a verified, PAID payment for one of OUR plans
  * into Pro for the account whose email paid. The rules live in lib/whopEntitlement.ts (pure, tested there); this file is the wiring.
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
 
   // A duplicate key is the expected "already recorded" path, not a failure.
   if (recordErr && recordErr.code !== '23505') return apiError('whop/webhook', recordErr);
-  let replayedAt: Date | null = null;
+  let replayedReceivedAt: unknown = undefined;
   if (!firstSeen) {
     /* A REPLAY IS ANSWERED "replay" ONLY WHEN THE PAYMENT IS CARRIED FORWARD. The row recorded above is the replay guard, but a first delivery that died between the record and the grant (a failed cleanup delete, a timeout, a
        kill) left it behind with nothing applied, so Whop's retry was told "replay" for ever and a paid account stayed Free. If a payment event has no applied marker, no pending claim and no retry row, it is processed again from
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
     if (needs === null) return apiError('whop/webhook', new Error('replay check read failed'));
     if (!needs) return NextResponse.json({ received: true, ignored: 'replay' });
     const { data: stored } = await sb.from(T.whop_webhook_events).select('received_at').eq('payload_hash', payloadHash).maybeSingle();
-    replayedAt = paidAt(stored?.received_at, new Date());
+    replayedReceivedAt = stored?.received_at;
   }
 
   /* ── MEMBERSHIP EVENTS: the cancel STATE, and never access (#1630 Step 1) ──
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
   // ── The decision and the grant (lib/whopGrant.ts applyWhopDelivery; rules in lib/whopEntitlement.ts) ──
   // Every refusal is REPORTED (GlitchTip) and answered 200 with the reason, never dropped and never guessed at: a payment that will never
   // match is not helped by a Whop retry. Only a failed READ or WRITE answers 500, because that one a retry can fix.
-  const outcome = await applyWhopDelivery(sb, { event, payloadHash, eventName }, process.env, replayedAt ?? new Date());
+  const outcome = await applyWhopDelivery(sb, { event, payloadHash, eventName }, process.env, new Date(), replayedReceivedAt);
   if (outcome.kind === 'ignored') return NextResponse.json({ received: true, recorded: true, ignored: outcome.reason });
   if (outcome.kind === 'error') return failAndForget(sb, payloadHash, outcome.what, outcome.err);
   if (outcome.kind === 'review') {
