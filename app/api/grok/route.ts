@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
+import { GROK_SERVER_DEEP_MS, GROK_SERVER_QUICK_MS } from '@/lib/grokDeadlines';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, VERDICT_RESTATED_CHECK, type ChartData, type GrokContext } from '@/lib/grok';
 import { arenaContextCoinId, COIN_NOT_TRACKED, parseArenaChart, parseArenaContext, parseSelection } from '@/lib/arenaContext';
@@ -448,12 +449,16 @@ export async function POST(req: NextRequest) {
    * control-flow analysis does not follow an assignment made inside a nested closure, and this is
    * read in the `catch` below. Set the moment a 2xx is confirmed, in BOTH branches. */
   const spent = { current: false };
+  /* ONE DEADLINE FOR THE WHOLE READ, UNDER THE CLIENT'S (lib/grok.ts: Quick 90 s, Deep 200 s), plus the client's own disconnect. The client used to give up at 90 s while this route let the upstream call run to 180 s,
+     so a slow Quick read showed "took too long" while we finished it, billed the reservation and threw the answer away. Aborting here lands in the catch below, which refunds (nothing is billed until a 2xx). */
+  const readSignal = AbortSignal.any([req.signal, AbortSignal.timeout(type === 'deep' ? GROK_SERVER_DEEP_MS : GROK_SERVER_QUICK_MS)]);
   try {
     if (type === 'deep') {
       // Responses API with live web + X search. #1651 item 1: X is searched over yesterday and today only - Deep asks why the coin is
       // moving TODAY, and an older post is not today's catalyst.
       const xWindow = searchWindow(DEEP_X_DAYS);
       const r = await xaiFetch('https://api.x.ai/v1/responses', {
+        signal: readSignal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
         body: JSON.stringify({
@@ -506,6 +511,7 @@ export async function POST(req: NextRequest) {
       } else {
       // chat/completions - no search tools, cheaper
       const r = await xaiFetch('https://api.x.ai/v1/chat/completions', {
+        signal: readSignal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
         body: JSON.stringify({
