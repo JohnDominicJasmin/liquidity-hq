@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
@@ -203,7 +204,7 @@ export default function MarketProvider(
          `BINANCE_SPOT_SYMS` in lib/coins.ts. */
       const syms = Object.values(BINANCE_SPOT_SYMS).filter(s => s !== 'HYPEUSDT');
       const batch = encodeURIComponent(JSON.stringify(syms));
-      const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`, { signal: AbortSignal.timeout(REST_POLL_TIMEOUT_MS) });
+      const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`, { signal: deadlineSignal(REST_POLL_TIMEOUT_MS) });
       const data = await res.json();
       /* BOTH EXITS OF THIS POLL WERE SILENT - a thrown error and a body we cannot parse - and the
          panels downstream read the resulting absence as "still loading". An unparseable shape is a
@@ -438,8 +439,10 @@ export default function MarketProvider(
         if (!(coin in BINANCE_SYMS)) {
           patch.price  = curPrice;
           patch.change = parseFloat(item.price24hPcnt || '0') * 100;
-          patch.high   = parseFloat(item.highPrice24h || '0');
-          patch.low    = parseFloat(item.lowPrice24h  || '0');
+          /* The 24h high and low are PRICES and take the same 1000x factor as the price above (S1): PEPE and BONK come back from Bybit as 1000PEPEUSDT / 1000BONKUSDT, and these two lines were the one place that missed it - a price
+             of 0.0000123 shipped with a high of 0.0125 and a low of 0.0118, and the Arena's Fibonacci levels and the AI context read them. The seed and universe branches below already apply it. */
+          patch.high   = parseFloat(item.highPrice24h || '0') * bybitPriceFactor(coin);
+          patch.low    = parseFloat(item.lowPrice24h  || '0') * bybitPriceFactor(coin);
           patch.vol24  = parseFloat(item.turnover24h  || '0');
         } else if (Number.isFinite(curPrice) && curPrice > 0) {
           /* A dual-listed coin leaves price to the Binance socket, and that is exactly the coin that went blank (HYPE) when the socket never connected on a
@@ -726,7 +729,8 @@ export default function MarketProvider(
         const vah = minP + (hi + 1) * bSize;
 
         // Chart pattern detection (Bybit klines: [time, open, high, low, close, ...])
-        const patternCandles = klines.slice(-25).map((k: string[]) => ({
+        // Closed bars only (S7): the newest kline is still forming, exactly as RSI and the volume ratio above treat it.
+        const patternCandles = klines.slice(-26, -1).map((k: string[]) => ({
           o: parseFloat(k[1]) * pf, h: parseFloat(k[2]) * pf,
           l: parseFloat(k[3]) * pf, c: parseFloat(k[4]) * pf,
         }));
@@ -1199,7 +1203,7 @@ export default function MarketProvider(
        failed per-symbol fetch did for that coin: unknown until the live 8-min poll builds its own two readings. */
     let klAll: Record<string, Array<Array<unknown>>> = {};
     try {
-      const r = await fetch('/api/market/kline-batch?interval=5&limit=13', { signal: AbortSignal.timeout(20_000) });
+      const r = await fetch('/api/market/kline-batch?interval=5&limit=13', { signal: deadlineSignal(20_000) });
       if (r.ok) klAll = (await r.json()).data ?? {};
     } catch { /* leave empty; the length guard in bootstrapReadings handles no data */ }
 
@@ -1508,7 +1512,7 @@ export default function MarketProvider(
 
     function connectBN() {
       if (!alive) return;
-      const ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
+      const ws = new WebSocket('wss://fstream.binance.com/market/ws/!forceOrder@arr');
       bnWs = ws;
       const attemptStartedAt = Date.now();
       // #1228 review: onerror, onclose and the connect timeout below all

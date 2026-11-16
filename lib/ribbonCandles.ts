@@ -1,3 +1,4 @@
+import { deadlineSignal } from './deadlineSignal.ts';
 // Candle source for every signal the app fires on.
 //
 // Extracted from app/api/telegram/alert so the /alerts "Check Alerts Now"
@@ -67,7 +68,7 @@ async function fetchFromBybit(bySym: string, tf: EMASignalTF, healthSource: stri
   try {
     const res = await exchangeFetch(
       `https://api.bybit.com/v5/market/kline?category=linear&symbol=${bySym}&interval=${BYBIT_TF_INTERVAL[tf]}&limit=300`,
-      { cache: 'no-store', signal: AbortSignal.timeout(9_000) }
+      { cache: 'no-store', signal: deadlineSignal(9_000) }
     );
     if (!res.ok) {
       reportHealth(healthSource, 'market', false, `HTTP ${res.status}`);
@@ -165,7 +166,7 @@ async function fetchRibbonCandlesUncached(coin: string, tf: EMASignalTF): Promis
     try {
       const res = await exchangeFetch(
         `https://fapi.binance.com/fapi/v1/klines?symbol=${bnSym}&interval=${tf}&limit=300`,
-        { cache: 'no-store', signal: AbortSignal.timeout(9_000) }
+        { cache: 'no-store', signal: deadlineSignal(9_000) }
       );
       if (res.ok) {
         const raw = await res.json() as Array<(string | number)[]>;
