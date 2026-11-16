@@ -24,6 +24,8 @@ import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
 import { BINANCE_SYMS, BINANCE_SYM_TO_COIN, BYBIT_SYMS, bybitPriceFactor } from '@/lib/coins';
 import { polledCacheControl } from '@/lib/cacheHeaders';
+import { cached } from '@/lib/apiCache';
+import { summarizeAggTrades, type AggTrade } from '@/lib/aggTradesSummary';
 
 /* hype is excluded to match the caller: it is not a Binance listing, so a
    request for it is a guaranteed 400 from upstream and one wasted call per
@@ -107,7 +109,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  try {
+  const fetchAll = async () => {
     const { data, ok, total, stopped, viaFallback } = await symbolFanout(
       SYMBOLS,
       `binance:agg-trades:${limit}`,
@@ -151,10 +153,29 @@ export async function GET(req: NextRequest) {
        `viaFallback`, #1233: which symbols came from Bybit rather than Binance -
        an honest per-symbol source signal, additive so an all-Binance response's
        shape is unchanged. */
-    return NextResponse.json({
-      data, ok, total,
+    const meta = {
+      ok, total,
       ...(stopped ? { stopped: true } : {}),
       ...(viaFallback?.length ? { viaFallback } : {}),
+    };
+    return { data, meta };
+  };
+
+  try {
+    /* ?shape=summary (#1651): per symbol, only what the CVD sweep needs (buy volume, sell volume, newest id, the whale-size trades) instead of every raw trade - about 1 MB for the universe becomes a few tens of KB.
+       The finished JSON text is cached, so a hit serves it as it is. The default shape is still the raw trades, for any older tab that has not reloaded. */
+    if (req.nextUrl.searchParams.get('shape') === 'summary') {
+      const json = await cached(`binance:agg-trades-summary-json:${limit}`, 55_000, async () => {
+        const { data, meta } = await fetchAll();
+        const summary: Record<string, ReturnType<typeof summarizeAggTrades>> = {};
+        for (const [sym, trades] of Object.entries(data as Record<string, AggTrade[]>)) summary[sym] = summarizeAggTrades(trades);
+        return JSON.stringify({ data: summary, ...meta, ts: Date.now() });
+      });
+      return new NextResponse(json, { headers: { 'Content-Type': 'application/json', 'Cache-Control': polledCacheControl(60) } });
+    }
+    const { data, meta } = await fetchAll();
+    return NextResponse.json({
+      data, ...meta,
       ts: Date.now(),
     }, {
       headers: { 'Cache-Control': polledCacheControl(60) },

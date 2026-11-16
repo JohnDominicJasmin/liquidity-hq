@@ -18,6 +18,7 @@ import { polledCacheControl } from '@/lib/cacheHeaders';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { exchangeFetch } from '@/lib/exchangeGuard';
+import { trimBybitTickers, trimDeribitBook, trimLlamaStables } from '@/lib/payloadTrim';
 
 // Google Trends' 7-day bitcoin score barely moves hour to hour, and the
 // unofficial endpoint blocks aggressively under repeated hits - cache long.
@@ -81,6 +82,8 @@ interface PassEntry {
   params: readonly string[];
   ttlMs: number;
   fixed?: Record<string, string>;
+  /** #1651: keeps only the fields this entry's one caller reads, applied to the primary body BEFORE it is cached and serialised. */
+  trim?: (body: unknown) => unknown;
   /* #1237 (#1077 split): a per-entry Bybit retry when the primary upstream
    * fails. Optional and rare (only `binance-24hr` and `depth` have one) -
    * this is a generic passthrough table, and most entries either already
@@ -136,7 +139,7 @@ const PASSTHROUGH: Record<string, PassEntry> = {
   'recent-trade':    { url: 'https://api.bybit.com/v5/market/recent-trade',
                        params: ['symbol', 'limit'], fixed: { category: 'linear' }, ttlMs: 30_000 },
   'bybit-tickers':   { url: 'https://api.bybit.com/v5/market/tickers',
-                       params: [], fixed: { category: 'linear' }, ttlMs: 30_000 },
+                       params: [], fixed: { category: 'linear' }, ttlMs: 30_000, trim: trimBybitTickers },
   'account-ratio-1': { url: 'https://api.bybit.com/v5/market/account-ratio',
                        params: ['symbol', 'period', 'limit'], fixed: { category: 'linear' }, ttlMs: 120_000 },
   'open-interest-1': { url: 'https://api.bybit.com/v5/market/open-interest',
@@ -325,9 +328,9 @@ const PASSTHROUGH: Record<string, PassEntry> = {
   'fng':             { url: 'https://api.alternative.me/fng/',
                        params: ['limit'], ttlMs: 900_000 },
   'deribit-book':    { url: 'https://www.deribit.com/api/v2/public/get_book_summary_by_currency',
-                       params: ['currency', 'kind'], ttlMs: 60_000 },
+                       params: ['currency', 'kind'], ttlMs: 60_000, trim: trimDeribitBook },
   'llama-stables':   { url: 'https://stablecoins.llama.fi/stablecoins',
-                       params: ['includePrices'], ttlMs: 900_000 },
+                       params: ['includePrices'], ttlMs: 900_000, trim: trimLlamaStables },
 };
 
 export async function GET(req: NextRequest) {
@@ -575,9 +578,10 @@ export async function GET(req: NextRequest) {
        * CACHED read of a fallback-sourced response still reports its real
        * origin - the flag travels with whatever `cached()` stored, not just
        * with the call that produced it (#1237). */
-      const go = async (): Promise<{ body: unknown; viaFallback: boolean }> => {
+      /* `json` is the FINISHED response text, serialised once when the entry is built and served as it is on every hit; NextResponse.json(body) re-serialised the whole object on every request (#1651). */
+      const go = async (): Promise<{ json: string; viaFallback: boolean }> => {
         const r = await exchangeFetch(u, { cache: 'no-store' });
-        if (r.ok) return { body: await r.json(), viaFallback: false };
+        if (r.ok) { const body = await r.json(); return { json: JSON.stringify(entry.trim ? entry.trim(body) : body), viaFallback: false }; }
 
         /* FAIL LOUDLY (#228). Throwing means cached() stores nothing, so a ban
            is retried rather than pinned, and the caller gets a status instead
@@ -597,7 +601,7 @@ export async function GET(req: NextRequest) {
               // #1249's rule: an empty/malformed fallback body is a failure,
               // not a success - `convert` already returns null for that, so
               // falling through to the original error is correct, not a bug.
-              if (converted != null) return { body: converted, viaFallback: true };
+              if (converted != null) return { json: JSON.stringify(converted), viaFallback: true };
             }
           } catch { /* Bybit fallback also failed - fall through to the original error */ }
         }
@@ -639,8 +643,9 @@ export async function GET(req: NextRequest) {
         const result = cacheable
           ? await cached(`proxy:${type}:${u.search}`, entry.ttlMs, go)
           : await go();
-        return NextResponse.json(result.body, {
+        return new NextResponse(result.json, {
           headers: {
+            'Content-Type': 'application/json',
             ...(cacheable ? PROXY_CACHE : {}),
             // #1237: the only way a caller (or QA) can tell this answer came
             // from the fallback rather than the primary upstream - a header,

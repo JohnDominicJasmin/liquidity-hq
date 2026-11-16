@@ -13,7 +13,7 @@ import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { liveOiTrend, bootstrapReadings, trendBetween, type OiReading } from '@/lib/oiTrendWindow';
 import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exchangeFailover';
 
-const WHALE_USD_THRESHOLD = 500_000; // $500k single trade = whale
+import { WHALE_USD_THRESHOLD, type AggSummary } from '@/lib/aggTradesSummary';
 
 /* How often the REST fallback polls while the WebSocket is down, and how often
    it retries the socket. See ws.onclose for why 5s was dangerous: restPoll
@@ -808,39 +808,33 @@ export default function MarketProvider(
          The map is fetched once here; each coin then reads its own entry, so the
          per-coin CVD and whale logic below is unchanged. */
       (async () => {
-        let aggAll: Record<string, Array<{ m: boolean; q: string; p: string; a: number }>> = {};
+        /* The SERVER sums each coin's 200 trades (buy volume, sell volume, newest id, the whale-size trades) and sends only those: about 1 MB of raw trades became a few tens of KB (#1651). */
+        let aggAll: Record<string, AggSummary> = {};
         try {
-          const r = await fetch('/api/market/agg-trades?limit=200');
+          const r = await fetch('/api/market/agg-trades?limit=200&shape=summary');
           if (r.ok) aggAll = (await r.json()).data ?? {};
         } catch { /* every coin below then sees no trades and returns early */ }
 
         await Promise.allSettled(binanceCoins.map(async (coin) => {
         const sym = BINANCE_SYMS[coin];
         try {
-          const trades = aggAll[sym];
-          if (!Array.isArray(trades)) return;
+          const sum = aggAll[sym];
+          if (!sum || !Array.isArray(sum.whales) || !Number.isFinite(sum.buyVol) || !Number.isFinite(sum.sellVol)) return;
 
-          let buyVol = 0, sellVol = 0;
+          const buyVol = sum.buyVol, sellVol = sum.sellVol;
           const lastSeenId = lastAggIdRef.current[coin] ?? 0;
           let newLastId = lastSeenId;
 
-          trades.forEach((t: { m: boolean; q: string; p: string; a: number }) => {
-            const qty = parseFloat(t.q);
-            const price = parseFloat(t.p);
-            const usd = price * qty;
-
-            // CVD
-            if (t.m) sellVol += qty; else buyVol += qty;
-
-            // Whale detection - only emit for truly new trades
-            if (t.a > lastSeenId && usd >= WHALE_USD_THRESHOLD) {
-              const side = t.m ? 'SELL' : 'BUY';
+          // Whale detection - only emit for truly new trades (the server sends every whale-size trade in the window; this tab's own last-seen id decides which are new)
+          for (const w of sum.whales) {
+            if (w.a > lastSeenId) {
+              const usd = w.p * w.q;
               window.dispatchEvent(new CustomEvent('whale-trade', {
-                detail: { id: t.a, symbol: coin.toUpperCase(), side, usdValue: usd, price, qty, ts: Math.floor(Date.now() / 1000) },
+                detail: { id: w.a, symbol: coin.toUpperCase(), side: w.m ? 'SELL' : 'BUY', usdValue: usd, price: w.p, qty: w.q, ts: Math.floor(Date.now() / 1000) },
               }));
             }
-            if (t.a > newLastId) newLastId = t.a;
-          });
+          }
+          if (sum.maxId != null && sum.maxId > newLastId) newLastId = sum.maxId;
 
           lastAggIdRef.current[coin] = newLastId;
           const cvdValue = buyVol - sellVol;
