@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { verifyWhopWebhook } from '@/lib/whop';
 import { readWhopPayment } from '@/lib/whopEntitlement';
-import { applyWhopDelivery, applyWhopMembershipEvent, isSettingsRefusal, recordRetry } from '@/lib/whopGrant';
+import { applyWhopDelivery, applyWhopMembershipEvent, isSettingsRefusal, paidAt, recordRetry, replayNeedsReprocess } from '@/lib/whopGrant';
 
 /* Whop webhook (#1567). Phase 1 was a recording shell; Phase 3 (below the record) turns a verified, PAID payment for one of OUR plans
  * into Pro for the account whose email paid. The rules live in lib/whopEntitlement.ts (pure, tested there); this file is the wiring.
@@ -104,7 +104,18 @@ export async function POST(req: NextRequest) {
 
   // A duplicate key is the expected "already recorded" path, not a failure.
   if (recordErr && recordErr.code !== '23505') return apiError('whop/webhook', recordErr);
-  if (!firstSeen) return NextResponse.json({ received: true, ignored: 'replay' });
+  let replayedAt: Date | null = null;
+  if (!firstSeen) {
+    /* A REPLAY IS ANSWERED "replay" ONLY WHEN THE PAYMENT IS CARRIED FORWARD. The row recorded above is the replay guard, but a first delivery that died between the record and the grant (a failed cleanup delete, a timeout, a
+       kill) left it behind with nothing applied, so Whop's retry was told "replay" for ever and a paid account stayed Free. If a payment event has no applied marker, no pending claim and no retry row, it is processed again from
+       the stored record's receipt time; the applied marker still guarantees it grants once. */
+    if (!payment?.paymentId || (eventName && eventName.startsWith('membership.'))) return NextResponse.json({ received: true, ignored: 'replay' });
+    const needs = await replayNeedsReprocess(sb, payment.paymentId);
+    if (needs === null) return apiError('whop/webhook', new Error('replay check read failed'));
+    if (!needs) return NextResponse.json({ received: true, ignored: 'replay' });
+    const { data: stored } = await sb.from(T.whop_webhook_events).select('received_at').eq('payload_hash', payloadHash).maybeSingle();
+    replayedAt = paidAt(stored?.received_at, new Date());
+  }
 
   /* ── MEMBERSHIP EVENTS: the cancel STATE, and never access (#1630 Step 1) ──
    * A cancellation arrives as `membership.updated` - Whop publishes no cancel-specific event - and is recorded against the membership
@@ -122,7 +133,7 @@ export async function POST(req: NextRequest) {
   // ── The decision and the grant (lib/whopGrant.ts applyWhopDelivery; rules in lib/whopEntitlement.ts) ──
   // Every refusal is REPORTED (GlitchTip) and answered 200 with the reason, never dropped and never guessed at: a payment that will never
   // match is not helped by a Whop retry. Only a failed READ or WRITE answers 500, because that one a retry can fix.
-  const outcome = await applyWhopDelivery(sb, { event, payloadHash, eventName }, process.env);
+  const outcome = await applyWhopDelivery(sb, { event, payloadHash, eventName }, process.env, replayedAt ?? new Date());
   if (outcome.kind === 'ignored') return NextResponse.json({ received: true, recorded: true, ignored: outcome.reason });
   if (outcome.kind === 'error') return failAndForget(sb, payloadHash, outcome.what, outcome.err);
   if (outcome.kind === 'review') {
@@ -148,6 +159,8 @@ function reviewResponse(eventName: string | null, id: string | null, reason: str
 /** The read or write that would have granted Pro failed. The row recorded at the top is the replay guard, so it is removed again: with
  *  it left in place a Whop retry would be answered "replay" and a paid account would stay Free. 500 so the delivery stays retryable. */
 async function failAndForget(sb: ReturnType<typeof getSupabaseAdmin>, payloadHash: string, what: string, err: unknown) {
-  await sb.from(T.whop_webhook_events).delete().eq('payload_hash', payloadHash);
+  const { error: delErr } = await sb.from(T.whop_webhook_events).delete().eq('payload_hash', payloadHash);
+  /* If this delete fails too the record stays; a Whop retry is then recognised by replayNeedsReprocess (nothing applied) and processed again rather than answered "replay". Reported so it is visible. */
+  if (delErr) apiError('whop/webhook', new Error(`could not remove the stored record for a failed payment delivery (${(delErr as { message?: string }).message ?? 'error'}); the retry will be processed again`));
   return apiError('whop/webhook', new Error(`${what} failed after a verified payment - nothing granted, delivery left replayable: ${(err as { message?: string })?.message ?? String(err)}`));
 }
