@@ -11,6 +11,7 @@ import type { LabelKey } from '@/lib/labelKeys';
 import Link from 'next/link';
 import { Lock } from '@/components/icons';
 import { signalLockCopy } from '@/lib/signalCoinGate';
+import { phaseI18n } from '@/lib/emaPhaseI18n';
 import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
 
 const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; labelKey: LabelKey | null; color: string; bg: string; border: string }> = {
@@ -152,6 +153,9 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
   const vKey = VERDICT_CONFIG[v].labelKey;
   const shownLabel = vKey ? (weak ? `${t(vKey)} · ${t('EMA_SIGNAL_WEAK_EDGE')}` : t(vKey)) : cfg.label;
   const canExplain = coin && !signal.loading && signal.verdict !== 'LOADING' && !signal.signalLock;
+  /* The phase line is built in English (the AI prompt reads that string); the card shows it in the reader's language, and falls back to the English for a sentence the map does not know. */
+  const ph = phaseI18n(signal.phase);
+  const shownPhase = ph ? `${t(ph.key, ph.params)}${ph.counterSuffix ? ` - ${t('EMA_PHASE_COUNTER_SUFFIX')}` : ''}` : signal.phase;
 
   /* Locked coin: the verdict, checklist, levels, pending setup and record are replaced by the lock; the ribbon values stay. */
   if (signal.signalLock) {
@@ -228,7 +232,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
       {/* Phase */}
       {!signal.loading && signal.verdict !== 'LOADING' && (
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', marginBottom: 10, lineHeight: 1.4 }}>
-          {signal.phase}
+          {shownPhase}
         </div>
       )}
 
@@ -346,7 +350,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
               >
                 <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: col, flexShrink: 0 }}>{icon}</span>
                 <span style={{ fontSize: 'var(--fs-caption)', color: warn ? 'var(--txt2)' : pass === null ? 'var(--txt-dim)' : 'var(--txt2)', lineHeight: 1.2 }}>
-                  {warn ? c.detail : condLabel(c.label)}
+                  {warn ? (c.detailKey ? t(c.detailKey) : c.detail) : condLabel(c.label)}
                 </span>
               </div>
             );
