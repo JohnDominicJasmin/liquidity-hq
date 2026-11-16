@@ -3,7 +3,7 @@ import { judgeTs, notableOf, MAX_AGE_SEC, MAX_FUTURE_SEC, type TsVerdict } from 
 import { checkCronAuth } from '@/lib/cronAuth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { apiError } from '@/lib/apiError';
-import { classifyNews, GEO_KEYWORDS } from '@/lib/classify';
+import { classifyNews, GEO_KEYWORDS, hasAnyKeyword } from '@/lib/classify';
 import { fetchAllFeeds, fetchFinnhubCategory } from '@/lib/newsFeeds';
 import { recordApiHealth } from '@/lib/apiHealth';
 import { dedupKey, identitiesOf } from '@/lib/newsDedup';
@@ -32,8 +32,7 @@ type Row = {
 // Key generation lives in lib/newsDedup.ts.
 
 function matchesGeo(text: string): boolean {
-  const t = text.toLowerCase();
-  return GEO_KEYWORDS.some(g => g.kw.some(k => t.includes(k)));
+  return GEO_KEYWORDS.some(g => hasAnyKeyword(text, g.kw));
 }
 
 export async function POST(req: Request) {
@@ -125,7 +124,9 @@ export async function POST(req: Request) {
     for (const a of fhCrypto.slice(0, 40)) {
       const headline = a.headline ?? '';
       if (!headline) continue;
-      const ts = a.datetime ?? nowSec;
+      /* No datetime is no item, not "now" (N4). */
+      if (typeof a.datetime !== 'number' || !Number.isFinite(a.datetime) || a.datetime <= 0) continue;
+      const ts = a.datetime;
       const v = judgeTs(ts, nowSec);
       if (v !== 'ok') { note(v, `finnhub:crypto:${a.source ?? 'unknown'}`); continue; }
       add({
@@ -135,7 +136,8 @@ export async function POST(req: Request) {
         published_at: new Date(ts * 1000).toISOString(),
         severity: classifyNews(headline) ?? 'purple',
         cat: 'crypto',
-        link: null,
+        /* The article link Finnhub gives (it was thrown away, so these rows had no open button). Not part of dedup_key, which stays the headline: the link is a redirect with its own id. */
+        link: typeof a.url === 'string' && /^https?:\/\//i.test(a.url) ? a.url : null,
         image: a.image ?? null,
       });
     }
@@ -147,7 +149,8 @@ export async function POST(req: Request) {
     for (const a of fhGeneral.slice(0, 30)) {
       const headline = a.headline ?? '';
       if (!headline) continue;
-      const ts = a.datetime ?? nowSec;
+      if (typeof a.datetime !== 'number' || !Number.isFinite(a.datetime) || a.datetime <= 0) continue;   // N4
+      const ts = a.datetime;
       const v = judgeTs(ts, nowSec);
       if (v !== 'ok') { note(v, `finnhub:general:${a.source ?? 'unknown'}`); continue; }
       const severity = classifyNews(headline);
@@ -159,7 +162,8 @@ export async function POST(req: Request) {
         published_at: new Date(ts * 1000).toISOString(),
         severity,
         cat: 'general',
-        link: null,
+        /* The article link Finnhub gives (it was thrown away, so these rows had no open button). Not part of dedup_key, which stays the headline: the link is a redirect with its own id. */
+        link: typeof a.url === 'string' && /^https?:\/\//i.test(a.url) ? a.url : null,
         image: a.image ?? null,
       });
     }

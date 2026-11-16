@@ -81,5 +81,7 @@ export function bootstrapReadings(
   };
   const p1 = openAt(t1), p0 = openAt(t0);
   if (p1 === null || p0 === null) return null;
-  return [{ t: t0, oi: oi0, price: p0 }, { t: t1, oi: oi1, price: p1 }];
+  /* ONE UNIT END TO END: USD. Bybit's open-interest history is in CONTRACTS (base-coin quantity) while the live 8-minute poll stores openInterestValue (USD). A contracts reading picked as the 60-minute baseline against a USD reading
+     read as a change of about +6,000,000% and a false strong_up. Contracts x the price at that same moment is the USD value the live poll uses. */
+  return [{ t: t0, oi: oi0 * p0, price: p0 }, { t: t1, oi: oi1 * p1, price: p1 }];
 }
