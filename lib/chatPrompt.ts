@@ -107,6 +107,15 @@ const FOLLOW_UPS_INSTRUCTION =
   `After your answer, write a line containing only "${FOLLOW_UPS_MARKER}" and then exactly 3 short follow-up questions the trader might ask next, `
   + '4-8 words each, one per line, no numbering.';
 
+/** THE INDICATORS A PLAN MAY NAME TO THE MODEL, SERVER SIDE. `selection` is the browser's description ("SMA, MACD, Bollinger Bands"), which a hand-made request can fill with anything the Free plan does not
+ *  include. When the server's own plan read says NOT ENTITLED, only the first named indicator is kept (Free is one at a time, lib/strategyRegistry `selectionForPlan`); any other answer (entitled, unknown,
+ *  failed read) leaves it as sent, so a paying user is never cut on a failed read (#1119). */
+export function capChatSelection(selection: string | undefined, notEntitled: boolean): string | undefined {
+  if (!selection || !notEntitled) return selection;
+  const first = selection.split(', ')[0].trim();
+  return first || undefined;
+}
+
 /** The system prompt for one chat turn. `search` = Live mode (the model has web and X search); `minimal` = an educational question. */
 export function buildChatSystemPrompt(ctx: ChatContext, opts: { search: boolean; minimal: boolean }): string {
   const c = ctx.coin.toUpperCase();

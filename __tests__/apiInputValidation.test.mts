@@ -55,10 +55,16 @@ test('V6. hypotheses PATCH: same types and limits as POST (TEXT_LIMITS), status 
   assert.deepEqual([...found.matchAll(/'([a-z_]+)'/g)].map(x => x[1]).sort(), ['active', 'confirmed', 'disconfirmed', 'expired']);
 });
 
-test('V7. onchain: a price outside (0, 10M) or not finite is ignored (0), so an absurd value cannot reach the AI prompt or the shared cache key', () => {
+test('V7. onchain (#2435): the request ?price= is NOT read; the BTC price in the prompt is the server\'s own, read from the market snapshot inside the cache miss, and only a finite positive number gets in (else the prompt omits the line)', () => {
   const s = route('onchain');
-  assert.match(s, /Number\.isFinite\(priceIn\) && priceIn > 0 && priceIn < 10_000_000 \? priceIn : 0/);
-  assert.doesNotMatch(s, /const btcPrice = parseFloat\(req\.nextUrl\.searchParams\.get\('price'\) \?\? '0'\) \|\| 0;/, 'the old unbounded read is back');
+  assert.equal(/searchParams\.get\('price'\)/.test(s), false, 'the route reads the request price again: one caller\'s number is what everyone\'s cached analysis is written around');
+  assert.equal(/priceIn\b/.test(s), false, 'the old caller-price variable is back');
+  const miss = s.indexOf('cachedOwn(') > 0 ? s.indexOf('cachedOwn(') : s.indexOf('cached(');
+  const snap = s.indexOf('await marketSnapshotData()');
+  assert.ok(miss > 0 && snap > miss, 'the server price is read outside the cache miss (every request would read it, or the cached text would not be tied to it)');
+  assert.ok(s.includes('snap && snap.ok ? snap.data.ticker.btc?.price : undefined'), 'the price is not taken from the snapshot BTC ticker');
+  assert.ok(s.includes("typeof serverPrice === 'number' && Number.isFinite(serverPrice) && serverPrice > 0 ? serverPrice : 0"), 'a non-finite or non-positive snapshot price can reach the prompt');
+  assert.ok(s.includes('await marketSnapshotData().catch(() => null)'), 'a failed snapshot read throws instead of omitting the price line');
 });
 
 test('V8. grok: a non-JSON body is caught and answers 400 instead of a 500', () => {
