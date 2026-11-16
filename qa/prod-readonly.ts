@@ -214,6 +214,7 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'payments-webhook': 'writes on purpose: POSTs webhook payloads',
   'payments-write-path': 'writes on purpose: exercises the payment write path',
   'settings-reload-survives-failed-save': 'writes on purpose: saves settings',
+  'settings-saves-one-at-a-time': 'writes on purpose: saves settings as a signed-in fixture account',
   'signout-resilience': 'writes on purpose: PATCHes settings and signs out',
   'strategy-panel-preload-race': 'writes on purpose: PATCHes strategy_selection',
   'timezone-sync-settings-ready': 'writes on purpose: PATCHes timezone',
