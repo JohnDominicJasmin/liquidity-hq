@@ -5,7 +5,7 @@ import { T } from '@/lib/tables';
 import { getUsageTier } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
-import { incrementUsageColumn, rateLimitMessage, blockedResponse, todayUtc } from '@/lib/aiUsage';
+import { incrementUsageColumn, rateLimitMessage, blockedResponse, todayUtc, refundUsageColumn } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -93,6 +93,9 @@ export async function POST(req: NextRequest) {
 
   // Atomic check-and-increment (reserve before spending on xAI) - closes the
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
+  /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
+  const reservedOn = todayUtc();
+  let billed = false;
   const usageResult = await incrementUsageColumn(userId, role, 'briefing_count', briefingLimit);
   if (usageResult.blocked) {
     return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, briefingLimit, 'briefings'), {
@@ -118,11 +121,13 @@ export async function POST(req: NextRequest) {
     });
 
     if (!res.ok) {
+      await refundUsageColumn(userId, 'briefing_count', reservedOn);
       const txt = await res.text();
       return apiError('briefing', txt, res.status, 'AI service error');
     }
 
     const data = await res.json();
+    billed = true;   // 2xx: the tokens are billed from here
     await recordAiCall({ userId, callType: 'briefing', model: data.model ?? 'grok-4.3', usage: data.usage });
     const briefing = (data.choices?.[0]?.message?.content ?? '').trim();
 
@@ -131,6 +136,7 @@ export async function POST(req: NextRequest) {
       _usage: { briefing_used: usageResult.count, briefing_limit: briefingLimit },
     });
   } catch (e) {
+    if (!billed) await refundUsageColumn(userId, 'briefing_count', reservedOn);
     return apiError('briefing', e, 500, 'Request failed');
   }
 }

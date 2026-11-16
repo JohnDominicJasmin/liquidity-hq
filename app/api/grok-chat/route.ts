@@ -23,7 +23,7 @@ import { T } from '@/lib/tables';
 import { getUsageTier } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
-import { incrementUsageColumn, rateLimitMessage, blockedResponse, todayUtc } from '@/lib/aiUsage';
+import { incrementUsageColumn, rateLimitMessage, blockedResponse, todayUtc, refundUsageColumn } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { clampMaxTokens } from '@/lib/grokTokenClamp';
 import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
@@ -140,6 +140,9 @@ export async function POST(req: NextRequest) {
   }
 
   /* ── Call xAI ── */
+  /* A reserved use is given back when nothing reached the user (a failed or unusable xAI answer, a thrown call, an empty answer), exactly as /api/grok does; nothing is given back once xAI answered 2xx (the tokens are billed). (U1: this route charged on every failure path and refunded none.) `today` was captured BEFORE the reservation, so a refund credits the row that paid. */
+  let billed = false;
+  const giveBack = () => refundUsageColumn(userId, column, today);
   const xWindow = searchWindow(CHAT_X_DAYS);
   try {
     let data: unknown;
@@ -170,13 +173,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (status >= 200 && status < 300) {
+      billed = true;   // 2xx: the tokens are billed from here
       const raw = data as { usage?: unknown; model?: string } | null;
       await recordAiCall({ userId, callType: isSearch ? 'chat_search' : 'chat', model: raw?.model ?? MODEL, usage: raw?.usage });
-      const newChat   = isSearch ? chatUsed   : usageResult.count;
-      const newSearch = isSearch ? usageResult.count : searchUsed;
+      let reservedCount = usageResult.count;
       /* #1631 E: only the answer, its follow-up questions, any search citations and the usage reach the browser - not xAI's raw JSON
          (reasoning_content, model name, system_fingerprint, cost ticks). */
       const { text, followUps } = splitFollowUps(answerText(data, isSearch));
+      /* An EMPTY answer delivered nothing: the use goes back (the grok route treats an empty answer the same way). */
+      if (!text) { const refunded = await giveBack(); if (refunded !== null) reservedCount = refunded; }
+      const newChat   = isSearch ? chatUsed   : reservedCount;
+      const newSearch = isSearch ? reservedCount : searchUsed;
       return NextResponse.json({
         text: text || '(no response)',
         followUps,
@@ -185,9 +192,11 @@ export async function POST(req: NextRequest) {
       }, { status });
     }
 
-    // xAI refused: say so generically. Its error body is not passed through.
+    // xAI refused: the use goes back, and the answer says so generically. Its error body is not passed through.
+    await giveBack();
     return apiError('grok-chat', new Error(`xAI answered ${status}`), 502, 'AI service error');
   } catch (e) {
+    if (!billed) await giveBack();   // a throw before the 2xx (network error, the 180 s timeout, a non-JSON body)
     return apiError('grok-chat', e, 500, 'AI service error');
   }
 }

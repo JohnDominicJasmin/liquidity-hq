@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { cached } from '@/lib/apiCache';
-import { incrementToolUsage, rateLimitMessage, blockedResponse, type UsageBlockReason } from '@/lib/aiUsage';
+import { incrementToolUsage, rateLimitMessage, blockedResponse, type UsageBlockReason, refundToolUsage, todayUtc } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
@@ -77,6 +77,9 @@ export async function POST(req: NextRequest) {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit for a popular symbol stays free for everyone.
       const role = await getUsageTier(authToken, authData.user.id);
+      /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
+      const reservedOn = todayUtc();
+      const giveBack = () => refundToolUsage(authData.user.id, 'tokenUnlock', reservedOn);
       const usageResult = await incrementToolUsage(authData.user.id, 'tokenUnlock', role);
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);
@@ -92,9 +95,10 @@ export async function POST(req: NextRequest) {
           messages: [{ role: 'user', content: prompt }],
           max_tokens: 900,
         }),
-      });
+      }).catch(async (e: unknown) => { await giveBack(); throw e; });
 
       if (!aiRes.ok) {
+        await giveBack();
         const err = await aiRes.json().catch(() => ({})) as { error?: string };
         throw new Error(err.error ?? 'AI error');
       }

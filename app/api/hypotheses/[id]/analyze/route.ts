@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { T } from '@/lib/tables';
-import { incrementToolUsage, rateLimitMessage, blockedResponse } from '@/lib/aiUsage';
+import { incrementToolUsage, rateLimitMessage, blockedResponse, refundToolUsage, todayUtc } from '@/lib/aiUsage';
 import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { TEXT_LIMITS, clip } from '@/lib/ownRowLimits';
@@ -108,12 +108,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  const role = await getUsageTier(token, authData.user.id);
-  const usageResult = await incrementToolUsage(authData.user.id, 'hypothesisAnalyze', role);
-  if (usageResult.blocked) {
-    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'hypothesis analyses'));
-  }
-
   const { id } = await params;
 
   const [{ data: hyp }, { data: evs }] = await Promise.all([
@@ -123,9 +117,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (!hyp) return NextResponse.json({ error: 'Hypothesis not found' }, { status: 404 });
 
+  /* RESERVE ONLY ONCE THE HYPOTHESIS EXISTS (U3): a bad or foreign id answered 404 after the charge. A reserved use is given back when nothing reached the user (a failed or unusable xAI answer, a thrown call, an empty answer), exactly as /api/grok does; nothing is given back once xAI answered 2xx (the tokens are billed). */
+  const role = await getUsageTier(token, authData.user.id);
+  const reservedOn = todayUtc();
+  const usageResult = await incrementToolUsage(authData.user.id, 'hypothesisAnalyze', role);
+  if (usageResult.blocked) {
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'hypothesis analyses'));
+  }
+
   const prompt = buildAnalysisPrompt(hyp as Hypothesis, (evs ?? []) as Evidence[]);
 
   let analysis = '';
+  let billed = false;
   try {
     const r = await xaiFetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',
@@ -138,13 +141,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       signal: AbortSignal.timeout(30000),
     });
     if (!r.ok) {
+      await refundToolUsage(authData.user.id, 'hypothesisAnalyze', reservedOn);
       const e = await r.json().catch(() => ({})) as { error?: string };
       return NextResponse.json({ error: e.error ?? 'AI error' }, { status: 502 });
     }
     const d = await r.json();
+    billed = true;   // 2xx: the tokens are billed from here
     await recordAiCall({ userId: authData.user.id, callType: 'hypothesis_analyze', model: d.model ?? 'grok-4.3', usage: d.usage });
     analysis = d.choices?.[0]?.message?.content ?? '';
   } catch (e) {
+    if (!billed) await refundToolUsage(authData.user.id, 'hypothesisAnalyze', reservedOn);
     return apiError('hypotheses/[id]/analyze', e, 500, 'Request failed');
   }
 
