@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
@@ -13,7 +14,13 @@ import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { liveOiTrend, bootstrapReadings, trendBetween, type OiReading } from '@/lib/oiTrendWindow';
 import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exchangeFailover';
 
-const WHALE_USD_THRESHOLD = 500_000; // $500k single trade = whale
+import { WHALE_USD_THRESHOLD, type AggSummary } from '@/lib/aggTradesSummary';
+
+/** The factor that turns a funding rate quoted per `intervalHour` hours into its per-8-hours equivalent (1 when the interval is missing, invalid or already 8). */
+function fundingScaleTo8h(intervalHour: string | undefined): number {
+  const h = parseFloat(intervalHour ?? '');
+  return Number.isFinite(h) && h > 0 && h !== 8 ? 8 / h : 1;
+}
 
 /* How often the REST fallback polls while the WebSocket is down, and how often
    it retries the socket. See ws.onclose for why 5s was dangerous: restPoll
@@ -203,7 +210,7 @@ export default function MarketProvider(
          `BINANCE_SPOT_SYMS` in lib/coins.ts. */
       const syms = Object.values(BINANCE_SPOT_SYMS).filter(s => s !== 'HYPEUSDT');
       const batch = encodeURIComponent(JSON.stringify(syms));
-      const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`, { signal: AbortSignal.timeout(REST_POLL_TIMEOUT_MS) });
+      const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`, { signal: deadlineSignal(REST_POLL_TIMEOUT_MS) });
       const data = await res.json();
       /* BOTH EXITS OF THIS POLL WERE SILENT - a thrown error and a body we cannot parse - and the
          panels downstream read the resulting absence as "still loading". An unparseable shape is a
@@ -426,7 +433,12 @@ export default function MarketProvider(
         const patch: Partial<MarketStore['coins'][CoinId]> = {
           // #1613: absent or unparseable is UNKNOWN: the key is left out, so a previous good value stays and a coin with none stays null.
           // `|| '0'` turned a missing rate into "+0.0000% / Neutral" on every surface.
-          ...(Number.isFinite(parseFloat(item.fundingRate ?? '')) ? { fundingRate: parseFloat(item.fundingRate as string) } : {}),
+          /* PER 8 HOURS (S10). Bybit's fundingRate is per the contract's OWN funding interval (`fundingIntervalHour`: 1, 4 or 8 hours; measured on the live tickers: 480 contracts at 8 h, 415 at 4 h, 2 at 1 h, e.g. 1000BONKUSDT is 4 h while
+             BTC, ETH, HYPE and 1000PEPE are 8 h), but every threshold in the squeeze score, classifyFunding and the sidebar is calibrated for an 8-hour rate. A 4-hour contract's rate is scaled to its 8-hour equivalent; a missing or invalid
+             interval is left as it is. */
+          ...(Number.isFinite(parseFloat(item.fundingRate ?? ''))
+            ? { fundingRate: parseFloat(item.fundingRate as string) * fundingScaleTo8h(item.fundingIntervalHour) }
+            : {}),
           oi: curOI,
           perpPrice: curPrice,
           ...(oiRead.answered ? { oiTrend: oiRead.trend } : {}),
@@ -438,8 +450,10 @@ export default function MarketProvider(
         if (!(coin in BINANCE_SYMS)) {
           patch.price  = curPrice;
           patch.change = parseFloat(item.price24hPcnt || '0') * 100;
-          patch.high   = parseFloat(item.highPrice24h || '0');
-          patch.low    = parseFloat(item.lowPrice24h  || '0');
+          /* The 24h high and low are PRICES and take the same 1000x factor as the price above (S1): PEPE and BONK come back from Bybit as 1000PEPEUSDT / 1000BONKUSDT, and these two lines were the one place that missed it - a price
+             of 0.0000123 shipped with a high of 0.0125 and a low of 0.0118, and the Arena's Fibonacci levels and the AI context read them. The seed and universe branches below already apply it. */
+          patch.high   = parseFloat(item.highPrice24h || '0') * bybitPriceFactor(coin);
+          patch.low    = parseFloat(item.lowPrice24h  || '0') * bybitPriceFactor(coin);
           patch.vol24  = parseFloat(item.turnover24h  || '0');
         } else if (Number.isFinite(curPrice) && curPrice > 0) {
           /* A dual-listed coin leaves price to the Binance socket, and that is exactly the coin that went blank (HYPE) when the socket never connected on a
@@ -636,7 +650,7 @@ export default function MarketProvider(
         if (Object.keys(patch).length) updateCoin(id, patch);
       }
       for (const [coin, m] of Object.entries(body.klines ?? {})) {
-        if (m && Object.keys(m).length) updateCoin(coin as CoinId, m as Partial<CoinData>);
+        if (m && Object.keys(m).length) updateCoin(coin as CoinId, (m.takerBuyRatio != null ? { ...m, takerBasis: 'candles' } : m) as Partial<CoinData>);
       }
       for (const [coin, r] of Object.entries(body.lsr ?? {})) {
         if (r && Object.keys(r).length) updateCoin(coin as CoinId, r as Partial<CoinData>);
@@ -726,7 +740,8 @@ export default function MarketProvider(
         const vah = minP + (hi + 1) * bSize;
 
         // Chart pattern detection (Bybit klines: [time, open, high, low, close, ...])
-        const patternCandles = klines.slice(-25).map((k: string[]) => ({
+        // Closed bars only (S7): the newest kline is still forming, exactly as RSI and the volume ratio above treat it.
+        const patternCandles = klines.slice(-26, -1).map((k: string[]) => ({
           o: parseFloat(k[1]) * pf, h: parseFloat(k[2]) * pf,
           l: parseFloat(k[3]) * pf, c: parseFloat(k[4]) * pf,
         }));
@@ -746,7 +761,7 @@ export default function MarketProvider(
             totalVol += qty;
             if (t.side === 'Buy') buyVol += qty;
           });
-          if (totalVol > 0) updateCoin(coin, { takerBuyRatio: buyVol / totalVol });
+          if (totalVol > 0) updateCoin(coin, { takerBuyRatio: buyVol / totalVol, takerBasis: 'trades' });   // a sample of the last 500 trades, not the 2 h candle window (S11)
         } catch { /* */ }
 
       } catch { /* */ }
@@ -808,39 +823,33 @@ export default function MarketProvider(
          The map is fetched once here; each coin then reads its own entry, so the
          per-coin CVD and whale logic below is unchanged. */
       (async () => {
-        let aggAll: Record<string, Array<{ m: boolean; q: string; p: string; a: number }>> = {};
+        /* The SERVER sums each coin's 200 trades (buy volume, sell volume, newest id, the whale-size trades) and sends only those: about 1 MB of raw trades became a few tens of KB (#1651). */
+        let aggAll: Record<string, AggSummary> = {};
         try {
-          const r = await fetch('/api/market/agg-trades?limit=200');
+          const r = await fetch('/api/market/agg-trades?limit=200&shape=summary');
           if (r.ok) aggAll = (await r.json()).data ?? {};
         } catch { /* every coin below then sees no trades and returns early */ }
 
         await Promise.allSettled(binanceCoins.map(async (coin) => {
         const sym = BINANCE_SYMS[coin];
         try {
-          const trades = aggAll[sym];
-          if (!Array.isArray(trades)) return;
+          const sum = aggAll[sym];
+          if (!sum || !Array.isArray(sum.whales) || !Number.isFinite(sum.buyVol) || !Number.isFinite(sum.sellVol)) return;
 
-          let buyVol = 0, sellVol = 0;
+          const buyVol = sum.buyVol, sellVol = sum.sellVol;
           const lastSeenId = lastAggIdRef.current[coin] ?? 0;
           let newLastId = lastSeenId;
 
-          trades.forEach((t: { m: boolean; q: string; p: string; a: number }) => {
-            const qty = parseFloat(t.q);
-            const price = parseFloat(t.p);
-            const usd = price * qty;
-
-            // CVD
-            if (t.m) sellVol += qty; else buyVol += qty;
-
-            // Whale detection - only emit for truly new trades
-            if (t.a > lastSeenId && usd >= WHALE_USD_THRESHOLD) {
-              const side = t.m ? 'SELL' : 'BUY';
+          // Whale detection - only emit for truly new trades (the server sends every whale-size trade in the window; this tab's own last-seen id decides which are new)
+          for (const w of sum.whales) {
+            if (w.a > lastSeenId) {
+              const usd = w.p * w.q;
               window.dispatchEvent(new CustomEvent('whale-trade', {
-                detail: { id: t.a, symbol: coin.toUpperCase(), side, usdValue: usd, price, qty, ts: Math.floor(Date.now() / 1000) },
+                detail: { id: w.a, symbol: coin.toUpperCase(), side: w.m ? 'SELL' : 'BUY', usdValue: usd, price: w.p, qty: w.q, ts: Math.floor(Date.now() / 1000) },
               }));
             }
-            if (t.a > newLastId) newLastId = t.a;
-          });
+          }
+          if (sum.maxId != null && sum.maxId > newLastId) newLastId = sum.maxId;
 
           lastAggIdRef.current[coin] = newLastId;
           const cvdValue = buyVol - sellVol;
@@ -1205,7 +1214,7 @@ export default function MarketProvider(
        failed per-symbol fetch did for that coin: unknown until the live 8-min poll builds its own two readings. */
     let klAll: Record<string, Array<Array<unknown>>> = {};
     try {
-      const r = await fetch('/api/market/kline-batch?interval=5&limit=13', { signal: AbortSignal.timeout(20_000) });
+      const r = await fetch('/api/market/kline-batch?interval=5&limit=13', { signal: deadlineSignal(20_000) });
       if (r.ok) klAll = (await r.json()).data ?? {};
     } catch { /* leave empty; the length guard in bootstrapReadings handles no data */ }
 
@@ -1310,11 +1319,13 @@ export default function MarketProvider(
 
       setStore(s => ({
         ...s,
-        ...(d.oil  ? { oilPrice: d.oil.price, oilChg: d.oil.chg }        : {}),
-        ...(d.dxy  ? { dxy:  d.dxy.price,  dxyChg:  d.dxy.chg  }       : {}),
-        ...(d.spx  ? { spx:  d.spx.price,  spxChg:  d.spx.chg  }       : {}),
-        ...(d.gold ? { gold: d.gold.price, goldChg: d.gold.chg  }       : {}),
-        ...(d.jpy  ? { jpy:  d.jpy.price,  jpyChg:  d.jpy.chg  }       : {}),
+        /* PM audit A7: only ^TNX was cleared on a failed read. DXY, S&P, gold, oil and yen kept their LAST value with no age, so a blocked quote
+           source left an old DXY on the page indefinitely. Every reading is now unavailable when its read fails, the same rule as the 10Y below. */
+        ...(d.oil  ? { oilPrice: d.oil.price, oilChg: d.oil.chg }        : { oilPrice: null, oilChg: null }),
+        ...(d.dxy  ? { dxy:  d.dxy.price,  dxyChg:  d.dxy.chg  }       : { dxy: null, dxyChg: null }),
+        ...(d.spx  ? { spx:  d.spx.price,  spxChg:  d.spx.chg  }       : { spx: null, spxChg: null }),
+        ...(d.gold ? { gold: d.gold.price, goldChg: d.gold.chg  }       : { gold: null, goldChg: null }),
+        ...(d.jpy  ? { jpy:  d.jpy.price,  jpyChg:  d.jpy.chg  }       : { jpy: null, jpyChg: null }),
         // PM audit of #1665: a failed ^TNX read is "unavailable", not the last yield shown as current with no age.
         ...(d.tnx  ? { bonds10y: d.tnx.price, bonds10yChgBp: tnxBp }   : { bonds10y: null, bonds10yChgBp: null }),
         // No truthiness guard: the route always returns an object, and its
@@ -1514,7 +1525,7 @@ export default function MarketProvider(
 
     function connectBN() {
       if (!alive) return;
-      const ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
+      const ws = new WebSocket('wss://fstream.binance.com/market/ws/!forceOrder@arr');
       bnWs = ws;
       const attemptStartedAt = Date.now();
       // #1228 review: onerror, onclose and the connect timeout below all

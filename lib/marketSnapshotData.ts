@@ -63,7 +63,7 @@
  */
 
 import { COINS, BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, bybitPriceFactor } from './coins.ts';
-import { cachedRefresh, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
+import { cachedRefresh, cachedAt, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
 import { runPool, HttpStatusError, isRateLimitStatus } from './pool.ts';
 import { parseRatioPair } from './ratioPair.ts';
 import { reportHealth, healthError } from './apiHealth.ts';
@@ -437,6 +437,8 @@ export interface MarketSnapshot {
   partial: string[];
   /** Per-section lists of coins served by Bybit rather than Binance. */
   viaFallback: Record<string, string[]>;
+  /** When the OLDEST section in this response was fetched (epoch ms). The cached sections have different ages, so the response is only as fresh as its oldest part; null when none could be read. */
+  fetchedAt: number | null;
 }
 
 /**
@@ -488,5 +490,12 @@ export async function marketSnapshotData(): Promise<
     ['lsr',    lsr]    as const,
   ].filter(([, v]) => Object.keys(v).length === 0).map(([name]) => name);
 
-  return { ok: true, data: { ticker, klines, lsr, partial, viaFallback } };
+  /* The response is as old as its OLDEST fulfilled section (three caches, three cadences). */
+  const ages = [['mkt:ticker', t], ['mkt:klines', k], ['mkt:lsr', l]]
+    .filter(([, r]) => (r as PromiseSettledResult<unknown>).status === 'fulfilled')
+    .map(([key]) => cachedAt(key as string))
+    .filter((n): n is number => n != null);
+  const fetchedAt = ages.length ? Math.min(...ages) : null;
+
+  return { ok: true, data: { ticker, klines, lsr, partial, viaFallback, fetchedAt } };
 }

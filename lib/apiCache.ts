@@ -76,6 +76,11 @@ function remember(key: string, data: unknown): void {
 
 /** Entry count. Exported for tests and for anything that wants to assert the cap
  *  holds - the bound is worth nothing if nobody can see it. */
+/** When the cached value under `key` was fetched (epoch ms), or null when nothing is cached. A response served from cache is only as fresh as this, whatever the time of the request. */
+export function cachedAt(key: string): number | null {
+  return store.get(key)?.ts ?? null;
+}
+
 export function _cacheSize(): number {
   return store.size;
 }
@@ -272,3 +277,21 @@ export async function cachedStale<T>(
     throw e;   // nothing cached yet - the caller has to handle a real failure
   }
 }
+
+/** `cached()` for a loader that RESERVES a per-user use inside the cache miss (the AI tool routes). Concurrent requests for one key share ONE in-flight loader, so when user A's loader threw A's own block (A is at
+ *  their cap, or the usage RPC failed for A), user B, who joined the same in-flight promise and has quota, was handed A's rejection (U10). A block thrown for a DIFFERENT user is not B's answer: the shared entry is gone
+ *  (nothing is cached for a failure), so B asks again and, as the next loader, reserves for B. The thrown error carries `blockedUserId`. At most two retries; a cache hit and a joiner of a successful loader are untouched. */
+export async function cachedOwn<T>(
+  userId: string, key: string, ttlMs: number, fetcher: () => Promise<T>, opts: CachedOptions = {},
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await cached(key, ttlMs, fetcher, opts);
+    } catch (e) {
+      const blockedUserId = (e as { blockedUserId?: unknown } | null)?.blockedUserId;
+      if (typeof blockedUserId === 'string' && blockedUserId !== userId && attempt < 2) continue;
+      throw e;
+    }
+  }
+}
+

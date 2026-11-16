@@ -349,6 +349,19 @@ export async function installMarketFixtures(
    * app parses, volume is not. */
   await page.route('**/v5/market/account-ratio**', r => fulfil(r, 'bybit-account-ratio'));
   await page.route('**/v5/market/recent-trade**', r => fulfil(r, 'bybit-recent-trade'));
+  /* THE CVD SWEEP NOW ASKS OUR OWN ROUTE FOR A SUMMARY (#2422, #1651): GET /api/market/agg-trades?limit=200&shape=summary, and reads data[SYM] = { buyVol, sellVol, maxId, whales: [{ a, m, q, p }] }
+     (the raw trades are still served without shape=summary, for an older tab). A fixed literal here, NOT computed from the trades with the app's own summariser: a stand-in that runs the code under test can
+     only agree with it. Symbols are the sweep's Binance set. */
+  await page.route('**/api/market/agg-trades**', route => {
+    served.count++;
+    served.byKey['agg-trades-summary'] = (served.byKey['agg-trades-summary'] ?? 0) + 1;
+    if (scenario === 'upstream-500') return route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"upstream"}' });
+    if (!/[?&]shape=summary/.test(route.request().url())) return route.fallback();
+    const sym = (buyVol: number, sellVol: number, maxId: number) => ({ buyVol, sellVol, maxId, whales: [] as Array<{ a: number; m: boolean; q: number; p: number }> });
+    const data = { BTCUSDT: sym(120.5, 98.25, 1_000_200), ETHUSDT: sym(2_400, 2_150, 900_200), SOLUSDT: sym(31_000, 29_500, 800_200), BNBUSDT: sym(410, 390, 700_200), XRPUSDT: sym(910_000, 880_000, 600_200),
+      DOGEUSDT: sym(3_100_000, 3_000_000, 500_200), ADAUSDT: sym(540_000, 520_000, 400_200), AVAXUSDT: sym(9_800, 9_100, 300_200), LINKUSDT: sym(21_000, 20_000, 200_200) };
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data, ok: Object.keys(data).length, total: Object.keys(data).length, ts: Date.now() }) });
+  });
   await page.route('**api.binance.com/api/v3/aggTrades**', r => fulfil(r, 'binance-aggTrades'));
   await page.route('**api.binance.com/api/v3/klines**', r => fulfil(r, 'binance-klines'));
   await page.route('**api.binance.com/api/v3/depth**', r => fulfil(r, 'binance-depth'));

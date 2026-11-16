@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 // Atomic daily-cap gate for every AI route (grok, grok-chat, briefing, and the
 // one-shot tools: thesis-check, strategy-research, shadow-account,
 // behavioral-bias, pine-script, hypotheses/[id]/analyze).
@@ -109,6 +110,18 @@ const EXTRA_TOOL_COLUMN: Record<ExtraTool, string> = {
 // It just no longer names a limit nobody hit.
 export type UsageBlockReason =
   | 'user' | 'global' | 'pool' | 'disabled' | 'not_enabled' | 'error' | SpendReason;
+
+/** A block that is OUR state, not the user's quota: a database failure in the increment, a migration not applied, or the admin kill switch. Answered 503 UNAVAILABLE, never 429 RATE_LIMIT (the rate-limit
+ *  message names a reset time, so a database blip told a paying user they had used up an allowance they had not touched). Only /api/grok and draw-structure mapped it; every other AI route answered 429 (U8). */
+export function isOurFaultBlock(reason: UsageBlockReason): boolean {
+  return reason === 'error' || reason === 'not_enabled' || reason === 'disabled';
+}
+
+/** The answer for a blocked reservation, in one place: 503 UNAVAILABLE for our own state, 429 RATE_LIMIT for a real cap. `extra` is merged into the body (e.g. a route's usage object). */
+export function blockedResponse(reason: UsageBlockReason, message: string, extra: Record<string, unknown> = {}): NextResponse {
+  if (isOurFaultBlock(reason)) return NextResponse.json({ error: message, ...extra, code: 'UNAVAILABLE' }, { status: 503 });
+  return NextResponse.json({ error: message, ...extra, code: 'RATE_LIMIT' }, { status: 429 });
+}
 
 export type UsageIncrementResult =
   | { blocked: false; count: number }
