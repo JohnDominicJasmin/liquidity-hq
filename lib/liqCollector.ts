@@ -151,7 +151,7 @@ function connect(c: Collector, idx: number, name: string, staleMs: number, open:
       schedule();
     };
     venue.retire = retire;
-    ws.addEventListener('open', () => { if (gen !== mine) return; attempts = 0; venue.open = true; venue.lastMsgAt = Date.now(); reportHealth(`liq:${name}`, 'other', true, 'connected'); onOpen(ws); });
+    ws.addEventListener('open', () => { if (gen !== mine) return; attempts = 0; venue.open = true; venue.lastMsgAt = Date.now(); venue.hist = [{ at: Date.now(), msgs: venue.msgs, kept: venue.kept }]; reportHealth(`liq:${name}`, 'other', true, 'connected'); onOpen(ws); });
     ws.addEventListener('message', (ev: MessageEvent) => { if (gen !== mine) return; venue.lastMsgAt = Date.now(); if (typeof ev.data !== 'string') return; const r = onMessage(ev.data); if (r.data) { venue.msgs++; venue.kept += r.kept; } });
     ws.addEventListener('error', (ev: Event) => { lastError = String((ev as ErrorEvent).message ?? '').slice(0, 120); /* the close that follows does the reconnect */ });
     ws.addEventListener('close', (ev: CloseEvent) => retire(`socket closed (code ${ev.code}${lastError ? ', ' + lastError : ''})`));
@@ -209,9 +209,10 @@ export function startLiqCollector(): void {
     const now = Date.now();
     for (const v of c.venues) {
       if (!v || !v.open) continue;   // a closed socket already reported itself and is on its backoff
+      /* The window START is read BEFORE this beat is pushed (and the history is seeded when the socket opens), so the first heartbeat reports what arrived since open, not 0 / 0. */
+      const first = v.hist[0] ?? { at: now, msgs: v.msgs, kept: v.kept };
       v.hist.push({ at: now, msgs: v.msgs, kept: v.kept });
       if (v.hist.length > HEARTBEAT_WINDOW + 1) v.hist.shift();
-      const first = v.hist[0];
       const mins = Math.max(1, Math.round((now - first.at) / 60_000));
       reportHealth(`liq:${v.name}`, 'other', true, `connected, ${v.msgs - first.msgs} msgs / ${v.kept - first.kept} kept in ${mins} min, last msg ${Math.round((now - v.lastMsgAt) / 1000)}s ago`);
     }
