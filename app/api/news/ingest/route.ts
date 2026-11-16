@@ -3,7 +3,7 @@ import { judgeTs, notableOf, MAX_AGE_SEC, MAX_FUTURE_SEC, type TsVerdict } from 
 import { checkCronAuth } from '@/lib/cronAuth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { apiError } from '@/lib/apiError';
-import { classifyNews, GEO_KEYWORDS } from '@/lib/classify';
+import { classifyNews, GEO_KEYWORDS, hasAnyKeyword } from '@/lib/classify';
 import { fetchAllFeeds, fetchFinnhubCategory } from '@/lib/newsFeeds';
 import { recordApiHealth } from '@/lib/apiHealth';
 import { dedupKey, identitiesOf } from '@/lib/newsDedup';
@@ -32,8 +32,7 @@ type Row = {
 // Key generation lives in lib/newsDedup.ts.
 
 function matchesGeo(text: string): boolean {
-  const t = text.toLowerCase();
-  return GEO_KEYWORDS.some(g => g.kw.some(k => t.includes(k)));
+  return GEO_KEYWORDS.some(g => hasAnyKeyword(text, g.kw));
 }
 
 export async function POST(req: Request) {

@@ -103,6 +103,14 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
   const [clusters, setClusters] = useState<Bucket[]>([]);
   const [bnStatus, setBnStatus] = useState<'connecting'|'live'|'error'>('connecting');
   const [bbStatus, setBbStatus] = useState<'connecting'|'live'|'error'>('connecting');
+  /* A feed that has not connected after 8 s says so instead of staying on skeletons for ever (a socket blocked by a network, a venue refusing us). It keeps retrying underneath; the line goes away when a socket goes live. */
+  const [connectWaited, setConnectWaited] = useState(false);
+  const noneLive = bnStatus !== 'live' && bbStatus !== 'live';
+  useEffect(() => {
+    if (!noneLive) { setConnectWaited(false); return; }
+    const id = setTimeout(() => setConnectWaited(true), 8_000);
+    return () => clearTimeout(id);
+  }, [noneLive]);
   /* Which venue is the ONLY one in the stored 24 h history, if one is. A venue the server cannot reach would otherwise leave history that looks complete and is not (the cluster read is stored rows). */
   const [histOnly, setHistOnly] = useState<'BN' | 'BB' | null>(null);
   const [msgCount, setMsgCount] = useState(0);
@@ -214,7 +222,7 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
     try { bnWsRef.current?.close(); } catch { /* */ }
     // Combined stream: each symbol has its own forceOrder feed
     const streams = BN_SYMBOLS.map(s => `${s}@forceOrder`).join('/');
-    const ws = new WebSocket(`wss://fstream.binance.com/stream?streams=${streams}`);
+    const ws = new WebSocket(`wss://fstream.binance.com/market/stream?streams=${streams}`);
     bnWsRef.current = ws;
     ws.onopen  = () => setBnStatus('live');
     ws.onerror = () => setBnStatus('error');
@@ -320,9 +328,11 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
       sb.from(T.liq_events)
         .select('coin, side, usd, price, source, ts')
         .gte('ts', since)
-        .order('ts', { ascending: true })
+        /* NEWEST 5000, then put back in time order. Ascending + limit kept the OLDEST 5000 of the window, and with both venues collected server-side a day can exceed 5000 rows, so the clusters and the one-venue note came from the oldest rows and missed the latest hours. */
+        .order('ts', { ascending: false })
         .limit(5000)
-        .then(({ data }) => {
+        .then(({ data: newestFirst }) => {
+          const data = newestFirst ? [...newestFirst].reverse() : newestFirst;
           if (!data || data.length === 0) return;
           const venues = new Set((data as Array<{ source: string }>).map(r => r.source));
           const only = venues.size === 1 ? (venues.has('BN') ? 'BN' : venues.has('BB') ? 'BB' : null) : null;
@@ -498,11 +508,13 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
       {displayed.length === 0 && (
         <div style={{ padding: '10px 14px' }} role="status" aria-live="polite">
           <span className="sr-only">
-            {anyLive ? t('LIQ_FEED_SR_WATCHING', { coin: coinFilter === 'ALL' ? t('LIQ_FEED_ALL_MARKETS') : coinFilter }) : t('LIQ_FEED_SR_CONNECTING')}
+            {anyLive ? t('LIQ_FEED_SR_WATCHING', { coin: coinFilter === 'ALL' ? t('LIQ_FEED_ALL_MARKETS') : coinFilter }) : connectWaited ? t('LIQ_FEED_CONNECT_FAILED') : t('LIQ_FEED_SR_CONNECTING')}
           </span>
           {anyLive ? (
             /* A connected feed with nothing yet is a quiet market, not a loading one; same height as the skeleton so nothing below moves. */
             <div style={{ minHeight: 106, color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>{t('LIQ_FEED_SR_WATCHING', { coin: coinFilter === 'ALL' ? t('LIQ_FEED_ALL_MARKETS') : coinFilter })}</div>
+          ) : connectWaited ? (
+            <div data-testid="liq-feed-connect-failed" style={{ minHeight: 106, color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>{t('LIQ_FEED_CONNECT_FAILED')}</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[0, 1, 2].map(i => (
