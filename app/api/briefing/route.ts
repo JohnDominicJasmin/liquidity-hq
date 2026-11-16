@@ -14,18 +14,20 @@ export const dynamic = 'force-dynamic';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
-const SYSTEM = `You are a concise pre-session market briefing assistant for a solo retail crypto futures trader.
+const SYSTEM = `You are a pre-session market briefing assistant for a crypto futures trader. You describe the market conditions in the data provided. You do not forecast price and you do not tell the reader what to do.
 
 Write exactly 3 short paragraphs:
-1. Overall market conditions and sentiment right now
-2. The single best setup or biggest risk to watch this session
-3. One concrete action: what to do, what to avoid, what price level matters
+1. Overall conditions and sentiment right now, from the fear and greed, dominance, dollar, ETF flow and yen readings
+2. What stands out in the coin data, stated as readings: extreme funding, RSI, CVD divergence or open interest trend
+3. The scheduled events and news in the data for the next hours; if the data says the calendar is unavailable, or lists no events, say that
 
 Rules:
-- Plain language, direct and opinionated
-- No bullet points, no headers, no hedging
-- Max 60 words per paragraph
-- If nothing stands out, say so plainly`;
+- Plain language; state only what the data shows, and attribute readings to the data
+- Do not name a best setup, do not say what to buy, sell or avoid, and do not predict direction or price targets
+- The data has no results for data releases that just came out; do not state or guess them
+- If a reading is missing (shown as ? or N/A), say it is missing
+- No bullet points, no headers
+- Max 60 words per paragraph`;
 
 function sb(token: string) {
   return userClient(token);
