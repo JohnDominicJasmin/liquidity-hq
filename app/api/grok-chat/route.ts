@@ -20,10 +20,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { T } from '@/lib/tables';
-import { getUsageTier, getPlanSnapshot } from '@/lib/entitlements';
+import { getUsageTierStatus, getPlanSnapshot } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
-import { AI_LIMITS } from '@/lib/limits';
-import { incrementUsageColumn, rateLimitMessage, blockedResponse, todayUtc, refundUsageColumn } from '@/lib/aiUsage';
+import { AI_LIMITS, type UsageTier } from '@/lib/limits';
+import { incrementUsageColumn, rateLimitMessage, refundUsageColumn, todayUtc, blockedResponse } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 import { clampMaxTokens } from '@/lib/grokTokenClamp';
 import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
@@ -70,10 +70,12 @@ export async function GET(req: NextRequest) {
   if (!userData.user) return NextResponse.json({ error: 'Auth required' }, { status: 401 });
   const userId = userData.user.id;
   const today = todayUtc();
-  const [{ chatUsed, searchUsed }, role] = await Promise.all([
+  const [{ chatUsed, searchUsed }, plan] = await Promise.all([
     getUsageRow(token, userId, today),
-    getUsageTier(token, userId),
+    getUsageTierStatus(token, userId),
   ]);
+  /* U7: an UNKNOWN plan is never billed against the Free cap. Every plan may chat, so it proceeds against the Pro count cap with the dollar cap failing closed, exactly as POST /api/grok does (#2412). */
+  const role: UsageTier = plan.failed ? 'pro' : plan.tier;
   const chatLimit   = AI_LIMITS[role].chat;
   const searchLimit = AI_LIMITS[role].search;
   return NextResponse.json({ chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit });
@@ -122,7 +124,8 @@ export async function POST(req: NextRequest) {
     getUsageRow(token, userId, today),
     getPlanSnapshot(token, userId),
   ]);
-  const role = plan.tier;
+  /* U7: an UNKNOWN plan is never billed against the Free cap. Every plan may chat, so it proceeds against the Pro count cap with the dollar cap failing closed, exactly as POST /api/grok does (#2412). */
+  const role: UsageTier = plan.failed ? 'pro' : plan.tier;
 
   const chatLimit   = AI_LIMITS[role].chat;
   const searchLimit = AI_LIMITS[role].search;
@@ -135,7 +138,7 @@ export async function POST(req: NextRequest) {
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
   const column = isSearch ? 'chat_search_count' : 'chat_count';
   const limit  = isSearch ? searchLimit : chatLimit;
-  const usageResult = await incrementUsageColumn(userId, role, column, limit);
+  const usageResult = await incrementUsageColumn(userId, role, column, limit, null, plan.failed);
   if (usageResult.blocked) {
     const label = isSearch ? 'live search messages' : 'chat messages';
     return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, limit, label), {
