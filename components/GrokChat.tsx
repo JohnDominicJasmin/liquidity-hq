@@ -24,6 +24,7 @@ import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import CoinMultiSelect from './CoinMultiSelect';
 import { activatable } from '@/lib/activatable';
 import { PAGE_COIN_EVENT, currentPageCoin } from '@/lib/pageCoin';
+import { MARKET_DATA_NEEDED_EVENT } from '@/lib/marketDataNeeded';
 import AiDisclaimer from '@/components/AiDisclaimer';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
@@ -169,6 +170,8 @@ export default function GrokChat() {
 
   const [open,           setOpen]           = useState(false);
   const [expanded,       setExpanded]       = useState(false);
+  /* The chat reads the market store, which is not running on data-free pages (components/AppShell.tsx): opening it asks the shell to start it. */
+  useEffect(() => { if (open) window.dispatchEvent(new Event(MARKET_DATA_NEEDED_EVENT)); }, [open]);
   const [liveSearch,     setLiveSearch]     = useState(false);
   const [histView,       setHistView]       = useState(false);
   const [coin,           setCoin]           = useState<CoinId>('btc');
