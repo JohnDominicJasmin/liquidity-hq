@@ -161,7 +161,8 @@ function buildChatContext(
 export default function GrokChat() {
   const { store }                      = useMarket();
   const { latestHeadlines, geoEvents } = useNews();
-  const { user, loading: authLoading, entitlementStatus, entitlementsLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { entitlementStatus, entitlementsLoading } = useAuth();
   const { settings, settingsLoadStatus } = useSettings();
   const { t } = useLabels();
 
