@@ -126,7 +126,7 @@ function buildBriefingContext(
   calendarUnavailable = false,
 ): string {
   const nowUtc = new Date().toLocaleString('en-GB', {
-    timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   });
   const jpyStatus = jpyUsd == null ? 'N/A'
     : jpyUsd >= 160 ? `${jpyUsd.toFixed(2)} - at or above 160. If the yen rises quickly from this level, yen carry trades can be unwound, which has coincided with crypto selloffs before.`

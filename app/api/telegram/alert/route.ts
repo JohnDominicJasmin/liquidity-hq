@@ -386,7 +386,7 @@ function alertTimeIn(timeZone: string | null): string {
 function localHourMinute(timeZone: string | null, d: Date): { hour: number; min: number } {
   const read = (zone: string) => {
     const parts = new Intl.DateTimeFormat('en-GB', {
-      timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: false,
+      timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).formatToParts(d);
     return {
       hour: Number(parts.find(p => p.type === 'hour')?.value ?? '0'),
