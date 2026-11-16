@@ -71,6 +71,9 @@ export default function MarketsTerminal() {
       }
       if (sort === 'name')   cmp = a.localeCompare(b);
       if (sort === 'grade') {
+        /* NO DATA SORTS LAST IN BOTH DIRECTIONS (S5). A coin with no price is graded F (label 'No data'), so reversed it came FIRST among the F's, ahead of coins that were actually graded. Unknown is decided before the direction is applied, like volume and change above. */
+        const unknownA = !da?.price, unknownB = !db?.price;
+        if (unknownA || unknownB) return unknownA === unknownB ? 0 : unknownA ? 1 : -1;
         const ga = computeCoinHealth(da).grade;
         const gb = computeCoinHealth(db).grade;
         cmp = (GRADE_ORDER[ga] ?? 5) - (GRADE_ORDER[gb] ?? 5);
