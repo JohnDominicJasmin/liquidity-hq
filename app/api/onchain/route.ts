@@ -5,7 +5,7 @@ import { recordAiCall } from '@/lib/aiCallLog';
 import { apiError } from '@/lib/apiError';
 import { cached } from '@/lib/apiCache';
 import { getEntitlement, usageTierOf } from '@/lib/entitlements';
-import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
+import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 
@@ -144,6 +144,7 @@ export async function GET(req: NextRequest) {
       // token-unlock/smc-snapshot).
       const role = usageTierOf(entitlement);
       /* The usage check and the chain-stats read run AT THE SAME TIME; the stats are cached on their own for 5 minutes so an AI failure's retry does not refetch them. */
+      const reservedOn = todayUtc();
       const [usageResult, stats] = await Promise.all([
         incrementToolUsage(authData.user.id, 'onchain', role),
         /* A null (the read failed) must NOT be cached for five minutes: it throws so `cached` stores nothing, and the caller carries on without stats exactly as before. */
@@ -152,6 +153,8 @@ export async function GET(req: NextRequest) {
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);
       }
+      /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
+      const giveBack = () => refundToolUsage(authData.user.id, 'onchain', reservedOn);
       const prompt = buildOnChainPrompt(stats, btcPrice);
 
       const r = await xaiFetch('https://api.x.ai/v1/responses', {
@@ -168,8 +171,9 @@ export async function GET(req: NextRequest) {
           max_output_tokens: 2000,
         }),
         signal: AbortSignal.timeout(45000),
-      });
+      }).catch(async (e: unknown) => { await giveBack(); throw e; });
       if (!r.ok) {
+        await giveBack();
         const e = await r.json().catch(() => ({})) as { error?: string };
         throw new Error(e.error ?? 'AI error');
       }
@@ -184,7 +188,7 @@ export async function GET(req: NextRequest) {
       const m = raw.match(/\{[\s\S]*\}/);
       if (m) { try { parsed = JSON.parse(m[0]) as Record<string, unknown>; } catch { /* fall through */ } }
       /* A cut-off answer is named as one (#1631): the cap, not the model, is what to fix. */
-      if (!parsed) throw new Error(answerWasCutOff(d) ? 'AI answer cut off at the output cap (status incomplete)' : 'Could not parse AI response');
+      if (!parsed) { await giveBack(); throw new Error(answerWasCutOff(d) ? 'AI answer cut off at the output cap (status incomplete)' : 'Could not parse AI response'); }
 
       return { ...parsed, blockchain_stats: stats ?? undefined, timestamp: new Date().toISOString() };
     });
