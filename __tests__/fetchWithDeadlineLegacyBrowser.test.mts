@@ -80,3 +80,25 @@ for (const [label, gone] of [['L (no timeout, no any)', ['timeout', 'any']], ['L
     } finally { restore(); }
   });
 }
+
+/* The shared helper itself (Dev's hotfix: lib/deadlineSignal.ts, used by every browser-side deadline). */
+const { deadlineSignal } = await import('../lib/deadlineSignal.ts');
+
+test('D1. deadlineSignal uses the native AbortSignal.timeout when the browser has it', () => {
+  const s = deadlineSignal(5000);
+  assert.equal(s.aborted, false);
+  assert.ok(s instanceof AbortSignal);
+});
+
+test('D2. deadlineSignal with NO native timeout still aborts after the delay, with a TimeoutError, and not before', async () => {
+  remove(['timeout', 'any']);
+  try {
+    const s = deadlineSignal(60);
+    assert.equal(s.aborted, false, 'aborted at once');
+    await new Promise((r) => setTimeout(r, 25));
+    assert.equal(s.aborted, false, 'aborted before the delay');
+    await new Promise((r) => setTimeout(r, 120));
+    assert.equal(s.aborted, true, 'never aborted after the delay');
+    assert.equal((s.reason as { name?: string })?.name, 'TimeoutError', 'the abort reason is not a TimeoutError, which callers that tell a timeout from a user abort rely on');
+  } finally { restore(); }
+});
