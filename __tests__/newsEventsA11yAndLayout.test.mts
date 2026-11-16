@@ -12,22 +12,28 @@ import { readFileSync } from 'node:fs';
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const css = read('app/globals.css'), news = read('app/(main)/news/page.tsx'), en = JSON.parse(read('lib/labelDefaults.en.json')) as Record<string, string>, keys = read('lib/labelKeys.ts');
 
-test('N1. one .ne-row class for header and rows: 5 columns, 4 under 480 px with the Previous column hidden in both', () => {
-  assert.ok(/\.ne-row\s*\{\s*display:\s*grid;\s*grid-template-columns:\s*70px minmax\(140px, 1fr\) 72px 72px 72px;/.test(css), 'the wide grid changed');
-  const m = css.match(/@media \(max-width: 479px\)\s*\{\s*\.ne-row\s*\{\s*grid-template-columns:\s*([^;]+);[^}]*\}\s*\.ne-prev\s*\{\s*display:\s*none;\s*\}/);
-  assert.ok(m, 'the phone rule (4 columns, .ne-prev hidden) is gone'); assert.equal(m![1].trim().split(/\s+(?![^(]*\))/).length, 4, `phone grid is not 4 columns: ${m![1]}`);
+test('N1. one .ne-row class for header and rows: 6 columns, 4 under 480 px with Previous and Impact hidden in both', () => {
+  assert.ok(/\.ne-row\s*\{\s*display:\s*grid;\s*grid-template-columns:\s*70px minmax\(140px, 1fr\) 72px 72px 72px 72px;/.test(css), 'the wide grid is not 6 columns');
+  const m = css.match(/@media \(max-width: 479px\)\s*\{\s*\.ne-row\s*\{\s*grid-template-columns:\s*([^;]+);[^}]*\}\s*\.ne-prev,\s*\.ne-imp\s*\{\s*display:\s*none;\s*\}/);
+  assert.ok(m, 'the phone rule (4 columns, .ne-prev and .ne-imp hidden) is gone'); assert.equal(m![1].trim().split(/\s+(?![^(]*\))/).length, 4, `phone grid is not 4 columns: ${m![1]}`);
   const hdrAt = news.indexOf('<div className="ne-row"'); assert.ok(hdrAt > 0, 'CONTROL: header row not found'); const hdr = news.slice(hdrAt, news.indexOf('</div>', hdrAt));
-  assert.equal((hdr.match(/<span/g) ?? []).length, 5, 'the header does not have 5 cells'); assert.equal((hdr.match(/className="ne-prev"/g) ?? []).length, 1, 'the header Previous cell lost .ne-prev');
+  assert.equal((hdr.match(/<span/g) ?? []).length, 6, 'the header does not have 6 cells'); assert.equal((hdr.match(/className="ne-prev"/g) ?? []).length, 1, 'the header Previous cell lost .ne-prev'); assert.equal((hdr.match(/className="ne-imp"/g) ?? []).length, 1, 'the header Impact cell lost .ne-imp');
   const rowAt = news.indexOf('<div key={ei} className="ne-row"'); assert.ok(rowAt > 0, 'CONTROL: event row not found'); const rowEnd = news.indexOf('\n                  );', rowAt); const row = news.slice(rowAt, rowEnd);
-  assert.equal((row.match(/className="ne-prev"/g) ?? []).length, 1, 'the row Previous cell lost .ne-prev');
-  assert.equal((row.match(/^\s{22}<(span|div)\b/gm) ?? []).length, 5, 'an event row does not have 5 direct cells (the grid would shift)');
+  assert.equal((row.match(/className="ne-prev"/g) ?? []).length, 1, 'the row Previous cell lost .ne-prev'); assert.equal((row.match(/className="ne-imp"/g) ?? []).length, 1, 'the row Impact cell lost .ne-imp');
+  assert.equal((row.match(/^\s{22}<(span|div)\b/gm) ?? []).length, 6, 'an event row does not have 6 direct cells (the grid would shift)');
 });
-test('N2. no Impact column, and the reason holds: the calendar route returns every event as high', () => {
-  assert.equal(/NEWS_EVENTS_COL_IMPACT|NEWS_EVENTS_IMPACT/.test(news), false, 'an Impact column is back');
-  const r = read('app/api/econ-calendar/route.ts'); const impacts = [...r.matchAll(/impact:\s*'([a-z]+)'/g)].map((x) => x[1]); assert.ok(impacts.length >= 2, 'CONTROL: no impact values found');
-  assert.deepEqual([...new Set(impacts)], ['high'], 'the route now returns other impacts: a fixed/removed Impact column hides real information');
+test('N2. Impact column: the cell shows the route\'s impact (High / Medium), "-" when missing or unknown, NEVER defaulted to high; the route only returns high or med', () => {
+  const at = news.indexOf('className="ne-imp" style={{ fontSize'); assert.ok(at > 0, 'CONTROL: Impact cell not found'); const cell = news.slice(at, news.indexOf('</span>', at));
+  assert.ok(cell.includes("e.impact === 'high' ? t('NEWS_EVENTS_IMPACT_WORD_HIGH') : e.impact === 'med' ? t('NEWS_EVENTS_IMPACT_WORD_MED') : '-'"), 'the Impact cell is not high -> High, med -> Medium, otherwise "-"');
+  assert.ok(cell.includes("e.impact === 'high' ? 'var(--red)' : e.impact === 'med' ? 'var(--amber)' : 'var(--txt3)'"), 'the Impact colours changed (red high, amber medium, muted unknown)');
+  assert.equal(/e\.impact\s*\?\?\s*'high'|e\.impact\s*\|\|\s*'high'/.test(news), false, 'a missing impact is defaulted to high');
+  assert.equal(en.NEWS_EVENTS_IMPACT_WORD_HIGH, 'High'); assert.equal(en.NEWS_EVENTS_IMPACT_WORD_MED, 'Medium'); assert.equal(en.NEWS_EVENTS_COL_IMPACT, 'IMPACT');
+  for (const k of ['NEWS_EVENTS_IMPACT_WORD_HIGH', 'NEWS_EVENTS_IMPACT_WORD_MED']) assert.ok(keys.includes(`'${k}'`), `${k} not registered`);
+  const r = read('app/api/econ-calendar/route.ts'); const fromRoute = [...r.matchAll(/impact:\s*'([a-z]+)'/g)].map((x) => x[1]); assert.ok(fromRoute.length >= 1, 'CONTROL: no literal impact in the route');
+  assert.ok(fromRoute.every((v) => v === 'high' || v === 'med'), `the route returns an impact the page cannot word: ${fromRoute}`); assert.ok(r.includes('scheduledImpact(r.type)'), 'scheduled events no longer carry a per-type impact');
+  const ea = read('lib/econActual.ts'); assert.ok(ea.includes("return type === 'FOMC' || type === 'CPI' || type === 'NFP' ? 'high' : 'med';"), 'the per-type impact rule changed (FOMC/CPI/NFP high, rest med)');
 });
-test('N3. the Free plan card names an excluded row in words for a screen reader, through a registered key with an English default', () => {
+test('N3.the Free plan card names an excluded row in words for a screen reader, through a registered key with an English default', () => {
   const up = read('app/(main)/upgrade/page.tsx'); assert.ok(up.includes("{!included && <span className=\"sr-only\">{t('UPGRADE_FREE_NOT_INCLUDED_SR')}{' '}</span>}"), 'the excluded row has no visually-hidden "Not included"');
   assert.equal(en.UPGRADE_FREE_NOT_INCLUDED_SR, 'Not included:'); assert.ok(keys.includes("'UPGRADE_FREE_NOT_INCLUDED_SR'"), 'the key is not registered');
   assert.ok(/\.sr-only\s*\{/.test(css), 'CONTROL: no .sr-only class exists, the text would be visible');
