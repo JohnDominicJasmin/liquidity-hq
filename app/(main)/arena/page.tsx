@@ -1,5 +1,5 @@
 ﻿'use client';
-import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue, Suspense } from 'react';
 import Link from 'next/link';
 import { useNow } from '@/lib/useNow';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
@@ -523,13 +523,15 @@ function ArenaContent() {
      chart and the panel below when the ceiling is crossed - it exists only so the hook has a valid
      timeframe. */
   const aboveAnalysisCeiling = !(ARENA_TFS as readonly string[]).includes(readTf);
+  /* A chip tap flips the chip at once (StrategyPanel); the EMA filter and the markers it drives read this DEFERRED copy, so their recompute never sits inside the tap's own render. */
+  const deferredStrategySelection = useDeferredValue(strategySelection);
   const rawEmaSignal = useEMAStrategy(
     selectedCoin,
     aboveAnalysisCeiling ? '1d' : readTf,
     store.coins[selectedCoin]?.fundingRate ?? null,
     oi1h.pct,
     filterParams,
-    strategySelection,
+    deferredStrategySelection,
     feedGraceOver,
   );
   const gatedEmaSignal = useMemo(() => gateSignal(rawEmaSignal, signalPlan, selectedCoin), [rawEmaSignal, signalPlan, selectedCoin]);
