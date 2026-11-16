@@ -56,7 +56,7 @@ type Fail = null | 'rpc' | 'auth' | 'subsRead' | 'earliest' | 'subsWrite';
 const db = {
   events: new Map<string, Record<string, unknown>>(), subs: new Map<string, Record<string, unknown>>(),
   users: new Map<string, { id: string; email: string; email_confirmed_at: string | null }>(),
-  writes: [] as string[], tables: new Set<string>(), fail: null as Fail, seq: 0, failDelete: false,
+  writes: [] as string[], tables: new Set<string>(), fail: null as Fail, seq: 0, failDelete: false as false | 'delivery' | 'all',
   /* #2320: how the atomic extend answers. null = the function is not installed (404 PGRST202), so the old read-compute-write path runs; the rest are what the database function can say. */
   extend: null as null | 'granted' | 'admin' | 'error', extendArgs: [] as Record<string, unknown>[],
   reset() {
@@ -127,9 +127,13 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       }
       rows.sort((a, b) => String(a.received_at).localeCompare(String(b.received_at)) || String(a.payload_hash).localeCompare(String(b.payload_hash)));
       if (q.get('limit')) rows = rows.slice(0, Number(q.get('limit')));
-      return out(rows.map((r) => ({ payload_hash: r.payload_hash })));
+      return out(rows.map((r) => ({ payload_hash: r.payload_hash, received_at: r.received_at, event: r.event, body: r.body })));
     }
-    if (req.method === 'DELETE' && db.failDelete) { db.writes.push('events:delete-failed'); return json(500, { code: 'XX000', message: 'delete boom' }); }   // the cleanup delete failing, independent of db.fail so both can be on at once
+    /* failDelete: 'delivery' fails ONLY the delete of the stored DELIVERY record (the route's cleanup after a failed grant); 'all' fails every delete, the applied marker's own undo included. Independent of db.fail so both can be on at once. */
+    if (req.method === 'DELETE' && db.failDelete) {
+      const isBookkeeping = String(db.events.get(eq('payload_hash'))?.event ?? '').startsWith('lhq.');
+      if (db.failDelete === 'all' || !isBookkeeping) { db.writes.push('events:delete-failed'); return json(500, { code: 'XX000', message: 'delete boom' }); }
+    }
     if (req.method === 'DELETE') { db.events.delete(eq('payload_hash')); db.writes.push('events:delete'); return new Response(null, { status: 204 }); } // a 204 has no body; json(204, null) threw, so every delete read as failed
   }
   if (table === T('user_subscriptions')) {
@@ -523,7 +527,7 @@ const subsWrites = () => db.writes.filter((w) => w.startsWith('subs:upsert')).le
 test('A1. the grant write fails AND the cleanup delete fails: the IDENTICAL delivery again now grants (it used to be answered "replay" for ever)', async () => {
   const POST = await load(); fresh();
   const bodyText = pay();
-  db.fail = 'subsWrite'; db.failDelete = true;
+  db.fail = 'subsWrite'; db.failDelete = 'delivery';
   const first = await POST(req(bodyText, { id: 'msg_a1' }));
   assert.ok(first.status >= 500, `the first delivery should answer a retryable error, got ${first.status}`);
   assert.equal(db.subs.size, 0, 'nothing granted yet');
@@ -534,6 +538,29 @@ test('A1. the grant write fails AND the cleanup delete fails: the IDENTICAL deli
   assert.notEqual(b.ignored, 'replay', `the identical retry was answered "replay" and the paid account stays Free: ${JSON.stringify(b)}`);
   assert.equal(b.granted, 'monthly', JSON.stringify(b));
   assert.equal(db.subs.get(USER_ID)?.role, 'pro'); assert.equal(subsWrites(), 1);
+});
+
+test('A1d. the re-processed delivery counts from ITS OWN receipt: a monthly payment whose record is 20 days old ends about 10 days from now when the retry finally grants it', async () => {
+  const POST = await load(); fresh();
+  const bodyText = pay();
+  db.fail = 'subsWrite'; db.failDelete = 'delivery';
+  await POST(req(bodyText, { id: 'msg_a1d' }));
+  for (const r of db.events.values()) if (!String(r.event ?? '').startsWith('lhq.')) r.received_at = new Date(Date.now() - 20 * 86400_000).toISOString();
+  db.fail = null; db.failDelete = false;
+  const b = await body(await POST(req(bodyText, { id: 'msg_a1d' })));
+  assert.equal(b.granted, 'monthly', JSON.stringify(b));
+  const d = daysFromNow(db.subs.get(USER_ID)!.current_period_end);
+  assert.ok(d > 8 && d < 12, `expected about 10 days (from receipt), got ${d.toFixed(2)}`);
+});
+
+test('A1c. FINDING: BOTH cleanups fail (the delivery record AND the applied marker): the marker says "applied" for a grant that never happened, so the retry is answered "replay" and the paid account stays Free', { todo: 'finding for Dev 2026-11-16: needs two consecutive database failures, but the result is the money bug A1 fixes for the single failure' }, async () => {
+  const POST = await load(); fresh();
+  const bodyText = pay();
+  db.fail = 'subsWrite'; db.failDelete = 'all';
+  await POST(req(bodyText, { id: 'msg_a1c' }));
+  db.fail = null; db.failDelete = false;
+  const b = await body(await POST(req(bodyText, { id: 'msg_a1c' })));
+  assert.equal(b.granted, 'monthly', `a stuck applied marker blocked the grant: ${JSON.stringify(b)}`);
 });
 
 test('A1b. a replay with an applied marker, a pending claim, or a retry row is STILL a replay (the retry above must not turn every repeat into a re-process)', async () => {
@@ -585,4 +612,18 @@ test('A-no_payer_email. a refusal for a missing payer email is NOT a settings re
   assert.equal(isSettingsRefusal('no_payer_email'), false);
   assert.equal(isSettingsRefusal('unknown_plan:plan_x'), true, 'a plan the table does not know IS fixed by a setting');
   assert.equal(isSettingsRefusal('company_does_not_match'), true);
+});
+
+test('A4. paidAt(receivedAt, now, add): from receipt while the period is still running; from NOW once it has fully elapsed (boundary included), for invalid, future and non-string values; no plan length means from receipt', async () => {
+  const { paidAt } = await import('../lib/whopGrant.ts');
+  const now = new Date('2026-11-16T00:00:00.000Z'); const day = 86400_000;
+  const ago = (d: number) => new Date(now.getTime() - d * day).toISOString();
+  const month = { months: 1 }; const fortnight = { days: 14 };
+  assert.equal(paidAt(ago(20), now, month).toISOString(), ago(20), 'monthly, 20 days ago: still running, from receipt');
+  assert.equal(paidAt(ago(40), now, month).toISOString(), now.toISOString(), 'monthly, 40 days ago: fully elapsed, from now');
+  assert.equal(paidAt('2026-10-16T00:00:00.000Z', now, month).toISOString(), now.toISOString(), 'the period ends exactly now: elapsed, from now');
+  assert.equal(paidAt(ago(10), now, fortnight).toISOString(), ago(10), 'fortnightly, 10 days ago: from receipt');
+  assert.equal(paidAt(ago(15), now, fortnight).toISOString(), now.toISOString(), 'fortnightly, 15 days ago: from now');
+  for (const bad of ['not a date', '', undefined, null, 12345, new Date(now.getTime() + day).toISOString()]) assert.equal(paidAt(bad, now, month).toISOString(), now.toISOString(), `${String(bad)} must count from now`);
+  assert.equal(paidAt(ago(400), now).toISOString(), ago(400), 'with no plan length there is nothing to say the period elapsed: from receipt');
 });

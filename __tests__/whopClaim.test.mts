@@ -88,7 +88,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       if (q.get('body->>payer_email') && !db.relaxEmailFilter) rows = rows.filter((r) => (r.body as Record<string, unknown>)?.payer_email === eq('body->>payer_email'));
       rows.sort((a, b) => String(a.received_at).localeCompare(String(b.received_at)) || String(a.payload_hash).localeCompare(String(b.payload_hash)));
       if (q.get('limit')) rows = rows.slice(0, Number(q.get('limit')));
-      return out(rows.map((r) => ({ payload_hash: r.payload_hash, resource_id: r.resource_id, body: r.body })));
+      return out(rows.map((r) => ({ payload_hash: r.payload_hash, resource_id: r.resource_id, body: r.body, received_at: r.received_at, event: r.event })));
     }
     if (req.method === 'DELETE') {
       const key = eq('payload_hash'); const had = db.events.get(key); db.events.delete(key);
@@ -268,6 +268,34 @@ test('C5. more claims than one lookup returns (10): the first sign-in grants ten
   assert.deepEqual(await (await claim(claimReq())).json(), { granted: 1 });
   assert.equal(pendings().length, 0);
   assert.ok(days(db.subs.get(UID)!.current_period_end) > 11 * 29, 'eleven months expected');
+});
+
+/* ── #2423 paid-time rule (owner, final): a delayed grant counts from the delivery's own received_at; if the period that started then has ALREADY FULLY ELAPSED the buyer gets one full period from now;
+      invalid or future received_at counts from now. Expectations are the rule as dates, not computed with paidAt. ───────────────────────────────────────────────────────────────────────────── */
+async function claimAfter(receivedDaysAgo: number | string | null) {
+  const { hook, claim } = await load(); fresh();
+  await hook(sign(pay())); assert.equal(pendings().length, 1);
+  for (const row of db.events.values()) {
+    if (String(row.event ?? '').startsWith('lhq.')) continue;
+    row.received_at = typeof receivedDaysAgo === 'string' ? receivedDaysAgo : receivedDaysAgo === null ? undefined : new Date(Date.now() - receivedDaysAgo * 86400_000).toISOString();
+  }
+  db.addUser();
+  assert.deepEqual(await (await claim(claimReq())).json(), { granted: 1 });
+  return days(db.subs.get(UID)!.current_period_end);
+}
+
+test('T1. a monthly payment received 20 days ago, claimed now: the period runs from RECEIPT, so it ends about 10 days from now (not 30)', async () => {
+  const d = await claimAfter(20); assert.ok(d > 8 && d < 12, `expected about 10 days, got ${d.toFixed(2)}`);
+});
+
+test('T2. a monthly payment received 40 days ago: that period fully elapsed with no access, so ONE FULL PERIOD from now (about a month), never nothing', async () => {
+  const d = await claimAfter(40); assert.ok(d > 28 && d < 32, `expected about 30 days, got ${d.toFixed(2)}`);
+});
+
+test('T3. received_at invalid, missing or in the future: counted from now (a full period)', async () => {
+  for (const [label, v] of [['garbage', 'not a date'], ['missing', null], ['future', new Date(Date.now() + 3 * 86400_000).toISOString()]] as const) {
+    const d = await claimAfter(v); assert.ok(d > 28 && d < 32, `${label}: expected about 30 days, got ${d.toFixed(2)}`);
+  }
 });
 
 test('S1. source: the claim route takes the address from the verified token\'s user and never from the request body; only POST is exported', () => {

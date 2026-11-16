@@ -169,6 +169,26 @@ test('R2. after the fix the next run grants ONCE (marker written, retry row gone
   assert.equal(db.subs.get(UID)!.current_period_end, end); assert.equal(db.subsWrites, writes, 'a second subscription write');
 });
 
+/* #2423 paid-time rule on the HOURLY RETRY: the grant counts from the delivery's received_at; a period that has fully elapsed since gives one full period from now; an unusable received_at counts from now. */
+async function retryGrantedAfter(receivedDaysAgo: number | string) {
+  let L = await load(PLANS_UNSET); fresh(); db.addUser();
+  await L.hook(sign(pay()));
+  for (const r of db.events.values()) {
+    if (String(r.event ?? '').startsWith('lhq.')) continue;
+    r.received_at = typeof receivedDaysAgo === 'string' ? receivedDaysAgo : new Date(Date.now() - receivedDaysAgo * 86400_000).toISOString();
+  }
+  L = await load(PLANS_SET);
+  const s = await L.g.retryRefusedWhopDeliveries(L.sb, { ...process.env });
+  assert.equal(s.granted, 1, JSON.stringify(s));
+  return days(db.subs.get(UID)!.current_period_end);
+}
+
+test('T4. the hourly retry of a monthly payment received 20 days ago ends about 10 days from now; received 40 days ago, about a month from now; an unusable received_at, about a month from now', async () => {
+  let d = await retryGrantedAfter(20); assert.ok(d > 8 && d < 12, `20 days ago: expected about 10, got ${d.toFixed(2)}`);
+  d = await retryGrantedAfter(40); assert.ok(d > 28 && d < 32, `40 days ago: expected about 30, got ${d.toFixed(2)}`);
+  d = await retryGrantedAfter('not a date'); assert.ok(d > 28 && d < 32, `invalid: expected about 30, got ${d.toFixed(2)}`);
+});
+
 test('R3. past 7 days from the first refusal the row is dropped and reported ("gave up"), even if the setting is fixed by then', async () => {
   let L = await load(PLANS_UNSET); fresh(); db.addUser();
   await L.hook(sign(pay()));
