@@ -8,6 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as nodeModule from 'node:module';
+import { computeCoinHealth } from '../lib/marketStore.ts';
 
 /* Cast rather than a named import: stripTypeScriptTypes is experimental and this repo's @types/node does not declare it (TS2305), though it exists at runtime (same pattern as libStrippable.test.mts). */
 const stripTypeScriptTypes = (nodeModule as unknown as { stripTypeScriptTypes: (source: string) => string }).stripTypeScriptTypes;
@@ -45,7 +46,22 @@ test('S4. the header counts only coins that have a price read, and Neutral is ne
   assert.ok(SRC.includes("t('MARKETS_COINS_LIVE_SUFFIX', { count: liveCount })"), 'the header counts every listed coin again');
   assert.ok(SRC.includes("t('MARKETS_NEUTRAL_COUNT', { count: Math.max(0, liveCount - bullCount - bearCount) })"), 'Neutral counts coins with no data again, or can go negative');
 });
-test('S5. FINDING: reversed, the Grade column also keeps no-data coins last (the PR\'s own test step says so)', { todo: true }, () => {
-  const g = SRC.slice(SRC.indexOf("if (sort === 'grade') {"), SRC.indexOf("if (sort === 'signal') {"));
-  assert.ok(/return\s+[^;]*\b(ga|gb)\b/.test(g) || /'-'/.test(g), 'the grade comparator has no unknown handling: sorted descending, grade F and no-data coins come FIRST');
+const gradeBlock = SRC.slice(SRC.indexOf("if (sort === 'grade') {"), SRC.indexOf("if (sort === 'signal') {"));
+const GRADE_ORDER = { A: 0, B: 1, C: 2, D: 3, F: 4, '-': 5 } as Record<string, number>;
+const gradeCmp = new Function('computeCoinHealth', 'GRADE_ORDER', `return (${stripTypeScriptTypes(`function f(da: any, db: any, sortAsc: boolean) {
+ let cmp = 0;
+ const sort = 'grade';
+${gradeBlock}
+ return sortAsc ? cmp : -cmp;
+}`)});`)(computeCoinHealth, GRADE_ORDER) as (da: unknown, db: unknown, asc: boolean) => number;
+test('S5. the Grade column keeps coins with NO PRICE last in both directions (real grade branch sliced from the component, real computeCoinHealth), and priced coins order best-first / worst-first', () => {
+  const C = { price: 1, rsi14: 75, oiTrend: 'strong_up', cvdDivergence: true }, D = { price: 1, rsi14: 75, oiTrend: 'weak_up' }, F = { price: 1 };
+  assert.deepEqual([C, D, F].map((c) => computeCoinHealth(c as never).grade), ['C', 'D', 'F'], 'CONTROL: the fixtures no longer grade C, D, F, so the order below measures nothing');
+  const rows: [string, unknown][] = [['U1', undefined], ['F', F], ['U2', {}], ['C', C], ['D', D]];
+  for (const asc of [true, false]) {
+    const order = [...rows].sort((x, y) => gradeCmp(x[1], y[1], asc)).map((r) => r[0]);
+    assert.deepEqual(order.slice(3).sort(), ['U1', 'U2'], `grade ${asc ? 'ascending' : 'descending'}: a no-data coin is not last: ${order.join(',')}`);
+    assert.deepEqual(order.slice(0, 3), asc ? ['C', 'D', 'F'] : ['F', 'D', 'C'], `grade ${asc ? 'ascending' : 'descending'}: the priced coins are mis-ordered: ${order.join(',')}`);
+  }
+  assert.equal(gradeCmp(undefined, {}, true), 0, 'two no-data coins must tie');
 });
