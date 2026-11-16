@@ -34,6 +34,9 @@ export async function register() {
     // #1632 item 4: the liquidation collector runs in this process, on the production service only (LIQ_COLLECTOR=1; a no-op otherwise). See lib/liqCollector.ts.
     const { startLiqCollector } = await import('@/lib/liqCollector');
     startLiqCollector();
+    // The stablecoin supply series behind /research is cached a day; warm it so the first visitor does not wait on DeFi Llama (lib/dryPowderSeries.ts). Never throws.
+    const { warmDryPowderSeries } = await import('@/lib/dryPowderSeries');
+    warmDryPowderSeries();
   }
 }
 
