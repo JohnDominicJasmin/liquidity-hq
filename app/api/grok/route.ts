@@ -8,7 +8,7 @@ import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xa
 import { chartFromCandles } from '@/lib/arenaChartServer';
 import { EMA_SIGNAL_TFS, fetchRibbonCandles, type EMASignalTF } from '@/lib/ribbonCandles';
 import { T } from '@/lib/tables';
-import { getEntitlementStatus, getUsageTier, getUsageTierStatus } from '@/lib/entitlements';
+import { getPlanSnapshot, getUsageTier } from '@/lib/entitlements';
 import { aiCoinAllowed, normalizeCoinId } from '@/lib/signalCoinGate';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS, GATED_TFS, isGatedTf, type UsageTier } from '@/lib/limits';
@@ -128,11 +128,14 @@ export async function GET(req: NextRequest) {
 // ── POST - run an analysis ──────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const t0 = Date.now(); // for the Deep-path 502 line (lib/deep502Log.ts)
-  if (!(await isFeatureEnabled('grok'))) {
+  /* The flag read and the body parse are independent, so they run together; the flag is still answered first (a disabled feature is 503 whatever the body is). */
+  const [featureOn, body] = await Promise.all([
+    isFeatureEnabled('grok'),
+    req.json().catch(() => null) as Promise<Record<string, unknown> | null>,
+  ]);
+  if (!featureOn) {
     return NextResponse.json({ error: 'AI Arena is temporarily unavailable.', code: 'FEATURE_DISABLED' }, { status: 503 });
   }
-
-  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_INPUT', message: 'Send a JSON body.' }, { status: 400 });
 
   /* ── THE REQUEST CARRIES DATA, NOT A PROMPT (#1631 item 5) ────────────────
@@ -222,23 +225,33 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  /* THE WAITS THAT NEED ONLY THE USER RUN TOGETHER (#1651). This route used to wait for the subscription row three times (the fast-timeframe gate, the coin ladder, the usage limit), then for the usage row, and
+     only then began the server's market numbers: five round trips in sequence before the AI call. Now the plan is read ONCE (getPlanSnapshot), and the plan read, today's usage row and the market numbers start
+     at the same moment; each gate below awaits what it needs, in the SAME order, so every refusal, cap and refund is exactly what it was. The numbers fetch starts before the gates have answered, so a refused
+     request (free account on a locked coin) can make one cached, shared market read it would not have made; the feeds are cached and shared with the polling routes (see below), and the reply is discarded. */
+  const todayForUsage = todayUtc();
+  const planP = getPlanSnapshot(token!, userId);
+  const usageRowP = getUsageRow(token!, userId, todayForUsage);
+  usageRowP.catch(() => {}); // awaited below; this only stops a refusal that returns early from leaving an unhandled rejection
+  const numbersP = coin ? arenaServerNumbers(coin).catch((e): { ok: false; reason: unknown } => ({ ok: false, reason: e })) : null;
+  const plan = await planP;
   // ── Fast timeframes are Pro (#1263) ───────────────────────────────────────
   // Arena only clamps 1m/5m/15m in the browser, so before this a free token
   // could POST tf=5m directly and get a fast-timeframe read. Checked before the
   // usage reservation below so a refused request costs no quota and no xAI.
   //
-  // Only a CONFIRMED free account is refused. 'unknown' (the plan read failed)
-  // goes through - #1119: a failed read is not evidence the user is free, and
-  // refusing it would lock a paying Pro user out of the timeframe they pay for
-  // whenever that read errors. What this lets through is bounded: the daily
-  // quick/deep cap below still applies, and a plan read that fails there too
-  // bills the call against the free row.
+  // UNKNOWN IS NOT NO (PM, #2412). Only a CONFIRMED free account is refused (403). A plan read that FAILED (thrown or returned an error) is neither
+  // Free nor Pro: a fast timeframe is Pro-only, so it is answered 503 PLAN_UNKNOWN (retry) with no AI call and no quota charge, never decided on a guess
+  // (#1119: a paying Pro user must not be told they are Free because a read errored).
   //
   // This gates the timeframe the request DECLARES. The prompt is ASSEMBLED here
   // now, but `chart` still arrives from the browser, so a hand-made request can
   // still describe fast candles under tf=1h. #1631 step 2 closed this for every
   // field in SERVER_SOURCED_FIELDS, and the candle data is the remaining half.
-  if (isGatedTf(tf) && (await getEntitlementStatus(token!, userId)) === 'not_entitled') {
+  if (isGatedTf(tf) && plan.failed) {
+    return NextResponse.json({ error: 'Could not check your plan. Try again in a moment.', code: 'PLAN_UNKNOWN' }, { status: 503 });
+  }
+  if (isGatedTf(tf) && plan.status === 'not_entitled') {
     return NextResponse.json(
       { error: 'PRO_REQUIRED', message: `Fast timeframes (${GATED_TFS.join(', ')}) are a Pro feature.` },
       { status: 403 }
@@ -258,7 +271,7 @@ export async function POST(req: NextRequest) {
   // A plan read that FAILED is neither Free nor Pro: for a coin on the Free list it goes through as it always did, and for any other coin it is
   // answered 503 PLAN_UNKNOWN (retry), never PRO_REQUIRED-style "you are not Pro" and never an AI call - a paying user is not told they are
   // Free, and a locked coin does not run on a guess.
-  const coinPlan = await getUsageTierStatus(token!, userId);
+  const coinPlan = { tier: plan.tier, failed: plan.failed };
   if (!aiCoinAllowed(coinPlan.tier, coin)) {
     if (coinPlan.failed) {
       return NextResponse.json({ error: 'Could not check your plan. Try again in a moment.', code: 'PLAN_UNKNOWN' }, { status: 503 });
@@ -303,7 +316,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Reload the page and try again.', code: 'COIN_REQUIRED' }, { status: 400 });
   }
 
-  const gathered = await arenaServerNumbers(coin);
+  const gathered = await numbersP!;
   if (!gathered.ok) {
     console.warn(`[grok] market data unavailable for ${logTag(coin)}: ${String(gathered.reason).slice(0, 200)}`);
     return NextResponse.json(
@@ -362,11 +375,12 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Rate limit check ──────────────────────────────────────────────────────
-  const today = todayUtc();
-  let [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed }, role] = await Promise.all([
-    getUsageRow(token!, userId, today),
-    getUsageTier(token!, userId),
-  ]);
+  /* Both were started above: the usage row with the plan read, the tier is the plan read's own answer. */
+  const { deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed } = await usageRowP;
+  /* ON AN UNKNOWN PLAN, THE MORE GENEROUS CAP (PM, #2412). A request every plan may make (a Free-list coin on a free timeframe) is not refused because the plan read failed: it goes through and is
+     counted, but checked against the Pro limits, since the Free cap would be a guess that can shut a paying account out. Everything that is Pro-only was already answered 503 PLAN_UNKNOWN above. The DOLLAR cap on this path
+     fails CLOSED (the last argument below): if the ledger cannot be read the call is refused with a retryable 503, never run uncapped on an unconfirmed account. */
+  const role: UsageTier = plan.failed ? 'pro' : plan.tier;
   const deepLimit     = AI_LIMITS[role].deep;
   const quickLimit    = AI_LIMITS[role].quick;
   const chatLimit     = AI_LIMITS[role].chat;
@@ -394,7 +408,7 @@ export async function POST(req: NextRequest) {
      VALUE ("SIGNAL: **BULLISH**"), a shape these regexes reject while accepting every other markdown variant. This line settles that
      on the next failure at no cost. Newlines become a marker so a crafted answer cannot forge a second log line. */
   const logHead = (v: string) => v.replace(/\s*[\r\n]+\s*/g, ' | ').replace(/[^\x20-\x7E]/g, '').slice(0, 160);
-  const usageResult = await incrementUsageColumn(userId, role, column, limit);
+  const usageResult = await incrementUsageColumn(userId, role, column, limit, null, plan.failed);
   if (usageResult.blocked) {
     const label = type === 'deep' ? 'deep analyses' : 'quick analyses';
     /* A BLOCK THAT IS OUR STATE IS NOT A RATE LIMIT, AND 429 TOLD THE USER A LIE.
