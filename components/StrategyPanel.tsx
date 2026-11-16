@@ -22,7 +22,7 @@
  * labels pass is a separate DB-driven change. The one exception is the params verdict note, which
  * carries the owner's exact wording through a real label key. */
 
-import { useEffect, useState, startTransition, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, startTransition } from 'react';
 import Link from 'next/link';
 import { useAuth } from './AuthProvider';
 import { SkeletonBar } from './Skeleton';
@@ -39,8 +39,6 @@ import {
   type IndicatorEntry, type ParamSpec, type OverlayState,
 } from '@/lib/strategyRegistry';
 
-/* The most parameter rows any selectable indicator shows. The params slot reserves this height so a chip tap never moves what is below the grid. */
-const MAX_PARAM_ROWS = Math.max(0, ...SELECTABLE_INDICATORS.map(e => e.paramSchema.length));
 const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 export type RunKind = 'quick' | 'deep' | 'ask';
@@ -184,6 +182,11 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
   const paramEntries = SELECTABLE_INDICATORS.filter(e => shown.includes(e.id) && e.paramSchema.length > 0);
   const focusedEntry = paramEntries.find(e => e.id === focused) ?? paramEntries[paramEntries.length - 1];
   const used = slottedIds(shown).length;
+  /* The box OPENS and CLOSES with a height transition (grid rows 0fr to 1fr), so it keeps showing the last indicator while it closes instead of snapping empty. */
+  const lastParamEntry = useRef<IndicatorEntry | undefined>(undefined);
+  if (focusedEntry) lastParamEntry.current = focusedEntry;
+  const boxEntry = focusedEntry ?? lastParamEntry.current;
+  const boxOpen = !!focusedEntry;
 
   /* THE ONE STRATEGY MENU (owner, 2026-11-14, option A). The caller writes the saved strategy AND the chips in one save; here only the params focus follows. */
   const applySet = (id: string) => {
@@ -329,36 +332,38 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
           </div>
         )}
 
-        {/* THE PARAMS SLOT: its height is reserved for the tallest indicator, so nothing below the grid moves when a chip is tapped. */}
-        <div className="strat-params-slot" style={{ '--strat-prows': MAX_PARAM_ROWS } as CSSProperties}>
-          {isAuto && (
-            <div className="strat-auto">{t('STRATEGY_PANEL_AUTO_NOTE')}</div>
-          )}
+        {isAuto && (
+          <div className="strat-auto">{t('STRATEGY_PANEL_AUTO_NOTE')}</div>
+        )}
 
-          {focusedEntry && (
-            <div className="strat-params">
-              <div className="strat-params-h">
-                {paramEntries.length > 1 ? (
-                  <div className="strat-seg" role="group" aria-label="Edit parameters for">
-                    {paramEntries.map(e => (
-                      <button key={e.id} type="button" className={`strat-seg-b${e.id === focusedEntry.id ? ' on' : ''}`} aria-pressed={e.id === focusedEntry.id} onClick={() => setFocused(e.id)}>{e.label}</button>
-                    ))}
-                  </div>
-                ) : focusedEntry.label}
+        {/* THE PARAMS BOX opens and closes smoothly and only when an indicator with parameters is on; the chips above never move. Closed, it is inert and hidden from assistive tech. */}
+        <div className={`strat-params-slot${boxOpen ? ' open' : ''}`} aria-hidden={boxOpen ? undefined : true} inert={!boxOpen}>
+          <div className="strat-params-clip">
+            {boxEntry && (
+              <div className="strat-params">
+                <div className="strat-params-h">
+                  {paramEntries.length > 1 ? (
+                    <div className="strat-seg" role="group" aria-label="Edit parameters for">
+                      {paramEntries.map(e => (
+                        <button key={e.id} type="button" className={`strat-seg-b${e.id === boxEntry.id ? ' on' : ''}`} aria-pressed={e.id === boxEntry.id} onClick={() => setFocused(e.id)}>{e.label}</button>
+                      ))}
+                    </div>
+                  ) : boxEntry.label}
+                </div>
+                {boxEntry.paramSchema.map(spec => (
+                  <ParamRow
+                    key={spec.key}
+                    spec={spec}
+                    value={paramsFor(boxEntry)[spec.key]}
+                    readOnly={!entitled}
+                    onChange={v => onParamsChange({ ...params, [boxEntry.id]: { ...paramsFor(boxEntry), [spec.key]: v } })}
+                  />
+                ))}
+                {!entitled && <div className="strat-ro">Defaults on free · editable on Pro</div>}
+                {entitled && <div className="strat-ro">{t('STRATEGY_PANEL_PARAMS_VERDICT_NOTE')}</div>}
               </div>
-              {focusedEntry.paramSchema.map(spec => (
-                <ParamRow
-                  key={spec.key}
-                  spec={spec}
-                  value={paramsFor(focusedEntry)[spec.key]}
-                  readOnly={!entitled}
-                  onChange={v => onParamsChange({ ...params, [focusedEntry.id]: { ...paramsFor(focusedEntry), [spec.key]: v } })}
-                />
-              ))}
-              {!entitled && <div className="strat-ro">Defaults on free · editable on Pro</div>}
-              {entitled && <div className="strat-ro">{t('STRATEGY_PANEL_PARAMS_VERDICT_NOTE')}</div>}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

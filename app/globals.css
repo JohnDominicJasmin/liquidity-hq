@@ -9156,11 +9156,14 @@ main.app-content[data-chrome="none"] {
   font-size: 10.5px; line-height: 1.4; color: var(--txt3);
 }
 
-/* THE PARAMS SLOT reserves the height of the tallest indicator's box (rows x 24px + header 28px + note 29px + padding/border 16px + gaps), so tapping a chip never moves anything below the grid. */
+/* THE PARAMS BOX opens and closes with a height transition (grid rows 0fr to 1fr, 150ms ease-out; none under reduced motion). It only exists when an indicator with parameters is on, and nothing above it moves. */
 [data-design="terminal"] .strat-params-slot {
-  margin-top: 7px; min-height: calc(var(--strat-prows, 0) * 24px + 78px);
+  display: grid; grid-template-rows: 0fr; margin-top: 0; visibility: hidden;
+  transition: grid-template-rows 150ms ease-out, margin-top 150ms ease-out, visibility 0s linear 150ms;
 }
-[data-design="terminal"] .strat-params-slot > .strat-auto { margin-top: 0; }
+[data-design="terminal"] .strat-params-slot.open { grid-template-rows: 1fr; margin-top: 7px; visibility: visible; transition-delay: 0s; }
+[data-design="terminal"] .strat-params-clip { min-height: 0; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { [data-design="terminal"] .strat-params-slot { transition: none; } }
 [data-design="terminal"] .strat-params {
   border: 1px solid var(--bdr3); background: var(--bg2); padding: 7px; box-sizing: border-box;
 }
