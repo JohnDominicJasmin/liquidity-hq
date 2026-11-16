@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-type TgChat = { id: number; first_name?: string; username?: string };
+type TgChat = { id: number; type?: string; first_name?: string; username?: string };
 type TgUpdate = {
   message?: { chat: TgChat; text?: string };
   callback_query?: { id: string; data?: string; message?: { chat: TgChat; message_id: number } };
@@ -93,11 +93,17 @@ async function handleMessage(token: string, message: NonNullable<TgUpdate['messa
     return;
   }
 
-  if (!text.startsWith('/start')) return;
+  if (!/^\/start(@\w+)?(\s|$)/i.test(text)) return;
 
   // `/start CODE` is the account-linking path. This is the ONLY way a telegram_chat_id gets written: the value comes from Telegram's own
   // update for a chat the sender demonstrably controls, never from a client that could name someone else's. See migration 20260807j.
-  const code = text.slice('/start'.length).trim().toUpperCase();
+  /* "/start@LiquidityHQ_bot CODE" is how a command arrives from a group or a menu: the @bot suffix is dropped before the code is read (PM audit C9). */
+  const code = text.replace(/^\/start(@\w+)?/i, '').trim().toUpperCase();
+  /* Only a private chat is linked: a group id would send one account's alerts to everyone in the group. */
+  if (code && chat.type && chat.type !== 'private') {
+    await say('Open a private chat with this bot to connect your account.');
+    return;
+  }
   if (!code) {
     await say(
       `👋 Welcome to <b>LiquidityHQ</b>!\n\n` +
