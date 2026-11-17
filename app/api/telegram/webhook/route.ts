@@ -181,6 +181,16 @@ async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_q
     await finish('⚠️ Could not finish connecting. Press Confirm again, or start again from the app.');
     return;
   }
+  /* ONE CHAT, ONE ACCOUNT (C2). Two accounts linked to the same chat made the alert run skip the second one (it keeps the first chat id it sees), so the second account's signals were dropped and the first account's mutes
+     decided for both. Confirming here proves control of THIS chat, so any OTHER account holding it loses the link (the same move as a re-link). Done after the new link is written, so a failed write never strips anyone;
+     a failure here is logged and the link stays (the old behaviour for that edge). */
+  let displaced = 0;
+  try {
+    const { data: others, error: othersErr } = await admin.from(T.user_settings)
+      .update({ telegram_chat_id: null }).eq('telegram_chat_id', String(chat.id)).neq('user_id', claimed.user_id).select('user_id');
+    if (othersErr) throw new Error(othersErr.message);
+    displaced = others?.length ?? 0;
+  } catch (e) { console.error('[telegram/webhook] could not clear another account from this chat', e instanceof Error ? e.message : 'unknown'); }
   await answer('Connected');
-  await finish('✅ Connected. Alerts for your LiquidityHQ account will arrive here. Send /stop to disconnect.');
+  await finish('✅ Connected. Alerts for your LiquidityHQ account will arrive here. Send /stop to disconnect.' + (displaced > 0 ? '\n\nThis chat was linked to another LiquidityHQ account, which no longer receives alerts here.' : ''));
 }
