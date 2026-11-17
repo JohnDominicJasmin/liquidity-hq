@@ -217,7 +217,7 @@ export default function MarketsTerminal() {
         </div>
 
         {/* Column headers */}
-        {noSignals && <div role="status" data-testid="mkt-no-signals" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 10px 8px' }}>{t('MARKETS_NO_SIGNALS_BANNER')}</div>}
+        {noSignals && <div role="status" className="mkt-no-signals" data-testid="mkt-no-signals">{t('MARKETS_NO_SIGNALS_BANNER')}</div>}
         <div className={`mkt-mono mkt-hdr-row${noSignals ? ' mkt-nosig' : ''}`} style={{
           display: 'grid',
           gridTemplateColumns: ROW_COLS,

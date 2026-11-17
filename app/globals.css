@@ -9470,3 +9470,6 @@ html[data-theme="light"] { color-scheme: light; }
   .ncard-grid-hero .ncard-grid-headline { font-size: var(--fs-label); }
   .ncard-grid:hover { transform: none; }
 }
+
+/* /markets, nothing qualifies (#1185): the banner style lives here (terminal-only constants ratchet, #663). */
+.mkt-no-signals { font-size: var(--fs-caption); color: var(--txt3); padding: 4px 10px 8px; }
