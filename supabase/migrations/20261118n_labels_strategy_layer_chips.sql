@@ -4,6 +4,11 @@
 --
 -- ===================== PROD =====================
 insert into lhq_labels (key, locale, value) values
+('ARENA_GATE_FEATURE_ON_COIN','en','{feature} on {coin}'),
+('ARENA_GATE_FEATURE_ON_COIN','ko','{coin}의 {feature}'),
+('ARENA_GATE_FEATURE_ON_COIN','zh','{coin} 的{feature}'),
+('ARENA_GATE_FEATURE_ON_COIN','ru','{feature} для {coin}'),
+('ARENA_GATE_FEATURE_ON_COIN','ar','{feature} على {coin}'),
 ('ARENA_LAYERS_GATE_FEATURE_LABEL','en','S/R and liquidity layers'),
 ('ARENA_LAYERS_GATE_FEATURE_LABEL','ko','S/R 및 청산 레이어'),
 ('ARENA_LAYERS_GATE_FEATURE_LABEL','zh','支撑阻力与清算图层'),
@@ -33,6 +38,11 @@ on conflict (key, locale) do update set value = excluded.value, updated_at = now
 
 -- ===================== DEV =====================
 insert into lhq_dev_labels (key, locale, value) values
+('ARENA_GATE_FEATURE_ON_COIN','en','{feature} on {coin}'),
+('ARENA_GATE_FEATURE_ON_COIN','ko','{coin}의 {feature}'),
+('ARENA_GATE_FEATURE_ON_COIN','zh','{coin} 的{feature}'),
+('ARENA_GATE_FEATURE_ON_COIN','ru','{feature} для {coin}'),
+('ARENA_GATE_FEATURE_ON_COIN','ar','{feature} على {coin}'),
 ('ARENA_LAYERS_GATE_FEATURE_LABEL','en','S/R and liquidity layers'),
 ('ARENA_LAYERS_GATE_FEATURE_LABEL','ko','S/R 및 청산 레이어'),
 ('ARENA_LAYERS_GATE_FEATURE_LABEL','zh','支撑阻力与清算图层'),

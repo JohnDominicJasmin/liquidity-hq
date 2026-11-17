@@ -70,7 +70,7 @@ interface Props {
   /** Fired when a run button is pressed. Required (#996). */
   onRun: (kind: RunKind, selection: readonly string[]) => void;
   /* The run row's gating, from the SAME object the page's top Quick / Deep / Ask buttons read - one source of truth, so a locked coin or a used-up allowance looks the same in both places. */
-  runGate?: Record<RunKind, { locked: boolean; disabled: boolean; title?: string }>;
+  runGate?: Record<RunKind, { locked: boolean; disabled: boolean; title?: string; onLocked?: () => void }>;
   /** Whether a read is already in flight - disables the run buttons (#1309 item 24). */
   /** The saved Arena strategy id (lib/strategies), or null. An unknown id is treated as none by the caller. The menu's value is DERIVED from this and `selected`: a known id shows that strategy, no id with chips on shows Custom, nothing shows Let the read choose. */
   strategy: string | null;
@@ -388,8 +388,9 @@ export default function StrategyPanel({ planChecking = false, layersLocked = fal
                 type="button"
                 className={`strat-btn${cls && !locked ? ' ' + cls : ''}${locked ? ' arena-deep-locked' : ''}`}
                 disabled={g?.disabled ?? false}
+                aria-disabled={locked || undefined}
                 title={g?.title}
-                onClick={() => onRun(kind, selected)}
+                onClick={() => (locked && g?.onLocked ? g.onLocked() : onRun(kind, selected))}
               >
                 {locked && <Lock size={10} aria-hidden="true" style={{ marginRight: 4, verticalAlign: '-1px' }} />}
                 {text}

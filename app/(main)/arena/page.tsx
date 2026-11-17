@@ -2039,15 +2039,22 @@ function ArenaContent() {
   const openLayersGate = () => setUpgradeGate(t('ARENA_LAYERS_GATE_FEATURE_LABEL'));
 
   /* ONE GATING STATE for the run buttons, read by BOTH the top Quick/Deep/Ask buttons and the Strategy panel's run row (owner-reported 2026-11-17: on a locked coin the top buttons showed the lock while the panel's QUICK was filled and clickable). Locked = signed out or a coin not on the plan's list; disabled adds the ceiling, a read in flight, auth/plan still being read and the daily allowance used up. */
+  /* A LOCKED CONTROL IS NOT INERT (owner rule, PM 2026-11-17: lock icon, tap opens the shared upgrade sheet). It keeps its locked look and aria-disabled, but a click or Enter opens the sheet ("Quick Research on HYPE is part of Pro."); a signed-out visitor is sent to sign in as before. Only the states that are really unavailable (plan being read, a read running, the daily allowance used up, above the analysis ceiling) stay disabled. */
+  const lockedClick = (feature: string) => {
+    if (!user) { window.location.href = '/login'; return; }
+    setUpgradeGate(t('ARENA_GATE_FEATURE_ON_COIN', { feature, coin: selectedCoin.toUpperCase() }));
+  };
   const runGate = {
     quick: {
       locked: (!user && !authLoading) || coinLocked,
-      disabled: aboveAnalysisCeiling || readLoading || authLoading || planUnsettled || coinLocked || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit),
+      disabled: aboveAnalysisCeiling || readLoading || authLoading || planUnsettled || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit),
+      onLocked: () => lockedClick(t('ARENA_QUICK_RESEARCH_BUTTON')),
       title: aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE'),
     },
     deep: {
       locked: (!user && !authLoading) || coinLocked,
-      disabled: aboveAnalysisCeiling || readLoading || authLoading || planUnsettled || coinLocked || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit),
+      disabled: aboveAnalysisCeiling || readLoading || authLoading || planUnsettled || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit),
+      onLocked: () => lockedClick(t('ARENA_DEEP_RESEARCH_BUTTON')),
       title: aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE'),
     },
     ask: {
@@ -2592,7 +2599,8 @@ function ArenaContent() {
         <button
           className={`arena-fire-btn arena-quick-btn${runGate.quick.locked ? ' arena-deep-locked' : ''}`}
           disabled={runGate.quick.disabled}
-          onClick={() => runStrategy('quick', strategySelection)}
+          aria-disabled={runGate.quick.locked || undefined}
+          onClick={() => (runGate.quick.locked ? runGate.quick.onLocked() : runStrategy('quick', strategySelection))}
           style={{ width: 'auto', marginBottom: 0 }}
           title={runGate.quick.title}
         >
@@ -2610,7 +2618,8 @@ function ArenaContent() {
         <button
           className={`arena-fire-btn${runGate.deep.locked ? ' arena-deep-locked' : ''}`}
           disabled={runGate.deep.disabled}
-          onClick={() => runStrategy('deep', strategySelection)}
+          aria-disabled={runGate.deep.locked || undefined}
+          onClick={() => (runGate.deep.locked ? runGate.deep.onLocked() : runStrategy('deep', strategySelection))}
           style={{ width: 'auto', marginBottom: 0 }}
           title={runGate.deep.title}
         >
