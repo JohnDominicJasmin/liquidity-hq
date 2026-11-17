@@ -13,7 +13,7 @@ const root = new URL('../', import.meta.url);
 const defaults = JSON.parse(readFileSync(new URL('lib/labelDefaults.en.json', root), 'utf8')) as Record<string, string>;
 const keysSrc = readFileSync(new URL('lib/labelKeys.ts', root), 'utf8');
 const dir = new URL('supabase/migrations/', root);
-const held = readdirSync(dir).filter((f) => /_labels_.*\.sql$/.test(f)).filter((f) => /NOT YET APPLIED TO ANY DATABASE/.test(readFileSync(new URL(f, dir), 'utf8')));
+const held = readdirSync(dir).filter((f) => /_labels_.*\.sql$/.test(f)).filter((f) => /NOT YET APPLIED TO ANY DATABASE/.test(readFileSync(new URL(f, dir), 'utf8'))).sort();
 
 type Rows = Map<string, Map<string, string>>;   // key -> locale -> value
 const ROW = /\('([A-Za-z0-9_]+)','([a-z]{2})','((?:[^']|'')*)'\)/g;
@@ -36,8 +36,11 @@ test('M5. CONTROL: the held migrations parse into non-empty PROD and DEV blocks 
 for (const f of held) {
   const { prod, dev } = blocks(readFileSync(new URL(f, dir), 'utf8'));
   test(`M1. ${f}: the English rows equal the shipped defaults (PROD and DEV)`, () => {
+    /* A KEY A LATER HELD MIGRATION REWRITES IS JUDGED IN THAT LATER FILE (its en row is the one that wins once both ran); judging it here against the current default turns red the moment the wording moves on. */
+    const later = held.slice(held.indexOf(f) + 1).map((g) => blocks(readFileSync(new URL(g, dir), 'utf8')).prod);
     for (const [name, rows] of [['PROD', prod], ['DEV', dev]] as const) for (const [k, loc] of rows) {
       const en = loc.get('en'); if (en === undefined) continue;
+      if (later.some((p) => p.get(k)?.has('en'))) continue;
       assert.ok(k in defaults, `${k}: has an en row in the ${name} block but no shipped default`);
       assert.equal(en, defaults[k], `${f} ${name} ${k}: the stored English differs from the shipped default, so the words depend on whether the migration ran`);
     }
