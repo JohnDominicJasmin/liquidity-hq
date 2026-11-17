@@ -699,6 +699,12 @@ export async function gotoGuarded(
  * is a finding about the route, correctly - `settle()` and the specs assert on
  * status themselves.
  */
+/** The scheduler header that /api/version needs for its DETAILED block (environment name and the `configured` flags), after #2503: an anonymous caller gets only the commit and the branch.
+ *  QA holds no secret. E2E_CRON_SECRET is set only where an operator provides it; without it the details are simply absent and the specs that read them SKIP (they do not fail, and they do not guess). */
+export const SCHEDULER_HEADERS: Record<string, string> = process.env.E2E_CRON_SECRET ? { 'x-cron-secret': process.env.E2E_CRON_SECRET } : {};
+export const HAS_SCHEDULER_HEADER = Object.keys(SCHEDULER_HEADERS).length > 0;
+export const NO_SCHEDULER_HEADER_REASON = '/api/version details need the scheduler header (E2E_CRON_SECRET is not set for this run): the environment name and the configured flags are not served to an anonymous caller (#2503)';
+
 export async function getGuarded(
   request: APIRequestContext,
   url: string,

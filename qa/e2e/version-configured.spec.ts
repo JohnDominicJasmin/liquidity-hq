@@ -1,5 +1,5 @@
 import { test, expect, type APIResponse } from '@playwright/test';
-import { getGuarded } from './_shared';
+import { getGuarded, SCHEDULER_HEADERS } from './_shared';
 
 /* `/api/version`'s `configured` block, asserted against the RUNNING SERVICE (#282).
  *
@@ -51,7 +51,7 @@ let raw = '';
 
 test.describe('/api/version configured block', () => {
   test.beforeAll(async ({ request }) => {
-    res = await getGuarded(request, '/api/version');
+    res = await getGuarded(request, '/api/version', { headers: SCHEDULER_HEADERS });   // #2503: the detailed block needs the scheduler header; without it the block is absent and its tests skip
     raw = await res.text();
     body = JSON.parse(raw) as VersionBody;
   });
@@ -66,6 +66,15 @@ test.describe('/api/version configured block', () => {
       .toEqual(expect.any(String));
     expect(body.branch).toEqual(expect.any(String));
     expect(body.appEnv).toEqual(expect.any(String));
+  });
+
+  test('ANONYMOUS (#2503): a caller without the scheduler header gets the commit and the branch and nothing else', async ({ request }) => {
+    const r = await getGuarded(request, '/api/version'); const b = (await r.json()) as Record<string, unknown>;
+    expect(r.status()).toBe(200);
+    expect(Object.keys(b).sort(), `an anonymous /api/version answer carries more than the commit and the branch: ${JSON.stringify(Object.keys(b))}`).toEqual(['branch', 'commit']);
+    expect(b.configured, 'the integration flags are served to an anonymous caller').toBeUndefined(); expect(b.appEnv, 'the environment name is served to an anonymous caller').toBeUndefined();
+    const wrong = await getGuarded(request, '/api/version', { headers: { 'x-cron-secret': 'not-the-secret' } });
+    expect(Object.keys((await wrong.json()) as Record<string, unknown>).sort(), 'a WRONG scheduler header unlocked the details').toEqual(['branch', 'commit']);
   });
 
   test('no secret-shaped value appears anywhere in the response', async () => {

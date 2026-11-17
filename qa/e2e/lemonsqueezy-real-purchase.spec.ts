@@ -4,7 +4,7 @@ import {
   ACCOUNT_C_READY, ACCOUNT_C_SKIP_REASON, FIXTURES,
   SUPABASE_URL, SUPABASE_ANON, signIn, signedInContext,
 } from './_auth';
-import { getGuarded } from './_shared';
+import { getGuarded, SCHEDULER_HEADERS } from './_shared';
 
 /* #243 - THE LAST UNCOVERED HALF OF PAYMENTS: does a REAL LemonSqueezy
  * purchase produce a real webhook event that grants Pro?
@@ -87,7 +87,7 @@ test.describe('#243 real LemonSqueezy purchase', () => {
 
   test.beforeAll(async ({ request }) => {
     try {
-      const r = await getGuarded(request, '/api/version');
+      const r = await getGuarded(request, '/api/version', { headers: SCHEDULER_HEADERS });   // #2503: the configured block needs the scheduler header (absent = null = the tests that need it skip)
       configured = ((await r.json()) as VersionPayload)?.configured ?? null;
     } catch { configured = null; }
     cToken = await signIn(FIXTURES.cEmail, FIXTURES.cPassword);

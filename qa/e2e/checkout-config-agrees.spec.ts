@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { SCHEDULER_HEADERS, HAS_SCHEDULER_HEADER, NO_SCHEDULER_HEADER_REASON } from './_shared';
 
 /* DO THE UPGRADE BUTTONS MATCH WHAT THE SERVER SAYS IS FOR SALE? (#243, #1259)
  *
@@ -94,7 +95,8 @@ test.describe('#243 checkout config', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test('the server and the shipped bundle agree about which plans are for sale', async ({ page, baseURL }) => {
-    const res = await page.request.get('/api/version');
+    test.skip(!HAS_SCHEDULER_HEADER, NO_SCHEDULER_HEADER_REASON);   // #2503: the configured flags need the scheduler header
+    const res = await page.request.get('/api/version', { headers: SCHEDULER_HEADERS });
     expect(res.ok(), `/api/version returned ${res.status()}`).toBe(true);
     const version = (await res.json()) as VersionPayload;
     const c = version.configured ?? {};
