@@ -5,8 +5,8 @@
  * Signed out, 1280, nothing clicked. A deployed URL is fine (the RSI feed is blocked in the browser). */
 import { test, expect, type Page } from '@playwright/test';
 
-const card = (page: Page) => page.locator('div', { has: page.getByText('Multi-Timeframe Alignment', { exact: false }) }).last();
-const text = async (page: Page) => ((await card(page).innerText().catch(() => '')) || '').replace(/\s+/g, ' ');
+/* the card's text = the page text from its title onward (the card is a few hundred characters; the next panel starts well after) */
+const text = async (page: Page) => { const t = ((await page.locator('body').innerText().catch(() => '')) || '').replace(/\s+/g, ' '); const i = t.search(/multi-timeframe alignment/i); return i < 0 ? '' : t.slice(i, i + 420); };
 const arm = async (page: Page) => page.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'en'); localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private */ } });
 
 test('MT1. RSI feed hung: Loading… then No data after the grace, never Mixed', async ({ page }) => {
