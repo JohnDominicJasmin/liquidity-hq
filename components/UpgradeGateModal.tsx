@@ -1,9 +1,67 @@
 'use client';
-import { useEffect } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useLabels } from '@/lib/labels';
 import { useDialogFocusTrap } from '@/lib/useDialogFocusTrap';
+import { Lock } from '@/components/icons';
+
+/* ONE PRO ROW PER PAGE (owner, 2026-11-17: at most two upgrade texts per page). Locked PANELS do not render as cards or rows of their own: each registers its name here, and the first one on the page renders a single
+   row where it sits - the lock icon and "With Pro: <names>" - that opens the shared upgrade sheet. The provider is keyed by the route, so a navigation starts a fresh list. Locked CONTROLS (buttons, chips) are lock
+   icons with no words and open the same sheet through their own handlers. Without a provider (a test, a page outside the shell) a panel falls back to its own one-line row. */
+interface ProLockItem { id: string; title: string }
+interface ProLockCtx { items: ProLockItem[]; register: (i: ProLockItem) => void; unregister: (id: string) => void; openSheet: (feature: string) => void }
+const ProLockContext = createContext<ProLockCtx | null>(null);
+
+export function ProLockProvider({ children }: { children: ReactNode }) {
+  const [items, setItems] = useState<ProLockItem[]>([]);
+  const [sheet, setSheet] = useState<string | null>(null);
+  const register = useCallback((i: ProLockItem) => setItems(prev => (prev.some(p => p.id === i.id) ? prev.map(p => (p.id === i.id ? i : p)) : [...prev, i])), []);
+  const unregister = useCallback((id: string) => setItems(prev => prev.filter(p => p.id !== id)), []);
+  const value = useMemo(() => ({ items, register, unregister, openSheet: setSheet }), [items, register, unregister]);
+  return (
+    <ProLockContext.Provider value={value}>
+      {children}
+      <UpgradeGateModal open={sheet !== null} onClose={() => setSheet(null)} feature={sheet ?? undefined} />
+    </ProLockContext.Provider>
+  );
+}
+
+/* A locked panel's registration. Returns whether THIS panel is the one that draws the row, and the names to list. Layout effects run before paint, so the first row appears with the page and nothing shifts. */
+export function useProLock(title: string): { ready: boolean; leader: boolean; names: string[]; open: () => void } {
+  const ctx = useContext(ProLockContext);
+  const id = useId();
+  const { register, unregister } = ctx ?? { register: () => {}, unregister: () => {} };
+  useLayoutEffect(() => {
+    if (!ctx) return;
+    register({ id, title });
+    return () => unregister(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, title, !!ctx]);
+  const first = useRef(title);
+  first.current = title;
+  if (!ctx) return { ready: true, leader: true, names: [title], open: () => {} };
+  const leaderId = ctx.items[0]?.id;
+  return { ready: ctx.items.length > 0, leader: leaderId === id, names: ctx.items.map(i => i.title), open: () => ctx.openSheet(ctx.items[0]?.title ?? title) };
+}
+
+/* The one row. */
+export function ProRow({ names, onOpen }: { names: string[]; onOpen: () => void }) {
+  const { t } = useLabels();
+  return (
+    <button
+      type="button"
+      data-testid="locked-feature"
+      className="locked-card-term-wrap"
+      onClick={onOpen}
+      style={{ ...SURFACE, display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 44, padding: '8px 14px', cursor: 'pointer', textAlign: 'left', font: 'inherit', fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt2)' }}
+    >
+      <Lock size={14} aria-hidden="true" style={{ color: 'var(--txt3)', flexShrink: 0 }} />
+      <span style={{ flex: 1, minWidth: 0 }}>{t('UPGRADE_GATE_WITH_PRO')} {names.join(' · ')}</span>
+      <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d="M3 5l4 4 4-4" /></svg>
+    </button>
+  );
+}
 
 interface Props {
   open: boolean;
@@ -31,48 +89,13 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
   onUnlock: () => void;
 }) {
   const { t } = useLabels();
+  const lock = useProLock(title);
+  /* Not the first locked panel on the page: nothing of its own (its name is in the page's one row). Before the first registration lands (same commit, before paint) nothing renders either. */
+  if (!lock.ready || !lock.leader) return null;
+  const standalone = lock.names.length === 1 && lock.names[0] === title;
   return (
-    /* data-testid so the paywall can be COUNTED per screen (#441).
-     *
-     * The entitlement check lives at each CALL SITE, not in this component, so
-     * moving a panel into the redesign moves its markup and leaves its guard
-     * behind. That happened on /arena: ConfluenceScore shipped unguarded for
-     * one commit and tsc, eslint, build and 442 tests all passed, because
-     * nothing in the codebase asserts "this screen locks as much as production
-     * does".
-     *
-     * The alternatives were both worse. Matching the card's TEXT binds a spec
-     * to whatever the labels table says today, in one locale. Matching the
-     * gradient binds it to styling the redesign is actively changing - so the
-     * check would break on the very commit it exists to catch. An explicit
-     * hook survives both. */
-    <div data-testid="locked-feature" className="locked-card-term-wrap" style={{
-      ...SURFACE,
-      borderRadius: 'var(--radius-card, 12px)',
-      padding: '18px 20px',
-      display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
-    }}>
-      <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-        <div style={{
-          fontFamily: 'var(--font-mono, monospace)',
-          fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '0.14em',
-          textTransform: 'uppercase', color: 'var(--accent-2)', marginBottom: 6,
-        }}>
-          {t('UPGRADE_GATE_PRO_FEATURE_LABEL')}
-        </div>
-        <div style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>{title}</div>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.6 }}>{description}</div>
-      </div>
-      <button
-        onClick={onUnlock}
-        style={{
-          background: 'var(--accent-solid)', color: 'var(--on-accent)', border: 'none', cursor: 'pointer',
-          fontSize: 'var(--fs-label)', fontWeight: 700, padding: '9px 16px', borderRadius: 8,
-          flexShrink: 0,
-        }}
-      >
-        {t('UPGRADE_GATE_UNLOCK_BUTTON')}
-      </button>
+    <div title={description}>
+      <ProRow names={lock.names} onOpen={standalone ? onUnlock : lock.open} />
     </div>
   );
 }
@@ -306,6 +329,7 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
                correcting an advert for something we don't offer, not hiding
                a bug - see the matching removal on app/upgrade/page.tsx. */
             'UPGRADE_GATE_BULLET_4',
+            'UPGRADE_GATE_BULLET_5',
           ] as const).map(k => (
             <li key={k} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.5 }}>
               <span style={{ color: 'var(--green)', fontSize: '0.75rem', flexShrink: 0 }}>✓</span>

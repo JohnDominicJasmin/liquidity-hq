@@ -15,6 +15,13 @@ export interface StrategyContext {
   liqLevels?: readonly number[];
   /** Closed BTC candles on the same timeframe, supplied only to a strategy with needsBtc and only for a coin other than BTC. */
   btcCandles?: readonly OHLCV[];
+  /* LIVE DERIVATIVES INPUTS (phase-2 strategies, owner decision 2026-11-17). They are live values, not part of the candles, so the CALLER supplies them and a strategy that needs them says so with `needsLive` / `needsTaker`. Absent means NOT KNOWN, never 'no signal'.
+     fundingClass: the Funding page's "paying heavily" class (longs_heavy at +0.05% or more, shorts_heavy at -0.03% or less); fundingPct: the rate in percent; oiChange6Pct: open interest change over the last 6 candles of this timeframe, in percent;
+     taker: per-candle taker buy / sell volume by candle open time, Binance klines only (absent for a coin without the split). */
+  fundingClass?: 'longs_heavy' | 'shorts_heavy' | 'none';
+  fundingPct?: number;
+  oiChange6Pct?: number | null;
+  taker?: ReadonlyMap<number, { buy: number; sell: number }>;
 }
 
 /* WHAT THE STRATEGY DRAWS ON THE CHART (owner, 2026-11-15: picking a strategy must change the chart, not only the text). PURE data from the SAME closed candles as the verdict, so a test can assert it and the
@@ -54,6 +61,10 @@ export interface StrategyDef {
   /** Optional: a different sentence for the same verdict (e.g. which of two triggers fired). Return null to use the default key. */
   /** True when the detector reads BTC candles (ctx.btcCandles). The caller fetches them; a failed fetch is an error, never a quiet wait. */
   needsBtc?: boolean;
+  /** True when the detector reads the live funding / open-interest values in the context (see StrategyContext). The caller fetches them; absent means the strategy answers wait with its own 'needs live data' reason. */
+  needsLive?: boolean;
+  /** True when the detector reads per-candle taker volume (ctx.taker); a coin without it answers wait with 'needs taker data'. */
+  needsTaker?: boolean;
   reasonKeyFor?: (r: StrategyResult) => LabelKey | null;
   /** Closed candles the detector needs before it will say anything but wait. */
   minCandles: number;
