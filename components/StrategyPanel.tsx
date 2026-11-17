@@ -110,16 +110,6 @@ function ParamRow({ spec, value, readOnly, onChange }: {
   );
 }
 
-/* One always-on CHART LAYERS row: a name and a right-aligned status word, no control. */
-function LayerRow({ name, status }: { name: string; status: string }) {
-  return (
-    <div className="strat-layer">
-      <span className="strat-layer-name">{name}</span>
-      <span className="strat-layer-state">{status}</span>
-    </div>
-  );
-}
-
 /* A CHART LAYERS switch (S/R, Liq): a real role="switch" button synced to the chart toolbar.
    `unavailable` (a coin with no such layer) shows an off, disabled switch rather than hiding it. */
 function LayerSwitch({ name, on, unavailable, onToggle }: { name: string; on: boolean; unavailable: boolean; onToggle: () => void }) {
@@ -307,6 +297,8 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
                   aria-pressed={on}
                   disabled={planChecking}
                   data-testid={`strategy-indicator-${entry.id}`}
+                  title={entry.blurbKey ? t(entry.blurbKey) : undefined}
+                  aria-describedby={entry.blurbKey ? `strat-desc-${entry.id}` : undefined}
                   onClick={() => toggle(entry)}
                 >
                   <span className="strat-ind-box" aria-hidden="true">
@@ -316,7 +308,8 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
                   </span>
                   <span className="strat-ind-text">
                     <span className="strat-ind-name">{entry.label}</span>
-                    {entry.blurbKey && <span className="strat-ind-desc">{t(entry.blurbKey)}</span>}
+                    {/* The one-line blurb is NOT drawn (the panel had to be shorter): it is the chip's title (hover) and its accessible description, same label key. */}
+                    {entry.blurbKey && <span id={`strat-desc-${entry.id}`} className="sr-only">{t(entry.blurbKey)}</span>}
                   </span>
                 </button>
               );
@@ -325,13 +318,9 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
           </div>
         )}
 
-        {/* FREE ONLY: the persistent upgrade callout, present even with nothing selected (it is an
-            invitation, not a limit warning). Pro never sees it - Pro has every indicator already. */}
+        {/* FREE ONLY: one text line, no box, present even with nothing selected (an invitation, not a limit warning). Pro never sees it, and neither does an account whose plan is still being read. */}
         {loaded && !entitled && !planChecking && (
-          <div className="strat-callout" role="note">
-            <span>{t('STRATEGY_PANEL_PRO_CALLOUT')}</span>
-            <Link href="/upgrade" className="strat-callout-link" data-testid="strategy-pro-callout">{t('STRATEGY_PANEL_PRO_CALLOUT_LINK')}</Link>
-          </div>
+          <Link href="/upgrade" className="strat-pro-line" data-testid="strategy-pro-callout">{t('STRATEGY_PANEL_PRO_LINE')}</Link>
         )}
 
         {isAuto && (
@@ -373,12 +362,10 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
       {/* CHART LAYERS: drawn on the chart on every plan, never using an indicator slot. */}
       {loaded && (
         <div className="strat-sect">
-          <div className="strat-lbl"><span>{t('STRATEGY_PANEL_SECTION_LAYERS')}</span></div>
-          <p className="strat-ind-note">{t('STRATEGY_PANEL_LAYERS_NOTE')}</p>
+          {/* "Drawn on the chart. They don't count as indicators." moved to the section label's title (the panel had to be shorter). */}
+          <div className="strat-lbl" title={t('STRATEGY_PANEL_LAYERS_NOTE')}><span>{t('STRATEGY_PANEL_SECTION_LAYERS')}</span></div>
+          <p className="strat-ind-note">{t('STRATEGY_PANEL_LAYERS_ALWAYS_LINE', { ema: t('STRATEGY_PANEL_LAYER_EMA'), rsi: t('STRATEGY_PANEL_LAYER_RSI'), gex: t('STRATEGY_PANEL_LAYER_GEX') })}</p>
           <div className="strat-layers">
-            <LayerRow name={t('STRATEGY_PANEL_LAYER_EMA')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON')} />
-            <LayerRow name={t('STRATEGY_PANEL_LAYER_RSI')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON')} />
-            <LayerRow name={t('STRATEGY_PANEL_LAYER_GEX')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON_BTC')} />
             <LayerSwitch
               name={t('STRATEGY_PANEL_LAYER_SR')}
               on={layer('SR') === 'on' || layer('SR') === 'always'}

@@ -40,8 +40,8 @@ export default function StrategyCallBox({ def, state }: Props) {
   /* FLAT, ANSWER FIRST (owner, 2026-11-15, PM distill pass): no card inside the panel's card and no name heading (the dropdown above already shows it). Order: the call (verdict, reason, invalidation) in the
      reserved .strat-call-dyn block, then the one-line description with its Expand / Collapse link, then "Signals, not predictions" directly after it. Spare reserved height falls at the bottom of the call block. */
   return (
-    <div data-testid="strategy-call-box" data-strategy={def.id} aria-live="polite" style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div className="strat-call-dyn" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div data-testid="strategy-call-box" data-strategy={def.id} aria-live="polite" className="strat-call-box" style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div className="strat-call-dyn" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {state.unsupportedTf ? (
         <div data-testid="strategy-call-tf-unavailable" style={{ color: 'var(--txt2)', fontSize: 'var(--fs-caption)' }}>{t('STRAT_TF_UNAVAILABLE')}</div>
       ) : state.error ? (
@@ -58,7 +58,6 @@ export default function StrategyCallBox({ def, state }: Props) {
           <div aria-hidden="true" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ width: 46, height: 12, borderRadius: 3, background: 'var(--bg3)' }} />
             <div style={{ width: '100%', height: 11, borderRadius: 3, background: 'var(--bg3)' }} />
-            <div style={{ width: '92%', height: 11, borderRadius: 3, background: 'var(--bg3)' }} />
             <div style={{ width: '74%', height: 11, borderRadius: 3, background: 'var(--bg3)' }} />
           </div>
           <div data-testid="strategy-call-loading" style={{ color: 'var(--txt2)', fontSize: 'var(--fs-caption)' }}>{t('STRAT_LOADING')}</div>
@@ -68,17 +67,18 @@ export default function StrategyCallBox({ def, state }: Props) {
           <div data-testid="strategy-call-verdict" data-verdict={r.verdict} style={{ fontSize: 'var(--fs-label)', fontWeight: 700, letterSpacing: '0.04em', color: colour }}>
             {t(r.verdict === 'buy' ? 'STRAT_VERDICT_BUY' : r.verdict === 'sell' ? 'STRAT_VERDICT_SELL' : 'STRAT_VERDICT_WAIT')}
           </div>
-          <p data-testid="strategy-call-reason" style={{ margin: 0, fontSize: 'var(--fs-body)', color: 'var(--txt)', lineHeight: 1.45 }}>{reason}</p>
-          {watched.length > 0 && (
+          <p data-testid="strategy-call-reason" className={open ? undefined : 'strat-call-reason-clamp'} style={{ margin: 0, fontSize: 'var(--fs-label)', color: 'var(--txt)', lineHeight: 1.4 }}>{reason}</p>
+          {/* THE REST OF THE CALL (levels watched, invalidation, liquidity note) shows when the chevron opens the box: the closed call is the verdict plus three lines, a fixed height. */}
+          {open && watched.length > 0 && (
             <p data-testid="strategy-call-watching" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.5 }}>
               <span style={{ fontWeight: 600 }}>{t('STRAT_WATCHING')}: </span>
               {watched.map(l => `${t(l.labelKey, l.labelParams)} ${priceText(l.price)}`).join(' · ')}
             </p>
           )}
-          {r.verdict !== 'wait' && typeof r.params.inv === 'number' && (
+          {open && r.verdict !== 'wait' && typeof r.params.inv === 'number' && (
             <p data-testid="strategy-call-invalidation" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('STRAT_INVALIDATION', { price: priceText(r.params.inv) })}</p>
           )}
-          {r.verdict !== 'wait' && r.params.liq === true && (
+          {open && r.verdict !== 'wait' && r.params.liq === true && (
             <p style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('STRAT_LIQ_NOTE')}</p>
           )}
         </>
@@ -91,7 +91,7 @@ export default function StrategyCallBox({ def, state }: Props) {
           <svg className="strat-desc-chevron" data-open={open ? 'true' : 'false'} width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 5l4 4 4-4" /></svg>
         </button>
       </div>
-      <p data-testid="strategy-call-note" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('STRAT_NOT_PREDICTIONS')}</p>
+      <p data-testid="strategy-call-note" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.35 }}>{t('STRAT_NOT_PREDICTIONS')}</p>
     </div>
   );
 }
