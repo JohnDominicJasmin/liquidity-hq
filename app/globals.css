@@ -1383,7 +1383,8 @@ body[data-rpm-level="high"]::before {
 /* WCAG 2.2.2 - a mechanism to pause the auto-scroll (hover or keyboard focus),
    alongside the dismiss (hide) control above. */
 .news-ticker:hover .ticker-content,
-.news-ticker:focus-within .ticker-content { animation-play-state: paused; }
+.news-ticker:focus-within .ticker-content,
+.news-ticker.ticker-paused .ticker-content { animation-play-state: paused; }
 
 /* Respect reduced-motion: stop the marquee entirely and let the row be
    scrolled by hand instead (scrollbars are globally hidden). */
@@ -1979,7 +1980,7 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
    states and reads as an aggressive, saturated dot on a count badge
    (especially light theme's #B91C1C + black text). Same softened tone in
    both themes instead of swinging harsh-light/soft-dark. */
-.ntab-count { font-size: var(--fs-data); font-weight: 700; padding: 1px 5px; border-radius: 10px; background: #e2685f; color: #fff; line-height: 1.4; }
+.ntab-count { font-size: var(--fs-data); font-weight: 700; padding: 1px 5px; border-radius: 10px; background: #c0392b; color: #fff; line-height: 1.4; }
 
 /* ── NEWS FEED ── */
 .nfeed { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: start; }
