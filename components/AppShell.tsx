@@ -91,6 +91,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const config = useAppConfig();
   const [marketNeeded, setMarketNeeded] = useState(false);
+  /* THE LANDING PAGE STARTS ITS MARKET FEEDS AFTER FIRST PAINT (speed audit 2026-11-17: '/' fired about 40 data requests before the page had painted, on a connection that moves about 50 KB a second, and they delayed the one stylesheet the text waits for). Other pages are unchanged. */
+  const [landingFeedsReady, setLandingFeedsReady] = useState(false);
+  useEffect(() => {
+    if (pathname !== '/') return;
+    const start = () => setLandingFeedsReady(true);
+    const idle = () => {
+      const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
+      if (typeof w.requestIdleCallback === 'function') w.requestIdleCallback(start, { timeout: 3000 });
+      else setTimeout(start, 1500);
+    };
+    if (document.readyState === 'complete') idle();
+    else { window.addEventListener('load', idle, { once: true }); return () => window.removeEventListener('load', idle); }
+  }, [pathname]);
   useEffect(() => {
     const on = () => setMarketNeeded(true);
     window.addEventListener(MARKET_DATA_NEEDED_EVENT, on);
@@ -164,7 +177,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <LabelsProvider>
         <AuthProvider>
           <SettingsProvider>
-            <MarketProvider enabled={marketNeeded || !isDataFree(pathname)}>
+            <MarketProvider enabled={(marketNeeded || !isDataFree(pathname)) && (pathname !== '/' || landingFeedsReady)}>
               <NewsProvider>
                 <OnboardingProvider>
                   <GrokUsageProvider>
