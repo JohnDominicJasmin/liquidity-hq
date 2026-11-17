@@ -1452,7 +1452,9 @@ export default function MarketProvider(
       const markAltFailed = () => setStore(s => ({ ...s, altSeasonStatus: s.altSeasonStatus === 'ok' ? 'ok' : 'failed' }));
       const btc   = coins.find(c => c.symbol === 'BTC');
       if (!btc) { markAltFailed(); return; }
-      const btc90 = btc.quote?.USD?.percent_change_90d ?? 0;
+      const btc90 = btc.quote?.USD?.percent_change_90d;
+      /* A MISSING BTC 90-DAY CHANGE IS A FAILED READ, not 0% (PM audit 2026-11-17: 0 gave a wrong score that looked fine). */
+      if (typeof btc90 !== 'number' || !Number.isFinite(btc90)) { markAltFailed(); return; }
 
       const eligible = coins
         .filter(c =>

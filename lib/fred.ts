@@ -53,10 +53,12 @@ export async function fetchFredRows(seriesId: string, ttlMs = FRED_TTL_DEFAULT):
   if (c && Date.now() - c.ts < ttlMs) return c.rows;
   try {
     const r = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`,
-      { next: { revalidate: Math.floor(ttlMs / 1000) }, signal: AbortSignal.timeout(10_000) });
-    if (!r.ok) return [];
+      { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
+    /* A BAD OR EMPTY REPLY IS NEVER CACHED, and the last good rows keep serving (PM audit 2026-11-17: an empty reply was cached as "no data" for 12 hours, so a CPI or NFP actual stayed "-" long after release). */
+    if (!r.ok) return c?.rows ?? [];
     const rows = parseFredCsv(await r.text());
+    if (rows.length === 0) return c?.rows ?? [];
     _cache[seriesId] = { rows, ts: Date.now() };
     return rows;
-  } catch { return []; }
+  } catch { return c?.rows ?? []; }
 }

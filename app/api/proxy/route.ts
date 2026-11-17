@@ -523,7 +523,7 @@ export async function GET(req: NextRequest) {
           // Neither usable is a failed read, reported to health like before.
           if (latest === null && days === null) throw new Error('no usable total_net_inflow in response');
           return { latest, days };
-        });
+        }, { failTtlMs: 60_000 });   // a provider failure is held for 60 s, so a rate limit is not prolonged by every page load
       }
 
       const [btcRes, ethRes] = await Promise.allSettled([

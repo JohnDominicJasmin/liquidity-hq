@@ -101,6 +101,11 @@ export async function GET(req: NextRequest) {
           : `${Object.keys(bb.rates).length} coins`,
         Object.keys(bb.rates).length);
 
+      /* BOTH EXCHANGES EMPTY IS A FAILURE (PM audit 2026-11-17): the all-blank table used to be cached as a success and read as "no funding". Throwing keeps the last good entry serving (cachedRefresh) and answers an error when there is none. */
+      if (Object.keys(bn.rates).length === 0 && Object.keys(bb.rates).length === 0) {
+        throw new Error('funding: both exchanges returned no rates');
+      }
+
       const data = COINS.map(coin => ({
         coin,
         binance:       bn.rates[coin] ?? null,
