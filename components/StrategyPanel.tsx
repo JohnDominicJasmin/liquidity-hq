@@ -23,7 +23,6 @@
  * carries the owner's exact wording through a real label key. */
 
 import { useEffect, useRef, useState, startTransition } from 'react';
-import Link from 'next/link';
 import { Lock } from '@/components/icons';
 import { useAuth } from './AuthProvider';
 import { SkeletonBar } from './Skeleton';
@@ -319,10 +318,7 @@ export default function StrategyPanel({ planChecking = false, layersLocked = fal
           </div>
         )}
 
-        {/* FREE ONLY: one text line, no box, present even with nothing selected (an invitation, not a limit warning). Pro never sees it, and neither does an account whose plan is still being read. */}
-        {loaded && !entitled && !planChecking && (
-          <Link href="/upgrade" className="strat-pro-line" data-testid="strategy-pro-callout">{t('STRATEGY_PANEL_PRO_LINE')}</Link>
-        )}
+        {/* The Free "Want more at once? See Pro" line is gone (owner, 2026-11-17: fewer upsell texts); the Free cap is already stated by the "1 at a time" count above. */}
 
         {isAuto && (
           <div className="strat-auto">{t('STRATEGY_PANEL_AUTO_NOTE')}</div>
