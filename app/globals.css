@@ -9455,3 +9455,6 @@ html[data-theme="light"] { color-scheme: light; }
   .lp-hero-stat { padding: 13px 14px !important; margin: 0 !important; border-right: 0 !important; background: var(--bg0); min-width: 0; }
   .lp-read-panel { width: 100% !important; max-width: 100%; }
 }
+
+/* /correlation: every read failed (#1185 reliability); a constant belongs here, not inline (terminal-only constants ratchet, #663). */
+.corr-all-failed { font-size: var(--fs-label); color: var(--txt2); padding: 4px 0; }
