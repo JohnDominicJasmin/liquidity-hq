@@ -320,6 +320,11 @@ export default function BriefingTerminal() {
   /* The figure is the latest SETTLED US session, not "today" (PM audit A5): on a Monday morning or a holiday it is Friday's. The dated list already
      exists in the store; its newest date is shown. */
   const etfDate  = store.etfFlowDays?.[0]?.date ?? null;
+  /* "2026-11-13" -> "Nov 13" in the reader's language; a value that is not a date is shown as it came. */
+  const fmtEtfDate = (d: string): string => {
+    const dt = new Date(`${d}T00:00:00Z`);
+    return Number.isFinite(dt.getTime()) ? dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }) : d;
+  };
   const etfColor = etfFlow == null || etfFlow === 0 ? 'var(--txt3)' : etfFlow > 0 ? 'var(--green-2)' : 'var(--red)';
 
   const dxyChg    = store.dxyChg;
@@ -577,7 +582,7 @@ export default function BriefingTerminal() {
           </div>
           {etfFlow != null && (
             <div className="mb-macro-item">
-              <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_ETF_TIP')}>{t('BRIEFING_ETF_LABEL')}</Tip>{etfDate ? ` · ${etfDate}` : ''}</div>
+              <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_ETF_TIP')}>{t('BRIEFING_ETF_LABEL')}</Tip>{etfDate ? ` · ${t('BRIEFING_ETF_LATEST', { date: fmtEtfDate(etfDate) })}` : ''}</div>
               <div className="mb-macro-val" style={{ color: etfColor }}>
                 {signedUsd(etfFlow, 'M', 0)}
               </div>
