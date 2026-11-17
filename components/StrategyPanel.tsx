@@ -261,7 +261,7 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
               ? t('ARENA_PLAN_CHECKING')
               : entitled
               ? t('STRATEGY_PANEL_NOTE_PRO')
-              : t('STRATEGY_PANEL_NOTE_FREE')}
+              : null /* Free: "Pick one. Tap another to swap it in." is no longer drawn; the "Free: 1 at a time" badge says it (key STRATEGY_PANEL_NOTE_FREE stays, unused). */}
           </p>
         )}
 
