@@ -9441,7 +9441,7 @@ html[data-theme="light"] { color-scheme: light; }
   .mkt-sig-full { display: none; }
   .mkt-sig-short { display: inline; }
 }
-/* Ask AI on the Arena, on a phone: at the left edge, clear of the chart's price axis and its price label. */
+/* Ask AI on the Arena, on a phone: the floating button is hidden. It covered the chart's price axis and the panel's own ASK AI run button, and the page already has Ask LiquidityAI at the top and ASK AI in the run row. */
 @media (max-width: 768px) {
-  .gchat-fab.gchat-fab-arena { right: auto; left: 16px; }
+  .gchat-fab.gchat-fab-arena { display: none; }
 }

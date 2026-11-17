@@ -163,7 +163,7 @@ function buildChatContext(
 
 /* ─────────────────────────────────────────────────────────────── */
 export default function GrokChat() {
-  /* On the Arena, on a phone, the button sits at the left edge so it does not cover the chart's price axis and its price label (PM audit 2026-11-17; globals.css .gchat-fab-arena). */
+  /* On the Arena, on a phone, the floating button is hidden (the page has its own Ask AI entries; PM audit 2026-11-17; globals.css .gchat-fab-arena). */
   const onArena = usePathname() === '/arena';
   const { store }                      = useMarket();
   const { latestHeadlines, geoEvents } = useNews();
