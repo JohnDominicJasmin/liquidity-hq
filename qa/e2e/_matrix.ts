@@ -83,7 +83,7 @@ export const measure = (page: Page, phone: boolean) => page.evaluate(({ phone, r
   const small = phone ? (Array.from(document.querySelectorAll('a[href],button,[role=button],[role=tab],[role=switch],input:not([type=hidden]),select,summary')) as HTMLElement[]).filter((e) => { if (!visible(e)) return false; const r = e.getBoundingClientRect(); return Math.min(r.width, r.height) < 24; }) : [];
   const text = document.body.innerText || '';
   const raw = Array.from(new Set((text.match(/\b[A-Z][A-Z0-9]{2,}(?:_[A-Z0-9]{2,}){1,}\b/g) ?? []).filter((k) => !new RegExp(rawOk).test(k)))).slice(0, 6);
-  const bad = Array.from(new Set((text.match(/\b(NaN|undefined|null|Infinity|\[object Object\])\b/g) ?? []))).slice(0, 5);
+  const bad = Array.from(new Set(Array.from(text.matchAll(/\b(NaN|undefined|null|Infinity|\[object Object\])\b/g)).map((m) => `${m[1]} in: ${text.slice(Math.max(0, (m.index ?? 0) - 50), (m.index ?? 0) + 40).replace(/\s+/g, ' ')}`))).slice(0, 5);
   const un = text.split('\n').filter((l) => /(unavailable|not available|couldn.?t load|could not load|no data)|^\s*—\s*$/i.test(l) && l.length < 120).slice(0, 4);
   /* CONTRAST: solid backgrounds only (the first ancestor with an opaque or blended background colour; an image or gradient behind the text makes it unmeasurable and it is skipped) */
   const parse = (s: string) => { const m = /rgba?\(([^)]+)\)/.exec(s); if (!m) return null; const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
