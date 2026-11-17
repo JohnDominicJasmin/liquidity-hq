@@ -200,29 +200,15 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
           </div>
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
             {t('EMA_SIGNAL_SUBTITLE', { tf: tf.toUpperCase() })}
+            {/* ONE VERDICT CHIP, NOT TWO (#1185, PM 2026-11-17): the choppiness reading used to sit beside the verdict as a second chip ("MIXED" next to "TRENDING SHORT"), which read as two contradicting verdicts. It is a quiet note under the title now, with the same tooltip. */}
+            {!signal.loading && signal.chopRegime && (() => {
+              const label = signal.chopRegime === 'choppy' ? t('EMA_SIGNAL_CHOP_CHOPPY') : signal.chopRegime === 'trending' ? t('EMA_SIGNAL_CHOP_TRENDING') : t('EMA_SIGNAL_CHOP_MIXED');
+              const tipKey: LabelKey = signal.chopRegime === 'choppy' ? 'EMA_SIGNAL_CHOP_TIP_CHOPPY' : signal.chopRegime === 'trending' ? 'EMA_SIGNAL_CHOP_TIP_TRENDING' : 'EMA_SIGNAL_CHOP_TIP_MIXED';
+              return <span data-testid="ema-chop-note" title={t(tipKey, { index: String(signal.chopIndex?.toFixed(0) ?? '-'), tf: tf.toUpperCase() })} style={{ cursor: 'default' }}> · {t('EMA_SIGNAL_CHOP_LINE', { state: label })}</span>;
+            })()}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6, maxWidth: '100%' }}>
-          {!signal.loading && signal.chopRegime && (() => {
-            const col = signal.chopRegime === 'choppy' ? 'var(--amber)' : signal.chopRegime === 'trending' ? 'var(--green-2)' : 'var(--txt-dim)';
-            const label = signal.chopRegime === 'choppy' ? t('EMA_SIGNAL_CHOP_CHOPPY') : signal.chopRegime === 'trending' ? t('EMA_SIGNAL_CHOP_TRENDING') : t('EMA_SIGNAL_CHOP_MIXED');
-            const tipKey: LabelKey = signal.chopRegime === 'choppy' ? 'EMA_SIGNAL_CHOP_TIP_CHOPPY' : signal.chopRegime === 'trending' ? 'EMA_SIGNAL_CHOP_TIP_TRENDING' : 'EMA_SIGNAL_CHOP_TIP_MIXED';
-            return (
-              <span
-                title={t(tipKey, { index: String(signal.chopIndex?.toFixed(0) ?? '-'), tf: tf.toUpperCase() })}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
-                  padding: '3px 8px', borderRadius: 20,
-                  color: col, background: withAlpha(col, '14'), border: `0.5px solid ${withAlpha(col, '44')}`,
-                  whiteSpace: 'nowrap', cursor: 'default',
-                }}
-              >
-                <span style={{ width: 4, height: 4, borderRadius: '50%', background: col, flexShrink: 0 }} />
-                {label}
-              </span>
-            );
-          })()}
           <span style={{
             fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
             padding: '4px 12px', borderRadius: 20,
