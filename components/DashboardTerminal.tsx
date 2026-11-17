@@ -438,6 +438,8 @@ function TEdgeSignals() {
             {sq.score}
             <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, marginLeft: 6 }}>{setupWord(t, sq.label)}</span>
           </div>
+          {/* ONE grid cell for both lines (#2452 added the second). The aligned subgrid pins every direct .edge-card-signal to row 3, so a second sibling was auto-placed into a NEW COLUMN of the card and widened the page in Russian (QA, 401 px at 390). The wrapper takes row 3 and stacks them. */}
+          <div className="edge-card-signals">
           <div className="edge-card-signal" style={{ color: sqCol }}>
             {sq.dir === 'SHORT_SQ' ? t('DASH_EDGE_SETUP_SHORT_SQ')
              : sq.dir === 'LONG_LIQ' ? t('DASH_EDGE_SETUP_LONG_LIQ')
@@ -454,6 +456,7 @@ function TEdgeSignals() {
               ].filter(Boolean).join(' · ')}
             </div>
           )}
+          </div>
         </div>
       </div>
 
