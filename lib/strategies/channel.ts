@@ -69,11 +69,12 @@ export function breakoutLevels(candles: readonly OHLCV[], k: number, dir: 'long'
   // The stop must be on the losing side of the entry; a degenerate rail value there is not a stop.
   if (dir === 'long' ? !(stop < entry) : !(stop > entry)) stop = dir === 'long' ? candles[k].low : candles[k].high;
   const levels = computeSRLevels(candles.slice(0, k + 1).map(c => ({ high: c.high, low: c.low, close: c.close })), entry);
-  const ahead = dir === 'long'
-    ? levels.filter(l => l.type === 'resistance' && l.price > entry).sort((a, b) => a.price - b.price)[0]
-    : levels.filter(l => l.type === 'support' && l.price < entry).sort((a, b) => b.price - a.price)[0];
-  const target = ahead ? ahead.price : null;
   const risk = Math.abs(entry - stop);
+  /* THE TARGET IS THE FIRST S/R LEVEL IN THE TRADE'S DIRECTION THAT IS AT LEAST ONE RISK DISTANCE (entry to stop) AWAY (PM, 2026-11-17). A level closer than that would give a reward smaller than the risk (QA found 0.1 R:R boxes on breakouts just under resistance), so it is skipped; none left means no target, no R:R and no zone. */
+  const ahead = dir === 'long'
+    ? levels.filter(l => l.type === 'resistance' && l.price - entry >= risk).sort((a, b) => a.price - b.price)[0]
+    : levels.filter(l => l.type === 'support' && entry - l.price >= risk).sort((a, b) => b.price - a.price)[0];
+  const target = ahead ? ahead.price : null;
   const rr = target != null && risk > 0 ? Math.abs(target - entry) / risk : null;
   const zone = ahead ? { top: ahead.price * (1 + SR_BAND_PCT), bottom: ahead.price * (1 - SR_BAND_PCT) } : null;
   return { entry, stop, target, rr, zone };
