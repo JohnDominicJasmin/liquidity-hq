@@ -38,7 +38,8 @@ test('OS1. every overlay-backed registry entry has a state, so no layer can be d
   const overlays = INDICATORS.filter((i) => i.source === 'overlay').map((i) => i.id).sort();
   assert.equal(overlays.length >= 4, true, `CONTROL: expected at least the four known overlays, found ${overlays.join(',')}`);
   const keys = Object.keys(overlayStates({ showSR: true, showLiq: true, hasLiq: true, hasGex: true })).sort();
-  assert.deepEqual(keys, overlays, 'overlayStates() and the registry disagree about which entries are overlays');
+  /* RSI is a chart LAYER with a switch (owner 2026-11-17) but not an overlay-sourced registry entry (OS4b: not a selectable chip), so overlayStates() carries it in addition to the registry's overlays. */
+  assert.deepEqual(keys, [...overlays, 'RSI'].sort(), 'overlayStates() and the registry disagree about which entries are layers (the overlays plus RSI)');
   for (const id of overlays) assert.equal(isOverlayId(id), true, `${id} is an overlay in the registry but isOverlayId() says no`);
 });
 
@@ -101,10 +102,14 @@ test('OS5. the S/R and Liq switches live in ONE place (the Arena page); the char
 });
 
 test('OS6. the panel is given overlays derived by overlayStates() from the same showSR and showLiq the chart receives, never a hand-built object', () => {
-  const at = anchorOnce(PAGE, '<StrategyPanel overlays={overlayStates({ showSR, showLiq,', 'the panel is fed overlayStates(showSR, showLiq, ...)');
+  const at = anchorOnce(PAGE, '<StrategyPanel overlays={overlayStates({ showSR: showSRDrawn, showLiq: showLiqDrawn, showEma, showRsi,', 'the panel is fed overlayStates(the DRAWN S/R and Liq states, showEma, showRsi, ...)');
   assert.ok(at > 0);
-  assert.match(PAGE, /<KLineProChart [^>]*\bshowSR=\{showSR\}/, 'the chart is not handed the page\'s showSR');
-  assert.match(PAGE, /<KLineProChart [^>]*\bshowLiq=\{showLiq\}/, 'the chart is not handed the page\'s showLiq');
+  /* The chart and the panel get the SAME drawn states: the switch AND not locked (Free / signed-out on a coin other than BTC, ETH, SOL: layersLocked); the EMA ribbon and RSI switches too. */
+  assert.match(PAGE, /const showSRDrawn = showSR && !layersLocked;/); assert.match(PAGE, /const showLiqDrawn = showLiq && !layersLocked;/);
+  assert.match(PAGE, /<KLineProChart [^>]*\bshowSR=\{showSRDrawn\}/, 'the chart is not handed the drawn S/R state');
+  const chartTag = PAGE.slice(PAGE.indexOf('<KLineProChart'), PAGE.indexOf('<KLineProChart') + 4000);   // the props contain arrow functions, so a [^>]* match would stop early
+  assert.ok(chartTag.includes('showLiq={showLiqDrawn}'), 'the chart is not handed the drawn Liq state');
+  assert.ok(chartTag.includes('showEma={showEma}') && chartTag.includes('showRsi={showRsi}'), 'the chart is not handed the EMA ribbon and RSI switches');
   assert.equal(/overlays=\{\{/.test(PAGE), false, 'a hand-built overlays object is passed to the panel');
 });
 
