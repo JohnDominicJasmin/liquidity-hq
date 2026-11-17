@@ -16,6 +16,7 @@ import {
   computeCoinHealth, classifyFunding, computeSqueezeScore, FUNDING_TIP_KEY,
 } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
+import { accountRatio } from '@/lib/accountRatioVenue';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { oiTrend1h } from '@/lib/oiTrend1h';
 import { useSettings } from '@/lib/settings';
@@ -447,12 +448,12 @@ function TEdgeSignals() {
              : t('DASH_EDGE_SETUP_BALANCED')}
           </div>
           {/* The numbers behind the label (funding and the share of the heavier side), so the card states what it saw instead of only a name. */}
-          {sq.enough && (d?.fundingRate != null || d?.longRatio != null) && (
+          {sq.enough && (d?.fundingRate != null || accountRatio(d) != null) && (
             <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
               {[
                 d?.fundingRate != null ? t('DASH_EDGE_SETUP_DETAIL_FUNDING', { pct: fmtSignedPct(d.fundingRate * 100) }) : null,
-                sq.dir === 'SHORT_SQ' && d?.shortRatio != null ? t('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE', { pct: Math.round(d.shortRatio * 100) })
-                  : d?.longRatio != null ? t('DASH_EDGE_SETUP_DETAIL_LONG_SHARE', { pct: Math.round(d.longRatio * 100) }) : null,
+                sq.dir === 'SHORT_SQ' && accountRatio(d) != null ? t('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE', { pct: Math.round(accountRatio(d)!.short * 100), venue: accountRatio(d)!.venue })
+                  : accountRatio(d) != null ? t('DASH_EDGE_SETUP_DETAIL_LONG_SHARE', { pct: Math.round(accountRatio(d)!.long * 100), venue: accountRatio(d)!.venue }) : null,
               ].filter(Boolean).join(' · ')}
             </div>
           )}

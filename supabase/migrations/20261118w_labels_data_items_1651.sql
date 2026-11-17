@@ -4,6 +4,16 @@
 --
 -- ===================== PROD =====================
 insert into lhq_labels (key, locale, value) values
+('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','en','long share {pct}% ({venue}, accounts, 1h)'),
+('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ko','롱 비중 {pct}% ({venue}, 계정, 1시간)'),
+('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','zh','多头占比 {pct}%（{venue}，账户，1 小时）'),
+('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ru','доля лонгов {pct}% ({venue}, аккаунты, 1ч)'),
+('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ar','حصة الشراء {pct}% ({venue}، الحسابات، 1س)'),
+('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','en','short share {pct}% ({venue}, accounts, 1h)'),
+('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','ko','숏 비중 {pct}% ({venue}, 계정, 1시간)'),
+('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','zh','空头占比 {pct}%（{venue}，账户，1 小时）'),
+('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','ru','доля шортов {pct}% ({venue}, аккаунты, 1ч)'),
+('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','ar','حصة البيع {pct}% ({venue}، الحسابات، 1س)'),
 ('BTC_RISK_LEVEL_TITLE','en','BTC Crowding (sentiment + funding)'),
 ('BTC_RISK_LEVEL_TITLE','ko','BTC 쏠림 (심리 + 펀딩)'),
 ('BTC_RISK_LEVEL_TITLE','zh','BTC 拥挤度（情绪 + 资金费率）'),
@@ -19,20 +29,20 @@ insert into lhq_labels (key, locale, value) values
 ('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','zh','BTC 多 / 空 · 币安，全部账户，1 小时'),
 ('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','ru','BTC лонг / шорт · Binance, все аккаунты, 1ч'),
 ('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','ar','BTC شراء / بيع · Binance، كل الحسابات، 1س'),
-('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','en','long share {pct}% of accounts'),
-('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ko','롱 비중 {pct}% (계정 기준)'),
-('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','zh','多头占比 {pct}%（按账户）'),
-('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ru','доля лонгов {pct}% (аккаунты)'),
-('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ar','حصة الشراء {pct}% من الحسابات'),
-('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','en','short share {pct}% of accounts'),
-('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','ko','숏 비중 {pct}% (계정 기준)'),
-('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','zh','空头占比 {pct}%（按账户）'),
-('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','ru','доля шортов {pct}% (аккаунты)'),
-('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','ar','حصة البيع {pct}% من الحسابات')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 
 -- ===================== DEV =====================
 insert into lhq_dev_labels (key, locale, value) values
+('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','en','long share {pct}% ({venue}, accounts, 1h)'),
+('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ko','롱 비중 {pct}% ({venue}, 계정, 1시간)'),
+('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','zh','多头占比 {pct}%（{venue}，账户，1 小时）'),
+('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ru','доля лонгов {pct}% ({venue}, аккаунты, 1ч)'),
+('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ar','حصة الشراء {pct}% ({venue}، الحسابات، 1س)'),
+('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','en','short share {pct}% ({venue}, accounts, 1h)'),
+('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','ko','숏 비중 {pct}% ({venue}, 계정, 1시간)'),
+('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','zh','空头占比 {pct}%（{venue}，账户，1 小时）'),
+('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','ru','доля шортов {pct}% ({venue}, аккаунты, 1ч)'),
+('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','ar','حصة البيع {pct}% ({venue}، الحسابات، 1س)'),
 ('BTC_RISK_LEVEL_TITLE','en','BTC Crowding (sentiment + funding)'),
 ('BTC_RISK_LEVEL_TITLE','ko','BTC 쏠림 (심리 + 펀딩)'),
 ('BTC_RISK_LEVEL_TITLE','zh','BTC 拥挤度（情绪 + 资金费率）'),
@@ -48,14 +58,4 @@ insert into lhq_dev_labels (key, locale, value) values
 ('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','zh','BTC 多 / 空 · 币安，全部账户，1 小时'),
 ('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','ru','BTC лонг / шорт · Binance, все аккаунты, 1ч'),
 ('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','ar','BTC شراء / بيع · Binance، كل الحسابات، 1س'),
-('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','en','long share {pct}% of accounts'),
-('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ko','롱 비중 {pct}% (계정 기준)'),
-('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','zh','多头占比 {pct}%（按账户）'),
-('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ru','доля лонгов {pct}% (аккаунты)'),
-('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ar','حصة الشراء {pct}% من الحسابات'),
-('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','en','short share {pct}% of accounts'),
-('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','ko','숏 비중 {pct}% (계정 기준)'),
-('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','zh','空头占比 {pct}%（按账户）'),
-('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','ru','доля шортов {pct}% (аккаунты)'),
-('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE','ar','حصة البيع {pct}% من الحسابات')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();

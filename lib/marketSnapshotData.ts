@@ -408,7 +408,7 @@ async function buildLsr(): Promise<Record<string, LsrEntry>> {
 
   const banned = await runPool(SYMS, CONCURRENCY, async ([coin, sym]) => {
     const [g, w] = await Promise.all([
-      get(`${host}/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=1`),
+      get(`${host}/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=1h&limit=1`),   // 1h, the same period as the Bybit account ratio and the dashboard widget (#1651)
       get(`${host}/futures/data/topLongShortPositionRatio?symbol=${sym}&period=5m&limit=1`),
     ]);
     const gi = Array.isArray(g) ? (g[0] as Record<string, string>) : null;
