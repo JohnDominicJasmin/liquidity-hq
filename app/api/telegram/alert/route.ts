@@ -4,6 +4,7 @@ import { classifyNews } from '@/lib/classify';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { detectPatterns } from '@/lib/patterns';
 import { T } from '@/lib/tables';
+import { isDeadChatReason } from '@/lib/telegramDeadChat';
 import { formatAlertTally } from '@/lib/alertTally';
 import { isOutcomeTracked, persistAlertFires } from '@/lib/alertOutcomes';
 import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, COIN_LABELS, COINS, symbolDenominationFactor } from '@/lib/coins';
@@ -450,6 +451,7 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
   // blocked by the user, chat not found, unparseable HTML in the body - was
   // indistinguishable from a successful delivery. Nothing anywhere recorded
   // whether a message actually landed.
+  const deadChats = new Set<string>();
   await Promise.all([...byZone.entries()].flatMap(([tz, zoneIds]) => {
     const body = text.includes(TIME_TOKEN) ? text.replaceAll(TIME_TOKEN, alertTimeIn(tz)) : text;
     return zoneIds.map(async id => {
@@ -469,12 +471,21 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
           () => `HTTP ${res.status}`,
         );
         sendTally.reasons.add(why);
+        if ((res.status === 403 || res.status === 400) && isDeadChatReason(why)) deadChats.add(id);
       } catch (e) {
         sendTally.failed++; result.failed++;
         sendTally.reasons.add(healthError(e));
       }
     });
   }));
+  /* A CHAT THAT CAN NEVER RECEIVE AGAIN IS UNLINKED (C1). It used to stay linked: Alerts said "connected" and every cron run kept failing the same send. Now the link is cleared (user_settings.telegram_chat_id = null),
+     so the Settings status reads not connected and the person can link again; the reason still goes to the send tally. Best effort: a failure here is reported and never aborts the run. */
+  if (deadChats.size > 0) {
+    try {
+      const { error } = await getSupabaseAdmin().from(T.user_settings).update({ telegram_chat_id: null }).in('telegram_chat_id', [...deadChats]);
+      if (error) throw new Error(error.message);
+    } catch (e) { sendTally.reasons.add(`unlink failed: ${healthError(e)}`); }
+  }
   return result;
 }
 
