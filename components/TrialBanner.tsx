@@ -107,7 +107,7 @@ export default function TrialBanner() {
     >
       {/* AT MOST TWO LINES (PM, #2413). A flex row that wraps: the label and the countdown share a line when they fit, and the countdown drops to its own line when they do not, so the block is never taller than two lines. The label is one line and clamps with an ellipsis if it alone is wider than the block; the countdown and the pill are never cut. */}
       <span style={{ color: 'var(--txt2)', flex: '0 1 auto', minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'baseline' }}>
-        <span ref={labelRef} style={{ minWidth: 0, maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <span ref={labelRef} style={{ minWidth: 0, maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'clip' /* NOT 'ellipsis': in Russian at 390 px the label box is 175 px for 186 px of content, and the 11 px that does not fit is the label's trailing margin plus the (hidden) separator dot, so an ellipsis drew a stray "..." after "Pro" for text that was not cut. Clip drops only that dead space. */ }}>
           <span
             style={{
               fontFamily: 'var(--font-mono, monospace)',
