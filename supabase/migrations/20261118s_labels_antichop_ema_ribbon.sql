@@ -18,7 +18,7 @@ insert into lhq_labels (key, locale, value) values
 ('ARENA_ANTICHOP_LABEL','ko','EMA 리본: 더 적고 엄격한 신호'),
 ('ARENA_ANTICHOP_LABEL','zh','EMA 均线带：更少、更严格的信号'),
 ('ARENA_ANTICHOP_LABEL','ru','EMA-лента: меньше сигналов, строже'),
-('ARENA_ANTICHOP_LABEL','ar','شريط EMA: إشارات أقل وأكثر صرامة'),
+('ARENA_ANTICHOP_LABEL','ar','شريط EMA: إشارات أقل وأكثر صرامة')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 
 -- ===================== DEV =====================
@@ -37,5 +37,5 @@ insert into lhq_dev_labels (key, locale, value) values
 ('ARENA_ANTICHOP_LABEL','ko','EMA 리본: 더 적고 엄격한 신호'),
 ('ARENA_ANTICHOP_LABEL','zh','EMA 均线带：更少、更严格的信号'),
 ('ARENA_ANTICHOP_LABEL','ru','EMA-лента: меньше сигналов, строже'),
-('ARENA_ANTICHOP_LABEL','ar','شريط EMA: إشارات أقل وأكثر صرامة'),
+('ARENA_ANTICHOP_LABEL','ar','شريط EMA: إشارات أقل وأكثر صرامة')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
