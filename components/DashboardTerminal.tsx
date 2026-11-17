@@ -142,6 +142,10 @@ function TCoinSidebar() {
 
   return (
     <div className="csb2-container">
+      {/* THE LETTERS HAVE WORDS (#1185, PM 2026-11-17): a trader who does not know the A to F scale could not read the chips. One muted legend line says what each letter means, in the words the chips already announce to a screen reader. */}
+      <div data-testid="csb2-grade-legend" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.5, padding: '2px 2px 6px' }}>
+        {(['A', 'B', 'C', 'D', 'F'] as const).map((g, i) => <span key={g}>{i > 0 ? ' · ' : ''}<strong style={{ color: 'var(--txt2)' }}>{g}</strong> {t(`COIN_HEALTH_GRADE_${g}` as const)}</span>)}
+      </div>
       {visibleCoins.map(id => {
         const d      = store.coins[id];
         const dec    = COIN_DEC[id];
