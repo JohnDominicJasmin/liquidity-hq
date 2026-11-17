@@ -654,7 +654,7 @@
   "DASH_EDGE_OI_FLAT": "Flat - no strong signal",
   "DASH_EDGE_FUNDING_TIP": "Fee longs pay shorts every 8 hours to hold perpetual futures. Positive means longs pay; negative means shorts pay.",
   "DASH_EDGE_FUNDING_LABEL": "Funding {coin}",
-  "DASH_EDGE_SETUP_TIP": "Squeeze score from funding, long/short share (Bybit accounts), taker pressure and volume. Higher = more crowded.",
+  "DASH_EDGE_SETUP_TIP": "Squeeze score from funding, long/short share (Bybit accounts), taker pressure (2 hours) and volume. Higher = more crowded.",
   "DASH_EDGE_SETUP_LABEL": "Setup scan {coin}",
   "DASH_EDGE_SETUP_SHORT_SQ": "▲ Short-heavy",
   "DASH_EDGE_SETUP_LONG_LIQ": "▼ Long-heavy",
