@@ -1086,6 +1086,7 @@ jobs:
           # skip the build entirely. See the input's own comment for why a remote
           # run is NOT the same measurement as the gate run.
           E2E_BASE_URL: ${{ inputs.base_url }}
+          INLINE_CSS: '1'   # QA: inline-CSS comparison (#2505)
 
           # ── RELEASE-GATE EXCHANGE STUB (#1259) ──────────────────────────────
           #
