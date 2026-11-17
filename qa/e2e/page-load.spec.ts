@@ -12,6 +12,7 @@
  * spec does not set and must not). Nothing is written: signed-in visits only read (the app's own timezone sync PATCH on a signed-in visit is the app's, same as every other signed-in spec). */
 import { test, expect, type Page, type BrowserContext } from '@playwright/test';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext } from './_auth';
+import { installPaidAiFence } from './_no-paid-ai';
 
 const PAGES = ['/', '/upgrade', '/arena', '/dashboard', '/markets', '/scanner', '/news', '/briefing', '/research', '/hours', '/playbook', '/liq', '/funding', '/correlation', '/econ-calendar', '/alerts', '/journal', '/settings', '/learn', '/faq', '/changelog', '/status', '/about', '/login', '/privacy', '/terms', '/disclaimer', '/refund'];
 const OBSERVE_MS = 15_000; const LCP_BUDGET = 2_500; const RESOLVE_BUDGET = 8_000;
@@ -59,7 +60,7 @@ test.describe('page load', () => {
     for (const width of [360, 1280]) {
       const ctx: BrowserContext = auth === 'in' ? await signedInContext(browser, 'a') : await browser.newContext();
       await ctx.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'en'); localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private */ } }); await ctx.addInitScript(WATCH);
-      const page = await ctx.newPage(); await page.setViewportSize({ width, height: width < 500 ? 800 : 900 });
+      const page = await ctx.newPage(); await installPaidAiFence(page);   /* PM 2026-11-17: never let a page-load visit spend on a paid AI route (the fence aborts and records them) */ await page.setViewportSize({ width, height: width < 500 ? 800 : 900 });
       try {
         for (const [name, reload] of [['FIRST', false], ['RELOAD', true]] as const) {
           const c = await visit(page, path, reload);
