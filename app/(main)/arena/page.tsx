@@ -40,7 +40,7 @@ import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, D
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
-import PageHint from '@/components/PageHint';
+import { PageHintBox, PageHintLink } from '@/components/PageHint';
 import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
 import { useStrategySignal } from '@/lib/useStrategySignal';
 import { findStrategy } from '@/lib/strategies';
@@ -326,6 +326,7 @@ function ArenaContent() {
   const [hadTfParamAtMount]   = useState(() => searchParams.has('tf'));
   /* A coin the link names that Arena does not offer (#1263, owner: it must say so, not swap to BTC silently). Captured ONCE at mount like the flags above, because the URL-sync
      effect rewrites the address bar to the coin that actually opened. Sanitised and capped for display; React escapes it either way. */
+  const [arenaHintOpen, setArenaHintOpen] = useState(false);   // the "How this page works" box (components/PageHint.tsx PageHintBox), closed on arrival
   const [unknownCoinParam, setUnknownCoinParam] = useState<string | null>(() => {
     const raw = searchParams.get('coin');
     if (!raw) return null;
@@ -2163,16 +2164,13 @@ function ArenaContent() {
           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent-2)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
           {/* Free accounts only (owner, 2026-10-07: they could not find Upgrade on this page). The same 44px pill TrialBanner
               uses, at the right of the header; nothing for Pro, a trial, or an unknown plan. */}
+          <PageHintLink pageKey="arena" open={arenaHintOpen} onClick={() => setArenaHintOpen(v => !v)} />
           <FreeUpgradePill testId="arena-header-upgrade" style={{ marginLeft: 'auto' }} tap />
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
 
-      <PageHint
-        pageKey="arena"
-        title={t('ARENA_HINT_TITLE')}
-        body={t('ARENA_HINT_BODY')}
-      />
+      {arenaHintOpen && <PageHintBox title={t('ARENA_HINT_TITLE')} body={t('ARENA_HINT_BODY')} onClose={() => setArenaHintOpen(false)} />}
 
       {unknownCoinParam && (
         <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 8px', padding: '2px 4px 2px 12px', border: '0.5px solid var(--bdr)', background: 'var(--bg2)', fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>

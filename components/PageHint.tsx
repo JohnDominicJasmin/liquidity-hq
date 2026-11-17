@@ -119,3 +119,33 @@ export default function PageHint({ pageKey, title, body }: Props) {
     </div>
   );
 }
+
+/* THE ARENA'S HINT AS A LINK ON THE TITLE ROW (#2500, PM 2026-11-17, rule 22): the page used to spend a whole row (60 px, 38 px once dismissed) on the hint box above the chart, which pushed the Strategy panel's run row below the first screen at 1280x800. The page now shows only this small
+   "How this page works" link beside the title, and the box (PageHintBox, the same words) opens under the title row on a tap and closes with its x. Nothing is stored: it is always collapsed on arrival. */
+export function PageHintLink({ pageKey, onClick, open }: { pageKey: string; onClick: () => void; open: boolean }) {
+  const { t } = useLabels();
+  return (
+    <button
+      type="button"
+      data-page-hint={pageKey}
+      onClick={onClick}
+      aria-expanded={open}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 'var(--fs-caption)', fontWeight: 700, minHeight: 24, padding: 0, whiteSpace: 'nowrap', flexShrink: 1, minWidth: 0 }}
+    >
+      <span aria-hidden="true">?</span>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t('PAGE_HINT_REPLAY_LABEL')}</span>
+    </button>
+  );
+}
+export function PageHintBox({ title, body, onClose }: { title: string; body: string; onClose: () => void }) {
+  const { t } = useLabels();
+  return (
+    <div role="note" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'var(--accent-bg)', border: '0.5px solid var(--accent-bdr)', borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--accent)', marginBottom: 3 }}>{title}</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.55 }}>{body}</div>
+      </div>
+      <button onClick={onClose} aria-label={t('PAGE_HINT_DISMISS_LABEL')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', padding: 0, flexShrink: 0, width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><CloseIcon /></button>
+    </div>
+  );
+}
