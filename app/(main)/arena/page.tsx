@@ -1,6 +1,6 @@
 ﻿'use client';
 import { deadlineSignal } from '@/lib/deadlineSignal';
-import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue, Suspense } from 'react';
 import Link from 'next/link';
 import { useNow } from '@/lib/useNow';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
@@ -52,7 +52,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
-import { coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
+import { binanceKlineSource, coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF, CHART_TFS, ARENA_TFS } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
@@ -536,13 +536,15 @@ function ArenaContent() {
      chart and the panel below when the ceiling is crossed - it exists only so the hook has a valid
      timeframe. */
   const aboveAnalysisCeiling = !(ARENA_TFS as readonly string[]).includes(readTf);
+  /* A chip tap flips the chip at once (StrategyPanel); the EMA filter and the markers it drives read this DEFERRED copy, so their recompute never sits inside the tap's own render. */
+  const deferredStrategySelection = useDeferredValue(strategySelection);
   const rawEmaSignal = useEMAStrategy(
     selectedCoin,
     aboveAnalysisCeiling ? '1d' : readTf,
     store.coins[selectedCoin]?.fundingRate ?? null,
     oi1h.pct,
     filterParams,
-    strategySelection,
+    deferredStrategySelection,
     feedGraceOver,
   );
   const gatedEmaSignal = useMemo(() => gateSignal(rawEmaSignal, signalPlan, selectedCoin), [rawEmaSignal, signalPlan, selectedCoin]);
@@ -1726,7 +1728,7 @@ function ArenaContent() {
       setReadStep(t('ARENA_STEP_READING_CHART'));
       let raw: (string|number)[][];
       if (binanceSym) {
-        const r = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=${readTf}&limit=300`, { signal: deadlineSignal(20_000) });
+        const r = await fetch(`/api/market/klines?source=${binanceKlineSource(selectedCoin)}&symbol=${binanceSym}&interval=${readTf}&limit=300`, { signal: deadlineSignal(20_000) });
         if (!r.ok) throw new Error(t('ARENA_ERROR_BINANCE_API'));
         raw = await r.json();
       } else {
@@ -1778,7 +1780,7 @@ function ArenaContent() {
       try {
         if (binanceSym) {
           // #1626 C: 120 daily candles (Wilder needs the history), CLOSED ones only (Binance rows carry their close time at index 6).
-          const dr = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=1d&limit=120`, { signal: deadlineSignal(20_000) });
+          const dr = await fetch(`/api/market/klines?source=${binanceKlineSource(selectedCoin)}&symbol=${binanceSym}&interval=1d&limit=120`, { signal: deadlineSignal(20_000) });
           const dd = await dr.json() as (string|number)[][];
           const nowMs = Date.now();
           const dc = dd.filter(k => Number(k[6]) < nowMs).map(k => Number(k[4]));

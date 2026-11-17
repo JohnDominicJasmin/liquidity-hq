@@ -6353,6 +6353,9 @@ html[lang="ar"] .lp-h1-accent {
 .ob-cl-min {
   background: none; border: none; color: var(--txt3);
   font-size: 1.25rem; cursor: pointer; line-height: 1; padding: 0 0 0 6px;
+  /* a 24 x 24 touch target for the minimise and dismiss controls (WCAG 2.5.8; PM UI audit, #1185) */
+  min-width: 24px; min-height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .ob-cl-min:hover { color: var(--txt); }
 
@@ -9072,7 +9075,6 @@ main.app-content[data-chrome="none"] {
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
   display: flex; justify-content: space-between; margin-bottom: 6px;
 }
-[data-design="terminal"] .strat-cap { color: var(--txt3); }
 /* The plan + used/limit chip beside "Indicators" (owner, 2026-10-07: the 0 of 1 caption was easy to miss). --txt2 on --bg1
    is 5.62 dark / 5.56 light. At the cap it takes the accent border so it reads as "full", with the words saying so as well. */
 [data-design="terminal"] .strat-count {
@@ -9141,13 +9143,6 @@ main.app-content[data-chrome="none"] {
 /* Locked by the plan: the padlock carries it (no italic any more: it changed the glyph widths). The slot is always laid out,
    so a chip becoming locked does not move any other chip. */
 [data-design="terminal"] .strat-chip.blocked { font-weight: 400; }
-[data-design="terminal"] .strat-n {
-  background: var(--accent); color: var(--on-accent);
-  width: 11px; height: 11px; display: inline-flex;
-  align-items: center; justify-content: center;
-  font-size: 7.5px; font-weight: 700;
-}
-
 /* The default state's one line, where the params box would be. Plex Sans, not
    mono: it is a sentence, not a value. */
 [data-design="terminal"] .strat-auto {
@@ -9174,19 +9169,37 @@ main.app-content[data-chrome="none"] {
   font-size: 10.5px; line-height: 1.4; color: var(--txt3);
 }
 
+/* THE PARAMS BOX opens and closes with a height transition (grid rows 0fr to 1fr, 150ms ease-out; none under reduced motion). It only exists when an indicator with parameters is on, and nothing above it moves. */
+[data-design="terminal"] .strat-params-slot {
+  display: grid; grid-template-rows: 0fr; margin-top: 0; visibility: hidden;
+  transition: grid-template-rows 150ms ease-out, margin-top 150ms ease-out, visibility 0s linear 150ms;
+}
+[data-design="terminal"] .strat-params-slot.open { grid-template-rows: 1fr; margin-top: 7px; visibility: visible; transition-delay: 0s; }
+[data-design="terminal"] .strat-params-clip { min-height: 0; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { [data-design="terminal"] .strat-params-slot { transition: none; } }
 [data-design="terminal"] .strat-params {
-  margin-top: 7px; border: 1px solid var(--bdr3);
-  background: var(--bg2); padding: 7px;
+  border: 1px solid var(--bdr3); background: var(--bg2); padding: 7px; box-sizing: border-box;
 }
 [data-design="terminal"] .strat-params-h {
+  display: flex; align-items: center; height: 28px; margin-bottom: 1px;
   font-family: var(--font-mono), monospace; font-size: 8.5px;
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
-  margin-bottom: 5px;
 }
+/* Whose parameters, when several indicators are on: a small segmented row of the ON names. */
+[data-design="terminal"] .strat-seg { display: flex; gap: 0; max-width: 100%; overflow: hidden; }
+[data-design="terminal"] .strat-seg-b {
+  height: 28px; padding: 0 9px; border: 1px solid var(--bdr3); margin-left: -1px; background: transparent; color: var(--txt2);
+  font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: 0; text-transform: none; cursor: pointer; white-space: nowrap;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out;
+}
+[data-design="terminal"] .strat-seg-b:first-child { margin-left: 0; }
+[data-design="terminal"] .strat-seg-b.on { border-color: var(--accent); background: var(--accent-bg); color: var(--txt); position: relative; }
+[data-design="terminal"] .strat-seg-b:focus-visible { outline: 2px solid var(--txt); outline-offset: 2px; position: relative; }
+@media (prefers-reduced-motion: reduce) { [data-design="terminal"] .strat-seg-b { transition: none; } }
 [data-design="terminal"] .strat-prow {
   display: grid; grid-template-columns: 1fr 54px; gap: 5px; align-items: center;
   font-family: var(--font-mono), monospace; font-size: 10px;
-  color: var(--txt2); padding: 2px 0;
+  color: var(--txt2); height: 24px;
 }
 [data-design="terminal"] .strat-pv {
   border: 1px solid var(--border-input); border-radius: 0;
@@ -9220,40 +9233,56 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .strat-ind-note {
   margin: 0 0 8px; font-size: 11px; line-height: 1.45; color: var(--txt3); /* 4.71 / 5.07 on --bg1 */
 }
+/* THE GRID FOLLOWS ITS CONTAINER, NOT THE VIEWPORT (owner: chips "awful"). The wrap is the query container: 2 columns when the grid is 340px or wider (a phone at full width), 1 column of compact rows
+   in the ~288px desktop rail. Names never wrap; the one-line description ends in an ellipsis. */
+[data-design="terminal"] .strat-ind-wrap { container: strat-ind / inline-size; }
 [data-design="terminal"] .strat-ind-grid {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;
+  display: grid; grid-template-columns: 1fr; gap: 6px;
 }
-@media (max-width: 420px) {
-  [data-design="terminal"] .strat-ind-grid { grid-template-columns: 1fr; }
+@container strat-ind (min-width: 340px) {
+  [data-design="terminal"] .strat-ind-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 [data-design="terminal"] .strat-ind-chip {
-  display: flex; align-items: flex-start; gap: 8px;
-  min-height: 44px; padding: 8px 9px; box-sizing: border-box;
+  display: flex; align-items: center; gap: 8px;
+  min-height: 44px; padding: 6px 9px; box-sizing: border-box;
   border: 1px solid var(--bdr); border-radius: 0; background: none;
-  cursor: pointer; text-align: left; font-family: inherit;
+  cursor: pointer; text-align: left; font-family: inherit; min-width: 0;
+  transition: border-color 120ms ease-out, background-color 120ms ease-out;
 }
-[data-design="terminal"] .strat-ind-chip.on {
-  border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-bg);
+@media (hover: hover) {
+  [data-design="terminal"] .strat-ind-chip:not(.on):not(:disabled):hover { border-color: var(--txt3); }
 }
-[data-design="terminal"] .strat-ind-chip:focus-visible { outline: 2px solid var(--txt); outline-offset: 3px; }
-/* The check box: the non-colour cue. Border when off, accent fill + check when on. */
+/* ON: one 1px accent border and the tint. (It used to add an inset 1px ring too, which read as a thick gold border.) */
+[data-design="terminal"] .strat-ind-chip.on { border-color: var(--accent); background: var(--accent-bg); }
+[data-design="terminal"] .strat-ind-chip:focus-visible { outline: 2px solid var(--txt); outline-offset: 2px; }
+[data-design="terminal"] .strat-ind-chip:disabled { opacity: .5; cursor: default; pointer-events: none; }
+/* The check box: the non-colour cue. 14px, 1px border when off; accent fill + check when on. */
 [data-design="terminal"] .strat-ind-box {
-  flex: none; width: 16px; height: 16px; margin-top: 1px;
+  flex: none; width: 14px; height: 14px; box-sizing: border-box;
   display: flex; align-items: center; justify-content: center;
   border: 1px solid var(--txt3); color: var(--on-accent); background: transparent;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out;
 }
 [data-design="terminal"] .strat-ind-chip.on .strat-ind-box { background: var(--accent); border-color: var(--accent); }
-[data-design="terminal"] .strat-ind-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+[data-design="terminal"] .strat-ind-check { animation: strat-check-in 100ms ease-out; }
+@keyframes strat-check-in { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  [data-design="terminal"] .strat-ind-chip, [data-design="terminal"] .strat-ind-box { transition: none; }
+  [data-design="terminal"] .strat-ind-check { animation: none; }
+}
+[data-design="terminal"] .strat-ind-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 [data-design="terminal"] .strat-ind-name {
-  display: inline-flex; align-items: center; gap: 5px;
   /* NOT UPPERCASE. The approved panel design shows the names as written - "SMA", "Parabolic SAR",
-     "MACD", "Bollinger Bands" - and the owner has objected to all-caps jargon before. This rule used to
-     capitalise them, which turned "Bollinger Bands" into "BOLLINGER BANDS". Only the chip NAME is
+     "MACD", "Bollinger Bands" - and the owner has objected to all-caps jargon before. Only the chip NAME is
      affected; the section labels above keep their own uppercase style. */
-  font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: .04em;
+  display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: 0;
   color: var(--txt); font-weight: 600;
 }
-[data-design="terminal"] .strat-ind-desc { font-size: 10.5px; line-height: 1.3; color: var(--txt3); } /* 4.71 / 5.07 on --bg1 */
+[data-design="terminal"] .strat-ind-desc {
+  font-size: 10.5px; line-height: 1.3; color: var(--txt3); /* 4.71 / 5.07 on --bg1 */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 /* FREE upgrade callout: an invitation, present even with nothing selected. */
 [data-design="terminal"] .strat-callout {
@@ -9383,3 +9412,24 @@ main.app-content[data-chrome="none"] {
   .dash-right, .dash-right > * { min-width: 0; max-width: 100%; }
   .av-rail-panel { min-width: 0; max-width: 100%; overflow-x: clip; }
 }
+
+/* NATIVE CONTROLS FOLLOW THE THEME (PM UI audit, #1185): without a declared color-scheme the browser draws date pickers, scrollbars and select popups in light chrome on the dark theme, so the picker's icon and text could not be seen. */
+html { color-scheme: dark; }
+html[data-theme="light"] { color-scheme: light; }
+
+/* NEWS > EVENTS TABLE (PM UI audit, #1185). One class for the header and every row so the columns cannot drift. The Impact column shows the route's own value per event (high / medium, a dash when missing); it was removed while the route marked every event high, and is back now that impact is per event type (#2454). It drops under 480 px like Prev. (older note: the route marked every event it returns as high impact, so a fixed HIGH on each row was a claim the data does not make (data-integrity rule, PM). Phones (under 480 px) also drop Prev and give the event name a real minimum. */
+.ne-row { display: grid; grid-template-columns: 70px minmax(140px, 1fr) 72px 72px 72px 72px; gap: 4px; min-width: 390px; }
+@media (max-width: 479px) {
+  .ne-row { grid-template-columns: 56px minmax(140px, 1fr) 60px 60px; min-width: 0; }
+  .ne-prev, .ne-imp { display: none; }
+}
+
+/* Trial banner on a phone: its height is set by the 44px "Keep Pro" pill, so 13px of padding above and below made it 72px for two lines of text (QA run 43995863734, Russian at 360/390). 8px keeps the pill's 44px target and gives 62px. Desktop is unchanged. */
+@media (max-width: 480px) {
+  .trial-banner { padding-top: 8px !important; padding-bottom: 8px !important; }
+}
+
+/* A card's note line can never widen the card or the page (QA, Russian at 390/360: a second .edge-card-signal in the Setup card was auto-placed into an implicit column and pushed the document to 401 px). The card is one minmax(0,1fr) column, the note stack takes the third row, and a long unbroken run wraps. */
+.edge-grid-aligned > .edge-card { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.edge-grid-aligned > .edge-card > .edge-card-signals { grid-row: 3; grid-column: 1; min-width: 0; }
+.edge-card-signal { min-width: 0; overflow-wrap: anywhere; }

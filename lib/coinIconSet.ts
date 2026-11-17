@@ -1,0 +1,4 @@
+/* The coin ids that have a bundled icon file in public/coin-icons (one {id}.png each). CoinIcon asks the server for a file ONLY when its id is here; any other coin (a newly listed one with no art yet)
+   draws the neutral fallback shape straight away, with no request, so the browser console and the access log carry no 404 per missing icon.
+   When an icon is added to public/coin-icons, add its id here; __tests__ can pin the two against each other. */
+export const COIN_ICON_IDS: ReadonlySet<string> = new Set(['aave', 'ada', 'apt', 'arb', 'atom', 'avax', 'bch', 'bnb', 'bonk', 'btc', 'crv', 'doge', 'dot', 'dydx', 'ena', 'etc', 'eth', 'fet', 'fil', 'gmt', 'gmx', 'hype', 'inj', 'jup', 'ldo', 'link', 'ltc', 'mana', 'near', 'ondo', 'op', 'pepe', 'pyth', 'render', 'rune', 'sand', 'sei', 'sol', 'spx', 'stx', 'sui', 'tao', 'tia', 'trx', 'uni', 'wif', 'wld', 'xau', 'xlm', 'xrp']);

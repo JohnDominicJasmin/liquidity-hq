@@ -102,5 +102,5 @@ test('W1. the call sites use the libs: the route (fredActual, scheduledImpact), 
   assert.ok(route.includes('fredActual(data[cfg.id], new Date(e.isoDate).getTime(), e.type)') && route.includes('impact: scheduledImpact(r.type)'), 'the route is back to its own actual / impact logic');
   assert.ok(read('app/(main)/econ-calendar/page.tsx').includes('IMPACT_CFG[econImpactKey(next.impact)]'), 'the page keys the impact by the raw feed string again (the red border never rendered)');
   const c = read('components/CorrelationTerminal.tsx');
-  assert.ok(c.includes('pctReturns(closedCloses(await fetchCloses(id, interval, limit)))') && c.includes('return pearson(ra, rb);') && c.includes('btcAltAverage(matrix[0].slice(1), COINS.length - 1)') && c.includes('weakestPairs(pairs, 3)'), 'the component computes correlation itself again');
+  assert.ok(c.includes('const rets = pctReturns(closedCloses(closes));') && c.includes('return pearson(ra, rb);') && c.includes('btcAltAverage(matrix[0].slice(1), COINS.length - 1)') && c.includes('weakestPairs(pairs, 3)'), 'the component computes correlation itself again');
 });

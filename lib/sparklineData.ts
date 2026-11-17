@@ -1,5 +1,5 @@
 'use client';
-import { BINANCE_SYMS, BYBIT_SYMS } from './coins.ts';
+import { BINANCE_SYMS, BYBIT_SYMS, binanceKlineSource } from './coins.ts';
 import { fetchBybitKlinesRetry } from './bybitKlines.ts';
 
 // Real 24h hourly close series per coin - same public REST endpoints already
@@ -16,7 +16,7 @@ async function fetchKlines(coin: string): Promise<number[]> {
   const bbSym = BYBIT_SYMS[coin];
   try {
     if (bnSym) {
-      const res = await fetch(`/api/market/klines?source=binance&symbol=${bnSym}&interval=1h&limit=24`, { cache: 'no-store' });
+      const res = await fetch(`/api/market/klines?source=${binanceKlineSource(coin)}&symbol=${bnSym}&interval=1h&limit=24`, { cache: 'no-store' });
       if (res.ok) {
         const raw = await res.json() as unknown[][];
         const closes = raw.map(k => parseFloat(k[4] as string)).filter(n => isFinite(n));
