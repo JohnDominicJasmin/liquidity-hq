@@ -116,12 +116,7 @@ const SYMS = Object.entries(BINANCE_SYMS);
  * Bybit symbol, so there is nothing to ask. It is served from Binance and measured working
  * (price 0.1495 on prod, 2026-11-06).
  *
- * `hype` is excluded from `SYMS` by name on the line above and so is not in `COINS`-minus-Binance
- * either, since it HAS a Binance symbol. Its exclusion carries no recorded reason and the
- * justification written elsewhere ("hype has no Binance perp") is false - HYPEUSDT is TRADING on
- * both Binance futures and spot as of 2026-11-06. Left alone here and reported separately rather
- * than quietly widened, because removing a filter whose purpose nobody has established is how a
- * fix becomes an incident. */
+ * `hype` WAS excluded from `SYMS` by name, with no recorded reason, on the false premise that it has no Binance perp (HYPEUSDT is TRADING on both futures and spot). That exclusion is gone (#2513): hype is in `SYMS` like any other Binance coin, and the Bybit fallback below covers it when Binance has nothing. */
 const BYBIT_ONLY_COINS: string[] = COINS.filter(c => !(c in BINANCE_SYMS) && Boolean(BYBIT_SYMS[c]));
 
 /** Every coin either pass owes an answer for - the Binance-reachable ones plus the Bybit-only ones. */

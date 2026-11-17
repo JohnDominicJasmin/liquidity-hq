@@ -18,8 +18,8 @@ import { reportHealth } from '@/lib/apiHealth';
 import { BINANCE_SYMS, BINANCE_SYM_TO_COIN, BYBIT_SYMS } from '@/lib/coins';
 import { polledCacheControl } from '@/lib/cacheHeaders';
 
+/* Every Binance-listed coin, hype included (#2513): excluding it made /funding report "Binance was unavailable for HYPE" and show Bybit's history, though HYPEUSDT is on Binance futures. */
 const SYMBOLS = Object.entries(BINANCE_SYMS)
-  .filter(([coin]) => coin !== 'hype')
   .map(([, sym]) => sym);
 
 const MAX_LIMIT = 100;
