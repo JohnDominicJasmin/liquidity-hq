@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback } f
 import { getSupabase } from '@/lib/supabase';
 import { forceSignOut, INACTIVITY_MS, LAST_ACTIVE_KEY } from '@/lib/authSession';
 import type { User } from '@supabase/supabase-js';
-import posthog from 'posthog-js';
+import { posthog } from '@/lib/posthogLazy';
 import { T } from '@/lib/tables';
 import { clearPlanBadgeCache } from '@/lib/planBadgeCache';
 import { retryWithBackoff } from '@/lib/retryWithBackoff';

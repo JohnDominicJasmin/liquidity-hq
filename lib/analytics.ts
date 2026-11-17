@@ -2,7 +2,7 @@
  * Typed PostHog event helpers.
  * Import `track` anywhere - safely no-ops on SSR and before init.
  */
-import posthog from 'posthog-js';
+import { posthog } from '@/lib/posthogLazy';
 
 /**
  * The PostHog key, but only where analytics SHOULD run.
