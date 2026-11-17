@@ -114,7 +114,7 @@ const QUICK = [
   'Best entry zone?',
   'Key risks?',
   'Where to set stop?',
-  'Trade now or wait?',
+  'Describe this setup',
   'Any whale activity?',
   'What are liq levels?',
   'Trend direction?',

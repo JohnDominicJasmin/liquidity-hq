@@ -116,6 +116,16 @@ export default function AccumulationTracker() {
       .slice(0, MAX_ROWS);
   }, [store.coins]);
 
+  /* SIX COINS ON THE SAME SCORE LOOK LIKE PLACEHOLDER DATA (PM audit), so a tie of three or more is said once: "6 coins tie at 58". */
+  const tie = useMemo(() => {
+    if (rows.length < 3) return null;
+    const counts = new Map<number, number>();
+    for (const r of rows) counts.set(r.score, (counts.get(r.score) ?? 0) + 1);
+    let best: { score: number; n: number } | null = null;
+    for (const [score, n] of counts) if (n >= 3 && (!best || n > best.n)) best = { score, n };
+    return best;
+  }, [rows]);
+
   /* All three bands are tokens now (#787). The middle one was the literal
      #a3e635 between two tokens, so it alone did not follow the theme - 1.15:1
      on this card in terminal light, against 12.98 in the dark it was picked
@@ -138,7 +148,7 @@ export default function AccumulationTracker() {
             {t('ACCUMULATION_TRACKER_TITLE')}
           </Tip>
         </span>
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ACCUMULATION_TRACKER_SUBTITLE')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ACCUMULATION_TRACKER_SUBTITLE')}{tie ? ` · ${t('ACCUMULATION_TRACKER_TIES', { n: tie.n, score: tie.score })}` : ''}</span>
       </div>
 
       {/* "Nothing found" only once something has arrived (#1185) - a cold store used to state a
