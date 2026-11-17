@@ -68,15 +68,21 @@ export default function StrategyCallBox({ def, state }: Props) {
             {t(r.verdict === 'buy' ? 'STRAT_VERDICT_BUY' : r.verdict === 'sell' ? 'STRAT_VERDICT_SELL' : 'STRAT_VERDICT_WAIT')}
           </div>
           <p data-testid="strategy-call-reason" className={open ? undefined : 'strat-call-reason-clamp'} style={{ margin: 0, fontSize: 'var(--fs-label)', color: 'var(--txt)', lineHeight: 1.4 }}>{reason}</p>
-          {/* THE REST OF THE CALL (levels watched, invalidation, liquidity note) shows when the chevron opens the box: the closed call is the verdict plus three lines, a fixed height. */}
-          {open && watched.length > 0 && (
-            <p data-testid="strategy-call-watching" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.5 }}>
-              <span style={{ fontWeight: 600 }}>{t('STRAT_WATCHING')}: </span>
-              {watched.map(l => `${t(l.labelKey, l.labelParams)} ${priceText(l.price)}`).join(' · ')}
+          {/* THE LEVELS ARE ALWAYS VISIBLE (PM): "wrong if" and the levels watched are what a trader acts on, so they are ONE line under the reason, never behind the chevron. Closed, the reason is clamped to two lines and this line ends in an
+              ellipsis if it is long; open, both show in full. The call block's reserve is exactly verdict + 2 reason lines + this line (globals.css --strat-call-dyn). */}
+          {(watched.length > 0 || (r.verdict !== 'wait' && typeof r.params.inv === 'number')) && (
+            <p className={open ? undefined : 'strat-call-levels'} style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.35 }}>
+              {r.verdict !== 'wait' && typeof r.params.inv === 'number' && (
+                <span data-testid="strategy-call-invalidation">{t('STRAT_INVALIDATION', { price: priceText(r.params.inv) })}</span>
+              )}
+              {r.verdict !== 'wait' && typeof r.params.inv === 'number' && watched.length > 0 && ' · '}
+              {watched.length > 0 && (
+                <span data-testid="strategy-call-watching">
+                  <span style={{ fontWeight: 600 }}>{t('STRAT_WATCHING')}: </span>
+                  {watched.map(l => `${t(l.labelKey, l.labelParams)} ${priceText(l.price)}`).join(' · ')}
+                </span>
+              )}
             </p>
-          )}
-          {open && r.verdict !== 'wait' && typeof r.params.inv === 'number' && (
-            <p data-testid="strategy-call-invalidation" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('STRAT_INVALIDATION', { price: priceText(r.params.inv) })}</p>
           )}
           {open && r.verdict !== 'wait' && r.params.liq === true && (
             <p style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('STRAT_LIQ_NOTE')}</p>
