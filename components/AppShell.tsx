@@ -82,7 +82,7 @@ const isAuthRoute = (pathname: string) => AUTH_ROUTES.includes(pathname);
 /* PAGES THAT SHOW NO MARKET DATA (OWNER-RULES 21, #1651 server-slowness audit). The provider used to run on every page, /about and /privacy included: ~16 API calls per load
    that also kept the server's shared caches refreshing for a reader who looked at no number. An OPT-OUT list on purpose (the provider's own contract: a route opts out deliberately,
    so a new data page never silently loses its data). Exact match after trimming a trailing slash. The Ask-AI chat reads the store, so opening it turns the provider on. */
-const DATA_FREE_ROUTES = ['/about', '/faq', '/privacy', '/terms', '/changelog', '/help', '/learn', '/contact', '/disclaimer', '/refund', '/security', '/accessibility', '/status', '/offline'];
+const DATA_FREE_ROUTES = ['/about', '/faq', '/privacy', '/terms', '/changelog', '/help', '/learn', '/contact', '/disclaimer', '/refund', '/security', '/accessibility', '/status', '/offline', '/hours'];
 const isDataFree = (pathname: string) => DATA_FREE_ROUTES.includes(pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname);
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

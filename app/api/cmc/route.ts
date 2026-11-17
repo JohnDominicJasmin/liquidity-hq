@@ -77,12 +77,15 @@ const CMC_CACHE = (ok: boolean) =>
    before. Health is reported per upstream call, so it now updates once per
    window rather than once per visitor - which is what "is CMC answering" means. */
 const CMC_TTL = 5 * 60_000;
+/* A CoinMarketCap failure is HELD for 60 s (lib/apiCache failTtlMs) and answered as a 502 "unavailable" with no body of theirs: during their rate limit every visitor used to cost a fresh upstream call, which prolonged the block. */
+const CMC_FAIL_HOLD = 60_000;
 class CmcError extends Error { constructor(public readonly body: unknown) { super('cmc error body'); } }
 function cmcOk(r: Response, d: unknown): boolean { return r.ok && !((d as CmcBody)?.status?.error_code); }
 
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
-  if (!rateLimit(`cmc:${ip}`, 20, 60_000)) {
+  /* 120 PER MINUTE (was 20): answers are held on the server for five minutes, so the limit guards the route, not CoinMarketCap. A normal page-by-page walk spends 2-3 calls a page and reached 20 on the eighth page. */
+  if (!rateLimit(`cmc:${ip}`, 120, 60_000)) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
   const user = await attributedUser(req);
@@ -110,8 +113,9 @@ export async function GET(req: NextRequest) {
           if (!cmcOk(r, body)) throw new CmcError(body);
           return body;
         } finally { clearTimeout(timer); }
-      }).catch(e => { if (e instanceof CmcError) return e.body; throw e; });
-      return NextResponse.json(d, { headers: CMC_CACHE(!((d as CmcBody)?.status?.error_code)) });
+      }, { failTtlMs: CMC_FAIL_HOLD }).catch(e => { if (e instanceof CmcError) return null; throw e; });
+      if (d === null) return NextResponse.json({ error: 'unavailable' }, { status: 502 });
+      return NextResponse.json(d, { headers: CMC_CACHE(true) });
     }
 
     if (type === 'altseason') {
@@ -131,8 +135,9 @@ export async function GET(req: NextRequest) {
         reportCmc('cmc:listings', r, body, (body as CmcBody)?.data?.length);
         if (!cmcOk(r, body)) throw new CmcError(body);
         return body;
-      }).catch(e => { if (e instanceof CmcError) return e.body; throw e; });
-      return NextResponse.json(d, { headers: CMC_CACHE(!((d as CmcBody)?.status?.error_code)) });
+      }, { failTtlMs: CMC_FAIL_HOLD }).catch(e => { if (e instanceof CmcError) return null; throw e; });
+      if (d === null) return NextResponse.json({ error: 'unavailable' }, { status: 502 });
+      return NextResponse.json(d, { headers: CMC_CACHE(true) });
     }
 
     return NextResponse.json({ error: 'Unknown type' }, { status: 400 });
