@@ -4,6 +4,16 @@
 --
 -- ===================== PROD =====================
 insert into lhq_labels (key, locale, value) values
+('DASH_EDGE_SETUP_TIP','en','Squeeze score: funding rate (0–40 pts) + long/short share, Bybit accounts (0–40 pts) + taker buy/sell pressure over 2 hours (0–15 pts) + volume spike bonus (0–20 pts). Long-heavy = funding positive and most accounts long. Short-heavy = funding negative and most accounts short. It describes positioning; it does not forecast price.'),
+('DASH_EDGE_SETUP_TIP','ko','스퀴즈 점수: 펀딩비 (0–40점) + 롱/숏 비중, 바이비트 계정 기준 (0–40점) + 2시간 테이커 매수/매도 압력 (0–15점) + 거래량 급증 가산점 (0–20점). 롱 쏠림 = 펀딩 양수이고 대부분의 계정이 롱. 숏 쏠림 = 펀딩 음수이고 대부분의 계정이 숏. 포지셔닝을 설명할 뿐 가격을 예측하지 않습니다.'),
+('DASH_EDGE_SETUP_TIP','zh','挤压分数：资金费率（0–40 分）+ 多空占比，Bybit 账户（0–40 分）+ 2 小时吃单买卖压力（0–15 分）+ 成交量激增加分（0–20 分）。多头拥挤 = 资金费率为正且多数账户做多。空头拥挤 = 资金费率为负且多数账户做空。它描述仓位情况，不预测价格。'),
+('DASH_EDGE_SETUP_TIP','ru','Балл сквиза: ставка фандинга (0–40) + доля лонг/шорт по аккаунтам Bybit (0–40) + давление тейкеров за 2 часа (0–15) + бонус за всплеск объёма (0–20). Перекос в лонги = фандинг положительный и большинство аккаунтов в лонге. Перекос в шорты = фандинг отрицательный и большинство в шорте. Описывает позиционирование, а не прогноз цены.'),
+('DASH_EDGE_SETUP_TIP','ar','درجة الانضغاط: معدل التمويل (0–40) + نسبة الشراء/البيع حسب حسابات Bybit (0–40) + ضغط الشراء/البيع لدى التيكر خلال ساعتين (0–15) + مكافأة ارتفاع الحجم (0–20). ميل للشراء = تمويل موجب ومعظم الحسابات شراء. ميل للبيع = تمويل سالب ومعظم الحسابات بيع. تصف التمركز ولا تتنبأ بالسعر.'),
+('SETUP_SCANNER_LEGEND_FOOTER','en','Score 0–100: funding (0–40) + long/short share, Bybit accounts (0–40) + taker flow, 2 h (0–15) + volume spike (0–20)'),
+('SETUP_SCANNER_LEGEND_FOOTER','ko','점수 0–100: 펀딩 (0–40) + 롱/숏 비중, 바이비트 계정 기준 (0–40) + 테이커 흐름 2시간 (0–15) + 거래량 급증 (0–20)'),
+('SETUP_SCANNER_LEGEND_FOOTER','zh','分数 0–100：资金费率 (0–40) + 多空占比，Bybit 账户 (0–40) + 吃单流量 2 小时 (0–15) + 成交量激增 (0–20)'),
+('SETUP_SCANNER_LEGEND_FOOTER','ru','Балл 0–100: фандинг (0–40) + доля лонг/шорт по аккаунтам Bybit (0–40) + поток тейкеров, 2 ч (0–15) + всплеск объёма (0–20)'),
+('SETUP_SCANNER_LEGEND_FOOTER','ar','الدرجة 0–100: التمويل (0–40) + نسبة الشراء/البيع حسب حسابات Bybit (0–40) + تدفق التيكر، ساعتان (0–15) + ارتفاع الحجم (0–20)'),
 ('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','en','long share {pct}% ({venue}, accounts, 1h)'),
 ('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ko','롱 비중 {pct}% ({venue}, 계정, 1시간)'),
 ('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','zh','多头占比 {pct}%（{venue}，账户，1 小时）'),
@@ -33,6 +43,16 @@ on conflict (key, locale) do update set value = excluded.value, updated_at = now
 
 -- ===================== DEV =====================
 insert into lhq_dev_labels (key, locale, value) values
+('DASH_EDGE_SETUP_TIP','en','Squeeze score: funding rate (0–40 pts) + long/short share, Bybit accounts (0–40 pts) + taker buy/sell pressure over 2 hours (0–15 pts) + volume spike bonus (0–20 pts). Long-heavy = funding positive and most accounts long. Short-heavy = funding negative and most accounts short. It describes positioning; it does not forecast price.'),
+('DASH_EDGE_SETUP_TIP','ko','스퀴즈 점수: 펀딩비 (0–40점) + 롱/숏 비중, 바이비트 계정 기준 (0–40점) + 2시간 테이커 매수/매도 압력 (0–15점) + 거래량 급증 가산점 (0–20점). 롱 쏠림 = 펀딩 양수이고 대부분의 계정이 롱. 숏 쏠림 = 펀딩 음수이고 대부분의 계정이 숏. 포지셔닝을 설명할 뿐 가격을 예측하지 않습니다.'),
+('DASH_EDGE_SETUP_TIP','zh','挤压分数：资金费率（0–40 分）+ 多空占比，Bybit 账户（0–40 分）+ 2 小时吃单买卖压力（0–15 分）+ 成交量激增加分（0–20 分）。多头拥挤 = 资金费率为正且多数账户做多。空头拥挤 = 资金费率为负且多数账户做空。它描述仓位情况，不预测价格。'),
+('DASH_EDGE_SETUP_TIP','ru','Балл сквиза: ставка фандинга (0–40) + доля лонг/шорт по аккаунтам Bybit (0–40) + давление тейкеров за 2 часа (0–15) + бонус за всплеск объёма (0–20). Перекос в лонги = фандинг положительный и большинство аккаунтов в лонге. Перекос в шорты = фандинг отрицательный и большинство в шорте. Описывает позиционирование, а не прогноз цены.'),
+('DASH_EDGE_SETUP_TIP','ar','درجة الانضغاط: معدل التمويل (0–40) + نسبة الشراء/البيع حسب حسابات Bybit (0–40) + ضغط الشراء/البيع لدى التيكر خلال ساعتين (0–15) + مكافأة ارتفاع الحجم (0–20). ميل للشراء = تمويل موجب ومعظم الحسابات شراء. ميل للبيع = تمويل سالب ومعظم الحسابات بيع. تصف التمركز ولا تتنبأ بالسعر.'),
+('SETUP_SCANNER_LEGEND_FOOTER','en','Score 0–100: funding (0–40) + long/short share, Bybit accounts (0–40) + taker flow, 2 h (0–15) + volume spike (0–20)'),
+('SETUP_SCANNER_LEGEND_FOOTER','ko','점수 0–100: 펀딩 (0–40) + 롱/숏 비중, 바이비트 계정 기준 (0–40) + 테이커 흐름 2시간 (0–15) + 거래량 급증 (0–20)'),
+('SETUP_SCANNER_LEGEND_FOOTER','zh','分数 0–100：资金费率 (0–40) + 多空占比，Bybit 账户 (0–40) + 吃单流量 2 小时 (0–15) + 成交量激增 (0–20)'),
+('SETUP_SCANNER_LEGEND_FOOTER','ru','Балл 0–100: фандинг (0–40) + доля лонг/шорт по аккаунтам Bybit (0–40) + поток тейкеров, 2 ч (0–15) + всплеск объёма (0–20)'),
+('SETUP_SCANNER_LEGEND_FOOTER','ar','الدرجة 0–100: التمويل (0–40) + نسبة الشراء/البيع حسب حسابات Bybit (0–40) + تدفق التيكر، ساعتان (0–15) + ارتفاع الحجم (0–20)'),
 ('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','en','long share {pct}% ({venue}, accounts, 1h)'),
 ('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','ko','롱 비중 {pct}% ({venue}, 계정, 1시간)'),
 ('DASH_EDGE_SETUP_DETAIL_LONG_SHARE','zh','多头占比 {pct}%（{venue}，账户，1 小时）'),
