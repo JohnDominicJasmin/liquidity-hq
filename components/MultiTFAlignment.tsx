@@ -202,18 +202,24 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
   // rather than a count hardcoded to a 3-timeframe assumption.
   const majority = Math.floor(biases.length / 2) + 1;
 
+  /* NO READINGS IS NOT "MIXED" (PM audit 2026-11-17, high): with fewer than two timeframes carrying an RSI value the card said "Mixed signals / no clear bias" over rows of dashes, which reads as an analysis. It says
+     "No data" and "RSI readings unavailable right now" instead. */
+  const noData = biases.filter(b => b !== 'unknown').length < 2;
+
   const verdict: 'bullish' | 'bearish' | 'conflicting' | 'mixed' =
     bullCount >= majority ? 'bullish'
     : bearCount >= majority ? 'bearish'
     : (bullCount > 0 && bearCount > 0) ? 'conflicting'
     : 'mixed';
 
-  const verdictLabel = verdict === 'bullish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BULLISH') : verdict === 'bearish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BEARISH') : verdict === 'conflicting' ? t('MULTI_TF_ALIGNMENT_VERDICT_CONFLICTING') : t('MULTI_TF_ALIGNMENT_VERDICT_MIXED');
-  const verdictColor = verdict === 'bullish' ? 'var(--green-2)' : verdict === 'bearish' ? 'var(--red)' : verdict === 'conflicting' ? 'var(--amber)' : 'var(--txt3)';
-  const verdictBorder = verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 40%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 40%, transparent)' : verdict === 'conflicting' ? 'color-mix(in srgb, var(--amber) 40%, transparent)' : 'var(--border-input)';
-  const verdictBg = verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 10%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 10%, transparent)' : verdict === 'conflicting' ? 'color-mix(in srgb, var(--amber) 10%, transparent)' : 'transparent';
+  const verdictLabel = noData ? t('MULTI_TF_ALIGNMENT_VERDICT_NO_DATA') : verdict === 'bullish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BULLISH') : verdict === 'bearish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BEARISH') : verdict === 'conflicting' ? t('MULTI_TF_ALIGNMENT_VERDICT_CONFLICTING') : t('MULTI_TF_ALIGNMENT_VERDICT_MIXED');
+  const verdictColor = noData ? 'var(--txt3)' : verdict === 'bullish' ? 'var(--green-2)' : verdict === 'bearish' ? 'var(--red)' : verdict === 'conflicting' ? 'var(--amber)' : 'var(--txt3)';
+  const verdictBorder = noData ? 'var(--bdr)' : verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 40%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 40%, transparent)' : verdict === 'conflicting' ? 'color-mix(in srgb, var(--amber) 40%, transparent)' : 'var(--border-input)';
+  const verdictBg = noData ? 'transparent' : verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 10%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 10%, transparent)' : verdict === 'conflicting' ? 'color-mix(in srgb, var(--amber) 10%, transparent)' : 'transparent';
 
-  const footerText = verdict === 'bullish'
+  const footerText = noData
+    ? t('MULTI_TF_ALIGNMENT_FOOTER_NO_DATA')
+    : verdict === 'bullish'
     ? t('MULTI_TF_ALIGNMENT_FOOTER_BULLISH')
     : verdict === 'bearish'
     ? t('MULTI_TF_ALIGNMENT_FOOTER_BEARISH')
