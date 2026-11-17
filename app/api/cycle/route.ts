@@ -63,7 +63,8 @@ const CYCLE_2020: CyclePoint[] = [
   {day:1064,ratio:3.15},{day:1078,ratio:3.1},{day:1092,ratio:3.2},{day:1100,ratio:3.45},
 ];
 
-const HALVING_2024_MS = new Date('2024-04-19T00:00:00Z').getTime();
+/* THE 2024 HALVING WAS 2024-04-20 (block 840000, 00:09 UTC). This said 04-19, so the chart's day count was one more than the Cycle Day card's (942 vs 941, #1651); both now count from 04-20 UTC. */
+const HALVING_2024_MS = new Date('2024-04-20T00:00:00Z').getTime();
 
 async function fetchCycle2024(): Promise<CyclePoint[]> {
   const now = Date.now();

@@ -34,13 +34,13 @@ import Tip from '@/components/Tip';
 import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
 import LiqFeed, { type Bucket } from '@/components/LiqFeed';
 import { topClustersForCoin, acceptClusterEmission, formatClustersForPrompt } from '@/lib/liqClusters';
-import UsageMeter from '@/components/UsageMeter';
+import UsageMeter, { UsageInline } from '@/components/UsageMeter';
 import { FreeUpgradePill } from '@/components/UpgradePill';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, SIGNAL_OLD_BARS } from '@/lib/useEMAStrategy';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
-import PageHint from '@/components/PageHint';
+import { PageHintBox, PageHintLink } from '@/components/PageHint';
 import StrategyPanel, { type RunKind } from '@/components/StrategyPanel';
 import { useStrategySignal } from '@/lib/useStrategySignal';
 import { findStrategy } from '@/lib/strategies';
@@ -326,6 +326,7 @@ function ArenaContent() {
   const [hadTfParamAtMount]   = useState(() => searchParams.has('tf'));
   /* A coin the link names that Arena does not offer (#1263, owner: it must say so, not swap to BTC silently). Captured ONCE at mount like the flags above, because the URL-sync
      effect rewrites the address bar to the coin that actually opened. Sanitised and capped for display; React escapes it either way. */
+  const [arenaHintOpen, setArenaHintOpen] = useState(false);   // the "How this page works" box (components/PageHint.tsx PageHintBox), closed on arrival
   const [unknownCoinParam, setUnknownCoinParam] = useState<string | null>(() => {
     const raw = searchParams.get('coin');
     if (!raw) return null;
@@ -2040,15 +2041,22 @@ function ArenaContent() {
   const openLayersGate = () => setUpgradeGate(t('ARENA_LAYERS_GATE_FEATURE_LABEL'));
 
   /* ONE GATING STATE for the run buttons, read by BOTH the top Quick/Deep/Ask buttons and the Strategy panel's run row (owner-reported 2026-11-17: on a locked coin the top buttons showed the lock while the panel's QUICK was filled and clickable). Locked = signed out or a coin not on the plan's list; disabled adds the ceiling, a read in flight, auth/plan still being read and the daily allowance used up. */
+  /* A LOCKED CONTROL IS NOT INERT (owner rule, PM 2026-11-17: lock icon, tap opens the shared upgrade sheet). It keeps its locked look and aria-disabled, but a click or Enter opens the sheet ("Quick Research on HYPE is part of Pro."); a signed-out visitor is sent to sign in as before. Only the states that are really unavailable (plan being read, a read running, the daily allowance used up, above the analysis ceiling) stay disabled. */
+  const lockedClick = (feature: string) => {
+    if (!user) { window.location.href = '/login'; return; }
+    setUpgradeGate(t('ARENA_GATE_FEATURE_ON_COIN', { feature, coin: selectedCoin.toUpperCase() }));
+  };
   const runGate = {
     quick: {
       locked: (!user && !authLoading) || coinLocked,
-      disabled: aboveAnalysisCeiling || readLoading || authLoading || planUnsettled || coinLocked || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit),
+      disabled: aboveAnalysisCeiling || readLoading || authLoading || planUnsettled || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit),
+      onLocked: () => lockedClick(t('ARENA_QUICK_RESEARCH_BUTTON')),
       title: aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE'),
     },
     deep: {
       locked: (!user && !authLoading) || coinLocked,
-      disabled: aboveAnalysisCeiling || readLoading || authLoading || planUnsettled || coinLocked || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit),
+      disabled: aboveAnalysisCeiling || readLoading || authLoading || planUnsettled || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit),
+      onLocked: () => lockedClick(t('ARENA_DEEP_RESEARCH_BUTTON')),
       title: aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE'),
     },
     ask: {
@@ -2157,16 +2165,13 @@ function ArenaContent() {
           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent-2)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
           {/* Free accounts only (owner, 2026-10-07: they could not find Upgrade on this page). The same 44px pill TrialBanner
               uses, at the right of the header; nothing for Pro, a trial, or an unknown plan. */}
+          <PageHintLink pageKey="arena" open={arenaHintOpen} onClick={() => setArenaHintOpen(v => !v)} />
           <FreeUpgradePill testId="arena-header-upgrade" style={{ marginLeft: 'auto' }} tap />
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
 
-      <PageHint
-        pageKey="arena"
-        title={t('ARENA_HINT_TITLE')}
-        body={t('ARENA_HINT_BODY')}
-      />
+      {arenaHintOpen && <PageHintBox title={t('ARENA_HINT_TITLE')} body={t('ARENA_HINT_BODY')} onClose={() => setArenaHintOpen(false)} />}
 
       {unknownCoinParam && (
         <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 8px', padding: '2px 4px 2px 12px', border: '0.5px solid var(--bdr)', background: 'var(--bg2)', fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
@@ -2578,7 +2583,7 @@ function ArenaContent() {
 
       {/* ── AI READ · answer-first hero ── */}
       <div className="arena-below-chart">
-      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+      <div className="arena-run-row" style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         {/* Quick button - requires sign-in.
             #1347 item 11: #1338 fixed `disabled` to also check `authLoading`
             (a click before sign-in resolves must not bounce a signed-in
@@ -2593,7 +2598,8 @@ function ArenaContent() {
         <button
           className={`arena-fire-btn arena-quick-btn${runGate.quick.locked ? ' arena-deep-locked' : ''}`}
           disabled={runGate.quick.disabled}
-          onClick={() => runStrategy('quick', strategySelection)}
+          aria-disabled={runGate.quick.locked || undefined}
+          onClick={() => (runGate.quick.locked ? runGate.quick.onLocked() : runStrategy('quick', strategySelection))}
           style={{ width: 'auto', marginBottom: 0 }}
           title={runGate.quick.title}
         >
@@ -2611,7 +2617,8 @@ function ArenaContent() {
         <button
           className={`arena-fire-btn${runGate.deep.locked ? ' arena-deep-locked' : ''}`}
           disabled={runGate.deep.disabled}
-          onClick={() => runStrategy('deep', strategySelection)}
+          aria-disabled={runGate.deep.locked || undefined}
+          onClick={() => (runGate.deep.locked ? runGate.deep.onLocked() : runStrategy('deep', strategySelection))}
           style={{ width: 'auto', marginBottom: 0 }}
           title={runGate.deep.title}
         >
@@ -2650,6 +2657,8 @@ function ArenaContent() {
             {t('ARENA_SET_ALERT_BUTTON')}
           </button>
         )}
+        {/* The daily counts, on this row at 1024 px and wider (hidden below; the usage bar under the row is hidden above). */}
+        <UsageInline />
         {/* The reason, in plain sight: a disabled control with its explanation only in a tooltip is a silent no. */}
         {user && !alertCoinCovered && (
           <span data-testid="alert-main-coins-only" role="note" style={{ alignSelf: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
@@ -3044,6 +3053,24 @@ function ArenaContent() {
           <Link href="/login" className="usage-auth-link">{t('ARENA_AUTH_SIGN_IN_LINK')}</Link>
         </div>
       )}
+      {/* THE EMA RIBBON'S STRICTER-SIGNALS SWITCH (owner, 2026-11-17): one compact line directly under the chart (so before the Strategy panel on a phone and before the EMA ribbon card on a desktop), no longer a card with a description line. It only
+          changes the EMA ribbon signal (useEMAStrategy's filter params); no other strategy reads it. The setting key (anti_chop_enabled) and its default (off) are unchanged. The Tip sits OUTSIDE the button (Tip is focusable; nesting it would be a control inside a control). */}
+      <div className="arena-antichop-row" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0 8px' }}>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={antiChopEnabled}
+          onClick={() => update({ anti_chop_enabled: !antiChopEnabled })}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 28, padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt2)', fontSize: 'var(--fs-caption)', fontFamily: 'inherit' }}
+        >
+          <span style={{ width: 28, height: 16, borderRadius: 8, position: 'relative', flexShrink: 0, background: antiChopEnabled ? 'var(--accent)' : 'var(--bdr2)', transition: 'background 0.2s' }}>
+            <span style={{ position: 'absolute', top: 2, left: antiChopEnabled ? 14 : 2, width: 12, height: 12, borderRadius: '50%', background: 'var(--on-accent)', transition: 'left 0.2s' }} />
+          </span>
+          <span>{t('ARENA_ANTICHOP_LABEL')}</span>
+        </button>
+        {/* The scope sentence always shows; only the backtest sentence follows the performance-stats flag (owner, 2026-10-16, #1574; PM 2026-11-17). */}
+        <Tip width={260} text={SHOW_PERFORMANCE_STATS ? `${t('ARENA_ANTICHOP_TIP')} ${t('ARENA_ANTICHOP_TIP_BACKTEST')}` : t('ARENA_ANTICHOP_TIP')} />
+      </div>
         </div>
         <div className="arena-ws-b">
       {/* Directly under the chart, on the owner's request (#370). The read
@@ -3127,90 +3154,6 @@ function ArenaContent() {
         </>
       )}
 
-      {/* Anti-chop filter toggle */}
-      <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <button
-          onClick={() => update({ anti_chop_enabled: !antiChopEnabled })}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 9,
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.09)',
-            borderRadius: 999,
-            padding: '6px 13px 6px 6px',
-            cursor: 'pointer',
-            fontSize: 'var(--fs-caption)',
-            color: 'var(--txt)',
-            transition: 'border-color 0.15s, background 0.15s',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.2)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.09)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)'; }}
-        >
-          <span style={{
-            width: 32,
-            height: 18,
-            borderRadius: 9,
-            background: antiChopEnabled ? 'var(--green-2)' : 'rgba(255,255,255,0.14)',
-            boxShadow: antiChopEnabled
-              ? '0 0 0 1px color-mix(in srgb, var(--green-2) 35%, transparent), 0 0 8px color-mix(in srgb, var(--green-2) 45%, transparent)'
-              : 'inset 0 1px 3px rgba(0,0,0,0.45)',
-            position: 'relative',
-            flexShrink: 0,
-            transition: 'background 0.25s ease, box-shadow 0.25s ease',
-          }}>
-            <span style={{
-              position: 'absolute',
-              top: 2,
-              left: antiChopEnabled ? 16 : 2,
-              width: 14,
-              height: 14,
-              borderRadius: '50%',
-              background: '#fff',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
-              transition: 'left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            }} />
-          </span>
-          <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>{t('ARENA_ANTICHOP_LABEL')}</span>
-        </button>
-        {/* Tip sits OUTSIDE the button, not wrapped around its label.
-            Tip's trigger became a real focusable control when it was made
-            keyboard operable, so nesting it inside this button produced a
-            control inside a control - axe nested-interactive. It is the only
-            constraint that component carries: Tip must never be rendered inside
-            a <button>, <a>, or anything with an interactive role.
-            The label stays inside the button so clicking it still toggles. */}
-        {/* No iconColor override (#734). This passed
-            `rgba(255,255,255,0.6)` - white at 60% alpha, a dark-theme literal
-            that cannot work on a light ground. QA measured the glyph at 1.05:1
-            in terminal light: effectively invisible, and the worst ratio in
-            the whole light audit.
-
-            Tip already defaults to `var(--txt3)` (Tip.tsx:18), which is what
-            the literal was approximating by hand - a muted foreground - except
-            the token flips with the theme and the literal could not. Every
-            other Tip in the codebase passes a token or nothing; this was the
-            only caller hand-rolling a colour.
-
-            So the fix is to delete the prop rather than replace the value.
-            Dark keeps the muted appearance it already had, light gets a
-            readable one, and there is no new number to govern. */}
-        {/* The tooltip quotes a backtest profit factor, so it follows the performance-stats flag (owner, 2026-10-16, #1574). */}
-        {SHOW_PERFORMANCE_STATS && (
-          <Tip
-            width={260}
-            text={t('ARENA_ANTICHOP_TIP')}
-          />
-        )}
-        {/* opacity 0.35 computed to #55565b = 2.75:1. This hint explains what
-            the anti-chop toggle beside it actually does, so it has to be
-            readable; --txt-dim carries the same de-emphasis at 5.80:1. */}
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
-          {antiChopEnabled
-            ? t('ARENA_ANTICHOP_ON_HINT')
-            : t('ARENA_ANTICHOP_OFF_HINT')}
-        </span>
-      </div>
       {/* EMA Ribbon Strategy card - sits directly under the chart so it reads as
           the explanation of the chart's own Buy/Sell markers, not a stray card
           four sections down. */}

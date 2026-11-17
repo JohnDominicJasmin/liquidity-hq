@@ -281,18 +281,16 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
                   className={`tnav-item tnav-drop-btn${open || groupActive ? ' on' : ''}`}
                   onClick={() => setOpenDrop(v => (v === d.key ? null : d.key))}
                   data-drop-trigger={d.key}
-                  aria-haspopup="menu"
                   aria-expanded={open}
                 >
                   {t(d.labelKey)} <span aria-hidden="true">{open ? '▴' : '▾'}</span>
                 </button>
                 {open && (
-                  <div className="tnav-dropdown" role="menu">
+                  <div className="tnav-dropdown">
                     {d.items.map(i => (
                       <Link
                         key={i.path}
                         href={i.path}
-                        role="menuitem"
                         className={`tnav-drop-item${isActive(pathname, i.path) ? ' on' : ''}`}
                         onClick={() => setOpenDrop(null)}
                       >
@@ -411,7 +409,6 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
                 className={`tnav-avatar${openDrop === 'account' ? ' on' : ''}`}
                 onClick={() => setOpenDrop(v => (v === 'account' ? null : 'account'))}
                 data-drop-trigger="account"
-                aria-haspopup="menu"
                 aria-expanded={openDrop === 'account'}
                 /* No label key exists for this and I am not adding one:
                    lib/labelDefaults.en.json is regenerated wholesale by
@@ -426,11 +423,10 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
                 {initials}
               </button>
               {openDrop === 'account' && (
-                <div className="tnav-dropdown tnav-account-menu" role="menu">
+                <div className="tnav-dropdown tnav-account-menu">
                   {user?.email && <div className="tnav-drop-email">{user.email}</div>}
                   <button
                     type="button"
-                    role="menuitem"
                     className="tnav-drop-item"
                     onClick={() => { setOpenDrop(null); setUsageOpen(true); }}
                   >
@@ -441,7 +437,6 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
                   {showFreeUpgrade && (
                     <Link
                       href="/upgrade"
-                      role="menuitem"
                       className="tnav-drop-item"
                       data-testid="account-menu-upgrade"
                       onClick={() => setOpenDrop(null)}
@@ -451,7 +446,6 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
                   )}
                   <Link
                     href="/settings"
-                    role="menuitem"
                     className={`tnav-drop-item${isActive(pathname, '/settings') ? ' on' : ''}`}
                     onClick={() => setOpenDrop(null)}
                   >
@@ -459,7 +453,6 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
                   </Link>
                   <button
                     type="button"
-                    role="menuitem"
                     className="tnav-drop-item"
                     disabled={signingOut}
                     onClick={async () => {

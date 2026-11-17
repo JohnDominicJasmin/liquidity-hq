@@ -182,10 +182,13 @@ test('CONTROL: a fresh row is served, and an hourly bucket inside its own cadenc
   assert.equal(decided.rowAgeMs, 30_000, 'rowAgeMs must still be reported alongside it');
 });
 
-test('CONTROL: overdue is measured past the sampling interval, and drives `stale`', () => {
-  // 1h sampling + 12 minutes = 12 minutes overdue, which is past SNAPSHOT_STALE_AFTER_MS (10m).
-  const decided = decideSnapshot(feed, payload(symbols(3, 72)), 1_000, NOW);
-  assert.ok(decided, 'still inside the 30-minute hard limit, so it must serve');
-  assert.equal(Math.round(decided.overdueMs / 60_000), 12);
-  assert.equal(decided.stale, true, 'past two cadences should be marked stale for the consumer to label');
+test('CONTROL (#2506: ten-minute hard limit): overdue is measured past the sampling interval; 12 minutes overdue is TOO OLD, 7 is served', () => {
+  // 1h sampling + 12 minutes = 12 minutes overdue: past SNAPSHOT_TOO_OLD_MS (10m since #2506, 30m before), so the route falls through to the live read.
+  assert.equal(decideSnapshot(feed, payload(symbols(3, 72)), 1_000, NOW), null, '12 minutes overdue must not be served as a snapshot any more');
+  // 1h sampling + 7 minutes = 7 minutes overdue: still inside the hard limit, served.
+  const decided = decideSnapshot(feed, payload(symbols(3, 67)), 1_000, NOW);
+  assert.ok(decided, 'still inside the 10-minute hard limit, so it must serve');
+  assert.equal(Math.round(decided.overdueMs / 60_000), 7);
+  /* NOTE (QA, #2506): SNAPSHOT_STALE_AFTER_MS is two cadences = 10 minutes, the same as the new hard limit, so a SERVED snapshot can no longer be `stale`. Nothing reads the flag (PM audit), so this is recorded, not failed. */
+  assert.equal(decided.stale, false, 'a served snapshot is inside the limit that equals the stale line');
 });

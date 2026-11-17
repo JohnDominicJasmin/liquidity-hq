@@ -97,6 +97,7 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="login-wrap login-term-wrap">
+      <h1 className="sr-only">{t('AUTH_H1_RESET')}</h1>
       <div className="login-card">
         <div className="login-logo">Liquidity<span>HQ</span></div>
         <p className="login-sub">{t('RESET_PASSWORD_SUBTITLE')}</p>

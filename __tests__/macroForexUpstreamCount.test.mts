@@ -176,20 +176,21 @@ test('M5. every failure shape is held, not only an HTTP error: a 200 with no pri
 
 /* ── /api/forex/jpy ──────────────────────────────────────────────────── */
 
-test('J1. inside five minutes: N calls make one call to the rate provider', async () => {
+test('J1. inside 60 s: N calls make one call to the rate provider (the rate cache is 60 s since #2521)', async () => {
   const r0 = net.rate;
   const answers = [];
-  for (let i = 0; i < 6; i++) { answers.push(await jpy()); tick(45_000); } // 6 calls across 3m45s
-  assert.equal(net.rate - r0, 1, `${net.rate - r0} rate-provider calls for 6 requests inside five minutes`);
-  for (const a of answers) assert.deepEqual(a, { status: 200, body: { jpy: 150.25 } });
-  tick(5 * 60_000);
+  for (let i = 0; i < 4; i++) { answers.push(await jpy()); tick(15_000); } // 4 calls across 45 s
+  assert.equal(net.rate - r0, 1, `${net.rate - r0} rate-provider calls for 4 requests inside 60 s`);
+  /* the answer carries the rate AND its own time and source (#2521: the age shown is the rate's, not the page's) */
+  for (const a of answers) { assert.equal(a.status, 200); const b = a.body as { jpy: number; asOf: number; source: string }; assert.equal(b.jpy, 150.25); assert.ok(Number.isFinite(b.asOf) && b.asOf > 0, 'asOf is missing'); assert.ok(['yahoo', 'er-api'].includes(b.source), `unknown source ${b.source}`); }
+  tick(60_000);
   await jpy();
-  assert.equal(net.rate - r0, 2, 'the call after five minutes did not refresh');
+  assert.equal(net.rate - r0, 2, 'the call after 60 s did not refresh');
 });
 
 test('J2. a failed rate read is held 30 s (still 502 to every caller), retried at 30 s, and a recovery is stored', async () => {
   for (const shape of ['http500', 'noPrice'] as const) {
-    tick(5 * 60_000 + 1_000);
+    tick(60_000 + 1_000);
     net.rateMode = shape;
     const r0 = net.rate;
     for (let i = 0; i < 5; i++) { const a = await jpy(); assert.equal(a.status, 502, `${shape}: a held failure answered ${a.status}`); tick(i < 4 ? 7_000 : 2_000); } // 30 s later
@@ -198,7 +199,7 @@ test('J2. a failed rate read is held 30 s (still 502 to every caller), retried a
     assert.equal(net.rate - r0, 2, `${shape}: no retry at 30 s`);
     tick(30_000);
     net.rateMode = 'ok';
-    assert.deepEqual(await jpy(), { status: 200, body: { jpy: 150.25 } });
+    { const ok = await jpy(); assert.equal(ok.status, 200); assert.equal((ok.body as { jpy: number }).jpy, 150.25); }
     tick(10_000);
     await jpy();
     assert.equal(net.rate - r0, 3, `${shape}: the recovery was not stored`);

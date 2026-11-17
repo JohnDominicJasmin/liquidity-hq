@@ -70,7 +70,7 @@ interface Props {
   /** Fired when a run button is pressed. Required (#996). */
   onRun: (kind: RunKind, selection: readonly string[]) => void;
   /* The run row's gating, from the SAME object the page's top Quick / Deep / Ask buttons read - one source of truth, so a locked coin or a used-up allowance looks the same in both places. */
-  runGate?: Record<RunKind, { locked: boolean; disabled: boolean; title?: string }>;
+  runGate?: Record<RunKind, { locked: boolean; disabled: boolean; title?: string; onLocked?: () => void }>;
   /** Whether a read is already in flight - disables the run buttons (#1309 item 24). */
   /** The saved Arena strategy id (lib/strategies), or null. An unknown id is treated as none by the caller. The menu's value is DERIVED from this and `selected`: a known id shows that strategy, no id with chips on shows Custom, nothing shows Let the read choose. */
   strategy: string | null;
@@ -155,11 +155,7 @@ export default function StrategyPanel({ planChecking = false, layersLocked = fal
   /* THE CALL BOX'S FIRST-PAINT RESERVE ENDS WITH THE ANSWER. `<html data-strat="1">` (components/RootDocument.tsx) reserves the box's height from a cached saved strategy; once the settings have loaded and no strategy is
      picked (none was saved, or the visitor chose "Let the read choose" / Custom), the reserve is removed so it never leaves an empty band. A visitor's own pick is not a layout shift. */
   useEffect(() => {
-    if (loaded && !pickedStrategy) {
-      document.documentElement.removeAttribute('data-strat');
-      /* ...and the signed-in reserve (globals.css, data-sess without data-strat) ends too: this account has no saved strategy. */
-      document.documentElement.setAttribute('data-strat-none', '1');
-    }
+    if (loaded && !pickedStrategy) document.documentElement.removeAttribute('data-strat');
   }, [loaded, pickedStrategy]);
   /* 'Custom' picked with no chip on has nothing else to derive it from, so it is remembered here: without it the menu fell back to 'Let the read choose' the moment it was picked. */
   const [customPicked, setCustomPicked] = useState(false);
@@ -392,8 +388,9 @@ export default function StrategyPanel({ planChecking = false, layersLocked = fal
                 type="button"
                 className={`strat-btn${cls && !locked ? ' ' + cls : ''}${locked ? ' arena-deep-locked' : ''}`}
                 disabled={g?.disabled ?? false}
+                aria-disabled={locked || undefined}
                 title={g?.title}
-                onClick={() => onRun(kind, selected)}
+                onClick={() => (locked && g?.onLocked ? g.onLocked() : onRun(kind, selected))}
               >
                 {locked && <Lock size={10} aria-hidden="true" style={{ marginRight: 4, verticalAlign: '-1px' }} />}
                 {text}

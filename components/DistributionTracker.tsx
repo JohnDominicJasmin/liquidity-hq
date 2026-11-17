@@ -109,9 +109,8 @@ export default function DistributionTracker() {
       ) : (
         <div style={{ padding: '6px 8px 8px' }}>
           {rows.map(r => (
-            <button
+            <div
               key={r.id}
-              onClick={() => selectCoin(r.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                 padding: '7px 8px', borderRadius: 8, cursor: 'pointer',
@@ -122,6 +121,11 @@ export default function DistributionTracker() {
               onMouseEnter={e => { if (store.selectedCoin !== r.id) e.currentTarget.style.background = 'rgba(248,113,113,0.05)'; }}
               onMouseLeave={e => { if (store.selectedCoin !== r.id) e.currentTarget.style.background = 'transparent'; }}
             >
+              <button
+                type="button"
+                onClick={() => selectCoin(r.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', font: 'inherit', color: 'inherit' }}
+              >
               <span style={{
                 fontFamily: 'var(--font-mono), monospace', fontSize: 'var(--fs-caption)', fontWeight: 700,
                 color: 'var(--txt)', width: 52, flexShrink: 0,
@@ -147,27 +151,6 @@ export default function DistributionTracker() {
                     {reason}
                   </span>
                 ))}
-                {/* #661: disclose, do not withhold. This card matters more
-                    than the accumulation one because its output is a LABEL -
-                    Distribution / Early distribution / Quiet at 70 and 45 -
-                    and 55 of 100 points sit behind `!= null` guards. A large
-                    enough gap does not weaken the claim, it inverts it: a
-                    genuine Distribution presents as Quiet.
-                    Shown only when incomplete, and the score is a floor -
-                    every branch is `score += N`, so a missing input could only
-                    have raised it. */}
-                {r.inputsPresent < r.inputsTotal && (
-                  <Tip width={250} text={t('SCORE_INPUTS_PARTIAL_TIP', { present: String(r.inputsPresent), total: String(r.inputsTotal) })}>
-                    <span style={{
-                      fontFamily: 'var(--font-mono), monospace',
-                      fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt3)',
-                      background: 'transparent', border: '0.5px dashed var(--bdr)',
-                      borderRadius: 5, padding: '1px 6px', whiteSpace: 'nowrap',
-                    }}>
-                      {t('SCORE_INPUTS_PARTIAL', { present: String(r.inputsPresent), total: String(r.inputsTotal) })}
-                    </span>
-                  </Tip>
-                )}
               </span>
               <span style={{
                 fontFamily: 'var(--font-mono), monospace', fontSize: 'var(--fs-caption)', color: 'var(--txt2)',
@@ -181,7 +164,29 @@ export default function DistributionTracker() {
               }}>
                 {r.change >= 0 ? '+' : ''}{r.change.toFixed(2)}%
               </span>
-            </button>
+              </button>
+              {/* #661: disclose, do not withhold. This card matters more
+                  than the accumulation one because its output is a LABEL -
+                  Distribution / Early distribution / Quiet at 70 and 45 -
+                  and 55 of 100 points sit behind `!= null` guards. A large
+                  enough gap does not weaken the claim, it inverts it: a
+                  genuine Distribution presents as Quiet.
+                  Shown only when incomplete, and the score is a floor -
+                  every branch is `score += N`, so a missing input could only
+                  have raised it. */}
+              {r.inputsPresent < r.inputsTotal && (
+                <Tip width={250} text={t('SCORE_INPUTS_PARTIAL_TIP', { present: String(r.inputsPresent), total: String(r.inputsTotal) })}>
+                  <span style={{
+                    fontFamily: 'var(--font-mono), monospace',
+                    fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt3)',
+                    background: 'transparent', border: '0.5px dashed var(--bdr)',
+                    borderRadius: 5, padding: '1px 6px', whiteSpace: 'nowrap',
+                  }}>
+                    {t('SCORE_INPUTS_PARTIAL', { present: String(r.inputsPresent), total: String(r.inputsTotal) })}
+                  </span>
+                </Tip>
+              )}
+            </div>
           ))}
         </div>
       )}

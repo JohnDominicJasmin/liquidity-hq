@@ -37,10 +37,10 @@ test('E2. the selected-indicator downgrade phases in useEMAStrategy each map to 
 });
 test('E3. an unknown phase falls back to null (English as written); the counter-trend flag is split off and translated on its own', () => {
   assert.equal(phaseI18n('A sentence the engine gained later'), null);
-  const c = phaseI18n('In Value Zone - price pulled back to 20 EMA, entry eligible - counter-trend vs the daily 200 SMA');
+  const c = phaseI18n('In Value Zone - price pulled back to 20 EMA - counter-trend vs the daily 200 SMA');
   assert.deepEqual([c?.key, c?.counterSuffix], ['EMA_PHASE_VALUE_ZONE_LONG', true]);
-  const d = phaseI18n('Daily above 200 SMA but 4h ribbon not bullish - wait for EMA alignment'); assert.deepEqual([d?.key, d?.params], ['EMA_PHASE_DAILY_ABOVE_RIBBON_NOT_BULL', { tf: '4h' }]);
-  assert.equal(phaseI18n('In Value Zone - price pulled back to 20 EMA, entry eligible x'), null, 'a near-match must not translate (exact-match only)');
+  const d = phaseI18n('Daily above 200 SMA but 4h ribbon not bullish'); assert.deepEqual([d?.key, d?.params], ['EMA_PHASE_DAILY_ABOVE_RIBBON_NOT_BULL', { tf: '4h' }]);
+  assert.equal(phaseI18n('In Value Zone - price pulled back to 20 EMA x'), null, 'a near-match must not translate (exact-match only)');
 });
 test('E4. the counter-trend row detail keys equal the engine sentence for above/below x long/short, and the card shows detailKey only on the warning row', () => {
   const src = read('lib/useEMAStrategy.ts');
