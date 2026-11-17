@@ -1,6 +1,6 @@
 -- NOT YET APPLIED TO ANY DATABASE. Apply ONE block per project: PROD on qdpwhnvmhqgzijuwopso BEFORE the release deploy; DEV on wdtjhrilakoitfcezxpx.
 --
--- Wordy text, owner rule 22 (PM 2026-11-18), approved batch 5: page hints, locked Pro descriptions, tooltips, titles and labels across the app (not the legal, privacy or consent rows, not the screen-reader names, not the strategy descriptions already set by the Strategy panel work). 108 keys x 5 languages. ko/zh/ru/ar AI-drafted, not native-reviewed.
+-- Wordy text, owner rule 22 (PM 2026-11-18), approved batch 5: page hints, locked Pro descriptions, tooltips, titles and labels across the app (not the legal, privacy or consent rows, not the screen-reader names, not the strategy descriptions already set by the Strategy panel work). 112 keys x 5 languages. ko/zh/ru/ar AI-drafted, not native-reviewed.
 --
 -- ===================== PROD =====================
 insert into lhq_labels (key, locale, value) values
@@ -543,7 +543,27 @@ insert into lhq_labels (key, locale, value) values
 ('CHART_ALERT_CHIP_TITLE','ko','알림 {direction} {price}{label}; 드래그하여 조정'),
 ('CHART_ALERT_CHIP_TITLE','zh','提醒 {direction} {price}{label}；拖动以调整'),
 ('CHART_ALERT_CHIP_TITLE','ru','Алерт {direction} {price}{label}; перетащите, чтобы изменить'),
-('CHART_ALERT_CHIP_TITLE','ar','تنبيه {direction} {price}{label}؛ اسحب للتعديل')
+('CHART_ALERT_CHIP_TITLE','ar','تنبيه {direction} {price}{label}؛ اسحب للتعديل'),
+('HOURS_WIN_GOD_DESC','en','Low-volume weekend window. Less capital means a move can outrun its flow.'),
+('HOURS_WIN_GOD_DESC','ko','거래량이 적은 주말 구간. 자금이 적어 움직임이 거래 흐름보다 커질 수 있습니다.'),
+('HOURS_WIN_GOD_DESC','zh','周末低成交量时段。资金较少，价格波动可能超出其资金流。'),
+('HOURS_WIN_GOD_DESC','ru','Выходные с низким объёмом. При меньшем капитале движение может превышать поток.'),
+('HOURS_WIN_GOD_DESC','ar','نافذة عطلة نهاية الأسبوع بحجم منخفض. رأس مال أقل يعني أن الحركة قد تتجاوز التدفق.'),
+('HOURS_WIN_MON_EVE_DESC','en','Weekly liquidity build-up complete; US session active. Shows liquidity, not direction.'),
+('HOURS_WIN_MON_EVE_DESC','ko','주간 유동성 축적 완료, 미국 세션 활성. 유동성을 보여줄 뿐 방향은 아닙니다.'),
+('HOURS_WIN_MON_EVE_DESC','zh','每周流动性积累完成，美国时段活跃。显示流动性，而非方向。'),
+('HOURS_WIN_MON_EVE_DESC','ru','Недельное накопление ликвидности завершено; американская сессия активна. Показывает ликвидность, не направление.'),
+('HOURS_WIN_MON_EVE_DESC','ar','اكتمل تراكم السيولة الأسبوعي؛ الجلسة الأمريكية نشطة. يعرض السيولة لا الاتجاه.'),
+('HOURS_WIN_LONDON_DESC','en','European institutions enter and volume rises. First prints of a session open are least settled.'),
+('HOURS_WIN_LONDON_DESC','ko','유럽 기관이 진입하며 거래량이 늘어납니다. 세션 시작 직후의 체결이 가장 불안정합니다.'),
+('HOURS_WIN_LONDON_DESC','zh','欧洲机构入场，成交量上升。时段开盘的最初成交最不稳定。'),
+('HOURS_WIN_LONDON_DESC','ru','Входят европейские институционалы, объём растёт. Первые сделки открытия сессии наименее устойчивы.'),
+('HOURS_WIN_LONDON_DESC','ar','تدخل المؤسسات الأوروبية ويرتفع الحجم. أولى صفقات افتتاح الجلسة هي الأقل استقرارًا.'),
+('HOURS_WIN_DEAD_DESC','en','US pre-market, Europe at lunch, Asia asleep. Volume is usually thin.'),
+('HOURS_WIN_DEAD_DESC','ko','미국 장전, 유럽 점심시간, 아시아는 휴식. 거래량이 보통 적습니다.'),
+('HOURS_WIN_DEAD_DESC','zh','美国盘前，欧洲午餐，亚洲休市。成交量通常较低。'),
+('HOURS_WIN_DEAD_DESC','ru','Американский пре-маркет, Европа на обеде, Азия спит. Объём обычно небольшой.'),
+('HOURS_WIN_DEAD_DESC','ar','ما قبل السوق الأمريكي، أوروبا في استراحة الغداء، وآسيا نائمة. الحجم عادةً ضعيف.')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 
 -- ===================== DEV =====================
@@ -1087,5 +1107,25 @@ insert into lhq_dev_labels (key, locale, value) values
 ('CHART_ALERT_CHIP_TITLE','ko','알림 {direction} {price}{label}; 드래그하여 조정'),
 ('CHART_ALERT_CHIP_TITLE','zh','提醒 {direction} {price}{label}；拖动以调整'),
 ('CHART_ALERT_CHIP_TITLE','ru','Алерт {direction} {price}{label}; перетащите, чтобы изменить'),
-('CHART_ALERT_CHIP_TITLE','ar','تنبيه {direction} {price}{label}؛ اسحب للتعديل')
+('CHART_ALERT_CHIP_TITLE','ar','تنبيه {direction} {price}{label}؛ اسحب للتعديل'),
+('HOURS_WIN_GOD_DESC','en','Low-volume weekend window. Less capital means a move can outrun its flow.'),
+('HOURS_WIN_GOD_DESC','ko','거래량이 적은 주말 구간. 자금이 적어 움직임이 거래 흐름보다 커질 수 있습니다.'),
+('HOURS_WIN_GOD_DESC','zh','周末低成交量时段。资金较少，价格波动可能超出其资金流。'),
+('HOURS_WIN_GOD_DESC','ru','Выходные с низким объёмом. При меньшем капитале движение может превышать поток.'),
+('HOURS_WIN_GOD_DESC','ar','نافذة عطلة نهاية الأسبوع بحجم منخفض. رأس مال أقل يعني أن الحركة قد تتجاوز التدفق.'),
+('HOURS_WIN_MON_EVE_DESC','en','Weekly liquidity build-up complete; US session active. Shows liquidity, not direction.'),
+('HOURS_WIN_MON_EVE_DESC','ko','주간 유동성 축적 완료, 미국 세션 활성. 유동성을 보여줄 뿐 방향은 아닙니다.'),
+('HOURS_WIN_MON_EVE_DESC','zh','每周流动性积累完成，美国时段活跃。显示流动性，而非方向。'),
+('HOURS_WIN_MON_EVE_DESC','ru','Недельное накопление ликвидности завершено; американская сессия активна. Показывает ликвидность, не направление.'),
+('HOURS_WIN_MON_EVE_DESC','ar','اكتمل تراكم السيولة الأسبوعي؛ الجلسة الأمريكية نشطة. يعرض السيولة لا الاتجاه.'),
+('HOURS_WIN_LONDON_DESC','en','European institutions enter and volume rises. First prints of a session open are least settled.'),
+('HOURS_WIN_LONDON_DESC','ko','유럽 기관이 진입하며 거래량이 늘어납니다. 세션 시작 직후의 체결이 가장 불안정합니다.'),
+('HOURS_WIN_LONDON_DESC','zh','欧洲机构入场，成交量上升。时段开盘的最初成交最不稳定。'),
+('HOURS_WIN_LONDON_DESC','ru','Входят европейские институционалы, объём растёт. Первые сделки открытия сессии наименее устойчивы.'),
+('HOURS_WIN_LONDON_DESC','ar','تدخل المؤسسات الأوروبية ويرتفع الحجم. أولى صفقات افتتاح الجلسة هي الأقل استقرارًا.'),
+('HOURS_WIN_DEAD_DESC','en','US pre-market, Europe at lunch, Asia asleep. Volume is usually thin.'),
+('HOURS_WIN_DEAD_DESC','ko','미국 장전, 유럽 점심시간, 아시아는 휴식. 거래량이 보통 적습니다.'),
+('HOURS_WIN_DEAD_DESC','zh','美国盘前，欧洲午餐，亚洲休市。成交量通常较低。'),
+('HOURS_WIN_DEAD_DESC','ru','Американский пре-маркет, Европа на обеде, Азия спит. Объём обычно небольшой.'),
+('HOURS_WIN_DEAD_DESC','ar','ما قبل السوق الأمريكي، أوروبا في استراحة الغداء، وآسيا نائمة. الحجم عادةً ضعيف.')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
