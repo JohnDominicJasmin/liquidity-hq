@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { getEntitlementStatusFromRequestToken } from '@/lib/entitlements';
-import { mergeRsiGroups, rsiGroups } from '@/lib/marketRsi';
+import { mergeRsiGroups, rsiCachedAt, rsiGroups } from '@/lib/marketRsi';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       rsi: res.rsi,
       ...(res.viaFallback.length ? { viaFallback: res.viaFallback } : {}),
-      ts: Date.now(),
+      ts: rsiCachedAt() ?? Date.now(),
     }, {
       /* Private since #1263: the body depends on who is asking, so a shared cache must not store
          one caller's response for another. This was 'public, s-maxage=60', and s-maxage explicitly

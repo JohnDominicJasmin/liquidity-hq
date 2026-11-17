@@ -11,6 +11,7 @@ import SessionCountdown from '@/components/SessionCountdown';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { withAlpha } from '@/lib/color';
+import { accountRatio } from '@/lib/accountRatioVenue';
 import { getAuthToken } from '@/lib/supabase';
 import { nextResetLocalTime, localZoneAbbr } from '@/lib/resetTime';
 import PageHint from '@/components/PageHint';
@@ -93,11 +94,12 @@ function getSignalTags(
       else if (fr <= -0.005) tags.push(t('BRIEFING_TAG_FR_NEG'));
     }
   }
-  if (coin.longRatio != null && coin.shortRatio != null) {
-    if (dir === 'LONG_LIQ' && coin.longRatio >= 0.58)
-      tags.push(t('BRIEFING_TAG_LONGS_PCT', { pct: (coin.longRatio * 100).toFixed(0) }));
-    if (dir === 'SHORT_SQ' && coin.shortRatio >= 0.58)
-      tags.push(t('BRIEFING_TAG_SHORTS_PCT', { pct: (coin.shortRatio * 100).toFixed(0) }));
+  const ar = accountRatio(coin);
+  if (ar) {
+    if (dir === 'LONG_LIQ' && ar.long >= 0.58)
+      tags.push(t('BRIEFING_TAG_LONGS_PCT', { pct: (ar.long * 100).toFixed(0) }));
+    if (dir === 'SHORT_SQ' && ar.short >= 0.58)
+      tags.push(t('BRIEFING_TAG_SHORTS_PCT', { pct: (ar.short * 100).toFixed(0) }));
   }
   if (coin.takerBuyRatio != null) {
     if (dir === 'LONG_LIQ' && coin.takerBuyRatio <= 0.42) tags.push(t('BRIEFING_TAG_TAKER_SELL'));
@@ -238,8 +240,9 @@ export default function BriefingTerminal() {
     const load = () =>
       fetch('/api/forex/jpy')
         .then(r => r.json())
-        .then((d: { jpy?: number }) => {
-          if (d?.jpy) { setJpyUsd(d.jpy); setJpyUpdated(new Date()); }
+        .then((d: { jpy?: number; asOf?: number }) => {
+          /* The age shown is the RATE'S own time (asOf from the route), not the moment this page fetched it. */
+          if (d?.jpy) { setJpyUsd(d.jpy); setJpyUpdated(typeof d.asOf === 'number' && d.asOf > 0 ? new Date(d.asOf) : null); }
         })
         .catch(() => {});
     load();
@@ -567,18 +570,18 @@ export default function BriefingTerminal() {
         <div className="mb-macro-row">
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip text={t('BRIEFING_FNG_TIP')}>{t('BRIEFING_FNG_LABEL')}</Tip></div>
-            <div className="mb-macro-val" style={{ color: fngColor }}>{fng != null ? fng : '-'}</div>
-            <div className="mb-macro-sub" style={{ color: fngColor }}>{fngWord(t, store.fngLabel) || '-'}</div>
+            <div className="mb-macro-val" style={{ color: fngColor }}>{fng != null ? fng : <ReadingGap loading={!graceOver} />}</div>
+            <div className="mb-macro-sub" style={{ color: fngColor }}>{fngWord(t, store.fngLabel) || (fng != null ? '-' : '')}</div>
           </div>
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip text={t('BRIEFING_BTCDOM_TIP')}>{t('BRIEFING_BTCDOM_LABEL')}</Tip></div>
-            <div className="mb-macro-val">{store.btcDom != null ? store.btcDom.toFixed(1) + '%' : '-'}</div>
-            <div className="mb-macro-sub" style={{ color: domTrend?.col ?? 'var(--txt3)' }}>{domTrend ? `${domTrend.txt} · ${domWindow}` : '-'}</div>
+            <div className="mb-macro-val">{store.btcDom != null ? store.btcDom.toFixed(1) + '%' : <ReadingGap loading={!graceOver} />}</div>
+            <div className="mb-macro-sub" style={{ color: domTrend?.col ?? 'var(--txt3)' }}>{domTrend ? `${domTrend.txt} · ${domWindow}` : (store.btcDom != null ? '-' : '')}</div>
           </div>
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_DXY_TIP')}>{t('BRIEFING_DXY_LABEL')}</Tip></div>
-            <div className="mb-macro-val">{store.dxy != null ? store.dxy.toFixed(2) : '-'}</div>
-            <div className="mb-macro-sub" style={{ color: dxyColor }}>{dxySig}</div>
+            <div className="mb-macro-val">{store.dxy != null ? store.dxy.toFixed(2) : <ReadingGap loading={!graceOver} />}</div>
+            <div className="mb-macro-sub" style={{ color: dxyColor }}>{store.dxy != null ? dxySig : ''}</div>
           </div>
           {etfFlow != null && (
             <div className="mb-macro-item">
@@ -659,7 +662,7 @@ export default function BriefingTerminal() {
             </div>
             {jpyMinutesAgo !== null && (
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 5 }}>
-                {t('BRIEFING_YEN_UPDATED', { time: jpyMinutesAgo < 1 ? 'just now' : `${jpyMinutesAgo}m ago` })}
+                {t('BRIEFING_YEN_UPDATED', { time: jpyMinutesAgo < 1 ? 'just now' : jpyMinutesAgo < 90 ? `${jpyMinutesAgo}m ago` : jpyMinutesAgo < 2880 ? `${Math.round(jpyMinutesAgo / 60)}h ago` : `${Math.round(jpyMinutesAgo / 1440)}d ago` })}
               </div>
             )}
           </>
@@ -706,8 +709,10 @@ export default function BriefingTerminal() {
             </div>
             {!pricesLoaded ? (
               <div style={{ padding: '4px 0' }}>
+                {graceOver ? <ReadingGap loading={false} /> : (<>
                 <SkeletonBar width="55%" height={13} style={{ marginBottom: 8 }} />
                 <SkeletonBar width="38%" height={13} />
+                </>)}
                 <span className="sr-only">{t('BRIEFING_LOADING_MARKET_SR')}</span>
               </div>
             ) : shown.length === 0 ? (

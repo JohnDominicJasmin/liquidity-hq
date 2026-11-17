@@ -245,6 +245,8 @@ test('2. the server row and the browser row format to the same thirteen strings'
       poc: k?.poc ?? undefined, vah: k?.vah ?? undefined, val: k?.val ?? undefined,
       rsi1h: r?.rsi1h, rsi4h: r?.rsi4h, rsiDaily: r?.rsiDaily,
       longRatio: 0.55, shortRatio: 0.45,
+      /* #2521: the venue-labelled ratio comes from the SAME snapshot as the Binance account ratio (components/MarketProvider.tsx puts it on the store coin as bnLongRatio / bnShortRatio), so the browser row carries it too; without it accountRatio falls back to the Bybit pair and says "Bybit" where the server row says "Binance". */
+      bnLongRatio: 0.55, bnShortRatio: 0.45,
     };
     const browser = arenaNumberFields(browserRow);
 

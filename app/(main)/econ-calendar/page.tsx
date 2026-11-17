@@ -105,7 +105,7 @@ const IMPACT_CFG: Record<EconImpact, { color: string; bg: string; border: string
    producer (enrichWithFRED, for past events) and the owner kept that path, so its column
    is expected back; deleting the keys would mean re-adding them across the defaults and
    every locale to restore a column that only needs a render. */
-const COLS = '68px 72px 1fr 70px';
+const COLS = '68px 88px 1fr 70px';   // the COUNTRY column is 88 px so its head is not clipped (#1185)
 
 const COL_LABEL_KEYS: LabelKey[] = [
   'ECON_CALENDAR_COL_TIME', 'ECON_CALENDAR_COL_COUNTRY', 'ECON_CALENDAR_COL_EVENT', 'ECON_CALENDAR_COL_IMPACT',
