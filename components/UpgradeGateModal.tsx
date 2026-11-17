@@ -1,10 +1,67 @@
 'use client';
-import { useEffect } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useLabels } from '@/lib/labels';
 import { useDialogFocusTrap } from '@/lib/useDialogFocusTrap';
 import { Lock } from '@/components/icons';
+
+/* ONE PRO ROW PER PAGE (owner, 2026-11-17: at most two upgrade texts per page). Locked PANELS do not render as cards or rows of their own: each registers its name here, and the first one on the page renders a single
+   row where it sits - the lock icon and "With Pro: <names>" - that opens the shared upgrade sheet. The provider is keyed by the route, so a navigation starts a fresh list. Locked CONTROLS (buttons, chips) are lock
+   icons with no words and open the same sheet through their own handlers. Without a provider (a test, a page outside the shell) a panel falls back to its own one-line row. */
+interface ProLockItem { id: string; title: string }
+interface ProLockCtx { items: ProLockItem[]; register: (i: ProLockItem) => void; unregister: (id: string) => void; openSheet: (feature: string) => void }
+const ProLockContext = createContext<ProLockCtx | null>(null);
+
+export function ProLockProvider({ children }: { children: ReactNode }) {
+  const [items, setItems] = useState<ProLockItem[]>([]);
+  const [sheet, setSheet] = useState<string | null>(null);
+  const register = useCallback((i: ProLockItem) => setItems(prev => (prev.some(p => p.id === i.id) ? prev.map(p => (p.id === i.id ? i : p)) : [...prev, i])), []);
+  const unregister = useCallback((id: string) => setItems(prev => prev.filter(p => p.id !== id)), []);
+  const value = useMemo(() => ({ items, register, unregister, openSheet: setSheet }), [items, register, unregister]);
+  return (
+    <ProLockContext.Provider value={value}>
+      {children}
+      <UpgradeGateModal open={sheet !== null} onClose={() => setSheet(null)} feature={sheet ?? undefined} />
+    </ProLockContext.Provider>
+  );
+}
+
+/* A locked panel's registration. Returns whether THIS panel is the one that draws the row, and the names to list. Layout effects run before paint, so the first row appears with the page and nothing shifts. */
+export function useProLock(title: string): { ready: boolean; leader: boolean; names: string[]; open: () => void } {
+  const ctx = useContext(ProLockContext);
+  const id = useId();
+  const { register, unregister } = ctx ?? { register: () => {}, unregister: () => {} };
+  useLayoutEffect(() => {
+    if (!ctx) return;
+    register({ id, title });
+    return () => unregister(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, title, !!ctx]);
+  const first = useRef(title);
+  first.current = title;
+  if (!ctx) return { ready: true, leader: true, names: [title], open: () => {} };
+  const leaderId = ctx.items[0]?.id;
+  return { ready: ctx.items.length > 0, leader: leaderId === id, names: ctx.items.map(i => i.title), open: () => ctx.openSheet(ctx.items[0]?.title ?? title) };
+}
+
+/* The one row. */
+export function ProRow({ names, onOpen }: { names: string[]; onOpen: () => void }) {
+  const { t } = useLabels();
+  return (
+    <button
+      type="button"
+      data-testid="locked-feature"
+      className="locked-card-term-wrap"
+      onClick={onOpen}
+      style={{ ...SURFACE, display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 44, padding: '8px 14px', cursor: 'pointer', textAlign: 'left', font: 'inherit', fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt2)' }}
+    >
+      <Lock size={14} aria-hidden="true" style={{ color: 'var(--txt3)', flexShrink: 0 }} />
+      <span style={{ flex: 1, minWidth: 0 }}>{t('UPGRADE_GATE_WITH_PRO')} {names.join(' · ')}</span>
+      <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d="M3 5l4 4 4-4" /></svg>
+    </button>
+  );
+}
 
 interface Props {
   open: boolean;
@@ -32,25 +89,14 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
   onUnlock: () => void;
 }) {
   const { t } = useLabels();
-  /* A SLIM ROW, NOT A CARD (owner, 2026-11-17: too many upsell texts per screen). A locked section is one line - the lock icon and "<feature> - Pro" - and a tap opens the shared upgrade sheet. The description is the hover
-     title only; the "PRO FEATURE" eyebrow, the paragraph and the "Unlock with Pro" button are gone. */
+  const lock = useProLock(title);
+  /* Not the first locked panel on the page: nothing of its own (its name is in the page's one row). Before the first registration lands (same commit, before paint) nothing renders either. */
+  if (!lock.ready || !lock.leader) return null;
+  const standalone = lock.names.length === 1 && lock.names[0] === title;
   return (
-    <button
-      type="button"
-      data-testid="locked-feature"
-      className="locked-card-term-wrap"
-      title={description}
-      onClick={onUnlock}
-      style={{
-        ...SURFACE,
-        display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 44,
-        padding: '8px 14px', cursor: 'pointer', textAlign: 'left', font: 'inherit',
-        fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt2)',
-      }}
-    >
-      <Lock size={14} aria-hidden="true" style={{ color: 'var(--txt3)', flexShrink: 0 }} />
-      <span>{t('UPGRADE_GATE_LOCKED_ROW', { feature: title })}</span>
-    </button>
+    <div title={description}>
+      <ProRow names={lock.names} onOpen={standalone ? onUnlock : lock.open} />
+    </div>
   );
 }
 

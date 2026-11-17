@@ -47,6 +47,7 @@ import CookieConsent from './CookieConsent';
 import MaintenanceScreen from './MaintenanceScreen';
 import AnnouncementBanner from './AnnouncementBanner';
 import TrialBanner from './TrialBanner';
+import { ProLockProvider } from './UpgradeGateModal';
 import { useAppConfig } from '@/lib/useAppConfig';
 import { MARKET_DATA_NEEDED_EVENT } from '@/lib/marketDataNeeded';
 
@@ -173,7 +174,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     <NewsTicker />
                     <main className="app-content">
                       <TrialBanner />
-                      <OnboardingGate>{children}</OnboardingGate>
+                      <ProLockProvider key={pathname}><OnboardingGate>{children}</OnboardingGate></ProLockProvider>
                       <PlatformFooter />
                     </main>
                     <GrokChat />

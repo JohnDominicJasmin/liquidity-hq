@@ -10,6 +10,7 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import Link from 'next/link';
 import { Lock } from '@/components/icons';
+import { ProRow, useProLock } from '@/components/UpgradeGateModal';
 import { signalLockCopy } from '@/lib/signalCoinGate';
 import { phaseI18n } from '@/lib/emaPhaseI18n';
 import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
@@ -106,19 +107,20 @@ function buildConditionPrompt(label: string, pass: boolean | null, detail: strin
 interface Props { signal: StrategySignal; tf?: string; coin?: CoinId; aboveCeiling?: boolean }
 
 /* The signal coin gate's locked state (lib/signalCoinGate.ts): in place of the verdict, the checklist and the levels. */
+/* FREE: no row of its own - the name joins the page's one "With Pro:" row (owner, 2026-11-17). */
+function FreeLockedSignal({ coin }: { coin?: string }) {
+  const { t } = useLabels();
+  const lock = useProLock(t('EMA_SIGNAL_LOCKED_LINE', { coin: (coin ?? '').toUpperCase() }));
+  if (!lock.ready || !lock.leader) return null;
+  return <ProRow names={lock.names} onOpen={lock.open} />;
+}
+
 function LockedSignal({ lock, coin }: { lock: 'signed_out' | 'free'; coin?: string }) {
   const { t } = useLabels();
   const base = signalLockCopy(lock);
   // Free and trial: labelled in every language (#1596). The signed-out line is unchanged.
   /* FREE: one line, no button (owner, 2026-11-17): "EMA signals for HYPE - Pro" with the lock icon. Signed out keeps its sign-up link. */
-  if (lock === 'free') {
-    return (
-      <div data-testid="signal-locked" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', border: '0.5px solid var(--bdr)', background: 'var(--bg2)' }}>
-        <Lock size={14} aria-hidden="true" style={{ color: 'var(--txt3)', flexShrink: 0 }} />
-        <span style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)' }}>{t('EMA_SIGNAL_LOCKED_LINE', { coin: (coin ?? '').toUpperCase() })}</span>
-      </div>
-    );
-  }
+  if (lock === 'free') return <FreeLockedSignal coin={coin} />;
   const copy = base;
   return (
     <div data-testid="signal-locked" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', border: '0.5px solid var(--bdr)', background: 'var(--bg2)' }}>
