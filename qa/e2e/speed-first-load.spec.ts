@@ -23,8 +23,19 @@ for (const path of PAGES) for (const net of ['slow', 'normal'] as const) {
       try { new PerformanceObserver((l) => { for (const e of l.getEntries() as unknown as Array<{ startTime: number; size: number; url: string; element: Element | null }>) { const el = e.element; w.__lcp.push({ t: Math.round(e.startTime), tag: el?.tagName?.toLowerCase() ?? '(removed)', cls: typeof (el as HTMLElement | null)?.className === 'string' ? String((el as HTMLElement).className).split(' ')[0] : '', text: ((el as HTMLElement | null)?.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 40), url: (e.url || '').slice(0, 60), size: e.size }); } }).observe({ type: 'largest-contentful-paint', buffered: true }); } catch { /* unsupported */ }
     });
     const page = await ctx.newPage(); if (net === 'slow') await slow(page);
+    const cdp0 = await ctx.newCDPSession(page); await cdp0.send('Network.enable'); const initOf: Record<string, string> = {};
+    cdp0.on('Network.requestWillBeSent', (e: { request: { url: string }; initiator: { type: string; url?: string; stack?: { callFrames: Array<{ url: string; functionName: string }> } } }) => { if (/\.js(\?|$)/.test(e.request.url)) initOf[e.request.url] = `${e.initiator.type}${e.initiator.url ? ':' + e.initiator.url.split('/').pop() : ''}${e.initiator.stack?.callFrames?.length ? ' via ' + e.initiator.stack.callFrames.slice(0, 2).map((f) => `${(f.url || '').split('/').pop()}:${f.functionName || '(anon)'}`).join(' < ') : ''}`; });
     try {
       await page.goto(path, { waitUntil: 'load', timeout: 240_000 }).catch(() => {}); await page.waitForTimeout(net === 'slow' ? 10_000 : 4_000);
+      /* EVERY script requested BEFORE the load event, by chunk file, size, start/finish and initiator (PM: judge the named chunks, not a string match). */
+      const early = await page.evaluate(() => { const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined; const loadAt = nav?.loadEventStart || nav?.loadEventEnd || 0; return (performance.getEntriesByType('resource') as PerformanceResourceTiming[]).filter((x) => /\.js(\?|$)/.test(x.name)).map((x) => ({ url: x.name, file: (x.name.split('/').pop() || '').split('?')[0], kb: Math.round((x.transferSize || x.encodedBodySize || 0) / 102.4) / 10, startAt: Math.round(x.startTime), doneAt: Math.round(x.responseEnd), loadAt: Math.round(loadAt), beforeLoad: x.startTime < loadAt })); });
+      /* CONTENT MARKERS (PM 2026-11-17): the SDK chunks are recognised by what they CONTAIN, not by a hash: PostHog = "posthog.init" / "PostHogPersistence"; the error SDK = "__SENTRY__" / "sentry.javascript". A chunk with a marker AND >= 100 KB requested before load fails the cell. */
+      const sdkEarly = await page.evaluate(async () => { const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined; const loadAt = nav?.loadEventStart || nav?.loadEventEnd || 0; const out: Array<{ file: string; kb: number; startAt: number; markers: string[] }> = []; for (const x of (performance.getEntriesByType('resource') as PerformanceResourceTiming[]).filter((r) => /\.js(\?|$)/.test(r.name) && r.startTime < loadAt)) { let text = ''; try { text = await (await fetch(x.name, { cache: 'force-cache' })).text(); } catch { /* evicted */ } const markers = ['posthog.init', 'PostHogPersistence', '__SENTRY__', 'sentry.javascript'].filter((m) => text.includes(m)); if (markers.length) out.push({ file: (x.name.split('/').pop() || '').split('?')[0], kb: Math.round((x.transferSize || x.encodedBodySize || text.length) / 102.4) / 10, startAt: Math.round(x.startTime), markers }); } return out; });
+      console.log(`[SPEEDSDK] ${JSON.stringify({ title, sdkChunksRequestedBeforeLoad: sdkEarly })}`);
+      expect(sdkEarly.filter((e) => e.kb >= 100).map((e) => `${e.file} ${e.kb} KB [${e.markers.join(',')}]`), `an SDK chunk of 100 KB or more (by content marker) was requested BEFORE the load event on ${path} (${net})`).toEqual([]);
+      const named = early.filter((e) => /1nsa__feu1okt|3gmit4vipxbs-/.test(e.file));
+      console.log(`[SPEEDCHUNKS] ${JSON.stringify({ title, loadAt: early[0]?.loadAt ?? null, scriptsBeforeLoad: early.filter((e) => e.beforeLoad).map((e) => ({ file: e.file, kb: e.kb, startAt: e.startAt, doneAt: e.doneAt, initiator: initOf[e.url] ?? '' })), namedChunks: named.map((e) => ({ file: e.file, kb: e.kb, startAt: e.startAt, beforeLoad: e.beforeLoad, initiator: initOf[e.url] ?? '' })), allScriptKB: Math.round(early.reduce((a, e) => a + e.kb, 0)) })}`);
+      expect(named.filter((e) => e.beforeLoad).map((e) => `${e.file} ${e.kb} KB at ${e.startAt} ms (load ${e.loadAt})`), `the PostHog / error-SDK chunks were requested BEFORE the load event on ${path} (${net})`).toEqual([]);
       const r = await page.evaluate(async () => {
         const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined; const loadAt = nav?.loadEventStart || nav?.loadEventEnd || 0;
         const paint = Object.fromEntries(performance.getEntriesByType('paint').map((p) => [p.name, Math.round(p.startTime)]));
@@ -40,7 +51,8 @@ for (const path of PAGES) for (const net of ['slow', 'normal'] as const) {
         return { ttfb: Math.round(nav?.responseStart ?? 0), fcp: paint['first-contentful-paint'] ?? null, loadAt: Math.round(loadAt), lcp: w.__lcp.slice(-1)[0] ?? null, firstLoad: { requests: before.length, kb: Math.round(before.reduce((a, x) => a + kb(x), 0)), byType: byType(before) }, total: { requests: res.length, kb: Math.round(res.reduce((a, x) => a + kb(x), 0)), byType: byType(res) }, tagged, thirdPartyHostsBeforeLoad: hosts };
       });
       console.log(`[SPEED] ${JSON.stringify({ title, ...r })}`);
-      const bad = r.tagged.filter((t) => t.has.some((h) => ['posthog', 'error-reporting', 'strategy-registry', 'ai-chat'].includes(h)));
+      /* PostHog and the error SDK are judged by their NAMED chunks above (a string match flags consent / stub code that only mentions them); the registry and the chat keep the string tags. */
+      const bad = r.tagged.filter((t) => t.has.some((h) => ['strategy-registry', 'ai-chat'].includes(h)));
       expect(bad, `code that must not be in the first load arrived before the load event on ${path} (${net}): ${JSON.stringify(bad)}`).toEqual([]);
     } finally { await ctx.close(); }
   });
@@ -78,14 +90,23 @@ test('SP:consent', async ({ browser }) => {
 test('SP:early-error', async ({ browser }) => {
   test.setTimeout(120_000);
   const marker = `qa-early-error-${Date.now()}`;
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } }); await ctx.addInitScript((m) => { try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private */ } setTimeout(() => { throw new Error(m); }, 0); }, marker);
-  const page = await ctx.newPage(); const envelopes: string[] = [];
+  /* THE ERROR IS THROWN BY A SCRIPT ADDED AFTER THE DOCUMENT STARTED (Dev, 2026-11-17): the inline listener is the first <script> in <head>, so it catches anything thrown AFTER it; an addInitScript runs BEFORE any page script and nothing in the page can see it. Three throw styles are tried in three cells' worth of one page load: a late script tag, an unhandled rejection, and an app-level setTimeout throw, all before load. */
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } }); await ctx.addInitScript(() => { try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private */ } });
+  const page = await ctx.newPage(); const envelopes: string[] = []; const logs: string[] = [];
+  page.on('console', (m) => { const t = m.text(); if (/monitoring:/i.test(t)) logs.push(t.slice(0, 200)); });
   await page.route((u) => TRACKER.test(u.toString()) && !/\/_next\//.test(u.pathname), async (route) => { const body = route.request().postData() ?? ''; envelopes.push(body.slice(0, 4000)); await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); });
   try {
-    await page.goto('/about', { waitUntil: 'load', timeout: 60_000 }); await page.waitForTimeout(25_000);
-    const reached = envelopes.some((e) => e.includes(marker));
-    console.log(`[SPEED] ${JSON.stringify({ title: 'SP:early-error', marker, trackerRequestsSeen: envelopes.length, markerReachedTracker: reached })}`);
-    expect(reached, 'an error thrown before the app scripts ran never reached the tracker').toBe(true);
+    await page.goto('/about', { waitUntil: 'commit', timeout: 60_000 });
+    await page.waitForFunction(() => document.readyState !== 'loading' || !!document.head, null, { timeout: 30_000 }).catch(() => {});
+    await page.addScriptTag({ content: `setTimeout(function(){ throw new Error(${JSON.stringify(marker + '-late-script')}); }, 0);` }).catch(() => {});
+    await page.evaluate((m) => { Promise.reject(new Error(m + '-rejection')); setTimeout(() => { throw new Error(m + '-timeout'); }, 0); }, marker).catch(() => {});
+    await page.waitForLoadState('load', { timeout: 60_000 }).catch(() => {}); await page.waitForTimeout(20_000);
+    const hit = (suffix: string) => envelopes.some((e) => e.includes(marker + suffix));
+    const reached = { lateScript: hit('-late-script'), rejection: hit('-rejection'), timeout: hit('-timeout') };
+    console.log(`[SPEED] ${JSON.stringify({ title: 'SP:early-error', marker, trackerRequestsSeen: envelopes.length, reached, monitoringLogs: logs })}`);
+    expect(logs.length, 'the build printed no "monitoring:" line: the DSN may not be in this build, or the page never initialised the tracker').toBeGreaterThan(0);
+    expect(reached.lateScript || reached.timeout || reached.rejection, `none of the errors thrown before load reached the tracker (monitoring: ${JSON.stringify(logs)})`).toBe(true);
+    expect(reached.lateScript, 'an error thrown by a script added during parse did not reach the tracker').toBe(true);
   } finally { await ctx.close(); }
 });
 

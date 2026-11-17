@@ -101,8 +101,9 @@ for (const net of ['slow', 'normal'] as const) {
     };
     try {
       await page.goto('/about', { waitUntil: 'load', timeout: 180_000 }).catch(() => {}); await page.waitForTimeout(net === 'slow' ? 12_000 : 5_000);
+      await page.waitForTimeout(net === "slow" ? 30_000 : 3_000);   // let the first page finish ALL its traffic, so the bytes counted after the click are the navigation's own
       const first = await measureDoc(page);
-      const a = await hop('/faq', /frequently asked/i); const b = await hop('/about', /about|crypto|liquidity/i);
+      const a = await hop('/faq', /frequently asked/i); const b = await hop('/', /liquidity|see where|read|trade|crypto|dashboard/i).catch(() => null);
       console.log(`[LCP] ${JSON.stringify({ title, firstLoadHtmlKB: first.timeline.htmlKB, hops: [a, b] })}`);
     } finally { await ctx.close(); }
   });
