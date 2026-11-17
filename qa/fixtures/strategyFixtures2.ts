@@ -56,28 +56,39 @@ export function squeezeFixture(crowd: 'long' | 'short', trigger: 'through' | 'in
  * BUY side: z <= -1.5 (sellers hit the bid) AND price HELD: the window's lowest low is no more than 0.2 ATR below the 20-candle low before the window, and the window's net price change is >= -0.3 ATR. TRIGGER = the first close above the previous candle's high.
  * Stop = the window low. SELL = the mirror (z >= +1.5; the window's highest high no more than 0.2 ATR above the prior 20-candle high; net change <= +0.3 ATR; trigger = the first close below the previous candle's low; stop = the window high).
  * Target = nearest S/R at >= 1R (CHOICE: the rule states none, so the common one is used). A coin with no taker data (Bybit-only) is WAIT with the reason "needs taker data". ATR = 14-candle average true range (CHOICE).
- * CHOICE: the window must END at the candle just before the trigger candle; a trigger two candles later does not count. */
+ * TRIGGER (PM 2026-11-17): the FIRST qualifying close within 3 candles after the window ends (up to 2 quiet candles in between), and still fresh (one of the last 2 candles). The previous-100-windows are the rolling sums ending in the 100 candles before the window. */
 export interface TakerC extends C { takerBuy: number; takerSell: number }
 export function absorptionCall(c: TakerC[], hasTaker: boolean, zones: Zone[]): Call & { reason?: string } {
   if (!hasTaker) return { verdict: 'WAIT', reason: 'needs taker data' };
-  const k = c.length - 1, end = k - 1; if (end < 130) return { verdict: 'WAIT' };
-  const sum = (e: number) => c.slice(e - 7, e + 1).reduce((a, x) => a + (x.takerBuy - x.takerSell), 0);
-  const prev: number[] = []; for (let e = end - 100; e < end; e++) prev.push(sum(e));
-  const mean = prev.reduce((a, v) => a + v, 0) / prev.length, sd = Math.sqrt(prev.reduce((a, v) => a + (v - mean) ** 2, 0) / prev.length); if (!(sd > 0)) return { verdict: 'WAIT' };
-  const z = (sum(end) - mean) / sd, win = c.slice(end - 7, end + 1), before = c.slice(end - 27, end - 7), a = atr(c.slice(0, end + 1)), net = win[win.length - 1].close - win[0].open;
-  const winLow = Math.min(...win.map((x) => x.low)), winHigh = Math.max(...win.map((x) => x.high));
-  if (z <= -1.5 && winLow >= Math.min(...before.map((x) => x.low)) - 0.2 * a && net >= -0.3 * a && c[k].close > c[k - 1].high) { const entry = c[k].close; return call('BUY', entry, winLow, nearestR(zones, entry, winLow, 'BUY')); }
-  if (z >= 1.5 && winHigh <= Math.max(...before.map((x) => x.high)) + 0.2 * a && net <= 0.3 * a && c[k].close < c[k - 1].low) { const entry = c[k].close; return call('SELL', entry, winHigh, nearestR(zones, entry, winHigh, 'SELL')); }
+  const last = c.length - 1, sum = (e: number) => c.slice(e - 7, e + 1).reduce((a, x) => a + (x.takerBuy - x.takerSell), 0);
+  for (const k of [last - 1, last]) {                                   // FRESH = the trigger is one of the last 2 candles; the EARLIER one is the first qualifying close, so it is tried first
+    /* WHICH WINDOW (CHOICE): of the windows ending 1-3 candles before the trigger candle (end = k - 1 - gap, gap 0..2) the MOST RECENT one whose flow is one-sided (|z| >= 1.5) is THE window; it is judged on its own: held, net change, and "the first qualifying close after it". A shifted window that also reaches 1.5 sigma is not a second chance. */
+    let best: { gap: number; end: number; z: number } | null = null;
+    for (let gap = 0; gap <= 2; gap++) {
+      const end = k - 1 - gap; if (end < 130) continue;
+      const prev: number[] = []; for (let e = end - 100; e < end; e++) prev.push(sum(e));
+      const mean = prev.reduce((x, v) => x + v, 0) / prev.length, sd = Math.sqrt(prev.reduce((x, v) => x + (v - mean) ** 2, 0) / prev.length); if (!(sd > 0)) continue;
+      const z = (sum(end) - mean) / sd; if (Math.abs(z) >= 1.5) { best = { gap, end, z }; break; }
+    }
+    if (!best) continue;
+    const { gap, end, z } = best, win = c.slice(end - 7, end + 1), before = c.slice(end - 27, end - 7), a = atr(c.slice(0, end + 1)), net = win[win.length - 1].close - win[0].open;
+    const winLow = Math.min(...win.map((x) => x.low)), winHigh = Math.max(...win.map((x) => x.high));
+    const idx = Array.from({ length: gap }, (_, g) => end + 1 + g), upQual = (j: number) => c[j].close > c[j - 1].high, dnQual = (j: number) => c[j].close < c[j - 1].low;
+    if (z <= -1.5 && winLow >= Math.min(...before.map((x) => x.low)) - 0.2 * a && net >= -0.3 * a && upQual(k) && !idx.some(upQual)) { const entry = c[k].close; return call('BUY', entry, winLow, nearestR(zones, entry, winLow, 'BUY')); }
+    if (z >= 1.5 && winHigh <= Math.max(...before.map((x) => x.high)) + 0.2 * a && net <= 0.3 * a && dnQual(k) && !idx.some(dnQual)) { const entry = c[k].close; return call('SELL', entry, winHigh, nearestR(zones, entry, winHigh, 'SELL')); }
+  }
   return { verdict: 'WAIT' };
 }
 /** 140 candles of a quiet range with random-looking but deterministic taker flow; then an 8-candle window (`delta` 'sell' = very negative, 'buy' = very positive, 'normal' = like the rest) with price held; then the trigger candle ('up' closes above the previous high, 'down' below the previous low, 'none' inside it). */
-export function absorptionFixture(delta: 'sell' | 'buy' | 'normal', trigger: 'up' | 'down' | 'none', hold: boolean | 'net' = true, t0 = 1_760_000_000_000): TakerC[] {
+export function absorptionFixture(delta: 'sell' | 'buy' | 'normal', trigger: 'up' | 'down' | 'none', hold: boolean | 'net' = true, gap = 0, t0 = 1_760_000_000_000): TakerC[] {
   const out: TakerC[] = []; let i = 0; const rnd = (n: number) => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); };
   const push = (o: number, hi: number, lo: number, cl: number, buy: number, sell: number) => out.push({ ...mk(i++, t0, o, hi, lo, cl), takerBuy: buy, takerSell: sell });
   for (let j = 0; j < 132; j++) { const p = 100_000 + Math.sin(j / 5) * 300, c = p + (rnd(j) - 0.5) * 120; push(p, Math.max(p, c) + 80, Math.min(p, c) - 80, c, 500 + rnd(j + 1) * 300, 500 + rnd(j + 2) * 300); }
   const base = out[out.length - 1].close;
   /* hold === 'net': the window's LOWS stay inside the prior range but its net price change is a clear fall (the window opens high and drifts down): the first held-test passes, the net-change test must refuse it. */
   for (let j = 0; j < 8; j++) { const c = hold === 'net' ? base + 330 - j * 60 : hold ? base + (rnd(300 + j) - 0.5) * 60 : base - 600 - j * 80; const buy = delta === 'sell' ? 250 : delta === 'buy' ? 1300 : 500 + rnd(j + 1) * 300, sell = delta === 'sell' ? 1300 : delta === 'buy' ? 250 : 500 + rnd(j + 2) * 300; push(hold === 'net' && j === 0 ? base + 330 : base, Math.max(base, c) + 50, Math.min(base, c) - 50, c, buy, sell); }
+  /* `gap` quiet candles after the window (with flow OPPOSITE to the window's, so a window shifted onto them is no longer one-sided and the real window is the only one), none closing beyond the previous extreme, before the trigger candle (PM: the trigger may come up to 3 candles after the window ends) */
+  for (let g = 0; g < gap; g++) { const p = out[out.length - 1]; push(p.close, p.high - 10, p.low + 10, p.close + (g % 2 ? 6 : -6), delta === 'sell' ? 1300 : 600, delta === 'buy' ? 1300 : 600); }
   const w = out[out.length - 1], pH = w.high, pL = w.low;
   if (trigger === 'up') push(w.close, pH + 400, w.close - 40, pH + 250, 700, 600); else if (trigger === 'down') push(w.close, w.close + 40, pL - 400, pL - 250, 600, 700); else push(w.close, pH - 20, pL + 20, w.close, 600, 600);
   return out;

@@ -62,6 +62,21 @@ test('AB1/AB3. absorption: one-sided taker flow held by price + the first close 
   assert.ok(atr(buy) > 0);
 });
 
+test('AB4. the trigger may come up to 3 candles after the window ends (the first qualifying close), and must still be fresh', () => {
+  const zones = [{ price: 0 }];
+  for (const gap of [1, 2]) assert.equal(absorptionCall(absorptionFixture('sell', 'up', true, gap), true, zones).verdict, 'BUY', `a trigger ${gap + 1} candle(s) after the window's last candle was refused`);
+  const sellGap = absorptionCall(absorptionFixture('buy', 'down', true, 2), true, zones); assert.equal(sellGap.verdict, 'SELL');
+  /* the first qualifying close ONE candle back is still fresh and is the call (entry = that candle's close, not the last one's) */
+  const fy = absorptionFixture('sell', 'up', true, 1), qy = fy[fy.length - 2]; fy[fy.length - 2] = { ...qy, close: fy[fy.length - 3].high + 60, high: fy[fy.length - 3].high + 100 };
+  const cy = absorptionCall(fy, true, zones); assert.equal(cy.verdict, 'BUY'); assert.equal(cy.entry, fy[fy.length - 2].close, 'the entry must be the FIRST qualifying close (one candle back), not the later one');
+});
+
+test('AB5. fresh = one of the last 2 candles: a trigger 1 candle back still calls, 2 back does not', () => {
+  const zones = [{ price: 0 }], base = absorptionFixture('sell', 'up');
+  const more = (n: number) => { const out = [...base]; for (let i = 1; i <= n; i++) { const p = out[out.length - 1]; out.push({ time: p.time + 3_600_000, open: p.close, high: p.close + 20, low: p.close - 40, close: p.close - 10, takerBuy: 900, takerSell: 600 }); } return out; };
+  assert.equal(absorptionCall(more(1), true, zones).verdict, 'BUY', 'a trigger one candle back must still call'); assert.equal(absorptionCall(more(2), true, zones).verdict, 'WAIT', 'a trigger two candles back must not call');
+});
+
 test('AB2. a coin with no taker split is WAIT "needs taker data"', () => {
   const r = absorptionCall(absorptionFixture('sell', 'up'), false, []); assert.equal(r.verdict, 'WAIT'); assert.equal(r.reason, 'needs taker data');
 });
