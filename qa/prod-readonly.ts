@@ -174,6 +174,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
  *  of the two lists; the unit test enforces it. */
 export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'dashboard-docw-sweep': 'signs in as the Free DEV fixture (does not exist on production) and answers the settings read with a patched language; staging/qa only.',
+  'release-cells-2026-11-18': 'the group-run cells for a build under test: signs in as the Pro DEV fixture for Settings and Briefing (accounts that do not exist on production), fakes the page clock and stubs the status, macro and market reads; staging/qa only.',
   'release-cells-f-2026-11-17': 'signed-in release cells on a build under test (Free fixture B with a patched saved selection, Pro fixture A, /research stablecoin card): DEV-project accounts that do not exist on production; every settings write and the paid AI summary are stubbed; staging/qa only.',
   'release-cells-2026-11-17':'the release group-run cells (toolbar one-row at 1024/1280 in four languages, News Events table at 390/768/1280): measured on the qa/staging build under test, signed out, nothing written; excluded from production because the cells assert the unreleased build.',
   'cls-arena-gate': 'the /arena layout-shift gate for a build under test: signs in as the Pro and Free DEV fixtures (accounts that do not exist on production) and stubs the settings write; staging/qa only.',
