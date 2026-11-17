@@ -128,6 +128,11 @@ test.describe('ru trial banner (stubbed active trial on fixture B)', () => {
     try {
       await gotoSignedIn(page, '/dashboard'); const dismiss = page.getByTestId('trial-banner-dismiss'); const visible = await dismiss.waitFor({ state: 'visible', timeout: 45_000 }).then(() => true).catch(() => false);
       if (!visible) { console.log(`[CELL] F3 ${width}: no trial banner appeared with the plan read stubbed as an active trial: NOT measured`); test.skip(true, 'the trial banner could not be forced'); return; }
+      /* PRECONDITION: the banner must really be Russian. Runs 43999344993/43999461827 measured an English banner (the locale resolves after hydration from localStorage and the account): up to 3 reloads with the key set, else NOT MEASURED. */
+      const isRu = async () => /[А-Яа-яЁё]/.test(await dismiss.evaluate((b) => (b.closest('[role="status"]') as HTMLElement).innerText).catch(() => ''));
+      for (let tries = 0; tries < 3 && !(await isRu()); tries++) { await page.evaluate(() => { try { localStorage.setItem('lhq_lang_v1', 'ru'); } catch { /* private */ } }); await page.reload({ waitUntil: 'domcontentloaded' }); await dismiss.waitFor({ state: 'visible', timeout: 45_000 }).catch(() => {}); await page.waitForTimeout(3_000); }
+      if (!(await isRu())) { console.log(`[CELL] F3 ${width}: the banner never rendered in Russian: NOT MEASURED`); test.skip(true, 'Russian could not be forced'); return; }
+      await settleForShot(page, `f3-${width}`);
       await page.evaluate(`(window).__ov = (${overflowAttribution.toString()})()`);
       const m = await dismiss.evaluate((btn) => {
         const banner = btn.closest('[role="status"]') as HTMLElement; const tops: number[] = []; const w = document.createTreeWalker(banner, NodeFilter.SHOW_TEXT);
