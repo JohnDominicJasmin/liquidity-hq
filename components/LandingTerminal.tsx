@@ -206,8 +206,8 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   ];
 
   return (
-    <div style={{
-      width: mobile ? '100%' : 472, flexShrink: 0, background: 'var(--bg1)', border: '1px solid var(--bdr)',
+    <div className="lpt-hero-panel" style={{
+      background: 'var(--bg1)', border: '1px solid var(--bdr)',
     }}>
       <div style={{ height: 34, display: 'flex', alignItems: 'center', padding: '0 14px', gap: 9, borderBottom: '1px solid var(--bdr)' }}>
         <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
@@ -334,14 +334,14 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
       <LandingTicker mobile={!isDesktop} dir={dir} words={dict.ticker} />
 
       {/* ── HERO — glow/beams intentionally kept, see file header ── */}
-      <section style={{ position: 'relative', padding: heroWide ? '76px 40px 64px' : '34px 18px 30px' }}>
+      {/* The hero's LAYOUT is CSS (.lpt-hero*), not the heroWide flag: that flag is true on the server, so the server HTML was the wide two-column layout at every width and a 768 px visitor got a 1025 px page (panel past the edge, CTAs wrapped) until hydration corrected it (#1185 item 113). Type sizes still follow the flag; they cannot clip. */}
+      <section className="lpt-hero-section" style={{ position: 'relative' }}>
         <BeamsBackground intensity="medium" />
         <div className="lp-hero-glow" />
         <div style={{
-          position: 'relative', zIndex: 2, display: 'flex',
-          flexDirection: heroWide ? 'row' : 'column', gap: heroWide ? 56 : 30,
-        }}>
-          <div style={{ flex: heroWide ? 1 : undefined }}>
+          position: 'relative', zIndex: 2,
+        }} className="lpt-hero-row">
+          <div className="lpt-hero-text">
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 8, border: '1px solid var(--bdr)',
               background: 'var(--bg1)', padding: '7px 13px',
@@ -367,7 +367,7 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
             }}>
               {dict.hero.sub}
             </p>
-            <div style={{ display: 'flex', flexDirection: heroWide ? 'row' : 'column', gap: heroWide ? 12 : 9, marginTop: heroWide ? 30 : 22 }}>
+            <div className="lpt-hero-ctas">
               <Link href="/login?signup=1" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 height: heroWide ? 50 : 48, padding: heroWide ? '0 30px' : undefined,

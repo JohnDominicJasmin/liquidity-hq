@@ -9423,3 +9423,17 @@ html[data-theme="light"] { color-scheme: light; }
   .ne-row { grid-template-columns: 56px minmax(140px, 1fr) 60px 60px; min-width: 0; }
   .ne-prev, .ne-imp { display: none; }
 }
+
+/* ── Landing hero layout (#1185 item 113). CSS, not the JS heroWide flag: the flag is true on the server, so the server HTML was the wide two-column layout at every width (a 768 px visitor got a 1025 px page until hydration). Stacked below 1100 px, two columns from 1100 px - the same breakpoint the flag uses for type sizes. ── */
+.lpt-hero-section { padding: 34px 18px 30px; }
+.lpt-hero-row { display: flex; flex-direction: column; gap: 30px; }
+.lpt-hero-text { min-width: 0; }
+.lpt-hero-ctas { display: flex; flex-direction: column; gap: 9px; margin-top: 22px; }
+.lpt-hero-panel { width: 100%; max-width: 100%; box-sizing: border-box; flex-shrink: 0; }
+@media (min-width: 1100px) {
+  .lpt-hero-section { padding: 76px 40px 64px; }
+  .lpt-hero-row { flex-direction: row; gap: 56px; }
+  .lpt-hero-text { flex: 1; }
+  .lpt-hero-ctas { flex-direction: row; gap: 12px; margin-top: 30px; }
+  .lpt-hero-panel { width: 472px; }
+}
