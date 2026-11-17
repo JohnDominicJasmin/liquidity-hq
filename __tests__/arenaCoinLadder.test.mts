@@ -508,9 +508,9 @@ test('S1. source: the coin check sits BEFORE the quota reservation and BEFORE an
 /* ══ #1910 items 4, 5 and 6 ═══════════════════════════════════════════════════════════════════
  *
  * ITEMS 4 AND 6 SHARE ONE FABRICATED PRICE AND ASSERT OPPOSITE OUTCOMES, which is what keeps both
- * non-vacuous. A covered coin must NOT carry it (the server overwrote it); `hype` MUST carry it
+ * non-vacuous. A covered coin must NOT carry it (the server overwrote it); `pepe` MUST carry it (hype was the example until #2513 put it in the snapshot)
  * (the server cannot source that coin, so the client's numbers stand). If the overwrite silently
- * stopped happening, item 4 fails; if the `hype` carve-out silently widened to every coin, item 4
+ * stopped happening, item 4 fails; if the `pepe` carve-out silently widened to every coin, item 4
  * fails too; if the carve-out vanished, item 6 fails. One string, both directions. */
 
 const FABRICATED = '$424242.4242';
@@ -572,14 +572,14 @@ test('5b. CONTROL: the same request with the ticker present is served, so 5 is n
 
 test('6. a coin outside server coverage keeps the client numbers, and is served rather than refused', async () => {
   db.reset();
-  const r = await call('pro', { type: 'quick', coin: 'hype', override: { context: lying('HYPE/USDT') } });
+  const r = await call('pro', { type: 'quick', coin: 'pepe', override: { context: lying('PEPE/USDT') } });
 
-  /* NOT 503. Refusing here would turn "the server cannot source HYPE" into "Pro users get no AI read
-     on HYPE" - removing a paid feature to close a hole that is open for every coin today. #1910's
+  /* NOT 503. Refusing here would turn "the server cannot source PEPE" into "Pro users get no AI read
+     on PEPE" - removing a paid feature to close a hole that is open for every coin today. #1910's
      body argues the choice; this cell is what makes it a decision rather than a drift. */
   assert.equal(r.status, 200, `a coin outside coverage must still be served, got ${r.status}: ${JSON.stringify(r.body).slice(0, 180)}`);
   assert.equal(db.prompts.length, 1, 'no prompt was captured, so nothing below is measuring one');
 
   assert.ok(db.prompts[0].includes(FABRICATED),
-    `the client's price did not survive for hype. For a coin the server cannot source, fields is empty and the browser's numbers stand - if this fails, either the carve-out is gone or hype entered the snapshot. If hype ENTERED the snapshot, delete the carve-out rather than loosening this cell`);
+    `the client's price did not survive for pepe. For a coin the server cannot source, fields is empty and the browser's numbers stand - if this fails, either the carve-out is gone or pepe entered the snapshot. If pepe ENTERED the snapshot, delete the carve-out rather than loosening this cell`);
 });
