@@ -1661,6 +1661,8 @@
   "BRIEFING_ETF_TIP": "Net daily money flowing into or out of US spot Bitcoin ETFs. Sustained inflows signal institutional buying demand; sustained outflows signal institutions cutting exposure.",
   "BRIEFING_ETF_LABEL": "BTC ETF Flow",
   "BRIEFING_DOM_ALTS_WEAK": "↑ Alts weak",
+  "BRIEFING_DOM_WINDOW_24H": "24h",
+  "BRIEFING_DOM_WINDOW_SHORT": "~50 min",
   "BRIEFING_DOM_ALTS_ACTIVE": "↓ Alts active",
   "BRIEFING_DXY_HEADWIND": "↑ BTC headwind",
   "BRIEFING_DXY_TAILWIND": "↓ BTC tailwind",
