@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect } from 'react';
-import * as Sentry from '@sentry/nextjs';
 
 export default function GlobalError({
   error,
@@ -11,7 +10,8 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    Sentry.captureException(error);
+    /* Imported only when an error actually reaches this screen: a static import put the whole SDK in every page's first-load JavaScript (#2505, QA early-load fail). */
+    import('@sentry/nextjs').then(S => S.captureException(error)).catch(() => { /* monitoring unavailable */ });
   }, [error]);
 
   return (

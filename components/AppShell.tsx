@@ -27,7 +27,9 @@ import { usePathname } from 'next/navigation';
 import MarketProvider from './MarketProvider';
 import NewsProvider from './NewsProvider';
 import NavDrawer from './NavDrawer';
-import GrokChat from './GrokChat';
+import dynamic from 'next/dynamic';
+/* The Ask AI chat (and the strategy registry it reads) is loaded after the page, not with it: it was in the first-load JavaScript of every route (speed audit 2026-11-17). Client only; the floating button appears once its chunk arrives. */
+const GrokChat = dynamic(() => import('./GrokChat'), { ssr: false });
 import NewsTicker from './NewsTicker';
 import AuthProvider from './AuthProvider';
 import LabelsProvider from './LabelsProvider';
@@ -89,6 +91,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const config = useAppConfig();
   const [marketNeeded, setMarketNeeded] = useState(false);
+  /* THE LANDING PAGE STARTS ITS MARKET FEEDS AFTER FIRST PAINT (speed audit 2026-11-17: '/' fired about 40 data requests before the page had painted, on a connection that moves about 50 KB a second, and they delayed the one stylesheet the text waits for). Other pages are unchanged. */
+  const [landingFeedsReady, setLandingFeedsReady] = useState(false);
+  useEffect(() => {
+    if (pathname !== '/') return;
+    const start = () => setLandingFeedsReady(true);
+    const idle = () => {
+      const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
+      if (typeof w.requestIdleCallback === 'function') w.requestIdleCallback(start, { timeout: 3000 });
+      else setTimeout(start, 1500);
+    };
+    if (document.readyState === 'complete') idle();
+    else { window.addEventListener('load', idle, { once: true }); return () => window.removeEventListener('load', idle); }
+  }, [pathname]);
   useEffect(() => {
     const on = () => setMarketNeeded(true);
     window.addEventListener(MARKET_DATA_NEEDED_EVENT, on);
@@ -162,7 +177,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <LabelsProvider>
         <AuthProvider>
           <SettingsProvider>
-            <MarketProvider enabled={marketNeeded || !isDataFree(pathname)}>
+            <MarketProvider enabled={(marketNeeded || !isDataFree(pathname)) && (pathname !== '/' || landingFeedsReady)}>
               <NewsProvider>
                 <OnboardingProvider>
                   <GrokUsageProvider>

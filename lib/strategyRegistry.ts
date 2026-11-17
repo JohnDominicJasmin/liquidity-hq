@@ -75,8 +75,7 @@ export interface IndicatorEntry {
   paramSchema: readonly ParamSpec[];
   /** Required when the displayed name is not what is computed. Two entries. */
   basis?: string;
-  /** Why this row is shaped the way it is, when that is not obvious. */
-  note?: string;
+  /* Why a row is shaped the way it is, when that is not obvious, is a `// note:` comment on the row itself, not data (nothing read it, and it shipped to every visitor). */
 }
 
 const period = (key: string, label: string, def: number, min = 2, max = 400): ParamSpec =>
@@ -87,8 +86,8 @@ export const INDICATORS: readonly IndicatorEntry[] = [
   {
     id: 'EMA_RIBBON', label: 'EMA ribbon', group: 'trend', source: 'overlay', pane: 'candle',
     paramSchema: [period('fast', 'Fast', 21), period('slow', 'Slow', 55)],
-    note: 'Four emaRibbonLine overlays, NOT klinecharts EMA. Moving it onto the '
-        + 'indicator pipeline reinstates the axis bug at KLineProChart.tsx:997.',
+    // note: Four emaRibbonLine overlays, NOT klinecharts EMA. Moving it onto the indicator pipeline reinstates the axis
+    //       bug at KLineProChart.tsx:997.
   },
   {
     id: 'SMA', label: 'SMA', blurbKey: 'STRATEGY_BLURB_SMA', group: 'trend', source: 'builtin', pane: 'candle',
@@ -116,12 +115,10 @@ export const INDICATORS: readonly IndicatorEntry[] = [
     // the 200D core gate) instead. The cost: what gates the verdict and what
     // the chart draws for this one chip are no longer the same computation -
     // named in the checklist row's own label ("rolling mean"), not hidden.
-    note: "klinecharts' SMA line is still SMA(N,M), recursive (=EMA(12) at the "
-        + 'default) - but as of #1007 the verdict-gating condition uses a genuine '
-        + 'rolling mean (smaArr) instead, specifically so it stops duplicating the '
-        + "ribbon/MACD's EMA(12). The chart line and the gating condition are "
-        + 'deliberately different computations for this one chip. See '
-        + 'useEMAStrategy.ts and smaNMArr/smaArr in strategyCore.ts.',
+    // note: klinecharts' SMA line is still SMA(N,M), recursive (=EMA(12) at the default) - but as of #1007 the
+    //       verdict-gating condition uses a genuine rolling mean (smaArr) instead, specifically so it stops duplicating
+    //       the ribbon/MACD's EMA(12). The chart line and the gating condition are deliberately different computations for
+    //       this one chip. See useEMAStrategy.ts and smaNMArr/smaArr in strategyCore.ts.
   },
   {
     id: 'SUPERTREND', label: 'Supertrend', group: 'trend', source: 'new', pane: 'candle',
@@ -129,12 +126,12 @@ export const INDICATORS: readonly IndicatorEntry[] = [
       period('atr', 'ATR', 10),
       { kind: 'float', key: 'mult', label: 'Multiplier', min: 0.5, max: 10, step: 0.1, default: 3 },
     ],
-    note: 'klinecharts ships no Supertrend. Computed here from ATR.',
+    // note: klinecharts ships no Supertrend. Computed here from ATR.
   },
   {
     id: 'ICHIMOKU', label: 'Ichimoku', group: 'trend', source: 'new', pane: 'candle',
     paramSchema: [period('conversion', 'Conversion', 9), period('base', 'Base', 26), period('span', 'Span B', 52)],
-    note: 'Not a klinecharts builtin.',
+    // note: Not a klinecharts builtin.
   },
   {
     id: 'SAR', label: 'Parabolic SAR', blurbKey: 'STRATEGY_BLURB_SAR', group: 'trend', source: 'builtin', pane: 'candle',
@@ -147,8 +144,8 @@ export const INDICATORS: readonly IndicatorEntry[] = [
   {
     id: 'ADX', label: 'ADX', group: 'trend', source: 'new', basis: 'DMI', pane: 'own',
     paramSchema: [period('length', 'Length', 14), period('smooth', 'Smoothing', 6)],
-    note: "klinecharts' DMI renders pdi, mdi, adx AND adxr. Registered with a "
-        + 'custom figure list so the chip that says ADX draws ADX.',
+    // note: klinecharts' DMI renders pdi, mdi, adx AND adxr. Registered with a custom figure list so the chip that says
+    //       ADX draws ADX.
   },
 
   /* -- Momentum ---------------------------------------------------------- */
@@ -157,8 +154,9 @@ export const INDICATORS: readonly IndicatorEntry[] = [
     // No settings: the chart's one RSI pane is always on at 14 (DEFAULT_PANE_INDICATORS below), and the verdict's RSI condition reads the same 14.
     // A Length here used to configure a SECOND pane (owner, 2026-10-08: one RSI pane per user). Saved RSI params are simply never read.
     paramSchema: [],
-    note: 'The chart always draws one RSI-14 pane (calcParams [14], not the builtin 3-line [6,12,24] default - 14 is the '
-        + 'period marketStore uses everywhere else: rsi14/rsi1h/rsi4h/rsiDaily). Selecting this chip draws nothing extra: it only adds RSI to the verdict.',
+    // note: The chart always draws one RSI-14 pane (calcParams [14], not the builtin 3-line [6,12,24] default - 14 is the
+    //       period marketStore uses everywhere else: rsi14/rsi1h/rsi4h/rsiDaily). Selecting this chip draws nothing extra:
+    //       it only adds RSI to the verdict.
   },
   {
     id: 'MACD', label: 'MACD', blurbKey: 'STRATEGY_BLURB_MACD', group: 'momentum', source: 'builtin', pane: 'own',
@@ -172,28 +170,27 @@ export const INDICATORS: readonly IndicatorEntry[] = [
     // indicator renders. A trader selecting both chips still sees two
     // panels agree on the same underlying EMA(12) line - visual overlap,
     // not a verdict-doubling one any more.
-    note: "MACD's fast line (period 12) is still SMA(12,2) - the same recursive formula "
-        + "and period the SMA chip still draws by default. As of #1007 this is a chart-line "
-        + 'overlap only, not a verdict one - the two conditions gate on different things '
-        + '(SMA on a genuine rolling mean, MACD on DIF vs DEA). See macdArr in '
-        + 'strategyCore.ts and the SMA entry above.',
+    // note: MACD's fast line (period 12) is still SMA(12,2) - the same recursive formula and period the SMA chip still
+    //       draws by default. As of #1007 this is a chart-line overlap only, not a verdict one - the two conditions gate
+    //       on different things (SMA on a genuine rolling mean, MACD on DIF vs DEA). See macdArr in strategyCore.ts and
+    //       the SMA entry above.
   },
   {
     id: 'STOCH', label: 'Stoch', group: 'momentum', source: 'new', basis: 'KDJ', pane: 'own',
     paramSchema: [period('length', 'Length', 9), period('k', 'K', 3), period('d', 'D', 3)],
-    note: "klinecharts' KDJ renders k, d AND j. Stochastic conventionally means "
-        + 'K and D, so this drops the J figure rather than mislabelling three lines.',
+    // note: klinecharts' KDJ renders k, d AND j. Stochastic conventionally means K and D, so this drops the J figure
+    //       rather than mislabelling three lines.
   },
   {
     id: 'MFI', label: 'MFI', group: 'momentum', source: 'new', pane: 'own',
     paramSchema: [period('length', 'Length', 14)],
-    note: 'Not a klinecharts builtin - EMV and VR are the nearest and neither is MFI.',
+    // note: Not a klinecharts builtin - EMV and VR are the nearest and neither is MFI.
   },
   {
     id: 'DIVERGENCE', label: 'Divergence', group: 'momentum', source: 'new', pane: 'candle',
     paramSchema: [period('lookback', 'Lookback', 60, 10, 500)],
-    note: 'Price/CVD and price/RSI divergence. marketStore already computes '
-        + 'cvdDivergence; this is the chart rendering of it.',
+    // note: Price/CVD and price/RSI divergence. marketStore already computes cvdDivergence; this is the chart rendering of
+    //       it.
   },
 
   /* -- Volatility -------------------------------------------------------- */
@@ -207,7 +204,7 @@ export const INDICATORS: readonly IndicatorEntry[] = [
   {
     id: 'ATR', label: 'ATR', group: 'volatility', source: 'new', pane: 'own',
     paramSchema: [period('length', 'Length', 14)],
-    note: 'No ATR builtin. Already computed for Supertrend and the backtest engine.',
+    // note: No ATR builtin. Already computed for Supertrend and the backtest engine.
   },
   {
     id: 'KELTNER', label: 'Keltner', group: 'volatility', source: 'new', pane: 'candle',
@@ -221,39 +218,39 @@ export const INDICATORS: readonly IndicatorEntry[] = [
   {
     id: 'VWAP', label: 'VWAP', group: 'flow', source: 'new', pane: 'candle',
     paramSchema: [{ kind: 'enum', key: 'anchor', label: 'Anchor', options: ['session', 'day', 'week'], default: 'session' }],
-    note: 'marketStore already carries vwap per coin; this draws it.',
+    // note: marketStore already carries vwap per coin; this draws it.
   },
   {
     id: 'RVOL', label: 'RVOL', group: 'flow', source: 'new', pane: 'own',
     paramSchema: [period('length', 'Baseline', 30)],
-    note: 'Relative volume against a rolling baseline. volRatio exists in CoinData.',
+    // note: Relative volume against a rolling baseline. volRatio exists in CoinData.
   },
   {
     id: 'ABSORPTION', label: 'Absorption', group: 'flow', source: 'new', pane: 'candle',
     paramSchema: [period('lookback', 'Lookback', 20, 5, 200)],
-    note: 'Pro. components/AbsorptionDetector.tsx already computes this.',
+    // note: Pro. components/AbsorptionDetector.tsx already computes this.
   },
   {
     id: 'CVD', label: 'CVD', group: 'flow', source: 'new', pane: 'own',
     paramSchema: [],
-    note: 'Cumulative volume delta. CoinData.cvd is already populated.',
+    // note: Cumulative volume delta. CoinData.cvd is already populated.
   },
 
   /* -- Levels ------------------------------------------------------------ */
   {
     id: 'LIQ_CLUSTERS', label: 'Liq clusters', group: 'levels', source: 'overlay', pane: 'candle',
     paramSchema: [period('top', 'Show top', 8, 1, 50)],
-    note: 'liqClusterLine overlay, already registered.',
+    // note: liqClusterLine overlay, already registered.
   },
   {
     id: 'SR', label: 'S/R', group: 'levels', source: 'overlay', pane: 'candle',
     paramSchema: [period('top', 'Show top', 6, 1, 50)],
-    note: 'srLevelLine overlay, already registered.',
+    // note: srLevelLine overlay, already registered.
   },
   {
     id: 'GEX', label: 'GEX', group: 'levels', source: 'overlay', pane: 'candle',
     paramSchema: [period('top', 'Show top', 6, 1, 50)],
-    note: 'gexLevelLine overlay, already registered.',
+    // note: gexLevelLine overlay, already registered.
   },
 ];
 
