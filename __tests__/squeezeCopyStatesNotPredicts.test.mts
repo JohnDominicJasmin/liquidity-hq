@@ -38,7 +38,7 @@ test('W2. sidebar and Markets signals carry the funding figure and say who pays;
 });
 test('W3. the setup words and card are Long-heavy / Short-heavy with the funding and share detail', () => {
   assert.equal(en.DASH_EDGE_SETUP_SHORT_SQ, '▲ Short-heavy'); assert.equal(en.DASH_EDGE_SETUP_LONG_LIQ, '▼ Long-heavy');
-  assert.equal(en.DASH_EDGE_SETUP_DETAIL_FUNDING, 'Funding {pct}'); assert.equal(en.DASH_EDGE_SETUP_DETAIL_LONG_SHARE, 'long share {pct}%'); assert.equal(en.DASH_EDGE_SETUP_DETAIL_SHORT_SHARE, 'short share {pct}%');
+  assert.equal(en.DASH_EDGE_SETUP_DETAIL_FUNDING, 'Funding {pct}'); assert.equal(en.DASH_EDGE_SETUP_DETAIL_LONG_SHARE, 'long share {pct}% ({venue}, accounts, 1h)'); assert.equal(en.DASH_EDGE_SETUP_DETAIL_SHORT_SHARE, 'short share {pct}% ({venue}, accounts, 1h)');   /* #2521: the share names its venue, population and window */
   assert.equal(en.SETUP_WORD_FLUSH, 'Long-heavy'); assert.equal(en.SETUP_WORD_SQUEEZE, 'Short-heavy');
   assert.ok(read('components/DashboardTerminal.tsx').includes('DASH_EDGE_SETUP_DETAIL_FUNDING'), 'the card does not show its detail line');
 });
