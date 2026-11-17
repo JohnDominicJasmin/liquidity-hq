@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { STRATEGIES } from '../lib/strategies/index.ts';
+import { STRATEGIES, STRATEGY_GROUPS } from '../lib/strategies/index.ts';
 import { STRATEGY_SETS, AUTO_SET_ID, CUSTOM_SET_ID, SELECTABLE_INDICATOR_IDS } from '../lib/strategyRegistry.ts';
 
 /* #2358 (one strategy menu, owner decision 2026-11-14 option A): QA's unit cells on the DATA behind the menu.
@@ -12,11 +12,13 @@ import { STRATEGY_SETS, AUTO_SET_ID, CUSTOM_SET_ID, SELECTABLE_INDICATOR_IDS } f
  * WHAT IT CANNOT PROVE: what the page shows (qa/e2e/strategy-menu.spec.ts), the CLS number (the probe on deployed qa). */
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
-const ORDER = ['liq_sweep_mss', 'ny_open_breakout', 'ema_stack', 'supply_demand', 'bb_squeeze', 'vwap_reclaim', 'rsi_divergence', 'channel'];
+/* THE REGISTRY ORDER: the original eight, then phase 1 (#2516). Later strategies (the Derivatives pair on #2520) are appended AFTER these, so the comparison is on this prefix. */
+const ORDER = ['liq_sweep_mss', 'ny_open_breakout', 'ema_stack', 'supply_demand', 'bb_squeeze', 'vwap_reclaim', 'rsi_divergence', 'channel', 'ema_cross', 'sr_flip', 'range_bounce', 'fvg', 'session_sweep'];
 
-test('M1a. the strategies are the eight, in the owner\'s order, with unique ids and unique name keys', () => {
-  assert.deepEqual(STRATEGIES.map((s) => s.id), ORDER);
-  assert.equal(new Set(STRATEGIES.map((s) => s.id)).size, ORDER.length); assert.equal(new Set(STRATEGIES.map((s) => s.nameKey)).size, ORDER.length);
+test('M1a. the strategies are the thirteen in registry order (later ones are appended), with unique ids and unique name keys', () => {
+  assert.deepEqual(STRATEGIES.map((s) => s.id).slice(0, ORDER.length), ORDER);
+  assert.ok(STRATEGIES.length >= ORDER.length, 'a strategy was removed');
+  assert.equal(new Set(STRATEGIES.map((s) => s.id)).size, STRATEGIES.length); assert.equal(new Set(STRATEGIES.map((s) => s.nameKey)).size, STRATEGIES.length);
   for (const s of STRATEGIES) assert.match(s.nameKey, /^STRAT_[A-Z0-9_]+_NAME$/, `${s.id}: the name is a label key, never literal text`);
 });
 
@@ -25,10 +27,18 @@ test('M1b. the sets list holds only "Let the read choose" and "Custom"; the thre
   const src = read('lib/strategyRegistry.ts'); for (const old of ['Liquidity Sweep', 'Trend Follow', 'Mean Reversion']) assert.equal(new RegExp(`label:\\s*'${old}'`).test(src), false, `the old preset "${old}" is still a set`);
 });
 
-test('M1c. the panel builds the menu as: Let the read choose, the strategies in STRATEGIES order, Custom (nothing else)', () => {
-  const s = read('components/StrategyPanel.tsx'); const i1 = s.indexOf('STRATEGY_SETS.filter(s => s.id === AUTO_SET_ID)'); const i2 = s.indexOf('STRATEGIES.map(s =>'); const i3 = s.indexOf('STRATEGY_SETS.filter(s => s.id === CUSTOM_SET_ID)');
-  assert.ok(i1 > 0 && i2 > i1 && i3 > i2, 'the order in the panel is not auto, strategies, custom');
-  assert.match(s, /data-testid="strategy-set-select"/); const sel = s.slice(s.indexOf('data-testid="strategy-set-select"'), s.indexOf('</select>', s.indexOf('data-testid="strategy-set-select"'))); assert.equal((sel.match(/<option /g) || []).length, 3, 'a hand-written option crept into the menu');
+test('M1c. the panel builds the menu as: Let the read choose, the GROUPED strategies (Beginner / Trend, Price action / SMC, Sessions), any ungrouped one, Custom', () => {
+  const s = read('components/StrategyPanel.tsx'); const i1 = s.indexOf('STRATEGY_SETS.filter(s => s.id === AUTO_SET_ID)'); const i2 = s.indexOf('STRATEGY_GROUPS.map(g =>'); const i2b = s.indexOf('STRATEGIES.filter(s => !STRATEGY_GROUPS.some(g => g.ids.includes(s.id)))'); const i3 = s.indexOf('STRATEGY_SETS.filter(s => s.id === CUSTOM_SET_ID)');
+  assert.ok(i1 > 0 && i2 > i1 && i2b > i2 && i3 > i2b, 'the order in the panel is not auto, groups, ungrouped, custom');
+  assert.match(s, /data-testid="strategy-set-select"/);
+  /* THE GROUPS (owner decision 2026-11-17): every group names its label key; the three groups hold exactly these ids in this order; every strategy sits in AT MOST one group; none of the three groups names an unknown strategy */
+  assert.deepEqual(STRATEGY_GROUPS.slice(0, 3).map((g) => [g.id, g.labelKey, [...g.ids]]), [
+    ['beginner', 'STRATEGY_GROUP_BEGINNER', ['ema_stack', 'ema_cross', 'range_bounce']],
+    ['price', 'STRATEGY_GROUP_PRICE', ['liq_sweep_mss', 'supply_demand', 'sr_flip', 'fvg', 'channel', 'rsi_divergence', 'bb_squeeze']],
+    ['sessions', 'STRATEGY_GROUP_SESSIONS', ['ny_open_breakout', 'session_sweep', 'vwap_reclaim']],
+  ]);
+  const all = STRATEGY_GROUPS.flatMap((g) => [...g.ids]); assert.equal(new Set(all).size, all.length, 'a strategy is in two groups');
+  const known = new Set(STRATEGIES.map((x) => x.id)); for (const id of all) assert.ok(known.has(id), `group names an unknown strategy ${id}`);
 });
 
 test('M2a. chip map: every chip a strategy turns on is a chip that DRAWS, and only Bollinger squeeze turns one on (BOLL)', () => {

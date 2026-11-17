@@ -27,7 +27,7 @@ import { Lock } from '@/components/icons';
 import { useAuth } from './AuthProvider';
 import { SkeletonBar } from './Skeleton';
 import StrategyCallBox from './StrategyCallBox';
-import { STRATEGIES, findStrategy } from '@/lib/strategies';
+import { STRATEGIES, STRATEGY_GROUPS, STRATEGY_TIP_KEYS, findStrategy } from '@/lib/strategies';
 import type { StrategySignalState } from '@/lib/useStrategySignal';
 import { EntitlementUnknownCard } from './UpgradeGateModal';
 import type { SettingsLoadStatus } from '@/lib/settings';
@@ -235,7 +235,13 @@ export default function StrategyPanel({ planChecking = false, layersLocked = fal
       <div className="strat-sect">
         <select className="strat-sel" data-testid="strategy-set-select" value={setId} disabled={!loaded || planChecking} aria-label={t('STRATEGY_PANEL_SECTION_SET')} onChange={e => applySet(e.target.value)}>
           {STRATEGY_SETS.filter(s => s.id === AUTO_SET_ID).map(s => <option key={s.id} value={s.id}>{t('STRATEGY_PANEL_SET_AUTO')}</option>)}
-          {STRATEGIES.map(s => <option key={s.id} value={s.id}>{t(s.nameKey)}</option>)}
+          {/* GROUPED (owner decision 2026-11-17): Beginner / Trend, Price action / SMC, Sessions. Each option's title is a one-line note on the data it uses. A strategy not placed in a group is still offered, after them. */}
+          {STRATEGY_GROUPS.map(g => (
+            <optgroup key={g.id} label={t(g.labelKey)}>
+              {g.ids.map(id => findStrategy(id)).filter((s): s is NonNullable<typeof s> => !!s).map(s => <option key={s.id} value={s.id} title={STRATEGY_TIP_KEYS[s.id] ? t(STRATEGY_TIP_KEYS[s.id]) : undefined}>{t(s.nameKey)}</option>)}
+            </optgroup>
+          ))}
+          {STRATEGIES.filter(s => !STRATEGY_GROUPS.some(g => g.ids.includes(s.id))).map(s => <option key={s.id} value={s.id}>{t(s.nameKey)}</option>)}
           {STRATEGY_SETS.filter(s => s.id === CUSTOM_SET_ID).map(s => <option key={s.id} value={s.id}>{t('STRATEGY_PANEL_SET_CUSTOM')}</option>)}
         </select>
         {/* THE CALL BOX'S HOST. A visitor whose saved strategy is stored on this browser has this box's whole height reserved from the FIRST paint (`html[data-strat="1"]`, set before paint by

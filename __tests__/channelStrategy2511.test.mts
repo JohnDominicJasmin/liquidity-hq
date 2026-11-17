@@ -66,9 +66,10 @@ test('CS7. fewer than the minimum candles = WAIT', () => {
   assert.equal(detectChannel(cs, ctx).verdict, 'wait');
 });
 
-test('CS8. eight strategies, and channel is one of them', async () => {
+test('CS8. channel is in the registry, after the original seven (the registry grows by appending: 13 on #2516, 15 with #2520)', async () => {
   const mod = await import('../lib/strategies/index.ts') as Record<string, unknown>;
   const list = (mod.STRATEGIES ?? mod.STRATEGY_LIST ?? mod.ALL_STRATEGIES) as Array<{ id: string }> | undefined;
   assert.ok(Array.isArray(list), `lib/strategies/index.ts exports no strategy list (exports: ${Object.keys(mod).join(', ')})`);
-  assert.equal(list.length, 8, `the strategy list has ${list.length} entries, not 8`); assert.ok(list.some((s) => s.id === 'channel'));
+  assert.ok(list.length >= 13, `the strategy list has ${list.length} entries, fewer than the thirteen of #2516`);
+  assert.equal(list.findIndex((x) => x.id === 'channel'), 7, "'channel' is not the eighth registry entry");
 });
