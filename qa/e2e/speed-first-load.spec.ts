@@ -23,8 +23,15 @@ for (const path of PAGES) for (const net of ['slow', 'normal'] as const) {
       try { new PerformanceObserver((l) => { for (const e of l.getEntries() as unknown as Array<{ startTime: number; size: number; url: string; element: Element | null }>) { const el = e.element; w.__lcp.push({ t: Math.round(e.startTime), tag: el?.tagName?.toLowerCase() ?? '(removed)', cls: typeof (el as HTMLElement | null)?.className === 'string' ? String((el as HTMLElement).className).split(' ')[0] : '', text: ((el as HTMLElement | null)?.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 40), url: (e.url || '').slice(0, 60), size: e.size }); } }).observe({ type: 'largest-contentful-paint', buffered: true }); } catch { /* unsupported */ }
     });
     const page = await ctx.newPage(); if (net === 'slow') await slow(page);
+    const cdp0 = await ctx.newCDPSession(page); await cdp0.send('Network.enable'); const initOf: Record<string, string> = {};
+    cdp0.on('Network.requestWillBeSent', (e: { request: { url: string }; initiator: { type: string; url?: string; stack?: { callFrames: Array<{ url: string; functionName: string }> } } }) => { if (/\.js(\?|$)/.test(e.request.url)) initOf[e.request.url] = `${e.initiator.type}${e.initiator.url ? ':' + e.initiator.url.split('/').pop() : ''}${e.initiator.stack?.callFrames?.length ? ' via ' + e.initiator.stack.callFrames.slice(0, 2).map((f) => `${(f.url || '').split('/').pop()}:${f.functionName || '(anon)'}`).join(' < ') : ''}`; });
     try {
       await page.goto(path, { waitUntil: 'load', timeout: 240_000 }).catch(() => {}); await page.waitForTimeout(net === 'slow' ? 10_000 : 4_000);
+      /* EVERY script requested BEFORE the load event, by chunk file, size, start/finish and initiator (PM: judge the named chunks, not a string match). */
+      const early = await page.evaluate(() => { const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined; const loadAt = nav?.loadEventStart || nav?.loadEventEnd || 0; return (performance.getEntriesByType('resource') as PerformanceResourceTiming[]).filter((x) => /\.js(\?|$)/.test(x.name)).map((x) => ({ url: x.name, file: (x.name.split('/').pop() || '').split('?')[0], kb: Math.round((x.transferSize || x.encodedBodySize || 0) / 102.4) / 10, startAt: Math.round(x.startTime), doneAt: Math.round(x.responseEnd), loadAt: Math.round(loadAt), beforeLoad: x.startTime < loadAt })); });
+      const named = early.filter((e) => /1nsa__feu1okt|3gmit4vipxbs-/.test(e.file));
+      console.log(`[SPEEDCHUNKS] ${JSON.stringify({ title, loadAt: early[0]?.loadAt ?? null, scriptsBeforeLoad: early.filter((e) => e.beforeLoad).map((e) => ({ file: e.file, kb: e.kb, startAt: e.startAt, doneAt: e.doneAt, initiator: initOf[e.url] ?? '' })), namedChunks: named.map((e) => ({ file: e.file, kb: e.kb, startAt: e.startAt, beforeLoad: e.beforeLoad, initiator: initOf[e.url] ?? '' })), allScriptKB: Math.round(early.reduce((a, e) => a + e.kb, 0)) })}`);
+      expect(named.filter((e) => e.beforeLoad).map((e) => `${e.file} ${e.kb} KB at ${e.startAt} ms (load ${e.loadAt})`), `the PostHog / error-SDK chunks were requested BEFORE the load event on ${path} (${net})`).toEqual([]);
       const r = await page.evaluate(async () => {
         const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined; const loadAt = nav?.loadEventStart || nav?.loadEventEnd || 0;
         const paint = Object.fromEntries(performance.getEntriesByType('paint').map((p) => [p.name, Math.round(p.startTime)]));
@@ -40,7 +47,8 @@ for (const path of PAGES) for (const net of ['slow', 'normal'] as const) {
         return { ttfb: Math.round(nav?.responseStart ?? 0), fcp: paint['first-contentful-paint'] ?? null, loadAt: Math.round(loadAt), lcp: w.__lcp.slice(-1)[0] ?? null, firstLoad: { requests: before.length, kb: Math.round(before.reduce((a, x) => a + kb(x), 0)), byType: byType(before) }, total: { requests: res.length, kb: Math.round(res.reduce((a, x) => a + kb(x), 0)), byType: byType(res) }, tagged, thirdPartyHostsBeforeLoad: hosts };
       });
       console.log(`[SPEED] ${JSON.stringify({ title, ...r })}`);
-      const bad = r.tagged.filter((t) => t.has.some((h) => ['posthog', 'error-reporting', 'strategy-registry', 'ai-chat'].includes(h)));
+      /* PostHog and the error SDK are judged by their NAMED chunks above (a string match flags consent / stub code that only mentions them); the registry and the chat keep the string tags. */
+      const bad = r.tagged.filter((t) => t.has.some((h) => ['strategy-registry', 'ai-chat'].includes(h)));
       expect(bad, `code that must not be in the first load arrived before the load event on ${path} (${net}): ${JSON.stringify(bad)}`).toEqual([]);
     } finally { await ctx.close(); }
   });
