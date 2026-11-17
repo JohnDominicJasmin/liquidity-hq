@@ -150,6 +150,28 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* DRAFT, v2026.11.18 (PM 2026-11-18): the release after v2026.11.17. THE DATE MUST BE THE TAGGED COMMIT's %cs (the changelog test checks it): set it when the tag is made. Plain words, 12 words or fewer per line (rule 22); only what actually merged is listed; the Arena strategy lines are added as each of those PRs merges. */
+    date: '2026-11-18',
+    tag: 'v2026.11.18',
+    items: [
+      "The landing page fits phones and loads faster.",
+      "Sign-in pages have their own titles; menus close with Escape.",
+      "The news ticker has a pause button; low-contrast text is fixed.",
+      "AI reads no longer contradict the EMA, SMA or VWAP numbers.",
+      "HYPE now shows VWAP, RSI and volume levels.",
+      "The Funding page no longer says Binance is unavailable for HYPE.",
+      "Missing readings show \"No data\" or \"Unavailable\" instead of \"Mixed\" or loading.",
+      "The landing headline says \"NO SETUP YET\" when there is no setup.",
+      "Ask AI is hidden on the Arena on phones.",
+      "The dashboard explains the A to F coin grades.",
+      "The conditions score now shows a direction.",
+      "The Arena EMA card shows one verdict.",
+      "The breaking ticker carries only market-moving news.",
+      "Long/short shares now say which exchange they come from.",
+      "Slow or failed market reads end with a clear message.",
+    ],
+  },
+  {
     /* DRAFT, NEXT RELEASE (written 2026-11-17 while QA is blocked; HELD for QA's word). THE TAG (v2026.11.17) AND THE DATE (2026-11-17) ARE FINAL (PM): the date must be the TAGGED COMMIT's %cs
        (the changelog test checks it). Grouped as: payments and AI usage, alerts and Telegram, data accuracy, honest wording, speed, screens, translations. Plain words only; not listed on
        purpose: tests, label migrations, database grants, the collector internals and every other internal change. Tied to the PRs (2026-11-17): #2432 #2433 #2436 #2437 #2438 (AI use given back, our-fault 503,
@@ -179,21 +201,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       'The News events table keeps its Impact column (High or Medium for each event), the Arena toolbar stays on one row on wide screens, usage rings have readable colours, the trial banner is shorter on phones, and several small phone and accessibility fixes.',
       'The sign-in page no longer shows a red security-check error while the check is simply waiting for you, and coins without a logo show a plain placeholder instead of a broken image.',
       'More of the app speaks your language: the Arena, the footer, signed-out Settings, the macro strip, the economic calendar and the EMA card now use the translated text in Korean, Chinese and Russian.',
-      "The landing page fits phones and loads faster.",
-      "Sign-in pages have their own titles; menus close with Escape.",
-      "The news ticker has a pause button; low-contrast text is fixed.",
-      "AI reads no longer contradict the EMA, SMA or VWAP numbers.",
-      "HYPE now shows VWAP, RSI and volume levels.",
-      "The Funding page no longer says Binance is unavailable for HYPE.",
-      "Missing readings show \"No data\" or \"Unavailable\" instead of \"Mixed\" or loading.",
-      "The landing headline says \"NO SETUP YET\" when there is no setup.",
-      "Ask AI is hidden on the Arena on phones.",
-      "The dashboard explains the A to F coin grades.",
-      "The conditions score now shows a direction.",
-      "The Arena EMA card shows one verdict.",
-      "The breaking ticker carries only market-moving news.",
-      "Long/short shares now say which exchange they come from.",
-      "Slow or failed market reads end with a clear message.",
     ],
   },
   {
