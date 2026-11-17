@@ -3058,7 +3058,8 @@ function ArenaContent() {
           </span>
           <span>{t('ARENA_ANTICHOP_LABEL')}</span>
         </button>
-        {SHOW_PERFORMANCE_STATS && <Tip width={260} text={t('ARENA_ANTICHOP_TIP')} />}
+        {/* The scope sentence always shows; only the backtest sentence follows the performance-stats flag (owner, 2026-10-16, #1574; PM 2026-11-17). */}
+        <Tip width={260} text={SHOW_PERFORMANCE_STATS ? `${t('ARENA_ANTICHOP_TIP')} ${t('ARENA_ANTICHOP_TIP_BACKTEST')}` : t('ARENA_ANTICHOP_TIP')} />
       </div>
         </div>
         <div className="arena-ws-b">
