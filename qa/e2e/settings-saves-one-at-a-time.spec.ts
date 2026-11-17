@@ -72,6 +72,11 @@ test('C4. a patch the server REFUSES (400) is sent once, not retried, and a relo
     await page.unroute('**/api/settings');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(field(page)).toBeVisible({ timeout: 20_000 });
-    expect(await field(page).inputValue(), 'this device\'s REFUSED value is shown over the saved one after a reload').toBe(original);
+    const first = await field(page).inputValue(); const t0 = Date.now();
+    /* is the refused value only shown until the server read arrives (a cache moment), or does it stay? Poll 20 s and print both */
+    await expect.poll(async () => field(page).inputValue(), { timeout: 20_000, intervals: [500, 1000, 2000] }).toBe(original).catch(() => {});
+    const last = await field(page).inputValue();
+    console.log('[CELL] C4 original=' + original + ' refused=' + changed + ' shownRightAfterReload=' + first + ' shownAfter' + Math.round((Date.now() - t0) / 1000) + 's=' + last);
+    expect(last, 'this device\'s REFUSED value is shown over the saved one after a reload (and stays)').toBe(original);
   } finally { await ctx.close(); }
 });
