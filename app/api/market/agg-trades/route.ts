@@ -27,11 +27,8 @@ import { polledCacheControl } from '@/lib/cacheHeaders';
 import { cached } from '@/lib/apiCache';
 import { summarizeAggTrades, type AggTrade } from '@/lib/aggTradesSummary';
 
-/* hype is excluded to match the caller: it is not a Binance listing, so a
-   request for it is a guaranteed 400 from upstream and one wasted call per
-   fan-out. */
+/* Every Binance-listed coin, hype included (#2513): HYPEUSDT trades on Binance futures and spot, so the old exclusion ("not a Binance listing") was false. A symbol Binance cannot answer for falls to the per-symbol Bybit fallback below. */
 const SYMBOLS = Object.entries(BINANCE_SYMS)
-  .filter(([coin]) => coin !== 'hype')
   .map(([, sym]) => sym);
 
 const LIMITS = new Set([100, 200, 500]);

@@ -25,7 +25,7 @@ const whopApi = whopSandbox ? 'https://sandbox-api.whop.com' : 'https://api.whop
 
 // Content Security Policy
 // - script-src 'unsafe-inline': required for Next.js hydration inline scripts
-// - script-src 'unsafe-eval': required for GSAP and motion in dev + some Next.js internals
+// - script-src 'unsafe-eval': development only (hot reload tooling); it is not sent in production builds
 // - style-src 'unsafe-inline': required - app uses extensive inline style props
 // - connect-src 'self': covers same-origin API routes and HMR WebSocket in dev
 // - img-src https:: coin logos and chart images may come from any HTTPS origin
@@ -36,7 +36,7 @@ const csp = [
   // https://challenges.cloudflare.com: Cloudflare Turnstile (CAPTCHA on the
   // magic-link sign-in form, app/login/page.tsx) - loads its widget script
   // from here and renders inside an iframe from the same origin.
-  `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com https://challenges.cloudflare.com https://cdn.whop.com`,
+  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'production' ? '' : " 'unsafe-eval'"} https://us-assets.i.posthog.com https://challenges.cloudflare.com https://cdn.whop.com`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",

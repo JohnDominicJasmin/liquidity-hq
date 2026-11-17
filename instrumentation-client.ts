@@ -24,7 +24,12 @@ if (typeof window !== 'undefined') {
 
   const start = () => {
     import('@sentry/nextjs').then((S) => {
-      S.init(monitoringOptions());
+      const opts = monitoringOptions();
+      S.init(opts);
+      /* A startup line outside production so a test (and a person) can see whether the reporter is armed: the DSN is read at BUILD time (NEXT_PUBLIC_SENTRY_DSN), is dropped only when NEXT_PUBLIC_APP_ENV is 'dev', and nothing here depends on analytics consent (error reporting is not tracking). */
+      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_APP_ENV) {
+        console.info(`monitoring: DSN ${opts.dsn ? 'present' : 'absent'}; ${early.length} early error(s) to send; env ${process.env.NEXT_PUBLIC_APP_ENV ?? 'unset'}`);
+      }
       sentry = S;
       /* Hand over what the inline listener kept, then tell it to stop: Sentry's own handlers are installed now, so a later error must not be counted twice. */
       for (const e of early.splice(0)) { try { S.captureException(e); } catch { /* never breaks the page */ } }
