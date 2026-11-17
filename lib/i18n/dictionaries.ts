@@ -167,7 +167,7 @@ export const en: LandingDict = {
       // for the matching UPGRADE_FREE_* key (QA guard test pins this equal).
       features: {
         dashboard: 'Dashboard + market overview',
-        briefing: 'Morning briefing',
+        briefing: 'Market briefing',
         news: 'News feed',
         scanner: 'Squeeze scanner on every tracked coin',
         charts: 'Charts + signals on 30 minute and higher timeframes',
