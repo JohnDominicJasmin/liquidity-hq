@@ -39,7 +39,9 @@ test.describe('#2403 News > Events table', () => {
       const ctx = await browser.newContext({ viewport: { width, height: 900 } }); const page = await ctx.newPage();
       try {
         await gotoGuarded(page, '/news');
-        await page.locator('.ntab-btn').filter({ hasText: /^\s*(calendar|events)\s*$/i }).first().click({ timeout: 60_000 });   // the tab is labelled "Calendar" (NEWS_TAB_EVENTS)
+        /* the tab is labelled "Calendar" (NEWS_TAB_EVENTS). Run D showed the click can land before hydration and leave the page on the default tab (text "No catalysts right now"), so click until the Calendar tab is the ON one. */
+        const calTab = page.locator('.ntab-btn').filter({ hasText: /^\s*(calendar|events)\s*$/i }).first(); await calTab.waitFor({ state: 'visible', timeout: 60_000 }); await page.waitForTimeout(2_500);
+        for (let a = 0; a < 4; a++) { await calTab.click({ timeout: 30_000 }); if (await page.locator('.ntab-btn.on').filter({ hasText: /^\s*(calendar|events)\s*$/i }).count()) break; await page.waitForTimeout(1_500); }
         const rows = page.locator('.ne-row'); await rows.first().waitFor({ state: 'visible', timeout: 30_000 }).catch(async (e) => { const txt = (await page.locator('main').first().innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 400); console.log('[CELL] E1 ' + width + ' NO .ne-row; page text: ' + txt); await page.screenshot({ path: 'qa/.shots/e1-' + width + '-norow.png' }).catch(() => {}); throw new Error('ENVIRONMENT, not a product verdict: the Calendar tab has no event rows. /news reads the econ snapshot table (lhq_dev_econ_snapshot, key us_high_impact); if its updated_at is older than a day every event is filtered out as past and the tab is empty. Check the snapshot is fresh before reading this as a product miss. (' + String(e).slice(0, 80) + ')'); });
         const m = await page.evaluate(() => {
           const all = Array.from(document.querySelectorAll('.ne-row')) as HTMLElement[]; const vis = (e: Element) => (e as HTMLElement).offsetParent !== null && getComputedStyle(e).display !== 'none';
