@@ -138,7 +138,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (req.method === 'PATCH') {
       const row = db.events.get(eq('payload_hash'));
       if (!row) return out([], 200);
-      const patch = JSON.parse(await req.text()); db.events.set(row.payload_hash, { ...row, ...patch }); db.writes.push('events:patch');
+      const patch = JSON.parse(await req.text()); db.events.set(eq('payload_hash'), { ...row, ...patch }); db.writes.push('events:patch');
       return new Response(null, { status: 204 });
     }
     if (req.method === 'DELETE' && q.get('body->>state')) {
