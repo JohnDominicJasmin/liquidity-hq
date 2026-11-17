@@ -170,6 +170,9 @@ async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_q
     return;
   }
 
+  /* The chat this account was linked to BEFORE, so it can be told it was replaced (C8). A failed read just means nobody is told; it never blocks the link. */
+  const { data: before } = await admin.from(T.user_settings).select('telegram_chat_id').eq('user_id', claimed.user_id).maybeSingle();
+  const previousChat = typeof before?.telegram_chat_id === 'string' ? before.telegram_chat_id.trim() : '';
   const { error } = await admin.from(T.user_settings).upsert(
     { user_id: claimed.user_id, telegram_chat_id: String(chat.id), updated_at: new Date().toISOString() },
     { onConflict: 'user_id' },
@@ -193,4 +196,8 @@ async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_q
   } catch (e) { console.error('[telegram/webhook] could not clear another account from this chat', e instanceof Error ? e.message : 'unknown'); }
   await answer('Connected');
   await finish('✅ Connected. Alerts for your LiquidityHQ account will arrive here. Send /stop to disconnect.' + (displaced > 0 ? '\n\nThis chat was linked to another LiquidityHQ account, which no longer receives alerts here.' : ''));
+  /* A RE-LINK FROM A NEW CHAT USED TO REPLACE THE OLD ONE SILENTLY: the old chat just stopped receiving alerts with no word. Now it is told. Guarded like every other send here (a failure never turns a finished link into an error). */
+  if (previousChat && previousChat !== String(chat.id)) {
+    try { await tgCall(token, 'sendMessage', { chat_id: previousChat, text: 'This chat was disconnected: your LiquidityHQ account is now linked to a different chat, so alerts will no longer arrive here.' }); } catch { /* the old chat may be gone */ }
+  }
 }
