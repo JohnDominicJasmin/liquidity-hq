@@ -390,7 +390,7 @@ export default function StrategyPanel({ planChecking = false, layersLocked = fal
       <div className="strat-sect">
         <div className="strat-lbl"><span>{t('STRATEGY_PANEL_SECTION_RUN')}</span></div>
         <div className="strat-actions">
-          {([['quick', 'QUICK', 'pri'], ['deep', 'DEEP', ''], ['ask', 'ASK AI', '']] as const).map(([kind, text, cls]) => {
+          {([['quick', t('STRATEGY_PANEL_RUN_QUICK'), 'pri'], ['deep', t('STRATEGY_PANEL_RUN_DEEP'), ''], ['ask', t('STRATEGY_PANEL_RUN_ASK'), '']] as const).map(([kind, text, cls]) => {
             const g = runGate?.[kind];
             const locked = !!g?.locked;
             return (
