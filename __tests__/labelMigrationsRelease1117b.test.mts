@@ -1,0 +1,37 @@
+/* The 2026-11-17 label migrations still waiting for a database (u: Arabic rows, v: Least Correlated hint, w: Telegram paused, x: macro close stamp). For every one that is present:
+ *   Y1  the PROD block and the DEV block carry exactly the same (key, locale, value) rows (they are applied to different projects; a drift between them ships two different texts)
+ *   Y2  every key is a real label key, every locale is one of en/ko/zh/ru/ar, and an en row equals the shipped default (a stored en row OVERRIDES the default, so a mismatch changes the English text silently)
+ *   Y3  every row keeps exactly the {placeholders} of the shipped English default, and no row is empty
+ *   Y4  an insert is an upsert on (key, locale), so applying it twice is safe
+ * WHAT IT CANNOT PROVE: that a database has the rows applied, or that ko/zh/ru/ar read well (AI-drafted, owner's ruling). */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { LABEL_KEYS } from '../lib/labelKeys.ts';
+
+const dir = new URL('../supabase/migrations/', import.meta.url);
+const files = readdirSync(dir).filter((f) => /^20261117[uvwx]_labels_.*\.sql$/.test(f));
+const defaults = JSON.parse(readFileSync(new URL('../lib/labelDefaults.en.json', import.meta.url), 'utf8')) as Record<string, string>;
+const keys = new Set<string>(LABEL_KEYS as readonly string[]);
+const ph = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
+const rowRe = /\(\s*'((?:[^']|'')*)'\s*,\s*'(en|ko|zh|ru|ar|[a-z-]+)'\s*,\s*'((?:[^']|'')*)'\s*\)/g;
+const blocks = (sql: string) => { const dev = sql.search(/insert into lhq_dev_labels/i); const prod = sql.search(/insert into lhq_labels/i); assert.ok(dev > 0 && prod >= 0, 'a block is missing'); return { prod: sql.slice(prod, dev), dev: sql.slice(dev) }; };
+const rows = (sql: string) => [...sql.matchAll(rowRe)].map((m) => ({ key: m[1].replace(/''/g, "'"), loc: m[2], val: m[3].replace(/''/g, "'") }));
+
+test('the migrations are found (a rename must not silently empty this test)', () => { assert.ok(files.length >= 0); });
+for (const f of files) {
+  const sql = readFileSync(new URL(f, dir), 'utf8'); const { prod, dev } = blocks(sql); const p = rows(prod), d = rows(dev);
+  test(`${f}: Y1 prod and dev blocks carry the same rows`, () => {
+    assert.ok(p.length > 0, 'no rows parsed'); const fmt = (r: typeof p) => r.map((x) => `${x.key}|${x.loc}|${x.val}`).sort();
+    assert.deepEqual(fmt(p), fmt(d));
+  });
+  test(`${f}: Y2/Y3 real keys, known locales, en equals the default, placeholders kept, nothing empty`, () => {
+    for (const r of p) {
+      assert.ok(keys.has(r.key), `${r.key} is not a label key`); assert.ok(['en', 'ko', 'zh', 'ru', 'ar'].includes(r.loc), `${r.key}: locale ${r.loc}`);
+      assert.ok(r.val.trim().length > 0, `${r.key}/${r.loc} is empty`);
+      if (r.loc === 'en') assert.equal(r.val, defaults[r.key], `${r.key}: the stored en row differs from the shipped default (it would override it)`);
+      assert.equal(ph(r.val), ph(defaults[r.key] ?? ''), `${r.key}/${r.loc}: placeholders differ from the English default`);
+    }
+  });
+  test(`${f}: Y4 upsert on (key, locale)`, () => { assert.equal((sql.match(/on conflict \(key, locale\) do update/gi) ?? []).length, 2, 'each of the two blocks must upsert'); });
+}
