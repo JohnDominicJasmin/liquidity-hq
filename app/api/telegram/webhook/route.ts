@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { rateLimit, getClientIp } from '@/lib/rateLimit';
+import { rateLimit } from '@/lib/rateLimit';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 
@@ -32,15 +32,16 @@ export async function POST(req: NextRequest) {
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
-  // Kept even with a verified secret: a leaked secret should still not allow
-  // unbounded /start welcome-DM traffic through the bot.
-  if (!rateLimit(`telegram-webhook:${getClientIp(req)}`, 30, 60_000)) {
-    return NextResponse.json({ ok: false }, { status: 429 });
-  }
-
   /* A malformed body is not a reason for a 500: Telegram redelivers on any non-2xx. */
   let update: TgUpdate;
   try { update = await req.json() as TgUpdate; } catch { return NextResponse.json({ ok: true }); }
+
+  /* The limit is per chat, after the secret check: every update arrives from the same Telegram servers, so a limit per caller address was one shared bucket for all users. Kept even with a verified secret so
+     one chat cannot flood the bot with /start traffic; an update with no chat falls into one shared bucket. */
+  const limitKey = update.message?.chat?.id ?? update.callback_query?.message?.chat?.id ?? 'none';
+  if (!rateLimit(`telegram-webhook:${limitKey}`, 30, 60_000)) {
+    return NextResponse.json({ ok: false }, { status: 429 });
+  }
 
   /* NEVER ANSWER A REDELIVERY WITH AN ERROR (PM audit C4). The code used to be burned and then the reply sent with no guard; a timeout threw,
      Telegram redelivered, and the second pass told a successfully linked user the link had "expired". Every send below is guarded and the
@@ -169,6 +170,9 @@ async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_q
     return;
   }
 
+  /* The chat this account was linked to BEFORE, so it can be told it was replaced (C8). A failed read just means nobody is told; it never blocks the link. */
+  const { data: before } = await admin.from(T.user_settings).select('telegram_chat_id').eq('user_id', claimed.user_id).maybeSingle();
+  const previousChat = typeof before?.telegram_chat_id === 'string' ? before.telegram_chat_id.trim() : '';
   const { error } = await admin.from(T.user_settings).upsert(
     { user_id: claimed.user_id, telegram_chat_id: String(chat.id), updated_at: new Date().toISOString() },
     { onConflict: 'user_id' },
@@ -180,6 +184,20 @@ async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_q
     await finish('⚠️ Could not finish connecting. Press Confirm again, or start again from the app.');
     return;
   }
+  /* ONE CHAT, ONE ACCOUNT (C2). Two accounts linked to the same chat made the alert run skip the second one (it keeps the first chat id it sees), so the second account's signals were dropped and the first account's mutes
+     decided for both. Confirming here proves control of THIS chat, so any OTHER account holding it loses the link (the same move as a re-link). Done after the new link is written, so a failed write never strips anyone;
+     a failure here is logged and the link stays (the old behaviour for that edge). */
+  let displaced = 0;
+  try {
+    const { data: others, error: othersErr } = await admin.from(T.user_settings)
+      .update({ telegram_chat_id: null }).eq('telegram_chat_id', String(chat.id)).neq('user_id', claimed.user_id).select('user_id');
+    if (othersErr) throw new Error(othersErr.message);
+    displaced = others?.length ?? 0;
+  } catch (e) { console.error('[telegram/webhook] could not clear another account from this chat', e instanceof Error ? e.message : 'unknown'); }
   await answer('Connected');
-  await finish('✅ Connected. Alerts for your LiquidityHQ account will arrive here. Send /stop to disconnect.');
+  await finish('✅ Connected. Alerts for your LiquidityHQ account will arrive here. Send /stop to disconnect.' + (displaced > 0 ? '\n\nThis chat was linked to another LiquidityHQ account, which no longer receives alerts here.' : ''));
+  /* A RE-LINK FROM A NEW CHAT USED TO REPLACE THE OLD ONE SILENTLY: the old chat just stopped receiving alerts with no word. Now it is told. Guarded like every other send here (a failure never turns a finished link into an error). */
+  if (previousChat && previousChat !== String(chat.id)) {
+    try { await tgCall(token, 'sendMessage', { chat_id: previousChat, text: 'This chat was disconnected: your LiquidityHQ account is now linked to a different chat, so alerts will no longer arrive here.' }); } catch { /* the old chat may be gone */ }
+  }
 }
