@@ -56,26 +56,19 @@ export function squeezeFixture(crowd: 'long' | 'short', trigger: 'through' | 'in
  * BUY side: z <= -1.5 (sellers hit the bid) AND price HELD: the window's lowest low is no more than 0.2 ATR below the 20-candle low before the window, and the window's net price change is >= -0.3 ATR. TRIGGER = the first close above the previous candle's high.
  * Stop = the window low. SELL = the mirror (z >= +1.5; the window's highest high no more than 0.2 ATR above the prior 20-candle high; net change <= +0.3 ATR; trigger = the first close below the previous candle's low; stop = the window high).
  * Target = nearest S/R at >= 1R (CHOICE: the rule states none, so the common one is used). A coin with no taker data (Bybit-only) is WAIT with the reason "needs taker data". ATR = 14-candle average true range (CHOICE).
- * TRIGGER (PM 2026-11-17): the FIRST qualifying close within 3 candles after the window ends (up to 2 quiet candles in between), and still fresh (one of the last 2 candles). The previous-100-windows are the rolling sums ending in the 100 candles before the window. */
+ * WINDOW (PM 2026-11-17, simplest deterministic rule): ALWAYS the 8 candles right before the trigger candle; the trigger candle is a FRESH candle (one of the last 2) closing beyond the previous candle's extreme. The previous-100-windows are the rolling sums ending in the 100 candles before the window. */
 export interface TakerC extends C { takerBuy: number; takerSell: number }
 export function absorptionCall(c: TakerC[], hasTaker: boolean, zones: Zone[]): Call & { reason?: string } {
   if (!hasTaker) return { verdict: 'WAIT', reason: 'needs taker data' };
   const last = c.length - 1, sum = (e: number) => c.slice(e - 7, e + 1).reduce((a, x) => a + (x.takerBuy - x.takerSell), 0);
-  for (const k of [last - 1, last]) {                                   // FRESH = the trigger is one of the last 2 candles; the EARLIER one is the first qualifying close, so it is tried first
-    /* WHICH WINDOW (CHOICE): of the windows ending 1-3 candles before the trigger candle (end = k - 1 - gap, gap 0..2) the MOST RECENT one whose flow is one-sided (|z| >= 1.5) is THE window; it is judged on its own: held, net change, and "the first qualifying close after it". A shifted window that also reaches 1.5 sigma is not a second chance. */
-    let best: { gap: number; end: number; z: number } | null = null;
-    for (let gap = 0; gap <= 2; gap++) {
-      const end = k - 1 - gap; if (end < 130) continue;
-      const prev: number[] = []; for (let e = end - 100; e < end; e++) prev.push(sum(e));
-      const mean = prev.reduce((x, v) => x + v, 0) / prev.length, sd = Math.sqrt(prev.reduce((x, v) => x + (v - mean) ** 2, 0) / prev.length); if (!(sd > 0)) continue;
-      const z = (sum(end) - mean) / sd; if (Math.abs(z) >= 1.5) { best = { gap, end, z }; break; }
-    }
-    if (!best) continue;
-    const { gap, end, z } = best, win = c.slice(end - 7, end + 1), before = c.slice(end - 27, end - 7), a = atr(c.slice(0, end + 1)), net = win[win.length - 1].close - win[0].open;
+  for (const k of [last - 1, last]) {                                   // FRESH = the trigger candle is one of the last 2; the earlier one is the first close beyond the extreme, so it is tried first
+    const end = k - 1; if (end < 130) continue;                          // THE WINDOW IS ALWAYS THE 8 CANDLES RIGHT BEFORE THE TRIGGER CANDLE (PM 2026-11-17)
+    const prev: number[] = []; for (let e = end - 100; e < end; e++) prev.push(sum(e));
+    const mean = prev.reduce((x, v) => x + v, 0) / prev.length, sd = Math.sqrt(prev.reduce((x, v) => x + (v - mean) ** 2, 0) / prev.length); if (!(sd > 0)) continue;
+    const z = (sum(end) - mean) / sd, win = c.slice(end - 7, end + 1), before = c.slice(end - 27, end - 7), a = atr(c.slice(0, end + 1)), net = win[win.length - 1].close - win[0].open;
     const winLow = Math.min(...win.map((x) => x.low)), winHigh = Math.max(...win.map((x) => x.high));
-    const idx = Array.from({ length: gap }, (_, g) => end + 1 + g), upQual = (j: number) => c[j].close > c[j - 1].high, dnQual = (j: number) => c[j].close < c[j - 1].low;
-    if (z <= -1.5 && winLow >= Math.min(...before.map((x) => x.low)) - 0.2 * a && net >= -0.3 * a && upQual(k) && !idx.some(upQual)) { const entry = c[k].close; return call('BUY', entry, winLow, nearestR(zones, entry, winLow, 'BUY')); }
-    if (z >= 1.5 && winHigh <= Math.max(...before.map((x) => x.high)) + 0.2 * a && net <= 0.3 * a && dnQual(k) && !idx.some(dnQual)) { const entry = c[k].close; return call('SELL', entry, winHigh, nearestR(zones, entry, winHigh, 'SELL')); }
+    if (z <= -1.5 && winLow >= Math.min(...before.map((x) => x.low)) - 0.2 * a && net >= -0.3 * a && c[k].close > c[k - 1].high) { const entry = c[k].close; return call('BUY', entry, winLow, nearestR(zones, entry, winLow, 'BUY')); }
+    if (z >= 1.5 && winHigh <= Math.max(...before.map((x) => x.high)) + 0.2 * a && net <= 0.3 * a && c[k].close < c[k - 1].low) { const entry = c[k].close; return call('SELL', entry, winHigh, nearestR(zones, entry, winHigh, 'SELL')); }
   }
   return { verdict: 'WAIT' };
 }

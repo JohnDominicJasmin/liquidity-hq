@@ -62,13 +62,15 @@ test('AB1/AB3. absorption: one-sided taker flow held by price + the first close 
   assert.ok(atr(buy) > 0);
 });
 
-test('AB4. the trigger may come up to 3 candles after the window ends (the first qualifying close), and must still be fresh', () => {
+test('AB4. the window is ALWAYS the 8 candles right before the trigger candle: a call carries that window\'s low/high as its stop, even when quiet candles sit between the flow and the trigger', () => {
   const zones = [{ price: 0 }];
-  for (const gap of [1, 2]) assert.equal(absorptionCall(absorptionFixture('sell', 'up', true, gap), true, zones).verdict, 'BUY', `a trigger ${gap + 1} candle(s) after the window's last candle was refused`);
-  const sellGap = absorptionCall(absorptionFixture('buy', 'down', true, 2), true, zones); assert.equal(sellGap.verdict, 'SELL');
-  /* the first qualifying close ONE candle back is still fresh and is the call (entry = that candle's close, not the last one's) */
-  const fy = absorptionFixture('sell', 'up', true, 1), qy = fy[fy.length - 2]; fy[fy.length - 2] = { ...qy, close: fy[fy.length - 3].high + 60, high: fy[fy.length - 3].high + 100 };
-  const cy = absorptionCall(fy, true, zones); assert.equal(cy.verdict, 'BUY'); assert.equal(cy.entry, fy[fy.length - 2].close, 'the entry must be the FIRST qualifying close (one candle back), not the later one');
+  for (const gap of [0, 1, 2]) {
+    const buy = absorptionFixture('sell', 'up', true, gap), r = absorptionCall(buy, true, zones);
+    const trig = buy.length - 1, k = r.verdict === 'BUY' && r.entry === buy[trig - 1].close ? trig - 1 : trig;       // which fresh candle triggered
+    if (r.verdict === 'BUY') assert.equal(r.stop, Math.min(...buy.slice(k - 8, k).map((q) => q.low)), `gap ${gap}: the stop is not the low of the 8 candles right before the trigger candle`);
+    if (gap === 0) assert.equal(r.verdict, 'BUY');
+  }
+  const gap6 = absorptionCall(absorptionFixture('sell', 'up', true, 6), true, zones); assert.equal(gap6.verdict, 'WAIT', 'with 6 opposite-flow candles between the flow and the trigger the 8 candles right before the trigger are no longer one-sided');
 });
 
 test('AB5. fresh = one of the last 2 candles: a trigger 1 candle back still calls, 2 back does not', () => {
