@@ -20,6 +20,7 @@ async function blockPriceFeeds(page: Page) {
   await page.routeWebSocket(/.*/, (ws) => ws.close());
 }
 
+/* K1a CAVEAT: on a busy store the OLD code also moves (it re-reads the time whenever the market store re-renders), so K1a proves the clock moves and is HH:MM, not that the 30 s timer exists; the source pin landingClockTicks.test.mts T1 proves the timer, K1b proves the failed-feed blank. */
 /* the clock span is the right-hand sibling of the "Live read ·" title inside the panel header */
 const clockText = (page: Page) => page.evaluate(() => {
   const title = Array.from(document.querySelectorAll('span')).find((s) => /live read\s*·/i.test(s.textContent || '')); if (!title) return null;
@@ -124,7 +125,7 @@ test.describe('#2480 Correlation hint wording', () => {
       const head = page.getByText(/least correlated pairs/i).first(); await head.waitFor({ state: 'visible', timeout: 90_000 });
       const block = head.locator('xpath=ancestor-or-self::*[self::div or self::section][1]'); const text = (await block.innerText()).replace(/\s+/g, ' ');
       console.log(`[CELL] C1 hint block="${text.slice(0, 160)}"`);
-      if (/potential diversification/i.test(text)) throw new Error('LABEL ROW NOT APPLIED to this database: the stored en row still says "potential diversification" (it overrides the new shipped default). Not a layout verdict.');
+      if (/potential diversification/i.test(text)) throw new Error('OLD WORDING SHOWN: "potential diversification". Either this build does not contain #2480 yet, or it does and a stored en row in the labels table (migration 20261117v not applied to this database) overrides the new shipped default. Check /api/version first. Not a layout verdict.');
       expect(text).toMatch(/nearest zero over this range/i);
     } finally { await ctx.close(); }
   });
