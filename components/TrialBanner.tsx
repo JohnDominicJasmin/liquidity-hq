@@ -85,6 +85,7 @@ export default function TrialBanner() {
   return (
     <div
       role="status"
+      className="trial-banner"
       style={{
         // ONE ROW at every width (owner, 2026-10-22, #1673 item 2: "put it into horizontal layout"). It wrapped, so at 390 px the countdown
         // and the "Keep Pro" pill stacked on two centred lines. Now the text block shrinks and wraps inside itself (min-width 0) while the
