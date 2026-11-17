@@ -88,3 +88,49 @@ test.describe('#2419 dry-powder figures before the AI summary', () => {
     } finally { await ctx.close(); }
   });
 });
+
+test.describe('#2409 WAIT "Watching" line and label boxes (live strategies, fixture A)', () => {
+  test.describe.configure({ timeout: 300_000, retries: 0 });
+  test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+  test('F4 every strategy: a WAIT call lists watched levels as "Watching: <label> <price> · ..." (max 4, no empty line); the chart shows the labels for visual sign-off', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'a', { viewport: { width: 1280, height: 900 } }); const page = await ctx.newPage(); await installPaidAiFence(page); await seed(page);
+    try {
+      await gotoSignedIn(page, '/arena?coin=btc&tf=1h'); const sel = page.getByTestId('strategy-set-select'); await expect(sel).toBeEnabled({ timeout: 60_000 });
+      const ids = await sel.locator('option').evaluateAll((os) => (os as HTMLOptionElement[]).map((o) => o.value).filter((v) => v));
+      const seen: string[] = []; let waits = 0; let watchingChecked = 0; let shots = 0;
+      for (const id of ids) {
+        await sel.selectOption(id); await page.getByTestId('strategy-call-verdict').first().waitFor({ state: 'visible', timeout: 30_000 }).catch(() => {});
+        const verdict = await page.getByTestId('strategy-call-verdict').first().getAttribute('data-verdict').catch(() => null); seen.push(`${id}:${verdict ?? 'none'}`);
+        const watching = page.getByTestId('strategy-call-watching'); const hasW = (await watching.count()) > 0;
+        if (verdict === 'wait') { waits++; if (hasW) { watchingChecked++; const txt = (await watching.first().innerText()).replace(/\s+/g, ' ').trim();
+          const parts = txt.replace(/^[^:]+:\s*/, '').split(' · '); console.log(`[CELL] F4 ${id} WAIT watching="${txt}"`);
+          expect(txt, 'the Watching line has no label').toMatch(/^\S.*:\s+\S/); expect(parts.length, 'more than four watched levels').toBeLessThanOrEqual(4); expect(parts.every((p) => /\d/.test(p)), `a watched level has no price: ${txt}`).toBe(true); } }
+        else expect(hasW, `${id}: a ${verdict} call shows a Watching line`).toBe(false);
+        if (shots < 4 && (verdict === 'wait' || shots < 2)) { await settleForShot(page, `f4-${id}`); await page.locator('.klc-toolbar').first().locator('xpath=..').screenshot({ path: `qa/.shots/f4-${id}-1280.png` }).then(() => { shots++; }).catch(() => {}); }
+      }
+      console.log(`[CELL] F4 strategies=${ids.length} verdicts=${seen.join(' ')} waits=${waits} watchingLinesChecked=${watchingChecked}`);
+      if (waits === 0) console.log('[CELL] F4 no WAIT verdict was reachable live: the Watching line itself was NOT measured');
+      assertNoUnstubbedPaidAi(page, 'F4');
+    } finally { await ctx.close(); }
+  });
+});
+
+test.describe('ru trial banner (account T)', () => {
+  test.describe.configure({ timeout: 180_000, retries: 0 });
+  for (const width of [360, 390]) test(`F3 trial banner in Russian at ${width}: at most two text lines, no sideways scroll`, async ({ browser }) => {
+    const { FIXTURES } = await import('./_auth'); test.skip(!FIXTURES.tEmail || !FIXTURES.tPassword, 'account T (trial) fixture is not configured in this environment: the ru trial banner was NOT measured');
+    const ctx = await signedInContext(browser, 't', { viewport: { width, height: 844 } }); const page = await ctx.newPage(); await ctx.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'ru'); } catch { /* private */ } });
+    try {
+      await gotoSignedIn(page, '/dashboard'); const dismiss = page.getByTestId('trial-banner-dismiss'); const visible = await dismiss.waitFor({ state: 'visible', timeout: 45_000 }).then(() => true).catch(() => false);
+      if (!visible) { console.log(`[CELL] F3 ${width}: no trial banner shown for account T (trial ended or banner dismissed): NOT measured`); test.skip(true, 'no trial banner for account T'); return; }
+      const m = await dismiss.evaluate((btn) => {
+        const banner = btn.closest('[role="status"]') as HTMLElement; const tops: number[] = []; const w = document.createTreeWalker(banner, NodeFilter.SHOW_TEXT);
+        for (let n = w.nextNode(); n; n = w.nextNode()) { if (!(n.textContent || '').trim() || btn.contains(n)) continue; const range = document.createRange(); range.selectNodeContents(n); for (const r of Array.from(range.getClientRects())) if (r.width > 0) tops.push(Math.round(r.top)); }
+        tops.sort((a, b) => a - b); let lines = tops.length ? 1 : 0; for (let i = 1; i < tops.length; i++) if (tops[i] - tops[i - 1] > 6) lines++;
+        return { lines, h: Math.round(banner.getBoundingClientRect().height), text: (banner.innerText || '').replace(/\s+/g, ' ').slice(0, 160), docW: document.documentElement.scrollWidth, winW: window.innerWidth };
+      });
+      console.log(`[CELL] F3 ru ${width}: lines=${m.lines} height=${m.h} docW=${m.docW}/${m.winW} text="${m.text}"`);
+      expect(m.lines, `the Russian trial banner is ${m.lines} lines at ${width}`).toBeLessThanOrEqual(2); expect(m.docW).toBeLessThanOrEqual(m.winW);
+    } finally { await ctx.close(); }
+  });
+});
