@@ -554,6 +554,7 @@ function ArenaContent() {
     filterParams,
     deferredStrategySelection,
     feedGraceOver,
+    strategyParams,
   );
   const gatedEmaSignal = useMemo(() => gateSignal(rawEmaSignal, signalPlan, selectedCoin), [rawEmaSignal, signalPlan, selectedCoin]);
   /* No markers above the ceiling: the signal is not operating at this timeframe, so the chart shows
