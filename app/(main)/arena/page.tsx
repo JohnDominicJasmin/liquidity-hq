@@ -3043,6 +3043,23 @@ function ArenaContent() {
           <Link href="/login" className="usage-auth-link">{t('ARENA_AUTH_SIGN_IN_LINK')}</Link>
         </div>
       )}
+      {/* THE EMA RIBBON'S STRICTER-SIGNALS SWITCH (owner, 2026-11-17): one compact line directly under the chart (so before the Strategy panel on a phone and before the EMA ribbon card on a desktop), no longer a card with a description line. It only
+          changes the EMA ribbon signal (useEMAStrategy's filter params); no other strategy reads it. The setting key (anti_chop_enabled) and its default (off) are unchanged. The Tip sits OUTSIDE the button (Tip is focusable; nesting it would be a control inside a control). */}
+      <div className="arena-antichop-row" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0 8px' }}>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={antiChopEnabled}
+          onClick={() => update({ anti_chop_enabled: !antiChopEnabled })}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 28, padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt2)', fontSize: 'var(--fs-caption)', fontFamily: 'inherit' }}
+        >
+          <span style={{ width: 28, height: 16, borderRadius: 8, position: 'relative', flexShrink: 0, background: antiChopEnabled ? 'var(--accent)' : 'var(--bdr2)', transition: 'background 0.2s' }}>
+            <span style={{ position: 'absolute', top: 2, left: antiChopEnabled ? 14 : 2, width: 12, height: 12, borderRadius: '50%', background: 'var(--on-accent)', transition: 'left 0.2s' }} />
+          </span>
+          <span>{t('ARENA_ANTICHOP_LABEL')}</span>
+        </button>
+        {SHOW_PERFORMANCE_STATS && <Tip width={260} text={t('ARENA_ANTICHOP_TIP')} />}
+      </div>
         </div>
         <div className="arena-ws-b">
       {/* Directly under the chart, on the owner's request (#370). The read
@@ -3126,90 +3143,6 @@ function ArenaContent() {
         </>
       )}
 
-      {/* Anti-chop filter toggle */}
-      <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <button
-          onClick={() => update({ anti_chop_enabled: !antiChopEnabled })}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 9,
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.09)',
-            borderRadius: 999,
-            padding: '6px 13px 6px 6px',
-            cursor: 'pointer',
-            fontSize: 'var(--fs-caption)',
-            color: 'var(--txt)',
-            transition: 'border-color 0.15s, background 0.15s',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.2)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.09)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)'; }}
-        >
-          <span style={{
-            width: 32,
-            height: 18,
-            borderRadius: 9,
-            background: antiChopEnabled ? 'var(--green-2)' : 'rgba(255,255,255,0.14)',
-            boxShadow: antiChopEnabled
-              ? '0 0 0 1px color-mix(in srgb, var(--green-2) 35%, transparent), 0 0 8px color-mix(in srgb, var(--green-2) 45%, transparent)'
-              : 'inset 0 1px 3px rgba(0,0,0,0.45)',
-            position: 'relative',
-            flexShrink: 0,
-            transition: 'background 0.25s ease, box-shadow 0.25s ease',
-          }}>
-            <span style={{
-              position: 'absolute',
-              top: 2,
-              left: antiChopEnabled ? 16 : 2,
-              width: 14,
-              height: 14,
-              borderRadius: '50%',
-              background: '#fff',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
-              transition: 'left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            }} />
-          </span>
-          <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>{t('ARENA_ANTICHOP_LABEL')}</span>
-        </button>
-        {/* Tip sits OUTSIDE the button, not wrapped around its label.
-            Tip's trigger became a real focusable control when it was made
-            keyboard operable, so nesting it inside this button produced a
-            control inside a control - axe nested-interactive. It is the only
-            constraint that component carries: Tip must never be rendered inside
-            a <button>, <a>, or anything with an interactive role.
-            The label stays inside the button so clicking it still toggles. */}
-        {/* No iconColor override (#734). This passed
-            `rgba(255,255,255,0.6)` - white at 60% alpha, a dark-theme literal
-            that cannot work on a light ground. QA measured the glyph at 1.05:1
-            in terminal light: effectively invisible, and the worst ratio in
-            the whole light audit.
-
-            Tip already defaults to `var(--txt3)` (Tip.tsx:18), which is what
-            the literal was approximating by hand - a muted foreground - except
-            the token flips with the theme and the literal could not. Every
-            other Tip in the codebase passes a token or nothing; this was the
-            only caller hand-rolling a colour.
-
-            So the fix is to delete the prop rather than replace the value.
-            Dark keeps the muted appearance it already had, light gets a
-            readable one, and there is no new number to govern. */}
-        {/* The tooltip quotes a backtest profit factor, so it follows the performance-stats flag (owner, 2026-10-16, #1574). */}
-        {SHOW_PERFORMANCE_STATS && (
-          <Tip
-            width={260}
-            text={t('ARENA_ANTICHOP_TIP')}
-          />
-        )}
-        {/* opacity 0.35 computed to #55565b = 2.75:1. This hint explains what
-            the anti-chop toggle beside it actually does, so it has to be
-            readable; --txt-dim carries the same de-emphasis at 5.80:1. */}
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
-          {antiChopEnabled
-            ? t('ARENA_ANTICHOP_ON_HINT')
-            : t('ARENA_ANTICHOP_OFF_HINT')}
-        </span>
-      </div>
       {/* EMA Ribbon Strategy card - sits directly under the chart so it reads as
           the explanation of the chart's own Buy/Sell markers, not a stray card
           four sections down. */}
