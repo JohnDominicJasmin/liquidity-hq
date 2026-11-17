@@ -35,7 +35,10 @@ test('RP2. a default-pane indicator has no settings, because its only pane is th
   for (const id of DEFAULT_PANE_INDICATORS) {
     const e = findIndicator(id);
     assert.ok(e);
-    assert.equal(e.paramSchema.length, 0, `${id} has settings again (${e.paramSchema.map((p) => p.key).join(',')}): they would configure a pane that is never created`);
+    /* #2515 (owner 2026-11-17): the ONE always-on RSI pane now has settings of its own: length (14), overbought (70), oversold (30). They configure THAT pane (a layer setting), never a second one. */
+    const keys = e.paramSchema.map((p) => p.key).join(',');
+    assert.equal(keys, id === 'RSI' ? 'length,overbought,oversold' : '', `${id} has the wrong settings (${keys}): the only pane is the always-on one`);
+    if (id === 'RSI') assert.deepEqual(e.paramSchema.map((p) => p.default ?? (p as { def?: unknown }).def), [14, 70, 30], 'the RSI pane defaults changed');
   }
   assert.equal(INDICATORS.filter((i) => i.source === 'builtin' && !DEFAULT_PANE_INDICATORS.has(i.id)).every((i) => i.paramSchema.length > 0), true, 'CONTROL: expected the other builtins (SMA, PSAR, MACD, Bollinger) to keep settings');
 });
