@@ -23,7 +23,7 @@ insert into lhq_labels (key, locale, value) values
 ('UPGRADE_GATE_BULLET_5','ko','모든 코인의 EMA 신호, S/R 및 청산 클러스터 레이어, 여러 지표 동시 사용'),
 ('UPGRADE_GATE_BULLET_5','zh','所有币种的 EMA 信号、支撑阻力与清算集群图层，以及同时使用多个指标'),
 ('UPGRADE_GATE_BULLET_5','ru','EMA-сигналы, слои S/R и кластеров ликвидаций по каждой монете и несколько индикаторов одновременно'),
-('UPGRADE_GATE_BULLET_5','ar','إشارات EMA وطبقات الدعم/المقاومة وتجمعات التصفية لكل عملة، وعدة مؤشرات في وقت واحد'),
+('UPGRADE_GATE_BULLET_5','ar','إشارات EMA وطبقات الدعم/المقاومة وتجمعات التصفية لكل عملة، وعدة مؤشرات في وقت واحد')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 
 -- ===================== DEV =====================
@@ -47,5 +47,5 @@ insert into lhq_dev_labels (key, locale, value) values
 ('UPGRADE_GATE_BULLET_5','ko','모든 코인의 EMA 신호, S/R 및 청산 클러스터 레이어, 여러 지표 동시 사용'),
 ('UPGRADE_GATE_BULLET_5','zh','所有币种的 EMA 信号、支撑阻力与清算集群图层，以及同时使用多个指标'),
 ('UPGRADE_GATE_BULLET_5','ru','EMA-сигналы, слои S/R и кластеров ликвидаций по каждой монете и несколько индикаторов одновременно'),
-('UPGRADE_GATE_BULLET_5','ar','إشارات EMA وطبقات الدعم/المقاومة وتجمعات التصفية لكل عملة، وعدة مؤشرات في وقت واحد'),
+('UPGRADE_GATE_BULLET_5','ar','إشارات EMA وطبقات الدعم/المقاومة وتجمعات التصفية لكل عملة، وعدة مؤشرات في وقت واحد')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
