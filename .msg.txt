@@ -1,5 +1,5 @@
-feat(arena): EMA ribbon and RSI pane become switchable chart layers (#2500)
+fix(arena): the Strategy panel run row takes the same lock/disabled state as the top buttons (#2500)
 
-What changed: CHART LAYERS is one row of four small toggle chips (EMA ribbon, RSI, S/R, Liq clusters). EMA ribbon and RSI are on by default and remembered per browser like S/R. Switching RSI off removes the RSI pane (the chart grows); switching the ribbon off removes its four lines. Display only: the AI read and the strategies keep using EMA/RSI data. Four new label keys (migration 20261118n, held).
-Why: owner decision 2026-11-17.
-Test: /arena signed in, Strategy panel: tap each chip; RSI off -> pane gone and chart taller; EMA off -> lines gone; reload keeps the choice; the S/R and Liq chart-toolbar buttons still match their chips. At 360 px the four chips are one row and the panel stays within the height budget.
+What changed: Quick/Deep/Ask gating is one object (runGate) in the Arena page, read by the top buttons and by the panel's QUICK / DEEP / ASK AI. A locked coin or signed-out visitor shows the lock icon and locked styling (no gold fill) in both places; a used-up daily allowance, a read in flight, and the plan still being read disable both. ASK AI follows the "Ask LiquidityAI" button.
+Why: owner-reported on prod: /arena?coin=hype&tf=30m on a Free account showed the lock on the top buttons but an unlocked, gold QUICK in the panel.
+Test: Free account, /arena?coin=hype&tf=30m: top Quick/Deep and the panel QUICK/DEEP all show the lock, none filled; ASK AI is unlocked. Switch to a coin on the Free list: all unlocked. While the plan is being read: both disabled.

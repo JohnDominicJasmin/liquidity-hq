@@ -24,6 +24,7 @@
 
 import { useEffect, useRef, useState, startTransition } from 'react';
 import Link from 'next/link';
+import { Lock } from '@/components/icons';
 import { useAuth } from './AuthProvider';
 import { SkeletonBar } from './Skeleton';
 import StrategyCallBox from './StrategyCallBox';
@@ -67,8 +68,9 @@ interface Props {
   onParamsChange: (next: Record<string, Record<string, string | number | boolean>>) => void;
   /** Fired when a run button is pressed. Required (#996). */
   onRun: (kind: RunKind, selection: readonly string[]) => void;
+  /* The run row's gating, from the SAME object the page's top Quick / Deep / Ask buttons read - one source of truth, so a locked coin or a used-up allowance looks the same in both places. */
+  runGate?: Record<RunKind, { locked: boolean; disabled: boolean; title?: string }>;
   /** Whether a read is already in flight - disables the run buttons (#1309 item 24). */
-  running?: boolean;
   /** The saved Arena strategy id (lib/strategies), or null. An unknown id is treated as none by the caller. The menu's value is DERIVED from this and `selected`: a known id shows that strategy, no id with chips on shows Custom, nothing shows Let the read choose. */
   strategy: string | null;
   /** The menu was changed: 'auto', 'custom' or a strategy id. The caller writes arena_strategy and strategy_selection together, in one save. */
@@ -132,7 +134,7 @@ function LayerChip({ name, on, unavailable, onToggle }: { name: string; on: bool
   );
 }
 
-export default function StrategyPanel({ planChecking = false, overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, running = false, strategy, onStrategyPick, strategyState }: Props) {
+export default function StrategyPanel({ planChecking = false, overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, runGate, strategy, onStrategyPick, strategyState }: Props) {
   const loaded = status === 'ready';
   const { user, loading: authLoading, entitlementStatus, retryEntitlements } = useAuth();
   const planLabel = strategyPlanLabel({ signedIn: !!user, authLoading, entitlementStatus });
@@ -381,9 +383,23 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
       <div className="strat-sect">
         <div className="strat-lbl"><span>{t('STRATEGY_PANEL_SECTION_RUN')}</span></div>
         <div className="strat-actions">
-          <button type="button" className="strat-btn pri" disabled={running} onClick={() => onRun('quick', selected)}>QUICK</button>
-          <button type="button" className="strat-btn" disabled={running} onClick={() => onRun('deep', selected)}>DEEP</button>
-          <button type="button" className="strat-btn" onClick={() => onRun('ask', selected)}>ASK AI</button>
+          {([['quick', 'QUICK', 'pri'], ['deep', 'DEEP', ''], ['ask', 'ASK AI', '']] as const).map(([kind, text, cls]) => {
+            const g = runGate?.[kind];
+            const locked = !!g?.locked;
+            return (
+              <button
+                key={kind}
+                type="button"
+                className={`strat-btn${cls && !locked ? ' ' + cls : ''}${locked ? ' arena-deep-locked' : ''}`}
+                disabled={g?.disabled ?? false}
+                title={g?.title}
+                onClick={() => onRun(kind, selected)}
+              >
+                {locked && <Lock size={10} aria-hidden="true" style={{ marginRight: 4, verticalAlign: '-1px' }} />}
+                {text}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

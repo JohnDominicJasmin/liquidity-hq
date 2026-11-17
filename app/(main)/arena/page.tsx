@@ -2032,6 +2032,25 @@ function ArenaContent() {
     window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
   };
 
+  /* ONE GATING STATE for the run buttons, read by BOTH the top Quick/Deep/Ask buttons and the Strategy panel's run row (owner-reported 2026-11-17: on a locked coin the top buttons showed the lock while the panel's QUICK was filled and clickable). Locked = signed out or a coin not on the plan's list; disabled adds the ceiling, a read in flight, auth/plan still being read and the daily allowance used up. */
+  const runGate = {
+    quick: {
+      locked: (!user && !authLoading) || coinLocked,
+      disabled: aboveAnalysisCeiling || readLoading || authLoading || planUnsettled || coinLocked || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit),
+      title: aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE'),
+    },
+    deep: {
+      locked: (!user && !authLoading) || coinLocked,
+      disabled: aboveAnalysisCeiling || readLoading || authLoading || planUnsettled || coinLocked || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit),
+      title: aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE'),
+    },
+    ask: {
+      locked: false,
+      disabled: aboveAnalysisCeiling,
+      title: aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : undefined,
+    },
+  };
+
   /* ── Squeeze scanner data - sorted by 24h volume descending (BTC → ETH → ...) ── */
   const btcChange = store.coins['btc']?.change ?? null;
   /* A MISSING QUOTE SAYS WHICH KIND OF MISSING (#1263, owner: a bare dash could mean loading or an error). The read that prices this row is still in flight: an
@@ -2565,11 +2584,11 @@ function ArenaContent() {
             matching the same "don't claim a fact we haven't confirmed"
             pattern as this file's other #1347 fixes. */}
         <button
-          className={`arena-fire-btn arena-quick-btn${(!user && !authLoading) || coinLocked ? ' arena-deep-locked' : ''}`}
-          disabled={aboveAnalysisCeiling || readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
+          className={`arena-fire-btn arena-quick-btn${runGate.quick.locked ? ' arena-deep-locked' : ''}`}
+          disabled={runGate.quick.disabled}
           onClick={() => runStrategy('quick', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
+          title={runGate.quick.title}
         >
           {readLoading && readMode === 'quick' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -2583,11 +2602,11 @@ function ArenaContent() {
 
         {/* Deep button - requires sign-in. Same fix as Quick above. */}
         <button
-          className={`arena-fire-btn${(!user && !authLoading) || coinLocked ? ' arena-deep-locked' : ''}`}
-          disabled={aboveAnalysisCeiling || readLoading || authLoading || coinLocked || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
+          className={`arena-fire-btn${runGate.deep.locked ? ' arena-deep-locked' : ''}`}
+          disabled={runGate.deep.disabled}
           onClick={() => runStrategy('deep', strategySelection)}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : coinLocked ? t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() }) : !user && !authLoading ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
+          title={runGate.deep.title}
         >
           {readLoading && readMode === 'deep' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -2602,8 +2621,8 @@ function ArenaContent() {
         <button
           className="arena-ask-grok-btn"
           style={{ width: 'auto', marginBottom: 0 }}
-          disabled={aboveAnalysisCeiling}
-          title={aboveAnalysisCeiling ? t('ARENA_ANALYSIS_CEILING_TITLE') : undefined}
+          disabled={runGate.ask.disabled}
+          title={runGate.ask.title}
           onClick={() => runStrategy('ask', strategySelection)}
         >
           {t('ARENA_ASK_LIQUIDITYAI_BUTTON')}
@@ -3222,7 +3241,7 @@ function ArenaContent() {
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
       <div className="arena-ws-strat">
-      <StrategyPanel overlays={overlayStates({ showSR, showLiq, showEma, showRsi, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : id === 'EMA_RIBBON' ? setShowEma(!showEma) : id === 'RSI' ? setShowRsi(!showRsi) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} strategyState={strategyState} planChecking={planUnsettled} />
+      <StrategyPanel overlays={overlayStates({ showSR, showLiq, showEma, showRsi, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : id === 'EMA_RIBBON' ? setShowEma(!showEma) : id === 'RSI' ? setShowRsi(!showRsi) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} runGate={runGate} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} strategyState={strategyState} planChecking={planUnsettled} />
       </div>
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
