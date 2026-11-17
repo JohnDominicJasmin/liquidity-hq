@@ -9444,6 +9444,7 @@ html[data-theme="light"] { color-scheme: light; }
 /* Ask AI on the Arena, on a phone: the floating button is hidden. It covered the chart's price axis and the panel's own ASK AI run button, and the page already has Ask LiquidityAI at the top and ASK AI in the run row. */
 @media (max-width: 768px) {
   .gchat-fab.gchat-fab-arena { display: none; }
+}
 /* ── LANDING HERO ON A PHONE BEFORE THE PAGE HYDRATES (QA: "/" at 390 px scrolled sideways, page 991 px wide) ──
    The server HTML is always the wide hero (the server cannot know the viewport), and the phone layout only arrives once the page's JavaScript has run. Until then the wide hero's own sizes (a 472 px live-read
    panel, a 54 px headline, a side-by-side button row, a 3-up stat row with 76 px of spacing each) pushed the page to 991 px. Below 1100 px these rules give the wide tree the phone sizes at once, so the first
