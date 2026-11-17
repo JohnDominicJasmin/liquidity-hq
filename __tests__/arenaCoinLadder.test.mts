@@ -195,6 +195,8 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
      spec depends on. marketSnapshotData reports 'ticker' in `partial` when the section comes back
      empty, and that is what arenaServerNumbers refuses on. */
   if (db.emptyTicker && url.pathname.endsWith('/ticker/24hr')) { db.emptyTickerServed++; return json(200, []); }
+  /* "EMPTY FOR EVERYONE" MEANS THE BYBIT FALLBACK TOO (#2513): the shared stand-in's Bybit tickers hold one row, HYPEUSDT, which used to be harmless because the snapshot never asked Bybit for HYPE. Now HYPE is owed, the fallback fills it, the ticker section is no longer empty and the route (correctly) answers 200. An outage is Binance AND Bybit empty. */
+  if (db.emptyTicker && url.host === 'api.bybit.com' && url.pathname.startsWith('/v5/market/tickers')) return json(200, { retCode: 0, result: { list: [] } });
 
   {
     const answered = marketStandIn(req, url, {
