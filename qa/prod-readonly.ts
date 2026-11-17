@@ -93,6 +93,7 @@ export type Needs = 'none' | 'pro' | 'free';
 /** Specs that may run against production. `needs` is the account tier the spec signs in as
  *  (fixture A is Pro, B is free); 'none' is anonymous. */
 export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; note?: string }> = [
+  { spec: 'explore-real-user', needs: 'none', note: 'the exploratory real-user pass, SIGNED-OUT persona only on production (the free and pro personas skip themselves when E2E_ALLOW_PRODUCTION=1); paid-AI fence on, writes stubbed, never signs in or sends; about 50 min' },
   // ── anonymous ──
   { spec: 'a11y', needs: 'none', note: 'route sweep: spends the per-IP rate limit, one worker' },
   { spec: 'arena-legacy-signals', needs: 'none' },
