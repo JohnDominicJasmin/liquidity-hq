@@ -23,6 +23,8 @@ const _cache: Record<string, { rows: FredRow[]; ts: number }> = {};
 export type FredRow = [number, number];
 
 export const FRED_TTL_DEFAULT = 12 * 3600_000;
+/** Around a scheduled release the rows are re-read this often, so a published figure shows within minutes, not hours. */
+export const FRED_TTL_RELEASE = 10 * 60_000;
 
 /** Parse a FRED graph CSV body. Exported for tests - no network involved. */
 export function parseFredCsv(text: string): FredRow[] {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
-import { fetchFredRows, FRED_TTL_DEFAULT } from '@/lib/fred';
+import { fetchFredRows, FRED_TTL_DEFAULT, FRED_TTL_RELEASE } from '@/lib/fred';
 import { FRED_CFG, fredActual, scheduledImpact } from '@/lib/econActual';
 import { cached } from '@/lib/apiCache';
 import { etToUtcMs, scheduledInstants, SCHEDULE_READ_ON, SCHEDULE_COVERS_THROUGH } from '@/lib/econSchedule';
@@ -82,7 +82,10 @@ async function enrichWithFRED(events: CalEvent[], now: Date): Promise<void> {
   if (past.length === 0) return;
 
   const needed = [...new Set(past.map(e => FRED_CFG[e.type]?.id).filter(Boolean))] as string[];
-  const data = Object.fromEntries(await Promise.all(needed.map(async id => [id, await fetchFredRows(id, FRED_TTL_DEFAULT)])));
+  /* AROUND A RELEASE THE FRED ROWS ARE RE-READ EVERY 10 MINUTES (they were cached 12 hours, so a number could show up to 12 hours after FRED published it). "Around" = an event without an actual that is within 6 hours ahead or 36 hours behind. */
+  const aroundRelease = past.some(e => { const d = now.getTime() - new Date(e.isoDate).getTime(); return d > -6 * 3600_000 && d < 36 * 3600_000; });
+  const fredTtl = aroundRelease ? FRED_TTL_RELEASE : FRED_TTL_DEFAULT;
+  const data = Object.fromEntries(await Promise.all(needed.map(async id => [id, await fetchFredRows(id, fredTtl)])));
 
   for (const e of past) {
     const cfg = FRED_CFG[e.type];
