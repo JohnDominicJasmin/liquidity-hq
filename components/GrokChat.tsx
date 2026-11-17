@@ -26,7 +26,6 @@ import CoinMultiSelect from './CoinMultiSelect';
 import { activatable } from '@/lib/activatable';
 import { PAGE_COIN_EVENT, currentPageCoin } from '@/lib/pageCoin';
 import { MARKET_DATA_NEEDED_EVENT } from '@/lib/marketDataNeeded';
-import { accountRatio } from '@/lib/accountRatioVenue';
 import AiDisclaimer from '@/components/AiDisclaimer';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
@@ -142,7 +141,7 @@ function buildChatContext(
     cvdDivergence: c?.cvdDivergence ?? undefined,
     ma20: c?.ma20, volRatio: c?.volRatio, cvd: c?.cvd,
     funding: fr?.label,
-    oi: c?.oi, longRatio: accountRatio(c)?.long, shortRatio: accountRatio(c)?.short, ratioVenue: accountRatio(c)?.venue,
+    oi: c?.oi, longRatio: c?.longRatio, shortRatio: c?.shortRatio,
     squeeze: sq.score + '/100 - ' + sq.label,
     basisPct: c?.perpPrice && c.price ? (c.perpPrice - c.price) / c.price * 100 : undefined,
     bidWalls: c?.orderBidWalls?.map(w => w.price),
