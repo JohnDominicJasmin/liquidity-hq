@@ -1086,6 +1086,8 @@ jobs:
           # skip the build entirely. See the input's own comment for why a remote
           # run is NOT the same measurement as the gate run.
           E2E_BASE_URL: ${{ inputs.base_url }}
+          NEXT_PUBLIC_SENTRY_DSN: 'https://key@collector.test/1'   # QA: a fake tracker the spec intercepts (the early-error cell)
+          NEXT_PUBLIC_APP_ENV: 'staging'
 
           # ── RELEASE-GATE EXCHANGE STUB (#1259) ──────────────────────────────
           #
