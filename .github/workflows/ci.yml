@@ -370,7 +370,7 @@ on:
       project:
         description: 'Which Playwright project a `spec` run uses. Ignored unless `spec` is set.'
         type: choice
-        options: [desktop, mobile, both]
+        options: [desktop, mobile, both, webkit, firefox]
         default: desktop
 
       # ⚠️ THE REPOSITORY IS PUBLIC (owner, 2026-11-10), SO AN ARTIFACT IS PUBLIC. Anyone with a
@@ -614,7 +614,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        project: [desktop, mobile]
+        project: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.project == 'webkit' && '["webkit"]' || github.event_name == 'workflow_dispatch' && inputs.project == 'firefox' && '["firefox"]' || '["desktop","mobile"]') }}
     # Only after lint/typecheck/unit/build are green. A broken build would
     # produce 216 browser failures that all say "the build is broken", which
     # buries the one line that actually explains it.
@@ -942,17 +942,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: pw-${{ runner.os }}-${{ steps.pw.outputs.v }}
+          key: pw-${{ runner.os }}-${{ steps.pw.outputs.v }}-${{ matrix.project }}
 
       - name: Install Chromium
         if: steps.pwcache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium ${{ matrix.project == 'webkit' && 'webkit' || matrix.project == 'firefox' && 'firefox' || '' }}
 
       # The browser binary is cached but its apt system libraries are not -
       # those live outside ~/.cache. ~5s.
       - name: Install Chromium system deps
         if: steps.pwcache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+        run: npx playwright install-deps chromium ${{ matrix.project == 'webkit' && 'webkit' || matrix.project == 'firefox' && 'firefox' || '' }}
 
       # playwright.config.ts's webServer runs `npm run build && npm start` on
       # port 3100, so CI and local exercise the same production build.
