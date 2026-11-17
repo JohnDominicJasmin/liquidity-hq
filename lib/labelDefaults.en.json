@@ -182,6 +182,8 @@
   "STRAT_RSIDIV_DESC": "Looks for price and RSI disagreeing: price makes a lower low while RSI makes a higher low (selling fading), or price makes a higher high while RSI makes a lower high (buying fading). That alone is not a signal, so it waits for the first candle to close back through the swing candle (above its high for a buy, below its low for a sell). The divergence fails if price makes a new extreme first. Closed candles only.",
   "STRAT_RSIDIV_BUY": "Bullish divergence: price made a lower low at {swing} while RSI made a higher low, and a candle has now closed above {trigger}.",
   "STRAT_RSIDIV_SELL": "Bearish divergence: price made a higher high at {swing} while RSI made a lower high, and a candle has now closed below {trigger}.",
+  "CHANNEL_BOX_RR": "R:R {rr}",
+  "DRAW_STRUCTURE_LEVELS_CAPTION": "Levels from the Channel strategy, not a prediction.",
   "STRAT_CHANNEL_NAME": "Channel breakout",
   "STRAT_CHANNEL_DESC": "First close outside a falling or rising channel. Closed candles.",
   "STRAT_CHANNEL_BUY": "First close above the falling channel top ({rail}).",

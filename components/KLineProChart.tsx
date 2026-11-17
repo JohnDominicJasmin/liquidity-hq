@@ -15,8 +15,10 @@ import { useAuth } from '@/components/AuthProvider';
 import { getAuthToken } from '@/lib/supabase';
 import { drawStructureAvailable, DRAW_STRUCTURE_NOISY_TFS, type DrawableStructure } from '@/lib/drawStructure';
 import { computeSRLevels, type SRLevel } from '@/lib/srLevels';
+import { detectChannel, SR_BAND_PCT } from '@/lib/strategies/channel';
+import type { OHLCV } from '@/lib/strategyCore';
 import Tip from '@/components/Tip';
-import { barsAfter } from '@/lib/candles';
+import { barsAfter, TF_MS } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { LIQ_CLUSTER_LINES, mergeLiqBands } from '@/lib/liqClusters';
 import { findIndicator, toCalcParams, DEFAULT_PANE_INDICATORS, type IndicatorEntry } from '@/lib/strategyRegistry';
@@ -1714,6 +1716,37 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             ];
           },
         });
+        /* THE POSITION BOX (owner decision 2026-11-17, #1263: "box, no arrow"): from the entry candle, a green reward area between the entry and the target and a red risk area between the entry and the stop, with
+           Target / Entry / Stop labels carrying the price and the percent distance, "R:R x.x" and ONE caption. Three points on the entry candle: the entry, the target (or the entry again when there is none) and the stop.
+           NOTHING in this overlay is a predicted path or an arrow, and none is ever drawn. On a narrow chart the labels are the single letters T / E / S. Locked, no layout space. */
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          ...base, name: 'positionBox', totalStep: 3,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
+            const d = overlay.extendData as { hasTarget: boolean; targetText: string; entryText: string; stopText: string; rrText: string; caption: string };
+            const e = coordinates[0], t = coordinates[1], s = coordinates[2];
+            if (!e || !s || ![e.x, e.y, s.x, s.y].every(isFinite)) return [];
+            const w = bounding?.width ?? 9999;
+            const narrow = w < 460;
+            const x0 = Math.max(0, e.x);
+            const x1 = Math.min(w - 4, x0 + Math.max(110, w * 0.35));
+            if (x1 <= x0) return [];
+            const green = resolveCssColor('var(--green)'), red = resolveCssColor('var(--red)'), ink = resolveCssColor('var(--txt2)');
+            const out: Array<Record<string, unknown>> = [];
+            if (d.hasTarget && t && [t.x, t.y].every(isFinite)) {
+              out.push({ type: 'rect', attrs: { x: x0, y: Math.min(e.y, t.y), width: x1 - x0, height: Math.max(Math.abs(e.y - t.y), 1) }, styles: { style: 'stroke_fill', color: withAlpha(green, 0.16), borderColor: green, borderSize: 1 } });
+              out.push({ type: 'text', attrs: { x: x1 - 4, y: t.y < e.y ? t.y + 3 : t.y - 3, text: narrow ? 'T' : d.targetText, align: 'right', baseline: t.y < e.y ? 'top' : 'bottom' }, styles: { color: green, size: 10, weight: '700' } });
+            }
+            out.push({ type: 'rect', attrs: { x: x0, y: Math.min(e.y, s.y), width: x1 - x0, height: Math.max(Math.abs(e.y - s.y), 1) }, styles: { style: 'stroke_fill', color: withAlpha(red, 0.16), borderColor: red, borderSize: 1 } });
+            out.push({ type: 'text', attrs: { x: x1 - 4, y: s.y > e.y ? s.y - 3 : s.y + 3, text: narrow ? 'S' : d.stopText, align: 'right', baseline: s.y > e.y ? 'bottom' : 'top' }, styles: { color: red, size: 10, weight: '700' } });
+            out.push({ type: 'line', attrs: { coordinates: [{ x: x0, y: e.y }, { x: x1, y: e.y }] }, styles: { style: 'solid', color: ink, size: 1 } });
+            out.push({ type: 'text', attrs: { x: x0 + 4, y: e.y - 3, text: narrow ? 'E' : d.entryText, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } });
+            if (d.rrText) out.push({ type: 'text', attrs: { x: x0 + 4, y: e.y + 3, text: d.rrText, align: 'left', baseline: 'top' }, styles: { color: ink, size: 10, weight: '700' } });
+            out.push({ type: 'text', attrs: { x: 6, y: (bounding?.height ?? 300) - 6, text: d.caption, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '400' } });
+            return out;
+          },
+        });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (kc as any).registerOverlay({
           ...base, name: 'strategyMarker',
@@ -3080,6 +3113,48 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
        effect, which is most of what this chart does. */
     setDsNone(prev => (prev === false ? prev : false));
   }, []);
+
+  // ── The Channel strategy's risk box on Draw Structure (owner decision 2026-11-17, #1263) ───────────────
+  // When a CHANNEL is drawn AND the Channel strategy has a live BUY / SELL call on the same candles, draw the position box (reward, risk, Target / Entry / Stop with price and percent, R:R) and the chart's support /
+  // resistance levels as bands, with one caption. No live call: the channel and nothing else (this effect draws nothing). NO PREDICTED PATH OR ARROW, ever. Levels come from the strategy's own rules
+  // (lib/strategies/channel.ts), which is why this does not break the 2026-10-31 "no target, no entry" rule of lib/drawStructure.ts: that rule is about the model's proposals, and this is not one.
+  const boxIds = useRef<string[]>([]);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    boxIds.current.forEach(id => chart.removeOverlay({ id }));
+    boxIds.current = [];
+    if (!proposals.some(p => p.type === 'channel')) return;
+    const list = chart.getDataList();
+    if (!list || list.length < 60) return;
+    const candles: OHLCV[] = list.map(b => ({ time: b.timestamp, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
+    const res = detectChannel(candles, { coin: coinRef.current, tf, tfMs: TF_MS[tf] ?? 0 });
+    if (res.verdict === 'wait' || res.signalTimestamp == null) return;
+    const p = res.params as { entry: number; stop: number; target?: number; rr?: number };
+    if (![p.entry, p.stop].every(Number.isFinite)) return;
+    const px = currencyPrefix(coinRef.current);
+    const pct = (v: number) => { const x = (v - p.entry) / p.entry * 100; return (x >= 0 ? '+' : '') + x.toFixed(2) + '%'; };
+    const entryTs = res.signalTimestamp;
+    const hasTarget = typeof p.target === 'number' && Number.isFinite(p.target);
+    const create = (o: Record<string, unknown>) => { const id = chart.createOverlay(o as OverlayCreate); if (typeof id === 'string') boxIds.current.push(id); };
+    // S/R levels as bands, across the loaded candles
+    const first = candles[0].time, last = candles[candles.length - 1].time;
+    for (const l of srLevels) {
+      create({ name: 'strategyZone', groupId: PROPOSAL_GROUP, lock: true,
+        points: [{ timestamp: first, value: l.price * (1 + SR_BAND_PCT) }, { timestamp: last, value: l.price * (1 - SR_BAND_PCT) }],
+        extendData: { kind: l.type === 'resistance' ? 'supply' : 'demand', text: '' } });
+    }
+    create({ name: 'positionBox', groupId: PROPOSAL_GROUP, lock: true,
+      points: [{ timestamp: entryTs, value: p.entry }, { timestamp: entryTs, value: hasTarget ? p.target! : p.entry }, { timestamp: entryTs, value: p.stop }],
+      extendData: {
+        hasTarget,
+        targetText: hasTarget ? `${tl('STRAT_OV_TARGET')} ${px}${fmtPx(p.target!)} (${pct(p.target!)})` : '',
+        entryText: `${tl('STRAT_OV_ENTRY')} ${px}${fmtPx(p.entry)}`,
+        stopText: `${tl('STRAT_OV_STOP')} ${px}${fmtPx(p.stop)} (${pct(p.stop)})`,
+        rrText: hasTarget && typeof p.rr === 'number' ? tl('CHANNEL_BOX_RR', { rr: p.rr.toFixed(1) }) : '',
+        caption: tl('DRAW_STRUCTURE_LEVELS_CAPTION'),
+      } });
+  }, [proposals, chartReady, srLevels, barsTick, themeInk, tf]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Proposals are about ONE window. Changing coin or timeframe makes every index they were
      built from meaningless, so they go rather than being redrawn against candles they were
