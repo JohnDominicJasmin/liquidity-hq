@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 // Atomic daily-cap gate for every AI route (grok, grok-chat, briefing, and the
 // one-shot tools: thesis-check, strategy-research, shadow-account,
 // behavioral-bias, pine-script, hypotheses/[id]/analyze).
@@ -110,6 +111,18 @@ const EXTRA_TOOL_COLUMN: Record<ExtraTool, string> = {
 export type UsageBlockReason =
   | 'user' | 'global' | 'pool' | 'disabled' | 'not_enabled' | 'error' | SpendReason;
 
+/** A block that is OUR state, not the user's quota: a database failure in the increment, a migration not applied, or the admin kill switch. Answered 503 UNAVAILABLE, never 429 RATE_LIMIT (the rate-limit
+ *  message names a reset time, so a database blip told a paying user they had used up an allowance they had not touched). Only /api/grok and draw-structure mapped it; every other AI route answered 429 (U8). */
+export function isOurFaultBlock(reason: UsageBlockReason): boolean {
+  return reason === 'error' || reason === 'not_enabled' || reason === 'disabled';
+}
+
+/** The answer for a blocked reservation, in one place: 503 UNAVAILABLE for our own state, 429 RATE_LIMIT for a real cap. `extra` is merged into the body (e.g. a route's usage object). */
+export function blockedResponse(reason: UsageBlockReason, message: string, extra: Record<string, unknown> = {}): NextResponse {
+  if (isOurFaultBlock(reason)) return NextResponse.json({ error: message, ...extra, code: 'UNAVAILABLE' }, { status: 503 });
+  return NextResponse.json({ error: message, ...extra, code: 'RATE_LIMIT' }, { status: 429 });
+}
+
 export type UsageIncrementResult =
   | { blocked: false; count: number }
   | { blocked: true; reason: UsageBlockReason; limit: number };
@@ -125,6 +138,8 @@ export type UsageIncrementResult =
 export async function incrementUsageColumn(
   userId: string, tier: UsageTier, column: string, limit: number,
   poolLimit: number | null = null,
+  /** The caller's plan could not be read and `tier` is the generous one it is being served under (POST /api/grok, #2412): the dollar cap then fails CLOSED on an unreadable ledger. */
+  unknownPlan: boolean = false,
 ): Promise<UsageIncrementResult> {
   // Single choke point for all 15 AI routes (see this file's header comment) -
   // checking here instead of per-route means the admin kill switch
@@ -136,8 +151,10 @@ export async function incrementUsageColumn(
   // count reserve and before the xAI call, so all 15 routes get them. Reads the
   // ledger's measured cost_usd (lib/aiSpendCap.ts); Pro fails OPEN on a read
   // error, free/trial fail CLOSED. `capKey` is the owner-approved message.
-  const dollar = await spendCapBlock(tier, userId);
+  const dollar = await spendCapBlock(tier, userId, undefined, unknownPlan);
   if (dollar.blocked) {
+    // Our own failure, not a limit the account reached: reported as `error` so the caller answers a retryable 503 and never names a cap nobody hit.
+    if (dollar.reason === 'ledger_unreadable') return { blocked: true, reason: 'error', limit: 0 };
     return { blocked: true, reason: dollar.reason, limit: 0 };
   }
 

@@ -283,6 +283,16 @@ export function indicatorLimit(entitled: boolean): number {
   return entitled ? LIMITS.pro : LIMITS.free;
 }
 
+/* THE SELECTION A PLAN MAY USE. A saved selection can outlive the plan that allowed it (a trial or Pro account that dropped to Free keeps its 4 saved indicators, and #2406 holds saved indicators rather
+   than truncating them while the plan is unknown). Once the plan is KNOWN not to be entitled, only the first saved indicator is used, everywhere the selection is read (chips, chart filter, AI context);
+   the saved list itself is never rewritten here, so an upgrade restores it. While the plan is unknown or still loading (planKnownFree false) the selection passes through unchanged. */
+export function selectionForPlan(selection: readonly string[], planKnownFree: boolean): readonly string[] {
+  if (!planKnownFree) return selection;
+  const slotted = slottedIds(selection);
+  const limit = indicatorLimit(false);
+  return slotted.length > limit ? slotted.slice(0, limit) : selection;
+}
+
 /* CHART OVERLAYS vs INDICATORS (owner, 2026-10-07: "the indicator is on the chart but it's not selected in the selectors").
    Four entries are `source: 'overlay'`: the EMA ribbon, S/R, liquidation clusters and GEX. The chart draws them from its own
    data, not from the saved selection, so they were always on and the chip could never say so. They are layers, not indicators:

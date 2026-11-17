@@ -3,7 +3,7 @@ import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS, venueSymbols } from '@/lib/marketStore';
 import { currencyPrefix } from '@/lib/coins';
-import { symbolDenominationFactor } from '@/lib/coins';
+import { symbolDenominationFactor, binanceKlineSource } from '@/lib/coins';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
@@ -149,7 +149,7 @@ export default function MarketStructure({ coin, onData }: Props) {
       let candles: Candle[];
 
       if (binSym) {
-        const r = await fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=4h&limit=100`, { signal: deadlineSignal(20_000) });
+        const r = await fetch(`/api/market/klines?source=${binanceKlineSource(coin)}&symbol=${binSym}&interval=4h&limit=100`, { signal: deadlineSignal(20_000) });
         if (!r.ok) throw new Error('Binance 4H fetch failed');
         const raw = await r.json() as (string | number)[][];
         candles = raw.map(k => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] }));

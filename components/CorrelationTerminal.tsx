@@ -1,14 +1,17 @@
 'use client';
 import { Fragment, useState, useEffect } from 'react';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import MacroStrip from '@/components/MacroStrip';
 import LoadingState from '@/components/LoadingState';
 import Tip from '@/components/Tip';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId } from '@/lib/marketStore';
+import { binanceKlineSource } from '@/lib/coins';
 import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
 import { tintPct } from '@/lib/correlationRamp';
 import type { LabelKey } from '@/lib/labelKeys';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
+import { closedCloses, pctReturns, pearson, btcAltAverage, weakestPairs } from '@/lib/correlationMath';
 
 const RANGES = [
   { key: '24h', label: '24h', interval: '1h',  limit: 25  },
@@ -22,12 +25,21 @@ const RANGE_LABEL_KEYS: Record<RangeKey, LabelKey> = {
   '30d': 'CORRELATION_RANGE_30D',
 };
 
+/* PER-REQUEST DEADLINE. One slow or hung candle read used to hold the WHOLE page (every pair waited for the slowest coin, ~10 s cold on a phone). Each coin now has its own deadline and the matrix fills in as each coin's candles arrive;
+   a coin that misses the deadline simply has no data (its cells show a dash). */
+const FETCH_DEADLINE_MS = 8_000;
+const COIN_DEADLINE_MS = 10_000;
+const withDeadline = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+  Promise.race([p.catch(() => fallback), new Promise<T>(res => setTimeout(() => res(fallback), ms))]);
+
 async function fetchCloses(id: CoinId, interval: string, limit: number): Promise<number[]> {
   const binSym = (BINANCE_SYMS as Record<string, string>)[id];
   const bbSym  = (BYBIT_SYMS  as Record<string, string>)[id];
   if (binSym) {
     try {
-      const res = await fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=${interval}&limit=${limit}`);
+      /* A coin listed on Binance FUTURES only (SPXUSDT) has no spot market: a spot klines call is a 400 on every load. Route it to the futures klines (lib/coins.ts BINANCE_SPOT_SYMS vs BINANCE_SYMS). */
+      const binSource = binanceKlineSource(id);
+      const res = await fetch(`/api/market/klines?source=${binSource}&symbol=${binSym}&interval=${interval}&limit=${limit}`, { signal: deadlineSignal(FETCH_DEADLINE_MS) });
       // #1107: this used to skip straight to `res.json()` with no `res.ok`
       // check. The route (app/api/market/klines/route.ts) always returns a
       // non-2xx with an error body on a refused upstream request - never a
@@ -51,34 +63,13 @@ async function fetchCloses(id: CoinId, interval: string, limit: number): Promise
     // and looked identical to real data insufficiency - just not the
     // plausible-but-wrong shape #1079 was.
     const bbInt = interval === '1h' ? '60' : '240';
-    const d = await fetchBybitKlinesRetry(bbSym, bbInt, limit, { attemptTimeoutMs: 15_000 });
+    const d = await fetchBybitKlinesRetry(bbSym, bbInt, limit, { attemptTimeoutMs: FETCH_DEADLINE_MS });
     if (d === null) return [];
     return ((d.result?.list ?? []) as string[][]).map(c => parseFloat(c[4])).reverse();
   }
   return [];
 }
 
-function pctReturns(closes: number[]): number[] {
-  const r: number[] = [];
-  for (let i = 1; i < closes.length; i++) r.push((closes[i] - closes[i - 1]) / closes[i - 1]);
-  return r;
-}
-
-function pearson(a: number[], b: number[]): number | null {
-  const n = Math.min(a.length, b.length);
-  if (n < 5) return null;
-  const xs = a.slice(0, n), ys = b.slice(0, n);
-  const mx = xs.reduce((s, v) => s + v, 0) / n;
-  const my = ys.reduce((s, v) => s + v, 0) / n;
-  let num = 0, dx2 = 0, dy2 = 0;
-  for (let i = 0; i < n; i++) {
-    const dx = xs[i] - mx, dy = ys[i] - my;
-    num += dx * dy; dx2 += dx * dx; dy2 += dy * dy;
-  }
-  const denom = Math.sqrt(dx2 * dy2);
-  if (denom < 1e-10) return null;
-  return Math.max(-1, Math.min(1, num / denom));
-}
 
 /* #570: was a hardcoded rgba(52,211,153/248,113,113) ramp, uncapped up to
    92-96% alpha, with --txt3 as the default text colour and --txt reserved
@@ -166,24 +157,26 @@ export default function CorrelationTerminal() {
   const { t }                   = useLabels();
   const [rets, setRets]         = useState<Partial<Record<CoinId, number[]>>>({});
   const [rangeKey, setRangeKey] = useState<RangeKey>('7d');
-  const [loading, setLoading]   = useState(true);
+  const [done, setDone]         = useState<ReadonlySet<CoinId>>(() => new Set());
   const [hovered, setHovered]   = useState<[number, number] | null>(null);
 
+  const loading = done.size < COINS.length;   // true while any coin is still being read; the page itself paints at once
   const range = RANGES.find(r => r.key === rangeKey)!;
   const { interval, limit } = range;
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    setDone(new Set());
     setRets({});
-    (async () => {
-      const result: Partial<Record<CoinId, number[]>> = {};
-      await Promise.all(COINS.map(async id => {
-        const closes = await fetchCloses(id, interval, limit);
-        if (closes.length >= 5) result[id] = pctReturns(closes);
-      }));
-      if (!cancelled) { setRets(result); setLoading(false); }
-    })();
+    /* Every coin settles on its own: its returns are added the moment they arrive, then it is marked done (so its cells stop reading "…" and show a value, or a dash if it has no data). */
+    COINS.forEach(async id => {
+      const closes = await withDeadline(fetchCloses(id, interval, limit), COIN_DEADLINE_MS, [] as number[]);
+      if (cancelled) return;
+      /* The newest bar is still forming, so it is dropped; returns are right-aligned later (lib/correlationMath.ts). */
+      const rets = pctReturns(closedCloses(closes));
+      if (rets.length > 0) setRets(prev => ({ ...prev, [id]: rets }));
+      setDone(prev => new Set(prev).add(id));
+    });
     return () => { cancelled = true; };
   }, [interval, limit]);
 
@@ -196,8 +189,7 @@ export default function CorrelationTerminal() {
     }),
   );
 
-  const btcAlts = matrix[0].slice(1).filter((v): v is number => v !== null);
-  const avgCorr = btcAlts.length ? btcAlts.reduce((a, b) => a + b, 0) / btcAlts.length : null;
+  const avgCorr = btcAltAverage(matrix[0].slice(1), COINS.length - 1);
   const sig     = altSignal(avgCorr);
 
   const pairs: { a: CoinId; b: CoinId; r: number }[] = [];
@@ -207,7 +199,7 @@ export default function CorrelationTerminal() {
     if (r !== null) pairs.push({ a, b, r });
   }));
   const strongest = [...pairs].sort((a, b) => b.r - a.r).slice(0, 5);
-  const weakest   = [...pairs].sort((a, b) => a.r - b.r).slice(0, 3);
+  const weakest   = weakestPairs(pairs, 3);
 
   return (
     <div>
@@ -233,7 +225,7 @@ export default function CorrelationTerminal() {
 
       {loading && <LoadingState message={t('CORRELATION_LOADING_MESSAGE')} />}
 
-      {!loading && (
+      {(
         <>
           {/* Alt season signal */}
           <TPanel style={{ border: `0.5px solid ${withAlpha(sig.color, '55')}`, background: sig.bg, borderRadius: 0 }}>
@@ -317,7 +309,7 @@ export default function CorrelationTerminal() {
                           title={diag ? COIN_LABELS[a] : `${COIN_LABELS[a]} / ${COIN_LABELS[b]}: ${r?.toFixed(2) ?? '-'}`}
                           onMouseEnter={() => setHovered([i, j])}
                         >
-                          {diag ? '-' : r !== null ? r.toFixed(2) : '-'}
+                          {diag ? '-' : r !== null ? r.toFixed(2) : (!done.has(a) || !done.has(b)) ? '…' : '-'}
                         </div>
                       );
                     })}

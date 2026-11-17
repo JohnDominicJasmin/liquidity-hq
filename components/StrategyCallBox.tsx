@@ -27,6 +27,8 @@ export default function StrategyCallBox({ def, state }: Props) {
   const colour = r?.verdict === 'buy' ? 'var(--green)' : r?.verdict === 'sell' ? 'var(--red)' : 'var(--txt2)';
   const priceParams: Record<string, string> = {};
   for (const [k, v] of Object.entries(r?.params ?? {})) if (typeof v === 'number') priceParams[k] = k === 'tag' || k.startsWith('count') ? String(v) : priceText(v);
+  /* ON WAIT THE CALL BLOCK WOULD BE MOSTLY EMPTY (its height is reserved for the tallest call), so it lists the levels the strategy is watching, as text, from the same overlay data the chart draws: only 'watch' and 'confirm' levels (the wrong-if level is a BUY/SELL concern), lowest price first, at most four. Nothing is invented: no levels, no line. */
+  const watched = r && r.verdict === 'wait' ? (r.overlay?.levels ?? []).filter(l => l.role === 'watch' || l.role === 'confirm').sort((a, b) => a.price - b.price).slice(0, 4) : [];
   let reason = '';
   if (r) {
     const alt = def.reasonKeyFor?.(r) ?? null;
@@ -67,6 +69,12 @@ export default function StrategyCallBox({ def, state }: Props) {
             {t(r.verdict === 'buy' ? 'STRAT_VERDICT_BUY' : r.verdict === 'sell' ? 'STRAT_VERDICT_SELL' : 'STRAT_VERDICT_WAIT')}
           </div>
           <p data-testid="strategy-call-reason" style={{ margin: 0, fontSize: 'var(--fs-body)', color: 'var(--txt)', lineHeight: 1.45 }}>{reason}</p>
+          {watched.length > 0 && (
+            <p data-testid="strategy-call-watching" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.5 }}>
+              <span style={{ fontWeight: 600 }}>{t('STRAT_WATCHING')}: </span>
+              {watched.map(l => `${t(l.labelKey, l.labelParams)} ${priceText(l.price)}`).join(' · ')}
+            </p>
+          )}
           {r.verdict !== 'wait' && typeof r.params.inv === 'number' && (
             <p data-testid="strategy-call-invalidation" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('STRAT_INVALIDATION', { price: priceText(r.params.inv) })}</p>
           )}

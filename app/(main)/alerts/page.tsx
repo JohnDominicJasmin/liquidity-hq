@@ -362,7 +362,11 @@ export default function AlertsPage() {
   // here, not the muted one. See lib/structurePrefs.ts.
   const toggleStructureTf = (tf: string) => toggleMute(structureOnKey(tf));
 
+  const signedIn = !!user;
   const loadPriceAlerts = useCallback(async () => {
+    /* NO SESSION, NO REQUEST: a signed-out visitor used to fire GET /api/price-alerts and log a 401. While auth is still loading nothing is asked; once it settles signed-out, the list is simply empty. A SIGNED-IN user whose token read fails still takes the error path below (#1165). */
+    if (authLoading) return;
+    if (!signedIn) { setPriceAlerts([]); setPaLoadFailed(false); setPaError(''); setPaLoading(false); return; }
     setPaLoading(true);
     try {
       const token = await getAuthToken();
@@ -387,7 +391,7 @@ export default function AlertsPage() {
       setPaLoadFailed(true);
     }
     setPaLoading(false);
-  }, [t]);
+  }, [t, signedIn, authLoading]);
 
   useEffect(() => { loadPriceAlerts(); }, [loadPriceAlerts]);
 

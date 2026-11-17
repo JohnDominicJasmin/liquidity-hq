@@ -41,9 +41,11 @@ function rowMarker(): string | null {
 test('the row marker exists and is a visible word, not only a tooltip', () => {
   const block = rowMarker();
   assert.ok(block, 'no {e.estimated && (…)} marker in the row - /econ-calendar is back to a bare tilde');
-  assert.match(block, />\s*estimated\s*</,
+  /* #2397 moved the word into the label table: the row renders {t('ECON_ESTIMATED')} and the shipped English default is "estimated". */
+  assert.match(block, />\s*(estimated|\{t\('ECON_ESTIMATED'\)\})\s*</,
     'the marker no longer renders the word. A title attribute is not a disclosure: ' +
     'nobody hovers a date to find out whether it is real.');
+  assert.equal(JSON.parse(readFileSync(path.join(ROOT, 'lib', 'labelDefaults.en.json'), 'utf8')).ECON_ESTIMATED, 'estimated', 'the English word behind the key changed');
 });
 
 test('the marker is gated on the data, not re-derived in the view', () => {
@@ -140,7 +142,7 @@ test('the marker is a word, so colour is not the only channel', () => {
      greyscale, and it is also why no aria is needed: visible text is already
      the accessible name, read in document order right after the time. */
   const block = rowMarker()!;
-  assert.match(block, />\s*estimated\s*</);
+  assert.match(block, />\s*(estimated|\{t\('ECON_ESTIMATED'\)\})\s*</);
   assert.equal(/aria-label|sr-only/.test(block), false,
     'the marker grew an aria label - if the visible text stopped being the ' +
     'accessible name, that is the thing to fix rather than to paper over');

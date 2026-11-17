@@ -1,6 +1,6 @@
 /* AI dollar caps per account (#1399 part 2, PR #1437).
  *
- * The owner's limits, chosen 2026-09-26: Pro $1.00 a day AND $10.00 a month; free and trial $0.15 a day; a whole-site
+ * The owner's limits, chosen 2026-09-26: Pro $1.00 a day AND $10.00 a month; free and trial $0.25 a day (raised from $0.15 by the owner, #2463); a whole-site
  * fuse at $10.00 a day. The cap is checked BEFORE an AI call, at the single choke point (`incrementUsageColumn`) all 14
  * routes go through, and it reads the ledger's measured `cost_usd`.
  *
@@ -33,10 +33,10 @@ const defaults = JSON.parse(read('lib/labelDefaults.en.json')) as Record<string,
 
 /* ══ The owner's numbers, pinned as decisions ═══════════════════════════════════════════════ */
 
-test('C1. the owner\'s four limits (2026-09-26): Pro $1.00/day and $10.00/month, free and trial $0.15/day, site fuse $10.00/day', () => {
+test('C1. the owner\'s four limits (2026-09-26): Pro $1.00/day and $10.00/month, free and trial $0.25/day, site fuse $10.00/day', () => {
   assert.equal(PRO_DAILY_CAP_USD, 1.00);
   assert.equal(PRO_MONTHLY_CAP_USD, 10.00);
-  assert.equal(FREE_DAILY_CAP_USD, 0.15);
+  assert.equal(FREE_DAILY_CAP_USD, 0.25);
   assert.equal(SITE_FUSE_DAILY_USD, 10.00);
 });
 
@@ -388,13 +388,14 @@ const FREE_CASES = (tier: 'free' | 'trial', uid: string): Case[] => {
   const s = tier === 'trial' ? 't' : '';
   return [
     [`F1${s}`, 'no spend at all', tier, uid, [], null],
-    [`F2${s}`, 'own $0.125 today is under the $0.15 cap', tier, uid, rows(1, uid, 0.125, TODAY), null],
-    [`F3${s}`, 'own spend of exactly $0.15 is AT the cap and blocks', tier, uid, rows(1, uid, 0.15, TODAY), 'free_daily'],
-    [`F4${s}`, 'own $0.20 blocks with the free-daily reason', tier, uid, rows(1, uid, 0.20, TODAY), 'free_daily'],
+    [`F2${s}`, 'own $0.225 today is under the $0.25 cap', tier, uid, rows(1, uid, 0.225, TODAY), null],
+    [`F3${s}`, 'own spend of exactly $0.25 is AT the cap and blocks', tier, uid, rows(1, uid, 0.25, TODAY), 'free_daily'],
+    [`F4${s}`, 'own $0.30 blocks with the free-daily reason', tier, uid, rows(1, uid, 0.30, TODAY), 'free_daily'],
     [`F5${s}`, 'yesterday\'s own $5.00 does not count today (free has no monthly cap)', tier, uid, rows(20, uid, Q, YESTERDAY_LATE), null],
-    [`F6${s}`, 'a row stamped exactly midnight belongs to today', tier, uid, rows(1, uid, 0.15, MIDNIGHT), 'free_daily'],
-    [`F7${s}`, 'a row one millisecond before midnight does not', tier, uid, rows(1, uid, 0.15, YESTERDAY_LATE), null],
-    [`F8${s}`, 'five unmeasured searches ($0.186) block', tier, uid, rows(5, uid, null, TODAY, 'chat_search'), 'free_daily'],
+    [`F6${s}`, 'a row stamped exactly midnight belongs to today', tier, uid, rows(1, uid, 0.25, MIDNIGHT), 'free_daily'],
+    [`F7${s}`, 'a row one millisecond before midnight does not', tier, uid, rows(1, uid, 0.25, YESTERDAY_LATE), null],
+    [`F8${s}`, 'seven unmeasured searches ($0.260) block', tier, uid, rows(7, uid, null, TODAY, 'chat_search'), 'free_daily'],
+    [`F8b${s}`, 'six unmeasured searches ($0.223) are still under the $0.25 cap', tier, uid, rows(6, uid, null, TODAY, 'chat_search'), null],
     [`F9${s}`, 'four unmeasured searches ($0.1488) do not', tier, uid, rows(4, uid, null, TODAY, 'chat_search'), null],
     [`F10${s}`, 'everyone else\'s $9.875 plus own $0.125 = $10.00 exactly: the fuse trips', tier, uid,
       [...rows(39, OTHER, Q, TODAY), ...rows(1, OTHER, 0.125, TODAY), ...rows(1, uid, 0.125, TODAY)], 'fuse'],
@@ -406,7 +407,7 @@ const FREE_CASES = (tier: 'free' | 'trial', uid: string): Case[] => {
     [`F15${s}`, 'rows with no user_id (system calls) count toward the fuse too', tier, uid, rows(40, null, Q, TODAY), 'fuse'],
     [`F16${s}`, '269 unmeasured searches site-wide ($10.0068) trip the fuse', tier, uid, rows(269, OTHER, null, TODAY, 'chat_search'), 'fuse'],
     [`F17${s}`, '268 unmeasured searches site-wide ($9.9696) do not', tier, uid, rows(268, OTHER, null, TODAY, 'chat_search'), null],
-    [`F18${s}`, 'own AND site both over: the account\'s own reason comes first', tier, uid, [...rows(1, uid, 0.20, TODAY), ...rows(200, OTHER, Q, TODAY)], 'free_daily'],
+    [`F18${s}`, 'own AND site both over: the account\'s own reason comes first', tier, uid, [...rows(1, uid, 0.30, TODAY), ...rows(200, OTHER, Q, TODAY)], 'free_daily'],
   ];
 };
 for (const [id, name, tier, uid, ledger, want] of [...PRO_CASES, ...FREE_CASES('free', FREE), ...FREE_CASES('trial', TRIAL)]) {
@@ -437,7 +438,7 @@ test('Q2. a free decision asks for its own day first, then the whole site\'s day
 });
 
 test('Q3. an account already over its own daily cap is stopped without reading the fuse', async () => {
-  await decide('free', FREE, rows(1, FREE, 0.20, TODAY));
+  await decide('free', FREE, rows(1, FREE, 0.30, TODAY));
   assert.deepEqual(spendCalls().map((c) => c.path), [`/rest/v1/rpc/${USER_FN}`]);
 });
 
@@ -603,6 +604,31 @@ test('R13. Pro: only a CONFIRMED overage blocks; a failed read next to an under-
   assert.deepEqual(await spendCapBlock('pro', PRO, NOW), { blocked: false }, 'both failed, nothing confirmed');
 });
 
+/* UNKNOWN PLAN (#2412, PM): the caller's plan could not be read, so it is counted as Pro but the dollar cap FAILS CLOSED when the ledger cannot be read. Default (false) keeps Pro fail-open (R1, R13). */
+test('R14. unknown plan (failClosedOnUnreadable = true): an unreadable ledger blocks as ledger_unreadable; the default keeps Pro open', async () => {
+  reset();
+  world.ledger = rows(3, PRO, Q, TODAY);                          // under both caps: only the unreadable read decides
+  world.fault = () => 'error';
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW, true), { blocked: true, reason: 'ledger_unreadable' }, 'both reads errored, unknown plan');
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW), { blocked: false }, 'the default must stay fail-open for Pro');
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW, false), { blocked: false }, 'an explicit false is the default');
+  world.fault = failing(`user@${MONTH_START}`);
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW, true), { blocked: true, reason: 'ledger_unreadable' }, 'ONE read errored is also unreadable on an unknown plan');
+  world.fault = () => 'throw';
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW, true), { blocked: true, reason: 'ledger_unreadable' }, 'the network failing is also unreadable');
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW), { blocked: false }, 'and the default is still open when the network fails');
+});
+
+test('R15. unknown plan: a CONFIRMED overage still blocks with its own reason before the unreadable rule, and a readable ledger under both caps is let through', async () => {
+  reset();
+  world.ledger = rows(50, PRO, Q, EARLIER);
+  world.fault = failing(`user@${DAY_START}`);
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW, true), { blocked: true, reason: 'pro_monthly' }, 'month confirmed over, day unreadable');
+  reset();
+  world.ledger = rows(3, PRO, Q, TODAY);
+  assert.deepEqual(await spendCapBlock('pro', PRO, NOW, true), { blocked: false }, 'both reads fine and under: an unknown plan is not blocked by the flag alone');
+});
+
 /* ══ A: the choke point, incrementUsageColumn ═════════════════════════════════════════════ */
 
 const { incrementUsageColumn, rateLimitMessage } = await import('../lib/aiUsage.ts');
@@ -618,8 +644,8 @@ async function increment(tier: UsageTier, uid: string, ledger: LedgerRow[], over
 const BLOCKS: [SpendReason, UsageTier, string, LedgerRow[]][] = [
   ['pro_daily', 'pro', PRO, rows(4, PRO, Q, TODAY)],
   ['pro_monthly', 'pro', PRO, rows(40, PRO, Q, EARLIER)],
-  ['free_daily', 'free', FREE, rows(1, FREE, 0.15, TODAY)],
-  ['free_daily', 'trial', TRIAL, rows(1, TRIAL, 0.15, TODAY)],
+  ['free_daily', 'free', FREE, rows(1, FREE, 0.25, TODAY)],
+  ['free_daily', 'trial', TRIAL, rows(1, TRIAL, 0.25, TODAY)],
   ['fuse', 'free', FREE, rows(40, OTHER, Q, TODAY)],
 ];
 for (const [reason, tier, uid, ledger] of BLOCKS) {
