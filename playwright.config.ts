@@ -228,6 +228,9 @@ export default defineConfig({
     // ...webkit-2336", which reads like 71 product bugs rather than one config
     // line.
     { name: 'mobile', use: { ...devices['iPhone 13'], browserName: 'chromium' } },
+    // QA AUDIT BROWSERS (owner, 2026-11-17: Safari and Firefox coverage). Dispatch-only: `project=webkit` / `project=firefox` on ci.yml; the default runs never touch them.
+    { name: 'webkit', use: { ...devices['iPhone 13'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'], viewport: { width: 1440, height: 900 } } },
   ],
 
   // Playwright builds and boots the app itself so CI and local behave the same.
