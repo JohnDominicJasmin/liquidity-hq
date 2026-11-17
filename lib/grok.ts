@@ -1138,18 +1138,29 @@ function tierFromCounts(c: { bullish: number; bearish: number }): Tier {
 export function applyResultChecks(result: CombinedResult, prompt: string): CombinedResult {
   const r: CombinedResult & { checks: string[] } = { ...result, checks: [...(result.checks ?? [])] };
 
-  /* PROSE MUST NOT CONTRADICT THE INPUTS (PM audit 2026-11-17: "price below EMA9 / below VWAP" while price was above both). A clause that states the wrong side of EMA9 or VWAP is dropped, never shown,
+  /* PROSE MUST NOT CONTRADICT THE INPUTS (PM audit 2026-11-17: "price below EMA9 / below VWAP" while price was above both). A claim that states the wrong side of EMA9, SMA200 or VWAP is fixed or dropped, never shown,
      and what was dropped goes in `checks` (logged by the route, not shown in the UI). See lib/readSanity.ts. */
   {
     const inputs = extractReadInputs(prompt);
-    for (const field of ['reasoning', 'chartAnalysis'] as const) {
+    const note2 = (field: string, dropped: string[]) => r.checks.push(`prose fixed or dropped (${field}): wrong side of EMA9 / SMA200 / VWAP - "${dropped.join('" / "').slice(0, 160)}"`);
+    // every prose field a reader sees: the summary, the chart read, the "Confirms to ..." / "Wait for" line, the raid trigger, the catalysts. Quick and Deep both come through here.
+    for (const field of ['reasoning', 'chartAnalysis', 'waitFor', 'raidTrigger'] as const) {
       const cur = r[field];
       if (typeof cur !== 'string' || !cur) continue;
       const { text, dropped } = dropContradictingClauses(cur, inputs);
       if (dropped.length) {
-        r[field] = text;
-        r.checks.push(`prose clause dropped (${field}): contradicts the prompt's EMA9 / VWAP side - "${dropped.join('" / "').slice(0, 160)}"`);
+        (r as unknown as Record<string, string | null>)[field] = text.trim() ? text : (field === 'reasoning' || field === 'chartAnalysis' ? cur : null);
+        note2(field, dropped);
       }
+    }
+    if (Array.isArray(r.catalysts)) {
+      const nextCat: string[] = [];
+      for (const c of r.catalysts) {
+        const { text, dropped } = dropContradictingClauses(c, inputs);
+        if (dropped.length) note2('catalysts', dropped);
+        if (text.trim()) nextCat.push(text);
+      }
+      r.catalysts = nextCat;
     }
   }
 

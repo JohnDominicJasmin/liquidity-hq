@@ -632,7 +632,7 @@ export async function POST(req: NextRequest) {
   /* THE INPUTS THIS READ WAS GIVEN, one line each (PM audit: a read contradicted its own EMA9/VWAP and there was no way to tell what it had been handed). Numbers only: no user, no prompt text. */
   {
     const inp = extractReadInputs(prompt);
-    console.log(`[grok] read-inputs type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} close=${inp.close ?? 'na'} ema9=${inp.ema9 ?? 'na'} vwap=${inp.vwapSide ?? 'na'} clausesDropped=${(result.checks ?? []).filter(c => c.startsWith('prose clause dropped')).length}`);
+    console.log(`[grok] read-inputs type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} close=${inp.close ?? 'na'} ema9=${inp.ema9 ?? 'na'} vwap=${inp.vwapSide ?? 'na'} clausesDropped=${(result.checks ?? []).filter(c => c.startsWith('prose fixed or dropped')).length}`);
   }
   // The string is VERDICT_RESTATED_CHECK in lib/grok.ts rather than a literal here: the Deep canary
   // keys its DEGRADED state off this entry, and the response carries no `restated` flag for it to read
