@@ -47,7 +47,7 @@ test.describe('#2403 News > Events table', () => {
           const all = Array.from(document.querySelectorAll('.ne-row')) as HTMLElement[]; const vis = (e: Element) => (e as HTMLElement).offsetParent !== null && getComputedStyle(e).display !== 'none';
           const cols = (el: HTMLElement) => getComputedStyle(el).gridTemplateColumns.split(' ').length; const hdr = all[0];
           return { n: all.length, hdrCols: cols(hdr), colMismatch: all.filter((r) => cols(r) !== cols(hdr)).length, prevVisible: Array.from(document.querySelectorAll('.ne-prev')).some(vis), impVisible: Array.from(document.querySelectorAll('.ne-imp')).some(vis),
-            impacts: Array.from(new Set(all.slice(1).flatMap((r) => Array.from(r.querySelectorAll('.ne-imp'))).filter(vis).map((e) => (e.textContent || '').trim()))), docW: document.documentElement.scrollWidth, winW: window.innerWidth };
+            impacts: Array.from(new Set(all.flatMap((r) => Array.from(r.querySelectorAll('.ne-imp'))).filter(vis).map((e) => (e.textContent || '').trim()).filter((v) => v !== (hdr.querySelector('.ne-imp')?.textContent || '').trim()))),   /* every date group has its own header row: leave the header word out */ docW: document.documentElement.scrollWidth, winW: window.innerWidth };
         });
         console.log(`[CELL] E1 ${width}: rows=${m.n} cols=${m.hdrCols} mismatch=${m.colMismatch} prevVisible=${m.prevVisible} impactVisible=${m.impVisible} impacts=${JSON.stringify(m.impacts)} docW=${m.docW}/${m.winW}`);
         expect(m.docW, 'the page scrolls sideways').toBeLessThanOrEqual(m.winW); expect(m.colMismatch, 'a row has a different column count than the header').toBe(0);
