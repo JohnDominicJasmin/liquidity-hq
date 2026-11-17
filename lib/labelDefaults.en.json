@@ -1831,7 +1831,7 @@
   "ACCUMULATION_TRACKER_SUBTITLE": "quiet coins being loaded - before the pump",
   "ACCUMULATION_TRACKER_EMPTY": "No stealth accumulation detected right now. Signals appear when a flat-priced coin shows CVD absorption, rising open interest, or heavy taker buying.",
   "DISTRIBUTION_TRACKER_TITLE": "Distribution Tracker",
-  "DISTRIBUTION_TRACKER_TOOLTIP": "Scores every coin for profit-taking by big players: price still up on the day while CVD shows sellers into strength, open interest unwinds out of the rally, top traders lean out of longs, and retail keeps paying positive funding. A high score means several of these signs are present at once.",
+  "DISTRIBUTION_TRACKER_TOOLTIP": "Scores every coin for selling into strength: price still up on the day while CVD shows sellers, open interest unwinds out of the rally, top traders lean out of longs, and retail keeps paying positive funding. A high score means several of these signs are present at once.",
   "DISTRIBUTION_TRACKER_SUBTITLE": "winners being sold into - big players taking profit",
   "DISTRIBUTION_TRACKER_EMPTY_TITLE": "No distribution detected",
   "DISTRIBUTION_TRACKER_EMPTY_SUB": "Signals appear when a coin shows sellers into strength, OI unwinding, or whales leaning out.",
