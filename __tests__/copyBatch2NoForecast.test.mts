@@ -27,7 +27,7 @@ const APPROVED: Record<string, string> = {
   BRIEFING_DXY_HEADWIND: "↑ Dollar rising",
   BRIEFING_DXY_TAILWIND: "↓ Dollar falling",
   BRIEFING_YEN_DANGER: "USD/JPY at 160+",
-  DISTRIBUTION_TRACKER_TOOLTIP: "Scores every coin for profit-taking by big players: price still up on the day while CVD shows sellers into strength, open interest unwinds out of the rally, top traders lean out of longs, and retail keeps paying positive funding. A high score means several of these signs are present at once.",
+  DISTRIBUTION_TRACKER_TOOLTIP: "Scores every coin for selling into strength: price still up on the day while CVD shows sellers, open interest unwinds out of the rally, top traders lean out of longs, and retail keeps paying positive funding. A high score means several of these signs are present at once.",
   MULTI_TF_ALIGNMENT_FOOTER_MIXED: "No clear directional bias across timeframes.",
   GEX_TABLE_LEAN_MAGNET_ABOVE: "the strongest level (${strike}K) sits above price",
   GEX_TABLE_LEAN_MAGNET_BELOW: "the strongest level (${strike}K) sits below price",
