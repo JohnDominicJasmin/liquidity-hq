@@ -50,9 +50,14 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     }
   }
   if (p.endsWith('user_settings')) {
+    if (req.method === 'GET' && filt(url, 'user_id') !== null && filt(url, 'telegram_chat_id') === null) {   /* #2482: the read of THIS account's own current chat before a re-link: user_id=eq.<id>, select=telegram_chat_id */
+      const want = (filt(url, 'user_id') ?? '').replace(/^eq\./, ''); const row = db.settings.get(want); return one(row ? { telegram_chat_id: row.telegram_chat_id } : null);
+    }
     if (req.method === 'GET') { const chat = (filt(url, 'telegram_chat_id') ?? '').replace(/^eq\./, ''); return json(200, [...db.settings.values()].filter((s) => s.telegram_chat_id === chat).map((s) => ({ user_id: s.user_id }))); }
     if (req.method === 'PATCH') {                                                  // /stop: clears the chat id where telegram_chat_id = this chat
-      const chat = (filt(url, 'telegram_chat_id') ?? '').replace(/^eq\./, ''); for (const s of db.settings.values()) if (s.telegram_chat_id === chat) s.telegram_chat_id = null; return json(204, null);
+      const chat = (filt(url, 'telegram_chat_id') ?? '').replace(/^eq\./, ''); const notUser = (filt(url, 'user_id') ?? '').replace(/^neq\./, '');   /* #2484: the filter may carry user_id=neq.<id> (clear OTHER accounts only) and select=user_id (answer the rows it cleared) */
+      const cleared: { user_id: string }[] = []; for (const s of db.settings.values()) if (s.telegram_chat_id === chat && (!notUser || s.user_id !== notUser)) { s.telegram_chat_id = null; cleared.push({ user_id: s.user_id }); }
+      return url.searchParams.get('select') ? json(200, cleared) : json(204, null);
     }
     if (req.method === 'POST') {                                                   // the upsert
       if (db.failUpsert) return json(500, { code: 'XX000', message: 'stand-in: write failed', details: '', hint: '' });
@@ -149,4 +154,63 @@ test('W1. setup-webhook refuses to register without the secret (never calls setW
     void req; void ok;
     const set = db.tg.find((t) => t.method === 'setWebhook'); assert.ok(set, 'CONTROL: with the secret set the route never registered the webhook, so the secret_token below was not measured'); assert.equal(set!.body.secret_token, 'qa-webhook-secret', 'setWebhook does not carry the secret_token');
   } finally { if (saved) process.env.TELEGRAM_WEBHOOK_SECRET = saved; else delete process.env.TELEGRAM_WEBHOOK_SECRET; }
+});
+
+/* ── #2484: ONE CHAT, ONE ACCOUNT. Confirming proves control of THIS chat, so any OTHER account holding it loses the link; the stand-in honours user_id=neq and select=user_id ─────────────────────────────────────── */
+
+const press = (chat: number, data: string) => send({ callback_query: { id: 'cb9', data, message: { chat: { id: chat, type: 'private' }, message_id: 7 } } });
+const doneText = () => sent('editMessageText').map(textOf).concat(sent('sendMessage').map(textOf)).join(' | ');
+
+test('O1. a chat already linked to ANOTHER account: Confirm links the confirming account, clears the other one, and tells the chat', async () => {
+  code('ABC123'); db.settings.set(U2, { user_id: U2, telegram_chat_id: '555' });
+  await press(555, 'link:ABC123');
+  assert.equal(db.settings.get(U1)?.telegram_chat_id, '555', 'the confirming account must be linked (a clear that ignored neq would strip it too)');
+  assert.equal(db.settings.get(U2)?.telegram_chat_id, null, 'the other account must lose the chat');
+  assert.match(doneText(), /linked to another LiquidityHQ account, which no longer receives alerts here/);
+});
+
+test('O2. nobody else held the chat: linked, and the message does NOT claim another account was displaced', async () => {
+  code('ABC123'); db.settings.set(U2, { user_id: U2, telegram_chat_id: '999' });
+  await press(555, 'link:ABC123');
+  assert.equal(db.settings.get(U1)?.telegram_chat_id, '555');
+  assert.equal(db.settings.get(U2)?.telegram_chat_id, '999', 'an account on a DIFFERENT chat must be left alone');
+  assert.doesNotMatch(doneText(), /another LiquidityHQ account/);
+});
+
+test('O3. a FAILED save strips nobody: the other account keeps its link (the clear runs only after the new link is written)', async () => {
+  code('ABC123'); db.settings.set(U2, { user_id: U2, telegram_chat_id: '555' }); db.failUpsert = true;
+  await press(555, 'link:ABC123');
+  assert.equal(db.settings.get(U2)?.telegram_chat_id, '555', 'the other account was stripped although the new link was never written');
+  assert.notEqual(db.settings.get(U1)?.telegram_chat_id, '555');
+});
+
+/* ── #2482: a re-link from a NEW chat tells the OLD chat it was replaced ──────────────────────────────────────────────────────────────────────────────────────────── */
+
+const toChat = (chat: number) => db.tg.filter((t) => t.method === 'sendMessage' && Number(t.body.chat_id) === chat).map((t) => textOf(t.body));
+
+test('Q1. re-linking from a NEW chat sends the OLD chat one "disconnected" message and links the new one', async () => {
+  code('ABC123'); db.settings.set(U1, { user_id: U1, telegram_chat_id: '444' });
+  await send(confirm(555, 'link:ABC123'));
+  assert.equal(db.settings.get(U1)?.telegram_chat_id, '555');
+  const told = toChat(444); assert.equal(told.length, 1, `the old chat should get exactly one message, got ${told.length}`);
+  assert.match(told[0], /disconnected/); assert.match(told[0], /different chat/);
+});
+
+test('Q2. confirming from the SAME chat (a redelivery, or re-confirming) tells nobody; a first-ever link tells nobody', async () => {
+  code('ABC123'); db.settings.set(U1, { user_id: U1, telegram_chat_id: '555' });
+  await send(confirm(555, 'link:ABC123'));
+  assert.equal(toChat(555).filter((t) => /disconnected/.test(t)).length, 0, 'the confirming chat was told it was disconnected');
+  reset(); code('ABC123');
+  await send(confirm(555, 'link:ABC123'));
+  assert.equal(db.tg.filter((t) => t.method === 'sendMessage' && /disconnected/.test(textOf(t.body))).length, 0, 'a first link told someone it was disconnected');
+});
+
+test('Q3. a failed save tells the old chat NOTHING (it is still linked), and a dead old chat (Telegram throws) never turns the finished link into an error', async () => {
+  code('ABC123'); db.settings.set(U1, { user_id: U1, telegram_chat_id: '444' }); db.failUpsert = true;
+  await send(confirm(555, 'link:ABC123'));
+  assert.equal(toChat(444).length, 0, 'the old chat was told it was replaced although the new link was never saved');
+  reset(); code('ABC123'); db.settings.set(U1, { user_id: U1, telegram_chat_id: '444' }); db.tgThrows = true;
+  const r = await send(confirm(555, 'link:ABC123'));
+  assert.equal(r.status, 200, 'a failing send to the old chat must never fail the route');
+  assert.equal(db.settings.get(U1)?.telegram_chat_id, '555', 'the link must stand');
 });

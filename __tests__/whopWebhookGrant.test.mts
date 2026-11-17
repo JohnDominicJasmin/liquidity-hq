@@ -134,6 +134,18 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const isBookkeeping = String(db.events.get(eq('payload_hash'))?.event ?? '').startsWith('lhq.');
       if (db.failDelete === 'all' || !isBookkeeping) { db.writes.push('events:delete-failed'); return json(500, { code: 'XX000', message: 'delete boom' }); }
     }
+    /* #2477: the marker is stamped by an UPDATE of its body, and the take-over deletes with `body->>state=eq.failed` in the filter - the stand-in must honour BOTH, or a take-over would delete a healthy marker here and this file would say nothing. */
+    if (req.method === 'PATCH') {
+      const row = db.events.get(eq('payload_hash'));
+      if (!row) return out([], 200);
+      const patch = JSON.parse(await req.text()); db.events.set(eq('payload_hash'), { ...row, ...patch }); db.writes.push('events:patch');
+      return new Response(null, { status: 204 });
+    }
+    if (req.method === 'DELETE' && q.get('body->>state')) {
+      const want = /^eq\.(.*)$/.exec(q.get('body->>state') ?? '')?.[1]; const row = db.events.get(eq('payload_hash'));
+      if (row && (row.body as { state?: unknown } | null)?.state === want) { db.events.delete(eq('payload_hash')); db.writes.push('events:delete-failed-marker'); }
+      return new Response(null, { status: 204 });
+    }
     if (req.method === 'DELETE') { db.events.delete(eq('payload_hash')); db.writes.push('events:delete'); return new Response(null, { status: 204 }); } // a 204 has no body; json(204, null) threw, so every delete read as failed
   }
   if (table === T('user_subscriptions')) {
@@ -553,7 +565,7 @@ test('A1d. the re-processed delivery counts from ITS OWN receipt: a monthly paym
   assert.ok(d > 8 && d < 12, `expected about 10 days (from receipt), got ${d.toFixed(2)}`);
 });
 
-test('A1c. FINDING: BOTH cleanups fail (the delivery record AND the applied marker): the marker says "applied" for a grant that never happened, so the retry is answered "replay" and the paid account stays Free', { todo: 'finding for Dev 2026-11-16: needs two consecutive database failures, but the result is the money bug A1 fixes for the single failure' }, async () => {
+test('A1c. BOTH cleanups fail (the delivery record AND the applied marker): the failed marker is stamped and the retry TAKES IT OVER and grants (#2477)', async () => {
   const POST = await load(); fresh();
   const bodyText = pay();
   db.fail = 'subsWrite'; db.failDelete = 'all';
@@ -561,6 +573,22 @@ test('A1c. FINDING: BOTH cleanups fail (the delivery record AND the applied mark
   db.fail = null; db.failDelete = false;
   const b = await body(await POST(req(bodyText, { id: 'msg_a1c' })));
   assert.equal(b.granted, 'monthly', `a stuck applied marker blocked the grant: ${JSON.stringify(b)}`);
+});
+
+test('A1e. (#2477) after the take-over grants, the SAME payment again is a replay and grants nothing more; a stamped marker is gone, a healthy one is never touched', async () => {
+  const POST = await load(); fresh();
+  const bodyText = pay();
+  db.fail = 'subsWrite'; db.failDelete = 'all';
+  await POST(req(bodyText, { id: 'msg_a1e' }));
+  assert.ok(db.writes.includes('events:patch'), 'the marker should have been stamped failed when both deletes failed');
+  db.fail = null; db.failDelete = false;
+  const first = await body(await POST(req(bodyText, { id: 'msg_a1e' })));
+  assert.equal(first.granted, 'monthly', JSON.stringify(first));
+  assert.ok(db.writes.includes('events:delete-failed-marker'), 'the take-over should have deleted the failed marker');
+  const again = await body(await POST(req(bodyText, { id: 'msg_a1e' })));
+  assert.equal(again.ignored, 'replay', `a second delivery of a now-granted payment must be a replay: ${JSON.stringify(again)}`);
+  assert.equal(subsWrites(), 1, 'the payment was granted twice');
+  assert.equal(db.writes.filter((w) => w === 'events:delete-failed-marker').length, 1, 'the healthy marker the take-over wrote must never be deleted by a later retry');
 });
 
 test('A1b. a replay with an applied marker, a pending claim, or a retry row is STILL a replay (the retry above must not turn every repeat into a re-process)', async () => {
