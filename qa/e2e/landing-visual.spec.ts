@@ -61,6 +61,15 @@ test.describe('group-2 landing visual evidence (signed out)', () => {
       await page.goto('/', { waitUntil: 'domcontentloaded' });
       await page.locator('.lp-hero-h1').first().waitFor({ state: 'visible', timeout: 30_000 }).catch(() => {});
       await page.waitForTimeout(2500);
+      /* THE PANEL SLIDES IN (run 44010886603: right=1153 at 1024 on the first measure, right=1006 a moment later, and run A's 768 dark shot): wait until the panel's own edge stops moving, 3 samples 300 ms apart, and say whether a transform / running animation explained it. */
+      const probe = () => page.evaluate(() => {
+        const header = Array.from(document.querySelectorAll('span')).find((s) => /live read\s*·/i.test(s.textContent || '')); if (!header) return null;
+        let el: HTMLElement | null = header as HTMLElement; for (let i = 0; i < 6 && el; i += 1) { if (getComputedStyle(el).borderTopWidth !== '0px' && el.getBoundingClientRect().width > 200) break; el = el.parentElement; } if (!el) return null;
+        const moving: string[] = []; for (let p: HTMLElement | null = el; p && p !== document.body; p = p.parentElement) { const cs = getComputedStyle(p); const anims = p.getAnimations().filter((a) => a.playState === 'running').length; if (cs.transform !== 'none' || anims > 0) moving.push(`${p.tagName.toLowerCase()}.${String(p.className || '').split(' ')[0]} transform=${cs.transform} anims=${anims}`); }
+        return { right: Math.round(el.getBoundingClientRect().right), moving };
+      });
+      { const first = await probe(); let last = first?.right ?? -1; let stable = 0; const t0 = Date.now(); while (Date.now() - t0 < 10_000 && stable < 3) { await page.waitForTimeout(300); const n = await probe(); if (n && n.right === last) stable++; else { stable = 0; last = n?.right ?? -1; } }
+        console.log(`[CELL] landing LIVE READ ${width} settle: first right=${first?.right} moving=${JSON.stringify(first?.moving ?? [])} settledRight=${last} after ${Date.now() - t0} ms`); }
       const box = await page.evaluate(() => {
         const header = Array.from(document.querySelectorAll('span')).find(s => /live read\s*·/i.test(s.textContent || ''));
         if (!header) return null;
