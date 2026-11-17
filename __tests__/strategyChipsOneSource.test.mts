@@ -127,19 +127,17 @@ test('OS8. the panel counts only slotted chips and enforces the cap in one place
 
 test('OS9. the indicator grid is plain on/off selectable chips; the three always-on layers are ONE caption and the S/R and Liq switches live in the chart-layers section, not as chips', () => {
   /* RE-ANCHORED for the compact panel (#2500). The grid renders SELECTABLE_INDICATORS (no overlays, no RSI) as plain on/off chips. The chart layers section is one caption for the three always-on layers
-     (EMA ribbon, RSI pane, GEX: STRATEGY_PANEL_LAYERS_ALWAYS_LINE) plus real role="switch" toggles for S/R and Liq, synced to the chart toolbar. The per-layer "Always on" rows are gone. */
+     (STRATEGY_PANEL_LAYERS_ALWAYS_LINE, a plain sentence since pass 2) plus real role="switch" toggles for S/R and Liq, synced to the chart toolbar. The per-layer "Always on" rows are gone. */
   anchorOnce(PANEL, 'const on = shown.includes(entry.id);', 'a chip is on exactly when its id is in the SHOWN (optimistic) selection (#2465)');
-  anchorOnce(PANEL, "t('STRATEGY_PANEL_LAYERS_ALWAYS_LINE', { ema: t('STRATEGY_PANEL_LAYER_EMA'), rsi: t('STRATEGY_PANEL_LAYER_RSI'), gex: t('STRATEGY_PANEL_LAYER_GEX') })", 'the EMA ribbon, the RSI pane and GEX are named in ONE always-on caption, not chips');
+  anchorOnce(PANEL, "t('STRATEGY_PANEL_LAYERS_ALWAYS_LINE')", 'the EMA ribbon, the RSI pane and GEX are named in ONE always-on caption, not chips');
   const EN = JSON.parse(readFileSync(new URL('../lib/labelDefaults.en.json', import.meta.url), 'utf8')) as Record<string, string>;
-  assert.equal(EN.STRATEGY_PANEL_LAYER_RSI, 'RSI pane', 'the RSI layer no longer reads "RSI pane"');
-  assert.equal(EN.STRATEGY_PANEL_LAYER_EMA, 'EMA ribbon', 'the EMA layer no longer reads "EMA ribbon"');
-  assert.equal(EN.STRATEGY_PANEL_LAYERS_ALWAYS_LINE, 'Always on: {ema} · {rsi} · {gex} (BTC only)', 'the caption no longer says these layers are always on, and that GEX is BTC only');
-  assert.ok(EN.STRATEGY_PANEL_LAYERS_ALWAYS_LINE.includes('{ema}') && EN.STRATEGY_PANEL_LAYERS_ALWAYS_LINE.includes('{rsi}') && EN.STRATEGY_PANEL_LAYERS_ALWAYS_LINE.includes('{gex}'), 'the caption lost a placeholder');
+  const line = EN.STRATEGY_PANEL_LAYERS_ALWAYS_LINE;
+  assert.ok(/^Always on/.test(line) && /EMA/.test(line) && /RSI/.test(line) && /GEX/.test(line) && /BTC/.test(line), `the caption no longer says that the EMA ribbon, RSI and GEX are always on, and that GEX is BTC only: ${JSON.stringify(line)}`);
+  assert.equal(/\{\w+\}/.test(line), false, 'the caption still carries a placeholder the component no longer passes');
   assert.equal([...SELECTABLE_INDICATOR_IDS].some((id) => String(id).toUpperCase().includes('RSI')), false, 'RSI is a selectable chip again: it is an always-on layer');
   anchorOnce(PANEL, "onToggle={() => onOverlayToggle?.('SR')}", 'S/R is a switch synced to the chart toolbar');
   anchorOnce(PANEL, "onToggle={() => onOverlayToggle?.('LIQ_CLUSTERS')}", 'Liq is a switch synced to the chart toolbar');
   assert.ok(PANEL.includes('role="switch"'), 'the chart layers use a real switch role');
-  /* The obsolete chip tags and the per-layer rows are gone. */
   assert.equal(PANEL.includes('pane always on'), false, 'the old RSI "pane always on" chip tag must be gone');
   assert.equal(PANEL.includes('strat-chip-tag'), false, 'the old always-on chip tag class must be gone');
   assert.equal(PANEL.includes('<LayerRow'), false, 'the per-layer status rows are back: the compact panel names the always-on layers in one caption');
