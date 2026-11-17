@@ -139,7 +139,7 @@ async function arrange(browser: import('@playwright/test').Browser) {
   const quick = page.getByRole('button', { name: 'QUICK', exact: true });
   await expect(quick).toBeVisible({ timeout: 30_000 });
   await expect(quick).toBeEnabled({ timeout: 30_000 });
-  const loadingMarker = page.locator('.sr-only', { hasText: 'Loading…' });
+  const loadingMarker = page.locator('.sr-only', { hasText: /^\s*Loading\b/i });
   // Let the first-render timeframe's EMA signal settle so we start from a
   // known, resolved state.
   await expect(loadingMarker, 'the EMA panel never finished its first load, so the starting state is unknown')
