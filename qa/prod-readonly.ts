@@ -93,6 +93,9 @@ export type Needs = 'none' | 'pro' | 'free';
 /** Specs that may run against production. `needs` is the account tier the spec signs in as
  *  (fixture A is Pro, B is free); 'none' is anonymous. */
 export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; note?: string }> = [
+  'release-cells-f-2026-11-17': 'signed-in release cells on a build under test (Free fixture B, Pro fixture A, stubbed reads); DEV-project accounts that do not exist on production; staging/qa only.',
+  'cls-arena-gate': 'the /arena layout-shift gate for a build under test: signs in as the Pro and Free DEV fixtures and stubs the settings write; staging/qa only.',
+  'strategy-panel-compact': 'signs in as the Pro and Free DEV fixtures (accounts that do not exist on production), stubs the settings writes and the plan read, forces rail widths; staging/qa and CI builds only.',
   // ── anonymous ──
   { spec: 'a11y', needs: 'none', note: 'route sweep: spends the per-IP rate limit, one worker' },
   { spec: 'arena-legacy-signals', needs: 'none' },
