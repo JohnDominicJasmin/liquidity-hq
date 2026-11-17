@@ -562,18 +562,18 @@ export default function BriefingTerminal() {
         <div className="mb-macro-row">
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip text={t('BRIEFING_FNG_TIP')}>{t('BRIEFING_FNG_LABEL')}</Tip></div>
-            <div className="mb-macro-val" style={{ color: fngColor }}>{fng != null ? fng : '-'}</div>
-            <div className="mb-macro-sub" style={{ color: fngColor }}>{fngWord(t, store.fngLabel) || '-'}</div>
+            <div className="mb-macro-val" style={{ color: fngColor }}>{fng != null ? fng : <ReadingGap loading={!graceOver} />}</div>
+            <div className="mb-macro-sub" style={{ color: fngColor }}>{fngWord(t, store.fngLabel) || (fng != null ? '-' : '')}</div>
           </div>
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip text={t('BRIEFING_BTCDOM_TIP')}>{t('BRIEFING_BTCDOM_LABEL')}</Tip></div>
-            <div className="mb-macro-val">{store.btcDom != null ? store.btcDom.toFixed(1) + '%' : '-'}</div>
-            <div className="mb-macro-sub" style={{ color: domTrend?.col ?? 'var(--txt3)' }}>{domTrend ? `${domTrend.txt} · ${domWindow}` : '-'}</div>
+            <div className="mb-macro-val">{store.btcDom != null ? store.btcDom.toFixed(1) + '%' : <ReadingGap loading={!graceOver} />}</div>
+            <div className="mb-macro-sub" style={{ color: domTrend?.col ?? 'var(--txt3)' }}>{domTrend ? `${domTrend.txt} · ${domWindow}` : (store.btcDom != null ? '-' : '')}</div>
           </div>
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_DXY_TIP')}>{t('BRIEFING_DXY_LABEL')}</Tip></div>
-            <div className="mb-macro-val">{store.dxy != null ? store.dxy.toFixed(2) : '-'}</div>
-            <div className="mb-macro-sub" style={{ color: dxyColor }}>{dxySig}</div>
+            <div className="mb-macro-val">{store.dxy != null ? store.dxy.toFixed(2) : <ReadingGap loading={!graceOver} />}</div>
+            <div className="mb-macro-sub" style={{ color: dxyColor }}>{store.dxy != null ? dxySig : ''}</div>
           </div>
           {etfFlow != null && (
             <div className="mb-macro-item">
@@ -701,8 +701,10 @@ export default function BriefingTerminal() {
             </div>
             {!pricesLoaded ? (
               <div style={{ padding: '4px 0' }}>
+                {graceOver ? <ReadingGap loading={false} /> : (<>
                 <SkeletonBar width="55%" height={13} style={{ marginBottom: 8 }} />
                 <SkeletonBar width="38%" height={13} />
+                </>)}
                 <span className="sr-only">{t('BRIEFING_LOADING_MARKET_SR')}</span>
               </div>
             ) : shown.length === 0 ? (
