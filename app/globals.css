@@ -9423,3 +9423,13 @@ html[data-theme="light"] { color-scheme: light; }
   .ne-row { grid-template-columns: 56px minmax(140px, 1fr) 60px 60px; min-width: 0; }
   .ne-prev, .ne-imp { display: none; }
 }
+
+/* Trial banner on a phone: its height is set by the 44px "Keep Pro" pill, so 13px of padding above and below made it 72px for two lines of text (QA run 43995863734, Russian at 360/390). 8px keeps the pill's 44px target and gives 62px. Desktop is unchanged. */
+@media (max-width: 480px) {
+  .trial-banner { padding-top: 8px !important; padding-bottom: 8px !important; }
+}
+
+/* A card's note line can never widen the card or the page (QA, Russian at 390/360: a second .edge-card-signal in the Setup card was auto-placed into an implicit column and pushed the document to 401 px). The card is one minmax(0,1fr) column, the note stack takes the third row, and a long unbroken run wraps. */
+.edge-grid-aligned > .edge-card { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.edge-grid-aligned > .edge-card > .edge-card-signals { grid-row: 3; grid-column: 1; min-width: 0; }
+.edge-card-signal { min-width: 0; overflow-wrap: anywhere; }
