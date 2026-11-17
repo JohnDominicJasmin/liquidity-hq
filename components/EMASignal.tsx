@@ -11,6 +11,7 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import Link from 'next/link';
 import { Lock } from '@/components/icons';
+import { ProRow, useProLock } from '@/components/UpgradeGateModal';
 import { signalLockCopy } from '@/lib/signalCoinGate';
 import { phaseI18n } from '@/lib/emaPhaseI18n';
 import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
@@ -107,11 +108,21 @@ function buildConditionPrompt(label: string, pass: boolean | null, detail: strin
 interface Props { signal: StrategySignal; tf?: string; coin?: CoinId; aboveCeiling?: boolean }
 
 /* The signal coin gate's locked state (lib/signalCoinGate.ts): in place of the verdict, the checklist and the levels. */
-function LockedSignal({ lock }: { lock: 'signed_out' | 'free' }) {
+/* FREE: no row of its own - the name joins the page's one "With Pro:" row (owner, 2026-11-17). */
+function FreeLockedSignal({ coin }: { coin?: string }) {
+  const { t } = useLabels();
+  const lock = useProLock(t('EMA_SIGNAL_LOCKED_LINE', { coin: (coin ?? '').toUpperCase() }));
+  if (!lock.ready || !lock.leader) return null;
+  return <ProRow names={lock.names} onOpen={lock.open} />;
+}
+
+function LockedSignal({ lock, coin }: { lock: 'signed_out' | 'free'; coin?: string }) {
   const { t } = useLabels();
   const base = signalLockCopy(lock);
   // Free and trial: labelled in every language (#1596). The signed-out line is unchanged.
-  const copy = lock === 'free' ? { ...base, text: t('ARENA_COIN_LOCK_PANEL'), cta: t('TNAV_UPGRADE_LABEL') } : base;
+  /* FREE: one line, no button (owner, 2026-11-17): "EMA signals for HYPE - Pro" with the lock icon. Signed out keeps its sign-up link. */
+  if (lock === 'free') return <FreeLockedSignal coin={coin} />;
+  const copy = base;
   return (
     <div data-testid="signal-locked" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', border: '0.5px solid var(--bdr)', background: 'var(--bg2)' }}>
       <Lock size={14} style={{ color: 'var(--txt3)' }} />
@@ -173,7 +184,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
     return (
       <div style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 10, padding: '12px 14px', marginBottom: 10 }}>
         <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 8 }}>{t('EMA_SIGNAL_TITLE')}</div>
-        <LockedSignal lock={signal.signalLock} />
+        <LockedSignal lock={signal.signalLock} coin={coin} />
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10 }}>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('EMA_SIGNAL_FAST_AVG')} <b style={{ color: 'var(--amber)' }}>{currencyPrefix(coin)}{fmt(signal.ema9_4h)}</b></span>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('EMA_SIGNAL_MID_AVG')} <b style={{ color: 'var(--accent-2)' }}>{currencyPrefix(coin)}{fmt(signal.ema20_4h ?? null)}</b></span>
@@ -200,29 +211,15 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
           </div>
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
             {t('EMA_SIGNAL_SUBTITLE', { tf: tf.toUpperCase() })}
+            {/* ONE VERDICT CHIP, NOT TWO (#1185, PM 2026-11-17): the choppiness reading used to sit beside the verdict as a second chip ("MIXED" next to "TRENDING SHORT"), which read as two contradicting verdicts. It is a quiet note under the title now, with the same tooltip. */}
+            {!signal.loading && signal.chopRegime && (() => {
+              const label = signal.chopRegime === 'choppy' ? t('EMA_SIGNAL_CHOP_CHOPPY') : signal.chopRegime === 'trending' ? t('EMA_SIGNAL_CHOP_TRENDING') : t('EMA_SIGNAL_CHOP_MIXED');
+              const tipKey: LabelKey = signal.chopRegime === 'choppy' ? 'EMA_SIGNAL_CHOP_TIP_CHOPPY' : signal.chopRegime === 'trending' ? 'EMA_SIGNAL_CHOP_TIP_TRENDING' : 'EMA_SIGNAL_CHOP_TIP_MIXED';
+              return <span data-testid="ema-chop-note" title={t(tipKey, { index: String(signal.chopIndex?.toFixed(0) ?? '-'), tf: tf.toUpperCase() })} style={{ cursor: 'default' }}> · {t('EMA_SIGNAL_CHOP_LINE', { state: label })}</span>;
+            })()}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6, maxWidth: '100%' }}>
-          {!signal.loading && signal.chopRegime && (() => {
-            const col = signal.chopRegime === 'choppy' ? 'var(--amber)' : signal.chopRegime === 'trending' ? 'var(--green-2)' : 'var(--txt-dim)';
-            const label = signal.chopRegime === 'choppy' ? t('EMA_SIGNAL_CHOP_CHOPPY') : signal.chopRegime === 'trending' ? t('EMA_SIGNAL_CHOP_TRENDING') : t('EMA_SIGNAL_CHOP_MIXED');
-            const tipKey: LabelKey = signal.chopRegime === 'choppy' ? 'EMA_SIGNAL_CHOP_TIP_CHOPPY' : signal.chopRegime === 'trending' ? 'EMA_SIGNAL_CHOP_TIP_TRENDING' : 'EMA_SIGNAL_CHOP_TIP_MIXED';
-            return (
-              <span
-                title={t(tipKey, { index: String(signal.chopIndex?.toFixed(0) ?? '-'), tf: tf.toUpperCase() })}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
-                  padding: '3px 8px', borderRadius: 20,
-                  color: col, background: withAlpha(col, '14'), border: `0.5px solid ${withAlpha(col, '44')}`,
-                  whiteSpace: 'nowrap', cursor: 'default',
-                }}
-              >
-                <span style={{ width: 4, height: 4, borderRadius: '50%', background: col, flexShrink: 0 }} />
-                {label}
-              </span>
-            );
-          })()}
           <span style={{
             fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
             padding: '4px 12px', borderRadius: 20,

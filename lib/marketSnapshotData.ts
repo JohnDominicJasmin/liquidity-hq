@@ -74,7 +74,8 @@ import { exchangeFetch } from './exchangeGuard.ts';
 /* Cadences the client used, kept so nothing gets fresher or staler than it was:
    fetchVolume ran every 3 minutes, fetchLSR every 5. */
 const KLINES_TTL = 3 * 60_000;
-const TICKER_TTL = 3 * 60_000;
+/* 45 s, not 3 min (#1651, PM 2026-11-17): with the client polling every 3 min on top of a 3 min server window, a coin the socket does not overlay could be about 4 minutes behind. The ticker is ONE batched request, so the shorter window costs one call per 45 s per instance, not per visitor. */
+const TICKER_TTL = 45_000;
 const LSR_TTL    = 5 * 60_000;
 
 /* 45 symbols x 2 ratio endpoints is 90 requests. Unbounded parallelism is what
@@ -412,7 +413,7 @@ async function buildLsr(): Promise<Record<string, LsrEntry>> {
 
   const banned = await runPool(SYMS, CONCURRENCY, async ([coin, sym]) => {
     const [g, w] = await Promise.all([
-      get(`${host}/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=1`),
+      get(`${host}/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=1h&limit=1`),   // 1h, the same period as the Bybit account ratio and the dashboard widget (#1651)
       get(`${host}/futures/data/topLongShortPositionRatio?symbol=${sym}&period=5m&limit=1`),
     ]);
     const gi = Array.isArray(g) ? (g[0] as Record<string, string>) : null;
@@ -452,6 +453,14 @@ export interface MarketSnapshot {
  * Returns a result rather than throwing so the route keeps owning its status codes, and so the
  * #1631 gather can decide for itself what an unavailable section means in a prompt.
  */
+/* THE OVERALL DEADLINE ON A COLD SNAPSHOT (reliability leftover, PM 2026-11-17). A cold cache blocks its first caller until the whole fan-out has finished, and with ~45 symbols per section a slow or banned host made that minutes, not seconds, with the visitor's request held the whole time. Each section now waits at most this long for ITS build; past it the caller gets what the other sections have (the section is named in `partial`), or a failure when none answered, and the build is left running to fill the cache for the next caller (cachedRefresh shares the in-flight promise). Long enough for a healthy cold fill (measured 5-8 s), short enough that a stuck host is answered. */
+export const COLD_SNAPSHOT_DEADLINE_MS = 20_000;
+function withinDeadline<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const late = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`snapshot section not ready after ${ms} ms`)), ms); });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+
 export async function marketSnapshotData(): Promise<
   { ok: true; data: MarketSnapshot } | { ok: false; reason: unknown }
 > {
@@ -460,9 +469,9 @@ export async function marketSnapshotData(): Promise<
      whatever arrives and leaves the rest at its previous value, which is how the per-coin version
      behaved when one symbol failed. */
   const [t, k, l] = await Promise.allSettled([
-    cachedRefresh('mkt:ticker', TICKER_TTL, STALE_WHILE_REFRESH_MS, buildTicker),
-    cachedRefresh('mkt:klines', KLINES_TTL, STALE_WHILE_REFRESH_MS, buildKlines),
-    cachedRefresh('mkt:lsr',    LSR_TTL,    STALE_WHILE_REFRESH_MS, buildLsr),
+    withinDeadline(cachedRefresh('mkt:ticker', TICKER_TTL, STALE_WHILE_REFRESH_MS, buildTicker), COLD_SNAPSHOT_DEADLINE_MS),
+    withinDeadline(cachedRefresh('mkt:klines', KLINES_TTL, STALE_WHILE_REFRESH_MS, buildKlines), COLD_SNAPSHOT_DEADLINE_MS),
+    withinDeadline(cachedRefresh('mkt:lsr',    LSR_TTL,    STALE_WHILE_REFRESH_MS, buildLsr),    COLD_SNAPSHOT_DEADLINE_MS),
   ]);
 
   if (t.status === 'rejected' && k.status === 'rejected' && l.status === 'rejected') {

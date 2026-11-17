@@ -3,6 +3,7 @@ import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { renderChatMarkdown } from '@/lib/renderChatMarkdown';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   useMarket, CoinId, COINS, computeSqueezeScore, classifyFunding, BINANCE_SYMS, BYBIT_SYMS,
 } from '@/lib/marketStore';
@@ -27,6 +28,7 @@ import { activatable } from '@/lib/activatable';
 import { PAGE_COIN_EVENT, currentPageCoin } from '@/lib/pageCoin';
 import { MARKET_DATA_NEEDED_EVENT } from '@/lib/marketDataNeeded';
 import AiDisclaimer from '@/components/AiDisclaimer';
+import { accountRatio } from '@/lib/accountRatioVenue';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
 // app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
@@ -141,7 +143,7 @@ function buildChatContext(
     cvdDivergence: c?.cvdDivergence ?? undefined,
     ma20: c?.ma20, volRatio: c?.volRatio, cvd: c?.cvd,
     funding: fr?.label,
-    oi: c?.oi, longRatio: c?.longRatio, shortRatio: c?.shortRatio,
+    oi: c?.oi, longRatio: accountRatio(c)?.long, shortRatio: accountRatio(c)?.short, ratioVenue: accountRatio(c)?.venue,
     squeeze: sq.score + '/100 - ' + sq.label,
     basisPct: c?.perpPrice && c.price ? (c.perpPrice - c.price) / c.price * 100 : undefined,
     bidWalls: c?.orderBidWalls?.map(w => w.price),
@@ -162,6 +164,8 @@ function buildChatContext(
 
 /* ─────────────────────────────────────────────────────────────── */
 export default function GrokChat() {
+  /* On the Arena, on a phone, the floating button is hidden (the page has its own Ask AI entries; PM audit 2026-11-17; globals.css .gchat-fab-arena). */
+  const onArena = usePathname() === '/arena';
   const { store }                      = useMarket();
   const { latestHeadlines, geoEvents } = useNews();
   const { user, loading: authLoading } = useAuth();
@@ -640,7 +644,7 @@ export default function GrokChat() {
       <button
         ref={launcherRef}
         data-testid="grok-launcher"
-        className={`gchat-fab${open ? ' gchat-fab-open' : ''}${!fabVisible ? ' gchat-fab-scrolling' : ''}`}
+        className={`gchat-fab${onArena ? ' gchat-fab-arena' : ''}${open ? ' gchat-fab-open' : ''}${!fabVisible ? ' gchat-fab-scrolling' : ''}`}
         onClick={() => { setOpen(v => !v); if (open) { setExpanded(false); setShowLoginModal(false); } }}
         title={t('GROK_FAB_LABEL')}
         aria-label={t('CHAT_OPEN_AI_CHAT')}

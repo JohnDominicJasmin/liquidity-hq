@@ -618,7 +618,17 @@ export async function GET(req: NextRequest) {
           if (!fbUrl) throw e;
           primaryFailure = e;
         }
-        if (r?.ok) { const body = await r.json(); return { json: JSON.stringify(entry.trim ? entry.trim(body) : body), viaFallback: false }; }
+        if (r?.ok) {
+          /* THE BODY CAN BE LATE EVEN WHEN THE HEADERS WERE NOT (reliability leftover, PM 2026-11-17). The 3 s signal covers reading the body too, so a primary that answered 200 and then stalled mid-body aborted HERE, outside the try above, and the request failed without ever asking Bybit. A late or unreadable body now falls to the same fallback as a late or failed primary; with no fallback the original error is rethrown unchanged. */
+          try {
+            const body = await r.json();
+            return { json: JSON.stringify(entry.trim ? entry.trim(body) : body), viaFallback: false };
+          } catch (e) {
+            if (!fbUrl) throw e;
+            primaryFailure = e;
+            r = null;
+          }
+        }
 
         /* FAIL LOUDLY (#228). Throwing means cached() stores nothing, so a ban
            is retried rather than pinned, and the caller gets a status instead

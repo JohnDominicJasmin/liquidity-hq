@@ -410,7 +410,7 @@ export default function LiqTerminal() {
                     <span style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--red)', fontVariantNumeric: 'tabular-nums' }}>
                       {((retailPos?.longRatio ?? cd.bnLongRatio!) * 100).toFixed(0)}%
                     </span>
-                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BINANCE_PERIOD', { period: retailPos ? RANGE_TO_PERIOD[range] : '5m' })}</span>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BINANCE_PERIOD', { period: retailPos ? RANGE_TO_PERIOD[range] : '1h' })}</span>
                   </div>
                 )}
               </div>
@@ -439,7 +439,7 @@ export default function LiqTerminal() {
                 </div>
                 {(retailPos?.shortRatio ?? cd.bnShortRatio) != null && (
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BINANCE_PERIOD', { period: retailPos ? RANGE_TO_PERIOD[range] : '5m' })}</span>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BINANCE_PERIOD', { period: retailPos ? RANGE_TO_PERIOD[range] : '1h' })}</span>
                     <span style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--green-2)', fontVariantNumeric: 'tabular-nums' }}>
                       {((retailPos?.shortRatio ?? cd.bnShortRatio!) * 100).toFixed(0)}%
                     </span>
@@ -515,7 +515,7 @@ export default function LiqTerminal() {
                     </span>
                   </div>
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
-                    {t('LIQ_WHALE_SOURCE_LABEL', { period: whalePos != null ? RANGE_TO_PERIOD[range] : '5m' })}
+                    {t('LIQ_WHALE_SOURCE_LABEL', { period: whalePos != null ? RANGE_TO_PERIOD[range] : '1h' })}
                   </span>
                 </div>
 

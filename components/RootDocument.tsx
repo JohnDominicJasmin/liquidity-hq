@@ -37,6 +37,8 @@ const figtree = localFont({
   src: [{ path: '../app/fonts/figtree-latin-var.woff2', weight: '300 900', style: 'normal' }],
   variable: '--font-sans',
   display: 'swap',
+  /* NOT PRELOADED (speed audit): the whole app runs data-design="terminal", which points --font-sans at IBM Plex Sans, so no text uses this face. A preload link made every first paint fetch its 20 KB at high priority, ahead of the stylesheet's own needs, on the slowest connections. The @font-face stays, so a page that does reference it still loads it on demand. */
+  preload: false,
 });
 
 /* IBM Plex Sans, for the Monochrome Terminal redesign (#413).
@@ -92,6 +94,10 @@ export default function RootDocument({ lang, children }: { lang: string; childre
      value in someone's storage is simply never read. */
   return (
     <html lang={lang} data-theme="dark" data-design="terminal" className={`${figtree.variable} ${plexSans.variable} ${plexMono.variable}`} suppressHydrationWarning>
+      {/* EARLY ERRORS (#2505, QA early-error fail): the error tracker is imported after the load event, so something has to listen from the very first byte. A next/script with beforeInteractive is emitted as a payload that runs AFTER the app bootstraps, which is too late; this is a raw inline script as the first child of <head>. It keeps the first ten errors and rejections in window.__lhqEarly; instrumentation-client.ts hands them to the tracker once it loads, then sets __lhqEarlyDone so the listener stops. */}
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var q=window.__lhqEarly=[];function k(x){if(!window.__lhqEarlyDone&&q.length<10)q.push(x);}window.addEventListener('error',function(e){k(e&&(e.error||e.message));});window.addEventListener('unhandledrejection',function(e){k(e&&e.reason);});})();` }} />
+      </head>
       {/* No manual apple-touch-icon <link> here - app/apple-icon.png's file convention already
           generates the correct tag automatically. */}
       {/* suppressHydrationWarning on <body>, and it is the CLASS on this line that makes it necessary.
