@@ -38,8 +38,12 @@ import { useLabels } from '@/lib/labels';
 import ReadingGap from '@/components/ReadingGap';
 import { fundingWord, setupWord, patternWord } from '@/lib/shortWords';
 
-/** A funding percentage with its sign, two decimals, for a label: +0.05% / −0.03%. */
-const fmtSignedPct = (pct: number): string => (pct >= 0 ? '+' : '−') + Math.abs(pct).toFixed(2) + '%';
+/** A funding percentage with its sign and FOUR decimals (the Funding tile's precision), for a label: +0.0500% / −0.0300%. A value that rounds to zero is plain 0.0000%, never a signed zero ("−0.00%" read next to "−0.0040%", #1651). */
+const fmtSignedPct = (pct: number): string => {
+  const body = Math.abs(pct).toFixed(4);
+  if (Number(body) === 0) return '0.0000%';
+  return (pct > 0 ? '+' : '−') + body + '%';
+};
 import { coinRow } from '@/lib/coins';
 import type { LabelKey } from '@/lib/labelKeys';
 import PageHint from '@/components/PageHint';

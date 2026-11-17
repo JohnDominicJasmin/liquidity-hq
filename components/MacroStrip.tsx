@@ -26,7 +26,7 @@ export default function MacroStrip() {
     : 'var(--green)';
   const jpySig = jpyUsd == null ? null
     : jpyUsd >= 160 ? { txt: t('MACRO_STRIP_JPY_INTERVENTION'), col: 'var(--red)' }
-    : jpyUsd >= 158 ? { txt: t('MACRO_STRIP_JPY_APPROACHING'), col: 'var(--amber)' }
+    : jpyUsd >= 158 ? { txt: t('MACRO_STRIP_JPY_APPROACHING', { level: '158' }), col: 'var(--amber)' }
     : { txt: t('MACRO_STRIP_JPY_CARRY_STABLE'), col: 'var(--green)' };
 
   const items = [
@@ -44,8 +44,8 @@ export default function MacroStrip() {
       price: store.spx,
       chg: store.spxChg,
       fmt: (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 }),
-      signal: (chg: number) => chg > 0.3 ? { txt: t('MACRO_STRIP_SPX_UP'), col: 'var(--green)' }
-                              : chg < -0.5 ? { txt: t('MACRO_STRIP_SPX_DOWN'), col: 'var(--red)' }
+      signal: (chg: number) => chg > 0.3 ? { txt: t('MACRO_STRIP_SPX_UP', { pct: `${Math.abs(chg).toFixed(1)}%` }), col: 'var(--green)' }
+                              : chg < -0.5 ? { txt: t('MACRO_STRIP_SPX_DOWN', { pct: `${Math.abs(chg).toFixed(1)}%` }), col: 'var(--red)' }
                               : { txt: t('MACRO_STRIP_NEUTRAL'), col: 'var(--txt3)' },
     },
     {
