@@ -115,14 +115,16 @@ test.describe('#2409 WAIT "Watching" line and label boxes (live strategies, fixt
   });
 });
 
-test.describe('ru trial banner (account T)', () => {
+test.describe('ru trial banner (stubbed active trial on fixture B)', () => {
   test.describe.configure({ timeout: 180_000, retries: 0 });
   for (const width of [360, 390]) test(`F3 trial banner in Russian at ${width}: at most two text lines, no sideways scroll`, async ({ browser }) => {
-    const { FIXTURES } = await import('./_auth'); test.skip(!FIXTURES.tEmail || !FIXTURES.tPassword, 'account T (trial) fixture is not configured in this environment: the ru trial banner was NOT measured');
-    const ctx = await signedInContext(browser, 't', { viewport: { width, height: 844 } }); const page = await ctx.newPage(); await ctx.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'ru'); } catch { /* private */ } });
+    test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+    /* no trial account needed (PM, 2026-11-17): Free fixture B with the plan READ answered as an active trial (trial_ends_at 10 days ahead, role not pro). Nothing is written. */
+    const ctx = await signedInContext(browser, 'b', { viewport: { width, height: 844 } }); const page = await ctx.newPage();
+    await page.route(/\/rest\/v1\/lhq_(dev_)?user_subscriptions\?/, async (route) => { if (route.request().method() !== 'GET') return route.fallback(); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ role: 'free', trial_ends_at: new Date(Date.now() + 10 * 86_400_000).toISOString(), current_period_end: null }]) }); }); await ctx.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'ru'); } catch { /* private */ } });
     try {
       await gotoSignedIn(page, '/dashboard'); const dismiss = page.getByTestId('trial-banner-dismiss'); const visible = await dismiss.waitFor({ state: 'visible', timeout: 45_000 }).then(() => true).catch(() => false);
-      if (!visible) { console.log(`[CELL] F3 ${width}: no trial banner shown for account T (trial ended or banner dismissed): NOT measured`); test.skip(true, 'no trial banner for account T'); return; }
+      if (!visible) { console.log(`[CELL] F3 ${width}: no trial banner appeared with the plan read stubbed as an active trial: NOT measured`); test.skip(true, 'the trial banner could not be forced'); return; }
       const m = await dismiss.evaluate((btn) => {
         const banner = btn.closest('[role="status"]') as HTMLElement; const tops: number[] = []; const w = document.createTreeWalker(banner, NodeFilter.SHOW_TEXT);
         for (let n = w.nextNode(); n; n = w.nextNode()) { if (!(n.textContent || '').trim() || btn.contains(n)) continue; const range = document.createRange(); range.selectNodeContents(n); for (const r of Array.from(range.getClientRects())) if (r.width > 0) tops.push(Math.round(r.top)); }
