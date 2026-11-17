@@ -1,3 +1,4 @@
+import { deadlineSignal } from './deadlineSignal.ts';
 import { getAuthToken } from './supabase.ts';
 import { nextResetLocalTime } from './resetTime.ts';
 import { wilderRsiSeries } from './rsi.ts';
@@ -37,8 +38,8 @@ export interface GrokUsageInfo {
  * the server, because they are instructions rather than data and this call is caller-controlled.
  */
 /** Client deadlines for the read call (ms). Exported so the PR table and the tests name the same numbers. */
-export const GROK_QUICK_TIMEOUT_MS = 90_000;
-export const GROK_DEEP_TIMEOUT_MS = 200_000;
+export { GROK_QUICK_TIMEOUT_MS, GROK_DEEP_TIMEOUT_MS } from './grokDeadlines.ts';
+import { GROK_QUICK_TIMEOUT_MS, GROK_DEEP_TIMEOUT_MS } from './grokDeadlines.ts';
 
 export async function callGrokViaProxy(
   ctx: GrokContext,
@@ -59,7 +60,7 @@ export async function callGrokViaProxy(
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ context: ctx, chart, type, selection }),
-      signal: AbortSignal.timeout(type === 'deep' ? GROK_DEEP_TIMEOUT_MS : GROK_QUICK_TIMEOUT_MS),
+      signal: deadlineSignal(type === 'deep' ? GROK_DEEP_TIMEOUT_MS : GROK_QUICK_TIMEOUT_MS),
     });
   } catch (e) {
     if (e instanceof DOMException && e.name === 'TimeoutError') throw Object.assign(new Error('READ_TIMEOUT'), { code: 'READ_TIMEOUT' });
@@ -244,7 +245,7 @@ export async function fetchGrokUsage(): Promise<GrokUsageInfo | null> {
   try {
     const res = await fetch('/api/grok', {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(20_000),
+      signal: deadlineSignal(20_000),
     });
     if (!res.ok) return null;
     const { usage } = await res.json() as { usage: GrokUsageInfo | null };
@@ -426,7 +427,7 @@ export function buildPrompt(ctx: GrokContext): string {
     `Perp basis - PRICE premium of perps over spot: ${ctx.basis}`,
     `Squeeze score:  ${ctx.squeezeScore}`,
     `Setup Scanner: ${ctx.setupScan}`,
-    '(Setup Scanner score 0-100: measures how overcrowded longs or shorts are. High Long Liq Risk = too many longs, whales incentivised to dump. High Short Squeeze = too many shorts, whales incentivised to pump.)',
+    '(Setup Scanner score 0-100: measures how one-sided the positioning is. Long-heavy = funding positive and most accounts long. Short-heavy = funding negative and most accounts short. It describes positioning; it is not a forecast.)',
     `Distribution score: ${ctx.distribution}`,
     '(Distribution score 0-100: how strongly flow says big players are taking profit INTO strength - CVD sellers into strength, open interest unwinding out of a rally, top traders leaning out of longs, retail still paying positive funding. Only computed after a 24h run-up. ≥70 = active distribution: strong caution on new longs, favour trailing stops / partial exits. 45-69 = early signs.)',
     '',

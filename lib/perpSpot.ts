@@ -325,11 +325,13 @@ export function computeAbsorption(
   for (const s of closedSpot) {
     const p = perpByTime.get(s.time);
     if (!p) continue;
-    if (s.takerBuyQuoteVolume == null || p.takerBuyQuoteVolume == null) continue;
-    if (s.quoteVolume <= 0 || p.quoteVolume <= 0) continue;
+    /* Number.isFinite, not `== null`: a degraded venue can send NaN, which passes a null check and `<= 0`, and the sentence then printed "NaN% taker-buy". A bar with any non-finite figure is skipped like a missing one. */
+    const st = s.takerBuyQuoteVolume, pt = p.takerBuyQuoteVolume;
+    if (typeof st !== 'number' || !Number.isFinite(st) || typeof pt !== 'number' || !Number.isFinite(pt)) continue;
+    if (!(s.quoteVolume > 0) || !(p.quoteVolume > 0)) continue;
     paired.push({
-      spotPct: (s.takerBuyQuoteVolume / s.quoteVolume) * 100,
-      perpPct:  (p.takerBuyQuoteVolume  / p.quoteVolume)  * 100,
+      spotPct: (st / s.quoteVolume) * 100,
+      perpPct:  (pt / p.quoteVolume)  * 100,
     });
   }
 
@@ -338,6 +340,7 @@ export function computeAbsorption(
   const window = paired.slice(-ABSORPTION_WINDOW);
   const spotPct = window.reduce((s, x) => s + x.spotPct, 0) / window.length;
   const perpPct = window.reduce((s, x) => s + x.perpPct, 0) / window.length;
+  if (!Number.isFinite(spotPct) || !Number.isFinite(perpPct)) return unavailable;
   const sp = Math.round(spotPct);
   const pp = Math.round(perpPct);
   const delta = sp - pp;

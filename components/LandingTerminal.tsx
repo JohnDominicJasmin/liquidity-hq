@@ -102,22 +102,23 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const d = store.coins[LIVE_READ_COIN];
   const oi1h = useOI1h(LIVE_READ_COIN);
 
-  /* THE CLOCK IS THE CLIENT'S OR IT IS NOTHING (#1651).
+  /* THE CLOCK IS THE CLIENT'S, AND IT TICKS (#1651).
 
-     `new Date()` in the markup runs on the SERVER during the initial render, so the first paint of
-     a public page carried the SERVER'S wall clock - and `suppressHydrationWarning` on that span
-     hid the mismatch rather than the cause. A visitor in Manila saw a London time for a moment and
-     had no way to know which it was.
+     It is the visitor's own wall clock, set only after mount: `new Date()` in the markup ran on the SERVER during the first render, so a visitor in Manila briefly saw a London time.
 
-     A mounted flag rather than the data's as-of time, which would be the better label: the store
-     does not keep the snapshot's `ts` today, so that is provider plumbing and this is a low item.
-     Named here so the better fix is not re-derived from scratch.
-
-     The expression is unchanged, so it still refreshes whenever this component re-renders, which on
-     this page is whenever the store updates. No timer is added, because adding one would be a new
-     failure mode for a cosmetic line. */
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+     IT USED TO BE READ ONLY WHEN THIS COMPONENT RE-RENDERED, which is whenever the market store updates. A quiet or throttled store (a background or idle tab, a slow feed) meant no re-render, so the line could sit an hour
+     behind real time on the front page (QA: 16:50 at about 17:55Z). It now has its own state, refreshed every 30 seconds and the moment the tab becomes visible again, so what it shows is never more than about
+     half a minute old. The timer is cleared on unmount and costs one tiny re-render of this panel per tick. A ticking clock over a DEAD feed would read as a live stamp, so it is left blank while the price read has failed with nothing delivered (store.pricesFailed). (The better label would be the data's own as-of time; the store does not keep the snapshot's `ts`, which is
+     provider plumbing and a separate item.) */
+  const [clockMs, setClockMs] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setClockMs(Date.now());
+    tick();
+    const iv = setInterval(tick, 30_000);
+    const onVisible = () => { if (!document.hidden) tick(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVisible); };
+  }, []);
   const sq = computeSqueezeScore(d);
 
   /* DESIGN A (#1651): the verdict needs all THREE inputs present (funding, long/short, taker flow),
@@ -215,7 +216,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
           {dict.liveRead.title} · {LIVE_READ_COIN.toUpperCase()}
         </span>
         <span style={{ marginLeft: 'auto', fontSize: 10, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt3)' }}>
-          {mounted ? new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false }) : ''}
+          {clockMs !== null && !store.pricesFailed ? new Date(clockMs).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : ''}
         </span>
       </div>
 

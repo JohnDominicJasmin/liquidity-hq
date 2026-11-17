@@ -63,8 +63,10 @@ export interface CoinData {
   vwap: number | null;
   /* OI Trend vs Price divergence signal */
   oiTrend: 'strong_up' | 'weak_up' | 'strong_down' | 'weak_down' | null;
-  /* Taker Buy/Sell ratio - who's being aggressive (last 20 × 15m candles ≈ 5h) */
+  /* Taker Buy/Sell ratio - who's being aggressive (buy vol / total vol, 0.0–1.0). The WINDOW depends on the coin (S11): Binance-listed coins read the last 8 x 15m candles' taker-buy volume (about 2 hours, takerBasis 'candles');
+     Bybit-only coins (PEPE, BONK, XAU, SPX, HYPE ...) have no taker split in their klines, so it comes from the last 500 trades (seconds to minutes, takerBasis 'trades'). */
   takerBuyRatio: number | null;  // 0.0–1.0 (buy vol / total vol)
+  takerBasis?: 'candles' | 'trades';
   /* Detected chart patterns from 15m klines (e.g. "Bull flag", "Bearish engulfing") */
   chartPattern: string | null;
   /* Next funding rate prediction (mark–index premium spread) */
@@ -137,11 +139,11 @@ export interface FundingClass {
 
 export function classifyFunding(rate: number): FundingClass {
   const r = rate * 100;
-  if (r >= 0.05) return { label: 'Heavily positive', cls: 'fund-pos', rpm: 'pos', band: 'heavyPos', note: 'Too many longs overleveraged. Whales dump DOWN to liquidate them. Go SHORT.' };
-  if (r >= 0.01) return { label: 'Mildly positive', cls: 'fund-pos', rpm: 'pos', band: 'mildPos', note: 'Longs paying shorts. Slight bullish bias but not extreme.' };
-  if (r <= -0.03) return { label: 'Heavily negative', cls: 'fund-neg', rpm: 'neg', band: 'heavyNeg', note: 'Too many shorts overleveraged. Whales squeeze UP to liquidate them. Go LONG.' };
-  if (r <= -0.005) return { label: 'Mildly negative', cls: 'fund-neg', rpm: 'neg', band: 'mildNeg', note: 'Shorts paying longs. Slight bearish bias but not extreme.' };
-  return { label: 'Neutral', cls: 'fund-neu', rpm: 'neu', band: 'neutral', note: 'No extreme positioning. Lower raid probability. Trade with caution.' };
+  if (r >= 0.05) return { label: 'Heavily positive', cls: 'fund-pos', rpm: 'pos', band: 'heavyPos', note: 'Longs are paying shorts at a high rate.' };
+  if (r >= 0.01) return { label: 'Mildly positive', cls: 'fund-pos', rpm: 'pos', band: 'mildPos', note: 'Longs are paying shorts.' };
+  if (r <= -0.03) return { label: 'Heavily negative', cls: 'fund-neg', rpm: 'neg', band: 'heavyNeg', note: 'Shorts are paying longs at a high rate.' };
+  if (r <= -0.005) return { label: 'Mildly negative', cls: 'fund-neg', rpm: 'neg', band: 'mildNeg', note: 'Shorts are paying longs.' };
+  return { label: 'Neutral', cls: 'fund-neu', rpm: 'neu', band: 'neutral', note: 'Funding is near zero: neither side is paying a premium.' };
 }
 
 export type ScannerFeedState = 'pending' | 'ok' | 'failed';
@@ -153,6 +155,8 @@ export type MarketStore = {
   fngLabel: string;
   fngPrev: number | null;
   btcDom: number | null;
+  /** BTC dominance change over 24 hours in percentage points, from CoinMarketCap; null until read or when the field is absent (#1185). */
+  btcDomChg24h: number | null;
   btcDomHistory: number[];
   ethDom: number | null;            // ETH market dominance % (from CMC)
   altSeasonScore: number | null;    // 0–100: % of top-50 alts outperforming BTC (90d)
@@ -241,7 +245,7 @@ export const defaultStore: MarketStore = {
   fngLabel: '',
   fngPrev: null,
   btcDom: null,
-  btcDomHistory: [],
+  btcDomHistory: [], btcDomChg24h: null,
   ethDom: null,
   altSeasonScore: null,
   btcDomStatus: 'pending',
@@ -313,8 +317,11 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
      of the three, so it is not counted. */
   signalsPresent: number;
   present: string[];
+  /** TRUE only when at least two of the three inputs arrived, the same floor the Flush / Squeeze gate uses. Below that, `dir` is NEUTRAL only as a placeholder: the coin is UNKNOWN, not balanced, and a caller counting or
+   *  labelling "neutral" coins must skip it (S2). */
+  enough: boolean;
 } {
-  if (!coin) return { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)', signalsPresent: 0, present: [] };
+  if (!coin) return { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)', signalsPresent: 0, present: [], enough: false };
 
   /* The three inputs, counted by PRESENCE (does the datum exist), independent of whether it crossed
      a threshold - a funding rate of 0.001 has still "arrived". Names are the plain words the hero
@@ -322,7 +329,10 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
   const present: string[] = [];
   if (coin.fundingRate != null) present.push('funding');
   if (coin.longRatio != null && coin.shortRatio != null) present.push('long/short');
-  if (coin.takerBuyRatio != null) present.push('taker flow');
+  /* The taker input is scored only from the 2-hour candle window. The 500-trade sample (Bybit-only coins) covers seconds to minutes, so the same 0.38 / 0.62 bands are mostly noise on it; it stays on the coin for display but is
+     not a score input (S11). */
+  const takerScored = coin.takerBuyRatio != null && coin.takerBasis !== 'trades';
+  if (takerScored) present.push('taker flow');
 
   let longRisk = 0;    // longs overleveraged → price dump incoming
   let shortRisk = 0;   // shorts overleveraged → price pump incoming
@@ -334,26 +344,25 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
     const fr = coin.fundingRate * 100;
     if (fr >= 0.05)    { longRisk += 40; longSignals++; }
     else if (fr >= 0.02) { longRisk += 22; longSignals++; }
-    else if (fr >= 0.01) { longRisk += 10; longSignals++; }
+    /* The 0.01% and -0.005% rungs are gone (S3): +0.01% per 8 h is the exchanges' BASELINE rate, which classifyFunding itself calls only mildly positive, so counting it as a signal made nearly every coin a 'signal'. Funding counts
+       from the 0.02% rung (22 pts) and the 0.05% rung (40 pts), and negative from -0.015% / -0.03%. */
     else if (fr <= -0.03)  { shortRisk += 40; shortSignals++; }
     else if (fr <= -0.015) { shortRisk += 22; shortSignals++; }
-    else if (fr <= -0.005) { shortRisk += 10; shortSignals++; }
   }
 
   // ── Signal 2: L/S ratio (max 40 pts) ─────────────────────────────────────
   if (coin.longRatio != null && coin.shortRatio != null) {
     if (coin.longRatio >= 0.65)    { longRisk += 40; longSignals++; }
     else if (coin.longRatio >= 0.58) { longRisk += 22; longSignals++; }
-    else if (coin.longRatio >= 0.52) { longRisk += 10; longSignals++; }
+    /* The 52% rung is gone (S3): a long share of 52% is true of almost every coin all the time and is not positioning. The share counts from 58% (22 pts) and 65% (40 pts). */
     else if (coin.shortRatio >= 0.65)  { shortRisk += 40; shortSignals++; }
     else if (coin.shortRatio >= 0.58)  { shortRisk += 22; shortSignals++; }
-    else if (coin.shortRatio >= 0.52)  { shortRisk += 10; shortSignals++; }
   }
 
   // ── Signal 3: Taker buy/sell ratio - aggressor-side pressure (max 15 pts) ─
   // takerBuyRatio < 0.40 → sellers are aggressive (long-flush pressure)
   // takerBuyRatio > 0.60 → buyers are aggressive (short-squeeze pressure)
-  if (coin.takerBuyRatio != null) {
+  if (takerScored && coin.takerBuyRatio != null) {
     if (coin.takerBuyRatio <= 0.38)      { longRisk += 15; longSignals++; }
     else if (coin.takerBuyRatio <= 0.42) { longRisk += 8;  longSignals++; }
     else if (coin.takerBuyRatio >= 0.62) { shortRisk += 15; shortSignals++; }
@@ -370,11 +379,14 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
 
   // ── Gate: ≥2 independent signals required to label as Flush / Squeeze ─────
   const signalsPresent = present.length;
-  if (longRisk > shortRisk && longSignals >= 2)
-    return { score, dir: 'LONG_LIQ', label: 'Long liquidation risk ↓', color: 'var(--red-soft)', signalsPresent, present };
-  if (shortRisk > longRisk && shortSignals >= 2)
-    return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: 'var(--green-soft)', signalsPresent, present };
-  return { score, dir: 'NEUTRAL', label: 'Balanced', color: 'var(--txt-dim)', signalsPresent, present };
+  /* A direction also needs the dominant side at 40 points or more (S3): two weak readings (22 + 8, say) are not a setup. */
+  if (longRisk > shortRisk && longSignals >= 2 && longRisk >= 40)
+    return { score, dir: 'LONG_LIQ', label: 'Long-heavy', color: 'var(--red-soft)', signalsPresent, present, enough: true };
+  if (shortRisk > longRisk && shortSignals >= 2 && shortRisk >= 40)
+    return { score, dir: 'SHORT_SQ', label: 'Short-heavy', color: 'var(--green-soft)', signalsPresent, present, enough: true };
+  /* FEWER THAN TWO INPUTS IS "NOT ENOUGH DATA", NOT "BALANCED" (S2). A price-only coin (the usual state of the ~400 universe coins) used to read Balanced, score 0, and was counted among the Neutral coins. */
+  if (signalsPresent < 2) return { score: 0, dir: 'NEUTRAL', label: 'Not enough data', color: 'var(--txt-dim)', signalsPresent, present, enough: false };
+  return { score, dir: 'NEUTRAL', label: 'Balanced', color: 'var(--txt-dim)', signalsPresent, present, enough: true };
 }
 
 /* ── Coin Health Score ─────────────────────────────────────────────────────

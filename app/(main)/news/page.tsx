@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useNews } from '@/components/NewsProvider';
-import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline } from '@/lib/classify';
+import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline, hasAnyKeyword } from '@/lib/classify';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
 import { withAlpha } from '@/lib/color';
 import LoadingState from '@/components/LoadingState';
@@ -51,7 +51,7 @@ function timeAgo(ts: number, t: TFn): string {
 function getGeoMeta(headline: string): { tag: string; note: string } | null {
   const h = headline.toLowerCase();
   for (const g of GEO_KEYWORDS) {
-    if (g.kw.some(k => h.includes(k))) return { tag: g.tag, note: g.note };
+    if (hasAnyKeyword(h, g.kw)) return { tag: g.tag, note: g.note };
   }
   return null;
 }
@@ -86,10 +86,10 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const startOfWord = (kws: readonly string[]) => new RegExp(`\\b(?:${kws.map(escapeRe).join('|')})`, 'i');
 const wholeWord   = (kws: readonly string[]) => new RegExp(`\\b(?:${kws.map(escapeRe).join('|')})\\b`, 'i');
 const BEARISH_STEMS = startOfWord([
-  'crash','dump','plunge','collapse','decline','drop','fall','slump',
+  'crash','dump','plunge','collapse','decline','drop','slump',
   'banned','restriction','crackdown','sanction',
   'hack','exploit','theft','stolen','robbery','kidnapping','arrested',
-  'controversy','flaw','underperform','suspicious','warning','risk',
+  'controversy','flaw','underperform','suspicious','warning','risk-off',
   /* QA, #1501: "bankrupt"/"bankruptcy", "warns" and "bank run" read Bearish only by accident
      while "ban" and "war" were substring matches; moving those to whole words lost them.
      "warn" is a whole word below, not a stem, so "Warner" stays neutral. */
@@ -99,9 +99,9 @@ const BEARISH_STEMS = startOfWord([
   'lawsuit','charges','seized','fraud','scam',
   'bearish','bear market','sell-off','liquidation wave','weakening',
 ]);
-const BEARISH_WORDS = wholeWord(['ban','bans','banning','war','wars','warn','warns','warned']);
+const BEARISH_WORDS = wholeWord(['ban','bans','banning','war','wars','warn','warns','warned','fall','falls','falling','fell']);
 const BULLISH_STEMS = startOfWord([
-  'rally','surge','pump','breakout','record','all-time high',
+  'rally','surge','pump','breakout','record high','record-high','record inflow','record buy','all-time high',
   'buy','bought','purchase','accumulate','inflow','flows into','flowing into','returns to crypto',
   'etf approved','approval','approved','adoption','launch',
   'institutional','strategic reserve',
@@ -112,8 +112,17 @@ const BULLISH_STEMS = startOfWord([
 ]);
 const BULLISH_WORDS = wholeWord(['ath']);
 
+/* CONTEXT THE KEYWORD LISTS CANNOT SEE (N9). A keyword hit says nothing about negation or about what was dropped: "ETF not approved" read Bullish ('approved'), "SEC drops lawsuit against Coinbase" read Bearish ('lawsuit'), "record outflows"
+   read Bullish ('record', now only record high / inflows), "risk-on rally" read Bearish ('risk', now only risk-off), and "fall" matched "fallout" (now whole words). A NEGATED approval or launch is Bearish; a lawsuit, charge or case that is
+   dropped, dismissed, ended, settled or won is not a bearish keyword. */
+const NEGATED_APPROVAL = /\b(?:not|no|denied|denies|deny|rejects?|rejected|delays?|delayed|blocks?|blocked|postpones?|postponed|without)\b(?:\s+\w+){0,2}\s+(?:approv\w*|launch\w*)/i;
+/* The same negation AFTER the word (QA B6): "Launch delayed again", "ETF approval denied", "ETF launch postponed" read Bullish because only a negator BEFORE the word counted. A real approval ("ETF approved") has no negator either side and stays Bullish. */
+const NEGATED_APPROVAL_AFTER = /\b(?:approv\w*|launch\w*)\b(?:\s+\w+){0,2}\s+(?:denied|rejected|delayed|postponed|blocked|halted|suspended|cancell?ed|shelved|withheld)\b/i;
+const RESOLVED_CASE = /\b(?:drops?|dropped|dismiss\w*|ends?|ended|settles?|settled|wins?|won|closes?|closed|withdraws?|withdrew)\b(?:\s+\w+){0,3}\s+(?:lawsuits?|charges|case|probe|investigation)\b/gi;
+
 function getBtcSentiment(headline: string): BtcSentiment {
-  const h = headline.toLowerCase();
+  if (NEGATED_APPROVAL.test(headline) || NEGATED_APPROVAL_AFTER.test(headline)) return 'bearish';
+  const h = headline.replace(RESOLVED_CASE, ' ').toLowerCase();
   if (BEARISH_STEMS.test(h) || BEARISH_WORDS.test(h)) return 'bearish';
   if (BULLISH_STEMS.test(h) || BULLISH_WORDS.test(h)) return 'bullish';
   return 'neutral';
@@ -748,21 +757,20 @@ export default function NewsPage() {
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                 {/* Column headers */}
-                <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr 72px 72px 72px 52px', gap: 4, padding: '4px 8px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontWeight: 600, letterSpacing: '0.04em', minWidth: 370 }}>
-                  <span>{t('NEWS_EVENTS_COL_TIME')}</span><span>{t('NEWS_EVENTS_COL_EVENT')}</span><span style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_PREV')}</span><span style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_EST')}</span><span style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_ACTUAL')}</span><span style={{ textAlign: 'center' }}>{t('NEWS_EVENTS_COL_IMPACT')}</span>
+                <div className="ne-row" style={{ padding: '4px 8px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontWeight: 600, letterSpacing: '0.04em' }}>
+                  <span>{t('NEWS_EVENTS_COL_TIME')}</span><span>{t('NEWS_EVENTS_COL_EVENT')}</span><span className="ne-prev" style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_PREV')}</span><span style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_EST')}</span><span style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_ACTUAL')}</span><span className="ne-imp" style={{ textAlign: 'center' }}>{t('NEWS_EVENTS_COL_IMPACT')}</span>
                 </div>
                 {/* Rows */}
                 {g.events.map((e, ei) => {
                   const urgent = e.h >= -0.5 && e.h < 2;
                   const soon = e.h < 24;
                   const past = e.h < 0;
-                  const timeLocal = e.dt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+                  const timeLocal = e.dt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
                   const note = ECON_NOTES[e.type];
                   const borderColor = urgent ? 'var(--red)' : soon ? 'var(--amber)' : 'var(--purple)';
                   return (
-                    <div key={ei} style={{
-                      display: 'grid', gridTemplateColumns: '70px 1fr 72px 72px 72px 52px',
-                      gap: 4, padding: '10px 8px', minWidth: 370,
+                    <div key={ei} className="ne-row" style={{
+                      padding: '10px 8px',
                       borderLeft: `3px solid ${past && !urgent ? 'var(--bdr)' : borderColor}`,
                       borderBottom: '1px solid var(--bdr)',
                       opacity: past && !urgent ? 0.55 : 1,
@@ -775,12 +783,11 @@ export default function NewsPage() {
                         <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt)', marginBottom: note ? 4 : 0 }}>{decodeEntities(e.name)}</div>
                         {note && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.4 }}>{note.split('.')[0]}.</div>}
                       </div>
-                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.previous ?? '-'}</span>
+                      <span className="ne-prev" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.previous ?? '-'}</span>
                       <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.estimate ?? '-'}</span>
                       <span style={{ fontSize: 'var(--fs-caption)', fontWeight: e.actual ? 700 : 400, color: e.actual ? 'var(--green)' : 'var(--txt3)', textAlign: 'right', paddingTop: 1 }}>{e.actual ?? '-'}</span>
-                      <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 1 }}>
-                        <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.15)', color: 'var(--red)', fontWeight: 700, letterSpacing: '0.03em' }}>{t('NEWS_EVENTS_IMPACT_HIGH')}</span>
-                      </div>
+                      {/* THE ROUTE'S OWN VALUE, in plain words (never the raw 'med'); a row with no impact shows a dash, never a default of high (#2454 made impact real per event type). Drops under 480 px like Prev. */}
+                      <span className="ne-imp" style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, textAlign: 'center', paddingTop: 1, color: e.impact === 'high' ? 'var(--red)' : e.impact === 'med' ? 'var(--amber)' : 'var(--txt3)' }}>{e.impact === 'high' ? t('NEWS_EVENTS_IMPACT_WORD_HIGH') : e.impact === 'med' ? t('NEWS_EVENTS_IMPACT_WORD_MED') : '-'}</span>
                     </div>
                   );
                 })}

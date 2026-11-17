@@ -3,6 +3,7 @@ import { isAuthApiError, isAuthSessionMissingError } from '@supabase/supabase-js
 import { T } from '@/lib/tables';
 import { apiError } from '@/lib/apiError';
 import { userClient } from '@/lib/supabase-user';
+import { getPlanSnapshot } from '@/lib/entitlements';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,8 +13,8 @@ export async function GET(req: NextRequest) {
 
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
-    // Legacy check: env-var only
-    return NextResponse.json({ configured: !!(botToken && process.env.TELEGRAM_CHAT_ID) });
+    /* The legacy answer here was whether the OWNER's env chat id is set, to anyone without a session (PM audit C10). The only caller (Settings) always sends the header. */
+    return NextResponse.json({ error: 'Sign in required' }, { status: 401 });
   }
 
   // QA, #1499: every failure below used to answer 200 `{configured:false}`, so a backend
@@ -44,7 +45,14 @@ export async function GET(req: NextRequest) {
     if (error) return apiError('telegram/status', new Error(`user_settings read failed: ${error.message}`), 502);
 
     const chatId = data?.telegram_chat_id?.trim() ?? '';
-    return NextResponse.json({ configured: chatId.length > 0 });
+    const configured = chatId.length > 0;
+    /* A LAPSED PRO STILL HAS ITS CHAT LINKED, but Telegram alerts are Pro only and nothing is sent. `paused` is true only when the plan was READ and is not entitled; an unreadable plan leaves it out (we say nothing we do not know). */
+    let paused: boolean | undefined;
+    if (configured) {
+      const plan = await getPlanSnapshot(userToken, user.id);
+      if (plan.status === 'not_entitled') paused = true;
+    }
+    return NextResponse.json(paused ? { configured, paused } : { configured });
   } catch (e) {
     return apiError('telegram/status', e, 502);
   }

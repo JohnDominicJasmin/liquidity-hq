@@ -315,6 +315,12 @@ export const BINANCE_SPOT_SYMS: Record<string, string> = Object.fromEntries(
   Object.entries(BINANCE_SYMS).filter(([id]) => !BINANCE_SPOT_HOLD.has(id)),
 );
 
+/** Which Binance klines source a coin's Binance symbol belongs to: 'binance' (spot) when the coin is spot-listed, 'binance-futures' when it is futures-only (SPX). A futures-only coin asked of spot is a 400 on every call
+ *  (-1121), so every caller that builds a `/api/market/klines?source=...&symbol=BINANCE_SYMS[coin]` URL takes the source from here. */
+export function binanceKlineSource(coin: string): 'binance' | 'binance-futures' {
+  return BINANCE_SPOT_SYMS[coin] ? 'binance' : 'binance-futures';
+}
+
 /** Coins with a Binance futures listing but no spot one - for a health or diagnostic surface. */
 export const BINANCE_SPOT_EXCLUDED: string[] = Object.keys(BINANCE_SYMS)
   .filter(id => BINANCE_SPOT_HOLD.has(id));

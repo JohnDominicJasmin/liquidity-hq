@@ -633,6 +633,8 @@ export default function UpgradePage() {
                   ) : (
                     <span style={{ color: 'var(--txt4)', fontWeight: 700, flexShrink: 0, marginTop: 1 }} aria-hidden="true">✗</span>
                   )}
+                  {/* The ✗ is aria-hidden, so a screen reader heard an excluded row as if it were included (PM UI audit, #1185): the exclusion is said in words, visually hidden. */}
+                  {!included && <span className="sr-only">{t('UPGRADE_FREE_NOT_INCLUDED_SR')}{' '}</span>}
                   {t(labelKey, vars)}
                 </li>
               ))}

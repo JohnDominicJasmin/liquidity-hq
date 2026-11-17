@@ -7,7 +7,7 @@ import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { getSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/components/AuthProvider';
-import { friendlyAuthError } from '@/lib/authErrors';
+import { friendlyAuthError, isEmailNotConfirmed } from '@/lib/authErrors';
 import { safeNextPath } from '@/lib/safeNext';
 import LoadingState from '@/components/LoadingState';
 import PasswordField from '@/components/PasswordField';
@@ -33,6 +33,7 @@ function LoginInner() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError]               = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaErr, setCaptchaErr] = useState(false);
   const turnstileRef = useRef<TurnstileInstance>(null);
   const { t } = useLabels();
 
@@ -48,7 +49,11 @@ function LoginInner() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pwLoading, setPwLoading]       = useState(false);
   const [pwError, setPwError]           = useState('');
+  /* Set when a password sign-in failed because the email was never confirmed: shows the resend action (#10). */
+  const [needsConfirm, setNeedsConfirm]   = useState(false);
+  const [resendState, setResendState]     = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
   const [pwCaptchaToken, setPwCaptchaToken] = useState('');
+  const [pwCaptchaErr, setPwCaptchaErr] = useState(false);
   const [confirmEmailSent, setConfirmEmailSent] = useState(false);
   const pwTurnstileRef = useRef<TurnstileInstance>(null);
 
@@ -184,6 +189,8 @@ function LoginInner() {
       setPwCaptchaToken('');
       if (error) {
         setPwError(friendlyAuthError(error.message));
+        setNeedsConfirm(isEmailNotConfirmed(error.message));
+        setResendState('idle');
         // Password + this exact failure together prove account ownership -
         // the ban-reason endpoint re-verifies both server-side before ever
         // touching ban_reason, so this is safe to fire eagerly.
@@ -284,15 +291,15 @@ function LoginInner() {
 
               {/* CAPTCHA - only rendered once a site key is configured, so the
                   form works unchanged until Turnstile is actually set up. */}
-              {TURNSTILE_SITE_KEY && <CaptchaStuckHint waiting={!captchaToken} />}
+              {TURNSTILE_SITE_KEY && <CaptchaStuckHint waiting={!captchaToken} widgetId="cf-turnstile-magiclink" errored={captchaErr} />}
               {TURNSTILE_SITE_KEY && (
                 <Turnstile
                   id="cf-turnstile-magiclink"
                   ref={turnstileRef}
                   siteKey={TURNSTILE_SITE_KEY}
-                  onSuccess={setCaptchaToken}
+                  onSuccess={t => { setCaptchaErr(false); setCaptchaToken(t); }}
                   onExpire={() => setCaptchaToken('')}
-                  onError={() => setCaptchaToken('')}
+                  onError={() => { setCaptchaToken(''); setCaptchaErr(true); }}
                   className="login-turnstile"
                 />
               )}
@@ -400,15 +407,15 @@ function LoginInner() {
                 </Link>
               )}
 
-              {TURNSTILE_SITE_KEY && <CaptchaStuckHint waiting={!pwCaptchaToken} />}
+              {TURNSTILE_SITE_KEY && <CaptchaStuckHint waiting={!pwCaptchaToken} widgetId="cf-turnstile-password" errored={pwCaptchaErr} />}
               {TURNSTILE_SITE_KEY && (
                 <Turnstile
                   id="cf-turnstile-password"
                   ref={pwTurnstileRef}
                   siteKey={TURNSTILE_SITE_KEY}
-                  onSuccess={setPwCaptchaToken}
+                  onSuccess={t => { setPwCaptchaErr(false); setPwCaptchaToken(t); }}
                   onExpire={() => setPwCaptchaToken('')}
-                  onError={() => setPwCaptchaToken('')}
+                  onError={() => { setPwCaptchaToken(''); setPwCaptchaErr(true); }}
                   className="login-turnstile"
                 />
               )}
@@ -416,6 +423,25 @@ function LoginInner() {
               {/* Same as the magic-link form above - always present, empty
                   until it has something to say. See that comment. */}
               <div className="login-error" data-testid="login-error" role="alert">{pwError}</div>
+              {needsConfirm && (
+                <div style={{ marginTop: 8 }}>
+                  <button
+                    type="button"
+                    className="login-back-btn"
+                    data-testid="login-resend-confirmation"
+                    disabled={resendState === 'sending' || resendState === 'sent'}
+                    onClick={async () => {
+                      const sb = getSupabase();
+                      if (!sb) { setResendState('failed'); return; }
+                      setResendState('sending');
+                      const { error } = await sb.auth.resend({ type: 'signup', email: pwEmail.trim(), options: { emailRedirectTo: callbackUrl() } });
+                      setResendState(error ? 'failed' : 'sent');
+                    }}
+                  >
+                    {resendState === 'sent' ? t('LOGIN_RESEND_CONFIRM_SENT') : resendState === 'failed' ? t('LOGIN_RESEND_CONFIRM_FAILED') : t('LOGIN_RESEND_CONFIRM_BUTTON')}
+                  </button>
+                </div>
+              )}
 
               <button
                 className="login-back-btn"
