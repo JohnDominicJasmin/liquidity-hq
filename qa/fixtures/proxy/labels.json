@@ -1537,7 +1537,7 @@
     "MULTI_TF_ALIGNMENT_VERDICT_MIXED": "Mixed Signals",
     "MULTI_TF_ALIGNMENT_FOOTER_BULLISH": "RSI aligned bullish across timeframes. Momentum favors longs.",
     "MULTI_TF_ALIGNMENT_FOOTER_BEARISH": "RSI aligned bearish across timeframes. Momentum favors shorts.",
-    "MULTI_TF_ALIGNMENT_FOOTER_CONFLICTING": "Higher and lower timeframes disagree. Stay out or reduce size - no clear edge.",
+    "MULTI_TF_ALIGNMENT_FOOTER_CONFLICTING": "Higher and lower timeframes disagree - no clear alignment.",
     "MULTI_TF_ALIGNMENT_FOOTER_MIXED": "No clear directional bias across timeframes. Wait for RSI to pick a side.",
     "COIN_HEATMAP_TOOLTIP": "Every tracked coin's 24h price change, sized and colored by move. Green = up, red = down - a quick scan to spot which coins are leading or lagging the market right now.",
     "COIN_HEATMAP_TITLE": "Market Heatmap · 24 Hour",

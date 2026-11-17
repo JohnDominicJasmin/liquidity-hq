@@ -217,6 +217,7 @@ function LoginInner() {
 
   return (
     <div className="login-wrap login-term-wrap">
+      <h1 className="sr-only">{isSignup ? t('AUTH_H1_SIGN_UP') : t('AUTH_H1_SIGN_IN')}</h1>
       <div className="login-card">
 
         {/* Logo */}
@@ -270,6 +271,8 @@ function LoginInner() {
                   </label>
                   <input
                     id="magic-email"
+                    aria-invalid={!!error || undefined}
+                    aria-describedby={error ? 'magic-error' : undefined}
                     type="email"
                     className="login-email-input" data-testid="login-email"
                     placeholder={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
@@ -316,7 +319,7 @@ function LoginInner() {
                   `.login-error:empty` collapses it visually without
                   `display: none`, which would remove it from the accessibility
                   tree and reintroduce the bug. */}
-              <div className="login-error" data-testid="login-error" role="alert">{error}</div>
+              <div className="login-error" id="magic-error" data-testid="login-error" role="alert">{error}</div>
 
               <button
                 className="login-back-btn"
@@ -366,6 +369,8 @@ function LoginInner() {
                   </label>
                   <input
                     id="pw-email"
+                    aria-invalid={!!pwError || undefined}
+                    aria-describedby={pwError ? 'pw-error' : undefined}
                     type="email"
                     className="login-email-input" data-testid="login-email"
                     placeholder={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
@@ -381,6 +386,8 @@ function LoginInner() {
                   onChange={setPassword}
                   onEnter={() => { if (pwMode === 'signin') submitPassword(); }}
                   autoComplete={pwMode === 'signup' ? 'new-password' : 'current-password'}
+                  invalid={!!pwError}
+                  describedBy="pw-error"
                   showRules={pwMode === 'signup'}
                 />
                 {pwMode === 'signup' && (
@@ -390,6 +397,8 @@ function LoginInner() {
                     onChange={setConfirmPassword}
                     onEnter={submitPassword}
                     autoComplete="new-password"
+                    invalid={!!pwError}
+                    describedBy="pw-error"
                   />
                 )}
                 <button
@@ -422,7 +431,7 @@ function LoginInner() {
 
               {/* Same as the magic-link form above - always present, empty
                   until it has something to say. See that comment. */}
-              <div className="login-error" data-testid="login-error" role="alert">{pwError}</div>
+              <div className="login-error" id="pw-error" data-testid="login-error" role="alert">{pwError}</div>
               {needsConfirm && (
                 <div style={{ marginTop: 8 }}>
                   <button
