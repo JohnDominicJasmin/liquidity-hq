@@ -283,6 +283,7 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
                correcting an advert for something we don't offer, not hiding
                a bug - see the matching removal on app/upgrade/page.tsx. */
             'UPGRADE_GATE_BULLET_4',
+            'UPGRADE_GATE_BULLET_5',
           ] as const).map(k => (
             <li key={k} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.5 }}>
               <span style={{ color: 'var(--green)', fontSize: '0.75rem', flexShrink: 0 }}>✓</span>

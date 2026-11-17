@@ -4,6 +4,16 @@
 --
 -- ===================== PROD =====================
 insert into lhq_labels (key, locale, value) values
+('UPGRADE_GATE_BODY','en','Pro adds the faster timeframes, signals on every coin, the full signal set and the deeper AI tools. One subscription.'),
+('UPGRADE_GATE_BODY','ko','Pro는 더 빠른 타임프레임, 모든 코인의 신호, 전체 신호 세트, 더 깊은 AI 도구를 추가합니다. 구독 하나로 이용합니다.'),
+('UPGRADE_GATE_BODY','zh','Pro 增加更快的时间周期、所有币种的信号、完整的信号集以及更深入的 AI 工具。一个订阅即可。'),
+('UPGRADE_GATE_BODY','ru','Pro добавляет более быстрые таймфреймы, сигналы по каждой монете, полный набор сигналов и более глубокие ИИ-инструменты. Одна подписка.'),
+('UPGRADE_GATE_BODY','ar','يضيف Pro الأطر الزمنية الأسرع وإشارات لكل عملة ومجموعة الإشارات الكاملة وأدوات الذكاء الاصطناعي الأعمق. اشتراك واحد.'),
+('UPGRADE_GATE_BULLET_5','en','EMA signals, S/R and liquidation-cluster layers on every coin, and several indicators at once'),
+('UPGRADE_GATE_BULLET_5','ko','모든 코인의 EMA 신호, S/R 및 청산 클러스터 레이어, 여러 지표 동시 사용'),
+('UPGRADE_GATE_BULLET_5','zh','所有币种的 EMA 信号、支撑阻力与清算集群图层，以及同时使用多个指标'),
+('UPGRADE_GATE_BULLET_5','ru','EMA-сигналы, слои S/R и кластеров ликвидаций по каждой монете и несколько индикаторов одновременно'),
+('UPGRADE_GATE_BULLET_5','ar','إشارات EMA وطبقات الدعم/المقاومة وتجمعات التصفية لكل عملة، وعدة مؤشرات في وقت واحد'),
 ('UPGRADE_GATE_LOCKED_ROW','en','{feature} · Pro'),
 ('UPGRADE_GATE_LOCKED_ROW','ko','{feature} · Pro'),
 ('UPGRADE_GATE_LOCKED_ROW','zh','{feature} · Pro'),
@@ -18,6 +28,16 @@ on conflict (key, locale) do update set value = excluded.value, updated_at = now
 
 -- ===================== DEV =====================
 insert into lhq_dev_labels (key, locale, value) values
+('UPGRADE_GATE_BODY','en','Pro adds the faster timeframes, signals on every coin, the full signal set and the deeper AI tools. One subscription.'),
+('UPGRADE_GATE_BODY','ko','Pro는 더 빠른 타임프레임, 모든 코인의 신호, 전체 신호 세트, 더 깊은 AI 도구를 추가합니다. 구독 하나로 이용합니다.'),
+('UPGRADE_GATE_BODY','zh','Pro 增加更快的时间周期、所有币种的信号、完整的信号集以及更深入的 AI 工具。一个订阅即可。'),
+('UPGRADE_GATE_BODY','ru','Pro добавляет более быстрые таймфреймы, сигналы по каждой монете, полный набор сигналов и более глубокие ИИ-инструменты. Одна подписка.'),
+('UPGRADE_GATE_BODY','ar','يضيف Pro الأطر الزمنية الأسرع وإشارات لكل عملة ومجموعة الإشارات الكاملة وأدوات الذكاء الاصطناعي الأعمق. اشتراك واحد.'),
+('UPGRADE_GATE_BULLET_5','en','EMA signals, S/R and liquidation-cluster layers on every coin, and several indicators at once'),
+('UPGRADE_GATE_BULLET_5','ko','모든 코인의 EMA 신호, S/R 및 청산 클러스터 레이어, 여러 지표 동시 사용'),
+('UPGRADE_GATE_BULLET_5','zh','所有币种的 EMA 信号、支撑阻力与清算集群图层，以及同时使用多个指标'),
+('UPGRADE_GATE_BULLET_5','ru','EMA-сигналы, слои S/R и кластеров ликвидаций по каждой монете и несколько индикаторов одновременно'),
+('UPGRADE_GATE_BULLET_5','ar','إشارات EMA وطبقات الدعم/المقاومة وتجمعات التصفية لكل عملة، وعدة مؤشرات في وقت واحد'),
 ('UPGRADE_GATE_LOCKED_ROW','en','{feature} · Pro'),
 ('UPGRADE_GATE_LOCKED_ROW','ko','{feature} · Pro'),
 ('UPGRADE_GATE_LOCKED_ROW','zh','{feature} · Pro'),
