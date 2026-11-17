@@ -121,6 +121,8 @@ test.describe('ru trial banner (stubbed active trial on fixture B)', () => {
     test.skip(!AUTH_READY, AUTH_SKIP_REASON);
     /* no trial account needed (PM, 2026-11-17): Free fixture B with the plan READ answered as an active trial (trial_ends_at 10 days ahead, role not pro). Nothing is written. */
     const ctx = await signedInContext(browser, 'b', { viewport: { width, height: 844 } }); const page = await ctx.newPage();
+    /* the account's saved language wins over localStorage on sign-in (run F: 360 rendered English): also answer the settings READ as Russian */
+    await page.route(/\/rest\/v1\/lhq_(dev_)?user_settings\?/, async (route) => { if (route.request().method() !== 'GET') return route.fulfill({ status: 204, body: '' }); const res = await route.fetch(); const body = await res.json().catch(() => null); if (body == null) return route.fulfill({ response: res }); const patch = (r: Record<string, unknown>) => ({ ...r, language: 'ru' }); return route.fulfill({ response: res, body: JSON.stringify(Array.isArray(body) ? body.map(patch) : patch(body)) }); });
     await page.route(/\/rest\/v1\/lhq_(dev_)?user_subscriptions\?/, async (route) => { if (route.request().method() !== 'GET') return route.fallback(); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ role: 'free', trial_ends_at: new Date(Date.now() + 10 * 86_400_000).toISOString(), current_period_end: null }]) }); }); await ctx.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'ru'); } catch { /* private */ } });
     try {
       await gotoSignedIn(page, '/dashboard'); const dismiss = page.getByTestId('trial-banner-dismiss'); const visible = await dismiss.waitFor({ state: 'visible', timeout: 45_000 }).then(() => true).catch(() => false);
@@ -129,8 +131,10 @@ test.describe('ru trial banner (stubbed active trial on fixture B)', () => {
         const banner = btn.closest('[role="status"]') as HTMLElement; const tops: number[] = []; const w = document.createTreeWalker(banner, NodeFilter.SHOW_TEXT);
         for (let n = w.nextNode(); n; n = w.nextNode()) { if (!(n.textContent || '').trim() || btn.contains(n)) continue; const range = document.createRange(); range.selectNodeContents(n); for (const r of Array.from(range.getClientRects())) if (r.width > 0) tops.push(Math.round(r.top)); }
         tops.sort((a, b) => a - b); let lines = tops.length ? 1 : 0; for (let i = 1; i < tops.length; i++) if (tops[i] - tops[i - 1] > 6) lines++;
-        return { lines, h: Math.round(banner.getBoundingClientRect().height), text: (banner.innerText || '').replace(/\s+/g, ' ').slice(0, 160), docW: document.documentElement.scrollWidth, winW: window.innerWidth };
+        return { lines, h: Math.round(banner.getBoundingClientRect().height), text: (banner.innerText || '').replace(/\s+/g, ' ').slice(0, 160), docW: document.documentElement.scrollWidth, winW: window.innerWidth,
+          wide: Array.from(document.querySelectorAll('body *')).filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1 && e.getBoundingClientRect().width > 0).slice(0, 6).map((e) => (e.tagName.toLowerCase() + '.' + String((e as HTMLElement).className || '').split(' ')[0] + ' right=' + Math.round(e.getBoundingClientRect().right) + ' "' + (e.textContent || '').trim().slice(0, 24) + '"')), bannerScrollW: banner.scrollWidth, bannerClientW: banner.clientWidth };
       });
+      console.log(`[CELL] F3 overflow culprits=${JSON.stringify(m.wide)} bannerScroll=${m.bannerScrollW}/${m.bannerClientW}`);
       console.log(`[CELL] F3 ru ${width}: lines=${m.lines} height=${m.h} docW=${m.docW}/${m.winW} text="${m.text}"`);
       expect(m.lines, `the Russian trial banner is ${m.lines} lines at ${width}`).toBeLessThanOrEqual(2); expect(m.docW).toBeLessThanOrEqual(m.winW);
     } finally { await ctx.close(); }
