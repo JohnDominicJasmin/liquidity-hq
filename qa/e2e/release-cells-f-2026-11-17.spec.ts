@@ -6,6 +6,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { settleForShot } from './_settle';
+import { overflowAttribution } from './_overflow';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
 
@@ -127,14 +128,15 @@ test.describe('ru trial banner (stubbed active trial on fixture B)', () => {
     try {
       await gotoSignedIn(page, '/dashboard'); const dismiss = page.getByTestId('trial-banner-dismiss'); const visible = await dismiss.waitFor({ state: 'visible', timeout: 45_000 }).then(() => true).catch(() => false);
       if (!visible) { console.log(`[CELL] F3 ${width}: no trial banner appeared with the plan read stubbed as an active trial: NOT measured`); test.skip(true, 'the trial banner could not be forced'); return; }
+      await page.evaluate(`(window).__ov = (${overflowAttribution.toString()})()`);
       const m = await dismiss.evaluate((btn) => {
         const banner = btn.closest('[role="status"]') as HTMLElement; const tops: number[] = []; const w = document.createTreeWalker(banner, NodeFilter.SHOW_TEXT);
         for (let n = w.nextNode(); n; n = w.nextNode()) { if (!(n.textContent || '').trim() || btn.contains(n)) continue; const range = document.createRange(); range.selectNodeContents(n); for (const r of Array.from(range.getClientRects())) if (r.width > 0) tops.push(Math.round(r.top)); }
         tops.sort((a, b) => a - b); let lines = tops.length ? 1 : 0; for (let i = 1; i < tops.length; i++) if (tops[i] - tops[i - 1] > 6) lines++;
         return { lines, h: Math.round(banner.getBoundingClientRect().height), text: (banner.innerText || '').replace(/\s+/g, ' ').slice(0, 160), docW: document.documentElement.scrollWidth, winW: window.innerWidth,
-          wide: Array.from(document.querySelectorAll('body *')).filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1 && e.getBoundingClientRect().width > 0).slice(0, 6).map((e) => (e.tagName.toLowerCase() + '.' + String((e as HTMLElement).className || '').split(' ')[0] + ' right=' + Math.round(e.getBoundingClientRect().right) + ' "' + (e.textContent || '').trim().slice(0, 24) + '"')), bannerScrollW: banner.scrollWidth, bannerClientW: banner.clientWidth };
+          overflow: (window as unknown as { __ov?: unknown }).__ov, bannerScrollW: banner.scrollWidth, bannerClientW: banner.clientWidth };
       });
-      console.log(`[CELL] F3 overflow culprits=${JSON.stringify(m.wide)} bannerScroll=${m.bannerScrollW}/${m.bannerClientW}`);
+      console.log(`[CELL] F3 ${width} overflow attribution=${JSON.stringify(m.overflow)} bannerScroll=${m.bannerScrollW}/${m.bannerClientW}`);
       console.log(`[CELL] F3 ru ${width}: lines=${m.lines} height=${m.h} docW=${m.docW}/${m.winW} text="${m.text}"`);
       expect(m.lines, `the Russian trial banner is ${m.lines} lines at ${width}`).toBeLessThanOrEqual(2); expect(m.docW).toBeLessThanOrEqual(m.winW);
     } finally { await ctx.close(); }
