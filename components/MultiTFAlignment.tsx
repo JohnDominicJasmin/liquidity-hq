@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useState } from 'react';
 import { useMarket } from '@/lib/marketStore';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
@@ -205,6 +206,16 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
   /* NO READINGS IS NOT "MIXED" (PM audit 2026-11-17, high): with fewer than two timeframes carrying an RSI value the card said "Mixed signals / no clear bias" over rows of dashes, which reads as an analysis. It says
      "No data" and "RSI readings unavailable right now" instead. */
   const noData = biases.filter(b => b !== 'unknown').length < 2;
+  /* BEFORE THE FIRST READ ARRIVES THE CARD IS LOADING, NOT 'NO DATA' (PM): it says 'No data' only after the same 20 s grace the EMA card uses, or when the price feed reports failed. */
+  const [graceOver, setGraceOver] = useState(false);
+  useEffect(() => {
+    setGraceOver(false);
+    if (!noData) return;
+    const id = setTimeout(() => setGraceOver(true), 20_000);
+    return () => clearTimeout(id);
+  }, [noData, coin]);
+  const noDataShown = noData && (graceOver || store.pricesFailed);
+  const loadingState = noData && !noDataShown;
 
   const verdict: 'bullish' | 'bearish' | 'conflicting' | 'mixed' =
     bullCount >= majority ? 'bullish'
@@ -212,12 +223,14 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
     : (bullCount > 0 && bearCount > 0) ? 'conflicting'
     : 'mixed';
 
-  const verdictLabel = noData ? t('MULTI_TF_ALIGNMENT_VERDICT_NO_DATA') : verdict === 'bullish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BULLISH') : verdict === 'bearish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BEARISH') : verdict === 'conflicting' ? t('MULTI_TF_ALIGNMENT_VERDICT_CONFLICTING') : t('MULTI_TF_ALIGNMENT_VERDICT_MIXED');
+  const verdictLabel = loadingState ? t('EMA_PHASE_LOADING') : noData ? t('MULTI_TF_ALIGNMENT_VERDICT_NO_DATA') : verdict === 'bullish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BULLISH') : verdict === 'bearish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BEARISH') : verdict === 'conflicting' ? t('MULTI_TF_ALIGNMENT_VERDICT_CONFLICTING') : t('MULTI_TF_ALIGNMENT_VERDICT_MIXED');
   const verdictColor = noData ? 'var(--txt3)' : verdict === 'bullish' ? 'var(--green-2)' : verdict === 'bearish' ? 'var(--red)' : verdict === 'conflicting' ? 'var(--amber)' : 'var(--txt3)';
   const verdictBorder = noData ? 'var(--bdr)' : verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 40%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 40%, transparent)' : verdict === 'conflicting' ? 'color-mix(in srgb, var(--amber) 40%, transparent)' : 'var(--border-input)';
   const verdictBg = noData ? 'transparent' : verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 10%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 10%, transparent)' : verdict === 'conflicting' ? 'color-mix(in srgb, var(--amber) 10%, transparent)' : 'transparent';
 
-  const footerText = noData
+  const footerText = loadingState
+    ? ''
+    : noData
     ? t('MULTI_TF_ALIGNMENT_FOOTER_NO_DATA')
     : verdict === 'bullish'
     ? t('MULTI_TF_ALIGNMENT_FOOTER_BULLISH')
