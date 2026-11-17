@@ -5,6 +5,8 @@
  * Each cell prints its numbers ([CELL] lines) so the run log is the evidence. */
 import { test, expect, type Page } from '@playwright/test';
 import { gotoGuarded } from './_shared';
+import { mkdirSync } from 'node:fs';
+mkdirSync('qa/.shots', { recursive: true });
 
 const LANGS = ['en', 'ru', 'ko', 'zh'] as const;
 async function withLang(page: Page, lang: string) { await page.addInitScript((l) => { try { localStorage.setItem('lhq_lang_v1', l); } catch { /* private mode */ } }, lang); }
@@ -38,7 +40,7 @@ test.describe('#2403 News > Events table', () => {
       try {
         await gotoGuarded(page, '/news');
         await page.locator('.ntab-btn').filter({ hasText: /^\s*(calendar|events)\s*$/i }).first().click({ timeout: 60_000 });   // the tab is labelled "Calendar" (NEWS_TAB_EVENTS)
-        const rows = page.locator('.ne-row'); await rows.first().waitFor({ state: 'visible', timeout: 60_000 });
+        const rows = page.locator('.ne-row'); await rows.first().waitFor({ state: 'visible', timeout: 30_000 }).catch(async (e) => { const txt = (await page.locator('main').first().innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 400); console.log('[CELL] E1 ' + width + ' NO .ne-row; page text: ' + txt); await page.screenshot({ path: 'qa/.shots/e1-' + width + '-norow.png' }).catch(() => {}); throw e; });
         const m = await page.evaluate(() => {
           const all = Array.from(document.querySelectorAll('.ne-row')) as HTMLElement[]; const vis = (e: Element) => (e as HTMLElement).offsetParent !== null && getComputedStyle(e).display !== 'none';
           const cols = (el: HTMLElement) => getComputedStyle(el).gridTemplateColumns.split(' ').length; const hdr = all[0];

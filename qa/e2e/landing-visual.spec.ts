@@ -71,13 +71,22 @@ test.describe('group-2 landing visual evidence (signed out)', () => {
         }
         if (!el) return null;
         const r = el.getBoundingClientRect();
-        return { left: r.left, right: r.right, width: r.width, vw: window.innerWidth };
+        /* THE BOX CAN BE INSIDE THE VIEWPORT WHILE ITS CONTENT IS CUT (run A 2026-11-17: this cell passed at 768 while the STOP column was cropped and TARGET gone). So measure what is INSIDE it: the
+           right-most edge of any descendant, whether the panel's own content is wider than its box (scrollWidth > clientWidth), and whether an ancestor between the panel and the page clips it. */
+        const kids = Array.from(el.querySelectorAll('*')) as HTMLElement[]; let maxRight = r.right;
+        for (const k of kids) { const kr = k.getBoundingClientRect(); if (kr.width > 0 && kr.height > 0 && kr.right > maxRight) maxRight = kr.right; }
+        let clippedBy = ''; for (let p: HTMLElement | null = el.parentElement; p && p !== document.body; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o !== 'visible' && p.scrollWidth > p.clientWidth + 1) { clippedBy = `${p.tagName.toLowerCase()}.${(p.className || '').toString().split(' ')[0]} (scrollWidth ${p.scrollWidth} > clientWidth ${p.clientWidth})`; break; } }
+        return { left: r.left, right: r.right, width: r.width, vw: window.innerWidth, maxRight, ownOverflow: el.scrollWidth - el.clientWidth, clippedBy };
       });
       expect(box, `could not locate the LIVE READ panel at ${width}px`).not.toBeNull();
       expect(box!.right,
         `the LIVE READ panel's right edge (${Math.round(box!.right)}) is past the ${box!.vw}px viewport - it is clipped. `
         + `left=${Math.round(box!.left)} width=${Math.round(box!.width)}. A page scrollWidth check cannot see this because the overflow is hidden.`)
         .toBeLessThanOrEqual(box!.vw + 1);
+      console.log(`[CELL] landing LIVE READ ${width}: right=${Math.round(box!.right)} contentRight=${Math.round(box!.maxRight)} ownOverflow=${box!.ownOverflow} clippedBy=${box!.clippedBy || '-'} vw=${box!.vw}`);
+      expect(box!.maxRight, `the LIVE READ panel's CONTENT reaches x=${Math.round(box!.maxRight)}, past the panel (${Math.round(box!.right)}) / the ${box!.vw}px viewport: columns are cut off`).toBeLessThanOrEqual(Math.min(box!.right, box!.vw) + 1);
+      expect(box!.ownOverflow, 'the panel is wider inside than its box (content cut off by overflow)').toBeLessThanOrEqual(1);
+      expect(box!.clippedBy, 'an ancestor clips the panel').toBe('');
       await ctx.close();
     });
   }

@@ -4,9 +4,12 @@
  *   F2  #2419 /research Stablecoin card as Pro (fixture A): the FIGURES show while the AI summary is still loading (the summary request is held 6 s by a stub, the figures request is the real one and costs nothing), then the summary fills in; with the summary request failing (504) the card says it is unavailable and the figures stay
  * Each cell prints its numbers ([CELL] lines). */
 import { test, expect, type Page } from '@playwright/test';
+import { mkdirSync } from 'node:fs';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
 
+/* the chart is a canvas: how many indicators it DRAWS is not in the DOM, so the chart component (toolbar + canvas, no account chrome) is shot for the visual check: qa/.shots, uploaded by the dispatch when screenshots=true */
+const chartShot = async (page: Page, name: string) => { mkdirSync('qa/.shots', { recursive: true }); await page.locator('.klc-toolbar').first().locator('xpath=..').screenshot({ path: `qa/.shots/${name}.png` }).catch((e) => console.log('[CELL] shot failed ' + String(e).slice(0, 120))); };
 const SAVED = ['SMA', 'SAR', 'MACD', 'BOLL'];
 const IDS = SAVED;
 
@@ -36,7 +39,7 @@ test.describe('#2466 a Free account never gets a multi-indicator selection', () 
       await expect(pageB.getByTestId('strategy-indicator-SMA')).toBeEnabled({ timeout: 60_000 });   // plan read settled (chips are disabled while it is being read)
       await pageB.waitForTimeout(3_000);
       const on = await pressed(pageB); const limitText = await pageB.locator('.strat-count').first().innerText().catch(() => '');
-      console.log(`[CELL] F1 FREE pressed=${JSON.stringify(on)} panelCount="${limitText}"`);
+      await chartShot(pageB, 'f1-free-chart-1280'); console.log(`[CELL] F1 FREE pressed=${JSON.stringify(on)} panelCount="${limitText}"`);
       expect(on, 'a Free account has more than one indicator pressed (paid-feature leak)').toEqual(['SMA']); expect(limitText.toLowerCase()).toContain('1 at a time');
       const quick = pageB.getByRole('button', { name: /quick research/i }).first();
       if (await quick.isEnabled().catch(() => false)) {
@@ -51,7 +54,7 @@ test.describe('#2466 a Free account never gets a multi-indicator selection', () 
     const ctxA = await signedInContext(browser, 'a', { viewport: { width: 1280, height: 900 } }); const pageA = await ctxA.newPage(); await installPaidAiFence(pageA); await seed(pageA);
     try {
       await gotoSignedIn(pageA, '/arena?coin=btc&tf=1h'); await expect(pageA.getByTestId('strategy-indicator-SMA')).toBeEnabled({ timeout: 60_000 }); await pageA.waitForTimeout(3_000);
-      const onA = await pressed(pageA); console.log(`[CELL] F1 PRO pressed=${JSON.stringify(onA)}`);
+      const onA = await pressed(pageA); await chartShot(pageA, 'f1-pro-chart-1280'); console.log(`[CELL] F1 PRO pressed=${JSON.stringify(onA)}`);
       expect(onA.sort(), 'the Pro control lost its multi-indicator selection').toEqual([...SAVED].sort());
     } finally { await ctxA.close(); }
   });
@@ -63,7 +66,9 @@ test.describe('#2419 dry-powder figures before the AI summary', () => {
   const stubSummary = async (page: Page, mode: 'slow' | 'fail', calls: string[]) => page.route(/\/api\/dry-powder/, async (route) => {
     const url = route.request().url(); if (/part=numbers/.test(url)) return route.fallback();                         // the real, free, figures-only request
     calls.push(url);                                                                                                  // any OTHER dry-powder request is the paid AI summary: never let it through
-    if (mode === 'slow') { await new Promise((r) => setTimeout(r, 6_000)); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ analysis: 'QA stub summary' }) }); }
+    if (mode === 'slow') { await new Promise((r) => setTimeout(r, 6_000)); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ analysis: 'SIGNAL: BULLISH
+NARRATIVE: QA stub narrative
+KEY_LEVEL: 1.00' }) }); }
     return route.fulfill({ status: 504, contentType: 'application/json', body: JSON.stringify({ error: 'timeout' }) });
   });
   test('F2a figures first, summary after', async ({ browser }) => {
@@ -73,7 +78,7 @@ test.describe('#2419 dry-powder figures before the AI summary', () => {
       const t0 = Date.now(); const figuresWhileLoading = await page.evaluate(() => /\$\s?\d/.test((document.body.innerText || '')));
       console.log('[CELL] F2a summary still loading=' + (await loading.isVisible()) + ' figuresVisible=' + figuresWhileLoading + ' summaryRequests=' + calls.length);
       expect(figuresWhileLoading, 'no stablecoin figures on screen while the summary is still loading').toBe(true);
-      await expect(page.getByText('QA stub summary')).toBeVisible({ timeout: 30_000 }); console.log('[CELL] F2a summary arrived after ' + (Date.now() - t0) + ' ms');
+      await expect(page.getByText('QA stub narrative')).toBeVisible({ timeout: 30_000 }); console.log('[CELL] F2a summary arrived after ' + (Date.now() - t0) + ' ms');
     } finally { await ctx.close(); }
   });
   test('F2b summary fails: unavailable line, figures stay', async ({ browser }) => {
