@@ -237,16 +237,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, background: 'var(--bdr)', marginTop: 16 }}>
-          {([lr.levels.entry, lr.levels.stop, lr.levels.target]).map(label => (
-            <div key={label} style={{ background: 'var(--bg1)', padding: mobile ? '9px 10px' : '11px 12px' }}>
-              <div style={{ fontSize: 9, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--txt3)' }}>{label}</div>
-              <div style={{ fontSize: mobile ? 12.5 : 13.5, fontFamily: 'var(--font-mono), monospace', fontWeight: 600, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums', marginTop: 5 }}>
-                <EmptyValue />
-              </div>
-            </div>
-          ))}
-        </div>
+        {/* THE ENTRY / STOP / TARGET ROW IS GONE (PM audit 2026-11-17): it was three dashes under a "No read" headline, with no read behind it to show. */}
 
         <div style={{ marginTop: 4 }}>
           {evidence.map(row => (
