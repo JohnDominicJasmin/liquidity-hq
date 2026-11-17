@@ -61,6 +61,7 @@ for (const persona of PERSONAS) for (const width of WIDTHS) for (const path of P
   test(`explore ${persona} ${width} ${path}`, async ({ browser }) => {
     /* ON PRODUCTION (E2E_ALLOW_PRODUCTION=1) ONLY THE SIGNED-OUT PERSONA RUNS: there is no production test account (#1259), and this pass never signs in or creates anything there. The click pass skips sign-in, sign-up, send, submit, save, subscribe and buy controls, and every write is stubbed to an empty success before it leaves the browser. */
     test.skip(persona !== 'out' && (!AUTH_READY || process.env.E2E_ALLOW_PRODUCTION === '1'), 'fixture accounts are not configured, or this is a production run (signed out only)');
+    test.skip(width > 480 && test.info().project.name === 'mobile', 'the mobile project measures the phone widths only');
     test.setTimeout(300_000);
     const ctx = await open(browser, persona, width);
     const page = await ctx.newPage();
@@ -100,6 +101,27 @@ for (const persona of PERSONAS) for (const width of WIDTHS) for (const path of P
       if (stamps.length) found(persona, width, path, 'STAMPS', stamps.join(' | '));
       const sc = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, vw: innerWidth }));
       if (sc.sw > sc.vw) flag('SIDEWAYS-SCROLL', `scrollWidth ${sc.sw} vs ${sc.vw}`);
+
+      /* MOBILE MEASURE (owner, 2026-11-17: the phone view of every page): at a phone width, print for EVERY page the document width against the viewport, the non-fixed elements whose right edge is past the viewport (an element inside a horizontally clipping or scrolling ancestor that itself fits is NOT counted), the tap targets under 24 px and the text clipped by its own box (scrollWidth > clientWidth with a non-visible overflow). One [MOBILE] line per page, so the run log is the evidence. */
+      if (width <= 480) {
+        const mm = await page.evaluate(() => {
+          const vw = window.innerWidth; const all = Array.from(document.querySelectorAll('body *')) as HTMLElement[];
+          const visible = (e: HTMLElement) => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
+          const fixedUp = (e: HTMLElement) => { for (let p: HTMLElement | null = e; p && p !== document.body; p = p.parentElement) { const pos = getComputedStyle(p).position; if (pos === 'fixed' || pos === 'sticky') return true; } return false; };
+          const clippedByFittingAncestor = (e: HTMLElement) => { for (let p = e.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) { const ox = getComputedStyle(p).overflowX; if (ox !== 'visible' && p.getBoundingClientRect().right <= vw + 1) return true; } return false; };
+          const d = (e: HTMLElement) => { const c = (typeof e.className === 'string' ? e.className : '').trim().split(/\s+/)[0]; return `${e.tagName.toLowerCase()}${e.id ? '#' + e.id : ''}${c ? '.' + c : ''} "${(e.innerText || e.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 40)}"`; };
+          const over = all.filter((e) => visible(e) && !fixedUp(e) && e.getBoundingClientRect().right > vw + 1 && !clippedByFittingAncestor(e));
+          const small = (Array.from(document.querySelectorAll('a[href],button,[role=button],[role=tab],[role=switch],input:not([type=hidden]),select,summary')) as HTMLElement[]).filter((e) => { if (!visible(e)) return false; const r = e.getBoundingClientRect(); return Math.min(r.width, r.height) < 24; });
+          const clipped = all.filter((e) => visible(e) && getComputedStyle(e).overflowX !== 'visible' && e.scrollWidth > e.clientWidth + 1 && (e.innerText || '').trim().length > 0);
+          return { vw, docW: document.documentElement.scrollWidth, over: over.length, overList: over.slice(0, 6).map((e) => `${d(e)} right=${Math.round(e.getBoundingClientRect().right)}`), small: small.length, smallList: small.slice(0, 8).map((e) => `${d(e)} ${Math.round(e.getBoundingClientRect().width)}x${Math.round(e.getBoundingClientRect().height)}`), clipped: clipped.length, clippedList: clipped.slice(0, 6).map((e) => `${d(e)} scroll=${e.scrollWidth} client=${e.clientWidth}${getComputedStyle(e).textOverflow === 'ellipsis' ? ' ellipsis' : ''}`) };
+        }).catch(() => null);
+        if (mm) {
+          console.log(`[MOBILE] ${path} docW=${mm.docW}/${mm.vw} pastViewport=${mm.over} tapUnder24=${mm.small} clippedText=${mm.clipped} :: ${JSON.stringify({ over: mm.overList, small: mm.smallList, clipped: mm.clippedList })}`);
+          if (mm.over > 0) found(persona, width, path, 'ELEMENT-PAST-VIEWPORT', mm.overList.join(' | '));
+          if (mm.small > 0) found(persona, width, path, 'TAP-TARGET-UNDER-24', `${mm.small}: ${mm.smallList.join(' | ')}`);
+          if (mm.clipped > 0) found(persona, width, path, 'CLIPPED-TEXT', `${mm.clipped}: ${mm.clippedList.join(' | ')}`);
+        }
+      }
 
       /* CLICK PASS */
       stage = 'click';
