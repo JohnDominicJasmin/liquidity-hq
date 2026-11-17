@@ -6,7 +6,7 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { getAuthToken } from '@/lib/supabase';
-import { econImpactKey, type EconImpact } from '@/lib/classify';
+import { econImpactKey, econImpactWordKey, type EconImpact } from '@/lib/classify';
 import { localZoneAbbr } from '@/lib/resetTime';
 import { withAlpha } from '@/lib/color';
 import { calendarFromResponse } from '@/lib/econCalendarFeed';
@@ -152,7 +152,7 @@ export default function EconCalendarWidget() {
                 fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.03em', padding: '2px 6px',
                 color: col, background: withAlpha(col, '22'), flexShrink: 0,
               }}>
-                {e.impact}
+                {econImpactWordKey(e.impact) ? t(econImpactWordKey(e.impact)!) : '-'}
               </span>
             </div>
           </div>

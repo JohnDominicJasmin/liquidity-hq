@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/nextjs';
 import { monitoringOptions } from '@/lib/monitoring';
 
 // No session replay / breadcrumb DOM capture here on purpose - PostHog already
@@ -9,6 +8,48 @@ import { monitoringOptions } from '@/lib/monitoring';
 // file carried its own copy of the options and was the one missing the release
 // tag and the PII scrubber - the client is where user ids end up in URLs, so it
 // was the copy that most needed them.
-Sentry.init(monitoringOptions());
+//
+// LOADED AFTER THE PAGE IS IDLE (speed audit 2026-11-17): the Sentry SDK was in the first-load JavaScript of
+// every page (about 120 KB of the 540 KB a static page shipped). It is now imported after the load event and an
+// idle moment. An error thrown before that is not lost: a tiny listener keeps the first few and hands them to
+// Sentry once it is ready. lib/monitoring.ts has no imports, so reading the options here costs nothing.
+type SentryModule = typeof import('@sentry/nextjs');
 
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+let sentry: SentryModule | null = null;
+/* window.__lhqEarly is filled by the inline `early-errors` script in components/RootDocument.tsx, which runs before any app script. */
+const early: unknown[] = typeof window !== 'undefined' ? ((window as Window & { __lhqEarly?: unknown[] }).__lhqEarly ??= []) : [];
+let pendingNav: Array<[string, string]> = [];
+
+if (typeof window !== 'undefined') {
+
+  const start = () => {
+    import('@sentry/nextjs').then((S) => {
+      const opts = monitoringOptions();
+      S.init(opts);
+      /* A startup line outside production so a test (and a person) can see whether the reporter is armed: the DSN is read at BUILD time (NEXT_PUBLIC_SENTRY_DSN), is dropped only when NEXT_PUBLIC_APP_ENV is 'dev', and nothing here depends on analytics consent (error reporting is not tracking). */
+      if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_APP_ENV) {
+        console.info(`monitoring: DSN ${opts.dsn ? 'present' : 'absent'}; ${early.length} early error(s) to send; env ${process.env.NEXT_PUBLIC_APP_ENV ?? 'unset'}`);
+      }
+      sentry = S;
+      /* Hand over what the inline listener kept, then tell it to stop: Sentry's own handlers are installed now, so a later error must not be counted twice. */
+      for (const e of early.splice(0)) { try { S.captureException(e); } catch { /* never breaks the page */ } }
+      (window as Window & { __lhqEarlyDone?: boolean }).__lhqEarlyDone = true;
+      for (const [href, type] of pendingNav) {
+        try { S.captureRouterTransitionStart(href, type as Parameters<SentryModule['captureRouterTransitionStart']>[1]); } catch { /* ditto */ }
+      }
+      pendingNav = [];
+    }).catch(() => { /* monitoring unavailable: the page works without it */ });
+  };
+  const idle = () => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
+    if (typeof w.requestIdleCallback === 'function') w.requestIdleCallback(start, { timeout: 5000 });
+    else setTimeout(start, 3000);
+  };
+  if (document.readyState === 'complete') idle();
+  else window.addEventListener('load', idle, { once: true });
+}
+
+export const onRouterTransitionStart = (href: string, navigationType: string) => {
+  if (sentry) sentry.captureRouterTransitionStart(href, navigationType as Parameters<SentryModule['captureRouterTransitionStart']>[1]);
+  else if (pendingNav.length < 20) pendingNav.push([href, navigationType]);
+};

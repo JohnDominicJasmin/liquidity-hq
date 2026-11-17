@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { GEO_KEYWORDS, hasAnyKeyword } from '@/lib/classify';
+import { GEO_KEYWORDS, hasAnyKeyword, tickerEligible } from '@/lib/classify';
 import { useNow } from '@/lib/useNow';
 import { getSupabase } from '@/lib/supabase';
 import { T } from '@/lib/tables';
@@ -255,7 +255,13 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     if (!row.headline || isNaN(ts)) return;
     // severity is null for rows that reached the table on a geo-keyword match
     // alone; those still belong in the ticker, at 'amber' as before.
-    pushAlert(row.headline, row.source, ts, (row.severity as Alert['type']) ?? 'amber', row.link ?? undefined, row.image ?? undefined, notify);
+    /* The ticker is for market-moving news (lib/classify.ts tickerEligible); a headline without a market keyword stays in the News tab only. The drop reason is logged outside production so the list can be tuned. */
+    const eligible = tickerEligible(row.headline);
+    if (eligible.ok) {
+      pushAlert(row.headline, row.source, ts, (row.severity as Alert['type']) ?? 'amber', row.link ?? undefined, row.image ?? undefined, notify);
+    } else if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_APP_ENV === 'dev') {
+      console.debug(`[ticker] dropped: ${eligible.reason}: ${row.headline.slice(0, 90)}`);
+    }
     setNewsRows(prev => (prev.some(r => r.dedup_key === row.dedup_key) ? prev : [row, ...prev].slice(0, 200)));
   }, [pushAlert]);
 

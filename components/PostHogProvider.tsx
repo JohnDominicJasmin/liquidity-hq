@@ -1,5 +1,5 @@
 'use client';
-import posthog from 'posthog-js';
+import { posthog } from '@/lib/posthogLazy';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, Suspense } from 'react';
 import { readConsent, onConsentChange, type ConsentState } from '@/lib/consent';

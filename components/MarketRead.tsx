@@ -53,6 +53,11 @@ export default function MarketRead() {
   }, [read.score]);
 
   const c = read.contrarian;
+  const rsis = [selectedCoinData?.rsi14, selectedCoinData?.rsi1h, selectedCoinData?.rsi4h];
+  const dirKey: 'MARKET_READ_DIR_BULL' | 'MARKET_READ_DIR_BEAR' | 'MARKET_READ_DIR_MIXED' | 'MARKET_READ_DIR_MIXED_BULL' | 'MARKET_READ_DIR_MIXED_BEAR' | null = rsis.some(r => r == null) ? null : (() => {
+    const bull = rsis.filter(r => (r as number) > 57).length, bear = rsis.filter(r => (r as number) < 43).length;
+    return bull === 3 ? 'MARKET_READ_DIR_BULL' : bear === 3 ? 'MARKET_READ_DIR_BEAR' : bull > bear ? 'MARKET_READ_DIR_MIXED_BULL' : bear > bull ? 'MARKET_READ_DIR_MIXED_BEAR' : 'MARKET_READ_DIR_MIXED';
+  })();
   /* An input that never arrives ends in a plain "not available", never a read that says Reading for ever (OWNER-RULES 21). */
   const gaveUp = read.pending && graceOver;
 
@@ -74,6 +79,8 @@ export default function MarketRead() {
           <div className="mr-score-label">{t('MARKET_READ_CONDITIONS_LABEL')}</div>
           {/* A dash, not a number, until the read has its inputs (#1494). */}
           <div suppressHydrationWarning className="mr-score">{read.score ?? '-'}<small>/100</small></div>
+          {/* THE SCORE SAYS HOW GOOD THE CONDITIONS ARE, NOT WHICH WAY (#1185, PM 2026-11-17): a direction line beside it from the selected coin's own RSI on three timeframes (the same 57 / 43 lean the Arena's Multi-timeframe card uses). Omitted while a reading is missing. */}
+          {dirKey && <div suppressHydrationWarning className="mr-score-label" title={t('MARKET_READ_DIR_LABEL')} data-testid="mr-direction">{t(dirKey)}</div>}
         </div>
       </div>
 
