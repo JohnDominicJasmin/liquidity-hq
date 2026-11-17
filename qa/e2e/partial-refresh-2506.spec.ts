@@ -60,7 +60,8 @@ test('PB. /briefing with /api/cmc failing says unavailable, and recovers', async
 });
 
 test('PC. 120 calls in a minute on /api/cmc are not rate limited', async ({ request }) => {
-  test.setTimeout(150_000);
+  test.setTimeout(240_000);
+  await new Promise((r) => setTimeout(r, 62_000));   // the limiter is per minute and per IP (every local client is one IP): wait for earlier cells' calls (the Briefing reload makes a couple) to leave the window
   const codes: Record<string, number> = {}; let first429 = -1;
   for (let i = 1; i <= 130; i++) { const r = await request.get('/api/cmc?type=global'); const k = String(r.status()); codes[k] = (codes[k] ?? 0) + 1; if (r.status() === 429 && first429 < 0) first429 = i; }
   console.log(`[PARTIAL] 130 calls /api/cmc: ${JSON.stringify(codes)} first429=${first429}`);
