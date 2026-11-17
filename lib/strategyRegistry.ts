@@ -86,7 +86,8 @@ export const INDICATORS: readonly IndicatorEntry[] = [
   /* -- Trend ------------------------------------------------------------- */
   {
     id: 'EMA_RIBBON', label: 'EMA ribbon', group: 'trend', source: 'overlay', pane: 'candle',
-    paramSchema: [period('fast', 'Fast', 21), period('slow', 'Slow', 55)],
+    /* The four ribbon lengths, adjustable (owner, 2026-11-17), defaults 9 / 20 / 50 / 200 = what the chart always drew. They set the CHART lines only; the strategy signals keep the standard lengths. Saved under strategy_params.EMA_RIBBON. */
+    paramSchema: [period('e1', 'Line 1', 9), period('e2', 'Line 2', 20), period('e3', 'Line 3', 50), period('e4', 'Line 4', 200)],
     note: 'Four emaRibbonLine overlays, NOT klinecharts EMA. Moving it onto the '
         + 'indicator pipeline reinstates the axis bug at KLineProChart.tsx:997.',
   },
@@ -154,9 +155,8 @@ export const INDICATORS: readonly IndicatorEntry[] = [
   /* -- Momentum ---------------------------------------------------------- */
   {
     id: 'RSI', label: 'RSI', group: 'momentum', source: 'builtin', pane: 'own',
-    // No settings: the chart's one RSI pane is always on at 14 (DEFAULT_PANE_INDICATORS below), and the verdict's RSI condition reads the same 14.
-    // A Length here used to configure a SECOND pane (owner, 2026-10-08: one RSI pane per user). Saved RSI params are simply never read.
-    paramSchema: [],
+    /* The chart's ONE RSI pane (owner, 2026-10-08) now has settings (owner, 2026-11-17): length (default 14) and the overbought / oversold lines (70 / 30). They set the CHART pane only; the strategy signals keep RSI 14. Saved under strategy_params.RSI. */
+    paramSchema: [period('length', 'Length', 14, 2, 100), period('overbought', 'Overbought', 70, 50, 95), period('oversold', 'Oversold', 30, 5, 50)],
     note: 'The chart always draws one RSI-14 pane (calcParams [14], not the builtin 3-line [6,12,24] default - 14 is the '
         + 'period marketStore uses everywhere else: rsi14/rsi1h/rsi4h/rsiDaily). Selecting this chip draws nothing extra: it only adds RSI to the verdict.',
   },
@@ -501,6 +501,8 @@ export function canRender(entry: IndicatorEntry): boolean {
  * callable early; it does not initialize the const its body reads. */
 export const SELECTABLE_INDICATORS: readonly IndicatorEntry[] =
   INDICATORS.filter(e => e.source === 'builtin' && canRender(e) && e.id !== 'RSI');
+/** The two chart LAYERS that have settings of their own (EMA ribbon lengths, RSI length + 70/30 lines). Not chips, so they are not in SELECTABLE_INDICATORS; the panel's "Edit settings" box lists them first. */
+export const LAYER_SETTINGS: readonly IndicatorEntry[] = INDICATORS.filter(e => e.id === 'EMA_RIBBON' || e.id === 'RSI');
 export const SELECTABLE_INDICATOR_IDS: ReadonlySet<string> = new Set(SELECTABLE_INDICATORS.map(e => e.id));
 
 /** Keep only the ids this panel can actually offer as selectable indicators (drops a stale RSI or a

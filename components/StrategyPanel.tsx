@@ -35,7 +35,7 @@ import { useLabels } from '@/lib/labels';
 import {
   INDICATORS, STRATEGY_SETS, AUTO_SET_ID, CUSTOM_SET_ID,
   findIndicator, indicatorLimit, defaultParams, canRender, slottedIds, strategyPlanLabel,
-  SELECTABLE_INDICATORS, SELECTABLE_INDICATOR_IDS,
+  SELECTABLE_INDICATORS, SELECTABLE_INDICATOR_IDS, LAYER_SETTINGS,
   type IndicatorEntry, type ParamSpec, type OverlayState,
 } from '@/lib/strategyRegistry';
 
@@ -178,7 +178,8 @@ export default function StrategyPanel({ planChecking = false, layersLocked = fal
   const shown = pending ?? selected;
 
   const paramsFor = (entry: IndicatorEntry) => params[entry.id] ?? defaultParams(entry);
-  const paramEntries = SELECTABLE_INDICATORS.filter(e => shown.includes(e.id) && e.paramSchema.length > 0);
+  /* The two layers with settings (EMA ribbon, RSI) are always in the box, so "Edit settings" works with no indicator ticked; the ticked indicators that have parameters follow. */
+  const paramEntries = [...LAYER_SETTINGS, ...SELECTABLE_INDICATORS.filter(e => shown.includes(e.id) && e.paramSchema.length > 0)];
   const focusedEntry = paramEntries.find(e => e.id === focused) ?? paramEntries[paramEntries.length - 1];
   const used = slottedIds(shown).length;
   /* The box OPENS and CLOSES with a height transition (grid rows 0fr to 1fr), so it keeps showing the last indicator while it closes instead of snapping empty. */
@@ -324,7 +325,7 @@ export default function StrategyPanel({ planChecking = false, layersLocked = fal
           <div className="strat-auto">{t('STRATEGY_PANEL_AUTO_NOTE')}</div>
         )}
 
-        {focusedEntry && (
+        {loaded && focusedEntry && (
           <button type="button" className="strat-edit-link" aria-expanded={paramsOpen} onClick={() => setParamsOpen(!paramsOpen)}
             title={planChecking ? undefined : entitled ? t('STRATEGY_PANEL_PARAMS_VERDICT_NOTE') : t('STRATEGY_PANEL_FREE_DEFAULTS')}>
             {t('STRATEGY_PANEL_EDIT_SETTINGS')}

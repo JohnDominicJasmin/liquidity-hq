@@ -692,6 +692,15 @@ function qaForcedChartFailure(): QaChartFailMode | null {
 export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, showEma = true, showRsi = true, onUnlock, strategyOverlay }: Props) {
   const showEmaRef = useRef(showEma);
   showEmaRef.current = showEma;
+  /* THE ADJUSTABLE LAYER SETTINGS (owner, 2026-11-17): the four EMA ribbon lengths and the RSI length + overbought / oversold lines. Chart only: the strategy signals keep the standard lengths. Clamped here as well as in the panel, so a stale saved value cannot break the chart. */
+  const num = (v: unknown, d: number, lo: number, hi: number) => { const n = typeof v === 'number' ? v : Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : d; };
+  const emaP = indicatorParams?.EMA_RIBBON;
+  const emaLengths = [num(emaP?.e1, 9, 2, 400), num(emaP?.e2, 20, 2, 400), num(emaP?.e3, 50, 2, 400), num(emaP?.e4, 200, 2, 400)];
+  const emaLengthsKey = emaLengths.join(',');
+  const emaLengthsRef = useRef(emaLengths);
+  emaLengthsRef.current = emaLengths;
+  const rsiP = indicatorParams?.RSI;
+  const rsiLen = num(rsiP?.length, 14, 2, 100), rsiOb = num(rsiP?.overbought, 70, 50, 95), rsiOs = num(rsiP?.oversold, 30, 5, 50);
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -1044,7 +1053,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     }
     if (!bars.length) return;
     EMA_PERIODS.forEach((cfg, idx) => {
-      const series = computeEmaSeries(bars, cfg.period);
+      const series = computeEmaSeries(bars, emaLengthsRef.current[idx] ?? cfg.period);
       if (!series.length) return;
       const points = series.map(p => ({ timestamp: p.timestamp, value: p.value }));
       const existingId = emaRibbonIds.current[idx];
@@ -1090,8 +1099,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     });
   }, []);
 
+  const rsiLineIds = useRef<string[]>([]);
   /* Re-sync when the switch flips; the RSI pane is removed or re-created the same way. */
-  useEffect(() => { syncEmaRibbon(); }, [showEma, syncEmaRibbon]);
+  useEffect(() => { syncEmaRibbon(); }, [showEma, emaLengthsKey, syncEmaRibbon]);
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !chartReady) return;
@@ -1100,13 +1110,25 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     } else {
       try {
         chart.createIndicator(
-          { name: 'RSI', calcParams: [14], styles: { lines: [{ color: resolveCssColor('var(--accent-2)'), size: 1.5 }] } },
+          { name: 'RSI', calcParams: [rsiLen], styles: { lines: [{ color: resolveCssColor('var(--accent-2)'), size: 1.5 }] } },
           { pane: { id: 'rsi_pane', height: 110, minHeight: 30 } }
         );
         applyProportionalPaneHeights(chart, containerRef.current?.getBoundingClientRect().height ?? 0);
       } catch { /* already present */ }
+      try { chart.overrideIndicator({ name: 'RSI', paneId: 'rsi_pane', calcParams: [rsiLen] } as never); } catch { /* not there yet */ }
     }
-  }, [showRsi, chartReady]);
+    /* The overbought / oversold lines, drawn in the RSI pane. Re-drawn whenever the pane or a level changes. */
+    for (const id of rsiLineIds.current) { try { chart.removeOverlay({ id }); } catch { /* gone */ } }
+    rsiLineIds.current = [];
+    if (showRsi) {
+      for (const value of [rsiOb, rsiOs]) {
+        try {
+          const id = chart.createOverlay({ name: 'horizontalStraightLine', paneId: 'rsi_pane', points: [{ value }], lock: true, styles: { line: { style: 'dashed', color: resolveCssColor('var(--txt3)'), size: 1 } } } as never);
+          if (typeof id === 'string') rsiLineIds.current.push(id);
+        } catch { /* the pane is not ready; the next sync draws them */ }
+      }
+    }
+  }, [showRsi, chartReady, rsiLen, rsiOb, rsiOs]);
 
   // Upsert one live-updating bar into the EMA history: replace the last entry
   // if it's the same (still-forming) candle, append if it's a genuinely new
