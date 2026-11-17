@@ -120,6 +120,8 @@ const DRAWING_GROUP = 'user_drawing';
  * pressed-move (see the emaRibbonLine note below), so a locked proposal can still be hovered
  * but not dragged into something the model never proposed. */
 const PROPOSAL_GROUP = 'structure_proposals';
+/* THE CHANNEL BOX'S OWN GROUP (QA, #2511 blocker): the box and its rails used to be in PROPOSAL_GROUP, so an EMPTY Draw Structure answer ('Nothing proposed on this window') ran clearProposals, which removed the whole group and the box with it, while the state that redraws it (dsClicked) was set back to the same value and never re-ran the effect. The box lives in this group instead; only the box effect (Draw Structure off, coin or timeframe change) removes it. */
+const BOX_GROUP = 'channel_box';
 const drawingsKey = (coin: CoinId) => `lhq_chart_drawings_${coin}`;
 
 interface PersistedOverlay {
@@ -3127,6 +3129,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     if (!chart || !chartReady) return;
     boxIds.current.forEach(id => chart.removeOverlay({ id }));
     boxIds.current = [];
+    chart.removeOverlay({ groupId: BOX_GROUP });
     if (!dsClicked) return;
     const list = chart.getDataList();
     if (!list || list.length < 60) return;
@@ -3139,7 +3142,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     for (const l of res.overlay?.lines ?? []) {
       const pts = l.points.map(pt => ({ timestamp: pt.ts, value: pt.price }));
       if (pts.length >= 2 && pts.every(pt => Number.isFinite(pt.timestamp) && Number.isFinite(pt.value))) {
-        const id = chart.createOverlay({ name: 'strategyPolyline', groupId: PROPOSAL_GROUP, lock: true, points: pts, extendData: { role: l.role, text: tl(l.labelKey, l.labelParams) } } as OverlayCreate);
+        const id = chart.createOverlay({ name: 'strategyPolyline', groupId: BOX_GROUP, lock: true, points: pts, extendData: { role: l.role, text: tl(l.labelKey, l.labelParams) } } as OverlayCreate);
         if (typeof id === 'string') boxIds.current.push(id);
       }
     }
@@ -3151,11 +3154,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     // S/R levels as bands, across the loaded candles
     const first = candles[0].time, last = candles[candles.length - 1].time;
     for (const l of srLevels) {
-      create({ name: 'strategyZone', groupId: PROPOSAL_GROUP, lock: true,
+      create({ name: 'strategyZone', groupId: BOX_GROUP, lock: true,
         points: [{ timestamp: first, value: l.price * (1 + SR_BAND_PCT) }, { timestamp: last, value: l.price * (1 - SR_BAND_PCT) }],
         extendData: { kind: l.type === 'resistance' ? 'supply' : 'demand', text: '' } });
     }
-    create({ name: 'positionBox', groupId: PROPOSAL_GROUP, lock: true,
+    create({ name: 'positionBox', groupId: BOX_GROUP, lock: true,
       points: [{ timestamp: entryTs, value: p.entry }, { timestamp: entryTs, value: hasTarget ? p.target! : p.entry }, { timestamp: entryTs, value: p.stop }],
       extendData: {
         hasTarget,
