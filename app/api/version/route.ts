@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { configuredFlags } from '@/lib/configured';
+import { checkCronAuth } from '@/lib/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,19 +56,23 @@ export const dynamic = 'force-dynamic';
  * A boolean computed differently from the thing it describes is worse than no
  * boolean - it would report health while the feature was broken.
  */
-export async function GET() {
+export async function GET(req: Request) {
   const commit = process.env.RENDER_GIT_COMMIT ?? '';
+  /* The commit and the branch are all an anonymous caller gets. The environment name and the integration flags need the cron secret header. */
+  const detailed = checkCronAuth(req, { headerOnly: true });
   return NextResponse.json(
     {
       commit: commit ? commit.slice(0, 7) : 'unknown',
       branch: process.env.RENDER_GIT_BRANCH ?? 'unknown',
-      // Which table set this host is reading - the switch that has silently
-      // pointed a test environment at production data before now.
-      appEnv: process.env.NEXT_PUBLIC_APP_ENV ?? 'unset',
+      ...(detailed ? {
+        // Which table set this host is reading - the switch that has silently
+        // pointed a test environment at production data before now.
+        appEnv: process.env.NEXT_PUBLIC_APP_ENV ?? 'unset',
 
-      /* Which integrations this HOST actually has (#282). Booleans only - see
-         lib/configured.ts for why each flag is derived the way it is. */
-      configured: configuredFlags(process.env as Record<string, string | undefined>),
+        /* Which integrations this HOST actually has (#282). Booleans only - see
+           lib/configured.ts for why each flag is derived the way it is. */
+        configured: configuredFlags(process.env as Record<string, string | undefined>),
+      } : {}),
     },
     // Must never be cached: a stale answer here would report the previous
     // build as current, which is precisely the failure it exists to catch.
