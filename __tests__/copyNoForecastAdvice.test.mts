@@ -21,7 +21,7 @@ const APPROVED: Record<string, string> = {
   LIQ_BIAS_SHORT_HEAVY_SUB: 'More short liquidations modeled above price',
   LIQ_LEGEND_SHORT_TEXT: 'price levels above current price where modeled short positions get force-closed.',
   LIQ_LEGEND_LONG_TEXT: 'price levels below current price where modeled long positions get force-closed.',
-  MACRO_STRIP_JPY_APPROACHING: 'USD/JPY near 160',
+  MACRO_STRIP_JPY_APPROACHING: 'USD/JPY above {level}',   /* the code passes level 158 (jpyUsd >= 158), so "near 160" would have been wrong */
   MACRO_STRIP_SPX_DOWN: 'S&P down {pct} today',
   MACRO_STRIP_SPX_UP: 'S&P up {pct} today',
   EMA_PHASE_TRENDING_SHORT: 'Trending short - below 9 EMA',
