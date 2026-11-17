@@ -80,14 +80,14 @@ function BandRow({ b }: { b: Band }) {
   const accent = isLong ? 'var(--red)' : 'var(--green-2)';
   return (
     <div className={`liq-row${b.isMagnet ? ' liq-row-magnet' : ''}`} role="row">
-      <span className="liq-row-price">{fmtP(b.price)}</span>
-      <span className="liq-row-dist" style={{ color: 'var(--txt3)' }}>
+      <span className="liq-row-price" role="cell">{fmtP(b.price)}</span>
+      <span className="liq-row-dist" role="cell" style={{ color: 'var(--txt3)' }}>
         {b.distPct < 1 ? b.distPct.toFixed(1) : Math.round(b.distPct)}%
       </span>
-      <span className="liq-row-lev" style={{ color: accent }}>
+      <span className="liq-row-lev" role="cell" style={{ color: accent }}>
         {b.lev}{b.isMagnet ? ' ◆' : ''}
       </span>
-      <div className="liq-row-bar-wrap">
+      <div className="liq-row-bar-wrap" role="cell">
         {/* #1651: the bar is omitted, not zero-width, when there is no amount. `Math.max(b.barPct, 2)` floors every bar at 2%, so an
             unknown row still painted a stub - which reads as "a little liquidity here", a value, exactly what the fix removes from the
             column beside it. The floor stays for real amounts, where it keeps the smallest tier visible. Caught by rendering it: the
@@ -98,7 +98,7 @@ function BandRow({ b }: { b: Band }) {
           boxShadow: b.isMagnet ? `0 0 10px ${withAlpha(accent, '44')}` : 'none',
         }} />}
       </div>
-      <span className="liq-row-usd" style={{ color: b.usdM === null ? 'var(--txt3)' : accent }}>{b.usdM === null ? '-' : fmtM(b.usdM)}</span>
+      <span className="liq-row-usd" role="cell" style={{ color: b.usdM === null ? 'var(--txt3)' : accent }}>{b.usdM === null ? '-' : fmtM(b.usdM)}</span>
     </div>
   );
 }

@@ -760,7 +760,7 @@ export default function BriefingTerminal() {
               <div className="mb-event-tag" style={{
                 borderRadius: 0,
                 background: isPast ? 'rgba(100,100,100,0.15)' : lh < 2 ? 'rgba(248,113,113,0.15)' : 'rgba(251,191,36,0.1)',
-                color: isPast ? 'var(--txt3)' : lh < 2 ? 'var(--red)' : 'var(--amber)',
+                color: isPast ? 'var(--txt3)' : lh < 2 ? 'var(--red-soft)' : 'var(--amber)',
               }}>
                 {isPast ? '✓ ' : ''}{e.type}
               </div>
