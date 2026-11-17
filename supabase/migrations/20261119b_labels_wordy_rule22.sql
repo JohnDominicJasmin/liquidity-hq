@@ -1,6 +1,6 @@
 -- NOT YET APPLIED TO ANY DATABASE. Apply ONE block per project: PROD on qdpwhnvmhqgzijuwopso BEFORE the release deploy; DEV on wdtjhrilakoitfcezxpx.
 --
--- Wordy text, owner rule 22 (PM 2026-11-18), approved batches 1-4: Dashboard, Arena, Funding, Alerts, Calculators, Backtest, Trade journal, Upgrade (not the legal rows), GEX, Spotlight tour. 165 keys x 5 languages. ko/zh/ru/ar AI-drafted, not native-reviewed. The legal rows (Whop and purchase-terms notes) are deliberately unchanged.
+-- Wordy text, owner rule 22 (PM 2026-11-18), approved batches 1-4: Dashboard, Arena, Funding, Alerts, Calculators, Backtest, Trade journal, Upgrade (not the legal rows), GEX, Spotlight tour. 163 keys x 5 languages. ko/zh/ru/ar AI-drafted, not native-reviewed. The legal rows (Whop and purchase-terms notes) are deliberately unchanged.
 --
 -- ===================== PROD =====================
 insert into lhq_labels (key, locale, value) values
@@ -154,11 +154,6 @@ insert into lhq_labels (key, locale, value) values
 ('ARENA_SET_ALERT_TITLE','zh','该币种价格提醒'),
 ('ARENA_SET_ALERT_TITLE','ru','Ценовой алерт для этой монеты'),
 ('ARENA_SET_ALERT_TITLE','ar','تنبيه سعر لهذه العملة'),
-('ARENA_ANTICHOP_TIP','en','Stricter EMA ribbon signals: EMA 9/20 must separate, price must close past EMA 50, and the move must hold.'),
-('ARENA_ANTICHOP_TIP','ko','더 엄격한 EMA 리본 신호: EMA 9/20이 벌어지고, 가격이 EMA 50을 넘어 마감하며, 움직임이 유지되어야 합니다.'),
-('ARENA_ANTICHOP_TIP','zh','更严格的 EMA 均线带信号：EMA 9/20 须分离，价格须收盘越过 EMA 50，且走势须持续。'),
-('ARENA_ANTICHOP_TIP','ru','Более строгие сигналы ленты EMA: EMA 9/20 должны разойтись, цена должна закрыться за EMA 50, а движение — удержаться.'),
-('ARENA_ANTICHOP_TIP','ar','إشارات أشد صرامة لشريط EMA: يجب أن ينفصل EMA 9/20، ويغلق السعر بعد EMA 50، وتستمر الحركة.'),
 ('ARENA_ANALYSIS_CEILING_TITLE','en','Runs on 1D or lower'),
 ('ARENA_ANALYSIS_CEILING_TITLE','ko','1D 이하에서 실행'),
 ('ARENA_ANALYSIS_CEILING_TITLE','zh','适用于 1D 及以下'),
@@ -679,11 +674,6 @@ insert into lhq_labels (key, locale, value) values
 ('TRADE_JOURNAL_THESIS_LOCKED_DESC','zh','写下交易理由；AI 评估其假设是否仍然成立。Pro。'),
 ('TRADE_JOURNAL_THESIS_LOCKED_DESC','ru','Запишите обоснование сделки; AI оценит, остаются ли допущения в силе. Pro.'),
 ('TRADE_JOURNAL_THESIS_LOCKED_DESC','ar','اكتب مبرر الصفقة؛ ويقيّم AI ما إذا كانت افتراضاتها لا تزال قائمة. Pro.'),
-('UPGRADE_GATE_BODY','en','Pro adds fast timeframes, the full signal stack and deeper AI research.'),
-('UPGRADE_GATE_BODY','ko','Pro는 빠른 시간대, 전체 신호 스택, 더 깊은 AI 리서치를 추가합니다.'),
-('UPGRADE_GATE_BODY','zh','Pro 增加快速周期、完整信号组合和更深入的 AI 研究。'),
-('UPGRADE_GATE_BODY','ru','Pro добавляет быстрые таймфреймы, полный набор сигналов и более глубокое AI-исследование.'),
-('UPGRADE_GATE_BODY','ar','يضيف Pro أطرًا زمنية سريعة ومجموعة الإشارات الكاملة وبحث AI أعمق.'),
 ('UPGRADE_HERO_TITLE','en','Unlock the full stack'),
 ('UPGRADE_HERO_TITLE','ko','전체 스택 잠금 해제'),
 ('UPGRADE_HERO_TITLE','zh','解锁完整功能'),
@@ -983,11 +973,6 @@ insert into lhq_dev_labels (key, locale, value) values
 ('ARENA_SET_ALERT_TITLE','zh','该币种价格提醒'),
 ('ARENA_SET_ALERT_TITLE','ru','Ценовой алерт для этой монеты'),
 ('ARENA_SET_ALERT_TITLE','ar','تنبيه سعر لهذه العملة'),
-('ARENA_ANTICHOP_TIP','en','Stricter EMA ribbon signals: EMA 9/20 must separate, price must close past EMA 50, and the move must hold.'),
-('ARENA_ANTICHOP_TIP','ko','더 엄격한 EMA 리본 신호: EMA 9/20이 벌어지고, 가격이 EMA 50을 넘어 마감하며, 움직임이 유지되어야 합니다.'),
-('ARENA_ANTICHOP_TIP','zh','更严格的 EMA 均线带信号：EMA 9/20 须分离，价格须收盘越过 EMA 50，且走势须持续。'),
-('ARENA_ANTICHOP_TIP','ru','Более строгие сигналы ленты EMA: EMA 9/20 должны разойтись, цена должна закрыться за EMA 50, а движение — удержаться.'),
-('ARENA_ANTICHOP_TIP','ar','إشارات أشد صرامة لشريط EMA: يجب أن ينفصل EMA 9/20، ويغلق السعر بعد EMA 50، وتستمر الحركة.'),
 ('ARENA_ANALYSIS_CEILING_TITLE','en','Runs on 1D or lower'),
 ('ARENA_ANALYSIS_CEILING_TITLE','ko','1D 이하에서 실행'),
 ('ARENA_ANALYSIS_CEILING_TITLE','zh','适用于 1D 及以下'),
@@ -1508,11 +1493,6 @@ insert into lhq_dev_labels (key, locale, value) values
 ('TRADE_JOURNAL_THESIS_LOCKED_DESC','zh','写下交易理由；AI 评估其假设是否仍然成立。Pro。'),
 ('TRADE_JOURNAL_THESIS_LOCKED_DESC','ru','Запишите обоснование сделки; AI оценит, остаются ли допущения в силе. Pro.'),
 ('TRADE_JOURNAL_THESIS_LOCKED_DESC','ar','اكتب مبرر الصفقة؛ ويقيّم AI ما إذا كانت افتراضاتها لا تزال قائمة. Pro.'),
-('UPGRADE_GATE_BODY','en','Pro adds fast timeframes, the full signal stack and deeper AI research.'),
-('UPGRADE_GATE_BODY','ko','Pro는 빠른 시간대, 전체 신호 스택, 더 깊은 AI 리서치를 추가합니다.'),
-('UPGRADE_GATE_BODY','zh','Pro 增加快速周期、完整信号组合和更深入的 AI 研究。'),
-('UPGRADE_GATE_BODY','ru','Pro добавляет быстрые таймфреймы, полный набор сигналов и более глубокое AI-исследование.'),
-('UPGRADE_GATE_BODY','ar','يضيف Pro أطرًا زمنية سريعة ومجموعة الإشارات الكاملة وبحث AI أعمق.'),
 ('UPGRADE_HERO_TITLE','en','Unlock the full stack'),
 ('UPGRADE_HERO_TITLE','ko','전체 스택 잠금 해제'),
 ('UPGRADE_HERO_TITLE','zh','解锁完整功能'),
