@@ -8,6 +8,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { settleForShot } from './_settle';
 
 const SHOT_DIR = 'qa/.shots';
 const WIDTHS = [390, 768, 1280];
@@ -29,6 +30,7 @@ test.describe('group-2 landing visual evidence (signed out)', () => {
         // Setup row below it.
         await page.locator('.lp-hero-h1').first().waitFor({ state: 'visible', timeout: 30_000 }).catch(() => {});
         await page.waitForTimeout(3500);
+        await settleForShot(page, `landing ${width} ${theme}`);
         mkdirSync(SHOT_DIR, { recursive: true });
         await page.screenshot({
           path: `${SHOT_DIR}/landing-${width}-${theme}.png`,

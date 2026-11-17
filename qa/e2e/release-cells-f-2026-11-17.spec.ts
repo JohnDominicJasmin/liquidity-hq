@@ -5,11 +5,12 @@
  * Each cell prints its numbers ([CELL] lines). */
 import { test, expect, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { settleForShot } from './_settle';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
 
 /* the chart is a canvas: how many indicators it DRAWS is not in the DOM, so the chart component (toolbar + canvas, no account chrome) is shot for the visual check: qa/.shots, uploaded by the dispatch when screenshots=true */
-const chartShot = async (page: Page, name: string) => { mkdirSync('qa/.shots', { recursive: true }); await page.locator('.klc-toolbar').first().locator('xpath=..').screenshot({ path: `qa/.shots/${name}.png` }).catch((e) => console.log('[CELL] shot failed ' + String(e).slice(0, 120))); };
+const chartShot = async (page: Page, name: string) => { await settleForShot(page, name); mkdirSync('qa/.shots', { recursive: true }); await page.locator('.klc-toolbar').first().locator('xpath=..').screenshot({ path: `qa/.shots/${name}.png` }).catch((e) => console.log('[CELL] shot failed ' + String(e).slice(0, 120))); };
 const SAVED = ['SMA', 'SAR', 'MACD', 'BOLL'];
 const IDS = SAVED;
 
