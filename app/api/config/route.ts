@@ -26,9 +26,17 @@ const SAFE_DEFAULT: AppConfigPayload = {
 const TTL_MS = 15_000;
 let cache: { data: AppConfigPayload; expires: number } | null = null;
 
+/* CONCURRENT MISSES SHARE ONE READ. When the entry expired, every request in the same instant used to hit the database on its own; now the first one reads and the others wait for its answer. The 15 s lifetime is unchanged
+   (these are the maintenance switch and the feature kill switches, so no stale window). */
+let inflight: Promise<AppConfigPayload> | null = null;
+
 export async function GET() {
   if (cache && cache.expires > Date.now()) return NextResponse.json(cache.data);
+  inflight ??= loadConfig().finally(() => { inflight = null; });
+  return NextResponse.json(await inflight);
+}
 
+async function loadConfig(): Promise<AppConfigPayload> {
   let data = SAFE_DEFAULT;
   try {
     const admin = getSupabaseAdmin();
@@ -54,5 +62,5 @@ export async function GET() {
   } catch { /* fail open to SAFE_DEFAULT */ }
 
   cache = { data, expires: Date.now() + TTL_MS };
-  return NextResponse.json(data);
+  return data;
 }

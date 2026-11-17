@@ -126,7 +126,7 @@ function buildBriefingContext(
   calendarUnavailable = false,
 ): string {
   const nowUtc = new Date().toLocaleString('en-GB', {
-    timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   });
   const jpyStatus = jpyUsd == null ? 'N/A'
     : jpyUsd >= 160 ? `${jpyUsd.toFixed(2)} - at or above 160. If the yen rises quickly from this level, yen carry trades can be unwound, which has coincided with crypto selloffs before.`
@@ -336,7 +336,10 @@ export default function BriefingTerminal() {
   /* THE TREND NEEDS HISTORY AND A REAL MOVE (PM audit A6). It compared the first and last of at most ten five-minute samples (about 50 minutes), so a
      0.01 point rise read "Alts weak" and an unchanged value read "Alts active"; a fresh page load had two samples. It now needs at least six samples
      and a move of at least 0.1 points either way, and otherwise says nothing. */
-  const domMove = btcDomHistory.length >= 6 ? btcDomHistory[btcDomHistory.length - 1] - btcDomHistory[0] : 0;
+  /* THE WINDOW IS STATED (#1185). CoinMarketCap's own 24-hour change is used when it is there, and the label says 24h; without it the short sample window is used and the label says so, instead of presenting about 50 minutes as a trend of unstated length. */
+  const dom24 = store.btcDomChg24h;
+  const domMove = dom24 != null ? dom24 : btcDomHistory.length >= 6 ? btcDomHistory[btcDomHistory.length - 1] - btcDomHistory[0] : 0;
+  const domWindow = dom24 != null ? t('BRIEFING_DOM_WINDOW_24H') : t('BRIEFING_DOM_WINDOW_SHORT');
   const domTrend = domMove >= 0.1
     ? { txt: t('BRIEFING_DOM_ALTS_WEAK'), col: 'var(--amber)' }
     : domMove <= -0.1
@@ -565,7 +568,7 @@ export default function BriefingTerminal() {
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip text={t('BRIEFING_BTCDOM_TIP')}>{t('BRIEFING_BTCDOM_LABEL')}</Tip></div>
             <div className="mb-macro-val">{store.btcDom != null ? store.btcDom.toFixed(1) + '%' : '-'}</div>
-            <div className="mb-macro-sub" style={{ color: domTrend?.col ?? 'var(--txt3)' }}>{domTrend?.txt ?? '-'}</div>
+            <div className="mb-macro-sub" style={{ color: domTrend?.col ?? 'var(--txt3)' }}>{domTrend ? `${domTrend.txt} · ${domWindow}` : '-'}</div>
           </div>
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_DXY_TIP')}>{t('BRIEFING_DXY_LABEL')}</Tip></div>

@@ -155,6 +155,8 @@ export type MarketStore = {
   fngLabel: string;
   fngPrev: number | null;
   btcDom: number | null;
+  /** BTC dominance change over 24 hours in percentage points, from CoinMarketCap; null until read or when the field is absent (#1185). */
+  btcDomChg24h: number | null;
   btcDomHistory: number[];
   ethDom: number | null;            // ETH market dominance % (from CMC)
   altSeasonScore: number | null;    // 0–100: % of top-50 alts outperforming BTC (90d)
@@ -243,7 +245,7 @@ export const defaultStore: MarketStore = {
   fngLabel: '',
   fngPrev: null,
   btcDom: null,
-  btcDomHistory: [],
+  btcDomHistory: [], btcDomChg24h: null,
   ethDom: null,
   altSeasonScore: null,
   btcDomStatus: 'pending',

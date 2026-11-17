@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
-import { cached } from '@/lib/apiCache';
+import { cachedRefresh } from '@/lib/apiCache';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { polledCacheControl } from '@/lib/cacheHeaders';
 import { exchangeFetch } from '@/lib/exchangeGuard';
@@ -10,7 +10,11 @@ import { exchangeFetch } from '@/lib/exchangeGuard';
 export const dynamic = 'force-dynamic';
 // Funding rates settle every 8h - a 20s cache collapses concurrent visitor
 // fan-out into one upstream call without making the data noticeably stale.
-const CACHE_TTL = 20_000;
+/* FUNDING SETTLES ON A FIXED 8-HOUR SCHEDULE, so a rate read two minutes ago is as good as one read now for what this route feeds (the Funding table and its sparklines). It used to be re-read every 20 s. Fresh for 2 minutes,
+   then served for up to 5 more while ONE refresh runs in the background (lib/apiCache.ts cachedRefresh; a failed refresh holds off for 10 s and the entry still ages out). The response carries `ts` (when the numbers were READ),
+   so a screen can say how old they are. Nothing that DECIDES (alerts, the squeeze score) reads this route. */
+const CACHE_TTL = 120_000;
+const CACHE_MAX_STALE = 300_000;
 
 interface BNTicker { symbol: string; lastFundingRate: string; nextFundingTime: number }
 interface BBTicker { symbol: string; fundingRate: string; nextFundingTime: string }
@@ -71,7 +75,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
   try {
-    const result = await cached('funding', CACHE_TTL, async () => {
+    const result = await cachedRefresh('funding', CACHE_TTL, CACHE_MAX_STALE, async () => {
       const [bnResult, bbResult] = await Promise.allSettled([getBinance(), getBybit()]);
 
       const bn = bnResult.status === 'fulfilled' ? bnResult.value : { rates: {}, nextMs: {} };
