@@ -86,6 +86,21 @@ export function classifyNews(text: string): NewsType | null {
   return null;
 }
 
+/* THE BREAKING TICKER IS MARKET-MOVING NEWS ONLY (#1185, PM rule 2026-11-17). It carries crypto, macro / markets (Fed, rates, CPI / NFP / GDP, ETF flows, S&P, oil, dollar), regulation / legal about crypto, and exchange / security incidents (hacks, outages, delistings). A politics, war or geopolitics headline is in it ONLY when it also matches a market keyword below; anything else stays in News -> War & Geo (it is still stored and shown there, only the ticker skips it). */
+const MARKET_KW = [
+  ...PURPLE_KW,
+  // macro / markets
+  'fed','federal reserve','powell','fomc','rate','rates','rate hike','rate cut','interest rate','cpi','inflation','gdp','nfp','nonfarm','jobs report','pce','ppi','recession','treasury','yield','dollar','dxy','s&p','nasdaq','dow','stocks','oil','crude','opec','gold','tariff','tariffs','trade war','sanction','sanctions',
+  // regulation / legal on crypto
+  'sec','cftc','court','lawsuit','ruling','regulation','regulator','crypto ban',
+  // exchange / security incidents
+  'exchange','hack','hacked','exploit','exploited','outage','delist','delisting','halted','withdrawals','insolvency','bankrupt',
+];
+export function tickerEligible(headline: string): { ok: boolean; reason: string } {
+  if (hasAnyKeyword(headline, MARKET_KW)) return { ok: true, reason: 'market keyword' };
+  return { ok: false, reason: 'no market keyword (politics / war / geo stays in News -> War & Geo)' };
+}
+
 export function tagLabel(type: NewsType): string {
   if (type === 'red')    return 'Breaking';
   if (type === 'amber')  return 'Macro';
@@ -253,6 +268,14 @@ export function econImpactKey(raw: string | null | undefined): EconImpact {
   if (s === 'HIGH') return 'HIGH';
   if (s === 'MED' || s === 'MEDIUM') return 'MEDIUM';
   return 'LOW';
+}
+
+/** The label key for an event's impact IN WORDS (never the raw 'high' / 'med' the classifier emits). null for anything else, so a row with no real impact shows a dash instead of a default (#1185). The words are the ones /news already uses. */
+export function econImpactWordKey(raw: string | null | undefined): 'NEWS_EVENTS_IMPACT_WORD_HIGH' | 'NEWS_EVENTS_IMPACT_WORD_MED' | null {
+  const k = econImpactKey(raw);
+  if (k === 'HIGH') return 'NEWS_EVENTS_IMPACT_WORD_HIGH';
+  if (k === 'MEDIUM') return 'NEWS_EVENTS_IMPACT_WORD_MED';
+  return null;
 }
 
 export function classifyEcon(name: string): EconEntry | null {

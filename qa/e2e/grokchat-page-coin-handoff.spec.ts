@@ -36,7 +36,7 @@ test('a hard-loaded /arena?coin=xrp: the chat opened from the launcher asks abou
     await expect(page, 'Arena dropped the coin from the URL - the page is not showing XRP').toHaveURL(/[?&]coin=xrp\b/);
 
     const launcher = page.locator('[data-testid="grok-launcher"]');
-    await expect(launcher, 'the chat launcher never rendered - this run measured nothing').toBeVisible({ timeout: 15_000 });
+    await expect(launcher, 'the chat launcher never rendered - this run measured nothing').toBeVisible({ timeout: 40_000 });   // #2505: the chat is mounted after the page (load + idle)
     await launcher.click();
     const input = page.locator('textarea').first();
     await expect(input).toBeVisible({ timeout: 5_000 });

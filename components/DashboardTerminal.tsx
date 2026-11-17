@@ -16,6 +16,7 @@ import {
   computeCoinHealth, classifyFunding, computeSqueezeScore, FUNDING_TIP_KEY,
 } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
+import { accountRatio } from '@/lib/accountRatioVenue';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { oiTrend1h } from '@/lib/oiTrend1h';
 import { useSettings } from '@/lib/settings';
@@ -37,8 +38,12 @@ import { useLabels } from '@/lib/labels';
 import ReadingGap from '@/components/ReadingGap';
 import { fundingWord, setupWord, patternWord } from '@/lib/shortWords';
 
-/** A funding percentage with its sign, two decimals, for a label: +0.05% / −0.03%. */
-const fmtSignedPct = (pct: number): string => (pct >= 0 ? '+' : '−') + Math.abs(pct).toFixed(2) + '%';
+/** A funding percentage with its sign and FOUR decimals (the Funding tile's precision), for a label: +0.0500% / −0.0300%. A value that rounds to zero is plain 0.0000%, never a signed zero ("−0.00%" read next to "−0.0040%", #1651). */
+const fmtSignedPct = (pct: number): string => {
+  const body = Math.abs(pct).toFixed(4);
+  if (Number(body) === 0) return '0.0000%';
+  return (pct > 0 ? '+' : '−') + body + '%';
+};
 import { coinRow } from '@/lib/coins';
 import type { LabelKey } from '@/lib/labelKeys';
 import PageHint from '@/components/PageHint';
@@ -142,6 +147,10 @@ function TCoinSidebar() {
 
   return (
     <div className="csb2-container">
+      {/* THE LETTERS HAVE WORDS (#1185, PM 2026-11-17): a trader who does not know the A to F scale could not read the chips. One muted legend line says what each letter means, in the words the chips already announce to a screen reader. */}
+      <div className="csb2-grade-legend" data-testid="csb2-grade-legend">
+        {(['A', 'B', 'C', 'D', 'F'] as const).map((g, i) => <span key={g}>{i > 0 ? ' · ' : ''}<strong style={{ color: 'var(--txt2)' }}>{g}</strong> {t(`COIN_HEALTH_GRADE_${g}` as const)}</span>)}
+      </div>
       {visibleCoins.map(id => {
         const d      = store.coins[id];
         const dec    = COIN_DEC[id];
@@ -447,12 +456,12 @@ function TEdgeSignals() {
              : t('DASH_EDGE_SETUP_BALANCED')}
           </div>
           {/* The numbers behind the label (funding and the share of the heavier side), so the card states what it saw instead of only a name. */}
-          {sq.enough && (d?.fundingRate != null || d?.longRatio != null) && (
+          {sq.enough && (d?.fundingRate != null || accountRatio(d) != null) && (
             <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
               {[
                 d?.fundingRate != null ? t('DASH_EDGE_SETUP_DETAIL_FUNDING', { pct: fmtSignedPct(d.fundingRate * 100) }) : null,
-                sq.dir === 'SHORT_SQ' && d?.shortRatio != null ? t('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE', { pct: Math.round(d.shortRatio * 100) })
-                  : d?.longRatio != null ? t('DASH_EDGE_SETUP_DETAIL_LONG_SHARE', { pct: Math.round(d.longRatio * 100) }) : null,
+                sq.dir === 'SHORT_SQ' && accountRatio(d) != null ? t('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE', { pct: Math.round(accountRatio(d)!.short * 100), venue: accountRatio(d)!.venue })
+                  : accountRatio(d) != null ? t('DASH_EDGE_SETUP_DETAIL_LONG_SHARE', { pct: Math.round(accountRatio(d)!.long * 100), venue: accountRatio(d)!.venue }) : null,
               ].filter(Boolean).join(' · ')}
             </div>
           )}

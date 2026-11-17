@@ -15,6 +15,7 @@ import { reportHealth } from '@/lib/apiHealth';
 import { feedFor } from '@/lib/marketFeeds';
 import { resolveFeedSnapshot } from '@/lib/marketSnapshot';
 import { polledCacheControl } from '@/lib/cacheHeaders';
+import { cachedAt } from '@/lib/apiCache';
 
 /* The allowlist moved to lib/accountRatioParse.ts with the parser, so a second caller cannot
    disagree about which periods are allowed. The reasoning is unchanged and lives there: each
@@ -89,7 +90,7 @@ export async function GET(req: NextRequest) {
        `'stopped' in body` is a valid check, the same convention
        /api/market/snapshot uses for `partial`. Reported unhealthy too: a run cut
        short by a ban is not a success with fewer rows. */
-    return NextResponse.json({ data, ok, total, ...(stopped ? { stopped: true } : {}), ts: Date.now() }, {
+    return NextResponse.json({ data, ok, total, ...(stopped ? { stopped: true } : {}), ts: cachedAt(`bybit:account-ratio:${period}`) ?? Date.now() }, {
       headers: { 'Cache-Control': polledCacheControl(120) },
     });
   } catch (e) {

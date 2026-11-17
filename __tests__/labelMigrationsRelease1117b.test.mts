@@ -1,7 +1,7 @@
-/* The 2026-11-17 label migrations still waiting for a database (n: help trial allowance, u: Arabic rows, v: Least Correlated hint, w: Telegram paused, x: macro close stamp). For every one that is present:
+/* The label migrations still waiting for a database (20261117 n/u/v/w/x and everything after them): the migrations are applied in file-name order, so for every key and locale the LAST row written is the one the database holds once they are all applied. For every migration present:
  *   Y1  the PROD block and the DEV block carry exactly the same (key, locale, value) rows (they are applied to different projects; a drift between them ships two different texts)
- *   Y2  every key is a real label key, every locale is one of en/ko/zh/ru/ar, and an en row equals the shipped default (a stored en row OVERRIDES the default, so a mismatch changes the English text silently)
- *   Y3  every row keeps exactly the {placeholders} of the shipped English default, and no row is empty
+ *   Y2  every key is a real label key and every locale is one of en/ko/zh/ru/ar; a row is not empty
+ *   Y3  the LATEST row of each key and locale (across all these migrations, not each file alone: a later migration supersedes an earlier one) keeps exactly the {placeholders} of the shipped English default, and the latest en row equals the shipped default (a stored en row OVERRIDES the default)
  *   Y4  an insert is an upsert on (key, locale), so applying it twice is safe
  * WHAT IT CANNOT PROVE: that a database has the rows applied, or that ko/zh/ru/ar read well (AI-drafted, owner's ruling). */
 import test from 'node:test';
@@ -10,7 +10,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { LABEL_KEYS } from '../lib/labelKeys.ts';
 
 const dir = new URL('../supabase/migrations/', import.meta.url);
-const files = readdirSync(dir).filter((f) => /^20261117[nuvwx]_labels_.*\.sql$/.test(f));
+const files = readdirSync(dir).filter((f) => /^202611(1[7-9]|[23]\d)[a-z]_labels_.*\.sql$/.test(f) && !/^20261117[a-m,o-t,y-z]_/.test(f)).sort();
 const defaults = JSON.parse(readFileSync(new URL('../lib/labelDefaults.en.json', import.meta.url), 'utf8')) as Record<string, string>;
 const keys = new Set<string>(LABEL_KEYS as readonly string[]);
 const ph = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
@@ -25,13 +25,20 @@ for (const f of files) {
     assert.ok(p.length > 0, 'no rows parsed'); const fmt = (r: typeof p) => r.map((x) => `${x.key}|${x.loc}|${x.val}`).sort();
     assert.deepEqual(fmt(p), fmt(d));
   });
-  test(`${f}: Y2/Y3 real keys, known locales, en equals the default, placeholders kept, nothing empty`, () => {
-    for (const r of p) {
-      assert.ok(keys.has(r.key), `${r.key} is not a label key`); assert.ok(['en', 'ko', 'zh', 'ru', 'ar'].includes(r.loc), `${r.key}: locale ${r.loc}`);
-      assert.ok(r.val.trim().length > 0, `${r.key}/${r.loc} is empty`);
-      if (r.loc === 'en') assert.equal(r.val, defaults[r.key], `${r.key}: the stored en row differs from the shipped default (it would override it)`);
-      assert.equal(ph(r.val), ph(defaults[r.key] ?? ''), `${r.key}/${r.loc}: placeholders differ from the English default`);
-    }
+  test(`${f}: Y2 real keys, known locales, nothing empty`, () => {
+    for (const r of p) { assert.ok(keys.has(r.key), `${r.key} is not a label key`); assert.ok(['en', 'ko', 'zh', 'ru', 'ar'].includes(r.loc), `${r.key}: locale ${r.loc}`); assert.ok(r.val.trim().length > 0, `${r.key}/${r.loc} is empty`); }
   });
   test(`${f}: Y4 upsert on (key, locale)`, () => { assert.equal((sql.match(/on conflict \(key, locale\) do update/gi) ?? []).length, 2, 'each of the two blocks must upsert'); });
 }
+
+test('Y3. the LATEST row of every key and locale keeps the English default\'s placeholders, and the latest en row equals the default', () => {
+  const latest = new Map<string, { file: string; key: string; loc: string; val: string }>();
+  for (const f of files) { const { prod } = blocks(readFileSync(new URL(f, dir), 'utf8')); for (const r of rows(prod)) latest.set(`${r.key}|${r.loc}`, { file: f, ...r }); }
+  const bad: string[] = [];
+  for (const r of latest.values()) {
+    if (defaults[r.key] === undefined) continue;
+    if (r.loc === 'en' && r.val !== defaults[r.key]) bad.push(`${r.key}/en (${r.file}): the newest stored en row differs from the shipped default (it overrides it)\n    stored:  ${JSON.stringify(r.val)}\n    default: ${JSON.stringify(defaults[r.key])}`);
+    if (ph(r.val) !== ph(defaults[r.key])) bad.push(`${r.key}/${r.loc} (${r.file}): placeholders [${ph(r.val)}] differ from the English default [${ph(defaults[r.key])}]`);
+  }
+  assert.deepEqual(bad, [], `\n${bad.join('\n')}`);
+});
