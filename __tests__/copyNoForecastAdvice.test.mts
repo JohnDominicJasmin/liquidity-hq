@@ -7,7 +7,7 @@
  * WHAT THIS CANNOT PROVE: the ko/zh/ru/ar rows (a held migration, applied by PM; rows in the DB win over these defaults), or that a label row in the live table does not still hold the old wording. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 const DEF = JSON.parse(readFileSync(new URL('../lib/labelDefaults.en.json', import.meta.url), 'utf8')) as Record<string, string>;
 
@@ -19,6 +19,8 @@ const APPROVED: Record<string, string> = {
   LIQ_SUBTITLE: 'Estimated liquidation zones · nearest dense cluster',
   LIQ_BIAS_LONG_HEAVY_SUB: 'More long liquidations modeled below price',
   LIQ_BIAS_SHORT_HEAVY_SUB: 'More short liquidations modeled above price',
+  LIQ_LEGEND_SHORT_TEXT: 'price levels above current price where modeled short positions get force-closed.',
+  LIQ_LEGEND_LONG_TEXT: 'price levels below current price where modeled long positions get force-closed.',
   MACRO_STRIP_JPY_APPROACHING: 'USD/JPY near 160',
   MACRO_STRIP_SPX_DOWN: 'S&P down {pct} today',
   MACRO_STRIP_SPX_UP: 'S&P up {pct} today',
@@ -36,7 +38,7 @@ const APPROVED: Record<string, string> = {
   ALERTS_DISTRIBUTION_TITLE: 'Distribution - Selling Into Strength',
 };
 /* keys whose text is only PARTLY rewritten (a clause dropped) or whose full text is long: scanned for the banned phrases, not matched exactly */
-const SCAN_ONLY = ['LIQ_LEGEND_SHORT_TEXT', 'LIQ_LEGEND_LONG_TEXT', 'EMA_PHASE_DAILY_ABOVE_RIBBON_NOT_BULL', 'EMA_PHASE_DAILY_BELOW_RIBBON_NOT_BEAR'];
+const SCAN_ONLY = ['EMA_PHASE_DAILY_ABOVE_RIBBON_NOT_BULL', 'EMA_PHASE_DAILY_BELOW_RIBBON_NOT_BEAR', 'EMA_PHASE_VALUE_ZONE_LONG', 'EMA_PHASE_VALUE_ZONE_SHORT'];
 
 /* forecast and advice phrases, each of which was in the audit */
 const BANNED = /\bwait for\b|\bstay out\b|\breduce size\b|\bmay push\b|\bpush(?:es)? price\b|\btends? to\b|\bpump\b|\bdump\b|\bmagnet\b|\bheadwind\b|\btailwind\b|\brisk-(?:on|off)\b|\bdanger\b|\bso you know\b|\bbig players\b|\btaking profit\b|\bgood time\b|\btrade now\b|\bpotential diversification\b|\bentry possible\b|\bbefore the\b.*\bpump\b|\bwait,?\s*$|\bwill (?:rise|fall|drop|pump|dump)\b/i;
@@ -59,9 +61,20 @@ test('Z3. perpSpot no longer says the move "tends to hold better"', () => {
   assert.match(src, /More of this move is people actually buying the coin\./, 'the rewritten sentence (row 11) is not there');
 });
 
-test('Z4. "entry possible" is in no label default (#25)', () => {
-  const hits = Object.entries(DEF).filter(([, v]) => /entry possible/i.test(v)).map(([k, v]) => `${k}: "${v}"`);
-  assert.deepEqual(hits, [], `"entry possible" still shipped:\n${hits.join('\n')}`);
+test('Z4. "entry eligible" / "entry possible" (#25) is in no label default, and in the NEWEST stored row of any locale for the EMA value-zone keys', () => {
+  const hits = Object.entries(DEF).filter(([, v]) => /entry (?:eligible|possible)/i.test(v)).map(([k, v]) => `${k}: "${v}"`);
+  assert.deepEqual(hits, [], `"entry eligible/possible" still shipped as a default:\n${hits.join('\n')}`);
+  /* the ko/zh/ru rows live in the labels table: the migrations are applied in file-name order, so the LAST row written for a key and locale is the one in the database after they are all applied */
+  const dir = new URL('../supabase/migrations/', import.meta.url);
+  const rowRe = /\(\s*'((?:[^']|'')*)'\s*,\s*'([a-z-]+)'\s*,\s*'((?:[^']|'')*)'\s*\)/g;
+  const last = new Map<string, { file: string; val: string }>();
+  for (const f of readdirSync(dir).filter((n) => n.endsWith('.sql')).sort()) {
+    const sql = readFileSync(new URL(f, dir), 'utf8'); const dev = sql.search(/insert into lhq_dev_labels/i);
+    const prodBlock = dev > 0 ? sql.slice(0, dev) : sql;
+    for (const m of prodBlock.matchAll(rowRe)) if (/^EMA_PHASE_VALUE_ZONE_(LONG|SHORT)$/.test(m[1])) last.set(`${m[1]}|${m[2]}`, { file: f, val: m[3].replace(/''/g, "'") });
+  }
+  const bad = [...last.entries()].filter(([, v]) => /entry (?:eligible|possible)/i.test(v.val)).map(([k, v]) => `${k} (${v.file}): "${v.val}"`);
+  assert.deepEqual(bad, [], `the newest stored row still says "entry eligible/possible" - a migration must upsert these keys in en/ko/zh/ru without it:\n${bad.join('\n')}`);
 });
 
 test('Z5. class sweep (informational): other defaults that still read as a forecast or advice', () => {
