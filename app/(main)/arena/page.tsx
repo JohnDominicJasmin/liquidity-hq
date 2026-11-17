@@ -2582,7 +2582,7 @@ function ArenaContent() {
 
       {/* ── AI READ · answer-first hero ── */}
       <div className="arena-below-chart">
-      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+      <div className="arena-run-row" style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         {/* Quick button - requires sign-in.
             #1347 item 11: #1338 fixed `disabled` to also check `authLoading`
             (a click before sign-in resolves must not bounce a signed-in
