@@ -2808,7 +2808,7 @@ function ArenaContent() {
           /* 'stale' prints its own words. Falling through to 'neutral' here was the bug in the first
              cut of this change: the state existed in the type and died at the render, so a dropped
              old vote looked exactly like a coin with no signal at all. */
-          { k: 'Ribbon',    v: ribbonRel === 'agrees' ? 'agrees' : ribbonRel === 'opposes' ? 'opposes' : ribbonRel === 'stale' ? 'no recent signal' : 'neutral', c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '↑' : ribbonRel === 'opposes' ? '↓' : '•' },
+          { k: 'Ribbon',    v: ribbonRel === 'agrees' ? 'agrees' : ribbonRel === 'opposes' ? 'opposes' : ribbonRel === 'stale' ? 'no recent signal' : 'neutral', c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '✓' : ribbonRel === 'opposes' ? '✗' : '•' /* agreement with the READ, not a market direction: a green up arrow on a BEARISH read was wrong (PM audit 2026-11-17) */ },
           { k: 'Squeeze',   v: sqzCount > 0 ? 'building' : flushCount > 0 ? 'flush risk' : 'quiet', c: sqzCount > 0 ? GC : flushCount > 0 ? RC : NC, a: sqzCount > 0 ? '↑' : flushCount > 0 ? '↓' : '•' },
           { k: 'Funding',   v: frPct == null ? (feedGraceOver ? 'unavailable' : 'loading…') : frPct >= 0.03 ? 'long-heavy' : frPct <= -0.02 ? 'short-heavy' : 'neutral', c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' },
           { k: 'Multi-TF',  v: tfBull >= 2 ? `${tfBull}/3 up` : tfBear >= 2 ? `${tfBear}/3 down` : (tfBull > 0 && tfBear > 0) ? 'conflicting' : 'mixed', c: tfBull >= 2 ? GC : tfBear >= 2 ? RC : NC, a: tfBull >= 2 ? '↑' : tfBear >= 2 ? '↓' : '•' },

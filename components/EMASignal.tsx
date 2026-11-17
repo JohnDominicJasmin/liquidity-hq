@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useState } from 'react';
 import { StrategySignal, StrategyVerdict, SIGNAL_OLD_BARS } from '@/lib/useEMAStrategy';
 import { CoinId } from '@/lib/marketStore';
 import { currencyPrefix } from '@/lib/coins';
@@ -134,6 +135,16 @@ function LockedSignal({ lock, coin }: { lock: 'signed_out' | 'free'; coin?: stri
 export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = false }: Props) {
   const { t } = useLabels();
 
+  /* A SKELETON THAT NEVER ENDS IS NOT A STATE (PM audit 2026-11-17: the card sat on its skeleton when the candle feed failed or hung). After 20 s of loading for the same coin and timeframe the badge says Unavailable; a signal
+     arriving later replaces it. Hooks sit above the early returns below. */
+  const [loadingTooLong, setLoadingTooLong] = useState(false);
+  useEffect(() => {
+    setLoadingTooLong(false);
+    if (!signal.loading) return;
+    const id = setTimeout(() => setLoadingTooLong(true), 20_000);
+    return () => clearTimeout(id);
+  }, [signal.loading, coin, tf]);
+
   /* ABOVE THE ANALYSIS CEILING (#1263): the chart is on a weekly or monthly timeframe, which the EMA
      signal, the AI read and Draw Structure do not operate at (owner's scope: those stay <= 1d). The
      panel says so rather than showing a 1d verdict under a weekly chart - the same honesty the rest
@@ -231,10 +242,12 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
             display: 'inline-flex', alignItems: 'center',
           }}>
             {signal.loading ? (
+              loadingTooLong ? t('STATE_UNAVAILABLE') : (
               <>
                 <SkeletonBar width={44} height={12} radius={6} />
                 <span className="sr-only">{t('ARENA_SCANNER_LOADING_TITLE')}</span>
               </>
+              )
             ) : shownLabel}
           </span>
         </div>
