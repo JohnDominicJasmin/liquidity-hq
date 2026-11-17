@@ -1736,12 +1736,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             if (x1 <= x0) return [];
             const green = resolveCssColor('var(--green)'), red = resolveCssColor('var(--red)'), ink = resolveCssColor('var(--txt2)');
             const out: Array<Record<string, unknown>> = [];
+            /* STOP AND TARGET LABELS ARE ALWAYS ON SCREEN (PM/QA 2026-11-18: the SELL stop was off the visible price scale on a short phone chart, so its label was clipped away). A level outside the pane keeps its label, pinned to the pane edge with the full value and an arrow toward the level; the scale is NOT changed, so nothing jumps. */
+            const H = bounding?.height ?? 300;
+            const pin = (y: number, text: string, short: string): { y: number; text: string } => {
+              if (y < 10) return { y: 10, text: `${text} ↑` };
+              if (y > H - 10) return { y: H - 10, text: `${text} ↓` };
+              return { y, text: narrow ? short : text };
+            };
             if (d.hasTarget && t && [t.x, t.y].every(isFinite)) {
               out.push({ type: 'rect', attrs: { x: x0, y: Math.min(e.y, t.y), width: x1 - x0, height: Math.max(Math.abs(e.y - t.y), 1) }, styles: { style: 'stroke_fill', color: withAlpha(green, 0.16), borderColor: green, borderSize: 1 } });
-              out.push({ type: 'text', attrs: { x: x1 - 4, y: t.y < e.y ? t.y + 3 : t.y - 3, text: narrow ? 'T' : d.targetText, align: 'right', baseline: t.y < e.y ? 'top' : 'bottom' }, styles: { color: green, size: 10, weight: '700' } });
+              const tp = pin(t.y < e.y ? t.y + 3 : t.y - 3, d.targetText, 'T');
+              out.push({ type: 'text', attrs: { x: x1 - 4, y: tp.y, text: tp.text, align: 'right', baseline: t.y < e.y ? 'top' : 'bottom' }, styles: { color: green, size: 10, weight: '700' } });
             }
             out.push({ type: 'rect', attrs: { x: x0, y: Math.min(e.y, s.y), width: x1 - x0, height: Math.max(Math.abs(e.y - s.y), 1) }, styles: { style: 'stroke_fill', color: withAlpha(red, 0.16), borderColor: red, borderSize: 1 } });
-            out.push({ type: 'text', attrs: { x: x1 - 4, y: s.y > e.y ? s.y - 3 : s.y + 3, text: narrow ? 'S' : d.stopText, align: 'right', baseline: s.y > e.y ? 'bottom' : 'top' }, styles: { color: red, size: 10, weight: '700' } });
+            const sp = pin(s.y > e.y ? s.y - 3 : s.y + 3, d.stopText, 'S');
+            out.push({ type: 'text', attrs: { x: x1 - 4, y: sp.y, text: sp.text, align: 'right', baseline: s.y > e.y ? 'bottom' : 'top' }, styles: { color: red, size: 10, weight: '700' } });
             out.push({ type: 'line', attrs: { coordinates: [{ x: x0, y: e.y }, { x: x1, y: e.y }] }, styles: { style: 'solid', color: ink, size: 1 } });
             out.push({ type: 'text', attrs: { x: x0 + 4, y: e.y - 3, text: narrow ? 'E' : d.entryText, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } });
             if (d.rrText) out.push({ type: 'text', attrs: { x: x0 + 4, y: e.y + 3, text: d.rrText, align: 'left', baseline: 'top' }, styles: { color: ink, size: 10, weight: '700' } });
