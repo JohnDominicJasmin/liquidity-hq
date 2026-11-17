@@ -1170,7 +1170,7 @@ jobs:
           # REVERT: put the two lines above back. One commit, no other file
           # touched by this change depends on them.
           NODE_OPTIONS: '--import ./qa/server-intercept.mjs'
-          QA_INTERCEPT_UPSTREAM: '1'
+          QA_INTERCEPT_UPSTREAM: 'partial'
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
 
