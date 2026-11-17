@@ -9489,5 +9489,3 @@ html[data-theme="light"] { color-scheme: light; }
 /* Third pass (PM review of QA run 44085095349, 1280x800 Pro: the run row ended 36 px below the fold): the verdict sentence is ONE line (full text in its title), the call block reserves verdict + one line + the levels line, sections are 6 px, and a chip name has an 18 px line box so glyphs are not cut. */
 [data-design="terminal"] .strat-sect { padding: 6px 9px; }
 [data-design="terminal"] .strat-ind-name { line-height: 18px; padding: 0; }
-/* A SIGNED-IN VISITOR WITH NO LOCALLY CACHED STRATEGY (a new device, cleared storage) still gets the call box when the saved settings arrive from the server, which pushed the workspace 141 px down at settings load (QA run 44085095349, 360 RU: CLS 0.105). The same closed-box reserve applies for any stored session (<html data-sess="1">) until the settings say there is no strategy (data-strat-none, set by StrategyPanel). */
-html[data-sess="1"]:not([data-strat]):not([data-strat-none]) .strat-call-host { min-height: calc(8px + var(--strat-call-dyn) + 4px + var(--fs-caption) * 1.2); }
