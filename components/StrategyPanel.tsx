@@ -259,7 +259,7 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
           {loaded && (
             entitled
               ? <span className="strat-count">{t('STRATEGY_PANEL_ON_COUNT', { n: used })}</span>
-              : <span className="strat-count">{t('STRATEGY_PANEL_FREE_LIMIT')}</span>
+              : !planChecking && <span className="strat-count">{t('STRATEGY_PANEL_FREE_LIMIT')}</span>
           )}
         </div>
 
@@ -327,7 +327,7 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
 
         {/* FREE ONLY: the persistent upgrade callout, present even with nothing selected (it is an
             invitation, not a limit warning). Pro never sees it - Pro has every indicator already. */}
-        {loaded && !entitled && (
+        {loaded && !entitled && !planChecking && (
           <div className="strat-callout" role="note">
             <span>{t('STRATEGY_PANEL_PRO_CALLOUT')}</span>
             <Link href="/upgrade" className="strat-callout-link" data-testid="strategy-pro-callout">{t('STRATEGY_PANEL_PRO_CALLOUT_LINK')}</Link>
