@@ -27,7 +27,9 @@ import { usePathname } from 'next/navigation';
 import MarketProvider from './MarketProvider';
 import NewsProvider from './NewsProvider';
 import NavDrawer from './NavDrawer';
-import GrokChat from './GrokChat';
+import dynamic from 'next/dynamic';
+/* The Ask AI chat (and the strategy registry it reads) is loaded after the page, not with it: it was in the first-load JavaScript of every route (speed audit 2026-11-17). Client only; the floating button appears once its chunk arrives. */
+const GrokChat = dynamic(() => import('./GrokChat'), { ssr: false });
 import NewsTicker from './NewsTicker';
 import AuthProvider from './AuthProvider';
 import LabelsProvider from './LabelsProvider';
