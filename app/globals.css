@@ -9453,3 +9453,20 @@ html[data-theme="light"] { color-scheme: light; }
   .lp-hero-stat { padding: 13px 14px !important; margin: 0 !important; border-right: 0 !important; background: var(--bg0); min-width: 0; }
   .lp-read-panel { width: 100% !important; max-width: 100%; }
 }
+
+/* MARKETS, NOTHING QUALIFIES (#1185): with no derivatives signal anywhere the Signal column is dropped on a phone (its cell, its head and the fifth grid column), and the banner above the table says it once. */
+@media (max-width: 480px) {
+  .mkt-nosig.mkt-row, .mkt-nosig.mkt-hdr-row { grid-template-columns: 62px minmax(60px, 1fr) 76px 62px !important; }
+  .mkt-nosig.mkt-row > .mkt-signal, .mkt-nosig.mkt-hdr-row > :last-child { display: none !important; }
+}
+/* ECON CALENDAR: the COUNTRY head is never clipped (#1185). The column is 88 px (page.tsx COLS) and its head may use all of it. */
+.ec-hdr > div:nth-child(2) { overflow: visible !important; text-overflow: clip; white-space: nowrap; }
+/* NEWS: A COMPACT LIST WITH A THUMBNAIL on a phone (#1185, PM 2026-11-17). Below 540 px every story is a row: an 88 px square thumbnail on the left, the tags and headline on the right, and the two buttons under the headline; the 180 px photo
+   block per card (and the 240 px hero) made a short feed a very long scroll. The tile stays for a story with no image, so a row never changes width. Tablet and desktop keep the card grid. */
+@media (max-width: 540px) {
+  .ncard-grid, .ncard-grid-hero { flex-direction: row; align-items: stretch; }
+  .ncard-grid-img-wrap, .ncard-grid-hero .ncard-grid-img-wrap { width: 88px; height: auto; min-height: 88px; align-self: stretch; }
+  .ncard-grid-body { padding: 10px 12px; min-width: 0; }
+  .ncard-grid-hero .ncard-grid-headline { font-size: var(--fs-label); }
+  .ncard-grid:hover { transform: none; }
+}

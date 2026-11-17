@@ -1072,6 +1072,7 @@
   "MARKETS_SIGNAL_NEW_SELLERS": "New sellers opening",
   "MARKETS_SIGNAL_SHORT_COVERING": "Short covering",
   "MARKETS_SIGNAL_LONGS_EXITING": "Longs exiting",
+  "MARKETS_NO_SIGNALS_BANNER": "No coin has a derivatives signal right now.",
   "MARKETS_SIGNAL_NONE": "No signal",
   "MARKETS_BACK_BUTTON": "← Back",
   "MARKETS_PAGE_TITLE": "Markets",

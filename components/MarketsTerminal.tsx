@@ -100,6 +100,8 @@ export default function MarketsTerminal() {
   const liveCount = COINS.filter(id => Number.isFinite(store.coins[id]?.price)).length;
   const bullCount = COINS.filter(id => topSignal(store.coins[id]).col === 'var(--green-2)').length;
   const bearCount = COINS.filter(id => topSignal(store.coins[id]).col === 'var(--red)').length;
+  /* NOTHING QUALIFIES (#1185, PM 2026-11-17): when prices are in but no coin has a derivatives signal, the Signal column is a wall of "No signal". Say it once in a banner, and on a phone drop the column (and its second row) instead of repeating it forty times. */
+  const noSignals = liveCount > 0 && COINS.every(id => topSignal(store.coins[id]).key === 'MARKETS_SIGNAL_NONE');
 
   function handleSort(key: SortKey) {
     if (sort === key) setSortAsc(v => !v);
@@ -215,7 +217,8 @@ export default function MarketsTerminal() {
         </div>
 
         {/* Column headers */}
-        <div className="mkt-mono mkt-hdr-row" style={{
+        {noSignals && <div role="status" data-testid="mkt-no-signals" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 10px 8px' }}>{t('MARKETS_NO_SIGNALS_BANNER')}</div>}
+        <div className={`mkt-mono mkt-hdr-row${noSignals ? ' mkt-nosig' : ''}`} style={{
           display: 'grid',
           gridTemplateColumns: ROW_COLS,
           padding: '0 10px 6px',
@@ -266,7 +269,7 @@ export default function MarketsTerminal() {
           return (
             <div
               key={id}
-              className="mkt-row"
+              className={`mkt-row${noSignals ? ' mkt-nosig' : ''}`}
               onClick={() => goToArena(id)}
               style={{
                 display: 'grid',
