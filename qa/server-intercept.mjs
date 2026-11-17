@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { synthUpstream } from "./syntheticMarket.mjs";
 
@@ -61,6 +61,7 @@ import { synthUpstream } from "./syntheticMarket.mjs";
  * grepping route-handler log lines - which counts route invocations, not
  * upstream requests, and misses every host that does not log. */
 const MODE = process.env.QA_INTERCEPT_UPSTREAM === '1' ? 'stub'
+  : process.env.QA_INTERCEPT_UPSTREAM === 'partial' ? 'partial'
   : process.env.QA_INTERCEPT_UPSTREAM === 'count' ? 'count'
   : 'off';
 const ENABLED = MODE !== 'off';
@@ -96,6 +97,7 @@ if (ENABLED) {
     'open-api.coinglass.com',
   ];
 
+  const PARTIAL_FLAG = process.env.QA_INTERCEPT_PARTIAL_FLAG ?? fileURLToPath(new URL('./.partial-on', import.meta.url));
   let served = 0;
   let passed = 0;
   /** host -> call count, so the report says WHERE the traffic goes. */
@@ -245,6 +247,18 @@ if (ENABLED) {
       });
     }
 
+    /* PARTIAL MODE (#2506): stub like '1', but while the flag file exists HALF of the symbols fail (a venue refusing, a run stopped halfway). The spec writes the flag after a good first read and removes it after. Which half is fixed by a hash of the symbol, so it is the same half every time. */
+    if (MODE === 'partial' && host && STUBBED.includes(host) && existsSync(PARTIAL_FLAG)) {
+      const sym = (() => { try { return new URL(url).searchParams.get('symbol') ?? ''; } catch { return ''; } })();
+      if (sym) { let h = 0; for (const ch of sym) h = (h * 31 + ch.charCodeAt(0)) >>> 0; if (h % 2 === 1) { served++; log(`[intercept] PARTIAL refused ${host} ${sym}`); return new Response('{"retCode":10016,"error":"qa partial"}', { status: 503, headers: { 'content-type': 'application/json' } }); } }
+    }
+
+    /* PARTIAL MODE also answers Bybit open interest (the synthetic generator has no such endpoint): a short newest-first list, the venue's own shape. */
+    if (MODE === 'partial' && host === 'api.bybit.com' && /\/v5\/market\/open-interest$/.test(new URL(url).pathname)) {
+      served++; const lim = Number(new URL(url).searchParams.get('limit') ?? '3') || 3; const list = Array.from({ length: lim }, (_, i) => ({ openInterest: String(1000000 - i * 1000), timestamp: String(1760000000000 - i * 300000) }));
+      return new Response(JSON.stringify({ retCode: 0, retMsg: 'OK', result: { symbol: 'X', category: 'linear', list } }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+
     if (MODE === 'count' || !host || !STUBBED.includes(host)) {
       passed++;
       return realFetch(input, init);
@@ -309,5 +323,5 @@ if (ENABLED) {
 
   log(MODE === 'count'
     ? '[intercept] COUNT MODE - every call passes through untouched, tallied by host'
-    : `[intercept] STUB MODE - ${STUBBED.length} hosts stubbed, everything else passes through`);
+    : `[intercept] STUB MODE (${MODE}) - ${STUBBED.length} hosts stubbed, everything else passes through`);
 }

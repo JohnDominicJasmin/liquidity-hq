@@ -78,7 +78,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       if (!serveRow) return noRow();
       /* `ts` near now so decideSnapshot judges it FRESH: overdue = max(0, age - samplingMs) and
          samplingMs is 1h, so a just-stamped bucket is 0 overdue and well inside
-         SNAPSHOT_TOO_OLD_MS (30 min). A `ts` of 0 or absent would be SKIPPED by agesFrom and the
+         SNAPSHOT_TOO_OLD_MS (10 min since #2506). A `ts` of 0 or absent would be SKIPPED by agesFrom and the
          row would be declared unjudgeable - serving live, which is this cell's opposite. */
       const row = {
         payload: { data: { BTCUSDT: { longRatio: SNAPSHOT_LONG, shortRatio: SNAPSHOT_SHORT, ts: Date.now() - rowAgeMs } } },
@@ -157,7 +157,7 @@ test('14c. CONTROL: a row the freshness rule rejects falls through to live, so 1
      freshness rule is most of what decideSnapshot is. A `ts` well past samplingMs +
      SNAPSHOT_TOO_OLD_MS must be treated as absent rather than served with an age attached. */
   reset(true);
-  /* FOUR HOURS OLD against a 1 h feed: overdue = 4h - 1h = 3h, well past SNAPSHOT_TOO_OLD_MS (30 min). */
+  /* FOUR HOURS OLD against a 1 h feed: overdue = 4h - 1h = 3h, well past SNAPSHOT_TOO_OLD_MS (10 min since #2506). */
   rowAgeMs = 4 * 60 * 60_000;
   {
     const r = await accountRatioFor('btc', '1h');
