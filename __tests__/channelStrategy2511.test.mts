@@ -2,7 +2,7 @@
  *   CS1  no close outside a falling or rising channel = WAIT (and the WAIT overlay carries the watched rails only, no entry/stop/target)
  *   CS2  falling channel + first close above the upper rail = BUY; rising + first close below the lower rail = SELL
  *   CS3  a break WITH the channel direction (falling then down, rising then up) = WAIT
- *   CS4  levels: entry = the breakout close; the stop is on the losing side of entry and equals the last swing inside the channel (the oracle's lastSwingInside); R:R in params is |target - entry| / |entry - stop| rounded to 1 decimal; with no target there is no rr and no target level
+ *   CS4  levels (target = the first S/R level in direction at >= 1R, PM 2026-11-17): entry = the breakout close; the stop is on the losing side of entry and equals the last swing inside the channel (the oracle's lastSwingInside); R:R in params is |target - entry| / |entry - stop| rounded to 1 decimal; with no target there is no rr and no target level
  *   CS5  freshness: the call is current for the breakout candle and the one after, and is WAIT three candles later
  *   CS6  NO ARROW / PATH: the overlay carries only levels, zones, lines and marker; no field or label names a path, arrow or forecast
  *   CS7  fewer than 60 candles = WAIT
@@ -34,7 +34,7 @@ test('CS2/CS4. BUY on a falling channel broken up, SELL on a rising one broken d
     if (verdict === 'buy') assert.ok(p.stop < entry, 'a BUY stop must sit below entry'); else assert.ok(p.stop > entry, 'a SELL stop must sit above entry');
     assert.ok(Math.abs(p.stop - swing) / swing < 0.002, `stop ${p.stop} is not the last swing inside the channel (${swing})`);
     assert.equal(p.inv, p.stop, 'the invalidation is not the stop');
-    if (p.target !== undefined) { assert.equal(p.rr, Math.round(rr(entry, p.stop, p.target) * 10) / 10, 'rr is not |target-entry|/|entry-stop| rounded to 1 decimal'); if (verdict === 'buy') assert.ok(p.target > entry); else assert.ok(p.target < entry); }
+    if (p.target !== undefined) { assert.ok(Math.abs(p.target - entry) >= Math.abs(entry - p.stop) - 1e-6, `target ${p.target} is closer than 1R (risk ${Math.abs(entry - p.stop).toFixed(0)}): PM 2026-11-17 skips such levels`); assert.equal(p.rr, Math.round(rr(entry, p.stop, p.target) * 10) / 10, 'rr is not |target-entry|/|entry-stop| rounded to 1 decimal'); if (verdict === 'buy') assert.ok(p.target > entry); else assert.ok(p.target < entry); }
     else assert.equal(p.rr, undefined, 'an rr is shown with no target');
   }
 });

@@ -58,7 +58,7 @@ export function channelCandles(spec: ChannelSpec): ChannelFixture {
 
 /* ── THE ORACLE: the rules of the spec, written down once, here, in arithmetic ───────────────────────
  *   BUY  = the first close above the upper rail of a FALLING channel;  SELL = the first close below the lower rail of a RISING channel;  otherwise WAIT
- *   Entry = the breakout candle's close;  Stop = the last swing on the other side, inside the channel;  Target = the nearest S/R zone in the trade's direction; no zone -> no target, no R:R
+ *   Entry = the breakout candle's close;  Stop = the last swing on the other side, inside the channel;  Target = the first S/R level in the trade's direction at >= 1x the risk distance (PM 2026-11-17: nearer levels are skipped); none -> no target, no R:R
  *   R:R = reward / risk = |target - entry| / |entry - stop| */
 export type Zone = { low: number; high: number };
 export interface Call { verdict: 'BUY' | 'SELL' | 'WAIT'; entry?: number; stop?: number; target?: number | null; rr?: number | null; }
@@ -71,11 +71,11 @@ export function channelCall(fx: ChannelFixture, dir: 'falling' | 'rising', zones
   const priorInside = fx.candles.slice(0, last).every((k, i) => k.close <= fx.rails.upper(i) && k.close >= fx.rails.lower(i));   // FIRST close outside
   if (!priorInside) return { verdict: 'WAIT' };
   if (dir === 'falling' && above && fx.lastSwingInside) {
-    const entry = c.close, stop = fx.lastSwingInside.price, up = zones.filter((z) => z.low > entry).sort((a, b) => a.low - b.low)[0];   // nearest zone ABOVE entry
+    const entry = c.close, stop = fx.lastSwingInside.price, up = zones.filter((z) => z.low > entry && z.low - entry >= entry - stop).sort((a, b) => a.low - b.low)[0];   // nearest zone ABOVE entry at >= 1x the risk distance (PM decision 2026-11-17: closer targets are skipped)
     return up ? { verdict: 'BUY', entry, stop, target: up.low, rr: rr(entry, stop, up.low) } : { verdict: 'BUY', entry, stop, target: null, rr: null };
   }
   if (dir === 'rising' && below && fx.lastSwingInside) {
-    const entry = c.close, stop = fx.lastSwingInside.price, dn = zones.filter((z) => z.high < entry).sort((a, b) => b.high - a.high)[0];   // nearest zone BELOW entry
+    const entry = c.close, stop = fx.lastSwingInside.price, dn = zones.filter((z) => z.high < entry && entry - z.high >= stop - entry).sort((a, b) => b.high - a.high)[0];   // nearest zone BELOW entry at >= 1x the risk distance
     return dn ? { verdict: 'SELL', entry, stop, target: dn.high, rr: rr(entry, stop, dn.high) } : { verdict: 'SELL', entry, stop, target: null, rr: null };
   }
   return { verdict: 'WAIT' };
