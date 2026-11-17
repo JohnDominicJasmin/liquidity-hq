@@ -1342,7 +1342,7 @@ body[data-rpm-level="high"]::before {
   padding: 1px 6px; margin-left: 10px; border-radius: 3px;
   white-space: nowrap; line-height: 14px;
 }
-.ticker-red    .ticker-badge { background: rgba(248,113,113,0.14); color: rgba(252,165,165,0.9); }
+.ticker-red    .ticker-badge { background: rgba(248,113,113,0.14); color: #fee2e2; }
 .ticker-amber  .ticker-badge { background: rgba(251,191,36,0.14); color: rgba(253,211,77,0.9); }
 .ticker-purple .ticker-badge { background: rgba(90,163,255,0.14); color: rgba(90,163,255,0.9); }
 
@@ -3848,8 +3848,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .wf-row-side-buy  { color: var(--green); }
 .wf-row-side-sell { color: var(--red); }
 .wf-row-usd     { font-size: var(--fs-label); font-weight: 700; font-variant-numeric: tabular-nums; }
-.wf-row-price   { font-size: var(--fs-data); color: var(--txt3); font-variant-numeric: tabular-nums; }
-.wf-row-time    { font-size: var(--fs-caption); color: var(--txt3); text-align: right; font-variant-numeric: tabular-nums; }
+.wf-row-price   { font-size: var(--fs-data); color: #9aa1b8; /* dark: --txt3 was 4.46:1 on the row; light override below */ font-variant-numeric: tabular-nums; }
+.wf-row-time    { font-size: var(--fs-caption); color: #9aa1b8; text-align: right; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 480px) {
   .wf-row         { grid-template-columns: 38px 70px 70px 1fr 46px; padding: 7px 10px; gap: 2px; }
@@ -4744,9 +4744,10 @@ html[data-sess="1"] .usage-meter-host { min-height: 55px; }
    dark-mode 0.14-alpha translucent tint (meant to sit on a near-black page) -
    on the light ticker's white background that read as barely-visible white-
    on-pale-pink. Solid backgrounds restore real contrast. */
-[data-theme="light"] .ticker-red    .ticker-badge { background: var(--red);    color: #fff; }
+[data-theme="light"] .ticker-red    .ticker-badge { background: #b91c1c;       color: #fff; }
 [data-theme="light"] .ticker-amber  .ticker-badge { background: var(--amber);  color: #fff; }
 [data-theme="light"] .ticker-purple .ticker-badge { background: var(--purple); color: #fff; }
+[data-theme="light"] .wf-row-price, [data-theme="light"] .wf-row-time { color: var(--txt3); }
 [data-theme="light"] .ticker-content span               { color: var(--txt2); }
 [data-theme="light"] .ticker-red    .ticker-content span { color: var(--red); }
 [data-theme="light"] .ticker-amber  .ticker-content span { color: var(--amber); }
