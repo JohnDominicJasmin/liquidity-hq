@@ -4,6 +4,11 @@
 --
 -- ===================== PROD =====================
 insert into lhq_labels (key, locale, value) values
+('ARENA_LAYERS_GATE_FEATURE_LABEL','en','S/R and liquidity layers'),
+('ARENA_LAYERS_GATE_FEATURE_LABEL','ko','S/R 및 청산 레이어'),
+('ARENA_LAYERS_GATE_FEATURE_LABEL','zh','支撑阻力与清算图层'),
+('ARENA_LAYERS_GATE_FEATURE_LABEL','ru','Слои S/R и ликвидности'),
+('ARENA_LAYERS_GATE_FEATURE_LABEL','ar','طبقات الدعم/المقاومة والسيولة'),
 ('STRATEGY_PANEL_LAYER_EMA_SHORT','en','EMA ribbon'),
 ('STRATEGY_PANEL_LAYER_EMA_SHORT','ko','EMA 리본'),
 ('STRATEGY_PANEL_LAYER_EMA_SHORT','zh','EMA 均线带'),
@@ -28,6 +33,11 @@ on conflict (key, locale) do update set value = excluded.value, updated_at = now
 
 -- ===================== DEV =====================
 insert into lhq_dev_labels (key, locale, value) values
+('ARENA_LAYERS_GATE_FEATURE_LABEL','en','S/R and liquidity layers'),
+('ARENA_LAYERS_GATE_FEATURE_LABEL','ko','S/R 및 청산 레이어'),
+('ARENA_LAYERS_GATE_FEATURE_LABEL','zh','支撑阻力与清算图层'),
+('ARENA_LAYERS_GATE_FEATURE_LABEL','ru','Слои S/R и ликвидности'),
+('ARENA_LAYERS_GATE_FEATURE_LABEL','ar','طبقات الدعم/المقاومة والسيولة'),
 ('STRATEGY_PANEL_LAYER_EMA_SHORT','en','EMA ribbon'),
 ('STRATEGY_PANEL_LAYER_EMA_SHORT','ko','EMA 리본'),
 ('STRATEGY_PANEL_LAYER_EMA_SHORT','zh','EMA 均线带'),

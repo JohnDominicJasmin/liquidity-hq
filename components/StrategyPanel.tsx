@@ -54,6 +54,8 @@ interface Props {
    *  Absent = every layer reads as always on. */
   overlays?: Record<'EMA_RIBBON' | 'RSI' | 'SR' | 'LIQ_CLUSTERS' | 'GEX', OverlayState>;
   /** Flip the chart's S/R or Liq layer: the same switch as the chart toolbar. */
+  /* S/R and Liq clusters are Pro on coins outside BTC/ETH/SOL (owner, 2026-11-17): their chips show the lock and a tap opens the page's upgrade prompt. */
+  layersLocked?: boolean;
   onOverlayToggle?: (id: 'EMA_RIBBON' | 'RSI' | 'SR' | 'LIQ_CLUSTERS') => void;
   /** Whether the caller's saved selection has been read (or confirmed absent). Until 'ready',
    *  `selected` is not the user's real answer, so no click may persist over it (#1246/#1347). */
@@ -117,7 +119,7 @@ function ParamRow({ spec, value, readOnly, onChange }: {
 
 /* A CHART LAYERS chip (EMA ribbon, RSI, S/R, Liq clusters): a real role="switch" button synced to the chart. Display only (owner, 2026-11-17).
    `unavailable` (a coin with no such layer) shows an off, disabled chip rather than hiding it. */
-function LayerChip({ name, on, unavailable, onToggle }: { name: string; on: boolean; unavailable: boolean; onToggle: () => void }) {
+function LayerChip({ name, on, unavailable, locked = false, onToggle }: { name: string; on: boolean; unavailable: boolean; locked?: boolean; onToggle: () => void }) {
   const { t } = useLabels();
   return (
     <button
@@ -125,16 +127,17 @@ function LayerChip({ name, on, unavailable, onToggle }: { name: string; on: bool
       role="switch"
       aria-checked={on}
       disabled={unavailable}
-      className={`strat-layer-chip${on ? ' on' : ''}`}
+      className={`strat-layer-chip${on && !locked ? ' on' : ''}${locked ? ' arena-deep-locked' : ''}`}
       title={unavailable ? t('STRATEGY_PANEL_LAYER_UNAVAILABLE') : undefined}
       onClick={onToggle}
     >
+      {locked && <Lock size={10} aria-hidden="true" style={{ marginRight: 3, verticalAlign: '-1px' }} />}
       {name}
     </button>
   );
 }
 
-export default function StrategyPanel({ planChecking = false, overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, runGate, strategy, onStrategyPick, strategyState }: Props) {
+export default function StrategyPanel({ planChecking = false, layersLocked = false, overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, runGate, strategy, onStrategyPick, strategyState }: Props) {
   const loaded = status === 'ready';
   const { user, loading: authLoading, entitlementStatus, retryEntitlements } = useAuth();
   const planLabel = strategyPlanLabel({ signedIn: !!user, authLoading, entitlementStatus });
@@ -372,8 +375,8 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
           <div className="strat-layers">
             <LayerChip name={t('STRATEGY_PANEL_LAYER_EMA_SHORT')} on={layer('EMA_RIBBON') !== 'off'} unavailable={false} onToggle={() => onOverlayToggle?.('EMA_RIBBON')} />
             <LayerChip name={t('STRATEGY_PANEL_LAYER_RSI_SHORT')} on={layer('RSI') !== 'off'} unavailable={false} onToggle={() => onOverlayToggle?.('RSI')} />
-            <LayerChip name={t('STRATEGY_PANEL_LAYER_SR_SHORT')} on={layer('SR') === 'on' || layer('SR') === 'always'} unavailable={layer('SR') === 'none'} onToggle={() => onOverlayToggle?.('SR')} />
-            <LayerChip name={t('STRATEGY_PANEL_LAYER_LIQ_SHORT')} on={layer('LIQ_CLUSTERS') === 'on' || layer('LIQ_CLUSTERS') === 'always'} unavailable={layer('LIQ_CLUSTERS') === 'none'} onToggle={() => onOverlayToggle?.('LIQ_CLUSTERS')} />
+            <LayerChip name={t('STRATEGY_PANEL_LAYER_SR_SHORT')} on={layer('SR') === 'on' || layer('SR') === 'always'} locked={layersLocked} unavailable={layer('SR') === 'none'} onToggle={() => onOverlayToggle?.('SR')} />
+            <LayerChip name={t('STRATEGY_PANEL_LAYER_LIQ_SHORT')} on={layer('LIQ_CLUSTERS') === 'on' || layer('LIQ_CLUSTERS') === 'always'} locked={layersLocked} unavailable={layer('LIQ_CLUSTERS') === 'none' && !layersLocked} onToggle={() => onOverlayToggle?.('LIQ_CLUSTERS')} />
           </div>
         </div>
       )}

@@ -1060,6 +1060,7 @@
   "STRATEGY_PANEL_LAYER_RSI_SHORT": "RSI",
   "STRATEGY_PANEL_LAYER_SR_SHORT": "S/R",
   "STRATEGY_PANEL_LAYER_LIQ_SHORT": "Liq clusters",
+  "ARENA_LAYERS_GATE_FEATURE_LABEL": "S/R and liquidity layers",
   "STRATEGY_PANEL_LAYER_SR": "Support and resistance",
   "STRATEGY_PANEL_LAYER_LIQ": "Liquidation clusters",
   "STRATEGY_PANEL_LAYER_ALWAYS_ON": "Always on",
