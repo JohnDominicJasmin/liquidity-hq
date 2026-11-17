@@ -207,7 +207,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   ];
 
   return (
-    <div style={{
+    <div className="lp-read-panel" style={{
       width: mobile ? '100%' : 472, flexShrink: 0, background: 'var(--bg1)', border: '1px solid var(--bdr)',
     }}>
       <div style={{ height: 34, display: 'flex', alignItems: 'center', padding: '0 14px', gap: 9, borderBottom: '1px solid var(--bdr)' }}>
@@ -335,14 +335,14 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
       <LandingTicker mobile={!isDesktop} dir={dir} words={dict.ticker} />
 
       {/* ── HERO — glow/beams intentionally kept, see file header ── */}
-      <section style={{ position: 'relative', padding: heroWide ? '76px 40px 64px' : '34px 18px 30px' }}>
+      <section className="lp-hero-sec" style={{ position: 'relative', padding: heroWide ? '76px 40px 64px' : '34px 18px 30px' }}>
         <BeamsBackground intensity="medium" />
         <div className="lp-hero-glow" />
-        <div style={{
+        <div className="lp-hero-wrap" style={{
           position: 'relative', zIndex: 2, display: 'flex',
           flexDirection: heroWide ? 'row' : 'column', gap: heroWide ? 56 : 30,
         }}>
-          <div style={{ flex: heroWide ? 1 : undefined }}>
+          <div className="lp-hero-col" style={{ flex: heroWide ? 1 : undefined }}>
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 8, border: '1px solid var(--bdr)',
               background: 'var(--bg1)', padding: '7px 13px',
@@ -362,14 +362,14 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
               {dict.hero.h1Line1}<br />
               <span style={{ color: 'var(--accent)' }}>{dict.hero.h1Line2}</span>
             </h1>
-            <p style={{
+            <p className="lp-hero-sub" style={{
               fontSize: heroWide ? 17 : 14.5, lineHeight: 1.6, color: 'var(--txt2)',
               marginTop: heroWide ? 22 : 14, maxWidth: heroWide ? 600 : undefined,
             }}>
               {dict.hero.sub}
             </p>
-            <div style={{ display: 'flex', flexDirection: heroWide ? 'row' : 'column', gap: heroWide ? 12 : 9, marginTop: heroWide ? 30 : 22 }}>
-              <Link href="/login?signup=1" style={{
+            <div className="lp-hero-cta" style={{ display: 'flex', flexDirection: heroWide ? 'row' : 'column', gap: heroWide ? 12 : 9, marginTop: heroWide ? 30 : 22 }}>
+              <Link href="/login?signup=1" className="lp-hero-btn lp-hero-btn-a" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 height: heroWide ? 50 : 48, padding: heroWide ? '0 30px' : undefined,
                 background: 'var(--accent)', color: 'var(--bg0)', fontFamily: 'var(--font-mono), monospace',
@@ -378,7 +378,7 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
               }}>
                 {dict.hero.ctaPrimary}
               </Link>
-              <Link href="/briefing" style={{
+              <Link href="/briefing" className="lp-hero-btn lp-hero-btn-b" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 height: heroWide ? 50 : 46, padding: heroWide ? '0 26px' : undefined,
                 border: '1px solid var(--border-input)', color: 'var(--txt2)', fontFamily: 'var(--font-mono), monospace',
@@ -392,9 +392,9 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
             </p>
 
             {heroWide ? (
-              <div style={{ display: 'flex', marginTop: 40, borderTop: '1px solid var(--bdr)', paddingTop: 24 }}>
+              <div className="lp-hero-stats-wide" style={{ display: 'flex', marginTop: 40, borderTop: '1px solid var(--bdr)', paddingTop: 24 }}>
                 {[dict.hero.stats.coins, dict.hero.stats.ai, dict.hero.stats.telegram].map((label, i) => (
-                  <div key={label} style={{ paddingRight: 38, marginRight: 38, borderRight: i < 2 ? '1px solid var(--bdr)' : undefined }}>
+                  <div key={label} className="lp-hero-stat" style={{ paddingRight: 38, marginRight: 38, borderRight: i < 2 ? '1px solid var(--bdr)' : undefined }}>
                     <div style={{ fontSize: 26, fontFamily: 'var(--font-mono), monospace', fontWeight: 700, color: 'var(--txt)', lineHeight: 1 }}>
                       {['50', 'AI', 'Auto'][i]}
                     </div>
