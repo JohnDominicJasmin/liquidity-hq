@@ -50,6 +50,11 @@ test('CF4. levels and R:R: entry = breakout close, stop = last swing inside, tar
   assert.equal(c.entry, up.candles[last].close); assert.equal(c.stop, up.lastSwingInside!.price); assert.ok((c.stop as number) < (c.entry as number), 'a BUY stop sits below entry');
   assert.equal(c.target, zones[0].low, 'the NEAREST zone above, not the far one and not the one below');
   assert.ok(Math.abs((c.rr as number) - ((c.target as number) - (c.entry as number)) / ((c.entry as number) - (c.stop as number))) < 1e-12);
+  /* PM 2026-11-17: a level closer than 1x the risk is skipped; the first level at >= 1R is the target; none = no target, no R:R. */
+  const risk = bc - (c.stop as number), near = { low: bc + 0.4 * risk, high: bc + 0.5 * risk }, far = { low: bc + 1.5 * risk, high: bc + 1.6 * risk }, edge = { low: bc + 1.0 * risk, high: bc + 1.1 * risk };
+  assert.equal(channelCall(up, 'falling', [near, far]).target, far.low, 'a level at 0.4R was taken as the target: it must be skipped for the first level at >= 1R');
+  assert.equal(channelCall(up, 'falling', [near]).target, null, 'only a sub-1R level exists: no target'); assert.equal(channelCall(up, 'falling', [near]).rr, null);
+  assert.equal(channelCall(up, 'falling', [edge]).target, edge.low, 'a level at exactly 1R is allowed'); assert.ok(Math.abs((channelCall(up, 'falling', [edge]).rr as number) - 1) < 1e-9);
   const none = channelCall(up, 'falling', [{ low: bc * 0.9, high: bc * 0.91 }]);
   assert.equal(none.target, null); assert.equal(none.rr, null);
   const dn = channelCandles({ dir: 'rising', breakout: 'down' }), dc = dn.breakoutClose as number, d = channelCall(dn, 'rising', [{ low: dc * 0.88, high: dc * 0.9 }]);
