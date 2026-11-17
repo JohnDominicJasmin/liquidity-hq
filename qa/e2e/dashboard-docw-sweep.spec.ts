@@ -6,6 +6,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 import { overflowAttribution } from './_overflow';
 import { settleForShot } from './_settle';
+import { mkdirSync } from 'node:fs';
 
 const LANGS = ['en', 'ru', 'ko', 'zh', 'ar'] as const; const WIDTHS = [320, 360, 390];
 
@@ -32,6 +33,8 @@ test.describe('/dashboard width sweep (signed in)', () => {
       await settleForShot(page, `docw-${lang}-${width}`);
       const m = await page.evaluate(`(${overflowAttribution.toString()})()`) as { docW: number; winW: number; contributors: string[] };
       console.log(`[CELL] DOCW ${lang} ${width}: docW=${m.docW}/${m.winW} contributors=${JSON.stringify(m.contributors)}`);
+      /* the Setup card with its two signal lines, for the visual check (PM 2026-11-17): a clip around the first .edge-card-signal, no account chrome in it */
+      const sig = page.locator('.edge-card-signal').first(); if (await sig.count()) { const b = await sig.boundingBox(); if (b) { mkdirSync('qa/.shots', { recursive: true }); await page.screenshot({ path: `qa/.shots/dash-setup-card-${lang}-${width}.png`, clip: { x: 0, y: Math.max(0, b.y - 90), width, height: 260 } }).catch(() => {}); const lines = await page.locator('.edge-card-signal').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return Math.round(r.left) + ',' + Math.round(r.top) + ',' + Math.round(r.width) + 'x' + Math.round(r.height); })); console.log(`[CELL] DOCW ${lang} ${width} signal boxes (left,top,WxH)=${JSON.stringify(lines)}`); } }
       expect(m.docW, `/dashboard in ${lang} at ${width} scrolls sideways: ${m.contributors.slice(0, 3).join(' | ')}`).toBeLessThanOrEqual(m.winW);
     } finally { await ctx.close(); }
   });
