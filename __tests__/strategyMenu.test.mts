@@ -38,7 +38,7 @@ test('M2a. chip map: every chip a strategy turns on is a chip that DRAWS, and on
 });
 
 test('M3a. the call box reserves ONE height for its CHANGING part (the .strat-call-dyn section) at every width, holds the loading / unavailable / verdict / reason / levels parts inside it, and carries every test id the browser cells read', () => {
-  /* RE-ANCHORED for the compact panel (#2500): the reserve is verdict + a reason clamped to TWO lines + ONE levels line, a single calc() at every width. The old per-width bands (193 / 134 / 155 px) are gone, with their floor assertions. */
+  /* RE-ANCHORED for the compact panel (#2500): the reserve is verdict (one line) + a reason clamped to ONE line + ONE levels line, a single calc() at every width. The old per-width bands (193 / 134 / 155 px) are gone, with their floor assertions. */
   const s = read('components/StrategyCallBox.tsx');
   const open = s.indexOf('className="strat-call-dyn"'); assert.ok(open > 0, 'the changing part is no longer in a .strat-call-dyn section');
   const close = s.indexOf("<div style={{ display: 'flex', alignItems: open"); assert.ok(close > open, 'the description row (one line, Expand / Collapse) is no longer after the changing part');
@@ -51,10 +51,10 @@ test('M3a. the call box reserves ONE height for its CHANGING part (the .strat-ca
   assert.ok(/<p className=\{open \? undefined : 'strat-call-levels'\}/.test(dyn), 'the wrong-if / watching levels are not ONE always-visible line (strat-call-levels)');
   assert.ok(/className=\{open \? undefined : 'strat-call-reason-clamp'\}/.test(dyn), 'the reason is not clamped while closed');
   const css = read('app/globals.css');
-  assert.ok(/:root\s*\{\s*--strat-call-dyn:\s*calc\(/.test(css), 'the one reserve value (--strat-call-dyn) is gone from globals.css: the call arriving can push the panels again');
+  assert.ok(/:root\s*\{\s*--strat-call-dyn:\s*calc\(var\(--fs-label\) \* 1\.3 \+ 4px \+ var\(--fs-label\) \* 1\.4 \+ 4px \+ var\(--fs-caption\) \* 1\.35\)/.test(css), 'the reserve formula is not verdict (fs-label*1.3) + 4px + one reason line (fs-label*1.4) + 4px + levels line (fs-caption*1.35); the one reserve value (--strat-call-dyn) is gone from globals.css: the call arriving can push the panels again');
   assert.ok(/^\.strat-call-dyn\s*\{\s*min-height:\s*var\(--strat-call-dyn\)/m.test(css), 'the call block no longer reserves --strat-call-dyn');
   assert.equal(/@media[^{]*\{\s*\.strat-call-dyn\s*\{\s*min-height/.test(css), false, 'a per-width min-height for the call block is back: the reserve must be ONE value at every width');
-  assert.ok(/\.strat-call-reason-clamp\s*\{[^}]*-webkit-line-clamp:\s*2/.test(css), 'the reason is no longer clamped to two lines (the reserve assumes it)');
+  assert.ok(/\.strat-call-reason-clamp\s*\{[^}]*-webkit-line-clamp:\s*1/.test(css), 'the reason is no longer clamped to ONE line (the reserve assumes it: verdict + 1 reason line + levels line)');
   assert.ok(/\.strat-call-levels\s*\{[^}]*white-space:\s*nowrap[^}]*text-overflow:\s*ellipsis/.test(css), 'the levels line is no longer one ellipsized line');
   assert.ok(/html\[data-strat="1"\]\s+\.strat-call-host\s*\{\s*min-height:\s*calc\([^)]*var\(--strat-call-dyn\)/.test(css), 'the cached-strategy host reserve no longer builds on --strat-call-dyn');
   /* THE REAL HEIGHT IS GATED IN A BROWSER: qa/e2e/strategy-panel-compact.spec.ts (panel height at a 288 and 360 rail) and qa/e2e/cls-arena-gate.spec.ts. Here only the rules' existence is pinned. */
