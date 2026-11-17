@@ -122,6 +122,7 @@ function testPlan(plan: 'free' | 'pro', rows: PlanFeature[], expectedShape: Arra
    PM). Free is nine rows now; P8 below keeps the removed claim from coming back in any locale. */
 testPlan('free', FREE_PLAN_FEATURES, [
   ['dashboard', true], ['briefing', true], ['news', true], ['scanner', true], ['charts', true],
+  ['strategySignals', true], ['layersMajors', true],   /* #2517: Free +2 rows (the strategy signals and the chart layers, majors only) */
   ['aiAnalyses', true], ['aiChat', true],
   ['telegram', false], ['priceAlerts', false],
 ], ['aiAnalyses', 'aiChat'], {
@@ -130,7 +131,8 @@ testPlan('free', FREE_PLAN_FEATURES, [
 });
 
 testPlan('pro', PRO_PLAN_FEATURES, [
-  ['everythingFree', true], ['fastTimeframes', true], ['confluence', true], ['onchainMacro', true],
+  ['everythingFree', true], ['fastTimeframes', true], ['strategiesAll', true], ['channelBox', true], ['layersAll', true], ['aiSettings', true],   /* #2517: Pro +4 rows (all strategies, the channel box, all layers, AI uses your settings) */
+  ['confluence', true], ['onchainMacro', true],
   ['telegram', true], ['unlimitedAlerts', true],
   ['aiAnalyses', true], ['aiChatSearch', true], ['toolPool', true],
 ], ['aiAnalyses', 'aiChatSearch', 'toolPool'], {

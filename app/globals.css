@@ -3627,6 +3627,17 @@ html[data-theme="light"] { background: var(--bg0); }
 @media (max-width: 980px) {
   .arena-ws { grid-template-columns: 1fr; }
 }
+/* PHONES: the Strategy panel sits RIGHT UNDER THE CHART (owner: "I have to scroll to modify the strategy"). The chart column and the rail stop being boxes (display: contents) so their children
+   can be ordered together: chart and its notices (-a), then the Strategy panel, then the rest of the chart column (-b: read result, Anti-chop, EMA ribbon, Multi-TF), then the rest of the rail.
+   Desktop is unchanged: the wrappers are plain blocks there. */
+.arena-ws-a, .arena-ws-b, .arena-ws-strat { min-width: 0; }
+@media (max-width: 768px) {
+  .arena-ws-chart, .arena-ws-rail { display: contents; }
+  .arena-ws-a { order: 1; }
+  .arena-ws-strat { order: 2; }
+  .arena-ws-b { order: 3; }
+  .arena-ws-rail > :not(.arena-ws-strat) { order: 4; }
+}
 
 /* ── TRADE JOURNAL ──────────────────────────────────────────────────────── */
 .tj-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
@@ -4032,13 +4043,13 @@ html[data-theme="light"] { background: var(--bg0); }
 .strat-desc-chevron { transition: transform 150ms; }
 .strat-desc-chevron[data-open="true"] { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .strat-desc-chevron { transition: none; } }
-.strat-call-dyn { min-height: 201px; }
-@media (max-width: 980px) { .strat-call-dyn { min-height: 142px; } }
-@media (max-width: 640px) { .strat-call-dyn { min-height: 163px; } }
-/* NARROW PHONES (QA run 43690087568, the tallest possible call, dyn only): 360 px en 155, ko 155, ru 175, zh 155; 320 px en 175, ko 193, ru 213, zh 175. So 163 is 12 px short at 360 and 50 px short at 320 in
-   Russian. Each is the maximum + 8: 183 up to 380 px, 221 up to 340 px. (390 to 640 px stays 163: worst 155.) */
-@media (max-width: 380px) { .strat-call-dyn { min-height: 183px; } }
-@media (max-width: 340px) { .strat-call-dyn { min-height: 221px; } }
+/* THE CALL BLOCK'S RESERVE IS NOW ONE FIXED SIZE AT EVERY WIDTH (compact Strategy panel, owner request): the closed call is the verdict line, the reason clamped to TWO lines (.strat-call-reason-clamp) and ONE
+   always-visible levels line ("Wrong if ... · Watching ...", ellipsis if long: .strat-call-levels), so its height does not depend on the width or the language. Only the liquidity note waits for the chevron (the user's own
+   action, not a shift). The old per-width numbers (142 to 221 px) were the tallest UNCLAMPED call; they are gone with the clamp. verdict = fs-label x 1.3, reason = fs-label x 1.4 x 2, levels = fs-caption x 1.35, gaps 4 + 4. */
+:root { --strat-call-dyn: calc(var(--fs-label) * 1.3 + 4px + var(--fs-label) * 1.4 + 4px + var(--fs-caption) * 1.35); }
+.strat-call-dyn { min-height: var(--strat-call-dyn); }
+.strat-call-reason-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; line-clamp: 1; overflow: hidden; }
+.strat-call-levels { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* MEASURED (QA, deployed qa 5b9d1ad, run 43687675270: the tallest possible call, every reason of every strategy at a 7-digit price, en/ru/ko/zh): above 980 px ru 193 (ema_stack BUY), 981-1280; 641-980 px ru 134 at
    641 (114 from 768); at 390 px 155 in every language. Each reserve is that maximum + 8 px. Widths 391-640 (text wraps less) and 1281+ were not measured. */
 /* PROVISIONAL (PM, 2026-11-15): the call block is now verdict + reason at body size + invalidation + liquidity note only (about 19 + 102 + 36 + gaps 18 = 175 px); these three numbers are an
@@ -4046,6 +4057,12 @@ html[data-theme="light"] { background: var(--bg0); }
 /* The usage meter's slot (components/UsageMeter.tsx): the margin the meter always had plus a FIXED height. The meter is one line (its reset text ellipsizes), so 43 px (QA run 43649222730) holds on a
    phone and in every language. */
 .usage-meter-slot { margin: 2px 0 10px; height: 43px; }
+/* At 1024 px and wider the counts live on the buttons' row (UsageInline) and the separate bar is gone (PM, #2500 run row at 1280x800). */
+.usage-inline { display: none; }
+@media (min-width: 1024px) {
+  .usage-meter-host { display: none; }
+  .usage-inline { display: block !important; }
+}
 /* THE USAGE METER ON A PHONE (QA, deployed qa 5b9d1ad: the Free pill was pushed past the row's right edge at 390 px in Korean and Russian, because the two stat blocks do not shrink). At 480 px and under the
    reset time is dropped (the numbers and the Upgrade pill matter more), the stat blocks may narrow to 80 px and the gap is 12 px: 2 x 80 + 24 + the widest pill (108, Russian) = 292 of the 322 px row. */
 @media (max-width: 480px) {
@@ -4057,11 +4074,8 @@ html[data-theme="light"] { background: var(--bg0); }
    + the description row + the note + the gaps + its 10 px top margin, about the block + 55 px; a little more here (+ 10 px), so the saved strategy arriving from settings fills the band instead of inserting it.
    PROVISIONAL until QA's gate measures the real box per width. Without a cached strategy there is no reserve (picking one is the visitor's own action). */
 .strat-call-host { display: flow-root; }
-html[data-strat="1"] .strat-call-host { min-height: 266px; }
-@media (max-width: 980px) { html[data-strat="1"] .strat-call-host { min-height: 207px; } }
-@media (max-width: 640px) { html[data-strat="1"] .strat-call-host { min-height: 228px; } }
-@media (max-width: 380px) { html[data-strat="1"] .strat-call-host { min-height: 248px; } }
-@media (max-width: 340px) { html[data-strat="1"] .strat-call-host { min-height: 286px; } }
+/* The box = top margin 8 + the call block + gap 4 + the explainer row (one caption line) + gap 4 + the caption (caption x 1.35). The same at every width because the call block is. PROVISIONAL until QA's gate measures it. */
+html[data-strat="1"] .strat-call-host { min-height: calc(8px + var(--strat-call-dyn) + 4px + var(--fs-caption) * 1.2); }
 /* The Arena's Set Alert placeholder while the session resolves: drawn (disabled) only for a visitor with a stored session, so the button row has its final shape from the first paint. */
 .arena-set-alert-pending { display: none; }
 html[data-sess="1"] .arena-set-alert-pending { display: revert; }
@@ -9436,6 +9450,55 @@ html[data-theme="light"] { color-scheme: light; }
 .edge-grid-aligned > .edge-card > .edge-card-signals { grid-row: 3; grid-column: 1; min-width: 0; }
 .edge-card-signal { min-width: 0; overflow-wrap: anywhere; }
 
+/* ── COMPACT STRATEGY PANEL (owner: "too tall, I have to scroll to adjust the strategy"; target <= 560 px at a 360 px rail). Refinement only: same tokens, fonts and colours. ── */
+[data-design="terminal"] .strat-sect { padding: 8px 9px; }
+[data-design="terminal"] .strat-lbl { margin-bottom: 6px; gap: 8px; }
+[data-design="terminal"] .strat-lbl > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-design="terminal"] .strat-count { flex: none; }
+[data-design="terminal"] .strat-ind-note { margin: 0 0 6px; line-height: 1.35; }
+/* INDICATORS: always two columns down to a 280 px rail; one column only below that. A chip is the check box and the NAME on one line (the blurb is its title and accessible description). */
+[data-design="terminal"] .strat-ind-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+@container strat-ind (max-width: 279px) {
+  [data-design="terminal"] .strat-ind-grid { grid-template-columns: minmax(0, 1fr); }
+}
+[data-design="terminal"] .strat-ind-chip { min-height: 36px; padding: 3px 7px; gap: 6px; }
+[data-design="terminal"] .strat-ind-box { width: 12px; height: 12px; }
+[data-design="terminal"] .strat-ind-text { flex-direction: row; gap: 0; }
+/* THE NAME MAY WRAP TO TWO LINES (PM: nothing clipped in any language); 36 px holds two lines at this size. */
+[data-design="terminal"] .strat-ind-name { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; font-size: 11.5px; line-height: 1.15; }
+/* FREE: one text link instead of a boxed callout. */
+.strat-pro-line {
+  display: inline-flex; align-items: center; min-height: 24px; margin-top: 4px;
+  font-size: var(--fs-caption); line-height: 1.35; font-weight: 700; color: var(--accent); text-decoration: underline;
+}
+/* CHART LAYERS: the three always-on layers are one caption; the two toggles are compact switch rows, two across when there is room (the right padding keeps them clear of the Ask AI button, #1185). */
+[data-design="terminal"] .strat-layers { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); column-gap: 10px; row-gap: 0; }
+[data-design="terminal"] .strat-layer { min-height: 28px; border-bottom: 0; gap: 8px; }
+[data-design="terminal"] .strat-layer-name { font-size: 11.5px; line-height: 1.25; min-width: 0; }
+[data-design="terminal"] .strat-switch { width: 32px; height: 18px; border-radius: 9px; }
+[data-design="terminal"] .strat-switch::after { content: ""; position: absolute; inset: -6px -4px; }
+[data-design="terminal"] .strat-switch-knob { top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 6px; }
+[data-design="terminal"] .strat-switch.on .strat-switch-knob { left: 16px; }
+/* CHART LAYERS as four small toggle chips in one row (owner, 2026-11-17: EMA ribbon, RSI, S/R, Liq clusters). */
+.strat-layers { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 4px; padding-right: 0; }
+[data-design="terminal"] .strat-layers { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 4px; padding-right: 0; }
+.strat-layer-chip { min-height: 24px; min-width: 0; padding: 2px 6px; border-radius: 6px; border: 0.5px solid var(--bdr); background: transparent; color: var(--txt2); font: inherit; font-size: 11px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.strat-layer-chip.on { background: var(--accent-bg); border-color: var(--accent-bdr); color: var(--accent); }
+.strat-layer-chip:disabled { opacity: 0.45; cursor: default; }
+.strat-layer-chip:focus-visible { outline: 2px solid var(--txt); outline-offset: 2px; }
+/* Compact panel, second pass (PM review of QA run 44074697943): the settings link, chip name line height, two-across layer toggles. */
+.strat-edit-link { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; margin-top: 4px; padding: 0; background: none; border: none; color: var(--accent); font-size: var(--fs-caption); font-weight: 700; cursor: pointer; font-family: inherit; }
+.strat-edit-chevron { transition: transform 150ms; }
+.strat-edit-chevron[data-open="true"] { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .strat-edit-chevron { transition: none; } }
+[data-design="terminal"] .strat-ind-text { align-items: center; }
+[data-design="terminal"] .strat-ind-name { line-height: 1.25; padding: 1px 0; font-size: 11.5px; }
+[data-design="terminal"] .strat-layers { grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); }
+/* Third pass (PM review of QA run 44085095349, 1280x800 Pro: the run row ended 36 px below the fold): the verdict sentence is ONE line (full text in its title), the call block reserves verdict + one line + the levels line, sections are 6 px, and a chip name has an 18 px line box so glyphs are not cut. */
+[data-design="terminal"] .strat-sect { padding: 6px 9px; }
+[data-design="terminal"] .strat-ind-name { line-height: 18px; padding: 0; }
+/* A SIGNED-IN VISITOR WITH NO LOCALLY CACHED STRATEGY (a new device, cleared storage) still gets the call box when the saved settings arrive from the server, which pushed the workspace 141 px down at settings load (QA run 44085095349, 360 RU: CLS 0.105). The same closed-box reserve applies for any stored session (<html data-sess="1">) until the settings say there is no strategy (data-strat-none, set by StrategyPanel). */
+html[data-sess="1"]:not([data-strat]):not([data-strat-none]) .strat-call-host { min-height: calc(8px + var(--strat-call-dyn) + 4px + var(--fs-caption) * 1.2); }
 /* ── UI batch (PM audit 2026-11-17) ── */
 /* Markets: the short form of the Signal text shows on a phone, the full text elsewhere. */
 .mkt-sig-short { display: none; }
@@ -9490,3 +9553,10 @@ html[data-theme="light"] { color-scheme: light; }
 .csb2-grade-legend { font-size: var(--fs-caption); color: var(--txt3); line-height: 1.5; padding: 2px 2px 6px; }
 /* /correlation: every read failed (#1185 reliability); a constant belongs here, not inline (terminal-only constants ratchet, #663). */
 .corr-all-failed { font-size: var(--fs-label); color: var(--txt2); padding: 4px 0; }
+
+/* THE RUN ROW KEEPS ONE HEIGHT IN EVERY LANGUAGE ON A PHONE (#2500, QA run 44129793911, Russian at 360 px: the row was 80 px in English and the Russian labels arrived at ~440 ms and wrapped it to 165 px, pushing the chart down 103 px = CLS 0.136 / 0.271). Two columns, each button one clipped line, so the labels' language does not change the row's height. */
+@media (max-width: 639px) {
+  .arena-run-row { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .arena-run-row > span { grid-column: 1 / -1; }
+  .arena-run-row > button { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-left: 8px; padding-right: 8px; }
+}

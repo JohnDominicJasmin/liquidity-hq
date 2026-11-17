@@ -114,8 +114,9 @@ test('M2. every copy equals the oracle on 30 random series, for the periods the 
   }
 });
 
-test('M3. the EMA smoothing factor 2 / (N + 1) is computed in exactly the four files tested above', () => {
-  const files = ['app/api/signal-accuracy/route.ts', 'components/KLineProChart.tsx', 'lib/grok.ts', 'lib/strategyCore.ts'];
+test('M3. the EMA smoothing factor 2 / (N + 1) is computed in exactly the five files listed (four tested against the oracle + emaSeeded)', () => {
+  /* lib/strategies/shared.ts emaSeeded (#2516): the phase-1 strategies' EMA, seeded with the FIRST close (the oracle's stated choice in qa/fixtures/strategyFixtures.ts emaSeries), a documented fifth copy */
+  const files = ['app/api/signal-accuracy/route.ts', 'components/KLineProChart.tsx', 'lib/grok.ts', 'lib/strategies/shared.ts', 'lib/strategyCore.ts'];
   const K = /=\s*2\s*\/\s*\(\s*[A-Za-z_]\w*\s*\+\s*1\s*\)/;
   assert.match('const k = 2 / (period + 1);', K, 'the detector misses the known form');
   const found: string[] = [];
