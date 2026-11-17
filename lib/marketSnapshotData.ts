@@ -88,7 +88,8 @@ const CONCURRENCY = 12;
 const SPOT_HOSTS    = ['https://api.binance.com', 'https://api1.binance.com', 'https://api2.binance.com'];
 const FUTURES_HOSTS = ['https://fapi.binance.com', 'https://fapi1.binance.com', 'https://fapi2.binance.com'];
 
-const SYMS = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
+/* HYPE IS IN THIS LIST AGAIN (owner-reported 2026-11-17: VWAP/RSI14/POC/VAH/VAL/MA20 'Unavailable' on HYPE; `klines` held 49 coins and HYPE was the one missing). It was excluded by name with no recorded reason, on the premise that HYPE has no Binance perp, which lib/coins.ts shows false (HYPEUSDT is TRADING on futures and spot). A coin in this list that Binance cannot answer for is not lost: it counts as missing and the per-coin Bybit fallback below asks for it (OWED_COINS). */
+const SYMS = Object.entries(BINANCE_SYMS);
 
 /* TRACKED COINS THIS SNAPSHOT OWES AN ANSWER FOR AND CANNOT ASK BINANCE ABOUT.
  *
@@ -115,12 +116,7 @@ const SYMS = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
  * Bybit symbol, so there is nothing to ask. It is served from Binance and measured working
  * (price 0.1495 on prod, 2026-11-06).
  *
- * `hype` is excluded from `SYMS` by name on the line above and so is not in `COINS`-minus-Binance
- * either, since it HAS a Binance symbol. Its exclusion carries no recorded reason and the
- * justification written elsewhere ("hype has no Binance perp") is false - HYPEUSDT is TRADING on
- * both Binance futures and spot as of 2026-11-06. Left alone here and reported separately rather
- * than quietly widened, because removing a filter whose purpose nobody has established is how a
- * fix becomes an incident. */
+ * `hype` WAS excluded from `SYMS` by name, with no recorded reason, on the false premise that it has no Binance perp (HYPEUSDT is TRADING on both futures and spot). That exclusion is gone (#2513): hype is in `SYMS` like any other Binance coin, and the Bybit fallback below covers it when Binance has nothing. */
 const BYBIT_ONLY_COINS: string[] = COINS.filter(c => !(c in BINANCE_SYMS) && Boolean(BYBIT_SYMS[c]));
 
 /** Every coin either pass owes an answer for - the Binance-reachable ones plus the Bybit-only ones. */
@@ -137,7 +133,7 @@ const OWED_COINS: string[] = [...SYMS.map(([c]) => c), ...BYBIT_ONLY_COINS];
  *
  * The futures fallback below deliberately keeps using `SYMS`: SPX's futures listing is real, so
  * excluding it there would lose a working source. */
-const SPOT_SYMS = Object.entries(BINANCE_SPOT_SYMS).filter(([c]) => c !== 'hype');
+const SPOT_SYMS = Object.entries(BINANCE_SPOT_SYMS);
 
 interface TickerEntry { price: number; change: number; high: number; low: number; vol24: number }
 interface LsrEntry {
