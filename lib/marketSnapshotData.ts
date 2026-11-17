@@ -443,6 +443,14 @@ export interface MarketSnapshot {
  * Returns a result rather than throwing so the route keeps owning its status codes, and so the
  * #1631 gather can decide for itself what an unavailable section means in a prompt.
  */
+/* THE OVERALL DEADLINE ON A COLD SNAPSHOT (reliability leftover, PM 2026-11-17). A cold cache blocks its first caller until the whole fan-out has finished, and with ~45 symbols per section a slow or banned host made that minutes, not seconds, with the visitor's request held the whole time. Each section now waits at most this long for ITS build; past it the caller gets what the other sections have (the section is named in `partial`), or a failure when none answered, and the build is left running to fill the cache for the next caller (cachedRefresh shares the in-flight promise). Long enough for a healthy cold fill (measured 5-8 s), short enough that a stuck host is answered. */
+export const COLD_SNAPSHOT_DEADLINE_MS = 20_000;
+function withinDeadline<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const late = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`snapshot section not ready after ${ms} ms`)), ms); });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+
 export async function marketSnapshotData(): Promise<
   { ok: true; data: MarketSnapshot } | { ok: false; reason: unknown }
 > {
@@ -451,9 +459,9 @@ export async function marketSnapshotData(): Promise<
      whatever arrives and leaves the rest at its previous value, which is how the per-coin version
      behaved when one symbol failed. */
   const [t, k, l] = await Promise.allSettled([
-    cachedRefresh('mkt:ticker', TICKER_TTL, STALE_WHILE_REFRESH_MS, buildTicker),
-    cachedRefresh('mkt:klines', KLINES_TTL, STALE_WHILE_REFRESH_MS, buildKlines),
-    cachedRefresh('mkt:lsr',    LSR_TTL,    STALE_WHILE_REFRESH_MS, buildLsr),
+    withinDeadline(cachedRefresh('mkt:ticker', TICKER_TTL, STALE_WHILE_REFRESH_MS, buildTicker), COLD_SNAPSHOT_DEADLINE_MS),
+    withinDeadline(cachedRefresh('mkt:klines', KLINES_TTL, STALE_WHILE_REFRESH_MS, buildKlines), COLD_SNAPSHOT_DEADLINE_MS),
+    withinDeadline(cachedRefresh('mkt:lsr',    LSR_TTL,    STALE_WHILE_REFRESH_MS, buildLsr),    COLD_SNAPSHOT_DEADLINE_MS),
   ]);
 
   if (t.status === 'rejected' && k.status === 'rejected' && l.status === 'rejected') {

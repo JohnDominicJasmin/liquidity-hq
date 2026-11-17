@@ -156,18 +156,24 @@ test('L1. all 16 new hint keys are registered and have a non-empty English defau
   }
 });
 
-/** The en rows a migration writes, from its live block or its commented dev block. */
+/** The en rows a migration writes, from its live (prod) block or its dev block. Two formats exist: the older one keeps the dev block COMMENTED OUT ("-- ('KEY','en','...')"), the newer one (20261117 onwards) writes the dev block as a second live
+ *  `insert into lhq_dev_labels` statement. Both are read: for the dev block, a live dev statement wins when the file has one, else the commented rows; the prod block is everything before the dev statement. */
 function migrationRows(file: string, commented: boolean): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const raw of read(`supabase/migrations/${file}`).split('\n')) {
+  const lines = read(`supabase/migrations/${file}`).split(/\r?\n/);
+  const devAt = lines.findIndex((l) => /^insert into lhq_dev_labels/i.test(l.trim()));
+  const hasLiveDev = devAt >= 0;
+  lines.forEach((raw, idx) => {
     const line = raw.trim();
     const isCommentRow = line.startsWith("-- ('");
     const isLiveRow = line.startsWith("('");
-    if (commented ? !isCommentRow : !isLiveRow) continue;
-    const bare = commented ? line.slice(3) : line;
+    const wantComment = commented && !hasLiveDev;
+    const wantLive = !commented ? (!hasLiveDev || idx < devAt) : (hasLiveDev && idx > devAt);
+    if (wantComment ? !isCommentRow : (wantLive ? !isLiveRow : true)) return;
+    const bare = wantComment ? line.slice(3) : line;
     const parts = bare.replace(/^\('/, '').replace(/'\)[,;]?\s*$/, '').split("','");
     if (parts.length === 3 && parts[1] === 'en') out[parts[0]] = parts[2].split("''").join("'");
-  }
+  });
   return out;
 }
 

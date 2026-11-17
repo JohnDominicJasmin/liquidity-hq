@@ -108,7 +108,7 @@ const BASELINE: Record<string, number> = {
      room to regress into. */
   'components/DashboardTerminal.tsx': 15,
   'components/FundingTerminal.tsx': 34,
-  'components/LandingTerminal.tsx': 169,
+  'components/LandingTerminal.tsx': 163,
   'components/LiqTerminal.tsx': 56,
   /* 33 -> 30 with #943: the coin name became a <button> and its three
      inline typography values moved to .mkt-row-btn in globals.css.

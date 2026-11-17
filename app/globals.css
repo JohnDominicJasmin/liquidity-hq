@@ -1342,7 +1342,7 @@ body[data-rpm-level="high"]::before {
   padding: 1px 6px; margin-left: 10px; border-radius: 3px;
   white-space: nowrap; line-height: 14px;
 }
-.ticker-red    .ticker-badge { background: rgba(248,113,113,0.14); color: rgba(252,165,165,0.9); }
+.ticker-red    .ticker-badge { background: rgba(248,113,113,0.14); color: #fee2e2; }
 .ticker-amber  .ticker-badge { background: rgba(251,191,36,0.14); color: rgba(253,211,77,0.9); }
 .ticker-purple .ticker-badge { background: rgba(90,163,255,0.14); color: rgba(90,163,255,0.9); }
 
@@ -1383,7 +1383,8 @@ body[data-rpm-level="high"]::before {
 /* WCAG 2.2.2 - a mechanism to pause the auto-scroll (hover or keyboard focus),
    alongside the dismiss (hide) control above. */
 .news-ticker:hover .ticker-content,
-.news-ticker:focus-within .ticker-content { animation-play-state: paused; }
+.news-ticker:focus-within .ticker-content,
+.news-ticker.ticker-paused .ticker-content { animation-play-state: paused; }
 
 /* Respect reduced-motion: stop the marquee entirely and let the row be
    scrolled by hand instead (scrollbars are globally hidden). */
@@ -1979,7 +1980,7 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
    states and reads as an aggressive, saturated dot on a count badge
    (especially light theme's #B91C1C + black text). Same softened tone in
    both themes instead of swinging harsh-light/soft-dark. */
-.ntab-count { font-size: var(--fs-data); font-weight: 700; padding: 1px 5px; border-radius: 10px; background: #e2685f; color: #fff; line-height: 1.4; }
+.ntab-count { font-size: var(--fs-data); font-weight: 700; padding: 1px 5px; border-radius: 10px; background: #c0392b; color: #fff; line-height: 1.4; }
 
 /* ── NEWS FEED ── */
 .nfeed { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: start; }
@@ -3847,8 +3848,8 @@ html[data-theme="light"] { background: var(--bg0); }
 .wf-row-side-buy  { color: var(--green); }
 .wf-row-side-sell { color: var(--red); }
 .wf-row-usd     { font-size: var(--fs-label); font-weight: 700; font-variant-numeric: tabular-nums; }
-.wf-row-price   { font-size: var(--fs-data); color: var(--txt3); font-variant-numeric: tabular-nums; }
-.wf-row-time    { font-size: var(--fs-caption); color: var(--txt3); text-align: right; font-variant-numeric: tabular-nums; }
+.wf-row-price   { font-size: var(--fs-data); color: #9aa1b8; /* dark: --txt3 was 4.46:1 on the row; light override below */ font-variant-numeric: tabular-nums; }
+.wf-row-time    { font-size: var(--fs-caption); color: #9aa1b8; text-align: right; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 480px) {
   .wf-row         { grid-template-columns: 38px 70px 70px 1fr 46px; padding: 7px 10px; gap: 2px; }
@@ -4743,9 +4744,10 @@ html[data-sess="1"] .usage-meter-host { min-height: 55px; }
    dark-mode 0.14-alpha translucent tint (meant to sit on a near-black page) -
    on the light ticker's white background that read as barely-visible white-
    on-pale-pink. Solid backgrounds restore real contrast. */
-[data-theme="light"] .ticker-red    .ticker-badge { background: var(--red);    color: #fff; }
+[data-theme="light"] .ticker-red    .ticker-badge { background: #b91c1c;       color: #fff; }
 [data-theme="light"] .ticker-amber  .ticker-badge { background: var(--amber);  color: #fff; }
 [data-theme="light"] .ticker-purple .ticker-badge { background: var(--purple); color: #fff; }
+[data-theme="light"] .wf-row-price, [data-theme="light"] .wf-row-time { color: var(--txt3); }
 [data-theme="light"] .ticker-content span               { color: var(--txt2); }
 [data-theme="light"] .ticker-red    .ticker-content span { color: var(--red); }
 [data-theme="light"] .ticker-amber  .ticker-content span { color: var(--amber); }
@@ -9434,6 +9436,17 @@ html[data-theme="light"] { color-scheme: light; }
 .edge-grid-aligned > .edge-card > .edge-card-signals { grid-row: 3; grid-column: 1; min-width: 0; }
 .edge-card-signal { min-width: 0; overflow-wrap: anywhere; }
 
+/* ── UI batch (PM audit 2026-11-17) ── */
+/* Markets: the short form of the Signal text shows on a phone, the full text elsewhere. */
+.mkt-sig-short { display: none; }
+@media (max-width: 480px) {
+  .mkt-sig-full { display: none; }
+  .mkt-sig-short { display: inline; }
+}
+/* Ask AI on the Arena, on a phone: the floating button is hidden. It covered the chart's price axis and the panel's own ASK AI run button, and the page already has Ask LiquidityAI at the top and ASK AI in the run row. */
+@media (max-width: 768px) {
+  .gchat-fab.gchat-fab-arena { display: none; }
+}
 /* ── LANDING HERO ON A PHONE BEFORE THE PAGE HYDRATES (QA: "/" at 390 px scrolled sideways, page 991 px wide) ──
    The server HTML is always the wide hero (the server cannot know the viewport), and the phone layout only arrives once the page's JavaScript has run. Until then the wide hero's own sizes (a 472 px live-read
    panel, a 54 px headline, a side-by-side button row, a 3-up stat row with 76 px of spacing each) pushed the page to 991 px. Below 1100 px these rules give the wide tree the phone sizes at once, so the first
@@ -9456,3 +9469,5 @@ html[data-theme="light"] { color-scheme: light; }
 
 /* The dashboard coin sidebar grade legend (#1185): a constant belongs here, not inline (terminal-only constants ratchet, #663). */
 .csb2-grade-legend { font-size: var(--fs-caption); color: var(--txt3); line-height: 1.5; padding: 2px 2px 6px; }
+/* /correlation: every read failed (#1185 reliability); a constant belongs here, not inline (terminal-only constants ratchet, #663). */
+.corr-all-failed { font-size: var(--fs-label); color: var(--txt2); padding: 4px 0; }
