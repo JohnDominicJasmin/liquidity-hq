@@ -46,7 +46,7 @@ export function UsageInline() {
   if (!user || !usage) return null;
   const color = (u: number, l: number) => (l > 0 && u / l >= 1 ? 'var(--red)' : l > 0 && u / l >= 0.8 ? 'var(--amber)' : 'var(--txt2)');
   return (
-    <span className="usage-inline" data-testid="usage-inline" style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+    <span className="usage-inline" data-testid="usage-inline" style={{ marginLeft: 'auto', alignSelf: 'center', flex: '1 1 0', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
       <span style={{ color: color(usage.quick_used, usage.quick_limit) }}>{t('USAGE_METER_QUICK_LABEL')} {usage.quick_used}/{usage.quick_limit}</span>
       {' · '}
       <span style={{ color: color(usage.deep_used, usage.deep_limit) }}>{t('USAGE_METER_DEEP_LABEL')} {usage.deep_used}/{usage.deep_limit}</span>
