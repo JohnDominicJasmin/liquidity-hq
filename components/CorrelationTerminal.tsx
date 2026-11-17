@@ -161,6 +161,8 @@ export default function CorrelationTerminal() {
   const [hovered, setHovered]   = useState<[number, number] | null>(null);
 
   const loading = done.size < COINS.length;   // true while any coin is still being read; the page itself paints at once
+  /* EVERY coin settled and none has data (the price feed is down): say so, instead of an alt-season panel and a heatmap of dashes that read as a result (reliability leftover, PM 2026-11-17). */
+  const allFailed = !loading && Object.keys(rets).length === 0;
   const range = RANGES.find(r => r.key === rangeKey)!;
   const { interval, limit } = range;
 
@@ -225,7 +227,13 @@ export default function CorrelationTerminal() {
 
       {loading && <LoadingState message={t('CORRELATION_LOADING_MESSAGE')} />}
 
-      {(
+      {allFailed && (
+        <TPanel>
+          <div role="status" data-testid="correlation-all-failed" style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', padding: '4px 0' }}>{t('MARKET_FEED_FAILED')}</div>
+        </TPanel>
+      )}
+
+      {!allFailed && (
         <>
           {/* Alt season signal */}
           <TPanel style={{ border: `0.5px solid ${withAlpha(sig.color, '55')}`, background: sig.bg, borderRadius: 0 }}>
