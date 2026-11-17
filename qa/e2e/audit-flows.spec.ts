@@ -104,6 +104,63 @@ test.describe('flows', () => {
     });
   }
 
+  /* TELEGRAM STATES on Settings (the status row reads /api/telegram/status): not configured / configured / paused / failed read */
+  test('F:telegram-settings-states:pro', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'a'); const page = await ctx.newPage(); await installPaidAiFence(page); const states: Record<string, unknown> = {};
+    try {
+      for (const [name, status, body] of [['not-configured', 200, { configured: false }], ['configured', 200, { configured: true }], ['paused', 200, { configured: true, paused: true }], ['error', 502, { error: 'stand-in' }]] as const) {
+        await page.unroute(/\/api\/telegram\/status/).catch(() => {}); await page.route(/\/api\/telegram\/status/, (r) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) }));
+        await gotoSignedIn(page, '/settings'); await page.waitForTimeout(5_000);
+        states[name] = await page.evaluate(() => (document.body.innerText || '').split(/\r?\n/).map((l) => l.trim()).filter((l) => /^(configured|not configured|paused|couldn.?t check|checking|manage alerts|set up)/i.test(l) || /telegram/i.test(l)).slice(0, 6));
+      }
+      flow('telegram-settings-states:pro', states);
+    } finally { await ctx.close(); }
+  });
+
+  /* JOURNAL: add a trade with a unique note, see it, delete it. A step that cannot be done is REPORTED with where it stopped, never thrown. */
+  test('F:journal-add-delete:pro', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'a'); const page = await ctx.newPage(); await installPaidAiFence(page); const note = `QA flow ${Date.now()}`; const seen: Record<string, unknown> = { note };
+    page.on('dialog', (d) => { seen.dialog = d.message().slice(0, 80); void d.accept(); });
+    try {
+      await gotoSignedIn(page, '/journal'); await page.waitForTimeout(4_000);
+      const before = (await visibleText(page)).match(/History \((\d+)\)/)?.[1] ?? null; seen.historyBefore = before;
+      await page.getByRole('button', { name: /\+\s*log trade/i }).first().click({ timeout: 15_000 }).catch(() => { seen.stoppedAt = 'open form'; });
+      const num = (label: RegExp, v: string) => page.getByLabel(label).first().fill(v, { timeout: 8_000 }).catch(() => { seen[`noField:${label}`] = true; });
+      await num(/^entry/i, '65000'); await num(/stop loss/i, '64000'); await num(/take profit/i, '67000'); await num(/position size/i, '100');
+      await page.getByPlaceholder(/notes?/i).first().fill(note, { timeout: 8_000 }).catch(async () => { await page.locator('textarea').first().fill(note).catch(() => { seen.noNotes = true; }); });
+      const save = page.getByRole('button', { name: /^(save|log|add|submit|log trade|save trade)/i }).last(); seen.saveButton = await save.innerText().catch(() => null);
+      await save.click({ timeout: 8_000 }).catch(() => { seen.stoppedAt = seen.stoppedAt ?? 'save'; }); await page.waitForTimeout(4_000);
+      seen.afterSave = (await visibleText(page)).includes(note) || ((await visibleText(page)).match(/History \((\d+)\)/)?.[1] ?? null) !== before;
+      await page.getByRole('button', { name: /history/i }).first().click({ timeout: 8_000 }).catch(() => {}); await page.waitForTimeout(2_000);
+      seen.noteVisibleInHistory = (await visibleText(page)).includes(note);
+      const row = page.locator('tr, li, div').filter({ hasText: note }).last();
+      const del = row.getByRole('button', { name: /delete|remove|trash|✕|×/i }).first();
+      seen.deleteControl = await del.isVisible().catch(() => false);
+      if (seen.deleteControl) { await del.click({ timeout: 8_000 }).catch(() => {}); await page.waitForTimeout(3_000); seen.deleted = !(await visibleText(page)).includes(note); }
+      flow('journal-add-delete:pro', seen);
+    } finally { await ctx.close(); }
+  });
+
+  /* PRO PRICE ALERT: create one far from the market (BTC above 5,000,000: it can never fire), see it, delete it */
+  test('F:alert-create-delete:pro', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'a'); const page = await ctx.newPage(); await installPaidAiFence(page); const note = `QA flow ${Date.now()}`; const seen: Record<string, unknown> = { note };
+    page.on('dialog', (d) => { seen.dialog = d.message().slice(0, 80); void d.accept(); });
+    try {
+      await gotoSignedIn(page, '/alerts'); await page.waitForTimeout(4_000);
+      await page.getByLabel('Coin').first().selectOption({ label: 'BTC' }).catch(() => { seen.coinSelect = 'could not pick BTC'; });
+      await page.getByLabel(/alert direction/i).first().selectOption({ index: 0 }).catch(() => { seen.dirSelect = 'could not pick'; });
+      await page.getByLabel(/alert price/i).first().fill('5000000').catch(() => { seen.noPrice = true; });
+      await page.getByLabel(/alert note/i).first().fill(note).catch(() => { seen.noNote = true; });
+      const add = page.getByRole('button', { name: /^(add|create|set|save).*|\+/i }).last(); seen.addButton = await add.innerText().catch(() => null);
+      await add.click({ timeout: 8_000 }).catch(() => { seen.stoppedAt = 'add'; }); await page.waitForTimeout(4_000);
+      seen.listed = (await visibleText(page)).includes(note);
+      const row = page.locator('tr, li, div').filter({ hasText: note }).last(); const del = row.getByRole('button', { name: /delete|remove|✕|×/i }).first();
+      seen.deleteControl = await del.isVisible().catch(() => false);
+      if (seen.deleteControl) { await del.click({ timeout: 8_000 }).catch(() => {}); await page.waitForTimeout(3_000); seen.deleted = !(await visibleText(page)).includes(note); }
+      flow('alert-create-delete:pro', seen);
+    } finally { await ctx.close(); }
+  });
+
   for (const path of ['/journal', '/alerts']) {
     test(`F:probe-${path.slice(1)}:pro`, async ({ browser }) => {
       const ctx = await signedInContext(browser, 'a'); const page = await ctx.newPage(); await installPaidAiFence(page);
