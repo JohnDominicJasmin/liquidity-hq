@@ -229,7 +229,7 @@ export default function CorrelationTerminal() {
 
       {allFailed && (
         <TPanel>
-          <div role="status" data-testid="correlation-all-failed" style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', padding: '4px 0' }}>{t('MARKET_FEED_FAILED')}</div>
+          <div role="status" className="corr-all-failed" data-testid="correlation-all-failed">{t('MARKET_FEED_FAILED')}</div>
         </TPanel>
       )}
 
