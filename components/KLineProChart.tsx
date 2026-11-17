@@ -422,6 +422,9 @@ interface Props {
   onShowSRChange:  (next: boolean) => void;
   showLiq:       boolean;
   onShowLiqChange: (next: boolean) => void;
+  /* The EMA ribbon and the RSI pane, owned by the page like S/R and Liq (owner, 2026-11-17). Display only; omitted = shown. */
+  showEma?:      boolean;
+  showRsi?:      boolean;
   /** The only venue in the stored 24 h liquidation history, when it is just one: the Liq button then says so instead of looking complete. */
   liqHistOnly?: 'BN' | 'BB' | null;
   /* Called when a confirmed-Free visitor taps the locked Draw Structure button. The PAGE owns the
@@ -643,7 +646,18 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, onUnlock, strategyOverlay }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, showEma = true, showRsi = true, onUnlock, strategyOverlay }: Props) {
+  const showEmaRef = useRef(showEma);
+  showEmaRef.current = showEma;
+  /* THE ADJUSTABLE LAYER SETTINGS (owner, 2026-11-17): the four EMA ribbon lengths and the RSI length + overbought / oversold lines. Chart only: the strategy signals keep the standard lengths. Clamped here as well as in the panel, so a stale saved value cannot break the chart. */
+  const num = (v: unknown, d: number, lo: number, hi: number) => { const n = typeof v === 'number' ? v : Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : d; };
+  const emaP = indicatorParams?.EMA_RIBBON;
+  const emaLengths = [num(emaP?.e1, 9, 2, 400), num(emaP?.e2, 20, 2, 400), num(emaP?.e3, 50, 2, 400), num(emaP?.e4, 200, 2, 400)];
+  const emaLengthsKey = emaLengths.join(',');
+  const emaLengthsRef = useRef(emaLengths);
+  emaLengthsRef.current = emaLengths;
+  const rsiP = indicatorParams?.RSI;
+  const rsiLen = num(rsiP?.length, 14, 2, 100), rsiOb = num(rsiP?.overbought, 70, 50, 95), rsiOs = num(rsiP?.oversold, 30, 5, 50);
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -988,9 +1002,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const syncEmaRibbon = useCallback(() => {
     const chart = chartRef.current;
     const bars = emaBarsRef.current;
-    if (!chart || !bars.length) return;
+    if (!chart) return;
+    if (!showEmaRef.current) {
+      /* Switched off: take the four lines off the chart. The bars stay in emaBarsRef, so switching back redraws at once. */
+      emaRibbonIds.current.forEach((id, i) => { if (id) { try { chart.removeOverlay({ id }); } catch { /* already gone */ } emaRibbonIds.current[i] = null; } });
+      return;
+    }
+    if (!bars.length) return;
     EMA_PERIODS.forEach((cfg, idx) => {
-      const series = computeEmaSeries(bars, cfg.period);
+      const series = computeEmaSeries(bars, emaLengthsRef.current[idx] ?? cfg.period);
       if (!series.length) return;
       const points = series.map(p => ({ timestamp: p.timestamp, value: p.value }));
       const existingId = emaRibbonIds.current[idx];
@@ -1035,6 +1055,37 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       }
     });
   }, []);
+
+  const rsiLineIds = useRef<string[]>([]);
+  /* Re-sync when the switch flips; the RSI pane is removed or re-created the same way. */
+  useEffect(() => { syncEmaRibbon(); }, [showEma, emaLengthsKey, syncEmaRibbon]);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    if (!showRsi) {
+      try { chart.removeIndicator({ paneId: 'rsi_pane', name: 'RSI' }); } catch { /* not there */ }
+    } else {
+      try {
+        chart.createIndicator(
+          { name: 'RSI', calcParams: [rsiLen], styles: { lines: [{ color: resolveCssColor('var(--accent-2)'), size: 1.5 }] } },
+          { pane: { id: 'rsi_pane', height: 110, minHeight: 30 } }
+        );
+        applyProportionalPaneHeights(chart, containerRef.current?.getBoundingClientRect().height ?? 0);
+      } catch { /* already present */ }
+      try { chart.overrideIndicator({ name: 'RSI', paneId: 'rsi_pane', calcParams: [rsiLen] } as never); } catch { /* not there yet */ }
+    }
+    /* The overbought / oversold lines, drawn in the RSI pane. Re-drawn whenever the pane or a level changes. */
+    for (const id of rsiLineIds.current) { try { chart.removeOverlay({ id }); } catch { /* gone */ } }
+    rsiLineIds.current = [];
+    if (showRsi) {
+      for (const value of [rsiOb, rsiOs]) {
+        try {
+          const id = chart.createOverlay({ name: 'horizontalStraightLine', paneId: 'rsi_pane', points: [{ value }], lock: true, styles: { line: { style: 'dashed', color: resolveCssColor('var(--txt3)'), size: 1 } } } as never);
+          if (typeof id === 'string') rsiLineIds.current.push(id);
+        } catch { /* the pane is not ready; the next sync draws them */ }
+      }
+    }
+  }, [showRsi, chartReady, rsiLen, rsiOb, rsiOs]);
 
   // Upsert one live-updating bar into the EMA history: replace the last entry
   // if it's the same (still-forming) candle, append if it's a genuinely new
@@ -3804,14 +3855,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             right: 0,
             top: Math.min(priceLabelY + 11, (containerRef.current?.clientHeight ?? 400) - 90),
             pointerEvents: 'none',
-            background: 'rgba(30,30,30,0.88)',
-            border: '1px solid rgba(255,255,255,0.10)',
+            /* THEME TOKENS, NOT A FIXED DARK CHIP (PM: the countdown read 1.21:1 in the LIGHT theme). --bg1 / --txt2 / --bdr follow the theme; --txt2 on --bg1 is about 5.6:1 in both. */
+            background: 'color-mix(in srgb, var(--bg1) 92%, transparent)',
+            border: '1px solid var(--bdr)',
             borderTop: 'none',
             borderRadius: '0 0 3px 3px',
             padding: '1px 6px 2px',
             fontSize: 'var(--fs-caption)',
             fontFamily: 'monospace',
-            color: 'rgba(255,255,255,0.70)',
+            color: 'var(--txt2)',
             letterSpacing: '0.04em',
             lineHeight: 1.5,
             userSelect: 'none',

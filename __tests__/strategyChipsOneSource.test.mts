@@ -38,7 +38,8 @@ test('OS1. every overlay-backed registry entry has a state, so no layer can be d
   const overlays = INDICATORS.filter((i) => i.source === 'overlay').map((i) => i.id).sort();
   assert.equal(overlays.length >= 4, true, `CONTROL: expected at least the four known overlays, found ${overlays.join(',')}`);
   const keys = Object.keys(overlayStates({ showSR: true, showLiq: true, hasLiq: true, hasGex: true })).sort();
-  assert.deepEqual(keys, overlays, 'overlayStates() and the registry disagree about which entries are overlays');
+  /* RSI is a chart LAYER with a switch (owner 2026-11-17) but not an overlay-sourced registry entry (OS4b: not a selectable chip), so overlayStates() carries it in addition to the registry's overlays. */
+  assert.deepEqual(keys, [...overlays, 'RSI'].sort(), 'overlayStates() and the registry disagree about which entries are layers (the overlays plus RSI)');
   for (const id of overlays) assert.equal(isOverlayId(id), true, `${id} is an overlay in the registry but isOverlayId() says no`);
 });
 
@@ -101,10 +102,14 @@ test('OS5. the S/R and Liq switches live in ONE place (the Arena page); the char
 });
 
 test('OS6. the panel is given overlays derived by overlayStates() from the same showSR and showLiq the chart receives, never a hand-built object', () => {
-  const at = anchorOnce(PAGE, '<StrategyPanel overlays={overlayStates({ showSR, showLiq,', 'the panel is fed overlayStates(showSR, showLiq, ...)');
+  const at = anchorOnce(PAGE, '<StrategyPanel overlays={overlayStates({ showSR: showSRDrawn, showLiq: showLiqDrawn, showEma, showRsi,', 'the panel is fed overlayStates(the DRAWN S/R and Liq states, showEma, showRsi, ...)');
   assert.ok(at > 0);
-  assert.match(PAGE, /<KLineProChart [^>]*\bshowSR=\{showSR\}/, 'the chart is not handed the page\'s showSR');
-  assert.match(PAGE, /<KLineProChart [^>]*\bshowLiq=\{showLiq\}/, 'the chart is not handed the page\'s showLiq');
+  /* The chart and the panel get the SAME drawn states: the switch AND not locked (Free / signed-out on a coin other than BTC, ETH, SOL: layersLocked); the EMA ribbon and RSI switches too. */
+  assert.match(PAGE, /const showSRDrawn = showSR && !layersLocked;/); assert.match(PAGE, /const showLiqDrawn = showLiq && !layersLocked;/);
+  assert.match(PAGE, /<KLineProChart [^>]*\bshowSR=\{showSRDrawn\}/, 'the chart is not handed the drawn S/R state');
+  const chartTag = PAGE.slice(PAGE.indexOf('<KLineProChart'), PAGE.indexOf('<KLineProChart') + 4000);   // the props contain arrow functions, so a [^>]* match would stop early
+  assert.ok(chartTag.includes('showLiq={showLiqDrawn}'), 'the chart is not handed the drawn Liq state');
+  assert.ok(chartTag.includes('showEma={showEma}') && chartTag.includes('showRsi={showRsi}'), 'the chart is not handed the EMA ribbon and RSI switches');
   assert.equal(/overlays=\{\{/.test(PAGE), false, 'a hand-built overlays object is passed to the panel');
 });
 
@@ -125,30 +130,22 @@ test('OS8. the panel counts only slotted chips and enforces the cap in one place
   anchorOnce(PANEL, 'if (slottedIds([id]).length > 0 && slottedIds(prev).length >= limit) {', 'the cap condition lives in nextSelection');
 });
 
-test('OS9. the indicator grid is plain on/off selectable chips; the always-on layers and the S/R and Liq switches live in the chart-layers section, not as chips', () => {
-  /* REWRITTEN for the redesign. The grid no longer renders overlay chips with "always on" / "pane
-     always on" tags; it renders SELECTABLE_INDICATORS (no overlays, no RSI) as plain on/off chips,
-     and the chart layers moved to their own section: static status rows for the always-on layers
-     (EMA ribbon, RSI pane, GEX "Always on · BTC only") and real role="switch" toggles for S/R and
-     Liq, synced to the chart toolbar. */
+test('OS9. the indicator grid is plain on/off selectable chips; the three always-on layers are ONE caption and the S/R and Liq switches live in the chart-layers section, not as chips', () => {
+  /* RE-ANCHORED for the compact panel (#2500). The grid renders SELECTABLE_INDICATORS (no overlays, no RSI) as plain on/off chips. The chart layers section is one caption for the three always-on layers
+     (STRATEGY_PANEL_LAYERS_ALWAYS_LINE, a plain sentence since pass 2) plus real role="switch" toggles for S/R and Liq, synced to the chart toolbar. The per-layer "Always on" rows are gone. */
   anchorOnce(PANEL, 'const on = shown.includes(entry.id);', 'a chip is on exactly when its id is in the SHOWN (optimistic) selection (#2465)');
-  /* The strings moved behind t() (#2178), so the ROW is anchored by its keys and the WORDING is
-     pinned separately against the English defaults - the claim that RSI is a layer row "Always on",
-     and GEX is "Always on · BTC only", has not changed, only where the text lives. */
-  anchorOnce(PANEL, "<LayerRow name={t('STRATEGY_PANEL_LAYER_RSI')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON')} />", 'RSI pane is an always-on layer ROW, not a selectable chip');
-  anchorOnce(PANEL, "<LayerRow name={t('STRATEGY_PANEL_LAYER_EMA')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON')} />", 'the EMA ribbon is an always-on layer row');
-  anchorOnce(PANEL, "<LayerRow name={t('STRATEGY_PANEL_LAYER_GEX')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON_BTC')} />", 'GEX is an always-on layer row, BTC only');
+  anchorOnce(PANEL, "t('STRATEGY_PANEL_LAYERS_ALWAYS_LINE')", 'the EMA ribbon, the RSI pane and GEX are named in ONE always-on caption, not chips');
   const EN = JSON.parse(readFileSync(new URL('../lib/labelDefaults.en.json', import.meta.url), 'utf8')) as Record<string, string>;
-  assert.equal(EN.STRATEGY_PANEL_LAYER_RSI, 'RSI pane', 'the RSI row no longer reads "RSI pane"');
-  assert.equal(EN.STRATEGY_PANEL_LAYER_EMA, 'EMA ribbon', 'the EMA row no longer reads "EMA ribbon"');
-  assert.equal(EN.STRATEGY_PANEL_LAYER_ALWAYS_ON, 'Always on', 'the always-on status no longer reads "Always on"');
-  assert.equal(EN.STRATEGY_PANEL_LAYER_ALWAYS_ON_BTC, 'Always on · BTC only', 'the GEX status no longer reads "Always on · BTC only"');
+  const line = EN.STRATEGY_PANEL_LAYERS_ALWAYS_LINE;
+  assert.ok(/^Always on/.test(line) && /EMA/.test(line) && /RSI/.test(line) && /GEX/.test(line) && /BTC/.test(line), `the caption no longer says that the EMA ribbon, RSI and GEX are always on, and that GEX is BTC only: ${JSON.stringify(line)}`);
+  assert.equal(/\{\w+\}/.test(line), false, 'the caption still carries a placeholder the component no longer passes');
+  assert.equal([...SELECTABLE_INDICATOR_IDS].some((id) => String(id).toUpperCase().includes('RSI')), false, 'RSI is a selectable chip again: it is an always-on layer');
   anchorOnce(PANEL, "onToggle={() => onOverlayToggle?.('SR')}", 'S/R is a switch synced to the chart toolbar');
   anchorOnce(PANEL, "onToggle={() => onOverlayToggle?.('LIQ_CLUSTERS')}", 'Liq is a switch synced to the chart toolbar');
   assert.ok(PANEL.includes('role="switch"'), 'the chart layers use a real switch role');
-  /* The obsolete chip tags are gone - RSI is a layer row now, not a tagged chip. */
   assert.equal(PANEL.includes('pane always on'), false, 'the old RSI "pane always on" chip tag must be gone');
   assert.equal(PANEL.includes('strat-chip-tag'), false, 'the old always-on chip tag class must be gone');
+  assert.equal(PANEL.includes('<LayerRow'), false, 'the per-layer status rows are back: the compact panel names the always-on layers in one caption');
 });
 
 /* #2465: smoother chips. Source anchors: the panel is JSX with no DOM test library here; the rendered proof (tap toggles every time, no numbers, INP) is QA's browser run on a deployed build. */
