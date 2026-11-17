@@ -67,7 +67,7 @@ async function whopRetryTick(): Promise<RetrySummary | { error: string }> {
 }
 
 export async function POST(req: Request) {
-  if (!checkCronAuth(req)) {
+  if (!checkCronAuth(req, { headerOnly: true })) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const whopRetry = await whopRetryTick();
