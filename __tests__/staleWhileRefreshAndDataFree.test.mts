@@ -92,7 +92,7 @@ test('D2. an OPT-OUT list: every data page keeps its data (/, dashboard, arena, 
   for (const p of ['/', '/dashboard', '/arena', '/markets', '/liq', '/scanner', '/funding', '/briefing', '/journal', '/alerts', '/settings', '/login', '/correlation', '/research', '/news', '/upgrade', '/new-page-nobody-listed', '/about/team', '/faq/extra', '/aboutus']) assert.equal(isDataFree(p), false, `${p} lost its market data`);
 });
 test('D3. the provider runs when the chat asked for it or the page is not data-free; opening the chat fires the event the shell listens for', () => {
-  assert.ok(SHELL.includes('<MarketProvider enabled={marketNeeded || !isDataFree(pathname)}>'), 'the provider switch is not marketNeeded || not data-free');
+  assert.ok(SHELL.includes('<MarketProvider enabled={(marketNeeded || !isDataFree(pathname)) && (pathname !== '/' || landingFeedsReady)}>'), 'the provider switch is not (marketNeeded || not data-free), held on the landing page until its feeds are released');
   assert.ok(SHELL.includes('window.addEventListener(MARKET_DATA_NEEDED_EVENT, on);') && SHELL.includes('return () => window.removeEventListener(MARKET_DATA_NEEDED_EVENT, on);'), 'the shell no longer listens (or leaks its listener)');
   assert.ok(readFileSync(new URL('../components/GrokChat.tsx', import.meta.url), 'utf8').includes('if (open) window.dispatchEvent(new Event(MARKET_DATA_NEEDED_EVENT));'), 'opening the chat on a data-free page no longer starts the market data (the chat would answer from an empty store)');
   assert.equal(readFileSync(new URL('../lib/marketDataNeeded.ts', import.meta.url), 'utf8').includes("'market-data-needed'"), true);
