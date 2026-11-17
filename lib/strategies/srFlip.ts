@@ -7,7 +7,7 @@ import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } fro
  *  SELL: the mirror at a level price closed below: the first later candle that touches L (its high at or above L) is the last candle and closes back below it.
  *  Entry  = the retest candle's close.
  *  Stop   = min(L, the retest's low) for a BUY, max(L, its high) for a SELL: just beyond the level, which is the retest wick when the wick went through it. No buffer is added.
- *  Target = the nearest support / resistance level beyond the entry in the trade's direction; none means no target and no R:R.
+ *  Target = the first support / resistance level beyond the entry in the trade's direction that is at least one risk distance (entry to stop) away; none means no target and no R:R.
  *  A touch is exact (no tolerance band). The break is looked for in the last LOOKBACK candles. The call is on the retest candle only. Signals, not predictions. */
 
 export const MIN_CANDLES = 40;
@@ -50,7 +50,7 @@ export function flipFromLevels(candles: readonly OHLCV[], levels: readonly numbe
   const entry = last.close;
   const stop = dir === 'long' ? Math.min(level, last.low) : Math.max(level, last.high);
   const others = levels.filter(p => p !== level);
-  const target = nearestLevel(others, entry, dir);
+  const target = nearestLevel(others, entry, dir, Math.abs(entry - stop));
   return tradeCall({
     ts: last.time, dir, entry, stop, target, params: { level },
     levels: [{ price: level, role: 'ref', fromTs: candles[best.broke].time, labelKey: 'STRAT_OV_FLIPPED' }],

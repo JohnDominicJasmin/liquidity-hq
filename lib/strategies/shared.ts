@@ -21,9 +21,9 @@ export function srPrices(candles: readonly OHLCV[], price: number): number[] {
   return computeSRLevels(candles.map(c => ({ high: c.high, low: c.low, close: c.close })), price).map(l => l.price);
 }
 
-/** The nearest level in the trade's direction (above `entry` for a BUY, below for a SELL), or null. */
-export function nearestLevel(prices: readonly number[], entry: number, dir: 'long' | 'short'): number | null {
-  const c = prices.filter(p => (dir === 'long' ? p > entry : p < entry)).sort((a, b) => (dir === 'long' ? a - b : b - a));
+/** The nearest level in the trade's direction (above `entry` for a BUY, below for a SELL) that is at least `minDist` away, or null. Pass the risk distance (entry to stop) as `minDist` for the "first level at least 1R away" rule (PM, 2026-11-17): a closer level would give a reward smaller than the risk, so it is skipped; none left means no target and no R:R. */
+export function nearestLevel(prices: readonly number[], entry: number, dir: 'long' | 'short', minDist = 0): number | null {
+  const c = prices.filter(p => (dir === 'long' ? p - entry : entry - p) > 0 && Math.abs(p - entry) >= minDist).sort((a, b) => (dir === 'long' ? a - b : b - a));
   return c.length ? c[0] : null;
 }
 

@@ -7,7 +7,7 @@ import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } fro
  *  SELL: the reverse (a death cross).
  *  Entry  = that candle's close.
  *  Stop   = the lowest low (BUY) / highest high (SELL) of the last 20 candles ending at it.
- *  Target = the nearest support / resistance level in the trade's direction (the levels the chart draws); none means no target and no R:R.
+ *  Target = the first support / resistance level in the trade's direction (the levels the chart draws) that is at least one risk distance (entry to stop) away; none means no target and no R:R.
  *  The EMAs use the standard 2/(n+1) smoothing seeded with the first close, so the cross lands on the same candle as QA's oracle. Signals, not predictions: this says what the averages did. */
 
 export const MIN_CANDLES = 201;
@@ -26,7 +26,7 @@ export function detectEmaCross(candles: readonly OHLCV[], _ctx: StrategyContext)
   const win = candles.slice(k - STOP_WINDOW + 1, k + 1);
   const stop = up ? Math.min(...win.map(c => c.low)) : Math.max(...win.map(c => c.high));
   if (up ? !(stop < entry) : !(stop > entry)) return WAIT;   // a flat window has no stop on the losing side
-  const target = nearestLevel(srPrices(candles, entry), entry, dir);
+  const target = nearestLevel(srPrices(candles, entry), entry, dir, Math.abs(entry - stop));
   return tradeCall({ ts: candles[k].time, dir, entry, stop, target, params: { ema50: e50[k], ema200: e200[k] } });
 }
 

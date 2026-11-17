@@ -8,7 +8,7 @@ import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } fro
  *  SELL: the mirror for a bearish gap: the first return (its high at or above the gap's bottom) is the last candle, still unfilled (no close above the top), closing below the gap's top.
  *  Entry  = the close.
  *  Stop   = the gap's far edge: the bottom of a bullish gap, the top of a bearish one. No buffer.
- *  Target = the nearer of the recent swing (the highest high / lowest low of the 20 candles before the gap) and the nearest support / resistance level, in the trade's direction; none means no target and no R:R.
+ *  Target = the nearer of the recent swing (the highest high / lowest low of the 20 candles before the gap) and the first support / resistance level at least one risk distance (entry to stop) away, in the trade's direction; none means no target and no R:R.
  *  The gap is looked for in the last LOOKBACK candles. The call is on the return candle only. Signals, not predictions. */
 
 export const MIN_CANDLES = 30;
@@ -36,13 +36,13 @@ export function detectFairValueGap(candles: readonly OHLCV[], _ctx: StrategyCont
     const zone = { top, bottom: bot, fromTs: candles[i].time, toTs: last.time, kind: (bull ? 'demand' : 'supply') as 'demand' | 'supply', labelKey: 'STRAT_OV_FVG' as const };
     if (bull && last.close > bot) {
       const swing = Math.max(...pre.map(c => c.high));
-      const sr = nearestLevel(srPrices(candles, entry), entry, 'long');
+      const sr = nearestLevel(srPrices(candles, entry), entry, 'long', Math.abs(entry - bot));
       const cand = [swing, sr].filter((v): v is number => v != null && v > entry);
       return tradeCall({ ts: last.time, dir: 'long', entry, stop: bot, target: cand.length ? Math.min(...cand) : null, params: { gapLo: bot, gapHi: top }, zones: [zone] });
     }
     if (bear && last.close < top) {
       const swing = Math.min(...pre.map(c => c.low));
-      const sr = nearestLevel(srPrices(candles, entry), entry, 'short');
+      const sr = nearestLevel(srPrices(candles, entry), entry, 'short', Math.abs(entry - top));
       const cand = [swing, sr].filter((v): v is number => v != null && v < entry);
       return tradeCall({ ts: last.time, dir: 'short', entry, stop: top, target: cand.length ? Math.max(...cand) : null, params: { gapLo: bot, gapHi: top }, zones: [zone] });
     }
