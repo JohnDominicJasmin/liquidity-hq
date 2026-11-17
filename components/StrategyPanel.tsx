@@ -259,7 +259,7 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
           {loaded && (
             entitled
               ? <span className="strat-count">{t('STRATEGY_PANEL_ON_COUNT', { n: used })}</span>
-              : <span className="strat-count">{t('STRATEGY_PANEL_FREE_LIMIT')}</span>
+              : !planChecking && <span className="strat-count">{t('STRATEGY_PANEL_FREE_LIMIT')}</span>
           )}
         </div>
 
@@ -327,7 +327,7 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
 
         {/* FREE ONLY: the persistent upgrade callout, present even with nothing selected (it is an
             invitation, not a limit warning). Pro never sees it - Pro has every indicator already. */}
-        {loaded && !entitled && (
+        {loaded && !entitled && !planChecking && (
           <div className="strat-callout" role="note">
             <span>{t('STRATEGY_PANEL_PRO_CALLOUT')}</span>
             <Link href="/upgrade" className="strat-callout-link" data-testid="strategy-pro-callout">{t('STRATEGY_PANEL_PRO_CALLOUT_LINK')}</Link>
@@ -361,8 +361,9 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
                     onChange={v => onParamsChange({ ...params, [boxEntry.id]: { ...paramsFor(boxEntry), [spec.key]: v } })}
                   />
                 ))}
-                {!entitled && <div className="strat-ro">{t('STRATEGY_PANEL_FREE_DEFAULTS')}</div>}
-                {entitled && <div className="strat-ro">{t('STRATEGY_PANEL_PARAMS_VERDICT_NOTE')}</div>}
+                {/* A PLAN CLAIM ONLY ONCE THE PLAN IS KNOWN: while it is still being read (planChecking) the params box, now always rendered, must not say 'Defaults on free' (or the Pro note) about an account whose plan is unsettled. */}
+                {!planChecking && !entitled && <div className="strat-ro">{t('STRATEGY_PANEL_FREE_DEFAULTS')}</div>}
+                {!planChecking && entitled && <div className="strat-ro">{t('STRATEGY_PANEL_PARAMS_VERDICT_NOTE')}</div>}
               </div>
             )}
           </div>
