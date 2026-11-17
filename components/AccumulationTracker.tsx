@@ -116,6 +116,16 @@ export default function AccumulationTracker() {
       .slice(0, MAX_ROWS);
   }, [store.coins]);
 
+  /* SIX COINS ON THE SAME SCORE LOOK LIKE PLACEHOLDER DATA (PM audit), so a tie of three or more is said once: "6 coins tie at 58". */
+  const tie = useMemo(() => {
+    if (rows.length < 3) return null;
+    const counts = new Map<number, number>();
+    for (const r of rows) counts.set(r.score, (counts.get(r.score) ?? 0) + 1);
+    let best: { score: number; n: number } | null = null;
+    for (const [score, n] of counts) if (n >= 3 && (!best || n > best.n)) best = { score, n };
+    return best;
+  }, [rows]);
+
   /* All three bands are tokens now (#787). The middle one was the literal
      #a3e635 between two tokens, so it alone did not follow the theme - 1.15:1
      on this card in terminal light, against 12.98 in the dark it was picked
@@ -138,7 +148,7 @@ export default function AccumulationTracker() {
             {t('ACCUMULATION_TRACKER_TITLE')}
           </Tip>
         </span>
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ACCUMULATION_TRACKER_SUBTITLE')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ACCUMULATION_TRACKER_SUBTITLE')}{tie ? ` · ${t('ACCUMULATION_TRACKER_TIES', { n: tie.n, score: tie.score })}` : ''}</span>
       </div>
 
       {/* "Nothing found" only once something has arrived (#1185) - a cold store used to state a
@@ -175,9 +185,8 @@ export default function AccumulationTracker() {
       ) : (
         <div style={{ padding: '6px 8px 8px' }}>
           {rows.map(r => (
-            <button
+            <div
               key={r.id}
-              onClick={() => selectCoin(r.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                 padding: '7px 8px', borderRadius: 8, cursor: 'pointer',
@@ -188,6 +197,11 @@ export default function AccumulationTracker() {
               onMouseEnter={e => { if (store.selectedCoin !== r.id) e.currentTarget.style.background = 'rgba(26,122,255,0.05)'; }}
               onMouseLeave={e => { if (store.selectedCoin !== r.id) e.currentTarget.style.background = 'transparent'; }}
             >
+              <button
+                type="button"
+                onClick={() => selectCoin(r.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', font: 'inherit', color: 'inherit' }}
+              >
               <span style={{
                 fontFamily: 'var(--font-mono), monospace', fontSize: 'var(--fs-caption)', fontWeight: 700,
                 color: 'var(--txt)', width: 52, flexShrink: 0,
@@ -213,28 +227,6 @@ export default function AccumulationTracker() {
                     {reason}
                   </span>
                 ))}
-                {/* #661: the score renders, and says what it was built from -
-                    the owner's ruling was disclose, not withhold or re-weight.
-                    Only when incomplete. A row that always ended "7 of 7"
-                    would train people to stop reading it, which is why
-                    `partial` and data-spark are omitted when there is nothing
-                    to report.
-                    Both scorers are purely additive - every branch is
-                    `score += N` - so a missing input can only have LOWERED the
-                    number. The score is therefore a floor, which is what the
-                    tooltip says. */}
-                {r.inputsPresent < r.inputsTotal && (
-                  <Tip width={250} text={t('SCORE_INPUTS_PARTIAL_TIP', { present: String(r.inputsPresent), total: String(r.inputsTotal) })}>
-                    <span style={{
-                      fontFamily: 'var(--font-mono), monospace',
-                      fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt3)',
-                      background: 'transparent', border: '0.5px dashed var(--bdr)',
-                      borderRadius: 5, padding: '1px 6px', whiteSpace: 'nowrap',
-                    }}>
-                      {t('SCORE_INPUTS_PARTIAL', { present: String(r.inputsPresent), total: String(r.inputsTotal) })}
-                    </span>
-                  </Tip>
-                )}
               </span>
               <span className="at-price" style={{
                 fontFamily: 'var(--font-mono), monospace', fontSize: 'var(--fs-data)', color: 'var(--txt2)',
@@ -248,7 +240,30 @@ export default function AccumulationTracker() {
               }}>
                 {r.change >= 0 ? '+' : ''}{r.change.toFixed(2)}%
               </span>
-            </button>
+              </button>
+              {/* #661: the score renders, and says what it was built from -
+                  the owner's ruling was disclose, not withhold or re-weight.
+                  Only when incomplete. A row that always ended "7 of 7"
+                  would train people to stop reading it, which is why
+                  `partial` and data-spark are omitted when there is nothing
+                  to report.
+                  Both scorers are purely additive - every branch is
+                  `score += N` - so a missing input can only have LOWERED the
+                  number. The score is therefore a floor, which is what the
+                  tooltip says. */}
+              {r.inputsPresent < r.inputsTotal && (
+                <Tip width={250} text={t('SCORE_INPUTS_PARTIAL_TIP', { present: String(r.inputsPresent), total: String(r.inputsTotal) })}>
+                  <span style={{
+                    fontFamily: 'var(--font-mono), monospace',
+                    fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt3)',
+                    background: 'transparent', border: '0.5px dashed var(--bdr)',
+                    borderRadius: 5, padding: '1px 6px', whiteSpace: 'nowrap',
+                  }}>
+                    {t('SCORE_INPUTS_PARTIAL', { present: String(r.inputsPresent), total: String(r.inputsTotal) })}
+                  </span>
+                </Tip>
+              )}
+            </div>
           ))}
         </div>
       )}

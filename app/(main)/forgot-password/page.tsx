@@ -46,6 +46,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="login-wrap login-term-wrap">
+      <h1 className="sr-only">{t('AUTH_H1_FORGOT')}</h1>
       <div className="login-card">
         <div className="login-logo">Liquidity<span>HQ</span></div>
         <p className="login-sub">{t('FORGOT_PASSWORD_SUBTITLE')}</p>
@@ -72,6 +73,8 @@ export default function ForgotPasswordPage() {
                 </label>
                 <input
                   id="forgot-email"
+                  aria-invalid={!!error || undefined}
+                  aria-describedby={error ? 'forgot-error' : undefined}
                   type="email"
                   className="login-email-input" data-testid="login-email"
                   placeholder={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
@@ -108,7 +111,7 @@ export default function ForgotPasswordPage() {
                 region exists before the text arrives. WCAG 2.2 SC 4.1.3.
                 The original claim in the audit named /login only; this page
                 does the same thing and has no live region either. */}
-            <div className="login-error" data-testid="login-error" role="alert">{error}</div>
+            <div className="login-error" id="forgot-error" data-testid="login-error" role="alert">{error}</div>
 
             {/* No display override here - .login-back-btn centres its own text
                 via inline-flex, and `display: block` would defeat that. */}

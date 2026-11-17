@@ -34,7 +34,7 @@ export interface CoinData {
   volRatio: number | null;
   longRatio: number | null;    // Bybit account ratio - long side (1h)
   shortRatio: number | null;   // Bybit account ratio - short side (1h)
-  bnLongRatio: number | null;       // Binance global account ratio - long side (5m)
+  bnLongRatio: number | null;       // Binance global account ratio - long side (1h)
   bnShortRatio: number | null;      // Binance global account ratio - short side (5m)
   bnWhaleLongRatio: number | null;  // Binance top trader POSITION ratio - long (dollar-weighted)
   bnWhaleShortRatio: number | null; // Binance top trader POSITION ratio - short (dollar-weighted)

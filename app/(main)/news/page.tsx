@@ -139,7 +139,7 @@ function SentimentBadge({ headline }: { headline: string }) {
   const prefix = coins.length === 1 ? `${coins[0]}: ` : '';
   const cfg = s === 'bullish'
     ? { bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',   color: 'var(--green-2)', label: t('NEWS_SENTIMENT_BULLISH', { prefix }) }
-    : { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: 'var(--red)', label: t('NEWS_SENTIMENT_BEARISH', { prefix }) };
+    : { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: 'var(--red-soft)', label: t('NEWS_SENTIMENT_BEARISH', { prefix }) };
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',
