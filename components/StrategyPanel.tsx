@@ -155,7 +155,11 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
   /* THE CALL BOX'S FIRST-PAINT RESERVE ENDS WITH THE ANSWER. `<html data-strat="1">` (components/RootDocument.tsx) reserves the box's height from a cached saved strategy; once the settings have loaded and no strategy is
      picked (none was saved, or the visitor chose "Let the read choose" / Custom), the reserve is removed so it never leaves an empty band. A visitor's own pick is not a layout shift. */
   useEffect(() => {
-    if (loaded && !pickedStrategy) document.documentElement.removeAttribute('data-strat');
+    if (loaded && !pickedStrategy) {
+      document.documentElement.removeAttribute('data-strat');
+      /* ...and the signed-in reserve (globals.css, data-sess without data-strat) ends too: this account has no saved strategy. */
+      document.documentElement.setAttribute('data-strat-none', '1');
+    }
   }, [loaded, pickedStrategy]);
   /* 'Custom' picked with no chip on has nothing else to derive it from, so it is remembered here: without it the menu fell back to 'Let the read choose' the moment it was picked. */
   const [customPicked, setCustomPicked] = useState(false);
