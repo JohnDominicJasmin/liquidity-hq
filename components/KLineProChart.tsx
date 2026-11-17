@@ -3059,6 +3059,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
   // ── Draw Structure (#1818 option D) ──────────────────────────────────
   const [proposals, setProposals] = useState<DrawableStructure[]>([]);
+  /* TRUE FROM THE CLICK ON DRAW STRUCTURE until the chart is cleared: the Channel strategy's own rails and risk box draw on that click whenever it has a live call, whether or not the model proposes anything (PM, 2026-11-17). */
+  const [dsClicked, setDsClicked] = useState(false);
   const [dsLoading, setDsLoading] = useState(false);
   const [dsError, setDsError] = useState<string | null>(null);
   /* A SUCCESSFUL READ THAT PROPOSED NOTHING IS ITS OWN STATE, not an error and not the initial
@@ -3108,6 +3110,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     if (chart) chart.removeOverlay({ groupId: PROPOSAL_GROUP });
     proposalIds.current = [];
     setProposals(prev => (prev.length === 0 ? prev : []));
+    setDsClicked(prev => (prev === false ? prev : false));
     setDsError(prev => (prev === null ? prev : null));
     /* Same bail-out as the two above, for the same reason: this runs from the coin/timeframe
        effect, which is most of what this chart does. */
@@ -3115,7 +3118,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   }, []);
 
   // ── The Channel strategy's risk box on Draw Structure (owner decision 2026-11-17, #1263) ───────────────
-  // When a CHANNEL is drawn AND the Channel strategy has a live BUY / SELL call on the same candles, draw the position box (reward, risk, Target / Entry / Stop with price and percent, R:R) and the chart's support /
+  // When the user clicks DRAW STRUCTURE AND the Channel strategy has a live BUY / SELL call on the candles, draw the strategy's own channel rails and the position box (reward, risk, Target / Entry / Stop with price and percent, R:R) and the chart's support /
   // resistance levels as bands, with one caption. No live call: the channel and nothing else (this effect draws nothing). NO PREDICTED PATH OR ARROW, ever. Levels come from the strategy's own rules
   // (lib/strategies/channel.ts), which is why this does not break the 2026-10-31 "no target, no entry" rule of lib/drawStructure.ts: that rule is about the model's proposals, and this is not one.
   const boxIds = useRef<string[]>([]);
@@ -3124,7 +3127,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     if (!chart || !chartReady) return;
     boxIds.current.forEach(id => chart.removeOverlay({ id }));
     boxIds.current = [];
-    if (!proposals.some(p => p.type === 'channel')) return;
+    if (!dsClicked) return;
     const list = chart.getDataList();
     if (!list || list.length < 60) return;
     const candles: OHLCV[] = list.map(b => ({ time: b.timestamp, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
@@ -3132,6 +3135,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     if (res.verdict === 'wait' || res.signalTimestamp == null) return;
     const p = res.params as { entry: number; stop: number; target?: number; rr?: number };
     if (![p.entry, p.stop].every(Number.isFinite)) return;
+    // The STRATEGY's own channel rails (what it measured), drawn with the box; whatever the model proposes is drawn as before.
+    for (const l of res.overlay?.lines ?? []) {
+      const pts = l.points.map(pt => ({ timestamp: pt.ts, value: pt.price }));
+      if (pts.length >= 2 && pts.every(pt => Number.isFinite(pt.timestamp) && Number.isFinite(pt.value))) {
+        const id = chart.createOverlay({ name: 'strategyPolyline', groupId: PROPOSAL_GROUP, lock: true, points: pts, extendData: { role: l.role, text: tl(l.labelKey, l.labelParams) } } as OverlayCreate);
+        if (typeof id === 'string') boxIds.current.push(id);
+      }
+    }
     const px = currencyPrefix(coinRef.current);
     const pct = (v: number) => { const x = (v - p.entry) / p.entry * 100; return (x >= 0 ? '+' : '') + x.toFixed(2) + '%'; };
     const entryTs = res.signalTimestamp;
@@ -3154,7 +3165,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         rrText: hasTarget && typeof p.rr === 'number' ? tl('CHANNEL_BOX_RR', { rr: p.rr.toFixed(1) }) : '',
         caption: tl('DRAW_STRUCTURE_LEVELS_CAPTION'),
       } });
-  }, [proposals, chartReady, srLevels, barsTick, themeInk, tf]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dsClicked, chartReady, srLevels, barsTick, themeInk, tf]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Proposals are about ONE window. Changing coin or timeframe makes every index they were
      built from meaningless, so they go rather than being redrawn against candles they were
@@ -3195,6 +3206,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     setDsError(null);
     setDsNone(false);
     setDsLoading(true);
+    setDsClicked(true);
     try {
       const token = await getAuthToken();
       if (!token) { setDsError(tl('DRAW_STRUCTURE_SIGNED_OUT')); return; }
@@ -3226,6 +3238,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       }
       const list = (Array.isArray(data.structures) ? data.structures : []) as DrawableStructure[];
       clearProposals();
+      setDsClicked(true);   // clearProposals just reset it: this read is still the one the box belongs to
       const ids: string[] = [];
       for (const s of list) {
         const id = chart.createOverlay({

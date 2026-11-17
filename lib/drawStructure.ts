@@ -13,7 +13,7 @@
  *      classifier.**
  *
  * **OWNER DECISION 2026-11-17 (#1263), SUPERSEDING THE "NO TARGET, NO ENTRY" RULE BELOW FOR STRATEGY-DERIVED LEVELS ONLY.** The owner asked for the position box on Draw Structure (entry, stop, target, risk:reward) and
- * chose "box, no arrow". It is drawn only when a channel is drawn AND the Channel strategy (lib/strategies/channel.ts) has a live BUY / SELL call, and every level in it comes from that strategy's own deterministic
+ * chose "box, no arrow". It is drawn only when the user clicks Draw Structure AND the Channel strategy (lib/strategies/channel.ts) has a live BUY / SELL call (the strategy's own channel rails are drawn with it), and every level in it comes from that strategy's own deterministic
  * rules, never from the model's proposal: this module still returns geometry and a type and still produces no target and no entry. No predicted path or arrow is ever drawn. The caption says so on the chart.
  *
  * **SO NOTHING HERE JUDGES WHETHER A STRUCTURE IS REAL.** The model proposes, this module turns a
