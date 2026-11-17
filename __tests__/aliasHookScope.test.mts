@@ -33,7 +33,7 @@ import path from 'node:path';
 const ROOT = path.join(fileURLToPath(import.meta.url), '..', '..');
 
 /** Every `next/*` subpath the hook currently rescues. Add to this deliberately. */
-const EXPECTED_RESCUES = ['next/headers', 'next/link', 'next/navigation', 'next/script', 'next/server'];
+const EXPECTED_RESCUES = ['next/dynamic', 'next/headers', 'next/link', 'next/navigation', 'next/script', 'next/server'];
 
 /* Comments are REMOVED, not skipped line by line.
  *

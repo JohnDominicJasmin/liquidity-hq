@@ -119,7 +119,7 @@ test.describe('LiquidityAI must know a real saved selection even without an Aren
       // argument at all - if anything, a cleaner instance of item 18's gap
       // than a per-article button, since it carries even less context in.
       const launcher = page.locator('[data-testid="grok-launcher"]');
-      await expect(launcher, 'the global Ask AI launcher never rendered - this run measured nothing').toBeVisible({ timeout: 15_000 });
+      await expect(launcher, 'the global Ask AI launcher never rendered - this run measured nothing').toBeVisible({ timeout: 40_000 });   // #2505: the chat is mounted after the page (load + idle)
       await launcher.click();
 
       const input = page.locator('textarea').first();

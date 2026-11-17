@@ -59,6 +59,7 @@ test.describe('Ask AI button visibility', () => {
     try {
       await gotoGuarded(page, '/arena');
       await page.waitForTimeout(12_000);   // past the 3s failsafe with room to spare
+      await page.locator('.gchat-fab').first().waitFor({ state: 'attached', timeout: 30_000 }).catch(() => { /* a page without the chat: the assertions below say so */ });   // #2505: the chat button is mounted after the page (load + idle)
 
       const s = await fabState(page);
       expect(s.present, 'the Ask AI button is not in the DOM at all').toBe(true);
