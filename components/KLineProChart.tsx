@@ -14,6 +14,7 @@ import type { LabelKey } from '@/lib/labelKeys';
 import { useAuth } from '@/components/AuthProvider';
 import { getAuthToken } from '@/lib/supabase';
 import { drawStructureAvailable, DRAW_STRUCTURE_NOISY_TFS, type DrawableStructure } from '@/lib/drawStructure';
+import { computeSRLevels, type SRLevel } from '@/lib/srLevels';
 import Tip from '@/components/Tip';
 import { barsAfter } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
@@ -566,7 +567,6 @@ function computeEmaSeries(bars: Array<{ timestamp: number; close: number }>, per
 // chart back where the Arena signal-overload pass found it.
 const PA_MAX = 6;
 
-interface SRLevel { price: number; type: 'support' | 'resistance'; touches: number; }
 
 // Deterministic label spacing for S/R / GEX price tags: derived once from the
 // level prices themselves, not from live pixel positions. Pixel y only exists
@@ -606,53 +606,6 @@ function applyProportionalPaneHeights(chart: KChart, containerHeight: number) {
   chart.setPaneOptions({ id: 'rsi_pane', height: rsiH });
 }
 
-function computeSRLevels(
-  bars: { high: number; low: number; close: number }[],
-  currentPrice: number,
-): SRLevel[] {
-  const lookback = 3;
-  const recent = bars.slice(-200);
-  const CLUSTER_PCT = 0.003;
-
-  const swingHighs: number[] = [];
-  const swingLows: number[] = [];
-
-  for (let i = lookback; i < recent.length - lookback; i++) {
-    const hi = recent[i].high;
-    const lo = recent[i].low;
-    if (
-      recent.slice(i - lookback, i).every(b => b.high <= hi) &&
-      recent.slice(i + 1, i + lookback + 1).every(b => b.high <= hi)
-    ) swingHighs.push(hi);
-    if (
-      recent.slice(i - lookback, i).every(b => b.low >= lo) &&
-      recent.slice(i + 1, i + lookback + 1).every(b => b.low >= lo)
-    ) swingLows.push(lo);
-  }
-
-  const cluster = (prices: number[]) => {
-    const sorted = [...prices].sort((a, b) => a - b);
-    const clusters: { price: number; count: number }[] = [];
-    for (const p of sorted) {
-      const ex = clusters.find(c => Math.abs(c.price - p) / p < CLUSTER_PCT);
-      if (ex) { ex.price = (ex.price * ex.count + p) / (ex.count + 1); ex.count++; }
-      else clusters.push({ price: p, count: 1 });
-    }
-    return clusters.sort((a, b) => b.count - a.count);
-  };
-
-  const resistances = cluster(swingHighs)
-    .filter(c => c.price > currentPrice * 0.999)
-    .slice(0, 3)
-    .map(c => ({ price: c.price, type: 'resistance' as const, touches: c.count }));
-
-  const supports = cluster(swingLows)
-    .filter(c => c.price < currentPrice * 1.001)
-    .slice(0, 3)
-    .map(c => ({ price: c.price, type: 'support' as const, touches: c.count }));
-
-  return [...resistances, ...supports];
-}
 
 /* QA test seam for the indicator-sync failure notice (#1369). Same shape and
    same reasoning as AuthProvider's `qaForcedEntitlementsFailure` (#1184): the
