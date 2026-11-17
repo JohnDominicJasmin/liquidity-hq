@@ -187,7 +187,7 @@ export const en: LandingDict = {
       features: {
         everythingFree: 'Everything in Free',
         fastTimeframes: 'Signals on the 1 minute, 5 minute, and 15 minute charts',
-        strategiesAll: "Strategy signals on every coin: Trend, Price action / SMC, Sessions",
+        strategiesAll: "Strategies on every coin: Trend, Price action, Sessions, Derivatives",
         channelBox: "Channel breakout box: entry, stop, target and risk:reward",
         layersAll: "Support/resistance and liquidation-cluster layers on every coin",
         aiSettings: "AI reads use your own indicator settings",
@@ -290,7 +290,7 @@ export const ko: LandingDict = {
       features: {
         everythingFree: '무료 플랜의 모든 기능',
         fastTimeframes: '1분, 5분, 15분 차트 시그널',
-        strategiesAll: "모든 코인의 전략 신호: 추세, 가격 행동 / SMC, 세션",
+        strategiesAll: "모든 코인의 전략: 추세, 가격 행동, 세션, 파생상품",
         channelBox: "채널 돌파 박스: 진입, 손절, 목표, 위험 대비 보상",
         layersAll: "모든 코인의 지지/저항 및 청산 클러스터 레이어",
         aiSettings: "AI 분석이 내 지표 설정을 사용",
@@ -393,7 +393,7 @@ export const zh: LandingDict = {
       features: {
         everythingFree: '免费版全部功能',
         fastTimeframes: '1 分钟、5 分钟、15 分钟图表信号',
-        strategiesAll: "所有币种的策略信号：趋势、价格行为 / SMC、交易时段",
+        strategiesAll: "所有币种的策略：趋势、价格行为、交易时段、衍生品",
         channelBox: "通道突破框：入场、止损、目标及风险回报比",
         layersAll: "所有币种的支撑阻力与清算集群图层",
         aiSettings: "AI 解读使用您自己的指标设置",
@@ -496,7 +496,7 @@ export const ar: LandingDict = {
       features: {
         everythingFree: 'كل ما في الخطة المجانية',
         fastTimeframes: 'إشارات على الرسوم البيانية لدقيقة و5 دقائق و15 دقيقة',
-        strategiesAll: "إشارات الاستراتيجيات لكل عملة: الاتجاه، حركة السعر / SMC، الجلسات",
+        strategiesAll: "استراتيجيات لكل عملة: الاتجاه، حركة السعر، الجلسات، المشتقات",
         channelBox: "صندوق اختراق القناة: الدخول والوقف والهدف ونسبة المخاطرة إلى العائد",
         layersAll: "طبقات الدعم/المقاومة وتجمعات التصفية لكل عملة",
         aiSettings: "تستخدم قراءة الذكاء الاصطناعي إعدادات مؤشراتك",
@@ -631,7 +631,7 @@ export const ru: LandingDict = {
       features: {
         everythingFree: 'Всё, что входит в бесплатный тариф',
         fastTimeframes: 'Сигналы на графиках 1, 5 и 15 минут',
-        strategiesAll: "Сигналы стратегий по каждой монете: тренд, прайс-экшн / SMC, сессии",
+        strategiesAll: "Стратегии по каждой монете: тренд, прайс-экшн, сессии, деривативы",
         channelBox: "Блок пробоя канала: вход, стоп, цель и риск:прибыль",
         layersAll: "Слои поддержки/сопротивления и кластеров ликвидаций на каждой монете",
         aiSettings: "ИИ-анализ использует ваши настройки индикаторов",
