@@ -238,8 +238,9 @@ export default function BriefingTerminal() {
     const load = () =>
       fetch('/api/forex/jpy')
         .then(r => r.json())
-        .then((d: { jpy?: number }) => {
-          if (d?.jpy) { setJpyUsd(d.jpy); setJpyUpdated(new Date()); }
+        .then((d: { jpy?: number; asOf?: number }) => {
+          /* The age shown is the RATE'S own time (asOf from the route), not the moment this page fetched it. */
+          if (d?.jpy) { setJpyUsd(d.jpy); setJpyUpdated(typeof d.asOf === 'number' && d.asOf > 0 ? new Date(d.asOf) : null); }
         })
         .catch(() => {});
     load();
@@ -654,7 +655,7 @@ export default function BriefingTerminal() {
             </div>
             {jpyMinutesAgo !== null && (
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 5 }}>
-                {t('BRIEFING_YEN_UPDATED', { time: jpyMinutesAgo < 1 ? 'just now' : `${jpyMinutesAgo}m ago` })}
+                {t('BRIEFING_YEN_UPDATED', { time: jpyMinutesAgo < 1 ? 'just now' : jpyMinutesAgo < 90 ? `${jpyMinutesAgo}m ago` : jpyMinutesAgo < 2880 ? `${Math.round(jpyMinutesAgo / 60)}h ago` : `${Math.round(jpyMinutesAgo / 1440)}d ago` })}
               </div>
             )}
           </>

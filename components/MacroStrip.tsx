@@ -7,12 +7,13 @@ export default function MacroStrip() {
   const { store } = useMarket();
   const { t } = useLabels();
   const [jpyUsd, setJpyUsd] = useState<number | null>(null);
+  const [jpyAsOf, setJpyAsOf] = useState<number | null>(null);
 
   useEffect(() => {
     const load = () =>
       fetch('/api/forex/jpy')
         .then(r => r.json())
-        .then((d: { jpy?: number }) => { if (d?.jpy) setJpyUsd(d.jpy); })
+        .then((d: { jpy?: number; asOf?: number }) => { if (d?.jpy) { setJpyUsd(d.jpy); setJpyAsOf(typeof d.asOf === 'number' ? d.asOf : null); } })
         .catch(() => {});
     load();
     const timer = setInterval(load, 5 * 60_000);
@@ -85,7 +86,7 @@ export default function MacroStrip() {
         {/* JPY carry trade risk indicator */}
         <div className="macro-item">
           <div className="macro-item-label">JPY</div>
-          <div className="macro-item-price" style={{ color: jpyCol }}>
+          <div className="macro-item-price" style={{ color: jpyCol }} title={jpyAsOf != null ? new Date(jpyAsOf).toLocaleString() : undefined}>
             {jpyUsd != null ? jpyUsd.toFixed(2) : '-'}
           </div>
           <div className="macro-item-chg" style={{ color: jpyCol }}>
