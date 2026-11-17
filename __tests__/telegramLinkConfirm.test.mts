@@ -50,6 +50,9 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     }
   }
   if (p.endsWith('user_settings')) {
+    if (req.method === 'GET' && filt(url, 'user_id') !== null && filt(url, 'telegram_chat_id') === null) {   /* #2482: the read of THIS account's own current chat before a re-link: user_id=eq.<id>, select=telegram_chat_id */
+      const want = (filt(url, 'user_id') ?? '').replace(/^eq\./, ''); const row = db.settings.get(want); return one(row ? { telegram_chat_id: row.telegram_chat_id } : null);
+    }
     if (req.method === 'GET') { const chat = (filt(url, 'telegram_chat_id') ?? '').replace(/^eq\./, ''); return json(200, [...db.settings.values()].filter((s) => s.telegram_chat_id === chat).map((s) => ({ user_id: s.user_id }))); }
     if (req.method === 'PATCH') {                                                  // /stop: clears the chat id where telegram_chat_id = this chat
       const chat = (filt(url, 'telegram_chat_id') ?? '').replace(/^eq\./, ''); for (const s of db.settings.values()) if (s.telegram_chat_id === chat) s.telegram_chat_id = null; return json(204, null);
@@ -149,4 +152,35 @@ test('W1. setup-webhook refuses to register without the secret (never calls setW
     void req; void ok;
     const set = db.tg.find((t) => t.method === 'setWebhook'); assert.ok(set, 'CONTROL: with the secret set the route never registered the webhook, so the secret_token below was not measured'); assert.equal(set!.body.secret_token, 'qa-webhook-secret', 'setWebhook does not carry the secret_token');
   } finally { if (saved) process.env.TELEGRAM_WEBHOOK_SECRET = saved; else delete process.env.TELEGRAM_WEBHOOK_SECRET; }
+});
+
+/* ── #2482: a re-link from a NEW chat tells the OLD chat it was replaced ──────────────────────────────────────────────────────────────────────────────────────────── */
+
+const toChat = (chat: number) => db.tg.filter((t) => t.method === 'sendMessage' && Number(t.body.chat_id) === chat).map((t) => textOf(t.body));
+
+test('Q1. re-linking from a NEW chat sends the OLD chat one "disconnected" message and links the new one', async () => {
+  code('ABC123'); db.settings.set(U1, { user_id: U1, telegram_chat_id: '444' });
+  await send(confirm(555, 'link:ABC123'));
+  assert.equal(db.settings.get(U1)?.telegram_chat_id, '555');
+  const told = toChat(444); assert.equal(told.length, 1, `the old chat should get exactly one message, got ${told.length}`);
+  assert.match(told[0], /disconnected/); assert.match(told[0], /different chat/);
+});
+
+test('Q2. confirming from the SAME chat (a redelivery, or re-confirming) tells nobody; a first-ever link tells nobody', async () => {
+  code('ABC123'); db.settings.set(U1, { user_id: U1, telegram_chat_id: '555' });
+  await send(confirm(555, 'link:ABC123'));
+  assert.equal(toChat(555).filter((t) => /disconnected/.test(t)).length, 0, 'the confirming chat was told it was disconnected');
+  reset(); code('ABC123');
+  await send(confirm(555, 'link:ABC123'));
+  assert.equal(db.tg.filter((t) => t.method === 'sendMessage' && /disconnected/.test(textOf(t.body))).length, 0, 'a first link told someone it was disconnected');
+});
+
+test('Q3. a failed save tells the old chat NOTHING (it is still linked), and a dead old chat (Telegram throws) never turns the finished link into an error', async () => {
+  code('ABC123'); db.settings.set(U1, { user_id: U1, telegram_chat_id: '444' }); db.failUpsert = true;
+  await send(confirm(555, 'link:ABC123'));
+  assert.equal(toChat(444).length, 0, 'the old chat was told it was replaced although the new link was never saved');
+  reset(); code('ABC123'); db.settings.set(U1, { user_id: U1, telegram_chat_id: '444' }); db.tgThrows = true;
+  const r = await send(confirm(555, 'link:ABC123'));
+  assert.equal(r.status, 200, 'a failing send to the old chat must never fail the route');
+  assert.equal(db.settings.get(U1)?.telegram_chat_id, '555', 'the link must stand');
 });
