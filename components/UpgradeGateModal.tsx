@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useLabels } from '@/lib/labels';
 import { useDialogFocusTrap } from '@/lib/useDialogFocusTrap';
+import { Lock } from '@/components/icons';
 
 interface Props {
   open: boolean;
@@ -31,49 +32,25 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
   onUnlock: () => void;
 }) {
   const { t } = useLabels();
+  /* A SLIM ROW, NOT A CARD (owner, 2026-11-17: too many upsell texts per screen). A locked section is one line - the lock icon and "<feature> - Pro" - and a tap opens the shared upgrade sheet. The description is the hover
+     title only; the "PRO FEATURE" eyebrow, the paragraph and the "Unlock with Pro" button are gone. */
   return (
-    /* data-testid so the paywall can be COUNTED per screen (#441).
-     *
-     * The entitlement check lives at each CALL SITE, not in this component, so
-     * moving a panel into the redesign moves its markup and leaves its guard
-     * behind. That happened on /arena: ConfluenceScore shipped unguarded for
-     * one commit and tsc, eslint, build and 442 tests all passed, because
-     * nothing in the codebase asserts "this screen locks as much as production
-     * does".
-     *
-     * The alternatives were both worse. Matching the card's TEXT binds a spec
-     * to whatever the labels table says today, in one locale. Matching the
-     * gradient binds it to styling the redesign is actively changing - so the
-     * check would break on the very commit it exists to catch. An explicit
-     * hook survives both. */
-    <div data-testid="locked-feature" className="locked-card-term-wrap" style={{
-      ...SURFACE,
-      borderRadius: 'var(--radius-card, 12px)',
-      padding: '18px 20px',
-      display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
-    }}>
-      <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-        <div style={{
-          fontFamily: 'var(--font-mono, monospace)',
-          fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '0.14em',
-          textTransform: 'uppercase', color: 'var(--accent-2)', marginBottom: 6,
-        }}>
-          {t('UPGRADE_GATE_PRO_FEATURE_LABEL')}
-        </div>
-        <div style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>{title}</div>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.6 }}>{description}</div>
-      </div>
-      <button
-        onClick={onUnlock}
-        style={{
-          background: 'var(--accent-solid)', color: 'var(--on-accent)', border: 'none', cursor: 'pointer',
-          fontSize: 'var(--fs-label)', fontWeight: 700, padding: '9px 16px', borderRadius: 8,
-          flexShrink: 0,
-        }}
-      >
-        {t('UPGRADE_GATE_UNLOCK_BUTTON')}
-      </button>
-    </div>
+    <button
+      type="button"
+      data-testid="locked-feature"
+      className="locked-card-term-wrap"
+      title={description}
+      onClick={onUnlock}
+      style={{
+        ...SURFACE,
+        display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 44,
+        padding: '8px 14px', cursor: 'pointer', textAlign: 'left', font: 'inherit',
+        fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt2)',
+      }}
+    >
+      <Lock size={14} aria-hidden="true" style={{ color: 'var(--txt3)', flexShrink: 0 }} />
+      <span>{t('UPGRADE_GATE_LOCKED_ROW', { feature: title })}</span>
+    </button>
   );
 }
 

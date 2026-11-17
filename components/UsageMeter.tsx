@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { useLabels } from '@/lib/labels';
-import { UpgradePillLink, useShowFreeUpgrade } from '@/components/UpgradePill';
 import { nextResetLocalTime } from '@/lib/resetTime';
 
 // Visible usage tracker under the Arena AI buttons: today's Quick/Deep tally
@@ -35,7 +34,6 @@ export default function UsageMeter() {
   const { user, isPro } = useAuth();
   const { usage } = useGrokUsage();
   const { t } = useLabels();
-  const showFreeUpgrade = useShowFreeUpgrade();
   const [resetTime, setResetTime] = useState<string | null>(null);
 
   useEffect(() => {
@@ -60,7 +58,6 @@ export default function UsageMeter() {
   if (!usage) {
     return (
       <div className={slotClass} style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
-        {showFreeUpgrade ? <UpgradePillLink testId="usage-meter-upgrade" tap /> : null}
       </div>
     );
   }
@@ -87,14 +84,6 @@ export default function UsageMeter() {
         <span className="usage-reset" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: '0 1 auto' }}>
           {t('USAGE_METER_RESET_FACT', { time: resetTime })}
         </span>
-      )}
-      {/* Free: a real button-style pill, always (was caption text, only near the cap). A trial keeps the old caption link
-          near the cap - TrialBanner already carries its pill. */}
-      {showFreeUpgrade && <UpgradePillLink testId="usage-meter-upgrade" style={{ marginLeft: 'auto' }} tap />}
-      {!isPro && !showFreeUpgrade && nearCap && (
-        <Link href="/upgrade" style={{ marginLeft: 'auto', color: 'var(--accent)', fontWeight: 700, fontSize: 'var(--fs-caption)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-          {t('USAGE_METER_UPGRADE_LINK')}
-        </Link>
       )}
     </div>
     </div>

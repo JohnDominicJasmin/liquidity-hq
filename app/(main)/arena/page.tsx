@@ -35,7 +35,6 @@ import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
 import LiqFeed, { type Bucket } from '@/components/LiqFeed';
 import { topClustersForCoin, acceptClusterEmission, formatClustersForPrompt } from '@/lib/liqClusters';
 import UsageMeter from '@/components/UsageMeter';
-import { FreeUpgradePill } from '@/components/UpgradePill';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, SIGNAL_OLD_BARS } from '@/lib/useEMAStrategy';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
@@ -2122,9 +2121,6 @@ function ArenaContent() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'nowrap' }}>
           <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px', whiteSpace: 'nowrap', flexShrink: 0 }}>{t('ARENA_PAGE_TITLE')}</div>
           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent-2)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
-          {/* Free accounts only (owner, 2026-10-07: they could not find Upgrade on this page). The same 44px pill TrialBanner
-              uses, at the right of the header; nothing for Pro, a trial, or an unknown plan. */}
-          <FreeUpgradePill testId="arena-header-upgrade" style={{ marginLeft: 'auto' }} tap />
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
@@ -2989,13 +2985,6 @@ function ArenaContent() {
         <div className="arena-ws-chart">
       {/* #1596: a coin outside BTC/ETH/SOL for an account that has not paid (Free or free trial): a clean chart, and this one line. No
           markers and no locked circles are drawn (lib/signalCoinGate.ts gateSignal). */}
-      {coinLocked && (
-        <div data-testid="arena-coin-lock-line" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', marginBottom: 8, border: '0.5px solid var(--bdr)', background: 'var(--bg2)' }}>
-          <Lock size={14} style={{ color: 'var(--txt3)', flexShrink: 0 }} />
-          <span style={{ flex: '1 1 220px', minWidth: 0, fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.4 }}>{t('ARENA_COIN_LOCK_LINE', { coin: selectedCoin.toUpperCase() })}</span>
-          <Link href="/upgrade" data-testid="arena-coin-lock-upgrade" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 14px', border: '1px solid var(--accent)', color: 'var(--accent)', fontSize: 'var(--fs-label)', fontWeight: 700, textDecoration: 'none' }}>{t('TNAV_UPGRADE_LABEL')}</Link>
-        </div>
-      )}
       {planChecking && (
         <div role="status" aria-live="polite" data-testid="arena-plan-checking" style={{ margin: '0 0 8px', fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('ARENA_PLAN_CHECKING')}</div>
       )}

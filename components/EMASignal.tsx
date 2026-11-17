@@ -106,11 +106,20 @@ function buildConditionPrompt(label: string, pass: boolean | null, detail: strin
 interface Props { signal: StrategySignal; tf?: string; coin?: CoinId; aboveCeiling?: boolean }
 
 /* The signal coin gate's locked state (lib/signalCoinGate.ts): in place of the verdict, the checklist and the levels. */
-function LockedSignal({ lock }: { lock: 'signed_out' | 'free' }) {
+function LockedSignal({ lock, coin }: { lock: 'signed_out' | 'free'; coin?: string }) {
   const { t } = useLabels();
   const base = signalLockCopy(lock);
   // Free and trial: labelled in every language (#1596). The signed-out line is unchanged.
-  const copy = lock === 'free' ? { ...base, text: t('ARENA_COIN_LOCK_PANEL'), cta: t('TNAV_UPGRADE_LABEL') } : base;
+  /* FREE: one line, no button (owner, 2026-11-17): "EMA signals for HYPE - Pro" with the lock icon. Signed out keeps its sign-up link. */
+  if (lock === 'free') {
+    return (
+      <div data-testid="signal-locked" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', border: '0.5px solid var(--bdr)', background: 'var(--bg2)' }}>
+        <Lock size={14} aria-hidden="true" style={{ color: 'var(--txt3)', flexShrink: 0 }} />
+        <span style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)' }}>{t('EMA_SIGNAL_LOCKED_LINE', { coin: (coin ?? '').toUpperCase() })}</span>
+      </div>
+    );
+  }
+  const copy = base;
   return (
     <div data-testid="signal-locked" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', border: '0.5px solid var(--bdr)', background: 'var(--bg2)' }}>
       <Lock size={14} style={{ color: 'var(--txt3)' }} />
@@ -162,7 +171,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
     return (
       <div style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 10, padding: '12px 14px', marginBottom: 10 }}>
         <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 8 }}>{t('EMA_SIGNAL_TITLE')}</div>
-        <LockedSignal lock={signal.signalLock} />
+        <LockedSignal lock={signal.signalLock} coin={coin} />
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10 }}>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('EMA_SIGNAL_FAST_AVG')} <b style={{ color: 'var(--amber)' }}>{currencyPrefix(coin)}{fmt(signal.ema9_4h)}</b></span>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('EMA_SIGNAL_MID_AVG')} <b style={{ color: 'var(--accent-2)' }}>{currencyPrefix(coin)}{fmt(signal.ema20_4h ?? null)}</b></span>
