@@ -11,6 +11,8 @@ export const rrOf = (entry: number, stop: number, target: number | null): number
 const call = (verdict: 'BUY' | 'SELL', entry: number, stop: number, target: number | null): Call => ({ verdict, entry, stop, target, rr: rrOf(entry, stop, target) });
 /** nearest level in the trade's direction: above entry for BUY, below for SELL; null when none. */
 export const nearest = (zones: Zone[], entry: number, dir: 'BUY' | 'SELL'): number | null => { const c = zones.map((z) => z.price).filter((p) => (dir === 'BUY' ? p > entry : p < entry)).sort((a, b) => (dir === 'BUY' ? a - b : b - a)); return c.length ? c[0] : null; };
+/** PM 2026-11-17: a target taken from "the nearest S/R" is the first level in the trade's direction at >= 1x the risk distance (nearer levels are skipped); none = no target, no R:R. Rule targets (range opposite edge, session opposite side) do not use this. */
+export const nearestR = (zones: Zone[], entry: number, stop: number, dir: 'BUY' | 'SELL'): number | null => nearest(zones.filter((z) => Math.abs(z.price - entry) >= Math.abs(entry - stop)), entry, dir);
 export const emaSeries = (v: number[], n: number): number[] => { const k = 2 / (n + 1); const out: number[] = []; let e = v[0]; for (let i = 0; i < v.length; i++) { e = i === 0 ? v[0] : v[i] * k + e * (1 - k); out.push(e); } return out; };
 
 const mk = (i: number, t0: number, tf: number, o: number, a: number, b: number, c: number): C => ({ time: t0 + i * tf, open: o, high: Math.max(a, b, o, c), low: Math.min(a, b, o, c), close: c });   // a and b are the two extremes in either order
@@ -24,7 +26,8 @@ export function crossCall(c: C[], zones: Zone[]): Call {
   const up = e50[k] > e200[k] && !(e50[k - 1] > e200[k - 1]), dn = e50[k] < e200[k] && !(e50[k - 1] < e200[k - 1]);
   if (!up && !dn) return { verdict: 'WAIT' };
   const w = c.slice(k - 19, k + 1), entry = c[k].close;
-  return up ? call('BUY', entry, Math.min(...w.map((x) => x.low)), nearest(zones, entry, 'BUY')) : call('SELL', entry, Math.max(...w.map((x) => x.high)), nearest(zones, entry, 'SELL'));
+  const stopB = Math.min(...w.map((x) => x.low)), stopS = Math.max(...w.map((x) => x.high));
+  return up ? call('BUY', entry, stopB, nearestR(zones, entry, stopB, 'BUY')) : call('SELL', entry, stopS, nearestR(zones, entry, stopS, 'SELL'));
 }
 /** A long fall then a long rise (or the mirror); the series is cut at the FIRST candle where EMA50 crosses EMA200 (`atCross`) or one candle before it (`beforeCross`). */
 export function crossFixture(dir: 'golden' | 'death', where: 'atCross' | 'beforeCross', t0 = 1_760_000_000_000): C[] {
@@ -43,23 +46,46 @@ export function flipCall(c: C[], levelP: number, side: 'resistance' | 'support',
   if (side === 'resistance') {
     let broke = -1; for (let i = 1; i <= k; i++) if (c[i].close > levelP && c[i - 1].close <= levelP) broke = i;   // the latest close above
     if (broke < 0 || broke === k) return { verdict: 'WAIT' };
-    for (let i = broke + 1; i <= k; i++) { if (c[i].low <= levelP) { if (i === k && c[i].close > levelP) return call('BUY', c[i].close, Math.min(levelP, c[i].low), nearest(zones, c[i].close, 'BUY')); return { verdict: 'WAIT' }; } }
+    for (let i = broke + 1; i <= k; i++) { if (c[i].low <= levelP) { if (i === k && c[i].close > levelP) { const st = Math.min(levelP, c[i].low); return call('BUY', c[i].close, st, nearestR(zones, c[i].close, st, 'BUY')); } return { verdict: 'WAIT' }; } }
     return { verdict: 'WAIT' };
   }
   let broke = -1; for (let i = 1; i <= k; i++) if (c[i].close < levelP && c[i - 1].close >= levelP) broke = i;
   if (broke < 0 || broke === k) return { verdict: 'WAIT' };
-  for (let i = broke + 1; i <= k; i++) { if (c[i].high >= levelP) { if (i === k && c[i].close < levelP) return call('SELL', c[i].close, Math.max(levelP, c[i].high), nearest(zones, c[i].close, 'SELL')); return { verdict: 'WAIT' }; } }
+  for (let i = broke + 1; i <= k; i++) { if (c[i].high >= levelP) { if (i === k && c[i].close < levelP) { const st = Math.max(levelP, c[i].high); return call('SELL', c[i].close, st, nearestR(zones, c[i].close, st, 'SELL')); } return { verdict: 'WAIT' }; } }
   return { verdict: 'WAIT' };
 }
+/** The chart's own S/R computation (a copy of lib/srLevels.ts computeSRLevels: swing highs / lows with 3 bars each side over the last 200 bars, clustered within 0.3%, the three most-touched on each side of the price); a test compares it with the real function when the tree has it. */
+export function srLevels(bars: { high: number; low: number; close: number }[], currentPrice: number): Array<{ price: number; type: 'support' | 'resistance'; touches: number }> {
+  const lb = 3, recent = bars.slice(-200), swingHighs: number[] = [], swingLows: number[] = [];
+  for (let i = lb; i < recent.length - lb; i++) {
+    const hi = recent[i].high, lo = recent[i].low;
+    if (recent.slice(i - lb, i).every((x) => x.high <= hi) && recent.slice(i + 1, i + lb + 1).every((x) => x.high <= hi)) swingHighs.push(hi);
+    if (recent.slice(i - lb, i).every((x) => x.low >= lo) && recent.slice(i + 1, i + lb + 1).every((x) => x.low >= lo)) swingLows.push(lo);
+  }
+  const cluster = (prices: number[]) => { const clusters: Array<{ price: number; count: number }> = []; for (const p of [...prices].sort((x, y) => x - y)) { const ex = clusters.find((c) => Math.abs(c.price - p) / p < 0.003); if (ex) { ex.price = (ex.price * ex.count + p) / (ex.count + 1); ex.count++; } else clusters.push({ price: p, count: 1 }); } return clusters.sort((x, y) => y.count - x.count); };
+  return [...cluster(swingHighs).filter((c) => c.price > currentPrice * 0.999).slice(0, 3).map((c) => ({ price: c.price, type: 'resistance' as const, touches: c.count })), ...cluster(swingLows).filter((c) => c.price < currentPrice * 1.001).slice(0, 3).map((c) => ({ price: c.price, type: 'support' as const, touches: c.count }))];
+}
+/** The level the chart would draw just BEFORE the break: the most-touched resistance (BUY side) / support (SELL side) of the candles up to `end` (exclusive), with the price at the last of them as "current". */
+export function flipLevelFromChart(c: C[], end: number, side: 'resistance' | 'support'): number | null {
+  const prefix = c.slice(0, end); if (prefix.length < 10) return null; const lv = srLevels(prefix, prefix[prefix.length - 1].close).filter((l) => l.type === side);
+  return lv.length ? lv.sort((x, y) => y.touches - x.touches)[0].price : null;
+}
+/** Prelude of 6 cycles of 10 bars: price swings between ~4% away and the level, every swing extreme touching the level (a wick to it), so the chart's own S/R finds it as a cluster of 6 touches; then: the break (a close beyond), a run away, a pullback that does not touch, and the retest candle (or, for the control, a candle that comes back without touching). */
 export function flipFixture(side: 'resistance' | 'support', retest: boolean, levelP = 100_000, t0 = 1_760_000_000_000): { candles: C[]; level: number } {
   const s = side === 'resistance' ? 1 : -1, out: C[] = []; let i = 0;
-  const push = (o: number, h: number, l: number, cl: number) => out.push(mk(i++, t0, 4 * H, o, h, l, cl));
-  for (let j = 0; j < 20; j++) { const b = levelP - s * (4000 - j * 120); push(b, b + 200, b - 200, b + s * 60); }   // approaching the level from the wrong side, closes beyond it never
-  push(levelP - s * 300, levelP + s * 1500, levelP - s * 400, levelP + s * 1200);                                       // the break: a close beyond the level
-  push(levelP + s * 1200, levelP + s * 2200, levelP + s * 1000, levelP + s * 2000);                                      // runs away
-  push(levelP + s * 2000, levelP + s * 2300, levelP + s * 1500, levelP + s * 1800);                                      // pulls back but does not touch
-  if (retest) push(levelP + s * 1800, levelP + s * 1900, levelP - s * 150, levelP + s * 900);                            // the retest: touches the level (wick through it) and closes back beyond it
-  else push(levelP + s * 1800, levelP + s * 1900, levelP + s * 700, levelP + s * 1100);                                  // control: comes back but never touches
+  const push = (o: number, a: number, b: number, cl: number) => out.push(mk(i++, t0, 4 * H, o, a, b, cl));
+  for (let cyc = 0; cyc < 6; cyc++) for (let j = 0; j < 10; j++) {
+    const tri = (k: number) => { const ph = k / 10; return ph <= 0.5 ? ph * 2 : (1 - ph) * 2; };   // 0 .. 1 .. 0
+    const lvl = (k: number) => levelP - s * levelP * 0.04 * (1 - tri(k)), mid = lvl(j), prev = lvl(j === 0 ? 0 : j - 1);
+    const peak = j === 5;                                                                       // the swing extreme: its wick reaches the level, its close stays on the near side
+    push(prev, peak ? levelP : mid + s * levelP * 0.001, mid - s * levelP * 0.001, peak ? levelP - s * levelP * 0.004 : mid);
+  }
+  const base = out[out.length - 1].close;
+  push(base, levelP + s * 1500, levelP - s * 400, levelP + s * 1200);                           // the break: a close beyond the level
+  push(levelP + s * 1200, levelP + s * 2200, levelP + s * 1000, levelP + s * 2000);              // runs away
+  push(levelP + s * 2000, levelP + s * 2300, levelP + s * 1500, levelP + s * 1800);              // pulls back but does not touch
+  if (retest) push(levelP + s * 1800, levelP + s * 1900, levelP - s * 150, levelP + s * 900);    // the retest: a wick through the level, a close back beyond it
+  else push(levelP + s * 1800, levelP + s * 1900, levelP + s * 700, levelP + s * 1100);          // control: back near, never touching
   return { candles: out, level: levelP };
 }
 
@@ -98,8 +124,8 @@ export function fvgCall(c: C[], zones: Zone[]): Call {
     for (let j = i + 1; j <= k; j++) { if (bull ? c[j].close < bot : c[j].close > top) { filled = true; break; } if (first < 0 && (bull ? c[j].low <= top : c[j].high >= bot)) first = j; }
     if (filled || first !== k) continue;
     const pre = c.slice(Math.max(0, i - 22), i - 1);
-    if (bull && c[k].close > bot) { const entry = c[k].close, swing = Math.max(...pre.map((x) => x.high)), sr = nearest(zones, entry, 'BUY'), cand = [swing, sr].filter((v): v is number => v != null && v > entry); return call('BUY', entry, bot, cand.length ? Math.min(...cand) : null); }
-    if (bear && c[k].close < top) { const entry = c[k].close, swing = Math.min(...pre.map((x) => x.low)), sr = nearest(zones, entry, 'SELL'), cand = [swing, sr].filter((v): v is number => v != null && v < entry); return call('SELL', entry, top, cand.length ? Math.max(...cand) : null); }
+    if (bull && c[k].close > bot) { const entry = c[k].close, swing = Math.max(...pre.map((x) => x.high)), sr = nearestR(zones, entry, bot, 'BUY'), cand = [swing, sr].filter((v): v is number => v != null && v > entry); return call('BUY', entry, bot, cand.length ? Math.min(...cand) : null); }
+    if (bear && c[k].close < top) { const entry = c[k].close, swing = Math.min(...pre.map((x) => x.low)), sr = nearestR(zones, entry, top, 'SELL'), cand = [swing, sr].filter((v): v is number => v != null && v < entry); return call('SELL', entry, top, cand.length ? Math.max(...cand) : null); }
   }
   return { verdict: 'WAIT' };
 }

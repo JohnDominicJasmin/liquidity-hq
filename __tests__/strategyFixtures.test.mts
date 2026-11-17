@@ -8,7 +8,7 @@
  * WHAT IT CANNOT PROVE: the app (it does not exist yet). The browser/unit comparisons run when each strategy lands. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { crossCall, crossFixture, flipCall, flipFixture, rangeCall, rangeFixture, fvgCall, fvgFixture, sessionCall, sessionFixture, rrOf, nearest, emaSeries } from '../qa/fixtures/strategyFixtures.ts';
+import { crossCall, crossFixture, flipCall, flipFixture, flipLevelFromChart, srLevels, nearestR, rangeCall, rangeFixture, fvgCall, fvgFixture, sessionCall, sessionFixture, rrOf, nearest, emaSeries } from '../qa/fixtures/strategyFixtures.ts';
 import { detectStructures } from '../lib/chartStructureDetect.ts';
 
 test('SF1. golden / death cross: BUY/SELL exactly at the cross, WAIT one candle earlier', () => {
@@ -25,10 +25,15 @@ test('SF1. golden / death cross: BUY/SELL exactly at the cross, WAIT one candle 
 test('SF2. S/R flip: the retest that touches and closes back beyond = the call; no touch = WAIT', () => {
   for (const side of ['resistance', 'support'] as const) {
     const fx = flipFixture(side, true), ctl = flipFixture(side, false), last = fx.candles[fx.candles.length - 1], verdict = side === 'resistance' ? 'BUY' : 'SELL';
-    const next = side === 'resistance' ? last.close * 1.06 : last.close * 0.94, c = flipCall(fx.candles, fx.level, side, [{ price: next }, { price: side === 'resistance' ? last.close * 1.2 : last.close * 0.8 }]);
+    /* THE LEVEL IS THE CHART'S OWN (swing highs / lows forming a cluster), not injected: derived from the candles before the break */
+    const fromChart = flipLevelFromChart(fx.candles, fx.candles.length - 4, side); assert.ok(fromChart != null && Math.abs(fromChart - fx.level) / fx.level < 0.002, `${side}: the chart's own S/R does not find the level (${fromChart} vs ${fx.level})`);
+    const lv = srLevels(fx.candles.slice(0, fx.candles.length - 4), fx.candles[fx.candles.length - 5].close).filter((l) => l.type === side); assert.ok(lv.length > 0 && Math.max(...lv.map((l) => l.touches)) >= 3, `${side}: the level has fewer than 3 touches`);
+    const stopP = side === 'resistance' ? Math.min(fx.level, last.low) : Math.max(fx.level, last.high), risk = Math.abs(last.close - stopP), sgn = side === 'resistance' ? 1 : -1;
+    const nearZ = { price: last.close + sgn * 0.5 * risk }, next = last.close + sgn * 1.5 * risk, c = flipCall(fx.candles, fromChart as number, side, [nearZ, { price: next }, { price: last.close + sgn * 3 * risk }]);
+    assert.equal(flipCall(fx.candles, fromChart as number, side, [nearZ]).target, null, `${side}: a level at 0.5R was taken as the target (PM: >= 1R only)`);
     assert.equal(c.verdict, verdict, `${side}: no ${verdict} on the retest`); assert.equal(c.entry, last.close);
-    assert.equal(c.stop, side === 'resistance' ? Math.min(fx.level, last.low) : Math.max(fx.level, last.high), 'stop is not just beyond the level / the retest wick');
-    assert.equal(c.target, next, 'target is not the NEXT level in the direction');
+    assert.equal(c.stop, stopP, 'stop is not just beyond the level / the retest wick');
+    assert.equal(c.target, next, 'target is not the first level in the direction at >= 1R');
     assert.equal(flipCall(ctl.candles, ctl.level, side, []).verdict, 'WAIT', `${side}: a call without a touching retest`);
   }
 });
@@ -71,4 +76,24 @@ test('SF5. Asia / London sweep: wick through the session extreme and close back 
 test('SF6. R:R arithmetic; no target means no R:R; nearest level picks the right side', () => {
   assert.ok(Math.abs((rrOf(100, 96, 111.28) as number) - 2.82) < 1e-9); assert.equal(rrOf(100, 96, null), null); assert.equal(rrOf(100, 100, 120), null);
   assert.equal(nearest([{ price: 120 }, { price: 108 }, { price: 90 }], 100, 'BUY'), 108); assert.equal(nearest([{ price: 120 }, { price: 108 }, { price: 90 }, { price: 95 }], 100, 'SELL'), 95); assert.equal(nearest([{ price: 90 }], 100, 'BUY'), null);
+});
+
+test('SF7. the >=1R rule on the "nearest S/R" targets (cross, flip, FVG fallback); rule targets (range edge, session side) are unchanged', () => {
+  const at = crossFixture('golden', 'atCross'), last = at[at.length - 1], stop = Math.min(...at.slice(-20).map((x) => x.low)), risk = last.close - stop;
+  assert.equal(crossCall(at, [{ price: last.close + 0.5 * risk }]).target, null, 'cross: a 0.5R level became the target'); assert.equal(crossCall(at, [{ price: last.close + 0.5 * risk }]).rr, null);
+  assert.equal(crossCall(at, [{ price: last.close + 0.5 * risk }, { price: last.close + 2 * risk }]).target, last.close + 2 * risk, 'cross: the first level at >= 1R was not chosen');
+  assert.equal(nearestR([{ price: 110 }, { price: 130 }], 100, 96, 'BUY'), 110); assert.equal(nearestR([{ price: 101 }, { price: 130 }], 100, 96, 'BUY'), 130); assert.equal(nearestR([{ price: 101 }], 100, 96, 'BUY'), null);
+  const fx = fvgFixture('bull', true), l = fx[fx.length - 1], bot = fx[fx.length - 5].high, rk = l.close - bot;
+  const swing = Math.max(...fx.slice(Math.max(0, fx.length - 5 - 22), fx.length - 6).map((x) => x.high));
+  const withNearSR = fvgCall(fx, [{ price: l.close + 0.5 * rk }]); assert.ok(withNearSR.target == null || withNearSR.target === swing || withNearSR.target >= l.close + rk - 1e-6, 'fvg: a sub-1R S/R level became the target');
+  const lo = rangeFixture('low'), r = rangeCall(lo.candles, lo.low, lo.high, lo.touchesLow, lo.touchesHigh); assert.equal(r.target, lo.high, 'a rule target (the range opposite edge) must not be filtered by 1R');
+  const ss = sessionFixture('asia', 'low'), s = sessionCall(ss.candles, { startH: 0, endH: 8 }); assert.equal(s.target, ss.range.high, 'a rule target (the session opposite side) must not be filtered by 1R');
+});
+
+test('SF8. the oracle copy of the chart S/R equals lib/srLevels.ts where that file exists in this tree', async () => {
+  let real: { computeSRLevels: (b: Array<{ high: number; low: number; close: number }>, p: number) => unknown } | null = null;
+  try { real = await import('../lib/srLevels.ts'); } catch { /* this tree predates the shared S/R file */ }
+  if (!real) return;
+  const fx = flipFixture('resistance', true).candles.slice(0, -4); const cur = fx[fx.length - 1].close;
+  assert.deepEqual(srLevels(fx, cur), real.computeSRLevels(fx, cur), 'the oracle S/R copy drifted from lib/srLevels.ts');
 });
