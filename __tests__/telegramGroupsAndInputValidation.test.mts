@@ -48,7 +48,9 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   if (p.endsWith('user_settings')) {
     if (req.method === 'GET') { const chat = (filt(url, 'telegram_chat_id') ?? '').replace(/^eq\./, ''); return json(200, [...db.settings.values()].filter((s) => s.telegram_chat_id === chat).map((s) => ({ user_id: s.user_id }))); }
     if (req.method === 'PATCH') {                                                  // /stop: clears the chat id where telegram_chat_id = this chat
-      const chat = (filt(url, 'telegram_chat_id') ?? '').replace(/^eq\./, ''); for (const s of db.settings.values()) if (s.telegram_chat_id === chat) s.telegram_chat_id = null; return json(204, null);
+      const chat = (filt(url, 'telegram_chat_id') ?? '').replace(/^eq\./, ''); const notUser = (filt(url, 'user_id') ?? '').replace(/^neq\./, '');   /* #2484: the filter may carry user_id=neq.<id> (clear OTHER accounts only) and select=user_id (answer the rows it cleared) */
+      const cleared: { user_id: string }[] = []; for (const s of db.settings.values()) if (s.telegram_chat_id === chat && (!notUser || s.user_id !== notUser)) { s.telegram_chat_id = null; cleared.push({ user_id: s.user_id }); }
+      return url.searchParams.get('select') ? json(200, cleared) : json(204, null);
     }
     if (req.method === 'POST') {                                                   // the upsert
       if (db.failUpsert) return json(500, { code: 'XX000', message: 'stand-in: write failed', details: '', hint: '' });
