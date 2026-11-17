@@ -159,6 +159,10 @@ export default function RootDocument({ lang, children }: { lang: string; childre
             keys authTokenKeys also matches are a cookie/SSR artifact, not something written here, so
             there is no chunk-only session to reassemble. The per-key parse with `continue` stays as
             the guard for a stray chunk key from some other context. */}
+        {/* EARLY ERRORS (#2505, QA early-error fail): the error tracker is now imported after the load event, so something has to listen from the very first script. This is that listener: it keeps the first ten errors and rejections in window.__lhqEarly, and instrumentation-client.ts hands them over once the tracker is ready. It runs before any app script, which the listener inside the bundle could not. */}
+        <Script id="early-errors" strategy="beforeInteractive">
+          {`(function(){var q=window.__lhqEarly=[];function k(x){if(!window.__lhqEarlyDone&&q.length<10)q.push(x);}window.addEventListener('error',function(e){k(e&&(e.error||e.message));});window.addEventListener('unhandledrejection',function(e){k(e&&e.reason);});})();`}
+        </Script>
         <Script id="landing-signed-in-redirect" strategy="beforeInteractive">
           {`(function(){try{var p=location.pathname.replace(/\\/+$/,'')||'/';if(${landingPathsJs}.indexOf(p)<0)return;var ls=window.localStorage;var la=null;try{la=ls.getItem(${JSON.stringify(LAST_ACTIVE_KEY)});}catch(e){}if(la!==null&&Date.now()-Number(la)>${INACTIVITY_MS})return;for(var i=0;i<ls.length;i++){var k=ls.key(i);if(!k||k.slice(0,3)!=='sb-'||k.indexOf('-auth-token')<0)continue;var s=null;try{s=JSON.parse(ls.getItem(k)||'null');}catch(err){continue;}if(!s)continue;var hasRefresh=typeof s.refresh_token==='string'&&s.refresh_token.length>0;var liveAccess=typeof s.expires_at==='number'&&s.expires_at*1000-Date.now()>90000;if(hasRefresh||liveAccess){location.replace('/arena');return;}}}catch(e){}})();`}
         </Script>

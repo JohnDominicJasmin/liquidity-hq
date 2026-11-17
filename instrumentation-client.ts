@@ -16,25 +16,19 @@ import { monitoringOptions } from '@/lib/monitoring';
 type SentryModule = typeof import('@sentry/nextjs');
 
 let sentry: SentryModule | null = null;
-const early: unknown[] = [];
-const MAX_EARLY = 10;
+/* window.__lhqEarly is filled by the inline `early-errors` script in components/RootDocument.tsx, which runs before any app script. */
+const early: unknown[] = typeof window !== 'undefined' ? ((window as Window & { __lhqEarly?: unknown[] }).__lhqEarly ??= []) : [];
 let pendingNav: Array<[string, string]> = [];
 
-function keep(e: unknown) { if (early.length < MAX_EARLY) early.push(e); }
-
 if (typeof window !== 'undefined') {
-  const onError = (ev: ErrorEvent) => keep(ev.error ?? ev.message);
-  const onRejection = (ev: PromiseRejectionEvent) => keep(ev.reason);
-  window.addEventListener('error', onError);
-  window.addEventListener('unhandledrejection', onRejection);
 
   const start = () => {
     import('@sentry/nextjs').then((S) => {
       S.init(monitoringOptions());
       sentry = S;
-      window.removeEventListener('error', onError);
-      window.removeEventListener('unhandledrejection', onRejection);
+      /* Hand over what the inline listener kept, then tell it to stop: Sentry's own handlers are installed now, so a later error must not be counted twice. */
       for (const e of early.splice(0)) { try { S.captureException(e); } catch { /* never breaks the page */ } }
+      (window as Window & { __lhqEarlyDone?: boolean }).__lhqEarlyDone = true;
       for (const [href, type] of pendingNav) {
         try { S.captureRouterTransitionStart(href, type as Parameters<SentryModule['captureRouterTransitionStart']>[1]); } catch { /* ditto */ }
       }
