@@ -411,14 +411,21 @@ function ArenaContent() {
      switch, and kept per browser so a reload keeps what was left on or off. Both default on, as the chart always did. */
   const [showSR, setShowSRState]   = useState(true);
   const [showLiq, setShowLiqState] = useState(true);
+  /* The EMA ribbon and the RSI pane (owner, 2026-11-17): the same kind of switch, default on, kept per browser. Display only - the AI read and the strategies still use EMA/RSI data. */
+  const [showEma, setShowEmaState] = useState(true);
+  const [showRsi, setShowRsiState] = useState(true);
   useEffect(() => {
     try {
       if (localStorage.getItem('lhq_arena_show_sr') === '0') setShowSRState(false);
       if (localStorage.getItem('lhq_arena_show_liq') === '0') setShowLiqState(false);
+      if (localStorage.getItem('lhq_arena_show_ema') === '0') setShowEmaState(false);
+      if (localStorage.getItem('lhq_arena_show_rsi') === '0') setShowRsiState(false);
     } catch { /* storage blocked: the defaults stand */ }
   }, []);
   const setShowSR  = useCallback((v: boolean) => { setShowSRState(v);  try { localStorage.setItem('lhq_arena_show_sr',  v ? '1' : '0'); } catch { /* not persisted */ } }, []);
   const setShowLiq = useCallback((v: boolean) => { setShowLiqState(v); try { localStorage.setItem('lhq_arena_show_liq', v ? '1' : '0'); } catch { /* not persisted */ } }, []);
+  const setShowEma = useCallback((v: boolean) => { setShowEmaState(v); try { localStorage.setItem('lhq_arena_show_ema', v ? '1' : '0'); } catch { /* not persisted */ } }, []);
+  const setShowRsi = useCallback((v: boolean) => { setShowRsiState(v); try { localStorage.setItem('lhq_arena_show_rsi', v ? '1' : '0'); } catch { /* not persisted */ } }, []);
   const [savedStrategySelection, setStrategySelection] = useState<readonly string[]>([]);
   /* #1347 item 9: `strategySelection` is `[]` until the seed effect below has read the account's saved
      selection, so anything comparing it to a restored result's `selectionAtAnalysis` on a cold load
@@ -3001,7 +3008,7 @@ function ArenaContent() {
         <div role="status" aria-live="polite" data-testid="arena-plan-checking" style={{ margin: '0 0 8px', fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('ARENA_PLAN_CHECKING')}</div>
       )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} liqHistOnly={liqHistOnly} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} strategyOverlay={arenaStrategy ? strategyState.result?.overlay ?? null : null} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
+      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} liqHistOnly={liqHistOnly} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} strategyOverlay={arenaStrategy ? strategyState.result?.overlay ?? null : null} showSR={showSR} onShowSRChange={setShowSR} showLiq={showLiq} onShowLiqChange={setShowLiq} showEma={showEma} showRsi={showRsi} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
       {/* ── Auth / upgrade notice ── BELOW THE CHART (arena layout shift, #1263). It exists only for a signed-out visitor and appears when auth resolves, about half a
           second after first paint. Above the chart it pushed the whole chart workspace down 54 px (QA's element measurement: CLS 0.041 on a CI build, 0.196 on the real network). Down here it can
           only push what is under the chart. */}
@@ -3215,7 +3222,7 @@ function ArenaContent() {
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
       <div className="arena-ws-strat">
-      <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} strategyState={strategyState} planChecking={planUnsettled} />
+      <StrategyPanel overlays={overlayStates({ showSR, showLiq, showEma, showRsi, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : id === 'EMA_RIBBON' ? setShowEma(!showEma) : id === 'RSI' ? setShowRsi(!showRsi) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} strategyState={strategyState} planChecking={planUnsettled} />
       </div>
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">

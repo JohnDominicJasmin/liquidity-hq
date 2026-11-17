@@ -417,6 +417,9 @@ interface Props {
   onShowSRChange:  (next: boolean) => void;
   showLiq:       boolean;
   onShowLiqChange: (next: boolean) => void;
+  /* The EMA ribbon and the RSI pane, owned by the page like S/R and Liq (owner, 2026-11-17). Display only; omitted = shown. */
+  showEma?:      boolean;
+  showRsi?:      boolean;
   /** The only venue in the stored 24 h liquidation history, when it is just one: the Liq button then says so instead of looking complete. */
   liqHistOnly?: 'BN' | 'BB' | null;
   /* Called when a confirmed-Free visitor taps the locked Draw Structure button. The PAGE owns the
@@ -686,7 +689,9 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, onUnlock, strategyOverlay }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, showEma = true, showRsi = true, onUnlock, strategyOverlay }: Props) {
+  const showEmaRef = useRef(showEma);
+  showEmaRef.current = showEma;
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -1031,7 +1036,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const syncEmaRibbon = useCallback(() => {
     const chart = chartRef.current;
     const bars = emaBarsRef.current;
-    if (!chart || !bars.length) return;
+    if (!chart) return;
+    if (!showEmaRef.current) {
+      /* Switched off: take the four lines off the chart. The bars stay in emaBarsRef, so switching back redraws at once. */
+      emaRibbonIds.current.forEach((id, i) => { if (id) { try { chart.removeOverlay({ id }); } catch { /* already gone */ } emaRibbonIds.current[i] = null; } });
+      return;
+    }
+    if (!bars.length) return;
     EMA_PERIODS.forEach((cfg, idx) => {
       const series = computeEmaSeries(bars, cfg.period);
       if (!series.length) return;
@@ -1078,6 +1089,24 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       }
     });
   }, []);
+
+  /* Re-sync when the switch flips; the RSI pane is removed or re-created the same way. */
+  useEffect(() => { syncEmaRibbon(); }, [showEma, syncEmaRibbon]);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    if (!showRsi) {
+      try { chart.removeIndicator({ paneId: 'rsi_pane', name: 'RSI' }); } catch { /* not there */ }
+    } else {
+      try {
+        chart.createIndicator(
+          { name: 'RSI', calcParams: [14], styles: { lines: [{ color: resolveCssColor('var(--accent-2)'), size: 1.5 }] } },
+          { pane: { id: 'rsi_pane', height: 110, minHeight: 30 } }
+        );
+        applyProportionalPaneHeights(chart, containerRef.current?.getBoundingClientRect().height ?? 0);
+      } catch { /* already present */ }
+    }
+  }, [showRsi, chartReady]);
 
   // Upsert one live-updating bar into the EMA history: replace the last entry
   // if it's the same (still-forming) candle, append if it's a genuinely new

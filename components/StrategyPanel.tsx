@@ -51,9 +51,9 @@ interface Props {
   planChecking?: boolean;
   /** What each chart overlay is doing right now, from strategyRegistry's overlayStates() - the same values the chart draws from.
    *  Absent = every layer reads as always on. */
-  overlays?: Record<'EMA_RIBBON' | 'SR' | 'LIQ_CLUSTERS' | 'GEX', OverlayState>;
+  overlays?: Record<'EMA_RIBBON' | 'RSI' | 'SR' | 'LIQ_CLUSTERS' | 'GEX', OverlayState>;
   /** Flip the chart's S/R or Liq layer: the same switch as the chart toolbar. */
-  onOverlayToggle?: (id: 'SR' | 'LIQ_CLUSTERS') => void;
+  onOverlayToggle?: (id: 'EMA_RIBBON' | 'RSI' | 'SR' | 'LIQ_CLUSTERS') => void;
   /** Whether the caller's saved selection has been read (or confirmed absent). Until 'ready',
    *  `selected` is not the user's real answer, so no click may persist over it (#1246/#1347). */
   status: SettingsLoadStatus;
@@ -113,26 +113,22 @@ function ParamRow({ spec, value, readOnly, onChange }: {
   );
 }
 
-/* A CHART LAYERS switch (S/R, Liq): a real role="switch" button synced to the chart toolbar.
-   `unavailable` (a coin with no such layer) shows an off, disabled switch rather than hiding it. */
-function LayerSwitch({ name, on, unavailable, onToggle }: { name: string; on: boolean; unavailable: boolean; onToggle: () => void }) {
+/* A CHART LAYERS chip (EMA ribbon, RSI, S/R, Liq clusters): a real role="switch" button synced to the chart. Display only (owner, 2026-11-17).
+   `unavailable` (a coin with no such layer) shows an off, disabled chip rather than hiding it. */
+function LayerChip({ name, on, unavailable, onToggle }: { name: string; on: boolean; unavailable: boolean; onToggle: () => void }) {
   const { t } = useLabels();
   return (
-    <div className="strat-layer">
-      <span className="strat-layer-name">{name}</span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-label={name}
-        disabled={unavailable}
-        className={`strat-switch${on ? ' on' : ''}`}
-        title={unavailable ? t('STRATEGY_PANEL_LAYER_UNAVAILABLE') : undefined}
-        onClick={onToggle}
-      >
-        <span className="strat-switch-knob" aria-hidden="true" />
-      </button>
-    </div>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      disabled={unavailable}
+      className={`strat-layer-chip${on ? ' on' : ''}`}
+      title={unavailable ? t('STRATEGY_PANEL_LAYER_UNAVAILABLE') : undefined}
+      onClick={onToggle}
+    >
+      {name}
+    </button>
   );
 }
 
@@ -218,7 +214,7 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
     startTransition(() => onSelectedChange(next));
   };
 
-  const layer = (id: 'EMA_RIBBON' | 'SR' | 'LIQ_CLUSTERS' | 'GEX'): OverlayState => overlays?.[id] ?? 'always';
+  const layer = (id: 'EMA_RIBBON' | 'RSI' | 'SR' | 'LIQ_CLUSTERS' | 'GEX'): OverlayState => overlays?.[id] ?? 'always';
   const isAuto = loaded && setId === AUTO_SET_ID && shown.length === 0;
 
   return (
@@ -372,18 +368,10 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
           {/* The always-on layers line is the section label's tooltip now (the panel had to be shorter). */}
           <div className="strat-lbl" title={t('STRATEGY_PANEL_LAYERS_ALWAYS_LINE')}><span>{t('STRATEGY_PANEL_SECTION_LAYERS')}</span></div>
           <div className="strat-layers">
-            <LayerSwitch
-              name={t('STRATEGY_PANEL_LAYER_SR')}
-              on={layer('SR') === 'on' || layer('SR') === 'always'}
-              unavailable={layer('SR') === 'none'}
-              onToggle={() => onOverlayToggle?.('SR')}
-            />
-            <LayerSwitch
-              name={t('STRATEGY_PANEL_LAYER_LIQ')}
-              on={layer('LIQ_CLUSTERS') === 'on' || layer('LIQ_CLUSTERS') === 'always'}
-              unavailable={layer('LIQ_CLUSTERS') === 'none'}
-              onToggle={() => onOverlayToggle?.('LIQ_CLUSTERS')}
-            />
+            <LayerChip name={t('STRATEGY_PANEL_LAYER_EMA_SHORT')} on={layer('EMA_RIBBON') !== 'off'} unavailable={false} onToggle={() => onOverlayToggle?.('EMA_RIBBON')} />
+            <LayerChip name={t('STRATEGY_PANEL_LAYER_RSI_SHORT')} on={layer('RSI') !== 'off'} unavailable={false} onToggle={() => onOverlayToggle?.('RSI')} />
+            <LayerChip name={t('STRATEGY_PANEL_LAYER_SR_SHORT')} on={layer('SR') === 'on' || layer('SR') === 'always'} unavailable={layer('SR') === 'none'} onToggle={() => onOverlayToggle?.('SR')} />
+            <LayerChip name={t('STRATEGY_PANEL_LAYER_LIQ_SHORT')} on={layer('LIQ_CLUSTERS') === 'on' || layer('LIQ_CLUSTERS') === 'always'} unavailable={layer('LIQ_CLUSTERS') === 'none'} onToggle={() => onOverlayToggle?.('LIQ_CLUSTERS')} />
           </div>
         </div>
       )}

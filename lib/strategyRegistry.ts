@@ -310,10 +310,12 @@ export function slottedIds(ids: readonly string[]): readonly string[] {
      on/off - has a toggle (the chart toolbar's S/R and Liq buttons); the chip and the toolbar are one switch
      none   - not drawn for this coin (GEX off BTC, Liq with no clusters), so the chip says so and does nothing */
 export type OverlayState = 'always' | 'on' | 'off' | 'none';
-export type OverlayId = 'EMA_RIBBON' | 'SR' | 'LIQ_CLUSTERS' | 'GEX';
-export function overlayStates(i: { showSR: boolean; showLiq: boolean; hasLiq: boolean; hasGex: boolean }): Record<OverlayId, OverlayState> {
+export type OverlayId = 'EMA_RIBBON' | 'RSI' | 'SR' | 'LIQ_CLUSTERS' | 'GEX';
+/* showEma / showRsi (owner, 2026-11-17): the EMA ribbon and the RSI pane are switchable DISPLAY layers, default on. Omitted = on and not switchable, the old behaviour. The AI read and the strategies keep using EMA/RSI data either way. */
+export function overlayStates(i: { showSR: boolean; showLiq: boolean; hasLiq: boolean; hasGex: boolean; showEma?: boolean; showRsi?: boolean }): Record<OverlayId, OverlayState> {
   return {
-    EMA_RIBBON: 'always',
+    EMA_RIBBON: i.showEma === undefined ? 'always' : i.showEma ? 'on' : 'off',
+    RSI: i.showRsi === undefined ? 'always' : i.showRsi ? 'on' : 'off',
     SR: i.showSR ? 'on' : 'off',
     LIQ_CLUSTERS: !i.hasLiq ? 'none' : i.showLiq ? 'on' : 'off',
     GEX: i.hasGex ? 'always' : 'none',

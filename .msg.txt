@@ -1,0 +1,5 @@
+feat(arena): EMA ribbon and RSI pane become switchable chart layers (#2500)
+
+What changed: CHART LAYERS is one row of four small toggle chips (EMA ribbon, RSI, S/R, Liq clusters). EMA ribbon and RSI are on by default and remembered per browser like S/R. Switching RSI off removes the RSI pane (the chart grows); switching the ribbon off removes its four lines. Display only: the AI read and the strategies keep using EMA/RSI data. Four new label keys (migration 20261118n, held).
+Why: owner decision 2026-11-17.
+Test: /arena signed in, Strategy panel: tap each chip; RSI off -> pane gone and chart taller; EMA off -> lines gone; reload keeps the choice; the S/R and Liq chart-toolbar buttons still match their chips. At 360 px the four chips are one row and the panel stays within the height budget.
