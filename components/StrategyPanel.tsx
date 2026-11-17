@@ -365,8 +365,8 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
       {loaded && (
         <div className="strat-sect">
           {/* "Drawn on the chart. They don't count as indicators." moved to the section label's title (the panel had to be shorter). */}
-          <div className="strat-lbl" title={t('STRATEGY_PANEL_LAYERS_NOTE')}><span>{t('STRATEGY_PANEL_SECTION_LAYERS')}</span></div>
-          <p className="strat-ind-note">{t('STRATEGY_PANEL_LAYERS_ALWAYS_LINE')}</p>
+          {/* The always-on layers line is the section label's tooltip now (the panel had to be shorter). */}
+          <div className="strat-lbl" title={t('STRATEGY_PANEL_LAYERS_ALWAYS_LINE')}><span>{t('STRATEGY_PANEL_SECTION_LAYERS')}</span></div>
           <div className="strat-layers">
             <LayerSwitch
               name={t('STRATEGY_PANEL_LAYER_SR')}

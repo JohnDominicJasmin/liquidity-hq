@@ -4045,9 +4045,9 @@ html[data-theme="light"] { background: var(--bg0); }
 /* THE CALL BLOCK'S RESERVE IS NOW ONE FIXED SIZE AT EVERY WIDTH (compact Strategy panel, owner request): the closed call is the verdict line, the reason clamped to TWO lines (.strat-call-reason-clamp) and ONE
    always-visible levels line ("Wrong if ... · Watching ...", ellipsis if long: .strat-call-levels), so its height does not depend on the width or the language. Only the liquidity note waits for the chevron (the user's own
    action, not a shift). The old per-width numbers (142 to 221 px) were the tallest UNCLAMPED call; they are gone with the clamp. verdict = fs-label x 1.3, reason = fs-label x 1.4 x 2, levels = fs-caption x 1.35, gaps 4 + 4. */
-:root { --strat-call-dyn: calc(var(--fs-label) * 1.3 + 4px + var(--fs-label) * 1.4 * 2); }
+:root { --strat-call-dyn: calc(var(--fs-label) * 1.3 + 4px + var(--fs-label) * 1.4 + 4px + var(--fs-caption) * 1.35); }
 .strat-call-dyn { min-height: var(--strat-call-dyn); }
-.strat-call-reason-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.strat-call-reason-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; line-clamp: 1; overflow: hidden; }
 .strat-call-levels { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* MEASURED (QA, deployed qa 5b9d1ad, run 43687675270: the tallest possible call, every reason of every strategy at a 7-digit price, en/ru/ko/zh): above 980 px ru 193 (ema_stack BUY), 981-1280; 641-980 px ru 134 at
    641 (114 from 768); at 390 px 155 in every language. Each reserve is that maximum + 8 px. Widths 391-640 (text wraps less) and 1281+ were not measured. */
@@ -9479,3 +9479,6 @@ html[data-theme="light"] { color-scheme: light; }
 [data-design="terminal"] .strat-ind-text { align-items: center; }
 [data-design="terminal"] .strat-ind-name { line-height: 1.25; padding: 1px 0; font-size: 11.5px; }
 [data-design="terminal"] .strat-layers { grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); }
+/* Third pass (PM review of QA run 44085095349, 1280x800 Pro: the run row ended 36 px below the fold): the verdict sentence is ONE line (full text in its title), the call block reserves verdict + one line + the levels line, sections are 6 px, and a chip name has an 18 px line box so glyphs are not cut. */
+[data-design="terminal"] .strat-sect { padding: 6px 9px; }
+[data-design="terminal"] .strat-ind-name { line-height: 18px; padding: 0; }
