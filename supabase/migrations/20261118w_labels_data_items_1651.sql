@@ -38,7 +38,7 @@ insert into lhq_labels (key, locale, value) values
 ('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','ko','BTC 롱 / 숏 · 바이낸스, 전체 계정, 1시간'),
 ('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','zh','BTC 多 / 空 · 币安，全部账户，1 小时'),
 ('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','ru','BTC лонг / шорт · Binance, все аккаунты, 1ч'),
-('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','ar','BTC شراء / بيع · Binance، كل الحسابات، 1س'),
+('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','ar','BTC شراء / بيع · Binance، كل الحسابات، 1س')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 
 -- ===================== DEV =====================
@@ -77,5 +77,5 @@ insert into lhq_dev_labels (key, locale, value) values
 ('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','ko','BTC 롱 / 숏 · 바이낸스, 전체 계정, 1시간'),
 ('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','zh','BTC 多 / 空 · 币安，全部账户，1 小时'),
 ('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','ru','BTC лонг / шорт · Binance, все аккаунты, 1ч'),
-('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','ar','BTC شراء / بيع · Binance، كل الحسابات، 1س'),
+('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL','ar','BTC شراء / بيع · Binance، كل الحسابات، 1س')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
