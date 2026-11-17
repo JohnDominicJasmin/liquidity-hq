@@ -93,6 +93,7 @@ export type Needs = 'none' | 'pro' | 'free';
 /** Specs that may run against production. `needs` is the account tier the spec signs in as
  *  (fixture A is Pro, B is free); 'none' is anonymous. */
 export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; note?: string }> = [
+  { spec: 'speed-first-load', needs: 'none', note: 'signed-out first-load size and chunk checks, chat button, consent banner and an intercepted early error; GETs only, the tracker request is answered locally' },
   // ── anonymous ──
   { spec: 'a11y', needs: 'none', note: 'route sweep: spends the per-IP rate limit, one worker' },
   { spec: 'arena-legacy-signals', needs: 'none' },
