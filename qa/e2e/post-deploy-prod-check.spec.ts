@@ -13,7 +13,6 @@ import { installPaidAiFence, assertNoUnstubbedPaidAi } from './_no-paid-ai';
 import { overflowAttribution } from './_overflow';
 import { settleForShot } from './_settle';
 
-const RELEASE_TAG = 'v2026.11.17';
 async function fresh(browser: import('@playwright/test').Browser, width: number, lang = 'en') {
   const ctx = await browser.newContext({ viewport: { width, height: width < 500 ? 844 : 900 } });
   await ctx.addInitScript((l) => { try { localStorage.setItem('lhq_lang_v1', l); localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private */ } }, lang);
@@ -21,12 +20,14 @@ async function fresh(browser: import('@playwright/test').Browser, width: number,
 }
 
 test.describe('post-deploy production check (signed out, read-only)', () => {
-  test.describe.configure({ timeout: 150_000, retries: 1 });
+  test.describe.configure({ timeout: 180_000, retries: 1 });
+  /* a sleeping service (free-plan staging, or a cold start) can take 40+ s to answer the first request (dry run 44016939776: P1 timed out at 45 s, then passed in 6 s): wake it before any cell measures */
+  test.beforeAll(async ({ request }) => { for (let a = 0; a < 3; a++) { const ok = await request.get('/api/version', { timeout: 90_000 }).then((r) => r.ok()).catch(() => false); if (ok) return; } });
 
   for (const width of [390, 1280]) test(`P1 landing renders at ${width}`, async ({ browser }) => {
     const { ctx, page } = await fresh(browser, width);
     try {
-      await gotoGuarded(page, '/'); await page.locator('.lp-hero-h1').first().waitFor({ state: 'visible', timeout: 45_000 }); await page.waitForTimeout(3_000); await settleForShot(page, `prod-landing-${width}`);
+      await gotoGuarded(page, '/', { waitUntil: 'domcontentloaded', timeout: 90_000 }); await page.locator('.lp-hero-h1').first().waitFor({ state: 'visible', timeout: 90_000 }); await page.waitForTimeout(3_000); await settleForShot(page, `prod-landing-${width}`);
       const m = await page.evaluate(() => { const vw = window.innerWidth; const heads = ['ENTRY', 'STOP', 'TARGET'].map((w) => { const h = Array.from(document.querySelectorAll('*')).find((k) => k.children.length === 0 && (k.textContent || '').trim().toUpperCase() === w); if (!h) return `${w}:missing`; const r = h.getBoundingClientRect(); return `${w}:${r.width > 0 && r.right <= vw + 1 ? 'visible' : 'CUT@' + Math.round(r.right)}`; }); return { vw, docW: document.documentElement.scrollWidth, heads, h1: (document.querySelector('.lp-hero-h1')?.textContent || '').trim().slice(0, 60) }; });
       console.log(`[PROD] P1 ${width}: docW=${m.docW}/${m.vw} headers=${JSON.stringify(m.heads)} h1="${m.h1}"`);
       expect(m.h1.length, 'no hero heading').toBeGreaterThan(5); expect(m.docW, 'landing scrolls sideways').toBeLessThanOrEqual(m.vw); expect(m.heads.filter((h) => !h.endsWith(':visible')), 'a LIVE READ column header is missing or cut').toEqual([]);
@@ -65,11 +66,14 @@ test.describe('post-deploy production check (signed out, read-only)', () => {
   });
 
   test('P4 /changelog shows the release entry', async ({ browser }) => {
+    /* The page never renders the tag (it is only the React key): it renders <time datetime="YYYY-MM-DD"> and the entry's lines. So: an entry dated 2026-11-17 whose list holds a line that is unique to THIS release. */
     const { ctx, page } = await fresh(browser, 1280);
     try {
-      await gotoGuarded(page, '/changelog'); await page.waitForTimeout(4_000); const txt = await page.evaluate(() => document.body.innerText);
-      console.log(`[PROD] P4: contains ${RELEASE_TAG}=${txt.includes(RELEASE_TAG)}`); expect(txt, `/changelog does not show ${RELEASE_TAG}`).toContain(RELEASE_TAG);
-      expect(txt, 'a raw internal token on the changelog').not.toMatch(/\b(TRENDING_SHORT|BOS_CONFIRMED)\b/); assertNoUnstubbedPaidAi(page, 'P4');
+      await gotoGuarded(page, '/changelog', { waitUntil: 'domcontentloaded', timeout: 90_000 }); await page.locator('time').first().waitFor({ state: 'visible', timeout: 60_000 }); await page.waitForTimeout(2_000);
+      const m = await page.evaluate((line) => { const times = Array.from(document.querySelectorAll('time[datetime="2026-11-17"]')); const hit = times.some((t) => { let p: HTMLElement | null = t as HTMLElement; for (let k = 0; k < 5 && p; k++, p = p.parentElement) if ((p.innerText || '').includes(line)) return true; return false; }); return { dated: times.length, hit, text: document.body.innerText }; }, 'full advertised daily AI allowance');
+      console.log(`[PROD] P4: entries dated 2026-11-17=${m.dated} uniqueLineInThatEntry=${m.hit}`);
+      expect(m.dated, '/changelog has no entry dated 2026-11-17').toBeGreaterThan(0); expect(m.hit, 'no 2026-11-17 entry holds the line unique to this release (the AI allowance line)').toBe(true);
+      expect(m.text, 'a raw internal token on the changelog').not.toMatch(/(TRENDING_SHORT|BOS_CONFIRMED)/); assertNoUnstubbedPaidAi(page, 'P4');
     } finally { await ctx.close(); }
   });
 
