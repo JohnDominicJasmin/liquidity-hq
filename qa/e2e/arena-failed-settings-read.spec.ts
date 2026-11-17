@@ -100,7 +100,7 @@ test.describe('A failed settings read must not present or persist an empty selec
       const skeleton   = page.locator('[role="status"][aria-live="polite"]', { hasText: /loading your saved strategy/i });
       const errorAlert = page.locator('[role="alert"]', { hasText: /couldn.?t load your saved indicators/i });
       const smaChip    = chip(page, 'SMA');
-      const retryBtn   = errorAlert.getByRole('button', { name: /retry/i });
+      const retryBtn   = errorAlert.getByRole('button', { name: /retry|try again/i });   // #2397: the button reads "Try again", and "Retrying…" while it runs
 
       await expect(errorAlert, 'the error state never appeared after a genuinely failed settings read').toBeVisible({ timeout: 10_000 });
 
