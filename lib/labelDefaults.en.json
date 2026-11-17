@@ -44,6 +44,7 @@
   "SETTINGS_FIELD_STATUS": "Status",
   "SETTINGS_TG_CHECKING": "Checking…",
   "SETTINGS_TG_CONFIGURED": "Configured",
+  "SETTINGS_TG_PAUSED_PRO": "Paused · Pro needed",
   "SETTINGS_TG_NOT_CONFIGURED": "Not configured",
   "SETTINGS_TG_STATUS_ERROR": "Couldn't check",
   "SETTINGS_TG_MANAGE_LINK": "Manage alerts →",

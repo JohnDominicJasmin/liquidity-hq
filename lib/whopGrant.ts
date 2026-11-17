@@ -218,10 +218,12 @@ export function paidAt(receivedAt: unknown, now: Date, add?: { months?: number; 
 /** For a delivery the route has already RECORDED once (a 23505 on the hash): true when nothing exists that would carry the payment forward - no applied marker, no pending claim, no retry row. Then the
  *  first delivery died between the record and the grant (a failed cleanup delete, a timeout, a kill) and the replay must be processed, not answered "replay". null = the read failed (answer 500, stay retryable). */
 export async function replayNeedsReprocess(sb: Admin, paymentId: string): Promise<boolean | null> {
-  const { data, error } = await sb.from(T.whop_webhook_events).select('payload_hash')
-    .in('payload_hash', [appliedHash(paymentId), pendingClaimHash(paymentId), retryHash(paymentId)]).limit(1);
+  const { data, error } = await sb.from(T.whop_webhook_events).select('payload_hash, body')
+    .in('payload_hash', [appliedHash(paymentId), pendingClaimHash(paymentId), retryHash(paymentId)]).limit(3);
   if (error) return null;
-  return (data ?? []).length === 0;
+  /* An applied marker stamped state 'failed' says the grant did NOT happen (A1c): it does not carry the payment, so it does not make a replay a replay. */
+  const carrying = (data ?? []).filter(r => !(r.payload_hash === appliedHash(paymentId) && typeof r.body === 'object' && r.body !== null && (r.body as { state?: unknown }).state === 'failed'));
+  return carrying.length === 0;
 }
 
 export type GrantResult =
@@ -268,22 +270,44 @@ export async function grantToAccount(sb: Admin, accountId: string, d: { plan: st
 
 /** grantToAccount behind the APPLIED MARKER: the marker is written first, and only the writer that creates it may grant. A duplicate means
  *  this payment was already applied (by any path); nothing is written. If the grant does not happen, the marker is removed again. */
+/** A marker whose cleanup failed is stamped `state: 'failed'` (see grantOnce): it records "this payment was NOT granted", so the next attempt may take it over. Only a marker in that state is ever taken over; a marker without it
+ *  (every grant that succeeded, and every row written before this change) still means "applied". The takeover deletes the failed marker WITH THE STATE IN THE FILTER and then runs the normal insert, so the unique key still
+ *  decides which of two racing retries grants: the other gets "already applied". */
+async function takeOverFailedMarker(sb: Admin, marker: string): Promise<void> {
+  const { data } = await sb.from(T.whop_webhook_events).select('body').eq('payload_hash', marker).maybeSingle();
+  const state = data && typeof data.body === 'object' && data.body !== null ? (data.body as { state?: unknown }).state : undefined;
+  if (state !== 'failed') return;
+  await sb.from(T.whop_webhook_events).delete().eq('payload_hash', marker).eq('body->>state', 'failed');
+}
+
 export async function grantOnce(sb: Admin, paymentId: string, accountId: string, d: { plan: string; add: { months?: number; days?: number }; membershipId?: string | null }, now: Date = new Date()): Promise<GrantResult | { kind: 'already_applied' }> {
   const marker = appliedHash(paymentId);
-  const { error: lockErr } = await sb.from(T.whop_webhook_events).insert({
+  const writeMarker = () => sb.from(T.whop_webhook_events).insert({
     payload_hash: marker,
     webhook_id: null,
     event: WHOP_APPLIED_EVENT,
     resource_id: paymentId,
     body: { account_id: accountId, plan: d.plan, applied_at: now.toISOString() },
   });
+  let { error: lockErr } = await writeMarker();
+  if (lockErr && lockErr.code === '23505') {
+    /* A marker from an earlier attempt whose grant failed AND whose cleanup failed carries state 'failed': clear it and try the insert once more. Any other marker means applied. */
+    await takeOverFailedMarker(sb, marker);
+    ({ error: lockErr } = await writeMarker());
+  }
   if (lockErr) {
     if (lockErr.code === '23505') return { kind: 'already_applied' };
     return { kind: 'error', what: 'applied-marker write', err: lockErr };
   }
   const res = await grantToAccount(sb, accountId, d, now);
   if (res.kind !== 'granted') {
-    const { error: unlockErr } = await sb.from(T.whop_webhook_events).delete().eq('payload_hash', marker);
+    let { error: unlockErr } = await sb.from(T.whop_webhook_events).delete().eq('payload_hash', marker);
+    if (unlockErr) ({ error: unlockErr } = await sb.from(T.whop_webhook_events).delete().eq('payload_hash', marker));   // one more try
+    if (unlockErr) {
+      /* THE DELETE FAILED TWICE: say on the marker itself that this payment was NOT granted, so the next retry (Whop's, the hourly one, the sign-up claim) can take it over instead of being told "already applied" for ever (A1c). */
+      const { error: stampErr } = await sb.from(T.whop_webhook_events).update({ body: { account_id: accountId, plan: d.plan, applied_at: now.toISOString(), state: 'failed' } }).eq('payload_hash', marker);
+      if (!stampErr) unlockErr = null;
+    }
     /* QA on #1643: if this delete fails too, the marker stays and every later attempt (a Whop retry, the hourly retry, the sign-up claim) is
        answered "already applied" while the buyer has no Pro. That cannot fix itself, so it is reported for a person with the payment id. */
     if (unlockErr) apiError('whop/grant', new Error(`NEEDS MANUAL REVIEW: payment ${paymentId} was NOT granted (${res.kind}) and its applied marker could not be removed - every retry will now say "already applied". Delete the lhq.applied row for this payment after checking: ${unlockErr.message}`));
