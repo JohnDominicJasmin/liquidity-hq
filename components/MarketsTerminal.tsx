@@ -15,6 +15,16 @@ import type { LabelKey } from '@/lib/labelKeys';
 
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
 
+/* The phone form of a signal (PM audit 2026-11-17: "New buy… opening" was cut at 390 px). Same facts in fewer words; the full text stays in the tooltip and on wider screens. */
+const SIGNAL_SHORT: Partial<Record<LabelKey, LabelKey>> = {
+  MARKETS_SIGNAL_LONGS_OVERCROWDED: 'MARKETS_SIGNAL_LONGS_OVERCROWDED_SHORT',
+  MARKETS_SIGNAL_SHORTS_SQUEEZED: 'MARKETS_SIGNAL_SHORTS_SQUEEZED_SHORT',
+  MARKETS_SIGNAL_SMART_BUYERS: 'MARKETS_SIGNAL_SMART_BUYERS_SHORT',
+  MARKETS_SIGNAL_SMART_SELLERS: 'MARKETS_SIGNAL_SMART_SELLERS_SHORT',
+  MARKETS_SIGNAL_NEW_BUYERS: 'MARKETS_SIGNAL_NEW_BUYERS_SHORT',
+  MARKETS_SIGNAL_NEW_SELLERS: 'MARKETS_SIGNAL_NEW_SELLERS_SHORT',
+};
+
 function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): { key: LabelKey | null; col: string; pct?: string } {
   if (!d) return { key: null, col: 'var(--txt-dim)' };
   if (d.fundingRate != null) {
@@ -351,7 +361,12 @@ export default function MarketsTerminal() {
                 color: sig.col === 'var(--txt-dim)' ? 'var(--txt3)' : sig.col,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
-                {sig.key ? t(sig.key, { pct: sig.pct ?? '' }) : '-'}
+                {sig.key ? (
+                  <>
+                    <span className="mkt-sig-full">{t(sig.key, { pct: sig.pct ?? '' })}</span>
+                    <span className="mkt-sig-short">{t(SIGNAL_SHORT[sig.key] ?? sig.key, { pct: sig.pct ?? '' })}</span>
+                  </>
+                ) : '-'}
               </div>
 
               {/* Bottom accent line = buy pressure */}

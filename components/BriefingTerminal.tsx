@@ -320,6 +320,11 @@ export default function BriefingTerminal() {
   /* The figure is the latest SETTLED US session, not "today" (PM audit A5): on a Monday morning or a holiday it is Friday's. The dated list already
      exists in the store; its newest date is shown. */
   const etfDate  = store.etfFlowDays?.[0]?.date ?? null;
+  /* "2026-11-13" -> "Nov 13" in the reader's language; a value that is not a date is shown as it came. */
+  const fmtEtfDate = (d: string): string => {
+    const dt = new Date(`${d}T00:00:00Z`);
+    return Number.isFinite(dt.getTime()) ? dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }) : d;
+  };
   const etfColor = etfFlow == null || etfFlow === 0 ? 'var(--txt3)' : etfFlow > 0 ? 'var(--green-2)' : 'var(--red)';
 
   const dxyChg    = store.dxyChg;
@@ -385,7 +390,7 @@ export default function BriefingTerminal() {
       {/* ── Top 3 Setups ── */}
       <TPanel>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div className="lbl" style={{ margin: 0 }}>{t('BRIEFING_TOP3_TITLE')}</div>
+          <div className="lbl" style={{ margin: 0 }}>{t('BRIEFING_TOP3_TITLE')} {t('BRIEFING_TOP_SETUPS_QUALIFY', { n: top3Setups.length })}</div>
           <Link href="/arena" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
             {t('BRIEFING_SEE_ALL_ARENA')}
           </Link>
@@ -577,7 +582,7 @@ export default function BriefingTerminal() {
           </div>
           {etfFlow != null && (
             <div className="mb-macro-item">
-              <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_ETF_TIP')}>{t('BRIEFING_ETF_LABEL')}</Tip>{etfDate ? ` · ${etfDate}` : ''}</div>
+              <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_ETF_TIP')}>{t('BRIEFING_ETF_LABEL')}</Tip>{etfDate ? ` · ${t('BRIEFING_ETF_LATEST', { date: fmtEtfDate(etfDate) })}` : ''}</div>
               <div className="mb-macro-val" style={{ color: etfColor }}>
                 {signedUsd(etfFlow, 'M', 0)}
               </div>
@@ -760,7 +765,7 @@ export default function BriefingTerminal() {
               <div className="mb-event-tag" style={{
                 borderRadius: 0,
                 background: isPast ? 'rgba(100,100,100,0.15)' : lh < 2 ? 'rgba(248,113,113,0.15)' : 'rgba(251,191,36,0.1)',
-                color: isPast ? 'var(--txt3)' : lh < 2 ? 'var(--red)' : 'var(--amber)',
+                color: isPast ? 'var(--txt3)' : lh < 2 ? 'var(--red-soft)' : 'var(--amber)',
               }}>
                 {isPast ? '✓ ' : ''}{e.type}
               </div>

@@ -47,7 +47,9 @@ test('S1. Top 3 Setups has a floor of 40', () => {
 });
 test('E1. the ETF card is dated, a flow of exactly 0 is Flat in the neutral colour, and the AI context names the settled session', () => {
   assert.ok(BTc.includes("const etfColor = etfFlow == null || etfFlow === 0 ? 'var(--txt3)'"), 'a zero flow is coloured as an outflow/inflow'); assert.ok(BTc.includes("etfFlow < 0    ? t('BRIEFING_ETF_MILD_OUT')") && BTc.includes("t('BRIEFING_ETF_FLAT')"), 'a zero flow reads Mild outflow');
-  assert.ok(BTc.includes("{etfDate ? ` · ${etfDate}` : ''}"), 'the ETF card lost its date');
+  /* #2501: the date is worded for the reader ("Latest: Nov 13"), not the raw ISO string; a value that is not a date is shown as it came (fmtEtfDate). */
+  assert.ok(BTc.includes("{etfDate ? ` · ${t('BRIEFING_ETF_LATEST', { date: fmtEtfDate(etfDate) })}` : ''}"), 'the ETF card lost its date');
+  assert.ok(/const fmtEtfDate = \(d: string\): string => \{[\s\S]{0,260}Number\.isFinite\(dt\.getTime\(\)\) \? dt\.toLocaleDateString\([^)]*timeZone: 'UTC'[^)]*\) : d;/.test(BTc), 'the ETF date formatter changed: a non-date must fall back to the raw value and the date must be formatted in UTC');
   assert.ok(BTc.includes('BTC ETF Flow (latest settled US session${store.etfFlowDays?.[0]?.date'), 'the AI context calls the flow "today"');
 });
 test('D1. the dominance trend needs at least six samples and a 0.1 point move in either direction, otherwise nothing is shown', () => {

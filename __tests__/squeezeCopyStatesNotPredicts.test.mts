@@ -58,7 +58,7 @@ test('W1b. the coin snapshot OI sub-label states the flow, not a prediction: "OI
   assert.equal(en.COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB, 'OI up, price down · new shorts opening'); assert.doesNotMatch(en.COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB, /dump/i);
 });
 test('W6b. the funding page\'s two extreme short tags say who pays, like the rest of the page ("Longs paying" / "Shorts paying"); the milder tags are unchanged', () => {
-  assert.equal(en.FUNDING_SIG_LONGS_OVERCROWDED_CROWD, 'Longs paying'); assert.equal(en.FUNDING_SIG_SHORTS_OVERCROWDED_CROWD, 'Shorts paying');
+  assert.equal(en.FUNDING_SIG_LONGS_OVERCROWDED_CROWD, 'Longs paying heavily'); assert.equal(en.FUNDING_SIG_SHORTS_OVERCROWDED_CROWD, 'Shorts paying heavily');
   for (const k of Object.keys(en).filter((x) => /^FUNDING_SIG_.*_CROWD$/.test(x))) assert.doesNotMatch(en[k], /overcrowded/i, `${k}: ${en[k]}`);
 });
 test('W5. REAL classifyFunding: the notes state who is paying, with no direction call', () => {
