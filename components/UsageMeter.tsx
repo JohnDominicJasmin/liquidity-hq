@@ -31,6 +31,30 @@ function StatBlock({ label, used, limit }: { label: string; used: number; limit:
   );
 }
 
+/* THE COUNTS ON THE BUTTONS' OWN ROW at 1024 px and wider (PM, #2500: the Strategy panel's run row ended 26 px below the fold at 1280x800, and this separate usage bar was ~44 px of chrome above the chart). One small right-aligned line, "Quick 0/30 · Deep 0/10 · Resets 10:00 PM"; the standalone bar below is hidden at that width (globals.css) and phones keep it. Nothing here moves layout: it sits in the row the buttons already make. */
+export function UsageInline() {
+  const { user } = useAuth();
+  const { usage } = useGrokUsage();
+  const { t } = useLabels();
+  const [resetTime, setResetTime] = useState<string | null>(null);
+  useEffect(() => {
+    const tick = () => setResetTime(nextResetLocalTime());
+    tick();
+    const id = setInterval(tick, 5 * 60_000);
+    return () => clearInterval(id);
+  }, []);
+  if (!user || !usage) return null;
+  const color = (u: number, l: number) => (l > 0 && u / l >= 1 ? 'var(--red)' : l > 0 && u / l >= 0.8 ? 'var(--amber)' : 'var(--txt2)');
+  return (
+    <span className="usage-inline" data-testid="usage-inline" style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+      <span style={{ color: color(usage.quick_used, usage.quick_limit) }}>{t('USAGE_METER_QUICK_LABEL')} {usage.quick_used}/{usage.quick_limit}</span>
+      {' · '}
+      <span style={{ color: color(usage.deep_used, usage.deep_limit) }}>{t('USAGE_METER_DEEP_LABEL')} {usage.deep_used}/{usage.deep_limit}</span>
+      {resetTime != null && <> · {t('USAGE_METER_RESET_FACT', { time: resetTime })}</>}
+    </span>
+  );
+}
+
 export default function UsageMeter() {
   const { user, isPro } = useAuth();
   const { usage } = useGrokUsage();

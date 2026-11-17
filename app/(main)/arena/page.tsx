@@ -34,7 +34,7 @@ import Tip from '@/components/Tip';
 import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
 import LiqFeed, { type Bucket } from '@/components/LiqFeed';
 import { topClustersForCoin, acceptClusterEmission, formatClustersForPrompt } from '@/lib/liqClusters';
-import UsageMeter from '@/components/UsageMeter';
+import UsageMeter, { UsageInline } from '@/components/UsageMeter';
 import { FreeUpgradePill } from '@/components/UpgradePill';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, SIGNAL_OLD_BARS } from '@/lib/useEMAStrategy';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
@@ -2649,6 +2649,8 @@ function ArenaContent() {
             {t('ARENA_SET_ALERT_BUTTON')}
           </button>
         )}
+        {/* The daily counts, on this row at 1024 px and wider (hidden below; the usage bar under the row is hidden above). */}
+        <UsageInline />
         {/* The reason, in plain sight: a disabled control with its explanation only in a tooltip is a silent no. */}
         {user && !alertCoinCovered && (
           <span data-testid="alert-main-coins-only" role="note" style={{ alignSelf: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
