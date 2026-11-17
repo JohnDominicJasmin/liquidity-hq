@@ -201,7 +201,7 @@ const SCANNER_CAT_KEY = 'lhq_arena_scanner_cat';
 // #985 gap 3: selectionAtAnalysis is optional because entries persisted to
 // localStorage before this shipped won't have it. #1347 item 9: such an entry is
 // "unknown", NOT "computed with no selection" - it never claims the trader changed it.
-interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep'; selectionAtAnalysis?: readonly string[] }
+interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep'; selectionAtAnalysis?: readonly string[]; paramsAtAnalysis?: string }
 const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
 const ARENA_RESULTS_KEY = 'arena-results-v2';
 const CACHE_MAX_AGE_MS  = 4 * 60 * 60 * 1000; // 4 hours - older results are discarded
@@ -898,6 +898,8 @@ function ArenaContent() {
      nothing on screen saying so - unless every place that shows `result`
      checks this, not just the banner. Order-independent: re-selecting the
      same indicators in a different click order is not a change. */
+  /* The Strategy panel's settings that shape a read (the EMA ribbon and RSI lengths, the stricter-signals switch): recorded with each read and compared here, so changing one marks the read stale like changing the indicator selection does. */
+  const settingsSig = JSON.stringify([strategyParams, antiChopEnabled]);
   const selectionChanged = (() => {
     /* #1347 item 9: two "we cannot tell" cases must read as NOT changed, not as changed. (1) the selection
        has not been seeded yet (cold load), (2) the entry predates `selectionAtAnalysis` - it was NOT computed
@@ -905,7 +907,8 @@ function ArenaContent() {
     if (!selectionSeeded || cacheEntry?.selectionAtAnalysis === undefined) return false;
     const before = [...cacheEntry.selectionAtAnalysis].sort().join(' ');
     const now = [...strategySelection].sort().join(' ');
-    return before !== now;
+    if (before !== now) return true;
+    return cacheEntry.paramsAtAnalysis !== undefined && cacheEntry.paramsAtAnalysis !== settingsSig;
   })();
   const notifCooldown = useRef<Set<string>>(new Set());
 
@@ -1839,7 +1842,7 @@ function ArenaContent() {
 
       // Cache result per coin (with price snapshot for stale-check)
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
-      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: selection } }));
+      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: selection, paramsAtAnalysis: settingsSig } }));
       // Track Quick signals separately so Deep can show an override notice when they disagree
       if (mode === 'quick') setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal }));
       setDetailIdx(null);
@@ -2883,11 +2886,7 @@ function ArenaContent() {
 
             {/* #985 gap 3: selection changed since this read was computed */}
             {selectionChanged && (
-              <div className="arena-override-notice">
-                {describeSelection(strategySelection)
-                  ? <>{t('ARENA_STALE_SELECTION_PRE')} <strong>{describeSelection(strategySelection)}</strong>{t('ARENA_STALE_SELECTION_POST')}</>
-                  : t('ARENA_STALE_SELECTION_CLEARED')}
-              </div>
+              <div className="arena-override-notice">{t('ARENA_STALE_SETTINGS_NOTICE')}</div>
             )}
 
             {/* THROUGH ReasoningText, not a bare {whyLine} (#1263). whyLine is the first sentences of
@@ -2896,7 +2895,17 @@ function ArenaContent() {
                 prose with real, scheme-checked links. Same renderer now: bold and links resolve, and
                 an unsafe URL still falls back to plain label text (isSafeHttpUrl), so this cannot
                 become a clickable `javascript:` link either. */}
-            {whyLine && <p className="av-why"><ReasoningText text={whyLine} /></p>}
+            {/* THE READ AT A GLANCE (owner rule 22): ONE plain summary line, then at most three short reasons (Deep: five). The chart read, the patterns and the long reasoning are behind "More details" under the chart. A read with no WHY lines (an older one, or the model gave none) falls back to the first sentences of its reasoning. */}
+            {(() => {
+              const ps = plainSummary(result.signal, result.levels);
+              if (!ps) return null;
+              const w = ps.watch ? t(ps.watch.key, { price: ps.watch.price }) : null;
+              const cx = w && ps.cancel ? t(ps.cancel.key, { price: ps.cancel.price }) : null;
+              return <p className="av-summary" data-testid="arena-plain-summary">{t(ps.verdictKey)}{w ? ` ${w}${cx ? `; ${cx}` : ''}.` : ''}</p>;
+            })()}
+            {(result.why?.length ?? 0) > 0
+              ? <ul className="av-why-list" data-testid="arena-why-list">{result.why!.slice(0, cacheEntry?.mode === 'deep' ? 5 : 3).map((w, i) => <li key={i}><ReasoningText text={w} /></li>)}</ul>
+              : whyLine && <p className="av-why"><ReasoningText text={whyLine} /></p>}
 
             {/* Factor chips - live signals behind the read */}
             <div className="av-factors">
@@ -3029,36 +3038,11 @@ function ArenaContent() {
               "no marker at all" half of the audit's finding. Same labels,
               same condition, not a second wording for the same fact. */}
           {selectionChanged && (
-            <div className="arena-override-notice" style={{ margin: '0 0 10px' }}>
-              {describeSelection(strategySelection)
-                ? <>{t('ARENA_STALE_SELECTION_PRE')} <strong>{describeSelection(strategySelection)}</strong>{t('ARENA_STALE_SELECTION_POST')}</>
-                : t('ARENA_STALE_SELECTION_CLEARED')}
-            </div>
+            <div className="arena-override-notice" style={{ margin: '0 0 10px' }}>{t('ARENA_STALE_SETTINGS_NOTICE')}</div>
           )}
-          {/* ONE PLAIN-ENGLISH LINE FIRST, for a reader who does not know the vocabulary (owner,
-              2026-11-10). Built from the read's own fields by `plainSummary` - no second AI call,
-              because a summary that asks the model to summarise itself can disagree with the read
-              printed directly underneath it, and the reader has no way to tell which is wrong.
-
-              The technical paragraph, the patterns and the chips all stay, below it. */}
-          {(() => {
-            const s = plainSummary(result.signal, result.levels);
-            if (!s) return null;
-            const watch  = s.watch  ? t(s.watch.key,  { price: s.watch.price })  : null;
-            /* THE CANCEL CLAUSE ONLY APPEARS ALONGSIDE THE WATCH CLAUSE. On its own it would need
-               its first word capitalised, and capitalising a translated string is the kind of
-               English-shaped assumption that breaks in other locales. A read that names an
-               invalidation level but no confirmation level is also the rarer half of a pair, so
-               dropping it costs little - and `plainSummary` omits rather than invents either way. */
-            const cancel = watch && s.cancel ? t(s.cancel.key, { price: s.cancel.price }) : null;
-            return (
-              <div className="arena-reasoning" style={{ margin: '10px 0' }}>
-                <div className="arena-reasoning-text" data-testid="arena-plain-summary">
-                  {t(s.verdictKey)}{watch ? ` ${watch}${cancel ? `; ${cancel}` : ''}.` : ''}
-                </div>
-              </div>
-            );
-          })()}
+          {/* THE PLAIN SUMMARY LINE moved to the top of the read card (above the reasons); this block is its detail: the chart read, the patterns and the reasoning, closed behind "More details" (owner rule 22). */}
+          <details className="arena-more-details" data-testid="arena-more-details">
+            <summary>{t('ARENA_MORE_DETAILS')}</summary>
           {result.chartAnalysis && (
             <div className="arena-reasoning" style={{ margin: '10px 0' }}>
               <div className="arena-reasoning-title">{t('ARENA_REASONING_CHART_TITLE')}</div>
@@ -3086,6 +3070,7 @@ function ArenaContent() {
             <div className="arena-reasoning-title">{t('ARENA_REASONING_TITLE')}</div>
             <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
           </div>
+          </details>
           {/* #1631: last thing under the read, so the signal, the confidence and the reasoning are all above it. */}
           <AiDisclaimer />
         </>

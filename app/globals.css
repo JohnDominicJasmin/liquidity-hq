@@ -9490,3 +9490,14 @@ html[data-theme="light"] { color-scheme: light; }
 .csb2-grade-legend { font-size: var(--fs-caption); color: var(--txt3); line-height: 1.5; padding: 2px 2px 6px; }
 /* /correlation: every read failed (#1185 reliability); a constant belongs here, not inline (terminal-only constants ratchet, #663). */
 .corr-all-failed { font-size: var(--fs-label); color: var(--txt2); padding: 4px 0; }
+
+/* THE AI READ AT A GLANCE (owner rule 22): one summary line, up to three reasons (Deep five), the rest behind "More details". */
+.av-summary { margin: 8px 0 4px; font-size: var(--fs-body); font-weight: 600; color: var(--txt); line-height: 1.4; }
+.av-why-list { margin: 4px 0 8px; padding-left: 18px; font-size: var(--fs-caption); color: var(--txt2); line-height: 1.5; }
+.av-why-list li { margin: 2px 0; }
+.arena-more-details { margin: 8px 0; }
+.arena-more-details > summary { cursor: pointer; list-style: none; min-height: 28px; display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-caption); font-weight: 700; color: var(--accent); }
+.arena-more-details > summary::-webkit-details-marker { display: none; }
+.arena-more-details > summary::after { content: '⌄'; display: inline-block; transition: transform 150ms; }
+.arena-more-details[open] > summary::after { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .arena-more-details > summary::after { transition: none; } }

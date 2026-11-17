@@ -180,6 +180,12 @@ export function buildVerdictRepairPrompt(answer: string): string {
   ].join('\n');
 }
 
+/** The most WHY bullets a read can carry (Deep). Quick shows 3: the cap per mode is in the prompt and in the card. */
+export const WHY_MAX = 5;
+/** A bullet over this many words is not a reason a reader takes in at a glance (rule 22 asks for 12); the parser drops it rather than cutting it mid-sentence, and the card falls back to the first sentences of `reasoning` when none is left. */
+const WHY_MAX_WORDS = 18;
+const WHY_LINE_QUICK = "WHY: [UP TO 3 lines, each starting with '- ': ONE reason per line, 12 words or fewer, plain words a beginner understands (no abbreviations the reader must look up), stating what the data shows now - never a forecast, never advice.]";
+const WHY_LINE_DEEP = WHY_LINE_QUICK.replace('UP TO 3 lines', 'UP TO 5 lines');
 const SIGNALS: ReadonlyArray<CombinedResult['signal']> = ['BULLISH', 'LEAN BULLISH', 'FLAT', 'LEAN BEARISH', 'BEARISH'];
 const strOrEmpty = (v: unknown): string => (typeof v === 'string' ? v : '');
 const strOrNull = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
@@ -206,10 +212,11 @@ export function normalizeCombinedResult(raw: unknown, tf: string, session: strin
     ? { bullish: c.bullish as number, bearish: c.bearish as number } : null;
   /* #1631 A+D: carried only when the answer has them. A result from before them (a cache, a stub) has none, and "absent" is the true
      reading - an invented empty list would claim the server checked something it never saw. */
-  const extra: Pick<CombinedResult, 'citations' | 'counted' | 'checks'> = {};
+  const extra: Pick<CombinedResult, 'citations' | 'counted' | 'checks' | 'why'> = {};
   if ('citations' in r) extra.citations = strings(r.citations).filter((u) => /^https?:\/\//.test(u)).slice(0, 10);
   if ('counted' in r) extra.counted = counted;
   if ('checks' in r) extra.checks = strings(r.checks);
+  if ('why' in r) extra.why = strings(r.why).slice(0, WHY_MAX);
   return {
     signal: r.signal as CombinedResult['signal'],
     confidence: Math.max(0, Math.min(100, r.confidence)),
@@ -790,6 +797,8 @@ export interface CombinedResult {
   counted?: { bullish: number; bearish: number } | null;
   /** #1631 D: what applyResultChecks changed or could not check, in plain words. Not shown in the UI. */
   checks?: string[];
+  /** THE READ'S WHY, 1-3 plain-word reasons (Deep up to 5), each 12 words or fewer, stating what the data shows now (owner rule 22). Absent on a read from before it or when the model gave none: the card then falls back to the first sentences of `reasoning`. */
+  why?: string[];
   analyzedAt: number;
   tf: string;
   session: string;
@@ -844,6 +853,10 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     'CONFIDENCE: [0-100]',
     // #1631 D: the count the tier rests on, in a fixed shape so the server can check the tier against it.
     'COUNTED: bullish [n] ([the bullish signals you counted, comma separated]) | bearish [n] ([the bearish signals you counted])',
+    WHY_LINE_QUICK,
+    '- [reason 1]',
+    '- [reason 2]',
+    '- [reason 3]',
     // #1631 B: with no cluster data both XRP runs still invented a "long flush" target. No data, no raid.
     ...(/^\s*Not available/i.test(ctx.liqLevels ?? '') ? ['(No liquidation cluster data is available for this coin, so a raid cannot be judged: write RAID_SETUP: NONE, RAID_TARGET: N/A, RAID_TRIGGER: N/A.)'] : []),
     'RAID_SETUP: [Analyze the liquidation clusters, long/short crowding, funding rate, and order walls to determine IF a liquidity raid is likely. Output one of: SHORT SQUEEZE (shorts overcrowded + upside liquidation cluster reachable) | LONG FLUSH (longs overcrowded + downside liquidation cluster reachable) | NONE. A raid is likely when: one side is heavily crowded AND there is a visible liquidation cluster within 2-5% of current price AND funding confirms the crowding direction.]',
@@ -962,6 +975,17 @@ function parseCombinedResponse(text: string, tf: string, session: string, nowMs:
   // #1631 D: the counts the tier check in applyResultChecks needs.
   const counted = parseCounted(clean);
 
+  /* THE WHY BULLETS (owner rule 22): up to WHY_MAX lines of '- reason' under WHY:, up to the next field. A bullet that says none, or is longer than WHY_MAX_WORDS, is dropped. */
+  const why: string[] = [];
+  const whySect = clean.match(/(?:^|\n)\*{0,2}WHY\*{0,2}:[^\n]*\n([\s\S]*?)(?=\n\*{0,2}(?:RAID_SETUP|RAID_TARGET|RAID_TRIGGER|LEVELS|CATALYSTS|CHART_ANALYSIS|PATTERNS|WAIT_FOR|REASONING)\*{0,2}:|$)/i)?.[1] ?? '';
+  for (const line of whySect.split('\n')) {
+    const m = line.match(/^\s*[-•]\s*(.+)/);
+    if (!m) continue;
+    const b = stripMd(m[1]);
+    if (!b || /^(none|n\/a|\[reason)/i.test(b) || b.split(/\s+/).length > WHY_MAX_WORDS) continue;
+    if (why.length < WHY_MAX) why.push(b);
+  }
+
   // CHART_ANALYSIS - stop at PATTERNS or WAIT_FOR or REASONING
   const chartAnalysis = stripMd(
     clean.match(/CHART_ANALYSIS:\s*([\s\S]*?)(?=\n\*{0,2}PATTERNS\*{0,2}:|\n\*{0,2}WAIT_FOR\*{0,2}:|\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
@@ -1012,7 +1036,7 @@ function parseCombinedResponse(text: string, tf: string, session: string, nowMs:
     clean.match(/\*{0,2}REASONING\*{0,2}:\s*([\s\S]+)/i)?.[1] ?? ''
   );
 
-  return { signal, confidence, bias, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, citations: [], counted, checks: [], analyzedAt: Date.now(), tf, session };
+  return { signal, confidence, bias, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, why, citations: [], counted, checks: [], analyzedAt: Date.now(), tf, session };
 }
 
 /** THE READ, REFUSED RATHER THAN DEFAULTED. Use this. `parseCombinedResponse` above still answers FLAT at 0% for an answer that
@@ -1152,6 +1176,15 @@ export function applyResultChecks(result: CombinedResult, prompt: string): Combi
         (r as unknown as Record<string, string | null>)[field] = text.trim() ? text : (field === 'reasoning' || field === 'chartAnalysis' ? cur : null);
         note2(field, dropped);
       }
+    }
+    if (Array.isArray(r.why)) {
+      const nextWhy: string[] = [];
+      for (const w of r.why) {
+        const { text, dropped } = dropContradictingClauses(w, inputs);
+        if (dropped.length) note2('why', dropped);
+        if (text.trim()) nextWhy.push(text);
+      }
+      r.why = nextWhy;
     }
     if (Array.isArray(r.catalysts)) {
       const nextCat: string[] = [];
@@ -1303,6 +1336,7 @@ export function applyPlainWords(r: CombinedResult): string[] {
   r.reasoning     = fix(r.reasoning);
   r.patterns      = r.patterns.map(fix);
   r.catalysts     = r.catalysts.map(fix);
+  if (r.why)         r.why         = r.why.map(fix);
   if (r.waitFor)     r.waitFor     = fix(r.waitFor);
   if (r.raidTarget)  r.raidTarget  = fix(r.raidTarget);
   if (r.raidTrigger) r.raidTrigger = fix(r.raidTrigger);
@@ -1346,7 +1380,7 @@ export function buildArenaPrompt(
   type: 'quick' | 'deep',
   selection: readonly string[] = [],
 ): string {
-  const base = type === 'quick' ? buildQuickPrompt(ctx, chart) : buildCombinedPrompt(ctx, chart);
+  const base = type === 'quick' ? buildQuickPrompt(ctx, chart) : buildCombinedPrompt(ctx, chart).replace(WHY_LINE_QUICK, WHY_LINE_DEEP);
   if (selection.length === 0) return base;
   return [
     base,
