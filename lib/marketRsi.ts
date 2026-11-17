@@ -123,7 +123,7 @@ const BN_TIMEFRAMES = [
   { interval: '1M', limit: RSI_HISTORY, field: 'rsiMonthly' },
 ] as const;
 
-/* HYPE has no Binance perp, so its six values come from Bybit, whose interval
+/* HYPE's six values come from Bybit (a choice kept from when it was believed to have no Binance perp; HYPEUSDT is listed there, #2513), whose interval
    codes are minutes-as-numbers plus D/W/M. Bybit returns newest-first. */
 const BB_TIMEFRAMES = [
   { interval: '5',   limit: RSI_HISTORY, field: 'rsi5m'      },
