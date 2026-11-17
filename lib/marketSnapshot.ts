@@ -84,7 +84,7 @@ export type SnapshotRead = {
  *  whose job has not run, and neither may invent a value. */
 export async function readSnapshot(key: string): Promise<SnapshotRead | null> {
   try {
-    const sb = getSupabaseAdmin();
+    const sb = getSupabaseAdmin({ deadline: true });
     const { data, error } = await sb
       .from(T.market_snapshot)
       .select('payload, source, updated_at')
@@ -304,7 +304,7 @@ export function mergeCoverage(previous: unknown, next: unknown): { payload: unkn
  *  request. Callers: the ingest route, and `app/api/ath` for the `ath` key only -
  *  see the carve-out in this file's header before adding a third. */
 export async function writeSnapshot(key: string, payload: unknown, source: string | null): Promise<void> {
-  const sb = getSupabaseAdmin();
+  const sb = getSupabaseAdmin({ deadline: true });
   const { error } = await sb.from(T.market_snapshot).upsert({
     key,
     payload,
