@@ -44,7 +44,7 @@ const APPROVED: Record<string, string> = {
   MACRO_STRIP_JPY_DANGER: "USD/JPY at 160+"
 };
 
-const BANNED = /wait for|stay out|reduce size|may push|push(?:es)? price|tends? to|pump|dump|magnet|headwind|tailwind|risk-(?:on|off)|danger|so you know|big players|taking profit|good time|trade now|expect (?:dump|squeeze)|fade the|follow the momentum|bullish pressure|bearish pressure/i;
+const BANNED = new RegExp(['wait for','stay out','reduce size','may push','push(?:es)? price','tends? to','pump','dump','magnet','headwind','tailwind','risk-(?:on|off)','danger','so you know','big players','taking profit','good time','trade now','expect (?:dump|squeeze)','fade the','follow the momentum','bullish pressure','bearish pressure'].map((w) => '\\b' + w + '\\b').join('|'), 'i');
 
 test('Y1. no forecast or advice phrase in any batch-2 key', () => {
   const keys = Object.keys(APPROVED); assert.ok(keys.every((k) => k in DEF), 'a batch-2 key was renamed or removed: re-read the table');
