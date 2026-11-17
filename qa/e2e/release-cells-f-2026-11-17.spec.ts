@@ -66,9 +66,7 @@ test.describe('#2419 dry-powder figures before the AI summary', () => {
   const stubSummary = async (page: Page, mode: 'slow' | 'fail', calls: string[]) => page.route(/\/api\/dry-powder/, async (route) => {
     const url = route.request().url(); if (/part=numbers/.test(url)) return route.fallback();                         // the real, free, figures-only request
     calls.push(url);                                                                                                  // any OTHER dry-powder request is the paid AI summary: never let it through
-    if (mode === 'slow') { await new Promise((r) => setTimeout(r, 6_000)); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ analysis: 'SIGNAL: BULLISH
-NARRATIVE: QA stub narrative
-KEY_LEVEL: 1.00' }) }); }
+    if (mode === 'slow') { await new Promise((r) => setTimeout(r, 6_000)); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ analysis: 'SIGNAL: BULLISH\nNARRATIVE: QA stub narrative\nKEY_LEVEL: 1.00' }) }); }
     return route.fulfill({ status: 504, contentType: 'application/json', body: JSON.stringify({ error: 'timeout' }) });
   });
   test('F2a figures first, summary after', async ({ browser }) => {
