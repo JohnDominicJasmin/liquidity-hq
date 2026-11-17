@@ -208,7 +208,7 @@ export default function MarketProvider(
          No symptom, because the fallback works - the ticker had numbers, they just never came from
          the source this call names. Same defect as the market snapshot's batched ticker; see
          `BINANCE_SPOT_SYMS` in lib/coins.ts. */
-      const syms = Object.values(BINANCE_SPOT_SYMS).filter(s => s !== 'HYPEUSDT');
+      const syms = Object.values(BINANCE_SPOT_SYMS);
       const batch = encodeURIComponent(JSON.stringify(syms));
       const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`, { signal: deadlineSignal(REST_POLL_TIMEOUT_MS) });
       const data = await res.json();
