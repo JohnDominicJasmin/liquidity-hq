@@ -385,7 +385,7 @@ export default function BriefingTerminal() {
       {/* ── Top 3 Setups ── */}
       <TPanel>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div className="lbl" style={{ margin: 0 }}>{t('BRIEFING_TOP3_TITLE')}</div>
+          <div className="lbl" style={{ margin: 0 }}>{t('BRIEFING_TOP3_TITLE')} {t('BRIEFING_TOP_SETUPS_QUALIFY', { n: top3Setups.length })}</div>
           <Link href="/arena" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
             {t('BRIEFING_SEE_ALL_ARENA')}
           </Link>

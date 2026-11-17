@@ -457,23 +457,29 @@ export default function FundingTerminal() {
               <Tip width={250} text={t('FUNDING_REGIME_OVERVIEW_TIP')}>{t('FUNDING_REGIME_OVERVIEW_LABEL')}</Tip>
             </div>
 
-            {/* Summary chips */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+            {/* Summary chips: a regime with a count of zero is not drawn (an empty '0 / 0 / 0' block read as a dead panel, #1185) */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: shortSignals.length + longSignals.length + arbs.length > 0 ? 10 : 0 }}>
+              {shortSignals.length > 0 && (
               <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 0, background: 'rgba(248,113,113,0.10)', color: 'var(--red)', border: '0.5px solid rgba(248,113,113,0.25)', fontWeight: 700 }}>
                 <Tip iconColor="var(--red)" text={t('FUNDING_CONTRARIAN_SHORT_TIP')}>
                   {t('FUNDING_CONTRARIAN_SHORT_COUNT', { count: shortSignals.length, plural: shortSignals.length !== 1 ? 's' : '' })}
                 </Tip>
               </span>
+              )}
+              {longSignals.length > 0 && (
               <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 0, background: 'rgba(52,211,153,0.10)', color: 'var(--green-2)', border: '0.5px solid rgba(52,211,153,0.25)', fontWeight: 700 }}>
                 <Tip iconColor="var(--green-2)" text={t('FUNDING_CONTRARIAN_LONG_TIP')}>
                   {t('FUNDING_CONTRARIAN_LONG_COUNT', { count: longSignals.length, plural: longSignals.length !== 1 ? 's' : '' })}
                 </Tip>
               </span>
+              )}
+              {arbs.length > 0 && (
               <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent)', border: '0.5px solid var(--accent-bdr)', fontWeight: 700 }}>
                 <Tip iconColor="var(--accent)" text={t('FUNDING_CARRY_ARB_TIP')}>
                   {t('FUNDING_CARRY_ARB_COUNT', { count: arbs.length })}
                 </Tip>
               </span>
+              )}
             </div>
 
             {/* Coin regime rows */}

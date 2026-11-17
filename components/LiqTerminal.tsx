@@ -48,6 +48,10 @@ function fmtP(price: number): string {
   if (price >= 1)      return '$' + price.toFixed(3);
   return '$' + price.toFixed(4);
 }
+/* A dollar DISTANCE from the price: whole dollars from 100 up, cents below that (never "$96.590"). */
+function fmtDist(d: number): string {
+  return d >= 100 ? fmtP(d) : '$' + d.toFixed(2);
+}
 function fmtM(v: number): string {
   if (v >= 1000) return '$' + (v / 1000).toFixed(1) + 'B';
   if (v >= 1)    return '$' + v.toFixed(1) + 'M';
@@ -199,7 +203,7 @@ export function RealClusters({ clusters, currentPrice, histOnly = null }: { clus
                   {c.label}
                 </div>
                 <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-                  {fmtP(distUsd)} {isAbove ? t('LIQ_CLUSTERS_ABOVE') : t('LIQ_CLUSTERS_BELOW')}
+                  {fmtDist(distUsd)} {isAbove ? t('LIQ_CLUSTERS_ABOVE') : t('LIQ_CLUSTERS_BELOW')}
                 </div>
               </div>
               <div style={{ height: 10, borderRadius: 0, background: 'rgba(255,255,255,0.04)', overflow: 'hidden', display: 'flex' }}>
