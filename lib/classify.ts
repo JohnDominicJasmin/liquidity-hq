@@ -255,6 +255,14 @@ export function econImpactKey(raw: string | null | undefined): EconImpact {
   return 'LOW';
 }
 
+/** The label key for an event's impact IN WORDS (never the raw 'high' / 'med' the classifier emits). null for anything else, so a row with no real impact shows a dash instead of a default (#1185). The words are the ones /news already uses. */
+export function econImpactWordKey(raw: string | null | undefined): 'NEWS_EVENTS_IMPACT_WORD_HIGH' | 'NEWS_EVENTS_IMPACT_WORD_MED' | null {
+  const k = econImpactKey(raw);
+  if (k === 'HIGH') return 'NEWS_EVENTS_IMPACT_WORD_HIGH';
+  if (k === 'MEDIUM') return 'NEWS_EVENTS_IMPACT_WORD_MED';
+  return null;
+}
+
 export function classifyEcon(name: string): EconEntry | null {
   const n = name.toLowerCase();
   if (/fomc|federal open|rate decision|fed decision|federal funds rate/.test(n)) return { name, type: 'FOMC', impact: 'high' };

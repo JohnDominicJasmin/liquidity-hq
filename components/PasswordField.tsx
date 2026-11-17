@@ -13,6 +13,9 @@ interface Props {
   label:        string;
   placeholder?: string;
   autoComplete: 'new-password' | 'current-password';
+  /* The form's error is about this field: aria-invalid + aria-describedby (SEO/a11y quick wins, #1185). */
+  invalid?: boolean;
+  describedBy?: string;
   onEnter?:     () => void;
   style?:       React.CSSProperties;
   /* Live policy checklist under the field. Set it on every screen that CREATES
@@ -31,7 +34,7 @@ interface Props {
    The toggle is a button with type="button": inside the login form a bare
    <button> defaults to type="submit", which would submit the form on click. */
 export default function PasswordField({
-  value, onChange, label, placeholder, autoComplete, onEnter, style, showRules,
+  value, onChange, label, placeholder, autoComplete, onEnter, style, showRules, invalid, describedBy,
 }: Props) {
   const [shown, setShown] = useState(false);
   const { t } = useLabels();
@@ -50,6 +53,8 @@ export default function PasswordField({
           onChange={e => onChange(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && onEnter) onEnter(); }}
           autoComplete={autoComplete}
+          aria-invalid={invalid || undefined}
+          aria-describedby={invalid ? describedBy : undefined}
         />
         <button
           type="button"

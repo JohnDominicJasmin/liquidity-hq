@@ -22,6 +22,8 @@ export default function NewsTicker() {
   const spanRef = useRef<HTMLSpanElement>(null);
   const [duration, setDuration] = useState(60);
   const [dismissedTs, setDismissedTs] = useState(0);
+  // Visible pause control (WCAG 2.2.2): hover/focus pause alone does not help a touch or switch user.
+  const [paused, setPaused] = useState(false);
 
   // Tick every 60s so aged-out items drop from the ticker without waiting for
   // new alerts. Previously a bare counter whose only purpose was to invalidate
@@ -114,7 +116,7 @@ export default function NewsTicker() {
   };
 
   return (
-    <div className={`news-ticker ticker-${topType}`}>
+    <div className={`news-ticker ticker-${topType}${paused ? ' ticker-paused' : ''}`}>
       <div className="ticker-badge">{label}</div>
       <div className="ticker-sep" />
       <div className="ticker-track">
@@ -126,6 +128,20 @@ export default function NewsTicker() {
           <span aria-hidden="true">{text}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
         </div>
       </div>
+      <button
+        className="ticker-close ticker-pause"
+        onClick={() => setPaused(p => !p)}
+        aria-pressed={paused}
+        aria-label={paused ? 'Resume scrolling headlines' : 'Pause scrolling headlines'}
+        title={paused ? 'Resume' : 'Pause'}
+        type="button"
+      >
+        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          {paused
+            ? <path d="M6 3.5v13l11-6.5z" />
+            : <><rect x="4.5" y="3.5" width="4" height="13" rx="1" /><rect x="11.5" y="3.5" width="4" height="13" rx="1" /></>}
+        </svg>
+      </button>
       <button
         className="ticker-close"
         onClick={dismiss}

@@ -25,9 +25,9 @@ test('L1. every literal t()/tl() key in the changed components is registered and
 });
 test('L2. the English defaults keep the words the screens showed before', () => {
   const want: Record<string, string> = {
-    MACRO_STRIP_TITLE: 'Macro Correlations', MACRO_STRIP_JPY_INTERVENTION: 'BOJ intervention risk', MACRO_STRIP_JPY_APPROACHING: 'Approaching danger', MACRO_STRIP_JPY_CARRY_STABLE: 'Carry trade stable',
+    MACRO_STRIP_TITLE: 'Macro Correlations', MACRO_STRIP_JPY_INTERVENTION: 'BOJ intervention risk', MACRO_STRIP_JPY_APPROACHING: 'USD/JPY above {level}', MACRO_STRIP_JPY_CARRY_STABLE: 'Carry trade stable',
     MACRO_STRIP_JPY_DANGER: 'USD/JPY at 160+', MACRO_STRIP_JPY_WARNING: 'Warning', MACRO_STRIP_JPY_SAFE: 'Safe', MACRO_STRIP_NEUTRAL: 'Neutral', MACRO_STRIP_GOLD: 'Gold',
-    MACRO_STRIP_DXY_UP: 'USD strengthening', MACRO_STRIP_DXY_DOWN: 'USD weakening', MACRO_STRIP_SPX_UP: 'Risk-on → crypto tailwind', MACRO_STRIP_SPX_DOWN: 'Risk-off → crypto headwind',
+    MACRO_STRIP_DXY_UP: 'USD strengthening', MACRO_STRIP_DXY_DOWN: 'USD weakening', MACRO_STRIP_SPX_UP: 'S&P up {pct} today', MACRO_STRIP_SPX_DOWN: 'S&P down {pct} today',
     MACRO_STRIP_GOLD_UP: 'Gold rising', MACRO_STRIP_GOLD_DOWN: 'Gold falling → risk appetite up',
     ECON_ESTIMATED: 'estimated', ECON_ESTIMATED_TIP_ROW: 'Estimated date - computed from a typical release pattern, not a published schedule',
     CHART_LIQ_TITLE: 'Toggle realized liquidation clusters - the heaviest price levels where positions were actually liquidated in the last 24h. Price memory, not predicted liquidation levels.',
