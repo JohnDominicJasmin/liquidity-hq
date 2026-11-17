@@ -1,4 +1,4 @@
-/* The 2026-11-17 label migrations still waiting for a database (u: Arabic rows, v: Least Correlated hint, w: Telegram paused, x: macro close stamp). For every one that is present:
+/* The 2026-11-17 label migrations still waiting for a database (n: help trial allowance, u: Arabic rows, v: Least Correlated hint, w: Telegram paused, x: macro close stamp). For every one that is present:
  *   Y1  the PROD block and the DEV block carry exactly the same (key, locale, value) rows (they are applied to different projects; a drift between them ships two different texts)
  *   Y2  every key is a real label key, every locale is one of en/ko/zh/ru/ar, and an en row equals the shipped default (a stored en row OVERRIDES the default, so a mismatch changes the English text silently)
  *   Y3  every row keeps exactly the {placeholders} of the shipped English default, and no row is empty
@@ -10,7 +10,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { LABEL_KEYS } from '../lib/labelKeys.ts';
 
 const dir = new URL('../supabase/migrations/', import.meta.url);
-const files = readdirSync(dir).filter((f) => /^20261117[uvwx]_labels_.*\.sql$/.test(f));
+const files = readdirSync(dir).filter((f) => /^20261117[nuvwx]_labels_.*\.sql$/.test(f));
 const defaults = JSON.parse(readFileSync(new URL('../lib/labelDefaults.en.json', import.meta.url), 'utf8')) as Record<string, string>;
 const keys = new Set<string>(LABEL_KEYS as readonly string[]);
 const ph = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
