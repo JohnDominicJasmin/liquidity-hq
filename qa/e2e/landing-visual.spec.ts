@@ -76,7 +76,10 @@ test.describe('group-2 landing visual evidence (signed out)', () => {
         const kids = Array.from(el.querySelectorAll('*')) as HTMLElement[]; let maxRight = r.right;
         for (const k of kids) { const kr = k.getBoundingClientRect(); if (kr.width > 0 && kr.height > 0 && kr.right > maxRight) maxRight = kr.right; }
         let clippedBy = ''; for (let p: HTMLElement | null = el.parentElement; p && p !== document.body; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o !== 'visible' && p.scrollWidth > p.clientWidth + 1) { clippedBy = `${p.tagName.toLowerCase()}.${(p.className || '').toString().split(' ')[0]} (scrollWidth ${p.scrollWidth} > clientWidth ${p.clientWidth})`; break; } }
-        return { left: r.left, right: r.right, width: r.width, vw: window.innerWidth, maxRight, ownOverflow: el.scrollWidth - el.clientWidth, clippedBy };
+        /* NESTED CLIPPING (PM saw STOP cut and TARGET gone at 768 while the panel box and its descendants all sat inside the viewport): a descendant with overflow hidden/auto that is narrower than its own content, and the column headers the panel is meant to show */
+        const inner = kids.filter((k) => { const o = getComputedStyle(k).overflowX; return o !== 'visible' && k.scrollWidth > k.clientWidth + 1; }).map((k) => `${k.tagName.toLowerCase()}.${(k.className || '').toString().split(' ')[0]} (${k.scrollWidth} > ${k.clientWidth})`);
+        const heads = ['ENTRY', 'STOP', 'TARGET'].map((w) => { const h = kids.find((k) => k.children.length === 0 && (k.textContent || '').trim().toUpperCase() === w); if (!h) return `${w}:missing`; const hr = h.getBoundingClientRect(); const vis = hr.width > 0 && hr.right <= r.right + 1 && hr.right <= window.innerWidth + 1 && hr.left >= r.left - 1; return `${w}:${vis ? 'visible' : 'CUT@' + Math.round(hr.right)}`; });
+        return { left: r.left, right: r.right, width: r.width, vw: window.innerWidth, maxRight, ownOverflow: el.scrollWidth - el.clientWidth, clippedBy, inner, heads };
       });
       expect(box, `could not locate the LIVE READ panel at ${width}px`).not.toBeNull();
       expect(box!.right,
@@ -86,7 +89,10 @@ test.describe('group-2 landing visual evidence (signed out)', () => {
       console.log(`[CELL] landing LIVE READ ${width}: right=${Math.round(box!.right)} contentRight=${Math.round(box!.maxRight)} ownOverflow=${box!.ownOverflow} clippedBy=${box!.clippedBy || '-'} vw=${box!.vw}`);
       expect(box!.maxRight, `the LIVE READ panel's CONTENT reaches x=${Math.round(box!.maxRight)}, past the panel (${Math.round(box!.right)}) / the ${box!.vw}px viewport: columns are cut off`).toBeLessThanOrEqual(Math.min(box!.right, box!.vw) + 1);
       expect(box!.ownOverflow, 'the panel is wider inside than its box (content cut off by overflow)').toBeLessThanOrEqual(1);
+      console.log(`[CELL] landing LIVE READ ${width} inner clipping=${JSON.stringify(box!.inner)} headers=${JSON.stringify(box!.heads)}`);
       expect(box!.clippedBy, 'an ancestor clips the panel').toBe('');
+      expect(box!.inner, 'a part of the panel is narrower than its content (columns cut off)').toEqual([]);
+      expect(box!.heads.filter((h: string) => !h.endsWith(':visible')), 'a column header is missing or cut off').toEqual([]);
       await ctx.close();
     });
   }
