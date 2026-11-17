@@ -46,7 +46,9 @@ test('PB. /briefing with /api/cmc failing says unavailable, and recovers', async
   let fail = true;
   await page.route('**/api/cmc**', (r) => (fail ? r.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"unavailable"}' }) : r.continue()));
   await page.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'en'); localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private */ } });
-  await page.goto('/briefing', { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(12_000);
+  await page.goto('/briefing', { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(6_000);
+  const early = (await page.locator('body').innerText()).replace(/\s+/g, ' '); console.log(`[PARTIAL] briefing at 6 s (inside the 15 s grace): ellipsis shown ${early.includes('…')}, Unavailable shown ${/unavailable/i.test(early)}`);
+  await page.waitForTimeout(14_000);   // past the 15 s grace (lib/useGrace.ts): now it must say Unavailable
   const t1 = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
   console.log(`[PARTIAL] briefing with cmc 502: ${t1.length} chars, "unavailable" ${/unavailable/i.test(t1)}, NaN ${/\bNaN\b/.test(t1)}, undefined ${/undefined/.test(t1)}`);
   console.log(`[PARTIAL] briefing text with cmc 502: ${t1.slice(0, 1500)}`);
