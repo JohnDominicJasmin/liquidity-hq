@@ -42,7 +42,7 @@ export function isBootstrapOwnerEmail(email: string | null | undefined): boolean
 async function resolveRole(user: User): Promise<AdminRole | null> {
   const email = user.email?.toLowerCase() ?? null;
 
-  /* The bootstrap owner needs a CONFIRMED email: an address that was typed into a sign-up but never verified does not make an owner. */
+  /* Bootstrap owner requires a confirmed email. */
   if (email && user.email_confirmed_at && bootstrapOwnerEmails().includes(email)) {
     // Best-effort self-seed; getSupabaseAdmin() is inside the try so a missing
     // service-role key (or table hiccup) never blocks the bootstrap owner.
