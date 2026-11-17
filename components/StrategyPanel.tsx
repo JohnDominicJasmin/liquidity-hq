@@ -361,8 +361,9 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
                     onChange={v => onParamsChange({ ...params, [boxEntry.id]: { ...paramsFor(boxEntry), [spec.key]: v } })}
                   />
                 ))}
-                {!entitled && <div className="strat-ro">{t('STRATEGY_PANEL_FREE_DEFAULTS')}</div>}
-                {entitled && <div className="strat-ro">{t('STRATEGY_PANEL_PARAMS_VERDICT_NOTE')}</div>}
+                {/* A PLAN CLAIM ONLY ONCE THE PLAN IS KNOWN: while it is still being read (planChecking) the params box, now always rendered, must not say 'Defaults on free' (or the Pro note) about an account whose plan is unsettled. */}
+                {!planChecking && !entitled && <div className="strat-ro">{t('STRATEGY_PANEL_FREE_DEFAULTS')}</div>}
+                {!planChecking && entitled && <div className="strat-ro">{t('STRATEGY_PANEL_PARAMS_VERDICT_NOTE')}</div>}
               </div>
             )}
           </div>
