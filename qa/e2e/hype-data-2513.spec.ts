@@ -7,7 +7,7 @@
 import { test, expect } from '@playwright/test';
 import { COINS } from '../../lib/coins';
 
-const tracked = Object.keys(COINS);
+const tracked: string[] = [...COINS];
 const nums = (o: unknown, re: RegExp): number[] => { const out: number[] = []; const walk = (v: unknown, k: string) => { if (v && typeof v === 'object') for (const [kk, vv] of Object.entries(v as Record<string, unknown>)) walk(vv, kk); else if (re.test(k) && typeof v === 'number' && Number.isFinite(v)) out.push(v); }; walk(o, ''); return out; };
 
 test('HY1. snapshot klines: every tracked coin present, HYPE with finite vwap and rsi14', async ({ request }) => {
@@ -30,5 +30,7 @@ for (const coin of ['hype', 'btc'] as const) test(`HY${coin === 'hype' ? 2 : 3}.
   const t = ((await page.locator('body').innerText()) || '').replace(/\s+/g, ' '); const m = /VWAP[^A-Za-z]{0,6}\s*([^ ]{0,14})\s*([^ ]{0,14})/.exec(t); const around = t.slice(Math.max(0, t.search(/Market snapshot/i)), Math.max(0, t.search(/Market snapshot/i)) + 260);
   console.log(`[HYPE] ${coin}: ${around}`);
   expect(/Market snapshot/i.test(t), 'the Market snapshot panel is not on the page').toBe(true);
-  const seg = /VWAP[\s\S]{0,40}/i.exec(around)?.[0] ?? m?.[0] ?? ''; expect(/\d/.test(seg) && !/unavailable/i.test(seg), `the ${coin} VWAP reads "${seg}", not a number`).toBe(true);
+  const val = /VWAP[^$\d]{0,8}\$\s*([\d,]+(?:\.\d+)?)/i.exec(around);
+  console.log(`[HYPE] ${coin}: VWAP value ${val?.[1] ?? '(none)'}; the text after it: ${around.slice((val?.index ?? 0) + (val?.[0].length ?? 0), (val?.index ?? 0) + (val?.[0].length ?? 0) + 40)}`);
+  expect(!!val && Number(val[1].replace(/,/g, '')) > 0, `the ${coin} VWAP does not read a number: ${around.slice(0, 90)}`).toBe(true);
 });
