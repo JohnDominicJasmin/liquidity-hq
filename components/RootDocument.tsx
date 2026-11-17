@@ -37,6 +37,8 @@ const figtree = localFont({
   src: [{ path: '../app/fonts/figtree-latin-var.woff2', weight: '300 900', style: 'normal' }],
   variable: '--font-sans',
   display: 'swap',
+  /* NOT PRELOADED (speed audit): the whole app runs data-design="terminal", which points --font-sans at IBM Plex Sans, so no text uses this face. A preload link made every first paint fetch its 20 KB at high priority, ahead of the stylesheet's own needs, on the slowest connections. The @font-face stays, so a page that does reference it still loads it on demand. */
+  preload: false,
 });
 
 /* IBM Plex Sans, for the Monochrome Terminal redesign (#413).
