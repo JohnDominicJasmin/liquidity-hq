@@ -55,7 +55,6 @@ test.describe('group-2 landing visual evidence (signed out)', () => {
       /* EXPECTED-FAIL AT 768 until Dev's fix lands (filed on #1185, group-2). The panel is clipped
          at the right edge at 768; test.fail keeps it red-by-design and flips the gate the moment the
          fix makes it pass, which is the cue to re-shoot. 1024 and 1280 are real assertions. */
-      test.fail(width === 768, 'known: the LIVE READ panel is clipped at 768 (#1185, Dev fixing)');
       const ctx = await browser.newContext({ viewport: { width, height: 900 } });
       const page = await ctx.newPage();
       await page.goto('/', { waitUntil: 'domcontentloaded' });
