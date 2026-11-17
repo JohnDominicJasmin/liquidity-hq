@@ -21,6 +21,7 @@ import { anonServerClient, userClient } from '@/lib/supabase-user';
 import { logDeep502 } from '@/lib/deep502Log';
 import { engineFor, type Engine } from '@/lib/aiEngine';
 import { callClaude, claudeConfigured } from '@/lib/aiProvider';
+import { extractReadInputs } from '@/lib/readSanity';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -628,6 +629,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', refunded: refunded !== null, usage: usageAfterRefund(refunded) }, { status: 502 });
   }
   const result = applyResultChecks({ ...parsed, citations }, prompt);
+  /* THE INPUTS THIS READ WAS GIVEN, one line each (PM audit: a read contradicted its own EMA9/VWAP and there was no way to tell what it had been handed). Numbers only: no user, no prompt text. */
+  {
+    const inp = extractReadInputs(prompt);
+    console.log(`[grok] read-inputs type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} close=${inp.close ?? 'na'} ema9=${inp.ema9 ?? 'na'} vwap=${inp.vwapSide ?? 'na'} clausesDropped=${(result.checks ?? []).filter(c => c.startsWith('prose clause dropped')).length}`);
+  }
   // The string is VERDICT_RESTATED_CHECK in lib/grok.ts rather than a literal here: the Deep canary
   // keys its DEGRADED state off this entry, and the response carries no `restated` flag for it to read
   // instead. One definition, so rewording it cannot silently stop the canary noticing.

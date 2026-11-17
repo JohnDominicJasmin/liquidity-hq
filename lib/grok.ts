@@ -1,4 +1,5 @@
 import { deadlineSignal } from './deadlineSignal.ts';
+import { extractReadInputs, dropContradictingClauses } from './readSanity.ts';
 import { getAuthToken } from './supabase.ts';
 import { nextResetLocalTime } from './resetTime.ts';
 import { wilderRsiSeries } from './rsi.ts';
@@ -409,7 +410,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '(Absorption = high volume + small candle bodies → big player absorbing orders. ACCUM = buyers absorbing sells, price should fall but holds → hidden accumulation. DISTRIB = sellers absorbing buys, price should rise but stalls → hidden distribution. Strong + CVD confirm + 1H confirm = high conviction.)',
     `Fibonacci nearest level:  ${ctx.fibNearest}`,
     `Volume Profile POC/VAH/VAL:  ${ctx.pocLine}`,
-    `VWAP (15m, 100 candles):  ${ctx.vwap}`,
+    `VWAP (last 25 h):  ${ctx.vwap}`,
     `Taker Buy/Sell ratio (last 5h):  ${ctx.takerRatio}`,
     '',
     '=== DERIVATIVES / POSITIONING ===',
@@ -1136,6 +1137,21 @@ function tierFromCounts(c: { bullish: number; bearish: number }): Tier {
  *  Everything changed is listed in `checks`. */
 export function applyResultChecks(result: CombinedResult, prompt: string): CombinedResult {
   const r: CombinedResult & { checks: string[] } = { ...result, checks: [...(result.checks ?? [])] };
+
+  /* PROSE MUST NOT CONTRADICT THE INPUTS (PM audit 2026-11-17: "price below EMA9 / below VWAP" while price was above both). A clause that states the wrong side of EMA9 or VWAP is dropped, never shown,
+     and what was dropped goes in `checks` (logged by the route, not shown in the UI). See lib/readSanity.ts. */
+  {
+    const inputs = extractReadInputs(prompt);
+    for (const field of ['reasoning', 'chartAnalysis'] as const) {
+      const cur = r[field];
+      if (typeof cur !== 'string' || !cur) continue;
+      const { text, dropped } = dropContradictingClauses(cur, inputs);
+      if (dropped.length) {
+        r[field] = text;
+        r.checks.push(`prose clause dropped (${field}): contradicts the prompt's EMA9 / VWAP side - "${dropped.join('" / "').slice(0, 160)}"`);
+      }
+    }
+  }
 
   const said = r.signal;
   const note = (s: string) => { r.reasoning = `${r.reasoning}${r.reasoning ? ' ' : ''}${s}`; };
