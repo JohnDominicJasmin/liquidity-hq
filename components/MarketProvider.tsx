@@ -1788,7 +1788,7 @@ export default function MarketProvider(
     const timers: ReadonlyArray<readonly [() => unknown, number]> = [
       [fetchBybit, 8  * 60 * 1000],
       [fetchLSR, 5  * 60 * 1000],
-      [fetchSnapshot, 3  * 60 * 1000],
+      [fetchSnapshot, 60 * 1000],   // 1 min (was 3): the server snapshot's ticker window is 45 s, so a coin without a live socket is at most about a minute and a half old (#1651)
       [fetchBybitKlines, 3  * 60 * 1000],  // same cadence as Binance klines
       /* HOURLY, NOT DAILY (#1185). The index changes once a day, but a 24-hour interval counted from page load left a long-lived tab up to a day behind. The proxy holds the read for 15 minutes, so this is at most one upstream call an hour per instance; a hidden tab skips the tick and catches up when it returns. */
       [fetchFNG, 60 * 60 * 1000],

@@ -24,6 +24,8 @@ export interface ChatContext {
   ma20?: number; volRatio?: number; cvd?: number;
   funding?: string;                              // the funding classification label
   oi?: number; longRatio?: number; shortRatio?: number;
+  /** Which venue the long/short account ratio comes from (lib/accountRatioVenue.ts): the chat says it, the same as the Arena read. */
+  ratioVenue?: 'Binance' | 'Bybit';
   squeeze?: string;                              // "62/100 - label"
   basisPct?: number;
   bidWalls?: number[];
@@ -56,7 +58,7 @@ export function parseChatContext(raw: unknown): ChatContext | null {
     rsi: Array.isArray(r.rsi) ? r.rsi.slice(0, 4).map((x) => num(x) ?? null) : undefined,
     cvdDivergence: r.cvdDivergence === 'bullish' || r.cvdDivergence === 'bearish' ? r.cvdDivergence : undefined,
     ma20: num(r.ma20), volRatio: num(r.volRatio), cvd: num(r.cvd),
-    funding: str(r.funding, 80), oi: num(r.oi), longRatio: num(r.longRatio), shortRatio: num(r.shortRatio),
+    funding: str(r.funding, 80), oi: num(r.oi), longRatio: num(r.longRatio), shortRatio: num(r.shortRatio), ratioVenue: r.ratioVenue === 'Binance' || r.ratioVenue === 'Bybit' ? r.ratioVenue : undefined,
     squeeze: str(r.squeeze, 80), basisPct: num(r.basisPct),
     bidWalls: Array.isArray(r.bidWalls) ? r.bidWalls.map(num).filter((x): x is number => x !== undefined).slice(0, 5) : undefined,
     fng: num(r.fng), fngLabel: str(r.fngLabel, 40), btcDom: num(r.btcDom),
@@ -152,7 +154,7 @@ export function buildChatSystemPrompt(ctx: ChatContext, opts: { search: boolean;
     ln('CVD (200)', ctx.cvd != null ? (ctx.cvd >= 0 ? '+' : '-') + (Math.abs(ctx.cvd) / 1000).toFixed(1) + 'K' : '-'),
     ln('Funding', or(ctx.funding)),
     ln('Open Interest', ctx.oi != null ? '$' + (ctx.oi / 1e9).toFixed(2) + 'B' : '-'),
-    ln('Long/Short %', ctx.longRatio != null ? (ctx.longRatio * 100).toFixed(1) + '% / ' + ((ctx.shortRatio ?? 0) * 100).toFixed(1) + '%' : '-'),
+    ln(ctx.ratioVenue ? `Long/Short % (${ctx.ratioVenue}, accounts, 1h)` : 'Long/Short %', ctx.longRatio != null ? (ctx.longRatio * 100).toFixed(1) + '% / ' + ((ctx.shortRatio ?? 0) * 100).toFixed(1) + '%' : '-'),
     ln('Squeeze score', or(ctx.squeeze)),
     ln('Basis', ctx.basisPct != null ? ctx.basisPct.toFixed(4) + '%' : '-'),
     '',

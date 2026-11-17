@@ -35,7 +35,7 @@ export default function LanguageNavSwitcher() {
     const onDocClick = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); wrapRef.current?.querySelector<HTMLElement>('.lang-nav-btn')?.focus(); } };
     document.addEventListener('mousedown', onDocClick);
     document.addEventListener('keydown', onKey);
     return () => {
@@ -57,20 +57,18 @@ export default function LanguageNavSwitcher() {
         className="lang-nav-btn"
         onClick={() => setOpen(v => !v)}
         aria-label="Change language"
-        aria-haspopup="menu"
         aria-expanded={open}
       >
         {LOCALE_SHORT[locale]}
       </button>
       {open && (
-        <div className="lang-nav-dropdown" role="menu">
+        <div className="lang-nav-dropdown">
           {/* AVAILABLE_LOCALES, not SUPPORTED_LOCALES - only offer languages
               that actually have rows. See lib/locales.ts. */}
           {AVAILABLE_LOCALES.map(l => (
             <button
               key={l}
               type="button"
-              role="menuitem"
               className={`lang-nav-item${locale === l ? ' on' : ''}`}
               onClick={() => choose(l)}
             >
