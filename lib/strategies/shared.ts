@@ -62,3 +62,22 @@ export function tradeCall(i: CallInput): StrategyResult {
   };
   return { verdict: dir === 'long' ? 'buy' : 'sell', signalTimestamp: ts, signalDir: dir, params, overlay };
 }
+
+/** 3-bar swing pivots (a high no lower than the 3 candles each side, a low no higher) among the last `look` candles, as indexes and prices, oldest first. The pivots need 3 candles on the right, so the newest 3 never qualify. */
+export function swingPivots3(candles: readonly OHLCV[], look = 20): { highs: Array<{ i: number; p: number }>; lows: Array<{ i: number; p: number }> } {
+  const from = Math.max(3, candles.length - look);
+  const highs: Array<{ i: number; p: number }> = [], lows: Array<{ i: number; p: number }> = [];
+  for (let i = from; i < candles.length - 3; i++) {
+    const around = [...candles.slice(i - 3, i), ...candles.slice(i + 1, i + 4)];
+    if (around.every(x => x.high <= candles[i].high)) highs.push({ i, p: candles[i].high });
+    if (around.every(x => x.low >= candles[i].low)) lows.push({ i, p: candles[i].low });
+  }
+  return { highs, lows };
+}
+
+/** 14-candle average true range (the plain mean of the last 14 true ranges). */
+export function atr14(candles: readonly OHLCV[], n = 14): number {
+  const tr = candles.map((x, i) => (i === 0 ? x.high - x.low : Math.max(x.high - x.low, Math.abs(x.high - candles[i - 1].close), Math.abs(x.low - candles[i - 1].close))));
+  const w = tr.slice(-n);
+  return w.reduce((a, v) => a + v, 0) / w.length;
+}

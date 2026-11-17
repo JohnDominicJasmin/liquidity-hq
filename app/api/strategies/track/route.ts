@@ -5,6 +5,7 @@ import { fetchRibbonCandles, closedCandles, type EMASignalTF } from '@/lib/ribbo
 import { persistAlertFires, type FireForOutcome } from '@/lib/alertOutcomes';
 import { STRATEGIES } from '@/lib/strategies';
 import { TF_MS } from '@/lib/candles';
+import { BINANCE_SYMS } from '@/lib/coins';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,14 +35,25 @@ export async function GET(req: Request) {
           const btcCandles = def.needsBtc && coin !== 'btc' ? closedCandles(await fetchRibbonCandles('btc', tf as EMASignalTF), tf as EMASignalTF) : undefined;
           /* NO BTC READ IS UNKNOWN, NOT 'NO SIGNAL': a strategy that needs BTC is not evaluated for this coin when BTC came back short. */
           if (def.needsBtc && coin !== 'btc' && (btcCandles?.length ?? 0) < 60) { errors.push(`${def.id}/${coin}/${tf}: no BTC candles`); continue; }
-          const r = def.detect(closed, { coin, tf, tfMs, btcCandles });
+          /* A strategy that reads taker volume gets it from Binance futures klines for the coin (the split exists only there); a coin without it is skipped, not counted as 'no signal'. */
+          let taker: Map<number, { buy: number; sell: number }> | undefined;
+          if (def.needsTaker) {
+            const sym = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
+            if (!sym) continue;
+            const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${tf}&limit=300`, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
+            if (!res.ok) { errors.push(`${def.id}/${coin}/${tf}: taker klines ${res.status}`); continue; }
+            const raw = (await res.json()) as (string | number)[][];
+            taker = new Map(raw.map(k => [+k[0], { buy: +k[9], sell: +k[5] - +k[9] }] as const));
+          }
+          const r = def.detect(closed, { coin, tf, tfMs, btcCandles, taker });
           if (r.verdict === 'wait' || !r.signalDir) continue;
           const price = closed[closed.length - 1].close;
           fires.push({
             ruleKey: `strat_${def.id}_${tf}`,
             coin,
             dir: r.signalDir,
-            label: `${def.id} ${r.verdict} ${coin.toUpperCase()} ${tf}`,
+            /* The per-fire log of the derivatives strategies carries its sigma and window so the thresholds can be tuned after launch (PM, 2026-11-17). */
+            label: `${def.id} ${r.verdict} ${coin.toUpperCase()} ${tf}${r.params.sigma != null ? ` sigma ${r.params.sigma} window ${r.params.n ?? ''}` : ''}`,
             price,
           });
         } catch (err) {

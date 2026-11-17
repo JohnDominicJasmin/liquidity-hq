@@ -487,7 +487,7 @@ function ArenaContent() {
     update({ strategy_params: next });
   }, [update]);
   const strategyLiqLevels = useMemo(() => (chartLiqClusters ?? []).map(c => c.price), [chartLiqClusters]);
-  const strategyState = useStrategySignal(selectedCoin, readTf, arenaStrategy, strategyLiqLevels);
+  const strategyState = useStrategySignal(selectedCoin, readTf, arenaStrategy, strategyLiqLevels, store.coins[selectedCoin]?.fundingRate ?? null);
   const oi1h          = useOI1h(selectedCoin);
   // Default OFF: a 3-year majors/1h backtest showed raw signals (this filter off) beat
   // the stricter persistence-based filter on every metric - see STRICT_FILTER_PARAMS
