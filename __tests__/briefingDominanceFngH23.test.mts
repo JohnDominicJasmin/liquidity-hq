@@ -20,7 +20,8 @@ test('B1. the trend prefers the 24 h change, labels the window, keeps the 0.1-po
   assert.deepEqual(calc(0.4, [50, 50]), { move: 0.4, win: 'BRIEFING_DOM_WINDOW_24H' }, 'the 24 h change must win over a short history');
   const short = calc(null, [50, 50.3, 50.3, 50.3, 50.3, 50.5]); assert.ok(Math.abs(short.move - 0.5) < 1e-9, 'the short window is last minus first'); assert.equal(short.win, 'BRIEFING_DOM_WINDOW_SHORT');
   assert.equal(calc(null, [50, 50.1]).move, 0, 'fewer than 6 samples is no trend'); assert.equal(calc(0, []).win, 'BRIEFING_DOM_WINDOW_24H', 'a real 24 h change of 0 is still a 24 h read');
-  assert.match(brief, /domTrend \? `\$\{domTrend\.txt\} · \$\{domWindow\}` : '-'/, 'the window label must be printed beside the trend, and nothing when there is no trend');
+  /* #2506: with no dominance read at all the line is empty (the value cell says Loading / Unavailable); with a read but no trend it is a dash. The window label is printed only beside a real trend. */
+  assert.match(brief, /domTrend \? `\$\{domTrend\.txt\} · \$\{domWindow\}` : \(store\.btcDom != null \? '-' : ''\)/, 'the window label must be printed beside the trend, and nothing when there is no trend');
   assert.match(brief, /const domTrend = domMove >= 0\.1/); assert.match(brief, /domMove <= -0\.1/);
 });
 

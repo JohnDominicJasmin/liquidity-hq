@@ -19,7 +19,7 @@
  *
  * The browser side goes from ~50 requests to 1.
  */
-import { cached } from './apiCache.ts';
+import { cachedRefresh, cachedAt, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
 import { BYBIT_SYMS } from './coins.ts';
 import { runPool, DEFAULT_CONCURRENCY, HttpStatusError, isRateLimitStatus } from './pool.ts';
 import { exchangeFetch } from './exchangeGuard.ts';
@@ -27,6 +27,9 @@ import { exchangeFetch } from './exchangeGuard.ts';
 /** Every symbol this app tracks on Bybit. A closed set, which is what keeps the
  *  cache key space finite - see the note in app/api/market/klines/route.ts. */
 const SYMBOLS = Object.values(BYBIT_SYMS);
+
+/** The share of symbols a refresh must bring back to replace an existing good entry. */
+export const MIN_COVERAGE = 0.5;
 
 export interface FanoutResult {
   /** symbol -> whatever the caller's `pick` returned. Missing symbols are absent
@@ -121,7 +124,7 @@ export async function symbolFanout(
   // caller of this function.
   fallback?: { buildUrl: (symbol: string) => string; pick: (body: unknown, symbol: string) => unknown },
 ): Promise<FanoutResult> {
-  return cached(key, ttlMs, async () => {
+  return cachedRefresh(key, ttlMs, STALE_WHILE_REFRESH_MS, async () => {
     /* Bounded, not `symbols.map` inside allSettled (#665).
      *
      * That fired every symbol simultaneously - ~45 requests from one server IP
@@ -169,6 +172,13 @@ export async function symbolFanout(
        a non-2xx rather than an empty success. */
     if (Object.keys(data).length === 0) {
       throw new Error(`fan-out returned nothing for all ${symbols.length} symbols`);
+    }
+
+    /* A PARTIAL REFRESH IS A FAILURE WHEN A GOOD ENTRY EXISTS (PM audit 2026-11-17). If fewer than half of the symbols came back (both venues refusing, a run stopped halfway), replacing the cached map with this
+       one blanked cells for the whole TTL and the response still said it was fresh. Throwing keeps the last good entry serving (cachedRefresh holds it for a bounded time) and the response carries that entry's own
+       time. With NO earlier entry the partial result is still returned, as before: some cells beat none. */
+    if (symbols.length > 0 && Object.keys(data).length / symbols.length < MIN_COVERAGE && cachedAt(key) !== null) {
+      throw new Error(`partial fan-out ${Object.keys(data).length}/${symbols.length} for ${key}: keeping the last good result`);
     }
 
     return {
