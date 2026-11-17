@@ -60,7 +60,8 @@ export const SNAPSHOT_STALE_AFTER_MS = 2 * SNAPSHOT_CADENCE_MS;
  * a slow upstream; six is the scheduler being down, which is the case this
  * exists for. Lower it once the UI can label a stale row, at which point this
  * whole fallback goes - see the removal condition in the page routes. */
-export const SNAPSHOT_TOO_OLD_MS = 30 * 60_000;
+/* TEN MINUTES (was 30; PM audit 2026-11-17: no screen reads the `stale` flag, so a row up to 30 minutes old was shown as live). The job runs every 5 minutes, so ten is two missed runs; past it the route falls through to the live fan-out. */
+export const SNAPSHOT_TOO_OLD_MS = 10 * 60_000;
 
 export type SnapshotRead = {
   payload: unknown;

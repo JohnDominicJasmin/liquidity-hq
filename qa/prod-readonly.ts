@@ -93,6 +93,8 @@ export type Needs = 'none' | 'pro' | 'free';
 /** Specs that may run against production. `needs` is the account tier the spec signs in as
  *  (fixture A is Pro, B is free); 'none' is anonymous. */
 export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; note?: string }> = [
+  { spec: 'lcp-breakdown', needs: 'none', note: 'signed-out LCP element and timing breakdown at 390 px, normal and slow 3G, repeat visit and client-side navigation; GETs only' },
+  { spec: 'speed-first-load', needs: 'none', note: 'signed-out first-load size, chunk and initiator checks, chat button, consent banner and an intercepted early error; GETs only' },
   { spec: 'landing-overflow-sampling', needs: 'none', note: 'signed-out landing at 360-1440 normal and slow 3G sampled at first parse, 5 s and 30 s; GETs only, nothing clicked' },
   // ── anonymous ──
   { spec: 'a11y', needs: 'none', note: 'route sweep: spends the per-IP rate limit, one worker' },

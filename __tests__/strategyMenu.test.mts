@@ -12,9 +12,9 @@ import { STRATEGY_SETS, AUTO_SET_ID, CUSTOM_SET_ID, SELECTABLE_INDICATOR_IDS } f
  * WHAT IT CANNOT PROVE: what the page shows (qa/e2e/strategy-menu.spec.ts), the CLS number (the probe on deployed qa). */
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
-const ORDER = ['liq_sweep_mss', 'ny_open_breakout', 'ema_stack', 'supply_demand', 'bb_squeeze', 'vwap_reclaim', 'rsi_divergence'];
+const ORDER = ['liq_sweep_mss', 'ny_open_breakout', 'ema_stack', 'supply_demand', 'bb_squeeze', 'vwap_reclaim', 'rsi_divergence', 'channel'];
 
-test('M1a. the strategies are the seven, in the owner\'s order, with unique ids and unique name keys', () => {
+test('M1a. the strategies are the eight, in the owner\'s order, with unique ids and unique name keys', () => {
   assert.deepEqual(STRATEGIES.map((s) => s.id), ORDER);
   assert.equal(new Set(STRATEGIES.map((s) => s.id)).size, ORDER.length); assert.equal(new Set(STRATEGIES.map((s) => s.nameKey)).size, ORDER.length);
   for (const s of STRATEGIES) assert.match(s.nameKey, /^STRAT_[A-Z0-9_]+_NAME$/, `${s.id}: the name is a label key, never literal text`);
@@ -37,21 +37,27 @@ test('M2a. chip map: every chip a strategy turns on is a chip that DRAWS, and on
   assert.deepEqual(STRATEGIES.filter((s) => s.chips.length > 0).map((s) => [s.id, [...s.chips]]), [['bb_squeeze', ['BOLL']]]);
 });
 
-test('M3a. the call box reserves the height of its CHANGING part (the .strat-call-dyn section), holds the loading / unavailable / verdict parts inside it, and carries every test id the browser cells read', () => {
+test('M3a. the call box reserves ONE height for its CHANGING part (the .strat-call-dyn section) at every width, holds the loading / unavailable / verdict / reason / levels parts inside it, and carries every test id the browser cells read', () => {
+  /* RE-ANCHORED for the compact panel (#2500): the reserve is verdict (one line) + a reason clamped to ONE line + ONE levels line, a single calc() at every width. The old per-width bands (193 / 134 / 155 px) are gone, with their floor assertions. */
   const s = read('components/StrategyCallBox.tsx');
   const open = s.indexOf('className="strat-call-dyn"'); assert.ok(open > 0, 'the changing part is no longer in a .strat-call-dyn section');
   const close = s.indexOf("<div style={{ display: 'flex', alignItems: open"); assert.ok(close > open, 'the description row (one line, Expand / Collapse) is no longer after the changing part');
   const note = s.indexOf('data-testid="strategy-call-note"'); assert.ok(note > close, 'the Signals note is not AFTER the description row (#2366: call, description, note)');
   const dyn = s.slice(open, close);
-  for (const id of ['strategy-call-loading', 'strategy-call-unavailable', 'strategy-call-verdict', 'strategy-call-reason', 'strategy-call-invalidation']) assert.ok(dyn.includes(`data-testid="${id}"`), `${id} is outside the reserved section`);
+  for (const id of ['strategy-call-loading', 'strategy-call-unavailable', 'strategy-call-verdict', 'strategy-call-reason', 'strategy-call-invalidation', 'strategy-call-watching']) assert.ok(dyn.includes(`data-testid="${id}"`), `${id} is outside the reserved section`);
   for (const id of ['strategy-call-box', 'strategy-call-desc', 'strategy-call-desc-toggle', 'strategy-call-note']) assert.ok(s.includes(`data-testid="${id}"`), `missing ${id}`);
   assert.equal(/data-testid="strategy-call-(desc|desc-toggle|note)"/.test(dyn), false, 'the description, its toggle or the note is inside the reserved section');
   assert.equal(s.includes('data-testid="strategy-call-name"'), false, 'the duplicate name heading is back (#2366: the menu already says which strategy)');
+  assert.ok(/<p className=\{open \? undefined : 'strat-call-levels'\}/.test(dyn), 'the wrong-if / watching levels are not ONE always-visible line (strat-call-levels)');
+  assert.ok(/className=\{open \? undefined : 'strat-call-reason-clamp'\}/.test(dyn), 'the reason is not clamped while closed');
   const css = read('app/globals.css');
-  const wide = /^\.strat-call-dyn\s*\{\s*min-height:\s*(\d+)px/m.exec(css); assert.ok(wide, 'the wide-screen reserve is gone from globals.css: the call arriving can push the panels again'); assert.ok(Number(wide![1]) >= 193, `the wide reserve is only ${wide![1]}px: the tallest possible call at >980 px is 193 px (Russian, ema_stack BUY, measured on qa 5b9d1ad, run 43687675270)`);
-  const mid = /@media\s*\(max-width:\s*(?:9\d\d|10\d\d)px\)\s*\{\s*\.strat-call-dyn\s*\{\s*min-height:\s*(\d+)px/.exec(css); assert.ok(mid && Number(mid[1]) >= 134, 'the tablet-width reserve (the band where the arena workspace is one column) is missing or below the measured 134px (Russian at 641 px)');
-  const phone = /@media\s*\(max-width:\s*640px\)\s*\{\s*\.strat-call-dyn\s*\{\s*min-height:\s*(\d+)px/.exec(css); assert.ok(phone && Number(phone[1]) >= 155, 'the phone reserve is missing or below the measured 155px (390 px, every language)');
-  /* THE REAL HEIGHTS ARE GATED BY qa/e2e/strategy-call-height.spec.ts (it fails when a reserve is smaller than the tallest possible call at that width); here only the rules' existence and a floor are pinned. */
+  assert.ok(/:root\s*\{\s*--strat-call-dyn:\s*calc\(var\(--fs-label\) \* 1\.3 \+ 4px \+ var\(--fs-label\) \* 1\.4 \+ 4px \+ var\(--fs-caption\) \* 1\.35\)/.test(css), 'the reserve formula is not verdict (fs-label*1.3) + 4px + one reason line (fs-label*1.4) + 4px + levels line (fs-caption*1.35); the one reserve value (--strat-call-dyn) is gone from globals.css: the call arriving can push the panels again');
+  assert.ok(/^\.strat-call-dyn\s*\{\s*min-height:\s*var\(--strat-call-dyn\)/m.test(css), 'the call block no longer reserves --strat-call-dyn');
+  assert.equal(/@media[^{]*\{\s*\.strat-call-dyn\s*\{\s*min-height/.test(css), false, 'a per-width min-height for the call block is back: the reserve must be ONE value at every width');
+  assert.ok(/\.strat-call-reason-clamp\s*\{[^}]*-webkit-line-clamp:\s*1/.test(css), 'the reason is no longer clamped to ONE line (the reserve assumes it: verdict + 1 reason line + levels line)');
+  assert.ok(/\.strat-call-levels\s*\{[^}]*white-space:\s*nowrap[^}]*text-overflow:\s*ellipsis/.test(css), 'the levels line is no longer one ellipsized line');
+  assert.ok(/html\[data-strat="1"\]\s+\.strat-call-host\s*\{\s*min-height:\s*calc\([^)]*var\(--strat-call-dyn\)/.test(css), 'the cached-strategy host reserve no longer builds on --strat-call-dyn');
+  /* THE REAL HEIGHT IS GATED IN A BROWSER: qa/e2e/strategy-panel-compact.spec.ts (panel height at a 288 and 360 rail) and qa/e2e/cls-arena-gate.spec.ts. Here only the rules' existence is pinned. */
   assert.ok(/state\.error \?/.test(s) && /STRAT_UNAVAILABLE/.test(s), 'a failed read must show the unavailable state');
 });
 

@@ -63,6 +63,8 @@ interface LayoutDefects { obscured: string[]; zeroSized: string[] }
  */
 async function settleForGeometry(page: Page): Promise<void> {
   const started = Date.now();
+  /* #2505: the AI chat button is mounted AFTER the page (load + idle), so the geometry is measured only once it is there; a page without the chat falls through after 10 s */
+  await page.locator('.gchat-fab').first().waitFor({ state: 'attached', timeout: 10_000 }).catch(() => { /* no chat on this page */ });
   await page.waitForFunction(() => {
     const w = window as unknown as { __lay?: { last: string; stable: number } };
     const sig = document.querySelectorAll('*').length + ':' + (document.body.innerText || '').length;

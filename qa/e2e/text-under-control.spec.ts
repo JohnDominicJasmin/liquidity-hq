@@ -423,6 +423,7 @@ test.describe('text is not silently tappable as a control', () => {
        * app shell did not render or the session did not take, and clicking a
        * locator that will never resolve turns that into a 4-minute timeout
        * whose message says nothing about the cause. */
+      await page.locator('.gchat-fab').first().waitFor({ state: 'attached', timeout: 30_000 }).catch(() => { /* a page without the chat: the assertions below say so */ });   // #2505: the chat is mounted after the page
       const fabs = await page.locator('.gchat-fab').count();
       expect(fabs,
         'no .gchat-fab on /dashboard - GrokChat is mounted by AppShell, so this means the ' +

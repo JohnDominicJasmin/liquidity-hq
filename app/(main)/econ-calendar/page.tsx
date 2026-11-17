@@ -4,7 +4,7 @@ import { useNow } from '@/lib/useNow';
 import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
-import { econImpactKey, type EconImpact } from '@/lib/classify';
+import { econImpactKey, econImpactWordKey, type EconImpact } from '@/lib/classify';
 import { localZoneAbbr } from '@/lib/resetTime';
 import PageHint from '@/components/PageHint';
 import { calendarFromResponse } from '@/lib/econCalendarFeed';
@@ -105,7 +105,7 @@ const IMPACT_CFG: Record<EconImpact, { color: string; bg: string; border: string
    producer (enrichWithFRED, for past events) and the owner kept that path, so its column
    is expected back; deleting the keys would mean re-adding them across the defaults and
    every locale to restore a column that only needs a render. */
-const COLS = '68px 72px 1fr 70px';
+const COLS = '68px 88px 1fr 70px';   // the COUNTRY column is 88 px so its head is not clipped (#1185)
 
 const COL_LABEL_KEYS: LabelKey[] = [
   'ECON_CALENDAR_COL_TIME', 'ECON_CALENDAR_COL_COUNTRY', 'ECON_CALENDAR_COL_EVENT', 'ECON_CALENDAR_COL_IMPACT',
@@ -136,7 +136,10 @@ export default function EconCalendarPage() {
   }, []);
 
   const sorted = [...events].sort((a, b) => new Date(a.isoDate).getTime() - new Date(b.isoDate).getTime());
-  const next   = sorted.find(e => new Date(e.isoDate).getTime() > now - 3_600_000);
+  /* THE BANNER NAMES THE NEXT HIGH-IMPACT EVENT (#1185: it said "Next high-impact event: Retail Sales" for a medium one). When no high-impact event is ahead it shows the next event of any impact under its own
+     label, "Next event", never under the high-impact one. */
+  const upcomingEvents = sorted.filter(e => new Date(e.isoDate).getTime() > now - 3_600_000);
+  const next   = upcomingEvents.find(e => econImpactKey(e.impact) === 'HIGH') ?? upcomingEvents[0];
 
   const grouped: Record<string, CalEvent[]> = {};
   for (const e of sorted) {
@@ -175,7 +178,7 @@ export default function EconCalendarPage() {
           }}>
             <div>
               <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: ic.color, marginBottom: 3 }}>
-                {released ? t('ECON_CALENDAR_LATEST_RELEASE') : t('ECON_CALENDAR_NEXT_EVENT')}
+                {released ? t('ECON_CALENDAR_LATEST_RELEASE') : econImpactKey(next.impact) === 'HIGH' ? t('ECON_CALENDAR_NEXT_EVENT') : t('ECON_CALENDAR_NEXT_EVENT_ANY')}
               </div>
               <div style={{ fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--txt)' }}>{next.name}</div>
               {/* The hero date is the most prominent claim on this page, so an
@@ -370,7 +373,7 @@ export default function EconCalendarPage() {
                         letterSpacing: '.04em',
                         color: ic.color, background: ic.bg, border: `0.5px solid ${ic.border}`,
                       }}>
-                        {e.impact}
+                        {econImpactWordKey(e.impact) ? t(econImpactWordKey(e.impact)!) : '-'}
                       </span>
                     </div>
                   </div>

@@ -158,6 +158,9 @@ export async function arenaServerNumbers(coin: string): Promise<ArenaNumbersResu
        and the candles came from a different provider entirely. */
     longRatio:     acct.ok ? acct.entry?.longRatio  : undefined,
     shortRatio:    acct.ok ? acct.entry?.shortRatio : undefined,
+    /* The Binance global account ratio (1h) from the snapshot: the venue every ONE-number surface shows (lib/accountRatioVenue.ts); Bybit's above is its fallback. */
+    bnLongRatio:   snap.data.lsr[coin]?.bnLongRatio,
+    bnShortRatio:  snap.data.lsr[coin]?.bnShortRatio,
   };
 
   /* Driven by SERVER_SOURCED_FIELDS rather than by a literal list, which is why adding
