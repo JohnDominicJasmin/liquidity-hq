@@ -27,7 +27,7 @@ export const dynamic = 'force-dynamic';
 const WINDOW_DAYS = 2;
 
 export async function GET(req: Request) {
-  if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!checkCronAuth(req, { headerOnly: true })) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
     const admin = getSupabaseAdmin();

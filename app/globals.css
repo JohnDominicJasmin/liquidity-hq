@@ -9491,3 +9491,22 @@ html[data-theme="light"] { color-scheme: light; }
 [data-design="terminal"] .strat-ind-name { line-height: 18px; padding: 0; }
 /* A SIGNED-IN VISITOR WITH NO LOCALLY CACHED STRATEGY (a new device, cleared storage) still gets the call box when the saved settings arrive from the server, which pushed the workspace 141 px down at settings load (QA run 44085095349, 360 RU: CLS 0.105). The same closed-box reserve applies for any stored session (<html data-sess="1">) until the settings say there is no strategy (data-strat-none, set by StrategyPanel). */
 html[data-sess="1"]:not([data-strat]):not([data-strat-none]) .strat-call-host { min-height: calc(8px + var(--strat-call-dyn) + 4px + var(--fs-caption) * 1.2); }
+/* ── LANDING HERO ON A PHONE BEFORE THE PAGE HYDRATES (QA: "/" at 390 px scrolled sideways, page 991 px wide) ──
+   The server HTML is always the wide hero (the server cannot know the viewport), and the phone layout only arrives once the page's JavaScript has run. Until then the wide hero's own sizes (a 472 px live-read
+   panel, a 54 px headline, a side-by-side button row, a 3-up stat row with 76 px of spacing each) pushed the page to 991 px. Below 1100 px these rules give the wide tree the phone sizes at once, so the first
+   paint is already right and nothing jumps when the phone layout takes over. The values are the phone values the component sets after hydration, so on hydration nothing changes. Above 1100 px nothing here applies. */
+@media (max-width: 1099px) {
+  .lpt-root { overflow-x: clip; }
+  .lp-hero-sec { padding: 34px 18px 30px !important; }
+  .lp-hero-wrap { flex-direction: column !important; gap: 30px !important; }
+  .lp-hero-col { flex: none !important; min-width: 0; }
+  .lp-hero-h1 { font-size: 32px !important; line-height: 1.1 !important; margin-block-start: 18px !important; }
+  .lp-hero-sub { font-size: 14.5px !important; margin-top: 14px !important; max-width: none !important; }
+  .lp-hero-cta { flex-direction: column !important; gap: 9px !important; margin-top: 22px !important; }
+  .lp-hero-btn { padding: 0 !important; }
+  .lp-hero-btn-a { height: 48px !important; }
+  .lp-hero-btn-b { height: 46px !important; }
+  .lp-hero-stats-wide { display: grid !important; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--bdr); border-top: 0 !important; padding-top: 0 !important; margin-top: 40px !important; }
+  .lp-hero-stat { padding: 13px 14px !important; margin: 0 !important; border-right: 0 !important; background: var(--bg0); min-width: 0; }
+  .lp-read-panel { width: 100% !important; max-width: 100%; }
+}
