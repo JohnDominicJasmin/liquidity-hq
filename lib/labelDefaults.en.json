@@ -3238,7 +3238,7 @@
   "CHART_STRUCTURE": "Structure",
   "CHART_STRUCTURE_TITLE": "Toggle market structure breaks",
   "CHART_LIQ": "Liq",
-  "CHART_LIQ_TITLE": "Toggle realized liquidation clusters: 24h price memory, not predicted levels.",
+  "CHART_LIQ_TITLE": "Toggle realized liquidation clusters: 24h price memory, not predicted liquidation levels.",
   "CHART_FULLSCREEN": "Fullscreen",
   "CHART_EXIT_FULLSCREEN": "Exit fullscreen",
   "CHART_FEED_LIVE": "Live price feed",
