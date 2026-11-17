@@ -1,5 +1,0 @@
-fix(arena): the Strategy panel run row takes the same lock/disabled state as the top buttons (#2500)
-
-What changed: Quick/Deep/Ask gating is one object (runGate) in the Arena page, read by the top buttons and by the panel's QUICK / DEEP / ASK AI. A locked coin or signed-out visitor shows the lock icon and locked styling (no gold fill) in both places; a used-up daily allowance, a read in flight, and the plan still being read disable both. ASK AI follows the "Ask LiquidityAI" button.
-Why: owner-reported on prod: /arena?coin=hype&tf=30m on a Free account showed the lock on the top buttons but an unlocked, gold QUICK in the panel.
-Test: Free account, /arena?coin=hype&tf=30m: top Quick/Deep and the panel QUICK/DEEP all show the lock, none filled; ASK AI is unlocked. Switch to a coin on the Free list: all unlocked. While the plan is being read: both disabled.
