@@ -26,7 +26,7 @@ async function open(browser: Browser, who: 'a' | 'b', coin: string, o: { usage?:
   const ctx = await signedInContext(browser, who, { viewport: { width: 1280, height: 900 } });
   await ctx.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'en'); localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private */ } });
   const page = await ctx.newPage(); await installPaidAiFence(page);
-  if (o.usage) await page.route(/\/api\/grok(\?|$)/, (route) => (route.request().method() === 'GET' ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ quick_used: 5, quick_limit: 5, deep_used: 2, deep_limit: 2, chat_used: 0, chat_limit: 20, search_used: 0, search_limit: 2, briefing_used: 0, briefing_limit: 1 }) }) : route.fallback()));
+  if (o.usage) await page.route(/\/api\/grok(\?|$)/, (route) => (route.request().method() === 'GET' ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ usage: { quick_used: 5, quick_limit: 5, deep_used: 2, deep_limit: 2, chat_used: 0, chat_limit: 20, search_used: 0, search_limit: 2, briefing_used: 0, briefing_limit: 1 } }) }) : route.fallback()));
   const held: Array<import('@playwright/test').Route> = []; if (o.hold) await page.route('**/rest/v1/*user_subscriptions*', (route) => { held.push(route); });
   await gotoSignedIn(page, `/arena?coin=${coin}&tf=1h`); await page.locator('.strat-panel').first().waitFor({ state: 'visible', timeout: 60_000 }); await page.waitForTimeout(o.hold ? 6_000 : 10_000);
   return { ctx, page, held };

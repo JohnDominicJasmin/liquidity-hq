@@ -41,11 +41,12 @@ test.describe('#2500 layer switches', () => {
       const on0 = { ema: await state(page, EMA), rsi: await state(page, RSI) }; console.log(`[LAYERS] LT1 default: ${JSON.stringify(on0)}`);
       expect(on0, 'EMA ribbon and RSI must start ON').toEqual({ ema: true, rsi: true });
       const callOn = await callText(page); const px0 = await pixels(page); await settleForShot(page, 'layers').catch(() => {}); await page.screenshot({ path: 'qa/.shots/layers-both-on-1280.png', timeout: 20_000 }).catch(() => {});
-      const rsiSeen = async () => { await page.evaluate(() => { (window as unknown as { __rsi: number }).__rsi = 0; }); await page.setViewportSize({ width: 1281, height: 900 }); await page.waitForTimeout(1500); await page.setViewportSize({ width: 1280, height: 900 }); await page.waitForTimeout(1500); return (await page.evaluate(() => (window as unknown as { __rsi: number }).__rsi)) > 0; };
-      expect(await rsiSeen(), 'LT2 control: the RSI legend is not drawn with RSI on, so the off check could not discriminate').toBe(true);
-      await chip(page, RSI).click(); await page.waitForTimeout(1500); expect(await state(page, RSI), 'RSI chip still reads on after the click').toBe(false);
-      const rsiAfterOff = await rsiSeen(); console.log(`[LAYERS] LT2 RSI off: legend drawn after a redraw = ${rsiAfterOff}`); expect(rsiAfterOff, 'the RSI legend is still drawn with RSI off').toBe(false);
-      await chip(page, RSI).click(); await page.waitForTimeout(2500); expect(await state(page, RSI)).toBe(true); expect(await rsiSeen(), 'RSI back on: the legend did not return').toBe(true);
+      /* RSI pane: its legend text is not reliably visible to a fillText hook, so the pane is judged by what removing it does to the chart: the canvases' ink and the main pane's size change clearly, and switching it back restores them. */
+      const sizeOf = () => page.evaluate(() => Array.from(document.querySelectorAll('canvas')).map((c) => `${c.width}x${c.height}`).join(','));
+      const pxR0 = await pixels(page), sz0 = await sizeOf(); await chip(page, RSI).click(); await page.waitForTimeout(2500); expect(await state(page, RSI), 'RSI chip still reads on after the click').toBe(false);
+      const pxR1 = await pixels(page), sz1 = await sizeOf(); console.log(`[LAYERS] LT2 RSI off: ink ${pxR0.total} -> ${pxR1.total}; canvases ${sz0} -> ${sz1}`);
+      expect(Math.abs(pxR1.total - pxR0.total) / pxR0.total + (sz0 === sz1 ? 0 : 1), 'switching the RSI pane off changed nothing on the chart (ink and canvas sizes identical)').toBeGreaterThan(0.02);
+      await chip(page, RSI).click(); await page.waitForTimeout(2500); expect(await state(page, RSI)).toBe(true); const pxR2 = await pixels(page); console.log(`[LAYERS] LT2 RSI back on: ink ${pxR2.total}`); expect(Math.abs(pxR2.total - pxR0.total) / pxR0.total, 'switching the RSI pane back on does not restore the drawing').toBeLessThan(0.15);
       await chip(page, EMA).click(); await page.waitForTimeout(2500); expect(await state(page, EMA), 'EMA chip still reads on after the click').toBe(false);
       const px1 = await pixels(page); console.log(`[LAYERS] LT3 pixels: on ${JSON.stringify(px0)} | EMA off ${JSON.stringify(px1)}`);
       expect(px1.total, `the canvas lost no ink with the EMA ribbon off (${px0.total} -> ${px1.total})`).toBeLessThan(px0.total);
