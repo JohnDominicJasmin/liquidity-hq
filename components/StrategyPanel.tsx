@@ -39,6 +39,9 @@ import {
   type IndicatorEntry, type ParamSpec, type OverlayState,
 } from '@/lib/strategyRegistry';
 
+/* The parameter box is COLLAPSED by default (the panel had to be shorter); once the visitor opens it, it stays open for the rest of the session (module memory, not stored). */
+let paramsOpenForSession = false;
+
 const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 export type RunKind = 'quick' | 'deep' | 'ask';
@@ -178,7 +181,9 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
   const lastParamEntry = useRef<IndicatorEntry | undefined>(undefined);
   if (focusedEntry) lastParamEntry.current = focusedEntry;
   const boxEntry = focusedEntry ?? lastParamEntry.current;
-  const boxOpen = !!focusedEntry;
+  const [paramsOpen, setParamsOpenState] = useState(paramsOpenForSession);
+  const setParamsOpen = (v: boolean) => { paramsOpenForSession = v; setParamsOpenState(v); };
+  const boxOpen = !!focusedEntry && paramsOpen;
 
   /* THE ONE STRATEGY MENU (owner, 2026-11-14, option A). The caller writes the saved strategy AND the chips in one save; here only the params focus follows. */
   const applySet = (id: string) => {
@@ -227,9 +232,6 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
       ) : (
       <>
       <div className="strat-sect">
-        <div className="strat-lbl">
-          <span>{t('STRATEGY_PANEL_SECTION_SET')}</span>
-        </div>
         <select className="strat-sel" data-testid="strategy-set-select" value={setId} disabled={!loaded || planChecking} aria-label={t('STRATEGY_PANEL_SECTION_SET')} onChange={e => applySet(e.target.value)}>
           {STRATEGY_SETS.filter(s => s.id === AUTO_SET_ID).map(s => <option key={s.id} value={s.id}>{t('STRATEGY_PANEL_SET_AUTO')}</option>)}
           {STRATEGIES.map(s => <option key={s.id} value={s.id}>{t(s.nameKey)}</option>)}
@@ -243,7 +245,7 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
       </div>
 
       <div className="strat-sect">
-        <div className="strat-lbl">
+        <div className="strat-lbl" title={!planChecking && entitled ? t('STRATEGY_PANEL_NOTE_PRO') : undefined}>
           <span>{t('STRATEGY_PANEL_SECTION_INDICATORS')}</span>
           {/* Pro/trial: how many are on, no "of N" - there is no cap. Free: the one-at-a-time rule. */}
           {loaded && (
@@ -255,14 +257,8 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
 
         {/* Pro note vs Free note, from the artboard. The Pro line is now TRUE (the read receives the
             selected indicators' values, #1631/#2161). */}
-        {loaded && (
-          <p className="strat-ind-note">
-            {planChecking
-              ? t('ARENA_PLAN_CHECKING')
-              : entitled
-              ? t('STRATEGY_PANEL_NOTE_PRO')
-              : null /* Free: "Pick one. Tap another to swap it in." is no longer drawn; the "Free: 1 at a time" badge says it (key STRATEGY_PANEL_NOTE_FREE stays, unused). */}
-          </p>
+        {loaded && planChecking && (
+          <p className="strat-ind-note">{t('ARENA_PLAN_CHECKING')}</p>
         )}
 
         {status === 'loading' && (
@@ -327,6 +323,14 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
           <div className="strat-auto">{t('STRATEGY_PANEL_AUTO_NOTE')}</div>
         )}
 
+        {focusedEntry && (
+          <button type="button" className="strat-edit-link" aria-expanded={paramsOpen} onClick={() => setParamsOpen(!paramsOpen)}
+            title={planChecking ? undefined : entitled ? t('STRATEGY_PANEL_PARAMS_VERDICT_NOTE') : t('STRATEGY_PANEL_FREE_DEFAULTS')}>
+            {t('STRATEGY_PANEL_EDIT_SETTINGS')}
+            <svg className="strat-edit-chevron" data-open={paramsOpen ? 'true' : 'false'} width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 5l4 4 4-4" /></svg>
+          </button>
+        )}
+
         {/* THE PARAMS BOX opens and closes smoothly and only when an indicator with parameters is on; the chips above never move. Closed, it is inert and hidden from assistive tech. */}
         <div className={`strat-params-slot${boxOpen ? ' open' : ''}`} aria-hidden={boxOpen ? undefined : true} inert={!boxOpen}>
           <div className="strat-params-clip">
@@ -350,9 +354,7 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
                     onChange={v => onParamsChange({ ...params, [boxEntry.id]: { ...paramsFor(boxEntry), [spec.key]: v } })}
                   />
                 ))}
-                {/* A PLAN CLAIM ONLY ONCE THE PLAN IS KNOWN: while it is still being read (planChecking) the params box, now always rendered, must not say 'Defaults on free' (or the Pro note) about an account whose plan is unsettled. */}
-                {!planChecking && !entitled && <div className="strat-ro">{t('STRATEGY_PANEL_FREE_DEFAULTS')}</div>}
-                {!planChecking && entitled && <div className="strat-ro">{t('STRATEGY_PANEL_PARAMS_VERDICT_NOTE')}</div>}
+                {/* The plan footnote ("Defaults on free" / "Chart line only...") is the "Edit settings" link's tooltip now, and is never set while the plan is still being read. */}
               </div>
             )}
           </div>
@@ -364,7 +366,7 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
         <div className="strat-sect">
           {/* "Drawn on the chart. They don't count as indicators." moved to the section label's title (the panel had to be shorter). */}
           <div className="strat-lbl" title={t('STRATEGY_PANEL_LAYERS_NOTE')}><span>{t('STRATEGY_PANEL_SECTION_LAYERS')}</span></div>
-          <p className="strat-ind-note">{t('STRATEGY_PANEL_LAYERS_ALWAYS_LINE', { ema: t('STRATEGY_PANEL_LAYER_EMA'), rsi: t('STRATEGY_PANEL_LAYER_RSI'), gex: t('STRATEGY_PANEL_LAYER_GEX') })}</p>
+          <p className="strat-ind-note">{t('STRATEGY_PANEL_LAYERS_ALWAYS_LINE')}</p>
           <div className="strat-layers">
             <LayerSwitch
               name={t('STRATEGY_PANEL_LAYER_SR')}

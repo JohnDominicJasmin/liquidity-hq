@@ -67,7 +67,7 @@ export default function StrategyCallBox({ def, state }: Props) {
           <div data-testid="strategy-call-verdict" data-verdict={r.verdict} style={{ fontSize: 'var(--fs-label)', fontWeight: 700, letterSpacing: '0.04em', color: colour }}>
             {t(r.verdict === 'buy' ? 'STRAT_VERDICT_BUY' : r.verdict === 'sell' ? 'STRAT_VERDICT_SELL' : 'STRAT_VERDICT_WAIT')}
           </div>
-          <p data-testid="strategy-call-reason" className={open ? undefined : 'strat-call-reason-clamp'} style={{ margin: 0, fontSize: 'var(--fs-label)', color: 'var(--txt)', lineHeight: 1.4 }}>{reason}</p>
+          <p data-testid="strategy-call-reason" title={reason} className={open ? undefined : 'strat-call-reason-clamp'} style={{ margin: 0, fontSize: 'var(--fs-label)', color: 'var(--txt)', lineHeight: 1.4 }}>{reason}</p>
           {/* THE LEVELS ARE ALWAYS VISIBLE (PM): "wrong if" and the levels watched are what a trader acts on, so they are ONE line under the reason, never behind the chevron. Closed, the reason is clamped to two lines and this line ends in an
               ellipsis if it is long; open, both show in full. The call block's reserve is exactly verdict + 2 reason lines + this line (globals.css --strat-call-dyn). */}
           {(watched.length > 0 || (r.verdict !== 'wait' && typeof r.params.inv === 'number')) && (
@@ -97,7 +97,8 @@ export default function StrategyCallBox({ def, state }: Props) {
           <svg className="strat-desc-chevron" data-open={open ? 'true' : 'false'} width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 5l4 4 4-4" /></svg>
         </button>
       </div>
-      <p data-testid="strategy-call-note" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.35 }}>{t('STRAT_NOT_PREDICTIONS')}</p>
+      {/* "Signals, not predictions." is part of the expanded explainer, not a line of its own (the panel had to be shorter). */}
+      {open && <p data-testid="strategy-call-note" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.35 }}>{t('STRAT_NOT_PREDICTIONS')}</p>}
     </div>
   );
 }

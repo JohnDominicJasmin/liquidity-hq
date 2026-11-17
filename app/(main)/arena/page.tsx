@@ -2987,6 +2987,7 @@ function ArenaContent() {
       {/* ── Workspace: chart (left) + evidence rail (right) ── */}
       <div className="arena-ws">
         <div className="arena-ws-chart">
+        <div className="arena-ws-a">
       {/* #1596: a coin outside BTC/ETH/SOL for an account that has not paid (Free or free trial): a clean chart, and this one line. No
           markers and no locked circles are drawn (lib/signalCoinGate.ts gateSignal). */}
       {coinLocked && (
@@ -3010,6 +3011,8 @@ function ArenaContent() {
           <Link href="/login" className="usage-auth-link">{t('ARENA_AUTH_SIGN_IN_LINK')}</Link>
         </div>
       )}
+        </div>
+        <div className="arena-ws-b">
       {/* Directly under the chart, on the owner's request (#370). The read
           refers to what the chart shows - "price below EMAs", "closing below
           the swing low", "lower wick at Fib support" - so anything between
@@ -3196,6 +3199,7 @@ function ArenaContent() {
         {entitlementStatus === 'entitled' && <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />}
       </div>
         </div>
+        </div>
         <aside className="arena-ws-rail">
       {/* ── Strategy (#930) ── First in the rail, per the owner-approved layout.
 
@@ -3210,7 +3214,9 @@ function ArenaContent() {
           before readLoading is ever set - so the button never visibly
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
+      <div className="arena-ws-strat">
       <StrategyPanel overlays={overlayStates({ showSR, showLiq, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} onOverlayToggle={id => (id === 'SR' ? setShowSR(!showSR) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} running={readLoading || authLoading} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} strategyState={strategyState} planChecking={planUnsettled} />
+      </div>
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
         <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
