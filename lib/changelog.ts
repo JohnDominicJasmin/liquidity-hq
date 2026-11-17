@@ -150,6 +150,38 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* DRAFT, NEXT RELEASE (written 2026-11-17 while QA is blocked; HELD for QA's word). THE TAG (v2026.11.17) AND THE DATE (2026-11-17) ARE FINAL (PM): the date must be the TAGGED COMMIT's %cs
+       (the changelog test checks it). Grouped as: payments and AI usage, alerts and Telegram, data accuracy, honest wording, speed, screens, translations. Plain words only; not listed on
+       purpose: tests, label migrations, database grants, the collector internals and every other internal change. Tied to the PRs (2026-11-17): #2432 #2433 #2436 #2437 #2438 (AI use given back, our-fault 503,
+       unknown plan, per-user block), #2463 (Free AI allowance), #2466 (Free keeps one indicator), #2423 #2424 #2429 (payments), #2455 #2458 #2425 #2426 (Telegram, alerts), #2454 #2449 #2445 #2450 #2451 #2446
+       #2453 #2442 #2444 #2447 #2448 #2443 #2456 #2435 (data), #2452 #2457 #2417 #2418 #2409 #2419 (wording), #2471 #2393 #2422 (speed), #2465 #2464 #2403 #2405 #2413 #2434 #2467 (screens), #2397 #2410 (languages). */
+    date: '2026-11-17',
+    tag: 'v2026.11.17',
+    items: [
+      'If an AI read never reaches you (the AI service refuses, times out or answers with nothing usable), the use it would have counted is now given back, on every AI tool and the chat.',
+      'A problem on our side no longer shows as "you reached your limit": it now says the service is unavailable and asks you to try again, and an account whose plan could not be read is no longer counted against the Free allowance.',
+      'Free and trial accounts can now use their full advertised daily AI allowance.',
+      'A Free account keeps to one indicator at a time even if an earlier trial or Pro plan saved more: the chart, the AI read and the chat use only the first one, and your saved list comes back if you upgrade.',
+      'Payments: a buyer who paid and signed up later still gets the paid time, a payment claim now stays open for a year, and a failed payment notification no longer loses the payment.',
+      'Connecting Telegram now shows which account the link will join and asks you to confirm, and a /stop command unlinks the chat.',
+      'An alert that was delivered is switched off at once, a send that failed is not counted as delivered, and if your alert settings cannot be read the signal alerts pause instead of falling back to defaults.',
+      'Correlations line up the same time periods, skip coins with too little data and drop the candle that is still forming; the economic calendar shows an actual figure only for the release it belongs to.',
+      'Funding rates quoted for other than 8-hour contracts now show their 8-hour equivalent, so the Funding page compares like with like.',
+      'The Scanner says "Not enough data" for a coin with fewer than two readings instead of calling it balanced, and the squeeze score now counts only real signals: scores are lower and fewer coins get a direction.',
+      'Candle patterns are read from closed candles only, a long wick is named Hammer or Shooting star only after the trend that gives it that name, and taker flow uses only the latest 2 hours.',
+      'The 24-hour high and low of PEPE and BONK use the right price scale, the Markets table keeps coins with no data at the bottom, and the news page reads dates, duplicates and wording more carefully (a delayed or denied ETF reads as bad news, ordinary words no longer tag the wrong coin).',
+      'The Briefing no longer shows missing or old data as current (calendar, ETF flows, dominance), and the on-chain read uses our own live price.',
+      'Setup, funding and legend wording now states positioning (who is paying, which side is crowded) instead of predicting or telling you what to do; the AI tools, the Briefing, the macro read and the research cards describe conditions and no longer advise on position size.',
+      'The dashboard Market Read says how many signals agree, BTC Risk Level is now BTC Long Crowding with its inputs named, and the stablecoin card shows its figures first.',
+      'Pages that waited for every read before showing anything now paint at once: the Correlation matrix fills in coin by coin, the Funding table shows from the market snapshot first, and a slow or failing read ends with a plain message instead of a wait.',
+      'Market and RSI reads show the last answer straight away while a fresh one loads in the background, and some large market replies are much smaller.',
+      'The Strategy indicator chips respond at once on every tap, the number badges are gone and one thin accent border marks a chip that is on.',
+      'The News events table keeps its Impact column (High or Medium for each event), the Arena toolbar stays on one row on wide screens, usage rings have readable colours, the trial banner is shorter on phones, and several small phone and accessibility fixes.',
+      'The sign-in page no longer shows a red security-check error while the check is simply waiting for you, and coins without a logo show a plain placeholder instead of a broken image.',
+      'More of the app speaks your language: the Arena, the footer, signed-out Settings, the macro strip, the economic calendar and the EMA card now use the translated text in Korean, Chinese and Russian.',
+    ],
+  },
+  {
     /* v2026.11.16b, a one-fix patch on v2026.11.16 (tagged 2026-11-17 PHT, a70a1976). Binance moved its futures streams to a new address and the old one still connected but sent nothing, so the Binance side of the liquidation feed, the liquidation map history and the whale feed had gone quiet. Wording from PM. */
     date: '2026-11-17',
     tag: 'v2026.11.16b',
@@ -248,7 +280,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'The 1-hour open interest card now shows the coin you are looking at rather than briefly keeping the last one, and says whether it is still collecting or could not reach the exchange.',
       'The VWAP figure on the dashboard, in Arena and on the landing page is now the VWAP. It was showing the current price under a VWAP heading. Where a coin has no VWAP it shows a dash and says so, instead of a loading bar that never finished.',
       'An AI read now opens with one plain sentence - the direction, the price that would confirm it and the price that would cancel it - above the technical detail.',
-      'AI reads no longer print internal names like TRENDING_SHORT or BOS_CONFIRMED. They say "trending down" and "break of structure".',
+      'AI reads no longer show internal labels for a trend or a structure break. They say "trending down" and "break of structure" in plain words.',
       'Draw Structure is now offered on the 1-hour and 2-hour charts as well as 4-hour and daily, each proposed line is labelled with its kind and how many touches support it, and a Free account can see the feature with a padlock instead of not seeing it at all.',
       'The EMA signal says how many bars ago it fired and marks itself old past 50 bars, and an old signal no longer counts as agreement in the AI read.',
       'When a price or news feed fails, the setup scanner, the accumulation and distribution panels and the News tab say they could not load, instead of showing a loading bar for as long as the feed stays down.',
