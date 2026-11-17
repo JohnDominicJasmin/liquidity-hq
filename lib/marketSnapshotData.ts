@@ -74,7 +74,8 @@ import { exchangeFetch } from './exchangeGuard.ts';
 /* Cadences the client used, kept so nothing gets fresher or staler than it was:
    fetchVolume ran every 3 minutes, fetchLSR every 5. */
 const KLINES_TTL = 3 * 60_000;
-const TICKER_TTL = 3 * 60_000;
+/* 45 s, not 3 min (#1651, PM 2026-11-17): with the client polling every 3 min on top of a 3 min server window, a coin the socket does not overlay could be about 4 minutes behind. The ticker is ONE batched request, so the shorter window costs one call per 45 s per instance, not per visitor. */
+const TICKER_TTL = 45_000;
 const LSR_TTL    = 5 * 60_000;
 
 /* 45 symbols x 2 ratio endpoints is 90 requests. Unbounded parallelism is what
@@ -403,7 +404,7 @@ async function buildLsr(): Promise<Record<string, LsrEntry>> {
 
   const banned = await runPool(SYMS, CONCURRENCY, async ([coin, sym]) => {
     const [g, w] = await Promise.all([
-      get(`${host}/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=1`),
+      get(`${host}/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=1h&limit=1`),   // 1h, the same period as the Bybit account ratio and the dashboard widget (#1651)
       get(`${host}/futures/data/topLongShortPositionRatio?symbol=${sym}&period=5m&limit=1`),
     ]);
     const gi = Array.isArray(g) ? (g[0] as Record<string, string>) : null;

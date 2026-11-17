@@ -11,6 +11,7 @@ import SessionCountdown from '@/components/SessionCountdown';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { withAlpha } from '@/lib/color';
+import { accountRatio } from '@/lib/accountRatioVenue';
 import { getAuthToken } from '@/lib/supabase';
 import { nextResetLocalTime, localZoneAbbr } from '@/lib/resetTime';
 import PageHint from '@/components/PageHint';
@@ -93,11 +94,12 @@ function getSignalTags(
       else if (fr <= -0.005) tags.push(t('BRIEFING_TAG_FR_NEG'));
     }
   }
-  if (coin.longRatio != null && coin.shortRatio != null) {
-    if (dir === 'LONG_LIQ' && coin.longRatio >= 0.58)
-      tags.push(t('BRIEFING_TAG_LONGS_PCT', { pct: (coin.longRatio * 100).toFixed(0) }));
-    if (dir === 'SHORT_SQ' && coin.shortRatio >= 0.58)
-      tags.push(t('BRIEFING_TAG_SHORTS_PCT', { pct: (coin.shortRatio * 100).toFixed(0) }));
+  const ar = accountRatio(coin);
+  if (ar) {
+    if (dir === 'LONG_LIQ' && ar.long >= 0.58)
+      tags.push(t('BRIEFING_TAG_LONGS_PCT', { pct: (ar.long * 100).toFixed(0) }));
+    if (dir === 'SHORT_SQ' && ar.short >= 0.58)
+      tags.push(t('BRIEFING_TAG_SHORTS_PCT', { pct: (ar.short * 100).toFixed(0) }));
   }
   if (coin.takerBuyRatio != null) {
     if (dir === 'LONG_LIQ' && coin.takerBuyRatio <= 0.42) tags.push(t('BRIEFING_TAG_TAKER_SELL'));
@@ -238,8 +240,9 @@ export default function BriefingTerminal() {
     const load = () =>
       fetch('/api/forex/jpy')
         .then(r => r.json())
-        .then((d: { jpy?: number }) => {
-          if (d?.jpy) { setJpyUsd(d.jpy); setJpyUpdated(new Date()); }
+        .then((d: { jpy?: number; asOf?: number }) => {
+          /* The age shown is the RATE'S own time (asOf from the route), not the moment this page fetched it. */
+          if (d?.jpy) { setJpyUsd(d.jpy); setJpyUpdated(typeof d.asOf === 'number' && d.asOf > 0 ? new Date(d.asOf) : null); }
         })
         .catch(() => {});
     load();
@@ -659,7 +662,7 @@ export default function BriefingTerminal() {
             </div>
             {jpyMinutesAgo !== null && (
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 5 }}>
-                {t('BRIEFING_YEN_UPDATED', { time: jpyMinutesAgo < 1 ? 'just now' : `${jpyMinutesAgo}m ago` })}
+                {t('BRIEFING_YEN_UPDATED', { time: jpyMinutesAgo < 1 ? 'just now' : jpyMinutesAgo < 90 ? `${jpyMinutesAgo}m ago` : jpyMinutesAgo < 2880 ? `${Math.round(jpyMinutesAgo / 60)}h ago` : `${Math.round(jpyMinutesAgo / 1440)}d ago` })}
               </div>
             )}
           </>
