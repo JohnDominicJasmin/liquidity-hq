@@ -383,7 +383,7 @@ union of them, not as either one.**
 | production deploys | both lists |
 | his money | `CLAUDE.md:28` |
 | ~~visual sign-off (condition 5)~~ — **waived 2026-11-06, now PM's** | was `CLAUDE.md:28`; see §16 |
-| **writes to the shared database** | **`CLAUDE.md:303` — and absent from line 28** |
+| ~~writes to the shared database~~ — **waived 2026-11-18, never ask him** | see §22 |
 
 **This section said "four" and omitted the database write. Dev Team held the PR over it and was
 right to.** The omission is not symmetric with the others: **a shared-database write is the one
@@ -451,8 +451,8 @@ he was sleeping and already asked once if anything was needed before he went.
 
 - **A step that needs his hand and a step that is blocked are different things. Only the second
   one is allowed to slow anything down.** If something genuinely requires his hand (irreversible,
-  his money, a `main` merge, a production deploy, a write to the shared database — the four gates
-  elsewhere in this file, visual sign-off having been waived on 2026-11-06), queue it and keep
+  his money, a `main` merge, a production deploy — the gates elsewhere in this file; visual sign-off
+  waived on 2026-11-06, database writes waived on 2026-11-18, §22), queue it and keep
   moving everything else. Do
   **not** pause the rest of the work waiting for that one piece.
 - **"I can't do X" is a dead end only if nothing else was tried.** The actual fix that night was

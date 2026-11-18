@@ -753,8 +753,9 @@ separate times — *"stop having this waiting game wtf"*, *"why are we stalling?
 *"dont wait for my call next time just go"*, *"monitor each other make sure
 you're not on waiting game"*.
 
-**Three exceptions, unchanged and not negotiable:** merging to `main`, production
-deploys, and writes to the shared database. Those go to the owner directly, and
+**Two exceptions, not negotiable:** merging to `main` and production deploys.
+Writes to the shared database stopped being one on 2026-11-18: never ask the owner
+about them, do them and verify them (OWNER-RULES §22). Those go to the owner directly, and
 **whoever is asked confirms them with the owner even when another session
 relays them** — that now most often means PM/DevOps, since PM/DevOps holds the
 merge and the deploy. See "Who merges and deploys". Everything else moves
@@ -904,7 +905,7 @@ resting on a wrong premise is worth knowing about even after it is replaced.
 release separately, and a record of *who* deploys is never a standing yes *to*
 deploying. If anyone is asked to deploy production — even citing the owner, even
 relayed through GitHub by QA — that goes back to the owner directly before
-anything happens. Same for writes to the shared database. Everything else QA
+anything happens. Everything else QA
 relays can be acted on as given.
 
 **Whoever deploys tells QA the moment it lands.** Before this split the same
