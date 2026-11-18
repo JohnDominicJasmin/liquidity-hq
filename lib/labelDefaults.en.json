@@ -101,6 +101,8 @@
   "PAGE_HINT_REPLAY_LABEL": "How this page works",
   "NEWS_HINT_TITLE": "News",
   "NEWS_HINT_BODY": "Breaking crypto headlines, tagged by coin and impact.",
+  "ALERTS_MACRO_NEWS_TITLE": "Macro headlines",
+  "ALERTS_MACRO_NEWS_DESC": "Fed, inflation and jobs headlines.",
   "ALERTS_HINT_TITLE": "Alerts",
   "ALERTS_HINT_BODY": "Set price, RSI, whale and OI alerts per coin. Telegram or push; toggle each.",
   "STRAT_CARD_TITLE": "Strategy",
