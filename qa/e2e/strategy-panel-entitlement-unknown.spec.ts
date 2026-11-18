@@ -69,7 +69,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
       // Untouched by the fix, and worth pinning: the card replaces the
       // selection UI, not the whole panel.
       for (const name of ['QUICK', 'DEEP', 'ASK AI']) {
-        await expect(panel.getByRole('button', { name, exact: true }),
+        await expect(panel.getByRole('button', { name: new RegExp(`^${name}$`, 'i') }),
           `"${name}" must still be present - the fix replaces the selection UI only, "Run the read" was never gated on entitlement`).toBeVisible();
       }
     } finally {
