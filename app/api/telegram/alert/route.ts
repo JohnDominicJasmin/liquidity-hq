@@ -359,7 +359,7 @@ function getSession(): string {
    overwrite it with equivalent data. */
 const TIME_TOKEN = '__ALERT_TIME__';
 const CHAT_TZ = new Map<string, string | null>();
-/* Paused, snoozed or in quiet hours (lib/alertQuiet.ts): no Telegram alert of any kind, price alerts included. Rebuilt every run like CHAT_TZ. */
+/* Paused, snoozed or in quiet hours (lib/alertQuiet.ts): no Telegram alert of any kind (price alerts included) and no Web Push signal. Rebuilt every run like CHAT_TZ. */
 let HELD_USERS = new Set<string>();
 
 function alertTimeIn(timeZone: string | null): string {
@@ -2155,7 +2155,7 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
   // push path used to fan out to EVERY stored subscription - so a free user
   // who enabled browser notifications received the full Pro alert stream.
   const subs = (allSubs as Array<{ endpoint: string; p256dh: string; auth: string; user_id: string }>)
-    .filter(s => proUserIds.has(s.user_id));
+    .filter(s => proUserIds.has(s.user_id) && !HELD_USERS.has(s.user_id)); // paused / snoozed / quiet hours hold push too ("pause all alerts")
   if (!subs.length) return;
 
   webpush.setVapidDetails(email, pubKey, privKey);

@@ -17,6 +17,7 @@ export const BOT_HELP =
 export const BOT_NOT_LINKED = 'This chat is not connected. Open Alerts in the app and press Connect Telegram.';
 export const BOT_PAUSED = 'Alerts paused. Send /resume to turn them back on.';
 export const BOT_RESUMED = 'Alerts are on. Quiet hours, if set, still apply.';
+export const BOT_RESUMED_NO_PLAN = 'Pause cleared, but alerts stay off: your plan does not include Telegram alerts. Upgrade to Pro to get them.';
 export const BOT_SAVE_FAILED = 'Could not save that. Try again.';
 export const BOT_READ_FAILED = 'Could not read your settings. Try again.';
 
@@ -33,7 +34,9 @@ export function botStatusText(o: {
   quiet: { start: number; end: number; timeZone: string } | null;
 }): string {
   const plan = o.plan === 'pro' ? 'Pro' : o.plan === 'trial' ? 'Pro trial' : 'Free (Telegram alerts need Pro)';
-  const alerts = o.alerts === 'paused' ? 'paused (send /resume)'
+  /* A Free account gets nothing from the cron whatever its pause says, so it is never told "on". */
+  const alerts = o.plan === 'free' ? 'off (your plan does not include Telegram alerts)'
+    : o.alerts === 'paused' ? 'paused (send /resume)'
     : o.alerts === 'snoozed' ? `snoozed until ${o.snoozeUntil ?? 'later'}`
     : 'on';
   const quiet = o.quiet ? `${two(o.quiet.start)}:00-${two(o.quiet.end)}:00 (${o.quiet.timeZone})` : 'off';

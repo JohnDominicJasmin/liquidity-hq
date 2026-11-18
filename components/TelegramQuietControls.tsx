@@ -32,14 +32,30 @@ export default function TelegramQuietControls() {
   const snoozed = Number.isFinite(until) && until > now;
   const paused = settings.alert_paused === true;
 
-  const hourSelect = (field: 'alert_quiet_start' | 'alert_quiet_end', label: string) => (
+  /* QUIET HOURS ARE A PAIR: the settings API refuses one bound alone. The choice is held here until both are set (or both Off), then saved
+     together; while only one is chosen the field error says so and nothing is sent. A saved pair from another device replaces the draft. */
+  type Field = 'alert_quiet_start' | 'alert_quiet_end';
+  const [draft, setDraft] = useState<{ start: number | null; end: number | null; baseStart: number | null; baseEnd: number | null } | null>(null);
+  const savedStart = settings.alert_quiet_start, savedEnd = settings.alert_quiet_end;
+  const live = draft && draft.baseStart === savedStart && draft.baseEnd === savedEnd ? draft : null; // a draft made against an older saved pair is dropped
+  const shown = live ?? { start: savedStart, end: savedEnd };
+  const halfSet = (shown.start == null) !== (shown.end == null);
+  const pick = (field: Field, value: number | null) => {
+    const next = { start: shown.start, end: shown.end, [field === 'alert_quiet_start' ? 'start' : 'end']: value };
+    if ((next.start == null) === (next.end == null)) { setDraft(null); update({ alert_quiet_start: next.start, alert_quiet_end: next.end }); }
+    else setDraft({ ...next, baseStart: savedStart, baseEnd: savedEnd });
+  };
+
+  const hourSelect = (field: Field, label: string) => (
     <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
       {label}
       <select
         className="pa-select"
         aria-label={`${t('ALERTS_QUIET_TITLE')}: ${label}`}
-        value={settings[field] == null ? '' : String(settings[field])}
-        onChange={e => update({ [field]: e.target.value === '' ? null : Number(e.target.value) })}
+        value={(field === 'alert_quiet_start' ? shown.start : shown.end) == null ? '' : String(field === 'alert_quiet_start' ? shown.start : shown.end)}
+        aria-invalid={halfSet && (field === 'alert_quiet_start' ? shown.start : shown.end) == null}
+        aria-describedby={halfSet ? 'tg-quiet-pair-error' : undefined}
+        onChange={e => pick(field, e.target.value === '' ? null : Number(e.target.value))}
       >
         <option value="">{t('ALERTS_QUIET_OFF')}</option>
         {HOURS.map(h => <option key={h} value={h}>{hh(h)}</option>)}
@@ -62,6 +78,7 @@ export default function TelegramQuietControls() {
           {hourSelect('alert_quiet_start', t('ALERTS_QUIET_FROM'))}
           {hourSelect('alert_quiet_end', t('ALERTS_QUIET_TO'))}
         </div>
+        {halfSet && <div id="tg-quiet-pair-error" role="alert" style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 6 }}>{t('ALERTS_QUIET_BOTH')}</div>}
       </div>
 
       <div>

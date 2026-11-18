@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { isQuietHour } from '@/lib/alertQuiet';
 import { planKindOfRow } from '@/lib/paidPeriod';
-import { BOT_HELP, BOT_NOT_LINKED, BOT_PAUSED, BOT_RESUMED, BOT_SAVE_FAILED, BOT_READ_FAILED, botStatusText } from '@/lib/telegramBotText';
+import { BOT_HELP, BOT_NOT_LINKED, BOT_PAUSED, BOT_RESUMED, BOT_RESUMED_NO_PLAN, BOT_SAVE_FAILED, BOT_READ_FAILED, botStatusText } from '@/lib/telegramBotText';
 
 export const dynamic = 'force-dynamic';
 
@@ -160,7 +160,13 @@ async function chatControl(cmd: 'status' | 'pause' | 'resume', chatId: string): 
       .select('user_id');
     if (error) return BOT_SAVE_FAILED;
     if (!data?.length) return BOT_NOT_LINKED;
-    return cmd === 'pause' ? BOT_PAUSED : BOT_RESUMED;
+    if (cmd === 'pause') return BOT_PAUSED;
+    /* A Free (lapsed) account is not told "on": the cron sends it nothing. A failed plan read falls back to the plain reply. */
+    const { data: sub, error: subErr } = await admin.from(T.user_subscriptions)
+      .select('role, trial_ends_at, current_period_end')
+      .eq('user_id', data[0].user_id)
+      .maybeSingle();
+    return !subErr && planKindOfRow(sub, Date.now()) === 'free' ? BOT_RESUMED_NO_PLAN : BOT_RESUMED;
   }
 
   const { data: s, error } = await admin.from(T.user_settings)

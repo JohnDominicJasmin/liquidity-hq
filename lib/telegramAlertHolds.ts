@@ -21,7 +21,6 @@ export async function loadHeldUserIds(nowMs: number): Promise<Set<string>> {
     const { data, error } = await selectAllRows('alert:holds', 'user_id', () => admin
       .from(T.user_settings)
       .select('user_id, timezone, alert_paused, alert_snooze_until, alert_quiet_start, alert_quiet_end')
-      .not('telegram_chat_id', 'is', null)
       .or('alert_paused.eq.true,alert_snooze_until.not.is.null,alert_quiet_start.not.is.null'));
     if (error) { console.warn('[alert] quiet/snooze/pause settings unreadable; nobody held this run', error.message); return held; }
     for (const row of (data ?? []) as Array<AlertHoldSettings & { user_id: string }>) {

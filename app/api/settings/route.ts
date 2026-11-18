@@ -29,6 +29,21 @@ function isValidTimeZone(tz: string): boolean {
   }
 }
 
+/* A snooze end: an ISO time with a zone, a REAL calendar time (2026-02-30 is refused, not rolled to 2 March by Date.parse; the timestamptz column
+   would refuse it with a 500), and no more than SNOOZE_MAX_MS ahead. A past time is accepted and simply means not snoozed. */
+const SNOOZE_MAX_MS = 7 * 24 * 60 * 60 * 1000;
+function isSnoozeTime(v: unknown, nowMs: number): boolean {
+  if (typeof v !== 'string') return false;
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|([+-])(\d{2}):(\d{2}))$/.exec(v);
+  if (!m) return false;
+  const [y, mo, d, h, mi, sec] = [m[1], m[2], m[3], m[4], m[5], m[6] ?? '0'].map(Number);
+  const local = new Date(Date.UTC(y, mo - 1, d, h, mi, sec));
+  if (local.getUTCFullYear() !== y || local.getUTCMonth() !== mo - 1 || local.getUTCDate() !== d || local.getUTCHours() !== h || local.getUTCMinutes() !== mi || local.getUTCSeconds() !== sec) return false;
+  if (m[7] !== 'Z' && (Number(m[9]) > 14 || Number(m[10]) > 59)) return false;
+  const t = Date.parse(v);
+  return Number.isFinite(t) && t <= nowMs + SNOOZE_MAX_MS;
+}
+
 // GET - return current settings row (or null if not yet saved)
 export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
@@ -120,10 +135,15 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: `Invalid ${k}` }, { status: 400 });
     }
   }
+  // Quiet hours are a pair: both set or both off, in the same request. One alone would be stored as a window the cron ignores.
+  if ('alert_quiet_start' in payload || 'alert_quiet_end' in payload) {
+    if (!('alert_quiet_start' in payload) || !('alert_quiet_end' in payload) || (payload.alert_quiet_start === null) !== (payload.alert_quiet_end === null)) {
+      return NextResponse.json({ error: 'Invalid alert_quiet_start/alert_quiet_end: set both or neither' }, { status: 400 });
+    }
+  }
   if ('alert_snooze_until' in payload) {
     const v = payload.alert_snooze_until;
-    const iso = typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(v) && Number.isFinite(Date.parse(v));
-    if (v !== null && !iso) return NextResponse.json({ error: 'Invalid alert_snooze_until' }, { status: 400 });
+    if (v !== null && !isSnoozeTime(v, Date.now())) return NextResponse.json({ error: 'Invalid alert_snooze_until' }, { status: 400 });
   }
   if ('alert_paused' in payload && payload.alert_paused !== null && typeof payload.alert_paused !== 'boolean') {
     return NextResponse.json({ error: 'Invalid alert_paused' }, { status: 400 });
