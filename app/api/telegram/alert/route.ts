@@ -14,6 +14,7 @@ import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { readFng, type FNGData } from '@/lib/fng';
 import { selectAllRows } from '@/lib/selectAllRows';
+import { loadHeldUserIds, sendPlanLapseNotices } from '@/lib/telegramAlertHolds';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
 import { onCooldown, markSent, exportCooldownState, importCooldownState, beginStagedMarks, commitStagedMarks, discardStagedMarks } from '@/lib/alertCooldown';
 import { apiError } from '@/lib/apiError';
@@ -351,6 +352,8 @@ function getSession(): string {
    overwrite it with equivalent data. */
 const TIME_TOKEN = '__ALERT_TIME__';
 const CHAT_TZ = new Map<string, string | null>();
+/* Paused, snoozed or in quiet hours (lib/alertQuiet.ts): no Telegram alert of any kind, price alerts included. Rebuilt every run like CHAT_TZ. */
+let HELD_USERS = new Set<string>();
 
 function alertTimeIn(timeZone: string | null): string {
   // Unknown timezone (never opened the web app, or an older row) -> UTC, and
@@ -1314,7 +1317,7 @@ async function checkPriceAlerts(
     const chatIdByUser = new Map<string, string>();
     for (const row of settingsRes.data ?? []) {
       const userId = row.user_id as string;
-      if (!proUserIds.has(userId)) continue;
+      if (!proUserIds.has(userId) || HELD_USERS.has(userId)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
       if (id) chatIdByUser.set(userId, id);
     }
@@ -2485,7 +2488,9 @@ async function runAlerts(token: string): Promise<NextResponse> {
       if (kind !== 'free') proUserIds.add(row.user_id as string);
       if (kind === 'trial') trialUserIds.add(row.user_id as string);
     }
+    void sendPlanLapseNotices(token, data ?? [], now); // one "plan ended" message per lapse (lib/planLapse.ts); never throws
   } catch { /* admin key not configured - allChatIds falls back to the env var below */ }
+  HELD_USERS = await loadHeldUserIds(Date.now());
 
   // Collect Pro users who have connected their Telegram
   const allChatIds: string[] = [];
@@ -2502,7 +2507,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     CHAT_TZ.clear();
     for (const row of data ?? []) {
       const userId = row.user_id as string;
-      if (!proUserIds.has(userId)) continue;
+      if (!proUserIds.has(userId) || HELD_USERS.has(userId)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
       if (id && !allChatIds.includes(id)) {
         allChatIds.push(id);
@@ -2519,7 +2524,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   const envChatId = process.env.TELEGRAM_CHAT_ID;
   if (envChatId && !allChatIds.includes(envChatId)) allChatIds.push(envChatId);
 
-  if (allChatIds.length === 0)
+  if (allChatIds.length === 0 && HELD_USERS.size === 0) // everyone held is not "no recipients": the run goes on and sends nothing
     return NextResponse.json({ error: 'No Telegram recipients configured' }, { status: 503 });
 
   // Session-based cooldowns - tighter during pre-NY + NY (12:00-20:00 UTC)

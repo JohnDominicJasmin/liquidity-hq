@@ -70,6 +70,7 @@ export async function PATCH(req: NextRequest) {
     'timezone',
     'strategy_selection', 'strategy_params', 'arena_strategy',
     'arena_sound',
+    'alert_quiet_start', 'alert_quiet_end', 'alert_snooze_until', 'alert_paused',
   ];
   const payload: Record<string, unknown> = {};
   for (const key of ALLOWED) {
@@ -103,6 +104,23 @@ export async function PATCH(req: NextRequest) {
   // arena_sound is a tri-state (null = never asked): refuse anything else rather than store a string a client invented.
   if ('arena_sound' in payload && payload.arena_sound !== null && typeof payload.arena_sound !== 'boolean') {
     return NextResponse.json({ error: 'Invalid arena_sound' }, { status: 400 });
+  }
+
+  // Telegram alert controls: hours are whole numbers 0-23 or null, snooze is an ISO time or null, paused is a boolean or null. Anything else is refused,
+  // because the alert cron reads these to decide whether to send (lib/alertQuiet.ts).
+  for (const k of ['alert_quiet_start', 'alert_quiet_end'] as const) {
+    const v = payload[k];
+    if (k in payload && v !== null && !(typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 23)) {
+      return NextResponse.json({ error: `Invalid ${k}` }, { status: 400 });
+    }
+  }
+  if ('alert_snooze_until' in payload) {
+    const v = payload.alert_snooze_until;
+    const iso = typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(v) && Number.isFinite(Date.parse(v));
+    if (v !== null && !iso) return NextResponse.json({ error: 'Invalid alert_snooze_until' }, { status: 400 });
+  }
+  if ('alert_paused' in payload && payload.alert_paused !== null && typeof payload.alert_paused !== 'boolean') {
+    return NextResponse.json({ error: 'Invalid alert_paused' }, { status: 400 });
   }
 
   // strategy_selection/strategy_params are jsonb - reject anything that isn't

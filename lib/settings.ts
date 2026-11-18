@@ -54,6 +54,12 @@ export interface UserSettings {
   /* The Arena strategy the trader picked (lib/strategies), or null for none. Separate from strategy_selection: that is indicator chips, this is a rule set that
      gives a buy/sell/wait verdict. An unknown id is treated as none on read. */
   arena_strategy:     string | null;
+  /* Telegram alert controls (owner sweep 2026-11-18), all null = not set. Quiet hours are whole hours 0-23 in `timezone` (end not included; start > end crosses
+     midnight); snooze is a time before which nothing is sent; paused is set by /pause in the bot or cleared by Resume. The cron reads them through lib/alertQuiet.ts. */
+  alert_quiet_start:  number | null;
+  alert_quiet_end:    number | null;
+  alert_snooze_until: string | null;
+  alert_paused:       boolean | null;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -87,6 +93,10 @@ export const DEFAULT_SETTINGS: UserSettings = {
   strategy_params:    null,
   arena_sound:        null,
   arena_strategy:     null,
+  alert_quiet_start:  null,
+  alert_quiet_end:    null,
+  alert_snooze_until: null,
+  alert_paused:       null,
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -299,6 +309,8 @@ export function dropLegacyUnconfirmedKey() {
 
 // ── DB row ↔ UserSettings conversion ─────────────────────────────────────
 
+const isHour = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 23;
+
 export function rowToSettings(row: Record<string, unknown>): UserSettings {
   return {
     account_size:       +(row.account_size    ?? DEFAULT_SETTINGS.account_size),
@@ -328,6 +340,10 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
       : null,
     arena_sound: typeof row.arena_sound === 'boolean' ? row.arena_sound : null,
     arena_strategy: typeof row.arena_strategy === 'string' && row.arena_strategy ? row.arena_strategy : null,
+    alert_quiet_start: isHour(row.alert_quiet_start) ? row.alert_quiet_start : null,
+    alert_quiet_end: isHour(row.alert_quiet_end) ? row.alert_quiet_end : null,
+    alert_snooze_until: typeof row.alert_snooze_until === 'string' && row.alert_snooze_until ? row.alert_snooze_until : null,
+    alert_paused: typeof row.alert_paused === 'boolean' ? row.alert_paused : null,
     strategy_params: (row.strategy_params && typeof row.strategy_params === 'object' && !Array.isArray(row.strategy_params))
       ? row.strategy_params as Record<string, Record<string, string | number | boolean>>
       : null,
