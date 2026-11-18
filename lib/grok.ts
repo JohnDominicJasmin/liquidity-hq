@@ -1411,14 +1411,15 @@ export function applyResultChecks(result: CombinedResult, prompt: string, notes:
     show(tier);
   }
 
-  /* THE ADJUSTED NUMBER STAYS IN THE TIER'S BAND (QA K9 on #2585). The prompt's CONFIDENCE BANDS are LEAN 55-75 and FLAT 65-85; the code adjustment
-     above could push a LEAN to 85 or a FLAT to 50. After an adjustment, and after any tier correction, the number is clamped to the shown tier's band.
-     A full tier (BULLISH / BEARISH) has no band and keeps 0-100. A model number with no adjustment is left as the model gave it. */
+  /* THE ADJUSTED NUMBER NEVER EXCEEDS THE TIER'S BAND (QA K9 on #2585). The prompt's CONFIDENCE BANDS top out at LEAN 75 and FLAT 85; the code
+     adjustment above could push a LEAN to 85. After an adjustment, and after any tier correction, the number is capped at the shown tier's top.
+     UPPER BOUND ONLY (PM): a penalty that takes a read under its band is information, so there is no floor. A full tier (BULLISH / BEARISH) keeps
+     0-100. A model number with no adjustment is left as the model gave it. */
   if (adjusted) {
-    const band: [number, number] | null = r.signal === 'LEAN BULLISH' || r.signal === 'LEAN BEARISH' ? [55, 75] : r.signal === 'FLAT' ? [65, 85] : null;
-    if (band) {
-      const c = Math.max(band[0], Math.min(band[1], r.confidence));
-      if (c !== r.confidence) { r.checks.push(`confidence ${r.confidence} kept in the ${r.signal} band ${band[0]}-${band[1]}: ${c}`); r.confidence = c; }
+    const top = r.signal === 'LEAN BULLISH' || r.signal === 'LEAN BEARISH' ? 75 : r.signal === 'FLAT' ? 85 : null;
+    if (top != null && r.confidence > top) {
+      r.checks.push(`confidence ${r.confidence} capped at the ${r.signal} band top ${top}`);
+      r.confidence = top;
     }
   }
 
