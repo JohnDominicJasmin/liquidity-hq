@@ -13,14 +13,14 @@ const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])
 const src = (rel: string) => code(readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n'));
 const count = (s: string, needle: string) => s.split(needle).length - 1;
 
-/* route, how a refund is written there, how many refund sites (non-2xx, throw, and for onchain also an unparseable 2xx) */
+/* route, how a refund is written there, how many refund sites (non-2xx, throw, an unparseable / empty / cut-off 2xx) */
 const ROUTES: { file: string; reserve: string; refund: string; sites: number; why: string }[] = [
   { file: 'app/api/briefing/route.ts', reserve: 'incrementUsageColumn(', refund: "refundUsageColumn(userId, 'briefing_count', reservedOn)", sites: 3, why: 'non-2xx, an EMPTY 2xx reply (#2509: a blank card is a failed answer), and a throw before the 2xx (a billed flag guards the throw)' },
   { file: 'app/api/token-unlock/route.ts', reserve: "incrementToolUsage(authData.user.id, 'tokenUnlock'", refund: 'giveBack()', sites: 2, why: 'throw and non-2xx, inside the cache miss' },
   { file: 'app/api/onchain/route.ts', reserve: "incrementToolUsage(authData.user.id, 'onchain'", refund: 'giveBack()', sites: 3, why: 'throw, non-2xx and an unparseable / cut-off 2xx (the user got nothing)' },
-  { file: 'app/api/thesis-check/route.ts', reserve: "incrementToolUsage(authData.user.id, 'thesisCheck'", refund: "refundToolUsage(authData.user.id, 'thesisCheck', reservedOn)", sites: 2, why: 'throw and non-2xx' },
-  { file: 'app/api/strategy-research/route.ts', reserve: "incrementToolUsage(authData.user.id, 'strategyResearch'", refund: "refundToolUsage(authData.user.id, 'strategyResearch', reservedOn)", sites: 2, why: 'throw and non-2xx' },
-  { file: 'app/api/pine-script/route.ts', reserve: "incrementToolUsage(authData.user.id, 'pineScript'", refund: "refundToolUsage(authData.user.id, 'pineScript', reservedOn)", sites: 2, why: 'throw and non-2xx' },
+  { file: 'app/api/thesis-check/route.ts', reserve: "incrementToolUsage(authData.user.id, 'thesisCheck'", refund: "refundToolUsage(authData.user.id, 'thesisCheck', reservedOn)", sites: 3, why: 'throw, non-2xx, and an EMPTY or CUT-OFF 2xx answer (#2559: a blank or half answer is a failed answer)' },
+  { file: 'app/api/strategy-research/route.ts', reserve: "incrementToolUsage(authData.user.id, 'strategyResearch'", refund: "refundToolUsage(authData.user.id, 'strategyResearch', reservedOn)", sites: 3, why: 'throw, non-2xx, and an EMPTY or CUT-OFF 2xx answer (#2559: a blank or half answer is a failed answer)' },
+  { file: 'app/api/pine-script/route.ts', reserve: "incrementToolUsage(authData.user.id, 'pineScript'", refund: "refundToolUsage(authData.user.id, 'pineScript', reservedOn)", sites: 3, why: 'throw, non-2xx, and an EMPTY or CUT-OFF 2xx answer (#2559: a blank or half answer is a failed answer)' },
 ];
 
 for (const r of ROUTES) {
@@ -45,4 +45,25 @@ test('U4c. briefing: a refund after a throw is guarded by billed (set at the 2xx
   const s = src('app/api/briefing/route.ts');
   assert.ok(s.includes('billed = true;') && s.includes('if (!billed) await refundUsageColumn(userId'), 'the throw path no longer checks billed');
   assert.ok(s.indexOf('billed = true;') < s.indexOf('if (!billed) await refundUsageColumn'), 'billed is set after the catch that reads it');
+});
+
+test('U4d. (#2559) thesis-check, strategy-research and pine-script refuse an EMPTY or CUT-OFF answer with AI_INCOMPLETE, refund it, and never name the vendor or a raw status in that text', () => {
+  for (const [file, tool] of [['app/api/thesis-check/route.ts', 'thesisCheck'], ['app/api/strategy-research/route.ts', 'strategyResearch'], ['app/api/pine-script/route.ts', 'pineScript']] as const) {
+    const s = src(file);
+    assert.ok(s.includes("import { answerWasCutOff } from '@/lib/xaiAnswer';"), file + ': the cut-off check is not imported');
+    const at = s.indexOf('answerWasCutOff(data)'); assert.ok(at > 0, file + ': the cut-off check is not applied');
+    const block = s.slice(at, at + 400);
+    assert.ok(block.includes("refundToolUsage(authData.user.id, '" + tool + "', reservedOn)"), file + ': the incomplete answer is not refunded (the customer is charged for nothing)');
+    assert.ok(block.includes("code: 'AI_INCOMPLETE'") && block.includes('status: 502'), file + ': the incomplete answer does not carry AI_INCOMPLETE / 502');
+    const msg = /error: '([^']*)', code: 'AI_INCOMPLETE'/.exec(block)?.[1] ?? ''; assert.ok(msg.length > 10, file + ': no readable message');
+    assert.doesNotMatch(msg, /grok|xai|x\.ai|\b[45]\d\d\b/i, file + ': the message names the vendor or a raw status: "' + msg + '"');
+  }
+});
+test('U4e. (#2559) token-unlock says UNAVAILABLE (503) BEFORE any reservation or paid call while no unlock data source is wired', () => {
+  const s = src('app/api/token-unlock/route.ts');
+  const guard = s.indexOf('if (!UNLOCK_SOURCE_WIRED)'); assert.ok(guard > 0, 'the unavailable guard is gone');
+  assert.ok(/const UNLOCK_SOURCE_WIRED: boolean = false;/.test(s), 'the flag is not false (this pin must change in the same PR that wires a real source)');
+  assert.ok(guard < s.indexOf("incrementToolUsage(authData.user.id, 'tokenUnlock'"), 'the guard sits AFTER the reservation: a use is spent on an unavailable answer');
+  assert.ok(guard < s.indexOf('xaiFetch('), 'the guard sits after the paid call');
+  assert.ok(/code: 'UNAVAILABLE' \}, \{ status: 503 \}/.test(s), 'the guard does not answer UNAVAILABLE / 503');
 });
