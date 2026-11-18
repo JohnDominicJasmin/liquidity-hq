@@ -9,6 +9,8 @@ type Params = Readonly<Record<string, Readonly<Record<string, string | number | 
 
 function pi(p: Params, id: string, key: string, def: number, lo: number, hi: number): number {
   const v = p?.[id]?.[key];
+  // A saved null, empty string or boolean is "not set", not 0 (Number(null) === 0 would clamp to the minimum and report "RSI length 2"; QA R5b).
+  if (v == null || v === '' || typeof v === 'boolean') return def;
   const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? Math.round(Math.min(hi, Math.max(lo, n))) : def;
 }
@@ -29,6 +31,12 @@ export function describeIndicatorSettings(p: Params): string | undefined {
   if (ema.join(',') !== '9,20,50,200') parts.push(`EMA ribbon ${ema.join(' / ')}`);
   return parts.length ? parts.join('; ') : undefined;
 }
+
+/* THE EXACT SHAPE describeIndicatorSettings produces. The chat context arrives from the browser, so the server keeps the field only when it is this
+   shape (lib/chatPrompt.ts parseChatContext); any other text is dropped and never reaches the system prompt (QA R7b). */
+const RSI_PART = 'RSI length \\d{1,3}, overbought line \\d{2}, oversold line \\d{1,2}';
+const EMA_PART = 'EMA ribbon \\d{1,3} / \\d{1,3} / \\d{1,3} / \\d{1,3}';
+export const INDICATOR_SETTINGS_SHAPE = new RegExp(`^(?:${RSI_PART}(?:; ${EMA_PART})?|${EMA_PART})$`);
 
 /** The instruction that goes with it: the RSI values in the data are RSI(14), so only the lines change how they are described. */
 export const INDICATOR_SETTINGS_RULE =

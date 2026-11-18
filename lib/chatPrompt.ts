@@ -15,7 +15,7 @@
  *     per message that spent a second chat credit and a second xAI charge. */
 import { COINS, type CoinId } from './coins.ts';
 import { priceText as fmtPrice, signedUsd } from './numberFormat.ts';
-import { INDICATOR_SETTINGS_RULE } from './indicatorSettingsText.ts';
+import { INDICATOR_SETTINGS_RULE, INDICATOR_SETTINGS_SHAPE } from './indicatorSettingsText.ts';
 
 export interface ChatContext {
   coin: CoinId;
@@ -48,6 +48,9 @@ const str = (v: unknown, max: number): string | undefined => {
 const strs = (v: unknown, n: number, max: number): string[] | undefined =>
   Array.isArray(v) ? v.map((x) => str(x, max)).filter((x): x is string => !!x).slice(0, n) : undefined;
 
+/** The trader's settings line, only in the exact shape the app builds (lib/indicatorSettingsText.ts); free text is dropped (QA R7b). */
+const shapedSettings = (s: string | undefined): string | undefined => (s && INDICATOR_SETTINGS_SHAPE.test(s) ? s : undefined);
+
 /** The browser's context, reduced to known fields of the right type and size. Null when the coin is not one this app tracks. */
 export function parseChatContext(raw: unknown): ChatContext | null {
   if (typeof raw !== 'object' || raw === null) return null;
@@ -70,7 +73,7 @@ export function parseChatContext(raw: unknown): ChatContext | null {
     sectorRotation: str(r.sectorRotation, 300), structure: str(r.structure, 300), session: str(r.session, 60),
     headlines: strs(r.headlines, 8, 240), geo: strs(r.geo, 5, 240),
     selection: str(r.selection, 400),
-    indicatorSettings: str(r.indicatorSettings, 200),
+    indicatorSettings: shapedSettings(str(r.indicatorSettings, 200)),
   };
 }
 
