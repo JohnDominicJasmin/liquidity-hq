@@ -1,3 +1,4 @@
+import { strategyUnavailable } from './strategies/availability.ts';
 import type { OHLCV } from './strategyCore.ts';
 import type { LabelKey } from './labelKeys.ts';
 import { STRATEGIES, findStrategy, type StrategyDef, type StrategyContext } from './strategies/index.ts';
@@ -58,6 +59,8 @@ export function readStrategy(def: StrategyDef, inp: StrategyInputs, t: T): Strat
   const name = t(def.nameKey);
   const none = (why: string): StrategyReading => ({ id: def.id, name, status: 'none', why });
   if (!inp.tfMs) return none('this strategy does not run on this timeframe');
+  const na = strategyUnavailable(def.id, inp.coin, inp.tfMs);
+  if (na) return none(t(na.reasonKey, na.vars).replace(/\.$/, ''));   // by design, not a failed read (lib/strategies/availability.ts)
   if (!inp.candles || inp.candles.length === 0) return none('no candles could be read for this coin and timeframe');
   if (inp.candles.length < def.minCandles) return none(`only ${inp.candles.length} closed candles, it needs ${def.minCandles}`);
   const wantsBtc = !!def.needsBtc && inp.coin !== 'btc';

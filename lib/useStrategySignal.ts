@@ -6,6 +6,7 @@ import { TF_MS, dropForming, msUntilNextClose } from './candles.ts';
 import { findStrategy, type StrategyResult } from './strategies/index.ts';
 import { coinKind } from './coins.ts';
 import { usCashOpen } from './marketHours.ts';
+import { strategyUnavailable, type Unavailable } from './strategies/availability.ts';
 import { fetchFundingHistory, fetchOiRelative, fetchTakerMap, fundingClassRelative } from './strategies/liveInputs.ts';
 
 export interface StrategySignalState {
@@ -16,6 +17,8 @@ export interface StrategySignalState {
   unsupportedTf?: boolean;
   /** A tokenized stock read while the US cash session is closed (lib/marketHours.ts): the call box adds one line with the last close. Absent for every other coin and while the market is open. */
   marketClosed?: { lastClose: number };
+  /** The picked strategy cannot run on this coin or timeframe BY DESIGN (lib/strategies/availability.ts): the call box says why in one line; nothing is fetched. Not an error and not a quiet WAIT. */
+  unavailable?: Unavailable;
   /** Runs the read again now (the Retry button of the unavailable state). */
   retry?: () => void;
 }
@@ -35,6 +38,8 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
     const def = findStrategy(strategyId);
     const tfMs = TF_MS[tf];
     if (!def || !tfMs || !TF_BN[tf]) { setState({ result: null, loading: false, error: false, unsupportedTf: !!def }); return; }
+    const na = strategyUnavailable(def.id, coin, tfMs);
+    if (na) { setState({ result: null, loading: false, error: false, unavailable: na }); return; }
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const run = async () => {

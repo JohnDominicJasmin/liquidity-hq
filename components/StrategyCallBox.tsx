@@ -35,7 +35,12 @@ export default function StrategyCallBox({ def, state }: Props) {
   return (
     <div data-testid="strategy-call-box" data-strategy={def.id} aria-live="polite" className="strat-call-box" style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
       <div className="strat-call-dyn" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {state.unsupportedTf ? (
+      {state.unavailable ? (
+        <>
+          <div data-testid="strategy-call-verdict" data-verdict="wait" style={{ fontSize: 'var(--fs-label)', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--txt2)' }}>{t('STRAT_VERDICT_WAIT')}</div>
+          <p data-testid="strategy-call-cant-run" style={{ margin: 0, fontSize: 'var(--fs-label)', color: 'var(--txt)', lineHeight: 1.4 }}>{t(state.unavailable.reasonKey, state.unavailable.vars)}</p>
+        </>
+      ) : state.unsupportedTf ? (
         <div data-testid="strategy-call-tf-unavailable" style={{ color: 'var(--txt2)', fontSize: 'var(--fs-caption)' }}>{t('STRAT_TF_UNAVAILABLE')}</div>
       ) : state.error ? (
         <>
