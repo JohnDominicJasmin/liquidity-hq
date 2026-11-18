@@ -96,14 +96,14 @@ test('D4. Free: 5m and 15m stay as blurred, aria-hidden rows; readable rows foll
   assert.ok(!/>-<\/span>/.test(readable), 'a dash in the readable (unlocked) rows');
 });
 
-test('D5. the verdict is over the timeframes that have a reading: 3 of 3 bullish reads Bullish, not Mixed', { todo: 'FINDING: verdict majority counts hidden timeframes' }, () => {
+test('D5. the verdict is over the timeframes that have a reading: 3 of 3 bullish reads Bullish, not Mixed', () => {
   const h = render({ rsi5m: null, rsi14: null, rsi1h: 70, rsi4h: 70, rsiDaily: 70, rsiWeekly: null, rsiMonthly: null });
   assert.deepEqual(rows(h), ['1h', '4h', '1D']);
   assert.deepEqual(verdict(h).filter(v => v.includes('VERDICT')), ['MULTI_TF_ALIGNMENT_VERDICT_BULLISH'],
     'three visible rows all Bullish, yet the card verdict is: ' + verdict(h).join(','));
 });
 
-test('D6. a non-finite value is not a reading for the verdict (NaN must not count as Neutral)', { todo: 'FINDING: NaN reads as Neutral in getBias' }, () => {
+test('D6. a non-finite value is not a reading for the verdict (NaN must not count as Neutral)', () => {
   const h = render({ rsi5m: null, rsi14: null, rsi1h: NaN, rsi4h: NaN, rsiDaily: null, rsiWeekly: null, rsiMonthly: null });
   assert.deepEqual(rows(h), []);
   assert.ok(!verdict(h).includes('MULTI_TF_ALIGNMENT_VERDICT_MIXED'), 'a card with zero rows says Mixed Signals: ' + verdict(h).join(','));
