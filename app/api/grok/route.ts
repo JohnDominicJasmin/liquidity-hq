@@ -415,7 +415,7 @@ export async function POST(req: NextRequest) {
      VALUE ("SIGNAL: **BULLISH**"), a shape these regexes reject while accepting every other markdown variant. This line settles that
      on the next failure at no cost. Newlines become a marker so a crafted answer cannot forge a second log line. */
   const logHead = (v: string) => v.replace(/\s*[\r\n]+\s*/g, ' | ').replace(/[^\x20-\x7E]/g, '').slice(0, 160);
-  const usageResult = await incrementUsageColumn(userId, role, column, limit, null, plan.failed);
+  const usageResult = await incrementUsageColumn(userId, role, column, limit, null, plan.failed, reservedOn);
   if (usageResult.blocked) {
     const label = type === 'deep' ? 'deep analyses' : 'quick analyses';
     /* A BLOCK THAT IS OUR STATE IS NOT A RATE LIMIT, AND 429 TOLD THE USER A LIE.

@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
         // token-unlock/smc-snapshot).
         const role = await getUsageTier(token, authData.user.id);
         const on = todayUtc();
-        const usageResult = await incrementToolUsage(authData.user.id, 'dryPowder', role);
+        const usageResult = await incrementToolUsage(authData.user.id, 'dryPowder', role, on);
         if (usageResult.blocked) {
           throw new RateLimitError(usageResult.limit, usageResult.reason, authData.user.id);
         }
