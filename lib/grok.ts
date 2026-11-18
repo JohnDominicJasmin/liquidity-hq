@@ -1371,12 +1371,11 @@ export function applyResultChecks(result: CombinedResult, prompt: string, notes:
   }
 
   // Confidence adjustments in code, before the tier check below (whose cap at 75 then still holds).
-  {
-    const adj = adjustConfidence(prompt);
-    if (adj.delta !== 0) {
-      r.confidence = Math.max(0, Math.min(100, Math.round(r.confidence + adj.delta)));
-      r.checks.push(`confidence adjusted in code: ${adj.reasons.join(', ')}`);
-    }
+  const adj = adjustConfidence(prompt);
+  const adjusted = adj.delta !== 0;
+  if (adjusted) {
+    r.confidence = Math.max(0, Math.min(100, Math.round(r.confidence + adj.delta)));
+    r.checks.push(`confidence adjusted in code: ${adj.reasons.join(', ')}`);
   }
 
   const said = r.signal;
@@ -1403,6 +1402,17 @@ export function applyResultChecks(result: CombinedResult, prompt: string, notes:
     r.checks.push(`${said} shown as ${tier}: ${r.counted.bullish} bullish vs ${r.counted.bearish} bearish counted`);
     note(fill(notes.tierCounted, { shown: tierName(tier), said: tierName(said), bullish: r.counted.bullish, bearish: r.counted.bearish }));
     show(tier);
+  }
+
+  /* THE ADJUSTED NUMBER STAYS IN THE TIER'S BAND (QA K9 on #2585). The prompt's CONFIDENCE BANDS are LEAN 55-75 and FLAT 65-85; the code adjustment
+     above could push a LEAN to 85 or a FLAT to 50. After an adjustment, and after any tier correction, the number is clamped to the shown tier's band.
+     A full tier (BULLISH / BEARISH) has no band and keeps 0-100. A model number with no adjustment is left as the model gave it. */
+  if (adjusted) {
+    const band: [number, number] | null = r.signal === 'LEAN BULLISH' || r.signal === 'LEAN BEARISH' ? [55, 75] : r.signal === 'FLAT' ? [65, 85] : null;
+    if (band) {
+      const c = Math.max(band[0], Math.min(band[1], r.confidence));
+      if (c !== r.confidence) { r.checks.push(`confidence ${r.confidence} kept in the ${r.signal} band ${band[0]}-${band[1]}: ${c}`); r.confidence = c; }
+    }
   }
 
   if (/=== REALIZED LIQUIDATION CLUSTERS[^\n]*===\s*\n\s*Not available/.test(prompt) && (r.raidSetup || r.raidTarget || r.raidTrigger)) {
