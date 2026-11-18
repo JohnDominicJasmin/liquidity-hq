@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 import { installSyntheticSocket } from './_fixtures';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
-import { chip } from './_shared';
 
 /* #1347 item 6 (#1362, fix by Dev Team) - the Strategy Panel's `entitled`
  * boolean (`entitlementStatus === 'entitled'`) fed the indicator limit, the
@@ -41,24 +40,6 @@ test.skip(!AUTH_READY, AUTH_SKIP_REASON);
 const PANEL = '.strat-panel';
 const UNKNOWN_CARD = '[data-testid="entitlement-unknown"]';
 
-/** The measurement test clicks a chip, which persists a selection to account A
- *  on the shared dev database. Put it back so no later spec inherits it. */
-async function clearSavedSelection(page: import('@playwright/test').Page) {
-  await page.evaluate(async () => {
-    const raw = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
-    const token = raw ? JSON.parse(localStorage.getItem(raw)!).access_token : null;
-    await fetch('/api/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ strategy_selection: [], knownAsOf: { strategy_selection: new Date().toISOString() } }),
-    });
-    localStorage.removeItem('lhq_settings_v1');
-    for (const k of Object.keys(localStorage)) {
-      if (k.startsWith('lhq_settings_unconfirmed_v1')) localStorage.removeItem(k);
-    }
-  });
-}
-
 const forceEntitlementsFail = () => {
   (window as unknown as { __LHQ_QA_FORCE_ENTITLEMENTS_FAIL__?: boolean }).__LHQ_QA_FORCE_ENTITLEMENTS_FAIL__ = true;
 };
@@ -88,7 +69,7 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
       // Untouched by the fix, and worth pinning: the card replaces the
       // selection UI, not the whole panel.
       for (const name of ['QUICK', 'DEEP', 'ASK AI']) {
-        await expect(panel.getByRole('button', { name, exact: true }),
+        await expect(panel.getByRole('button', { name: new RegExp(`^${name}$`, 'i') }),
           `"${name}" must still be present - the fix replaces the selection UI only, "Run the read" was never gated on entitlement`).toBeVisible();
       }
     } finally {
@@ -166,95 +147,62 @@ test.describe('Strategy Panel does not assert a free plan while entitlement is u
     }
   });
 
-  /* MEASUREMENT, NOT A GATE - and it cannot fail on what it measures, by design.
-   *
-   * #1362 fixes entitlement `unknown` (retries EXHAUSTED). It does not touch the
-   * window BEFORE that, while the read is still in flight: AuthProvider reports
-   * `not_entitled` for it on purpose ("covers both a confirmed free account AND
-   * the window while entitlementsLoading is still true"), and StrategyPanel does
-   * not look at `entitlementsLoading`. So a Pro account's panel is built from
-   * `indicatorLimit(false)` and `readOnly={!entitled}` for as long as the read
-   * takes. From reading only, as of QA's review comment on #1362.
-   *
-   * There is no assertion of what the panel SHOULD show here, because that is a
-   * design decision that is not made (a skeleton, or something else - #1119
-   * rules out both fail-open and fail-closed, so "enable everything" is not the
-   * answer either). A test asserting one shape would encode a guess. So this
-   * holds the entitlements request, reads what a Pro account is actually shown,
-   * and records it as annotations for whoever makes that call. The only hard
-   * assertion is the PRECONDITION: the request was held, i.e. we really were
-   * inside the loading window - without that the annotations would describe a
-   * different state.
-   *
-   * If the decision lands and the panel changes, replace this with an assertion
-   * of the chosen behaviour. */
-  test('MEASUREMENT: what a Pro account\'s panel shows while the entitlements read is still in flight', async ({ browser }) => {
+  /* ASSERTION OF THE CHOSEN BEHAVIOUR (was a measurement until #2406). While a signed-in plan read is still in
+   * flight the panel must not pretend to know the plan: the strategy-set select and every indicator chip are
+   * DISABLED, the note says "Checking your plan…", the free-plan note ("Defaults on free") is NOT shown, and
+   * nothing is written to the account's saved strategy selection. The entitlements request is held, never
+   * answered, so the account stays inside that window. Every action is time-bounded: a disabled control is the
+   * expected state, so a forced click that does nothing is an observation, never a 240 s hang. */
+  test('Pro account A while the entitlements read is in flight: select and chips disabled, "Checking your plan…", no free note, nothing saved', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     await installSyntheticSocket(page); // deterministic prices with no Binance from a US runner
     await installPaidAiFence(page);   // #1632: refuse any paid AI path this spec has not stubbed
     const held: Array<import('@playwright/test').Route> = [];
+    const writes: string[] = [];
     try {
-      // Held, never answered - the read neither resolves nor rejects, so the
-      // account stays in the loading window until this test lets go.
       await page.route('**/rest/v1/*user_subscriptions*', route => { held.push(route); });
+      /* any WRITE of the saved selection is recorded and answered with an empty success, so nothing reaches the shared dev database */
+      await page.route(/\/api\/settings(\?|$)/, async route => {
+        const q = route.request();
+        if (q.method() === 'GET') return route.fallback();
+        writes.push(`${q.method()} ${(q.postData() ?? '').slice(0, 120)}`);
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ accepted: [], rejected: [], settings: null }) });
+      });
       await gotoSignedIn(page, '/arena');
 
       const panel = page.locator(PANEL);
       await expect(panel).toBeVisible({ timeout: 15_000 });
       await expect.poll(() => held.length, {
-        message: 'the entitlements request was never issued, so this run is not inside the loading window and measures nothing',
+        message: 'the entitlements request was never issued, so this run is not inside the loading window and asserts nothing',
         timeout: 15_000,
       }).toBeGreaterThan(0);
 
-      const chipCount = await panel.locator('button.strat-ind-chip').count();
-      const unknownCard = await panel.locator(UNKNOWN_CARD).count();
-      await panel.locator('select.strat-sel').selectOption('custom').catch(() => {});
-
-      // SMA has a params box; RSI is a second usable chip. Picking one and then
-      // trying the other is what exposes BOTH free-tier enforcements: the
-      // limit of one (the second chip gets `blocked` and a "Deselect one first"
-      // note) and read-only params. The first chip in the grid has no params
-      // box, which is why an earlier version of this test observed neither.
-      const sma = chip(panel, 'SMA').first();
-      const rsi = chip(panel, 'MACD').first();
-      let params = 'SMA chip not reachable';
-      let limit = 'not observed';
-      if (await sma.isVisible().catch(() => false)) {
-        /* EVERY ACTION HERE IS TIME-BOUNDED. Playwright's actionTimeout is 0 (unlimited) on a local
-           build - only a remote run gets 30s - so a chip that is visible but never actionable (a
-           disabled or `blocked` chip while the plan is unresolved is exactly this measurement's
-           subject) waited out the whole 240s test timeout instead of being recorded. This test
-           observes; a chip that cannot be clicked is an observation, not a hang. */
-        await sma.click({ timeout: 10_000 }).catch(() => { params = 'SMA chip visible but not clickable'; });
-        const input = panel.locator('.strat-params input').first();
-        params = await input.isVisible().catch(() => false)
-          ? ((await input.isDisabled({ timeout: 3_000 })) ? 'params inputs DISABLED (read-only)' : 'params inputs enabled')
-          : 'no params box for SMA';
-        const rsiBlocked = ((await rsi.getAttribute('class', { timeout: 3_000 }).catch(() => null)) ?? '').includes('blocked');
-        const limitNote = (await panel.locator('.strat-limit').innerText({ timeout: 3_000 }).catch(() => '')).trim();
-        await rsi.click({ timeout: 5_000 }).catch(() => { /* blocked/disabled while in flight - recorded via the class and pressed state below */ });
-        const rsiPressed = await rsi.getAttribute('aria-pressed', { timeout: 3_000 }).catch(() => 'n/a');
-        limit = `second chip (RSI) blocked class: ${rsiBlocked} | limit note: ${limitNote ? `"${limitNote}"` : 'none'} | RSI pressed after click: ${rsiPressed}`;
+      const select = panel.locator('select.strat-sel');
+      const chips = panel.locator('button.strat-ind-chip');
+      await expect(select, 'the strategy-set select is missing').toBeVisible({ timeout: 15_000 });
+      await expect(select, 'the strategy-set select must be DISABLED while the plan is unsettled').toBeDisabled({ timeout: 10_000 });
+      await expect(chips.first(), 'no indicator chips rendered').toBeVisible({ timeout: 15_000 });
+      const n = await chips.count();
+      for (let i = 0; i < n; i++) {
+        await expect(chips.nth(i), `indicator chip ${i} must be DISABLED while the plan is unsettled`).toBeDisabled({ timeout: 5_000 });
       }
-      const freeNote = await panel.getByText(/Defaults on free/i).count();
+      await expect(panel.getByText('Checking your plan…'), 'the note must read "Checking your plan…"').toBeVisible({ timeout: 5_000 });
+      await expect(panel.getByText(/Defaults on free/i), 'the free-plan note must NOT show while the plan is unknown').toHaveCount(0);
+      await expect(panel.locator(UNKNOWN_CARD), 'the couldn\'t-verify card is for a FAILED read; this read is still in flight').toHaveCount(0);
 
-      const observed = [
-        `chip grid rendered: ${chipCount > 0} (${chipCount} chips)`,
-        `EntitlementUnknownCard in panel: ${unknownCard > 0}`,
-        params,
-        limit,
-        `"Defaults on free" note visible: ${freeNote > 0}`,
-      ].join(' | ');
-      test.info().annotations.push({
-        type: 'measurement',
-        description: `Pro account A, entitlements request held (in flight): ${observed}. ` +
-          'If the grid renders and params are disabled or the free note shows, the panel is asserting a free plan for an account whose plan is not yet known - #1347 item 6\'s loading-window half, not covered by #1362.',
-      });
-      console.log(`[strategy-panel loading window] ${observed}`);
+      /* THE SAVED SELECTION MAY ALREADY SHOW. Account A is shared with other specs and a chip that is `on` before any tap is just the saved selection painting; the release run (43831779582) read one `on` chip and called it
+         a defect. What must not change is the SET that is on: it is read before the forced actions and compared after. */
+      const pressedNow = async () => (await chips.evaluateAll((els) => els.filter((e) => e.classList.contains('on')).map((e) => e.getAttribute('data-testid') ?? e.textContent ?? ''))).sort();
+      const pressedBefore = await pressedNow();
+      // A forced tap on a disabled chip and a forced pick on the disabled select must do nothing and save nothing.
+      await chips.first().click({ force: true, timeout: 3_000 }).catch(() => { /* disabled: the expected outcome */ });
+      await select.selectOption('custom', { force: true, timeout: 3_000 }).catch(() => { /* disabled: the expected outcome */ });
+      await page.waitForTimeout(1_500);
+      expect(writes, 'a write of the saved selection was issued while the plan was unsettled').toHaveLength(0);
+      expect(await pressedNow(), 'the set of selected chips changed while the plan was unsettled (before: ' + JSON.stringify(pressedBefore) + ')').toEqual(pressedBefore);
     } finally {
       await Promise.allSettled(held.map(r => r.abort()));
-      await clearSavedSelection(page).catch(() => {});
       await ctx.close();
     }
   });

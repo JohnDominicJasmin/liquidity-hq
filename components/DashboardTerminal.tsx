@@ -16,6 +16,7 @@ import {
   computeCoinHealth, classifyFunding, computeSqueezeScore, FUNDING_TIP_KEY,
 } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
+import { accountRatio } from '@/lib/accountRatioVenue';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { oiTrend1h } from '@/lib/oiTrend1h';
 import { useSettings } from '@/lib/settings';
@@ -36,6 +37,13 @@ import { useGraceElapsed } from '@/lib/useGrace';
 import { useLabels } from '@/lib/labels';
 import ReadingGap from '@/components/ReadingGap';
 import { fundingWord, setupWord, patternWord } from '@/lib/shortWords';
+
+/** A funding percentage with its sign and FOUR decimals (the Funding tile's precision), for a label: +0.0500% / −0.0300%. A value that rounds to zero is plain 0.0000%, never a signed zero ("−0.00%" read next to "−0.0040%", #1651). */
+const fmtSignedPct = (pct: number): string => {
+  const body = Math.abs(pct).toFixed(4);
+  if (Number(body) === 0) return '0.0000%';
+  return (pct > 0 ? '+' : '−') + body + '%';
+};
 import { coinRow } from '@/lib/coins';
 import type { LabelKey } from '@/lib/labelKeys';
 import PageHint from '@/components/PageHint';
@@ -139,6 +147,10 @@ function TCoinSidebar() {
 
   return (
     <div className="csb2-container">
+      {/* THE LETTERS HAVE WORDS (#1185, PM 2026-11-17): a trader who does not know the A to F scale could not read the chips. One muted legend line says what each letter means, in the words the chips already announce to a screen reader. */}
+      <div className="csb2-grade-legend" data-testid="csb2-grade-legend">
+        {(['A', 'B', 'C', 'D', 'F'] as const).map((g, i) => <span key={g}>{i > 0 ? ' · ' : ''}<strong style={{ color: 'var(--txt2)' }}>{g}</strong> {t(`COIN_HEALTH_GRADE_${g}` as const)}</span>)}
+      </div>
       {visibleCoins.map(id => {
         const d      = store.coins[id];
         const dec    = COIN_DEC[id];
@@ -157,8 +169,9 @@ function TCoinSidebar() {
         let sig: { text: string; col: string } | null = null;
         if (d?.fundingRate != null) {
           const fr = d.fundingRate * 100;
-          if (fr >= 0.04)       sig = { text: t('DASH_SIDEBAR_SIG_LONGS_OVERCROWDED'), col: 'var(--red)' };
-          else if (fr <= -0.02) sig = { text: t('DASH_SIDEBAR_SIG_SHORTS_SQUEEZED'),   col: 'var(--green)' };
+          /* The same funding bands as classifyFunding and the scanner (S9): heavy positive at +0.05%, heavy negative at -0.03% (this used 0.04 / -0.02, so one coin read differently on different screens). */
+          if (fr >= 0.05)       sig = { text: t('DASH_SIDEBAR_SIG_LONGS_OVERCROWDED', { pct: fmtSignedPct(fr) }), col: 'var(--red)' };
+          else if (fr <= -0.03) sig = { text: t('DASH_SIDEBAR_SIG_SHORTS_SQUEEZED', { pct: fmtSignedPct(fr) }),   col: 'var(--green)' };
         }
         if (!sig && d?.cvdDivergence === 'bullish') sig = { text: t('DASH_SIDEBAR_SIG_SMART_BUYERS'), col: 'var(--green)' };
         if (!sig && d?.cvdDivergence === 'bearish') sig = { text: t('DASH_SIDEBAR_SIG_SMART_SELLERS'), col: 'var(--red)' };
@@ -167,7 +180,8 @@ function TCoinSidebar() {
         if (!sig && d?.chartPattern) {
           const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(d.chartPattern);
           const isBear = /bear|lower high|engulf.*bear|shooting|double top/i.test(d.chartPattern);
-          const label  = patternWord(t, d.chartPattern.split(';')[0].split('(')[0].trim());
+          /* The window is stated (S8): the pattern is read from the last 25 closed 15-minute bars, about 6 hours. */
+          const label  = patternWord(t, d.chartPattern.split(';')[0].split('(')[0].trim()) + ' · 15m';
           if (isBull)       sig = { text: label, col: 'var(--green)' };
           else if (isBear)  sig = { text: label, col: 'var(--red)' };
           else if (label)   sig = { text: label, col: 'var(--txt3)' };
@@ -433,10 +447,24 @@ function TEdgeSignals() {
             {sq.score}
             <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, marginLeft: 6 }}>{setupWord(t, sq.label)}</span>
           </div>
+          {/* ONE grid cell for both lines (#2452 added the second). The aligned subgrid pins every direct .edge-card-signal to row 3, so a second sibling was auto-placed into a NEW COLUMN of the card and widened the page in Russian (QA, 401 px at 390). The wrapper takes row 3 and stacks them. */}
+          <div className="edge-card-signals">
           <div className="edge-card-signal" style={{ color: sqCol }}>
             {sq.dir === 'SHORT_SQ' ? t('DASH_EDGE_SETUP_SHORT_SQ')
              : sq.dir === 'LONG_LIQ' ? t('DASH_EDGE_SETUP_LONG_LIQ')
+             : !sq.enough ? t('DASH_EDGE_SETUP_NOT_ENOUGH_DATA')
              : t('DASH_EDGE_SETUP_BALANCED')}
+          </div>
+          {/* The numbers behind the label (funding and the share of the heavier side), so the card states what it saw instead of only a name. */}
+          {sq.enough && (d?.fundingRate != null || accountRatio(d) != null) && (
+            <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
+              {[
+                d?.fundingRate != null ? t('DASH_EDGE_SETUP_DETAIL_FUNDING', { pct: fmtSignedPct(d.fundingRate * 100) }) : null,
+                sq.dir === 'SHORT_SQ' && accountRatio(d) != null ? t('DASH_EDGE_SETUP_DETAIL_SHORT_SHARE', { pct: Math.round(accountRatio(d)!.short * 100), venue: accountRatio(d)!.venue })
+                  : accountRatio(d) != null ? t('DASH_EDGE_SETUP_DETAIL_LONG_SHARE', { pct: Math.round(accountRatio(d)!.long * 100), venue: accountRatio(d)!.venue }) : null,
+              ].filter(Boolean).join(' · ')}
+            </div>
+          )}
           </div>
         </div>
       </div>
@@ -502,7 +530,8 @@ function TSelectedCoinCard() {
   const up  = chg != null && chg >= 0;
   const badgeCol = coinBadgeColor(id);
   const oi = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
-  const pattern = patternWord(t, d?.chartPattern?.split(';')[0].split('(')[0].trim());
+  const patternName = patternWord(t, d?.chartPattern?.split(';')[0].split('(')[0].trim());
+  const pattern = patternName ? patternName + ' · 15m' : patternName;   // the window is stated (S8)
   const sigText = oi ? t(oi.txtKey) : (pattern || null);
   const sigCol  = oi?.col ?? 'var(--txt3)';
 

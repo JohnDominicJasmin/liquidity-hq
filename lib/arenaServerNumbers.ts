@@ -31,7 +31,7 @@
  *    the snapshot carries 46 of the 50 tracked coins, and `hype`, `pepe`, `bonk` and `xau` are
  *    absent from both `ticker` and `klines`.
  *
- *    `hype` is excluded from `SYMS` by name (`lib/marketSnapshotData.ts`). The other three never
+ *    `hype` was excluded from `SYMS` by name (`lib/marketSnapshotData.ts`) until #2513 put it back, so the snapshot now covers it. The other three never
  *    reach `SYMS` at all: `BINANCE_HOLD` keeps `pepe` and `bonk` out of `BINANCE_SYMS`, and `xau`
  *    has no Binance symbol - so the Bybit single-shot that could serve all three is never asked
  *    for them, because `missingCoins` is derived from `SYMS`.
@@ -52,10 +52,7 @@
  * written it that way, and the reason the stale count above was a documentation bug rather than a
  * regression.
  *
- * It is also a FOLLOW-UP rather than a resting place. `lib/marketRsi.ts` already sources HYPE from
- * Bybit (`BY_TIMEFRAMES`), and `marketSnapshotData` already carries `bybitTickerToEntry` and
- * `bybitKlineToBinanceShape`. Extending the snapshot to cover HYPE closes this properly, and it
- * changes `/api/market/snapshot` for every client, so it is its own change with its own check.
+ * HYPE was the example here; #2513 extended the snapshot to cover it, so the coins that still reach this branch are only those the snapshot cannot source.
  *
  * ── WHAT A PER-FIELD GAP MEANS ──────────────────────────────────────────────────────────────────
  *
@@ -161,6 +158,9 @@ export async function arenaServerNumbers(coin: string): Promise<ArenaNumbersResu
        and the candles came from a different provider entirely. */
     longRatio:     acct.ok ? acct.entry?.longRatio  : undefined,
     shortRatio:    acct.ok ? acct.entry?.shortRatio : undefined,
+    /* The Binance global account ratio (1h) from the snapshot: the venue every ONE-number surface shows (lib/accountRatioVenue.ts); Bybit's above is its fallback. */
+    bnLongRatio:   snap.data.lsr[coin]?.bnLongRatio,
+    bnShortRatio:  snap.data.lsr[coin]?.bnShortRatio,
   };
 
   /* Driven by SERVER_SOURCED_FIELDS rather than by a literal list, which is why adding

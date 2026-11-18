@@ -57,6 +57,17 @@ test.describe('BOLA / IDOR - cross-account access', () => {
     tokenA = await signIn(FIXTURES.aEmail, FIXTURES.aPassword);
     tokenB = await signIn(FIXTURES.bEmail, FIXTURES.bPassword);
     expect(tokenA, 'A and B must be different sessions').not.toBe(tokenB);
+    /* SELF-HEAL (release run 44016139179): the long-lived fixture alert had been switched off (active=false) on the shared dev DB, and /api/price-alerts lists active rows only, so "A can read its own seeded rows" saw []. Switch A's own fixture row back on, as A (RLS: the owner may update it), and say so. */
+    if (FIXTURES.priceAlertId) {
+      const ctx = await pwRequest.newContext();
+      const r = await ctx.patch(`${SUPABASE_URL}/rest/v1/lhq_dev_price_alerts?id=eq.${FIXTURES.priceAlertId}&active=eq.false`, {
+        headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${tokenA}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+        data: { active: true }, failOnStatusCode: false,
+      });
+      const rows = await r.json().catch(() => null);
+      console.log(`[CELL] bola fixture alert ${FIXTURES.priceAlertId}: ${Array.isArray(rows) && rows.length ? 'WAS INACTIVE, switched back on' : 'already active'} (HTTP ${r.status()})`);
+      await ctx.dispose();
+    }
   });
 
   const auth = (t: string) => ({ Authorization: `Bearer ${t}` });

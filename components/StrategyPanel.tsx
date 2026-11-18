@@ -22,12 +22,12 @@
  * labels pass is a separate DB-driven change. The one exception is the params verdict note, which
  * carries the owner's exact wording through a real label key. */
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useRef, useState, startTransition } from 'react';
+import { Lock } from '@/components/icons';
 import { useAuth } from './AuthProvider';
 import { SkeletonBar } from './Skeleton';
 import StrategyCallBox from './StrategyCallBox';
-import { STRATEGIES, findStrategy } from '@/lib/strategies';
+import { STRATEGIES, STRATEGY_GROUPS, STRATEGY_TIP_KEYS, findStrategy } from '@/lib/strategies';
 import type { StrategySignalState } from '@/lib/useStrategySignal';
 import { EntitlementUnknownCard } from './UpgradeGateModal';
 import type { SettingsLoadStatus } from '@/lib/settings';
@@ -35,9 +35,14 @@ import { useLabels } from '@/lib/labels';
 import {
   INDICATORS, STRATEGY_SETS, AUTO_SET_ID, CUSTOM_SET_ID,
   findIndicator, indicatorLimit, defaultParams, canRender, slottedIds, strategyPlanLabel,
-  SELECTABLE_INDICATORS, SELECTABLE_INDICATOR_IDS,
+  SELECTABLE_INDICATORS, SELECTABLE_INDICATOR_IDS, LAYER_SETTINGS,
   type IndicatorEntry, type ParamSpec, type OverlayState,
 } from '@/lib/strategyRegistry';
+
+/* The parameter box is COLLAPSED by default (the panel had to be shorter); once the visitor opens it, it stays open for the rest of the session (module memory, not stored). */
+let paramsOpenForSession = false;
+
+const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 export type RunKind = 'quick' | 'deep' | 'ask';
 
@@ -46,9 +51,11 @@ interface Props {
   planChecking?: boolean;
   /** What each chart overlay is doing right now, from strategyRegistry's overlayStates() - the same values the chart draws from.
    *  Absent = every layer reads as always on. */
-  overlays?: Record<'EMA_RIBBON' | 'SR' | 'LIQ_CLUSTERS' | 'GEX', OverlayState>;
+  overlays?: Record<'EMA_RIBBON' | 'RSI' | 'SR' | 'LIQ_CLUSTERS' | 'GEX', OverlayState>;
   /** Flip the chart's S/R or Liq layer: the same switch as the chart toolbar. */
-  onOverlayToggle?: (id: 'SR' | 'LIQ_CLUSTERS') => void;
+  /* S/R and Liq clusters are Pro on coins outside BTC/ETH/SOL (owner, 2026-11-17): their chips show the lock and a tap opens the page's upgrade prompt. */
+  layersLocked?: boolean;
+  onOverlayToggle?: (id: 'EMA_RIBBON' | 'RSI' | 'SR' | 'LIQ_CLUSTERS') => void;
   /** Whether the caller's saved selection has been read (or confirmed absent). Until 'ready',
    *  `selected` is not the user's real answer, so no click may persist over it (#1246/#1347). */
   status: SettingsLoadStatus;
@@ -62,8 +69,9 @@ interface Props {
   onParamsChange: (next: Record<string, Record<string, string | number | boolean>>) => void;
   /** Fired when a run button is pressed. Required (#996). */
   onRun: (kind: RunKind, selection: readonly string[]) => void;
+  /* The run row's gating, from the SAME object the page's top Quick / Deep / Ask buttons read - one source of truth, so a locked coin or a used-up allowance looks the same in both places. */
+  runGate?: Record<RunKind, { locked: boolean; disabled: boolean; title?: string; onLocked?: () => void }>;
   /** Whether a read is already in flight - disables the run buttons (#1309 item 24). */
-  running?: boolean;
   /** The saved Arena strategy id (lib/strategies), or null. An unknown id is treated as none by the caller. The menu's value is DERIVED from this and `selected`: a known id shows that strategy, no id with chips on shows Custom, nothing shows Let the read choose. */
   strategy: string | null;
   /** The menu was changed: 'auto', 'custom' or a strategy id. The caller writes arena_strategy and strategy_selection together, in one save. */
@@ -108,40 +116,27 @@ function ParamRow({ spec, value, readOnly, onChange }: {
   );
 }
 
-/* One always-on CHART LAYERS row: a name and a right-aligned status word, no control. */
-function LayerRow({ name, status }: { name: string; status: string }) {
-  return (
-    <div className="strat-layer">
-      <span className="strat-layer-name">{name}</span>
-      <span className="strat-layer-state">{status}</span>
-    </div>
-  );
-}
-
-/* A CHART LAYERS switch (S/R, Liq): a real role="switch" button synced to the chart toolbar.
-   `unavailable` (a coin with no such layer) shows an off, disabled switch rather than hiding it. */
-function LayerSwitch({ name, on, unavailable, onToggle }: { name: string; on: boolean; unavailable: boolean; onToggle: () => void }) {
+/* A CHART LAYERS chip (EMA ribbon, RSI, S/R, Liq clusters): a real role="switch" button synced to the chart. Display only (owner, 2026-11-17).
+   `unavailable` (a coin with no such layer) shows an off, disabled chip rather than hiding it. */
+function LayerChip({ name, on, unavailable, locked = false, onToggle }: { name: string; on: boolean; unavailable: boolean; locked?: boolean; onToggle: () => void }) {
   const { t } = useLabels();
   return (
-    <div className="strat-layer">
-      <span className="strat-layer-name">{name}</span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-label={name}
-        disabled={unavailable}
-        className={`strat-switch${on ? ' on' : ''}`}
-        title={unavailable ? t('STRATEGY_PANEL_LAYER_UNAVAILABLE') : undefined}
-        onClick={onToggle}
-      >
-        <span className="strat-switch-knob" aria-hidden="true" />
-      </button>
-    </div>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      disabled={unavailable}
+      className={`strat-layer-chip${on && !locked ? ' on' : ''}${locked ? ' arena-deep-locked' : ''}`}
+      title={unavailable ? t('STRATEGY_PANEL_LAYER_UNAVAILABLE') : undefined}
+      onClick={onToggle}
+    >
+      {locked && <Lock size={10} aria-hidden="true" style={{ marginRight: 3, verticalAlign: '-1px' }} />}
+      {name}
+    </button>
   );
 }
 
-export default function StrategyPanel({ planChecking = false, overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, running = false, strategy, onStrategyPick, strategyState }: Props) {
+export default function StrategyPanel({ planChecking = false, layersLocked = false, overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, runGate, strategy, onStrategyPick, strategyState }: Props) {
   const loaded = status === 'ready';
   const { user, loading: authLoading, entitlementStatus, retryEntitlements } = useAuth();
   const planLabel = strategyPlanLabel({ signedIn: !!user, authLoading, entitlementStatus });
@@ -160,73 +155,99 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
   /* THE CALL BOX'S FIRST-PAINT RESERVE ENDS WITH THE ANSWER. `<html data-strat="1">` (components/RootDocument.tsx) reserves the box's height from a cached saved strategy; once the settings have loaded and no strategy is
      picked (none was saved, or the visitor chose "Let the read choose" / Custom), the reserve is removed so it never leaves an empty band. A visitor's own pick is not a layout shift. */
   useEffect(() => {
-    if (loaded && !pickedStrategy) document.documentElement.removeAttribute('data-strat');
+    if (!loaded) return;
+    const h = document.documentElement;
+    if (pickedStrategy) { h.removeAttribute('data-strat-none'); return; }
+    /* data-strat-none ends the signed-in reserve in globals.css (the data-sess rule); it was documented but never set, so a visitor on "Let the read choose" kept an empty ~90 px band under the menu. */
+    h.removeAttribute('data-strat');
+    h.setAttribute('data-strat-none', '1');
   }, [loaded, pickedStrategy]);
-  const setId = pickedStrategy ? pickedStrategy.id : selected.length > 0 ? CUSTOM_SET_ID : AUTO_SET_ID;
-  /* Which indicator's parameters the box shows. One box, not one per selection. */
+  /* 'Custom' picked with no chip on has nothing else to derive it from, so it is remembered here: without it the menu fell back to 'Let the read choose' the moment it was picked. */
+  const [customPicked, setCustomPicked] = useState(false);
+  const setId = pickedStrategy ? pickedStrategy.id : (selected.length > 0 || customPicked) ? CUSTOM_SET_ID : AUTO_SET_ID;
+  /* Which indicator's parameters the box shows. One box, not one per selection; with several ON, a small segmented row in the box picks whose. */
   const [focused, setFocused] = useState<string | null>(null);
+  /* OPTIMISTIC CHIP STATE. A tap flips the chip on THIS render; the parent (chart markers, EMA filter, AI context, the settings save) catches up in a transition. `pending` is dropped as soon as
+     the parent's `selected` matches it, or after 1.2 s if the parent refused the change (plan still loading), so a refused tap cannot leave a chip lying about its state. */
+  const [pending, setPending] = useState<readonly string[] | null>(null);
+  useEffect(() => { if (pending && sameList(pending, selected)) setPending(null); }, [pending, selected]);
+  useEffect(() => {
+    if (!pending) return;
+    const id = setTimeout(() => setPending(null), 1200);
+    return () => clearTimeout(id);
+  }, [pending]);
+  const shown = pending ?? selected;
 
   const paramsFor = (entry: IndicatorEntry) => params[entry.id] ?? defaultParams(entry);
-  const focusedEntry = focused ? findIndicator(focused) : undefined;
-  const used = slottedIds(selected).length;
+  /* The two layers with settings (EMA ribbon, RSI) are always in the box, so "Edit settings" works with no indicator ticked; the ticked indicators that have parameters follow. */
+  const paramEntries = [...LAYER_SETTINGS, ...SELECTABLE_INDICATORS.filter(e => shown.includes(e.id) && e.paramSchema.length > 0)];
+  const focusedEntry = paramEntries.find(e => e.id === focused) ?? paramEntries[paramEntries.length - 1];
+  const used = slottedIds(shown).length;
+  /* The box OPENS and CLOSES with a height transition (grid rows 0fr to 1fr), so it keeps showing the last indicator while it closes instead of snapping empty. */
+  const lastParamEntry = useRef<IndicatorEntry | undefined>(undefined);
+  if (focusedEntry) lastParamEntry.current = focusedEntry;
+  const boxEntry = focusedEntry ?? lastParamEntry.current;
+  const [paramsOpen, setParamsOpenState] = useState(paramsOpenForSession);
+  const setParamsOpen = (v: boolean) => { paramsOpenForSession = v; setParamsOpenState(v); };
+  const boxOpen = !!focusedEntry && paramsOpen;
 
   /* THE ONE STRATEGY MENU (owner, 2026-11-14, option A). The caller writes the saved strategy AND the chips in one save; here only the params focus follows. */
   const applySet = (id: string) => {
     if (!loaded) return;
+    setCustomPicked(id === CUSTOM_SET_ID);
     onStrategyPick(id);
     const chip = findStrategy(id)?.chips.find(c => SELECTABLE_INDICATOR_IDS.has(c));
     if (chip) setFocused(chip);   // a strategy that reads a chip shows its parameters; otherwise the chips and the focus stay exactly as they were
   };
 
+  /* A TAP ALWAYS TOGGLES. (#1027 used to make a tap on a not-focused ON chip only re-focus its params, so with two on a tap looked dead; params are now picked in the params box.) */
   const toggle = (entry: IndicatorEntry) => {
     if (!loaded || !canRender(entry)) return;
-    if (selected.includes(entry.id)) {
-      /* #1027: with 2+ on, clicking an earlier chip re-shows its params; only the chip already
-         showing its params deselects. With Pro unlimited this is the common path. */
-      if (focused !== entry.id && selected.length > 1) { setFocused(entry.id); return; }
-      const next = selected.filter(id => id !== entry.id);
-      setFocused(next[next.length - 1] ?? null);
-      onSelectedChange(next);
-      return;
-    }
-    if (entitled || used < limit) {
+    let next: readonly string[];
+    if (shown.includes(entry.id)) {
+      next = shown.filter(id => id !== entry.id);
+    } else if (entitled || used < limit) {
+      next = [...shown, entry.id];
       setFocused(entry.id);
-      onSelectedChange([...selected, entry.id]);
-      return;
+    } else {
+      /* FREE, AT THE CAP: tap-to-SWAP, not refuse (the redesign). The new pick replaces the old one,
+         which is the obvious gesture for a one-at-a-time control - refusing it made the chip look
+         dead. `limit` is 1 on Free, so the new selection is exactly this one indicator. */
+      next = [entry.id];
+      setFocused(entry.id);
     }
-    /* FREE, AT THE CAP: tap-to-SWAP, not refuse (the redesign). The new pick replaces the old one,
-       which is the obvious gesture for a one-at-a-time control - refusing it made the chip look
-       dead. `limit` is 1 on Free, so the new selection is exactly this one indicator. */
-    setFocused(entry.id);
-    onSelectedChange([entry.id]);
+    setPending(next);
+    startTransition(() => onSelectedChange(next));
   };
 
-  const layer = (id: 'EMA_RIBBON' | 'SR' | 'LIQ_CLUSTERS' | 'GEX'): OverlayState => overlays?.[id] ?? 'always';
-  const isAuto = loaded && setId === AUTO_SET_ID && selected.length === 0;
+  const layer = (id: 'EMA_RIBBON' | 'RSI' | 'SR' | 'LIQ_CLUSTERS' | 'GEX'): OverlayState => overlays?.[id] ?? 'always';
+  const isAuto = loaded && setId === AUTO_SET_ID && shown.length === 0;
 
   return (
     <div className="strat-panel">
       <div className="strat-head">
-        <span>Strategy</span>
+        <span>{t('STRAT_CARD_TITLE')}</span>
         {/* #1119: 'unknown' must not read as a confident plan tier. */}
-        <span className="strat-aux" title={entitlementStatus === 'unknown' ? "Couldn't verify your plan" : undefined}>
-          {planLabel.head}
+        <span className="strat-aux" title={entitlementStatus === 'unknown' ? t('STRATEGY_PANEL_PLAN_UNVERIFIED') : undefined}>
+          {planLabel.plan === 'signed_out' ? t('STRATEGY_PANEL_PLAN_SIGNED_OUT') : planLabel.head}
         </span>
       </div>
 
       {entitlementUnknown ? (
-        <EntitlementUnknownCard title="Strategy indicators" onRetry={retryEntitlements} />
+        <EntitlementUnknownCard title={t('STRATEGY_PANEL_INDICATORS_TITLE')} onRetry={retryEntitlements} />
       ) : (
       <>
       <div className="strat-sect">
-        <div className="strat-lbl">
-          <span>{t('STRATEGY_PANEL_SECTION_SET')}</span>
-          {entitled && <span className="strat-cap">Edit · Save as</span>}
-        </div>
         <select className="strat-sel" data-testid="strategy-set-select" value={setId} disabled={!loaded || planChecking} aria-label={t('STRATEGY_PANEL_SECTION_SET')} onChange={e => applySet(e.target.value)}>
-          {STRATEGY_SETS.filter(s => s.id === AUTO_SET_ID).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-          {STRATEGIES.map(s => <option key={s.id} value={s.id}>{t(s.nameKey)}</option>)}
-          {STRATEGY_SETS.filter(s => s.id === CUSTOM_SET_ID).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          {STRATEGY_SETS.filter(s => s.id === AUTO_SET_ID).map(s => <option key={s.id} value={s.id}>{t('STRATEGY_PANEL_SET_AUTO')}</option>)}
+          {/* GROUPED (owner decision 2026-11-17): Beginner / Trend, Price action / SMC, Sessions. Each option's title is a one-line note on the data it uses. A strategy not placed in a group is still offered, after them. */}
+          {STRATEGY_GROUPS.map(g => (
+            <optgroup key={g.id} label={t(g.labelKey)}>
+              {g.ids.map(id => findStrategy(id)).filter((s): s is NonNullable<typeof s> => !!s).map(s => <option key={s.id} value={s.id} title={STRATEGY_TIP_KEYS[s.id] ? t(STRATEGY_TIP_KEYS[s.id]) : undefined}>{t(s.nameKey)}</option>)}
+            </optgroup>
+          ))}
+          {STRATEGIES.filter(s => !STRATEGY_GROUPS.some(g => g.ids.includes(s.id))).map(s => <option key={s.id} value={s.id}>{t(s.nameKey)}</option>)}
+          {STRATEGY_SETS.filter(s => s.id === CUSTOM_SET_ID).map(s => <option key={s.id} value={s.id}>{t('STRATEGY_PANEL_SET_CUSTOM')}</option>)}
         </select>
         {/* THE CALL BOX'S HOST. A visitor whose saved strategy is stored on this browser has this box's whole height reserved from the FIRST paint (`html[data-strat="1"]`, set before paint by
             components/RootDocument.tsx, sized in globals.css), because the saved strategy arrives from settings 1-2 s later and the box mounted then, pushing the Indicators section 256 px (QA gate, IN+SAVED 1280). */}
@@ -236,52 +257,46 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
       </div>
 
       <div className="strat-sect">
-        <div className="strat-lbl">
+        <div className="strat-lbl" title={!planChecking && entitled ? t('STRATEGY_PANEL_NOTE_PRO') : undefined}>
           <span>{t('STRATEGY_PANEL_SECTION_INDICATORS')}</span>
           {/* Pro/trial: how many are on, no "of N" - there is no cap. Free: the one-at-a-time rule. */}
           {loaded && (
             entitled
               ? <span className="strat-count">{t('STRATEGY_PANEL_ON_COUNT', { n: used })}</span>
-              : <span className="strat-count">{t('STRATEGY_PANEL_FREE_LIMIT')}</span>
+              : !planChecking && <span className="strat-count">{t('STRATEGY_PANEL_FREE_LIMIT')}</span>
           )}
         </div>
 
         {/* Pro note vs Free note, from the artboard. The Pro line is now TRUE (the read receives the
             selected indicators' values, #1631/#2161). */}
-        {loaded && (
-          <p className="strat-ind-note">
-            {planChecking
-              ? t('ARENA_PLAN_CHECKING')
-              : entitled
-              ? t('STRATEGY_PANEL_NOTE_PRO')
-              : t('STRATEGY_PANEL_NOTE_FREE')}
-          </p>
+        {loaded && planChecking && (
+          <p className="strat-ind-note">{t('ARENA_PLAN_CHECKING')}</p>
         )}
 
         {status === 'loading' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} role="status" aria-live="polite">
-            <span className="sr-only">Loading your saved strategy…</span>
+            <span className="sr-only">{t('STRATEGY_PANEL_LOADING_SAVED')}</span>
             {[0, 1, 2].map(i => <SkeletonBar key={i} height={40} radius={8} style={{ opacity: 1 - i * 0.18 }} />)}
           </div>
         )}
 
         {status === 'error' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }} role="alert">
-            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>Couldn&apos;t load your saved indicators.</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>{t('STRATEGY_PANEL_LOAD_FAILED')}</span>
             <button
               onClick={handleRetry} disabled={retrying}
               style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '2px 8px', cursor: retrying ? 'default' : 'pointer', opacity: retrying ? 0.6 : 1 }}
             >
-              {retrying ? 'Retrying…' : 'Retry'}
+              {retrying ? t('STRATEGY_PANEL_RETRYING') : t('SETTINGS_SAVE_RETRY_BUTTON')}
             </button>
           </div>
         )}
 
         {loaded && (
+          <div className="strat-ind-wrap">
           <div className="strat-ind-grid">
             {SELECTABLE_INDICATORS.map(entry => {
-              const on = selected.includes(entry.id);
-              const pos = selected.indexOf(entry.id);
+              const on = shown.includes(entry.id);
               return (
                 <button
                   key={entry.id}
@@ -290,75 +305,82 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
                   aria-pressed={on}
                   disabled={planChecking}
                   data-testid={`strategy-indicator-${entry.id}`}
+                  title={entry.blurbKey ? t(entry.blurbKey) : undefined}
+                  aria-describedby={entry.blurbKey ? `strat-desc-${entry.id}` : undefined}
                   onClick={() => toggle(entry)}
                 >
                   <span className="strat-ind-box" aria-hidden="true">
                     {on && (
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 6.2l2.3 2.3 4.7-5" /></svg>
+                      <svg className="strat-ind-check" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 6.2l2.3 2.3 4.7-5" /></svg>
                     )}
                   </span>
                   <span className="strat-ind-text">
-                    <span className="strat-ind-name">{on && selected.length > 1 && <span className="strat-n" aria-hidden="true">{pos + 1}</span>}{entry.label}</span>
-                    {entry.blurbKey && <span className="strat-ind-desc">{t(entry.blurbKey)}</span>}
+                    <span className="strat-ind-name">{entry.label}</span>
+                    {/* The one-line blurb is NOT drawn (the panel had to be shorter): it is the chip's title (hover) and its accessible description, same label key. */}
+                    {entry.blurbKey && <span id={`strat-desc-${entry.id}`} className="sr-only">{t(entry.blurbKey)}</span>}
                   </span>
                 </button>
               );
             })}
           </div>
-        )}
-
-        {/* FREE ONLY: the persistent upgrade callout, present even with nothing selected (it is an
-            invitation, not a limit warning). Pro never sees it - Pro has every indicator already. */}
-        {loaded && !entitled && (
-          <div className="strat-callout" role="note">
-            <span>{t('STRATEGY_PANEL_PRO_CALLOUT')}</span>
-            <Link href="/upgrade" className="strat-callout-link" data-testid="strategy-pro-callout">{t('STRATEGY_PANEL_PRO_CALLOUT_LINK')}</Link>
           </div>
         )}
+
+        {/* The Free "Want more at once? See Pro" line is gone (owner, 2026-11-17: fewer upsell texts); the Free cap is already stated by the "1 at a time" count above. */}
 
         {isAuto && (
           <div className="strat-auto">{t('STRATEGY_PANEL_AUTO_NOTE')}</div>
         )}
 
-        {focusedEntry && focusedEntry.paramSchema.length > 0 && (
-          <div className="strat-params">
-            <div className="strat-params-h">{focusedEntry.label}</div>
-            {focusedEntry.paramSchema.map(spec => (
-              <ParamRow
-                key={spec.key}
-                spec={spec}
-                value={paramsFor(focusedEntry)[spec.key]}
-                readOnly={!entitled}
-                onChange={v => onParamsChange({ ...params, [focusedEntry.id]: { ...paramsFor(focusedEntry), [spec.key]: v } })}
-              />
-            ))}
-            {!entitled && <div className="strat-ro">Defaults on free · editable on Pro</div>}
-            {entitled && <div className="strat-ro">{t('STRATEGY_PANEL_PARAMS_VERDICT_NOTE')}</div>}
-          </div>
+        {loaded && focusedEntry && (
+          <button type="button" className="strat-edit-link" aria-expanded={paramsOpen} onClick={() => setParamsOpen(!paramsOpen)}
+            title={planChecking ? undefined : entitled ? t('STRATEGY_PANEL_PARAMS_VERDICT_NOTE') : t('STRATEGY_PANEL_FREE_DEFAULTS')}>
+            {t('STRATEGY_PANEL_EDIT_SETTINGS')}
+            <svg className="strat-edit-chevron" data-open={paramsOpen ? 'true' : 'false'} width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 5l4 4 4-4" /></svg>
+          </button>
         )}
+
+        {/* THE PARAMS BOX opens and closes smoothly and only when an indicator with parameters is on; the chips above never move. Closed, it is inert and hidden from assistive tech. */}
+        <div className={`strat-params-slot${boxOpen ? ' open' : ''}`} aria-hidden={boxOpen ? undefined : true} inert={!boxOpen}>
+          <div className="strat-params-clip">
+            {boxEntry && (
+              <div className="strat-params">
+                <div className="strat-params-h">
+                  {paramEntries.length > 1 ? (
+                    <div className="strat-seg" role="group" aria-label="Edit parameters for">
+                      {paramEntries.map(e => (
+                        <button key={e.id} type="button" className={`strat-seg-b${e.id === boxEntry.id ? ' on' : ''}`} aria-pressed={e.id === boxEntry.id} onClick={() => setFocused(e.id)}>{e.label}</button>
+                      ))}
+                    </div>
+                  ) : boxEntry.label}
+                </div>
+                {boxEntry.paramSchema.map(spec => (
+                  <ParamRow
+                    key={spec.key}
+                    spec={spec}
+                    value={paramsFor(boxEntry)[spec.key]}
+                    readOnly={!entitled}
+                    onChange={v => onParamsChange({ ...params, [boxEntry.id]: { ...paramsFor(boxEntry), [spec.key]: v } })}
+                  />
+                ))}
+                {/* The plan footnote ("Defaults on free" / "Chart line only...") is the "Edit settings" link's tooltip now, and is never set while the plan is still being read. */}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* CHART LAYERS: drawn on the chart on every plan, never using an indicator slot. */}
       {loaded && (
         <div className="strat-sect">
-          <div className="strat-lbl"><span>{t('STRATEGY_PANEL_SECTION_LAYERS')}</span></div>
-          <p className="strat-ind-note">{t('STRATEGY_PANEL_LAYERS_NOTE')}</p>
+          {/* "Drawn on the chart. They don't count as indicators." moved to the section label's title (the panel had to be shorter). */}
+          {/* The always-on layers line is the section label's tooltip now (the panel had to be shorter). */}
+          <div className="strat-lbl" title={t('STRATEGY_PANEL_LAYERS_ALWAYS_LINE')}><span>{t('STRATEGY_PANEL_SECTION_LAYERS')}</span></div>
           <div className="strat-layers">
-            <LayerRow name={t('STRATEGY_PANEL_LAYER_EMA')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON')} />
-            <LayerRow name={t('STRATEGY_PANEL_LAYER_RSI')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON')} />
-            <LayerRow name={t('STRATEGY_PANEL_LAYER_GEX')} status={t('STRATEGY_PANEL_LAYER_ALWAYS_ON_BTC')} />
-            <LayerSwitch
-              name={t('STRATEGY_PANEL_LAYER_SR')}
-              on={layer('SR') === 'on' || layer('SR') === 'always'}
-              unavailable={layer('SR') === 'none'}
-              onToggle={() => onOverlayToggle?.('SR')}
-            />
-            <LayerSwitch
-              name={t('STRATEGY_PANEL_LAYER_LIQ')}
-              on={layer('LIQ_CLUSTERS') === 'on' || layer('LIQ_CLUSTERS') === 'always'}
-              unavailable={layer('LIQ_CLUSTERS') === 'none'}
-              onToggle={() => onOverlayToggle?.('LIQ_CLUSTERS')}
-            />
+            <LayerChip name={t('STRATEGY_PANEL_LAYER_EMA_SHORT')} on={layer('EMA_RIBBON') !== 'off'} unavailable={false} onToggle={() => onOverlayToggle?.('EMA_RIBBON')} />
+            <LayerChip name={t('STRATEGY_PANEL_LAYER_RSI_SHORT')} on={layer('RSI') !== 'off'} unavailable={false} onToggle={() => onOverlayToggle?.('RSI')} />
+            <LayerChip name={t('STRATEGY_PANEL_LAYER_SR_SHORT')} on={layer('SR') === 'on' || layer('SR') === 'always'} locked={layersLocked} unavailable={layer('SR') === 'none'} onToggle={() => onOverlayToggle?.('SR')} />
+            <LayerChip name={t('STRATEGY_PANEL_LAYER_LIQ_SHORT')} on={layer('LIQ_CLUSTERS') === 'on' || layer('LIQ_CLUSTERS') === 'always'} locked={layersLocked} unavailable={layer('LIQ_CLUSTERS') === 'none' && !layersLocked} onToggle={() => onOverlayToggle?.('LIQ_CLUSTERS')} />
           </div>
         </div>
       )}
@@ -368,9 +390,24 @@ export default function StrategyPanel({ planChecking = false, overlays, onOverla
       <div className="strat-sect">
         <div className="strat-lbl"><span>{t('STRATEGY_PANEL_SECTION_RUN')}</span></div>
         <div className="strat-actions">
-          <button type="button" className="strat-btn pri" disabled={running} onClick={() => onRun('quick', selected)}>QUICK</button>
-          <button type="button" className="strat-btn" disabled={running} onClick={() => onRun('deep', selected)}>DEEP</button>
-          <button type="button" className="strat-btn" onClick={() => onRun('ask', selected)}>ASK AI</button>
+          {([['quick', t('STRATEGY_PANEL_RUN_QUICK'), 'pri'], ['deep', t('STRATEGY_PANEL_RUN_DEEP'), ''], ['ask', t('STRATEGY_PANEL_RUN_ASK'), '']] as const).map(([kind, text, cls]) => {
+            const g = runGate?.[kind];
+            const locked = !!g?.locked;
+            return (
+              <button
+                key={kind}
+                type="button"
+                className={`strat-btn${cls && !locked ? ' ' + cls : ''}${locked ? ' arena-deep-locked' : ''}`}
+                disabled={g?.disabled ?? false}
+                aria-disabled={locked || undefined}
+                title={g?.title}
+                onClick={() => (locked && g?.onLocked ? g.onLocked() : onRun(kind, selected))}
+              >
+                {locked && <Lock size={10} aria-hidden="true" style={{ marginRight: 4, verticalAlign: '-1px' }} />}
+                {text}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

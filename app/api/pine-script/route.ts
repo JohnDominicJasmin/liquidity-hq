@@ -3,8 +3,8 @@ import { AI_TOOL_LIMITS } from '@/lib/aiInputLimits';
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
-import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
+import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, blockedResponse } from '@/lib/aiUsage';
+import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -53,9 +53,8 @@ export async function POST(req: NextRequest) {
   // is fully paywalled in the UI - so without a server-side check the paid
   // xAI call was still callable directly with a free account token. Trial
   // users pass (hasProFeatures covers isTrial).
-  if (!(await hasProFeatures(token, authData.user.id))) {
-    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Pine script export is a Pro feature.' }, { status: 403 });
-  }
+  const plan = await requireProPlan(token, authData.user.id, 'Pine script export is a Pro feature.');
+  if (!plan.ok) return plan.response;
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
@@ -76,17 +75,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'INVALID_INPUT', message: 'The description or analysis is too long.' }, { status: 400 });
   }
 
-  if (!description) {
+  if (description.length < 10) {
     return NextResponse.json({ error: 'No strategy description provided' }, { status: 400 });
   }
 
-  const role = await getUsageTier(token, authData.user.id);
+  const role = plan.tier;
+  /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
+  const reservedOn = todayUtc();
   const usageResult = await incrementToolUsage(authData.user.id, 'pineScript', role);
   if (usageResult.blocked) {
-    return NextResponse.json(
-      { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'Pine Script generations'), code: 'RATE_LIMIT' },
-      { status: 429 },
-    );
+    return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'Pine Script generations'));
   }
 
   const prompt = buildPinePrompt(description, analysisText);
@@ -99,9 +97,10 @@ export async function POST(req: NextRequest) {
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 1200,
     }),
-  });
+  }).catch(async (e: unknown) => { await refundToolUsage(authData.user.id, 'pineScript', reservedOn); throw e; });
 
   if (!res.ok) {
+    await refundToolUsage(authData.user.id, 'pineScript', reservedOn);
     const err = await res.json().catch(() => ({})) as { error?: string };
     return apiError('pine-script', err.error ?? 'upstream AI error', 502, 'AI service error');
   }

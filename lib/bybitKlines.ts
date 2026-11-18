@@ -1,3 +1,4 @@
+import { deadlineSignal } from './deadlineSignal.ts';
 /* Shared retry for /api/market/klines?source=bybit - #1080.
  *
  * #1079/#1081 found this exact shape (one fetch, no retry, empty on 502)
@@ -31,7 +32,7 @@ export interface FetchBybitKlinesRetryOptions {
    *  exhaustion. */
   isStale?: () => boolean;
   /** Passed straight to `fetch()`. For callers already using
-   *  `AbortSignal.timeout(...)` (useEMAStrategy, backfillGapBybit) as an
+   *  `deadlineSignal(...)` (useEMAStrategy, backfillGapBybit) as an
    *  overall ceiling on the whole sequence, not a per-attempt budget. Once
    *  it fires, `aborted` is checked the same way `isStale` is (see below) -
    *  a signal is permanently tripped, so a fetch reusing it after that point
@@ -86,7 +87,7 @@ export async function fetchBybitKlinesRetry(
     try {
       // The timeout covers reading the body too: the signal stays live until the JSON has been parsed.
       const attemptSignal = attemptTimeoutMs
-        ? (signal && typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, AbortSignal.timeout(attemptTimeoutMs)]) : AbortSignal.timeout(attemptTimeoutMs))
+        ? (signal && typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, deadlineSignal(attemptTimeoutMs)]) : deadlineSignal(attemptTimeoutMs))
         : signal;
       const r = await fetch(`/api/market/klines?${params.toString()}`, attemptSignal ? { signal: attemptSignal } : undefined);
       if (r.ok) return await r.json() as BybitKlinesResponse;

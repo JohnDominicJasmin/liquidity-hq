@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { COIN_DEC, CoinId, useMarket, computeSqueezeScore, venueSymbols } from '@/lib/marketStore';
@@ -9,11 +10,15 @@ import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
 import { Lock, Warn } from '@/components/icons';
 import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 import { useAuth } from '@/components/AuthProvider';
 import { getAuthToken } from '@/lib/supabase';
 import { drawStructureAvailable, DRAW_STRUCTURE_NOISY_TFS, type DrawableStructure } from '@/lib/drawStructure';
+import { computeSRLevels, type SRLevel } from '@/lib/srLevels';
+import { detectChannel, SR_BAND_PCT } from '@/lib/strategies/channel';
+import type { OHLCV } from '@/lib/strategyCore';
 import Tip from '@/components/Tip';
-import { barsAfter } from '@/lib/candles';
+import { barsAfter, TF_MS } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { LIQ_CLUSTER_LINES, mergeLiqBands } from '@/lib/liqClusters';
 import { findIndicator, toCalcParams, DEFAULT_PANE_INDICATORS, type IndicatorEntry } from '@/lib/strategyRegistry';
@@ -89,6 +94,14 @@ const TOOLS = [
   { id: 'segment',                label: '╱ Seg'     },
   { id: 'rect',                   label: '▭ Rect'    },
 ] as const;
+/* The labels above stay as the English defaults; the toolbar shows these keys through the label table so each language gets its own. */
+const TOOL_LABEL_KEYS: Record<(typeof TOOLS)[number]['id'], LabelKey> = {
+  horizontalStraightLine: 'CHART_TOOL_HLINE',
+  straightLine: 'CHART_TOOL_TREND',
+  fibonacciLine: 'CHART_TOOL_FIB',
+  segment: 'CHART_TOOL_SEG',
+  rect: 'CHART_TOOL_RECT',
+};
 
 // ── Drawing persistence - user-drawn lines survive a page refresh, per coin ──
 const DRAWING_GROUP = 'user_drawing';
@@ -107,6 +120,8 @@ const DRAWING_GROUP = 'user_drawing';
  * pressed-move (see the emaRibbonLine note below), so a locked proposal can still be hovered
  * but not dragged into something the model never proposed. */
 const PROPOSAL_GROUP = 'structure_proposals';
+/* THE CHANNEL BOX'S OWN GROUP (QA, #2511 blocker): the box and its rails used to be in PROPOSAL_GROUP, so an EMPTY Draw Structure answer ('Nothing proposed on this window') ran clearProposals, which removed the whole group and the box with it, while the state that redraws it (dsClicked) was set back to the same value and never re-ran the effect. The box lives in this group instead; only the box effect (Draw Structure off, coin or timeframe change) removes it. */
+const BOX_GROUP = 'channel_box';
 const drawingsKey = (coin: CoinId) => `lhq_chart_drawings_${coin}`;
 
 interface PersistedOverlay {
@@ -407,6 +422,9 @@ interface Props {
   onShowSRChange:  (next: boolean) => void;
   showLiq:       boolean;
   onShowLiqChange: (next: boolean) => void;
+  /* The EMA ribbon and the RSI pane, owned by the page like S/R and Liq (owner, 2026-11-17). Display only; omitted = shown. */
+  showEma?:      boolean;
+  showRsi?:      boolean;
   /** The only venue in the stored 24 h liquidation history, when it is just one: the Liq button then says so instead of looking complete. */
   liqHistOnly?: 'BN' | 'BB' | null;
   /* Called when a confirmed-Free visitor taps the locked Draw Structure button. The PAGE owns the
@@ -556,7 +574,6 @@ function computeEmaSeries(bars: Array<{ timestamp: number; close: number }>, per
 // chart back where the Arena signal-overload pass found it.
 const PA_MAX = 6;
 
-interface SRLevel { price: number; type: 'support' | 'resistance'; touches: number; }
 
 // Deterministic label spacing for S/R / GEX price tags: derived once from the
 // level prices themselves, not from live pixel positions. Pixel y only exists
@@ -596,53 +613,6 @@ function applyProportionalPaneHeights(chart: KChart, containerHeight: number) {
   chart.setPaneOptions({ id: 'rsi_pane', height: rsiH });
 }
 
-function computeSRLevels(
-  bars: { high: number; low: number; close: number }[],
-  currentPrice: number,
-): SRLevel[] {
-  const lookback = 3;
-  const recent = bars.slice(-200);
-  const CLUSTER_PCT = 0.003;
-
-  const swingHighs: number[] = [];
-  const swingLows: number[] = [];
-
-  for (let i = lookback; i < recent.length - lookback; i++) {
-    const hi = recent[i].high;
-    const lo = recent[i].low;
-    if (
-      recent.slice(i - lookback, i).every(b => b.high <= hi) &&
-      recent.slice(i + 1, i + lookback + 1).every(b => b.high <= hi)
-    ) swingHighs.push(hi);
-    if (
-      recent.slice(i - lookback, i).every(b => b.low >= lo) &&
-      recent.slice(i + 1, i + lookback + 1).every(b => b.low >= lo)
-    ) swingLows.push(lo);
-  }
-
-  const cluster = (prices: number[]) => {
-    const sorted = [...prices].sort((a, b) => a - b);
-    const clusters: { price: number; count: number }[] = [];
-    for (const p of sorted) {
-      const ex = clusters.find(c => Math.abs(c.price - p) / p < CLUSTER_PCT);
-      if (ex) { ex.price = (ex.price * ex.count + p) / (ex.count + 1); ex.count++; }
-      else clusters.push({ price: p, count: 1 });
-    }
-    return clusters.sort((a, b) => b.count - a.count);
-  };
-
-  const resistances = cluster(swingHighs)
-    .filter(c => c.price > currentPrice * 0.999)
-    .slice(0, 3)
-    .map(c => ({ price: c.price, type: 'resistance' as const, touches: c.count }));
-
-  const supports = cluster(swingLows)
-    .filter(c => c.price < currentPrice * 1.001)
-    .slice(0, 3)
-    .map(c => ({ price: c.price, type: 'support' as const, touches: c.count }));
-
-  return [...resistances, ...supports];
-}
 
 /* QA test seam for the indicator-sync failure notice (#1369). Same shape and
    same reasoning as AuthProvider's `qaForcedEntitlementsFailure` (#1184): the
@@ -676,7 +646,18 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, onUnlock, strategyOverlay }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, showEma = true, showRsi = true, onUnlock, strategyOverlay }: Props) {
+  const showEmaRef = useRef(showEma);
+  showEmaRef.current = showEma;
+  /* THE ADJUSTABLE LAYER SETTINGS (owner, 2026-11-17): the four EMA ribbon lengths and the RSI length + overbought / oversold lines. Chart only: the strategy signals keep the standard lengths. Clamped here as well as in the panel, so a stale saved value cannot break the chart. */
+  const num = (v: unknown, d: number, lo: number, hi: number) => { const n = typeof v === 'number' ? v : Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : d; };
+  const emaP = indicatorParams?.EMA_RIBBON;
+  const emaLengths = [num(emaP?.e1, 9, 2, 400), num(emaP?.e2, 20, 2, 400), num(emaP?.e3, 50, 2, 400), num(emaP?.e4, 200, 2, 400)];
+  const emaLengthsKey = emaLengths.join(',');
+  const emaLengthsRef = useRef(emaLengths);
+  emaLengthsRef.current = emaLengths;
+  const rsiP = indicatorParams?.RSI;
+  const rsiLen = num(rsiP?.length, 14, 2, 100), rsiOb = num(rsiP?.overbought, 70, 50, 95), rsiOs = num(rsiP?.oversold, 30, 5, 50);
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -758,6 +739,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
      cleared by the load that answers for the CURRENT generation (landed or failed): a load superseded by a newer switch never clears it, so
      it is tied to the same load token as the data and cannot outlive the load. A 90 s cap is the last resort. */
   const [loadingTf, setLoadingTf] = useState<string | null>(null);
+  /* Bumped each time a history load delivers its bars. The strategy marker is placed on a bar found in the chart's own data, so it must be tried again when the data arrives: the signal can land first after a coin or timeframe switch (or at first load), and the arrow was then skipped for good. */
+  const [barsTick, setBarsTick] = useState(0);
   /* #1077: true only in the rare double-fallback case - this chart already
      tries Bybit, then Binance spot, then Binance futures itself before ever
      reaching /api/market/klines?source=binance-futures, and that route now
@@ -1019,9 +1002,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const syncEmaRibbon = useCallback(() => {
     const chart = chartRef.current;
     const bars = emaBarsRef.current;
-    if (!chart || !bars.length) return;
+    if (!chart) return;
+    if (!showEmaRef.current) {
+      /* Switched off: take the four lines off the chart. The bars stay in emaBarsRef, so switching back redraws at once. */
+      emaRibbonIds.current.forEach((id, i) => { if (id) { try { chart.removeOverlay({ id }); } catch { /* already gone */ } emaRibbonIds.current[i] = null; } });
+      return;
+    }
+    if (!bars.length) return;
     EMA_PERIODS.forEach((cfg, idx) => {
-      const series = computeEmaSeries(bars, cfg.period);
+      const series = computeEmaSeries(bars, emaLengthsRef.current[idx] ?? cfg.period);
       if (!series.length) return;
       const points = series.map(p => ({ timestamp: p.timestamp, value: p.value }));
       const existingId = emaRibbonIds.current[idx];
@@ -1066,6 +1055,37 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       }
     });
   }, []);
+
+  const rsiLineIds = useRef<string[]>([]);
+  /* Re-sync when the switch flips; the RSI pane is removed or re-created the same way. */
+  useEffect(() => { syncEmaRibbon(); }, [showEma, emaLengthsKey, syncEmaRibbon]);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    if (!showRsi) {
+      try { chart.removeIndicator({ paneId: 'rsi_pane', name: 'RSI' }); } catch { /* not there */ }
+    } else {
+      try {
+        chart.createIndicator(
+          { name: 'RSI', calcParams: [rsiLen], styles: { lines: [{ color: resolveCssColor('var(--accent-2)'), size: 1.5 }] } },
+          { pane: { id: 'rsi_pane', height: 110, minHeight: 30 } }
+        );
+        applyProportionalPaneHeights(chart, containerRef.current?.getBoundingClientRect().height ?? 0);
+      } catch { /* already present */ }
+      try { chart.overrideIndicator({ name: 'RSI', paneId: 'rsi_pane', calcParams: [rsiLen] } as never); } catch { /* not there yet */ }
+    }
+    /* The overbought / oversold lines, drawn in the RSI pane. Re-drawn whenever the pane or a level changes. */
+    for (const id of rsiLineIds.current) { try { chart.removeOverlay({ id }); } catch { /* gone */ } }
+    rsiLineIds.current = [];
+    if (showRsi) {
+      for (const value of [rsiOb, rsiOs]) {
+        try {
+          const id = chart.createOverlay({ name: 'horizontalStraightLine', paneId: 'rsi_pane', points: [{ value }], lock: true, styles: { line: { style: 'dashed', color: resolveCssColor('var(--txt3)'), size: 1 } } } as never);
+          if (typeof id === 'string') rsiLineIds.current.push(id);
+        } catch { /* the pane is not ready; the next sync draws them */ }
+      }
+    }
+  }, [showRsi, chartReady, rsiLen, rsiOb, rsiOs]);
 
   // Upsert one live-updating bar into the EMA history: replace the last entry
   // if it's the same (still-forming) candle, append if it's a genuinely new
@@ -1672,6 +1692,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(css.trim());
           return rgb ? `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${a})` : css;
         };
+        /* A LABEL IS A BOX IN ITS ROLE COLOUR (PM visual sign-off, tracker 1263): a tinted ground with a 1 px border and the text in the same ink, so a label stays readable over candles in both themes and reads as watch/confirm (accent), wrong-if (amber) or reference (neutral) at a glance. The box is 14 px tall, so the stacking step below is 15. THE TINT IS OPAQUE (8% of the ink mixed into the panel ground, PM: text keeps at least 4.5:1 on it in both themes; measured dark accent 4.78, dark neutral 4.73, dark amber 10.8, light 6.0 to 8.1): a translucent tint over candles let the ground vary and dropped the dark neutral label to 4.44. */
+        const solidTint = (ink: string, a: number): string => {
+          const parse = (css: string): number[] | null => {
+            const hex = /^#([0-9a-f]{6})$/i.exec(css.trim());
+            if (hex) { const v = parseInt(hex[1], 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; }
+            const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(css.trim());
+            return rgb ? [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])] : null;
+          };
+          const i = parse(ink), g = parse(resolveCssColor('var(--bg1)'));
+          if (!i || !g) return withAlpha(ink, a);
+          return `rgb(${i.map((v, k) => Math.round(v * a + g[k] * (1 - a))).join(', ')})`;
+        };
+        const labelStyles = (ink: string) => ({ style: 'stroke_fill', color: ink, size: 10, weight: '700', backgroundColor: solidTint(ink, 0.08), borderColor: withAlpha(ink, 0.55), borderSize: 1, borderRadius: 3, paddingLeft: 4, paddingRight: 4, paddingTop: 2, paddingBottom: 2 });
         const base = { totalStep: 1, needDefaultPointFigure: false, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (kc as any).registerOverlay({
@@ -1681,7 +1714,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const { role, text, prices, rank } = overlay.extendData as { role: string; text: string; prices?: number[]; rank?: number };
             const c = coordinates[0];
             if (!c || !isFinite(c.x) || !isFinite(c.y) || c.y < 0) return [];
-            /* LABELS THAT COLLIDE STACK (PM ruling, #2372): this strategy's levels are listed by price (lowest first); a label lifts 11 px for every LOWER level that sits within 12 px of this line on screen, so two
+            /* LABELS THAT COLLIDE STACK (PM ruling, #2372): this strategy's levels are listed by price (lowest first); a label lifts 15 px for every LOWER level that sits within 16 px of this line on screen, so two
                close levels (a sweep's swept and break levels on a low timeframe) read as two labels, not one smudge. */
             let lift = 0;
             if (prices && rank != null && chartRef.current) {
@@ -1689,7 +1722,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const o = (chartRef.current as any).convertToPixel?.({ value: prices[k] }, { paneId: 'candle_pane' });
                 const oy = Array.isArray(o) ? o[0]?.y : o?.y;
-                if (typeof oy === 'number' && isFinite(oy) && Math.abs(oy - c.y) < 12) lift += 11;
+                if (typeof oy === 'number' && isFinite(oy) && Math.abs(oy - c.y) < 16) lift += 15;
               }
             }
             const x0 = Math.max(0, c.x), x1 = bounding?.width ?? 9999;
@@ -1697,7 +1730,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const ink = roleInk(role);
             return [
               { type: 'line', attrs: { coordinates: [{ x: x0, y: c.y }, { x: x1, y: c.y }] }, styles: { style: role === 'confirm' || role === 'ref' ? 'solid' : 'dashed', color: ink, size: role === 'ref' ? 1 : 1.5, dashedValue: [5, 3] } },
-              { type: 'text', attrs: { x: Math.min(x1 - 6, Math.max(6, x0 + 6)), y: c.y - 3 - lift, text, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } },
+              { type: 'text', attrs: { x: Math.min(x1 - 6, Math.max(6, x0 + 6)), y: c.y - 3 - lift, text, align: 'left', baseline: 'bottom' }, styles: labelStyles(ink) },
             ];
           },
         });
@@ -1732,8 +1765,48 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             // ONE point is a text tag only (the existing ribbon line it labels is already drawn by the chart)
             return [
               ...(pts.length >= 2 ? [{ type: 'line', attrs: { coordinates: pts }, styles: { style: 'solid', color: ink, size: 1.25 } }] : []),
-              { type: 'text', attrs: { x: end.x + 4, y: end.y, text, align: 'left', baseline: 'middle' }, styles: { color: ink, size: 10, weight: '700' } },
+              { type: 'text', attrs: { x: end.x + 4, y: end.y, text, align: 'left', baseline: 'middle' }, styles: labelStyles(ink) },
             ];
+          },
+        });
+        /* THE POSITION BOX (owner decision 2026-11-17, #1263: "box, no arrow"): from the entry candle, a green reward area between the entry and the target and a red risk area between the entry and the stop, with
+           Target / Entry / Stop labels carrying the price and the percent distance, "R:R x.x" and ONE caption. Three points on the entry candle: the entry, the target (or the entry again when there is none) and the stop.
+           NOTHING in this overlay is a predicted path or an arrow, and none is ever drawn. On a narrow chart the labels are the single letters T / E / S. Locked, no layout space. */
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          ...base, name: 'positionBox', totalStep: 3,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
+            const d = overlay.extendData as { hasTarget: boolean; targetText: string; entryText: string; stopText: string; rrText: string; caption: string };
+            const e = coordinates[0], t = coordinates[1], s = coordinates[2];
+            if (!e || !s || ![e.x, e.y, s.x, s.y].every(isFinite)) return [];
+            const w = bounding?.width ?? 9999;
+            const narrow = w < 460;
+            const x0 = Math.max(0, e.x);
+            const x1 = Math.min(w - 4, x0 + Math.max(110, w * 0.35));
+            if (x1 <= x0) return [];
+            const green = resolveCssColor('var(--green)'), red = resolveCssColor('var(--red)'), ink = resolveCssColor('var(--txt2)');
+            const out: Array<Record<string, unknown>> = [];
+            /* STOP AND TARGET LABELS ARE ALWAYS ON SCREEN (PM/QA 2026-11-18: the SELL stop was off the visible price scale on a short phone chart, so its label was clipped away). A level outside the pane keeps its label, pinned to the pane edge with the full value and an arrow toward the level; the scale is NOT changed, so nothing jumps. */
+            const H = bounding?.height ?? 300;
+            const pin = (y: number, text: string, short: string): { y: number; text: string } => {
+              if (y < 10) return { y: 10, text: `${text} ↑` };
+              if (y > H - 10) return { y: H - 10, text: `${text} ↓` };
+              return { y, text: narrow ? short : text };
+            };
+            if (d.hasTarget && t && [t.x, t.y].every(isFinite)) {
+              out.push({ type: 'rect', attrs: { x: x0, y: Math.min(e.y, t.y), width: x1 - x0, height: Math.max(Math.abs(e.y - t.y), 1) }, styles: { style: 'stroke_fill', color: withAlpha(green, 0.16), borderColor: green, borderSize: 1 } });
+              const tp = pin(t.y < e.y ? t.y + 3 : t.y - 3, d.targetText, 'T');
+              out.push({ type: 'text', attrs: { x: x1 - 4, y: tp.y, text: tp.text, align: 'right', baseline: t.y < e.y ? 'top' : 'bottom' }, styles: { color: green, size: 10, weight: '700' } });
+            }
+            out.push({ type: 'rect', attrs: { x: x0, y: Math.min(e.y, s.y), width: x1 - x0, height: Math.max(Math.abs(e.y - s.y), 1) }, styles: { style: 'stroke_fill', color: withAlpha(red, 0.16), borderColor: red, borderSize: 1 } });
+            const sp = pin(s.y > e.y ? s.y - 3 : s.y + 3, d.stopText, 'S');
+            out.push({ type: 'text', attrs: { x: x1 - 4, y: sp.y, text: sp.text, align: 'right', baseline: s.y > e.y ? 'bottom' : 'top' }, styles: { color: red, size: 10, weight: '700' } });
+            out.push({ type: 'line', attrs: { coordinates: [{ x: x0, y: e.y }, { x: x1, y: e.y }] }, styles: { style: 'solid', color: ink, size: 1 } });
+            out.push({ type: 'text', attrs: { x: x0 + 4, y: e.y - 3, text: narrow ? 'E' : d.entryText, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } });
+            if (d.rrText) out.push({ type: 'text', attrs: { x: x0 + 4, y: e.y + 3, text: d.rrText, align: 'left', baseline: 'top' }, styles: { color: ink, size: 10, weight: '700' } });
+            out.push({ type: 'text', attrs: { x: 6, y: (bounding?.height ?? 300) - 6, text: d.caption, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '400' } });
+            return out;
           },
         });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1811,7 +1884,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               } else if (bnSym) {
                 const res = await fetch(
                   `/api/market/klines?source=binance-futures&symbol=${bnSym}&interval=${periodToBnInterval(period)}&limit=1500&end=${endMs}`,
-                  { signal: AbortSignal.timeout(HISTORY_ATTEMPT_TIMEOUT_MS) },
+                  { signal: deadlineSignal(HISTORY_ATTEMPT_TIMEOUT_MS) },
                 );
                 if (stale()) { callback([], false); return; }
                 if (res.ok) {
@@ -1941,7 +2014,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               // what this used to do.
               const tryFetch = async (url: string): Promise<{ data: (string | number)[][]; viaBybitFallback: boolean } | null> => {
                 try {
-                  const res = await fetch(url, { signal: AbortSignal.timeout(HISTORY_ATTEMPT_TIMEOUT_MS) }); // #1572: a hung request fails over to the next source
+                  const res = await fetch(url, { signal: deadlineSignal(HISTORY_ATTEMPT_TIMEOUT_MS) }); // #1572: a hung request fails over to the next source
                   if (!res.ok) return null;
                   const j = await res.json();
                   if (!Array.isArray(j) || !j.length) return null;
@@ -2002,6 +2075,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             }
             endFade();
             setLoadingTf(null);
+            setBarsTick(n => n + 1);
           } catch { if (!stale()) { setHistoryFailed(true); deliveredGenRef.current = myGen; callback([], false); endFade(); setLoadingTf(null); } }
           void symbol; // suppress unused
         },
@@ -2071,7 +2145,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // already uses for the initial history load.
                 const d = await fetchBybitKlinesRetry(sym, interval, 500, {
                   isStale: () => cancelled,
-                  signal: AbortSignal.timeout(12_000),
+                  signal: deadlineSignal(12_000),
                 });
                 if (d === null || cancelled) return;
                 const rows = [...(d.result?.list ?? [])].reverse();
@@ -2252,14 +2326,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 if (histSourceRef.current === 'bybit') {
                   const d = await fetchBybitKlinesRetry(sym, interval, 500, {
                     isStale: () => cancelled,
-                    signal: AbortSignal.timeout(12_000),
+                    signal: deadlineSignal(12_000),
                   });
                   if (d === null || cancelled) return;
                   rows = [...(d.result?.list ?? [])].reverse();
                 } else {
                   const r = await fetch(
                     `/api/market/klines?source=${histSourceRef.current}&symbol=${sym}&interval=${interval}&limit=500`,
-                    { signal: AbortSignal.timeout(12_000) },
+                    { signal: deadlineSignal(12_000) },
                   );
                   if (!r.ok || cancelled) return;
                   // #1077: same header this route sets on getBars' own
@@ -2754,7 +2828,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       const bar = chart.getDataList().find(b => b.timestamp === ov.marker!.ts);
       if (bar) add('strategyMarker', [{ timestamp: bar.timestamp, value: ov.marker.dir === 'long' ? bar.low : bar.high }], { dir: ov.marker.dir });
     }
-  }, [strategyOverlay, chartReady, themeInk, ovLabelProbe]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [strategyOverlay, chartReady, themeInk, ovLabelProbe, barsTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Publish the newest structure break upward. Separate from the drawing effect
   // below so it is not gated on showPA - a consumer scoring the market wants the
@@ -3047,6 +3121,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
   // ── Draw Structure (#1818 option D) ──────────────────────────────────
   const [proposals, setProposals] = useState<DrawableStructure[]>([]);
+  /* TRUE FROM THE CLICK ON DRAW STRUCTURE until the chart is cleared: the Channel strategy's own rails and risk box draw on that click whenever it has a live call, whether or not the model proposes anything (PM, 2026-11-17). */
+  const [dsClicked, setDsClicked] = useState(false);
   const [dsLoading, setDsLoading] = useState(false);
   const [dsError, setDsError] = useState<string | null>(null);
   /* A SUCCESSFUL READ THAT PROPOSED NOTHING IS ITS OWN STATE, not an error and not the initial
@@ -3096,11 +3172,63 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     if (chart) chart.removeOverlay({ groupId: PROPOSAL_GROUP });
     proposalIds.current = [];
     setProposals(prev => (prev.length === 0 ? prev : []));
+    setDsClicked(prev => (prev === false ? prev : false));
     setDsError(prev => (prev === null ? prev : null));
     /* Same bail-out as the two above, for the same reason: this runs from the coin/timeframe
        effect, which is most of what this chart does. */
     setDsNone(prev => (prev === false ? prev : false));
   }, []);
+
+  // ── The Channel strategy's risk box on Draw Structure (owner decision 2026-11-17, #1263) ───────────────
+  // When the user clicks DRAW STRUCTURE AND the Channel strategy has a live BUY / SELL call on the candles, draw the strategy's own channel rails and the position box (reward, risk, Target / Entry / Stop with price and percent, R:R) and the chart's support /
+  // resistance levels as bands, with one caption. No live call: the channel and nothing else (this effect draws nothing). NO PREDICTED PATH OR ARROW, ever. Levels come from the strategy's own rules
+  // (lib/strategies/channel.ts), which is why this does not break the 2026-10-31 "no target, no entry" rule of lib/drawStructure.ts: that rule is about the model's proposals, and this is not one.
+  const boxIds = useRef<string[]>([]);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    boxIds.current.forEach(id => chart.removeOverlay({ id }));
+    boxIds.current = [];
+    chart.removeOverlay({ groupId: BOX_GROUP });
+    if (!dsClicked) return;
+    const list = chart.getDataList();
+    if (!list || list.length < 60) return;
+    const candles: OHLCV[] = list.map(b => ({ time: b.timestamp, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
+    const res = detectChannel(candles, { coin: coinRef.current, tf, tfMs: TF_MS[tf] ?? 0 });
+    if (res.verdict === 'wait' || res.signalTimestamp == null) return;
+    const p = res.params as { entry: number; stop: number; target?: number; rr?: number };
+    if (![p.entry, p.stop].every(Number.isFinite)) return;
+    // The STRATEGY's own channel rails (what it measured), drawn with the box; whatever the model proposes is drawn as before.
+    for (const l of res.overlay?.lines ?? []) {
+      const pts = l.points.map(pt => ({ timestamp: pt.ts, value: pt.price }));
+      if (pts.length >= 2 && pts.every(pt => Number.isFinite(pt.timestamp) && Number.isFinite(pt.value))) {
+        const id = chart.createOverlay({ name: 'strategyPolyline', groupId: BOX_GROUP, lock: true, points: pts, extendData: { role: l.role, text: tl(l.labelKey, l.labelParams) } } as OverlayCreate);
+        if (typeof id === 'string') boxIds.current.push(id);
+      }
+    }
+    const px = currencyPrefix(coinRef.current);
+    const pct = (v: number) => { const x = (v - p.entry) / p.entry * 100; return (x >= 0 ? '+' : '') + x.toFixed(2) + '%'; };
+    const entryTs = res.signalTimestamp;
+    const hasTarget = typeof p.target === 'number' && Number.isFinite(p.target);
+    const create = (o: Record<string, unknown>) => { const id = chart.createOverlay(o as OverlayCreate); if (typeof id === 'string') boxIds.current.push(id); };
+    // S/R levels as bands, across the loaded candles
+    const first = candles[0].time, last = candles[candles.length - 1].time;
+    for (const l of srLevels) {
+      create({ name: 'strategyZone', groupId: BOX_GROUP, lock: true,
+        points: [{ timestamp: first, value: l.price * (1 + SR_BAND_PCT) }, { timestamp: last, value: l.price * (1 - SR_BAND_PCT) }],
+        extendData: { kind: l.type === 'resistance' ? 'supply' : 'demand', text: '' } });
+    }
+    create({ name: 'positionBox', groupId: BOX_GROUP, lock: true,
+      points: [{ timestamp: entryTs, value: p.entry }, { timestamp: entryTs, value: hasTarget ? p.target! : p.entry }, { timestamp: entryTs, value: p.stop }],
+      extendData: {
+        hasTarget,
+        targetText: hasTarget ? `${tl('STRAT_OV_TARGET')} ${px}${fmtPx(p.target!)} (${pct(p.target!)})` : '',
+        entryText: `${tl('STRAT_OV_ENTRY')} ${px}${fmtPx(p.entry)}`,
+        stopText: `${tl('STRAT_OV_STOP')} ${px}${fmtPx(p.stop)} (${pct(p.stop)})`,
+        rrText: hasTarget && typeof p.rr === 'number' ? tl('CHANNEL_BOX_RR', { rr: p.rr.toFixed(1) }) : '',
+        caption: tl('DRAW_STRUCTURE_LEVELS_CAPTION'),
+      } });
+  }, [dsClicked, chartReady, srLevels, barsTick, themeInk, tf]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Proposals are about ONE window. Changing coin or timeframe makes every index they were
      built from meaningless, so they go rather than being redrawn against candles they were
@@ -3141,6 +3269,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     setDsError(null);
     setDsNone(false);
     setDsLoading(true);
+    setDsClicked(true);
     try {
       const token = await getAuthToken();
       if (!token) { setDsError(tl('DRAW_STRUCTURE_SIGNED_OUT')); return; }
@@ -3156,7 +3285,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ coin: coinRef.current, tf, candles }),
-        signal: AbortSignal.timeout(60_000),
+        signal: deadlineSignal(60_000),
       });
       const data = await res.json().catch(() => ({})) as
         { structures?: unknown; error?: unknown; message?: unknown };
@@ -3172,6 +3301,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       }
       const list = (Array.isArray(data.structures) ? data.structures : []) as DrawableStructure[];
       clearProposals();
+      setDsClicked(true);   // clearProposals just reset it: this read is still the one the box belongs to
       const ids: string[] = [];
       for (const s of list) {
         const id = chart.createOverlay({
@@ -3318,7 +3448,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             trading app, where people read entries and stops straight off the
             chart. Rendering it as real DOM here makes it unconditional. */}
         {chartDisplaySymbol(coin).startsWith('1000') && (
-          <span className="klc-scale-badge" title="Bybit quotes this perp per 1000 tokens, so the chart axis is 1000x the per-token price shown elsewhere in the app">
+          <span className="klc-scale-badge" title={tl('CHART_SCALE_BADGE_TITLE')}>
             {chartDisplaySymbol(coin)}
           </span>
         )}
@@ -3450,49 +3580,52 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             className={`klc-tool-btn klc-draw-btn${activeTool ? ' on' : ''}`}
             onClick={() => setDrawMenuOpen(v => !v)}
             aria-expanded={drawMenuOpen}
-            title="Drawing tools"
+            title={tl('CHART_DRAW_TITLE')}
           >
-            {activeTool ? (TOOLS.find(t => t.id === activeTool)?.label ?? 'Draw') : 'Draw'} <span aria-hidden="true">{drawMenuOpen ? '▴' : '▾'}</span>
+            {activeTool ? tl(TOOL_LABEL_KEYS[activeTool as keyof typeof TOOL_LABEL_KEYS] ?? 'CHART_DRAW') : tl('CHART_DRAW')} <span aria-hidden="true">{drawMenuOpen ? '▴' : '▾'}</span>
           </button>
           {drawMenuOpen && (
             <div className="klc-draw-menu">
-              {TOOLS.map(({ id, label }) => (
+              {TOOLS.map(({ id }) => (
                 <button
                   key={id}
                   className={`klc-draw-item${activeTool === id ? ' on' : ''}`}
                   onClick={() => { handleTool(id); setDrawMenuOpen(false); }}
                 >
-                  {label}
+                  {tl(TOOL_LABEL_KEYS[id])}
                 </button>
               ))}
-              <button className="klc-draw-item klc-draw-clear" onClick={() => { handleClear(); setDrawMenuOpen(false); }}>✕ Clear all</button>
+              <button className="klc-draw-item klc-draw-clear" onClick={() => { handleClear(); setDrawMenuOpen(false); }}>{tl('CHART_CLEAR_ALL')}</button>
             </div>
           )}
         </div>
         <div className="klc-sep" />
         <button
           className={`klc-tool-btn${showSR ? ' on' : ''}`}
+          aria-pressed={showSR}
           onClick={() => onShowSRChange(!showSR)}
-          title="Toggle auto support &amp; resistance levels"
+          title={tl('CHART_SR_TITLE')}
         >
-          S/R
+          {tl('CHART_SR')}
         </button>
 
         <button
           className={`klc-tool-btn${showPA ? ' on' : ''}`}
+          aria-pressed={showPA}
           onClick={() => setShowPA(v => !v)}
-          title="Toggle market structure breaks - price-action signals, separate from the EMA buy/sell markers"
+          title={tl('CHART_STRUCTURE_TITLE')}
         >
-          Structure
+          {tl('CHART_STRUCTURE')}
         </button>
 
         {liqClusters && liqClusters.length > 0 && (
           <button
             className={`klc-tool-btn${showLiq ? ' on' : ''}`}
+            aria-pressed={showLiq}
             onClick={() => onShowLiqChange(!showLiq)}
-            title={`Toggle realized liquidation clusters - the heaviest price levels where positions were actually liquidated in the last 24h. Price memory, not predicted liquidation levels.${liqHistOnly ? ` The stored history comes from ${liqHistOnly === 'BN' ? 'Binance' : 'Bybit'} only.` : ''}`}
+            title={`${tl('CHART_LIQ_TITLE')}${liqHistOnly ? ` ${tl('CHART_LIQ_HIST_FROM', { venue: liqHistOnly === 'BN' ? 'Binance' : 'Bybit' })}` : ''}`}
           >
-            Liq{liqHistOnly ? ` · ${liqHistOnly === 'BN' ? 'Binance' : 'Bybit'} only` : ''}
+            {tl('CHART_LIQ')}{liqHistOnly ? ` · ${tl('CHART_LIQ_VENUE_ONLY', { venue: liqHistOnly === 'BN' ? 'Binance' : 'Bybit' })}` : ''}
           </button>
         )}
 
@@ -3558,15 +3691,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           <button
             className="klc-tool-btn klc-fullscreen-btn"
             onClick={handleFullscreen}
-            title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-            aria-label={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            title={fullscreen ? tl('CHART_EXIT_FULLSCREEN') : tl('CHART_FULLSCREEN')}
+            aria-label={fullscreen ? tl('CHART_EXIT_FULLSCREEN') : tl('CHART_FULLSCREEN')}
           >
             {fullscreen ? '⊠' : '⛶'}
           </button>
           <span
             className={`klc-ws-dot${wsStatus === 'live' ? ' live' : wsStatus === 'error' ? ' err' : ''}`}
             role="img"
-            aria-label={wsStatus === 'live' ? 'Live price feed' : wsStatus === 'error' ? 'Price feed offline' : 'Price feed connecting'}
+            aria-label={wsStatus === 'live' ? tl('CHART_FEED_LIVE') : wsStatus === 'error' ? tl('CHART_FEED_OFFLINE') : tl('CHART_FEED_CONNECTING')}
             title={wsStatus}
           />
         </span>
@@ -3622,7 +3755,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 key={alert.id}
                 className="klc-price-chip"
                 style={{ color: 'var(--amber)', background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.2)', cursor: 'default' }}
-                title={`Alert: ${alert.direction} ${currencyPrefix(coin)}${fmtPx(alert.target_price)}${alert.label ? ` · ${alert.label}` : ''} - drag the dashed line to adjust`}
+                title={tl('CHART_ALERT_CHIP_TITLE', { direction: String(alert.direction), price: `${currencyPrefix(coin)}${fmtPx(alert.target_price)}`, label: alert.label ? ` · ${alert.label}` : '' })}
               >
                 {alert.direction === 'above' ? '↑' : '↓'} {currencyPrefix(coin)}{fmtPx(alert.target_price)}
                 {alert.label ? <>&nbsp;·&nbsp;{alert.label}</> : null}
@@ -3644,7 +3777,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               color: 'var(--txt2)', background: 'var(--bg1)', border: '1px solid var(--bdr3)',
             }}
           >
-            Loading {loadingTf.toUpperCase()}&hellip;
+            {tl('CHART_LOADING_TF', { tf: loadingTf.toUpperCase() })}
           </div>
         )}
         {/* THE CHART SAYS THE MARKERS ARE FILTERED (#1263/#985, owner 2026-11-12). When a selected
@@ -3665,7 +3798,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               color: 'var(--txt2)', background: 'var(--bg1)', border: '1px solid var(--bdr3)',
             }}
           >
-            Markers filtered by your selection
+            {tl('CHART_MARKERS_FILTERED')}
           </div>
         )}
         {/* Drag-to-resize handle - grab and drag to set chart height (Bybit-style),
@@ -3675,8 +3808,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             className="klc-resize-handle"
             onPointerDown={(e) => { e.preventDefault(); onResizeStart(e.clientY); }}
             role="separator"
-            aria-label="Drag to resize chart height"
-            title="Drag to resize chart height"
+            aria-label={tl('CHART_RESIZE')}
+            title={tl('CHART_RESIZE')}
           >
             <span className="klc-resize-grip" />
           </div>
@@ -3706,8 +3839,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           }}>
             <span style={{ color: 'var(--amber)', marginRight: 5, lineHeight: 0 }}><Warn size={13} /></span>
             {rwTooltip.dir === 'bearish'
-              ? 'Trend reversal - RSI divergence detected'
-              : 'Potential bottom - RSI divergence detected'}
+              ? tl('CHART_RW_BEARISH')
+              : tl('CHART_RW_BULLISH')}
           </div>
         )}
 
@@ -3722,14 +3855,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             right: 0,
             top: Math.min(priceLabelY + 11, (containerRef.current?.clientHeight ?? 400) - 90),
             pointerEvents: 'none',
-            background: 'rgba(30,30,30,0.88)',
-            border: '1px solid rgba(255,255,255,0.10)',
+            /* THEME TOKENS, NOT A FIXED DARK CHIP (PM: the countdown read 1.21:1 in the LIGHT theme). --bg1 / --txt2 / --bdr follow the theme; --txt2 on --bg1 is about 5.6:1 in both. */
+            background: 'color-mix(in srgb, var(--bg1) 92%, transparent)',
+            border: '1px solid var(--bdr)',
             borderTop: 'none',
             borderRadius: '0 0 3px 3px',
             padding: '1px 6px 2px',
             fontSize: 'var(--fs-caption)',
             fontFamily: 'monospace',
-            color: 'rgba(255,255,255,0.70)',
+            color: 'var(--txt2)',
             letterSpacing: '0.04em',
             lineHeight: 1.5,
             userSelect: 'none',
@@ -3767,7 +3901,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               color: 'rgba(255,255,255,0.80)',
             }}>
               <Warn size={13} />
-              Couldn&apos;t load price history for {coin.toUpperCase()}. Try switching timeframe or reloading.
+              {tl('CHART_HISTORY_FAILED', { coin: coin.toUpperCase() })}
             </div>
           </div>
         )}
@@ -3796,7 +3930,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               borderRadius: 4,
               padding: '3px 8px',
             }}>
-              Bybit (Binance unreachable)
+              {tl('CHART_BYBIT_FALLBACK')}
             </div>
           </div>
         )}
@@ -3817,7 +3951,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               borderRadius: 4,
               padding: '3px 8px',
             }}>
-              Couldn&apos;t draw: {chartSyncIssues.join(', ')}
+              {tl('CHART_COULDNT_DRAW', { issues: chartSyncIssues.join(', ') })}
             </div>
           </div>
         )}

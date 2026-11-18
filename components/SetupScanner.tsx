@@ -1,5 +1,6 @@
 'use client';
 import { useMemo, useRef, useState } from 'react';
+import { accountRatio } from '@/lib/accountRatioVenue';
 import { useMarket, COINS, CoinId, CoinData, computeSqueezeScore, classifyFunding } from '@/lib/marketStore';
 import { SkeletonBar } from './Skeleton';
 import { Warn } from '@/components/icons';
@@ -33,6 +34,8 @@ interface ScanRow {
   dir: 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL';
   label: string;
   color: string;
+  /** At least two inputs arrived; false = UNKNOWN, kept out of the Neutral filter and count (S2). */
+  enough: boolean;
 }
 
 function OiTrendBadge({ trend }: { trend: CoinData['oiTrend'] }) {
@@ -126,14 +129,14 @@ function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
         </div>
         <div className="scan-stat">
           <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_LONG_PCT')}</span>
-          <span className="scan-stat-val" style={{ color: (cd.longRatio ?? 0) >= 0.6 ? 'var(--red)' : 'var(--txt-dim)' }}>
-            {fmtRatio(cd.longRatio)}
+          <span className="scan-stat-val" title={accountRatio(cd) ? `${accountRatio(cd)!.venue}, accounts, 1h` : undefined} style={{ color: (accountRatio(cd)?.long ?? 0) >= 0.6 ? 'var(--red)' : 'var(--txt-dim)' }}>
+            {fmtRatio(accountRatio(cd)?.long ?? null)}
           </span>
         </div>
         <div className="scan-stat">
           <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_SHORT_PCT')}</span>
-          <span className="scan-stat-val" style={{ color: (cd.shortRatio ?? 0) >= 0.6 ? 'var(--green-2)' : 'var(--txt-dim)' }}>
-            {fmtRatio(cd.shortRatio)}
+          <span className="scan-stat-val" title={accountRatio(cd) ? `${accountRatio(cd)!.venue}, accounts, 1h` : undefined} style={{ color: (accountRatio(cd)?.short ?? 0) >= 0.6 ? 'var(--green-2)' : 'var(--txt-dim)' }}>
+            {fmtRatio(accountRatio(cd)?.short ?? null)}
           </span>
         </div>
         <div className="scan-stat">
@@ -180,7 +183,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
 
   const filtered = useMemo(() => {
     if (filter === 'all') return sorted;
-    return sorted.filter(r => r.dir === filter);
+    return sorted.filter(r => r.dir === filter && (filter !== 'NEUTRAL' || r.enough));
   }, [sorted, filter]);
 
   const strongCount = useMemo(
@@ -202,7 +205,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
   // Count by direction
   const counts = useMemo(() => {
     const c = { LONG_LIQ: 0, SHORT_SQ: 0, NEUTRAL: 0 };
-    sorted.forEach(r => { c[r.dir]++; });
+    sorted.forEach(r => { if (r.dir === 'NEUTRAL' && !r.enough) return; c[r.dir]++; });
     return c;
   }, [sorted]);
 

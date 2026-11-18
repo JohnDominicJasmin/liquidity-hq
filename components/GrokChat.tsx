@@ -1,7 +1,9 @@
 'use client';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { renderChatMarkdown } from '@/lib/renderChatMarkdown';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   useMarket, CoinId, COINS, computeSqueezeScore, classifyFunding, BINANCE_SYMS, BYBIT_SYMS,
 } from '@/lib/marketStore';
@@ -18,12 +20,15 @@ import { withAlpha } from '@/lib/color';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
 import { needsLiveSearch } from '@/lib/searchTriggers';
-import { describeSelection } from '@/lib/strategyRegistry';
+import { describeSelection, selectionForPlan } from '@/lib/strategyRegistry';
+import { binanceKlineSource } from '@/lib/coins';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import CoinMultiSelect from './CoinMultiSelect';
 import { activatable } from '@/lib/activatable';
 import { PAGE_COIN_EVENT, currentPageCoin } from '@/lib/pageCoin';
+import { MARKET_DATA_NEEDED_EVENT } from '@/lib/marketDataNeeded';
 import AiDisclaimer from '@/components/AiDisclaimer';
+import { accountRatio } from '@/lib/accountRatioVenue';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
 // app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
@@ -111,7 +116,7 @@ const QUICK = [
   'Best entry zone?',
   'Key risks?',
   'Where to set stop?',
-  'Trade now or wait?',
+  'Describe this setup',
   'Any whale activity?',
   'What are liq levels?',
   'Trend direction?',
@@ -138,7 +143,7 @@ function buildChatContext(
     cvdDivergence: c?.cvdDivergence ?? undefined,
     ma20: c?.ma20, volRatio: c?.volRatio, cvd: c?.cvd,
     funding: fr?.label,
-    oi: c?.oi, longRatio: c?.longRatio, shortRatio: c?.shortRatio,
+    oi: c?.oi, longRatio: accountRatio(c)?.long, shortRatio: accountRatio(c)?.short, ratioVenue: accountRatio(c)?.venue,
     squeeze: sq.score + '/100 - ' + sq.label,
     basisPct: c?.perpPrice && c.price ? (c.perpPrice - c.price) / c.price * 100 : undefined,
     bidWalls: c?.orderBidWalls?.map(w => w.price),
@@ -159,14 +164,19 @@ function buildChatContext(
 
 /* ─────────────────────────────────────────────────────────────── */
 export default function GrokChat() {
+  /* On the Arena, on a phone, the floating button is hidden (the page has its own Ask AI entries; PM audit 2026-11-17; globals.css .gchat-fab-arena). */
+  const onArena = usePathname() === '/arena';
   const { store }                      = useMarket();
   const { latestHeadlines, geoEvents } = useNews();
   const { user, loading: authLoading } = useAuth();
+  const { entitlementStatus, entitlementsLoading } = useAuth();
   const { settings, settingsLoadStatus } = useSettings();
   const { t } = useLabels();
 
   const [open,           setOpen]           = useState(false);
   const [expanded,       setExpanded]       = useState(false);
+  /* The chat reads the market store, which is not running on data-free pages (components/AppShell.tsx): opening it asks the shell to start it. */
+  useEffect(() => { if (open) window.dispatchEvent(new Event(MARKET_DATA_NEEDED_EVENT)); }, [open]);
   const [liveSearch,     setLiveSearch]     = useState(false);
   const [histView,       setHistView]       = useState(false);
   const [coin,           setCoin]           = useState<CoinId>('btc');
@@ -276,7 +286,7 @@ export default function GrokChat() {
         const by = BYBIT_SYMS[coin] as string | undefined;
         let raw: (string | number)[][];
         if (bn) {
-          const r = await fetch(`/api/market/klines?source=binance&symbol=${bn}&interval=1h&limit=300`);
+          const r = await fetch(`/api/market/klines?source=${binanceKlineSource(coin)}&symbol=${bn}&interval=1h&limit=300`);
           if (!r.ok) throw new Error('binance');
           raw = await r.json();
         } else if (by) {
@@ -408,7 +418,7 @@ export default function GrokChat() {
       /* #1631 E: the browser sends DATA (the context below) and the conversation; /api/grok-chat writes the system prompt
          (lib/chatPrompt.ts). An educational question with no search gets the short prompt (minimal), as before. #985 gap 2: the
          selection is read fresh on every turn. */
-      const context = buildChatContext(store, activeCoin, latestHeadlines, geoEvents, structureLine, describeSelection(chatSelection));
+      const context = buildChatContext(store, activeCoin, latestHeadlines, geoEvents, structureLine, describeSelection(selectionForPlan(chatSelection, !authLoading && !entitlementsLoading && entitlementStatus === 'not_entitled')));
       // Cap at last 8 messages (4 pairs) - prevents token cost growing unbounded
       const apiMsgs = history.slice(-8).map(m => ({ role: m.role, content: m.content }));
 
@@ -417,7 +427,7 @@ export default function GrokChat() {
         method:  'POST',
         headers: reqHeaders,
         // Never waits for ever (OWNER-RULES 21): live search is allowed just over the server's own 180 s abort, a plain answer less.
-        signal:  AbortSignal.timeout(useSearch ? 200_000 : 90_000),
+        signal:  deadlineSignal(useSearch ? 200_000 : 90_000),
         body:    JSON.stringify({
           mode:       useSearch ? 'search' : 'chat',
           context,
@@ -453,7 +463,7 @@ export default function GrokChat() {
       setLoading(false);
       setPendingText(null);
     }
-  }, [msgs, coin, liveActive, store, latestHeadlines, geoEvents, user, authLoading, usage, setUsage, chatSelection]);
+  }, [msgs, coin, liveActive, store, latestHeadlines, geoEvents, user, authLoading, usage, setUsage, chatSelection, entitlementStatus, entitlementsLoading]);
 
   /* ── Open-with-prompt event from Arena ── */
   useEffect(() => {
@@ -634,7 +644,7 @@ export default function GrokChat() {
       <button
         ref={launcherRef}
         data-testid="grok-launcher"
-        className={`gchat-fab${open ? ' gchat-fab-open' : ''}${!fabVisible ? ' gchat-fab-scrolling' : ''}`}
+        className={`gchat-fab${onArena ? ' gchat-fab-arena' : ''}${open ? ' gchat-fab-open' : ''}${!fabVisible ? ' gchat-fab-scrolling' : ''}`}
         onClick={() => { setOpen(v => !v); if (open) { setExpanded(false); setShowLoginModal(false); } }}
         title={t('GROK_FAB_LABEL')}
         aria-label={t('CHAT_OPEN_AI_CHAT')}

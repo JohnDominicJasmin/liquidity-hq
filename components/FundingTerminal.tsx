@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId, useMarket } from '@/lib/marketStore';
 import { useTheme } from '@/lib/theme';
 import { coinBadgeColor } from '@/lib/coinBadge';
@@ -31,12 +32,14 @@ const RANGE_LABEL_KEYS: Record<RangeKey, LabelKey> = {
 };
 
 /* ── data fetching ── */
-async function fetchAllBinanceFR(): Promise<Record<string, FRPoint[]>> {
+/* `via` = the Binance symbols whose history Binance could not give and Bybit did (the route's viaFallback), so the page can say whose numbers it is showing. */
+async function fetchAllBinanceFR(): Promise<{ out: Record<string, FRPoint[]>; via: string[] }> {
   try {
-    const res = await fetch('/api/market/funding-rate?limit=42');
-    if (!res.ok) return {};
-    const { data } = await res.json() as {
+    const res = await fetch('/api/market/funding-rate?limit=42', { signal: deadlineSignal(10_000) });
+    if (!res.ok) return { out: {}, via: [] };
+    const { data, viaFallback } = await res.json() as {
       data: Record<string, Array<{ fundingRate: string; fundingTime: number }>>;
+      viaFallback?: string[];
     };
     const out: Record<string, FRPoint[]> = {};
     for (const [sym, rows] of Object.entries(data ?? {})) {
@@ -44,8 +47,8 @@ async function fetchAllBinanceFR(): Promise<Record<string, FRPoint[]>> {
         .map(d => ({ rate: parseFloat(d.fundingRate), ts: d.fundingTime }))
         .sort((a, b) => a.ts - b.ts);
     }
-    return out;
-  } catch { return {}; }
+    return { out, via: viaFallback ?? [] };
+  } catch { return { out: {}, via: [] }; }
 }
 
 async function fetchBybitFR(sym: string): Promise<FRPoint[]> {
@@ -339,6 +342,8 @@ export default function FundingTerminal() {
   const [selected, setSelected] = useState<CoinId>('btc');
   const [rangeKey, setRangeKey] = useState<RangeKey>('7d');
   const [loading, setLoading]   = useState(true);
+  /* Coins whose funding history is Bybit's because Binance could not supply it. Said on the page, never shown as Binance's. */
+  const [bybitCoins, setBybitCoins] = useState<CoinId[]>([]);
   const [frSearch, setFrSearch] = useState('');
 
   const fullChartRef = useRef<HTMLCanvasElement>(null);
@@ -349,17 +354,27 @@ export default function FundingTerminal() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const result: FRHistory = {};
-      const binanceAll = await fetchAllBinanceFR();
-      await Promise.all(COINS.map(async id => {
+      /* THE TABLE PAINTS FROM THE MARKET SNAPSHOT, NOT FROM THIS FETCH. The rows' current rates come from the shared store; this history only feeds the sparklines and the averages. It used to hold the whole page
+         (the table was gated on it) until every coin's history, including one-by-one Bybit fallbacks, had come back: a 3.5 s first paint on a cold desktop load. Now the Binance batch lands first and is shown
+         at once, then each fallback coin is added as it arrives. */
+      const { out: binanceAll, via } = await fetchAllBinanceFR();
+      if (cancelled) return;
+      const first: FRHistory = {};
+      const needBybit: CoinId[] = [];
+      const fromBybit = new Set<CoinId>();
+      for (const id of COINS) {
         const binSym = (BINANCE_SYMS as Record<string, string>)[id];
-        const bbSym  = (BYBIT_SYMS  as Record<string, string>)[id];
-        let pts: FRPoint[] = [];
-        if (binSym) pts = binanceAll[binSym] ?? [];
-        if (!pts.length && bbSym) pts = await fetchBybitFR(bbSym);
-        if (pts.length) result[id] = pts;
-      }));
-      if (!cancelled) { setHistory(result); setLoading(false); }
+        const pts = binSym ? binanceAll[binSym] ?? [] : [];
+        if (pts.length) { first[id] = pts; if (binSym && via.includes(binSym)) fromBybit.add(id); }
+        else if ((BYBIT_SYMS as Record<string, string>)[id]) needBybit.push(id);
+      }
+      setHistory(first);
+      setBybitCoins([...fromBybit]);
+      setLoading(false);
+      needBybit.forEach(async id => {
+        const pts = await fetchBybitFR((BYBIT_SYMS as Record<string, string>)[id]);
+        if (!cancelled && pts.length) { setHistory(prev => ({ ...prev, [id]: pts })); setBybitCoins(prev => (prev.includes(id) ? prev : [...prev, id])); }
+      });
     })();
     return () => { cancelled = true; };
   }, []);
@@ -410,6 +425,11 @@ export default function FundingTerminal() {
       <div className="mb-header">
         <h1 className="mb-title">{t('FUNDING_PAGE_TITLE')}</h1>
         <div className="mb-subtitle">{t('FUNDING_PAGE_SUBTITLE')}</div>
+        {!loading && bybitCoins.length > 0 && (
+          <div data-testid="funding-via-bybit" className="mb-subtitle" style={{ marginTop: 6, marginBottom: 0 }}>
+            {t('FUNDING_VIA_BYBIT_NOTE', { coins: bybitCoins.map(c => COIN_LABELS[c] ?? c.toUpperCase()).join(', ') })}
+          </div>
+        )}
       </div>
 
       {/* FR Regime Overview */}
@@ -437,23 +457,29 @@ export default function FundingTerminal() {
               <Tip width={250} text={t('FUNDING_REGIME_OVERVIEW_TIP')}>{t('FUNDING_REGIME_OVERVIEW_LABEL')}</Tip>
             </div>
 
-            {/* Summary chips */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+            {/* Summary chips: a regime with a count of zero is not drawn (an empty '0 / 0 / 0' block read as a dead panel, #1185) */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: shortSignals.length + longSignals.length + arbs.length > 0 ? 10 : 0 }}>
+              {shortSignals.length > 0 && (
               <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 0, background: 'rgba(248,113,113,0.10)', color: 'var(--red)', border: '0.5px solid rgba(248,113,113,0.25)', fontWeight: 700 }}>
                 <Tip iconColor="var(--red)" text={t('FUNDING_CONTRARIAN_SHORT_TIP')}>
                   {t('FUNDING_CONTRARIAN_SHORT_COUNT', { count: shortSignals.length, plural: shortSignals.length !== 1 ? 's' : '' })}
                 </Tip>
               </span>
+              )}
+              {longSignals.length > 0 && (
               <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 0, background: 'rgba(52,211,153,0.10)', color: 'var(--green-2)', border: '0.5px solid rgba(52,211,153,0.25)', fontWeight: 700 }}>
                 <Tip iconColor="var(--green-2)" text={t('FUNDING_CONTRARIAN_LONG_TIP')}>
                   {t('FUNDING_CONTRARIAN_LONG_COUNT', { count: longSignals.length, plural: longSignals.length !== 1 ? 's' : '' })}
                 </Tip>
               </span>
+              )}
+              {arbs.length > 0 && (
               <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent)', border: '0.5px solid var(--accent-bdr)', fontWeight: 700 }}>
                 <Tip iconColor="var(--accent)" text={t('FUNDING_CARRY_ARB_TIP')}>
                   {t('FUNDING_CARRY_ARB_COUNT', { count: arbs.length })}
                 </Tip>
               </span>
+              )}
             </div>
 
             {/* Coin regime rows */}
@@ -527,7 +553,7 @@ export default function FundingTerminal() {
 
       {loading && <LoadingState message={t('FUNDING_LOADING_MESSAGE')} />}
 
-      {!loading && (() => {
+      {(() => {
         let longCnt = 0, shortCnt = 0, neutralCnt = 0;
         COINS.forEach(id => {
           const fr = store.coins[id]?.fundingRate;

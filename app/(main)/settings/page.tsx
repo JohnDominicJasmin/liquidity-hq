@@ -125,7 +125,7 @@ export default function SettingsPage() {
   // Held WITH the account it was read for (QA, #1499): when the signed-in user changes, the
   // previous account's answer used to stay on screen until the new read landed. Anyone
   // else's answer now reads as 'loading'.
-  const [tgRead, setTgRead] = useState<{ uid: string; status: 'configured' | 'not_configured' | 'error' } | null>(null);
+  const [tgRead, setTgRead] = useState<{ uid: string; status: 'configured' | 'paused' | 'not_configured' | 'error' } | null>(null);
   const tgStatus = tgRead && tgRead.uid === user?.id ? tgRead.status : 'loading';
   // Bumped by the "Couldn't check" retry, to re-run the status read below (QA, #1499).
   const [tgAttempt, setTgAttempt] = useState(0);
@@ -220,9 +220,9 @@ export default function SettingsPage() {
         if (!token) throw new Error('no session token');
         const res = await fetch('/api/telegram/status', { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const d = await res.json() as { configured?: unknown };
+        const d = await res.json() as { configured?: unknown; paused?: unknown };
         if (typeof d.configured !== 'boolean') throw new Error('malformed status response');
-        if (!cancelled) setTgRead({ uid, status: d.configured ? 'configured' : 'not_configured' });
+        if (!cancelled) setTgRead({ uid, status: d.configured ? (d.paused === true ? 'paused' : 'configured') : 'not_configured' });
       } catch (e) {
         console.error('[settings] telegram status check failed:', e);
         if (!cancelled) setTgRead({ uid, status: 'error' });
@@ -353,7 +353,7 @@ export default function SettingsPage() {
   if (!authLoading && !user) {
     const LOCKED = [
       t('SETTINGS_SECTION_ACCOUNT'), t('SETTINGS_SECTION_WATCHLIST'), t('SETTINGS_SECTION_TRADING_PROFILE'),
-      t('SETTINGS_SECTION_ARENA_DEFAULTS'), t('SETTINGS_SECTION_NOTIFICATIONS'), 'Dashboard Sections',
+      t('SETTINGS_SECTION_ARENA_DEFAULTS'), t('SETTINGS_SECTION_NOTIFICATIONS'), t('SETTINGS_SECTION_DASHBOARD_SECTIONS'),
       t('SETTINGS_SECTION_TELEGRAM'),
     ];
     return (
@@ -382,7 +382,7 @@ export default function SettingsPage() {
         </Section>
 
         <div className="st-section">
-          <div className="st-section-title">Sign in to continue</div>
+          <div className="st-section-title">{t('SETTINGS_SIGNED_OUT_TITLE')}</div>
           <div className="st-locked-list" style={{ display: 'flex', flexDirection: 'column', marginBottom: 20, pointerEvents: 'none' }}>
             {LOCKED.map(name => (
               <div key={name} style={{
@@ -400,14 +400,14 @@ export default function SettingsPage() {
               background: 'var(--accent-bg)', border: '0.5px solid var(--accent-bdr)', color: 'var(--accent)',
               fontSize: 'var(--fs-caption)', fontWeight: 700, textAlign: 'center', textDecoration: 'none',
             }}>
-              Create free account
+              {t('SETTINGS_CREATE_FREE_ACCOUNT')}
             </Link>
             <Link href="/login" style={{
               flex: 1, display: 'block', padding: '9px 0', borderRadius: 'var(--radius-card)',
               border: '0.5px solid var(--bdr)', color: 'var(--txt2)',
               fontSize: 'var(--fs-caption)', fontWeight: 600, textAlign: 'center', textDecoration: 'none',
             }}>
-              Sign in
+              {t('LOGIN_SIGNIN_BUTTON')}
             </Link>
           </div>
         </div>
@@ -869,6 +869,8 @@ export default function SettingsPage() {
               ? <SkeletonBar width={70} height={12} />
               : tgStatus === 'configured'
               ? t('SETTINGS_TG_CONFIGURED')
+              : tgStatus === 'paused'
+              ? t('SETTINGS_TG_PAUSED_PRO')
               : tgStatus === 'error'
               ? <>
                   {t('SETTINGS_TG_STATUS_ERROR')}
@@ -888,7 +890,7 @@ export default function SettingsPage() {
             check failed that it needs setting up, which is the claim it couldn't make. */}
         {tgStatus !== 'error' && (
           <Link ref={tgLinkRef} href="/alerts" className="st-link-btn">
-            {tgStatus === 'configured' ? t('SETTINGS_TG_MANAGE_LINK') : t('SETTINGS_TG_SETUP_LINK')}
+            {tgStatus === 'configured' || tgStatus === 'paused' ? t('SETTINGS_TG_MANAGE_LINK') : t('SETTINGS_TG_SETUP_LINK')}
           </Link>
         )}
       </Section>

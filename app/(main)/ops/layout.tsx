@@ -1,5 +1,10 @@
 import OPS_LABEL_DEFAULTS from '@/lib/labelDefaults.ops.en.json' with { type: 'json' };
 import OpsGate from './_gate';
+import type { Metadata } from 'next';
+import { NOINDEX_APP_PAGE } from '@/lib/seo';
+
+/* The admin console is never listed (SEO quick wins, #1185). robots.txt already keeps crawlers out; this tag is what removes a url that was listed from a link. */
+export const metadata: Metadata = { robots: NOINDEX_APP_PAGE };
 
 /* A SERVER component on purpose, and the gate itself lives in ./_gate.tsx (#1632 item 15).
  *

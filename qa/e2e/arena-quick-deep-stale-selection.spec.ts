@@ -96,8 +96,8 @@ test.describe('QUICK/DEEP must send the selection current at click time, not a s
       await emaChip.click();
       await expect(emaChip).toHaveAttribute('aria-pressed', 'true');
 
-      const quickBtn = page.getByRole('button', { name: 'QUICK', exact: true });
-      const deepBtn  = page.getByRole('button', { name: 'DEEP', exact: true });
+      const quickBtn = page.getByRole('button', { name: /^quick$/i });
+      const deepBtn  = page.getByRole('button', { name: /^deep$/i });
       await expect(quickBtn).toBeVisible({ timeout: 15_000 });
 
       // Call #1 (real AI credit #1) - selection A (MACD), mode 'quick'.

@@ -24,6 +24,19 @@ const FLUSH_MS = 5_000;
 const MAX_BATCH = 500;
 const MAX_QUEUE = 5_000;
 const BACKOFF_CAP_MS = 30_000;
+/* WATCHDOG. A TCP stall (half-open socket) fires neither close nor error, so without this the collector stops with nothing to say so. Bybit answers our 20 s ping, so a minute of NO message at all
+   (pongs count) means the socket is dead; Binance only sends data when something liquidates, so its limit is long. Past LIQ_SILENCE_FAIL_MS with no liquidation from either venue the health row goes FAILED. */
+export const BYBIT_STALE_MS = 60_000;
+export const BINANCE_STALE_MS = 10 * 60_000;
+export const LIQ_SILENCE_FAIL_MS = 20 * 60_000;
+const WATCHDOG_MS = 15_000;
+const HEARTBEAT_MS = 60_000;
+const HEARTBEAT_WINDOW = 10;   // heartbeats kept: the detail reports the last 10 minutes
+
+/** What one message did: whether it was a real data message (an ack or a pong is a sign of life, not data) and how many rows it yielded. */
+export interface MsgResult { data: boolean; kept: number }
+/** True when a socket that last heard something at `lastMsgAt` has been silent longer than `limitMs`. */
+export function isStale(nowMs: number, lastMsgAt: number, limitMs: number): boolean { return nowMs - lastMsgAt > limitMs; }
 
 export interface LiqRow { coin: string; side: 'LONG' | 'SHORT'; usd: number; price: number; source: 'BN' | 'BB'; ts: number }
 
@@ -52,6 +65,8 @@ export function parseBinanceForceOrder(raw: string, ts: number): LiqRow | null {
     const msg = JSON.parse(raw);
     const o = msg?.data?.o ?? msg?.o;
     if (!o) return null;
+    /* ONLY FILLED IS STORED. `z` is the ACCUMULATED filled quantity of the order, so a PARTIALLY_FILLED event carries a running total and the payload has no order id to tell its successive events apart: counting each partial event as its own row
+       would double-count the same order. A FILLED event's z (equal to q) is the whole order, once. Value = z x ap (average price), as Binance documents. */
     if (o.X && o.X !== 'FILLED') return null;
     const priceAp = parseFloat(o.ap ?? '0');
     const priceP = parseFloat(o.p ?? '0');
@@ -81,7 +96,8 @@ export function parseBybitLiquidation(raw: string, ts: number): LiqRow[] {
   } catch { return []; }
 }
 
-interface Collector { started: boolean; queue: LiqRow[]; flushing: boolean; sockets: Array<{ close(): void } | null> }
+interface Venue { lastMsgAt: number; staleMs: number; retire: (reason: string) => void; name: string; open: boolean; msgs: number; kept: number; hist: Array<{ at: number; msgs: number; kept: number }> }
+interface Collector { started: boolean; stopped: boolean; queue: LiqRow[]; flushing: boolean; lastRowAt: number; venues: Venue[]; sockets: Array<{ close(): void } | null> }
 const g = globalThis as typeof globalThis & { __lhqLiqCollector?: Collector };
 
 async function flush(c: Collector): Promise<void> {
@@ -108,25 +124,38 @@ async function flush(c: Collector): Promise<void> {
   }
 }
 
-function connect(c: Collector, idx: number, name: string, open: () => WebSocket, onOpen: (ws: WebSocket) => void, onMessage: (data: string) => void): void {
+function connect(c: Collector, idx: number, name: string, staleMs: number, open: () => WebSocket, onOpen: (ws: WebSocket) => void, onMessage: (data: string) => MsgResult): void {
   let attempts = 0;
+  let gen = 0; /* each socket owns a generation; a retired socket's late events are ignored, so a dead one can never reconnect twice */
+  const venue: Venue = { lastMsgAt: Date.now(), staleMs, retire: () => {}, name, open: false, msgs: 0, kept: 0, hist: [] };
+  c.venues[idx] = venue;
+  const schedule = () => { if (!c.stopped) setTimeout(go, Math.min(BACKOFF_CAP_MS, 2_000 * ++attempts)); };
   const go = () => {
+    if (c.stopped) return;
+    const mine = ++gen;
+    venue.lastMsgAt = Date.now();
     let ws: WebSocket;
     try { ws = open(); } catch (e) {
       reportHealth(`liq:${name}`, 'other', false, String(e instanceof Error ? e.message : e).slice(0, 200));
-      setTimeout(go, Math.min(BACKOFF_CAP_MS, 2_000 * ++attempts));
+      schedule();
       return;
     }
     c.sockets[idx] = ws;
-    ws.addEventListener('open', () => { attempts = 0; reportHealth(`liq:${name}`, 'other', true, 'connected'); onOpen(ws); });
-    ws.addEventListener('message', (ev: MessageEvent) => { if (typeof ev.data === 'string') onMessage(ev.data); });
     let lastError = '';
+    /* Reported as FAILED with what the socket said, so a venue that refuses this server (Binance has before) shows up in lhq_api_health as that venue being down; the feed then says its history is one-venue (LiqFeed). */
+    const retire = (reason: string) => {
+      if (gen !== mine) return;
+      gen++;
+      venue.open = false;
+      try { ws.close(); } catch { /* already closed */ }
+      reportHealth(`liq:${name}`, 'other', false, `${reason}, reconnecting`);
+      schedule();
+    };
+    venue.retire = retire;
+    ws.addEventListener('open', () => { if (gen !== mine) return; attempts = 0; venue.open = true; venue.lastMsgAt = Date.now(); venue.hist = [{ at: Date.now(), msgs: venue.msgs, kept: venue.kept }]; reportHealth(`liq:${name}`, 'other', true, 'connected'); onOpen(ws); });
+    ws.addEventListener('message', (ev: MessageEvent) => { if (gen !== mine) return; venue.lastMsgAt = Date.now(); if (typeof ev.data !== 'string') return; const r = onMessage(ev.data); if (r.data) { venue.msgs++; venue.kept += r.kept; } });
     ws.addEventListener('error', (ev: Event) => { lastError = String((ev as ErrorEvent).message ?? '').slice(0, 120); /* the close that follows does the reconnect */ });
-    ws.addEventListener('close', (ev: CloseEvent) => {
-      /* Reported as FAILED with what the socket said, so a venue that refuses this server (Binance has before) shows up in lhq_api_health as that venue being down; the feed then says its history is one-venue (LiqFeed). */
-      reportHealth(`liq:${name}`, 'other', false, `socket closed (code ${ev.code}${lastError ? ', ' + lastError : ''}), reconnecting`);
-      setTimeout(go, Math.min(BACKOFF_CAP_MS, 2_000 * ++attempts));
-    });
+    ws.addEventListener('close', (ev: CloseEvent) => retire(`socket closed (code ${ev.code}${lastError ? ', ' + lastError : ''})`));
   };
   go();
 }
@@ -136,19 +165,19 @@ export function startLiqCollector(): void {
   if (process.env.LIQ_COLLECTOR !== '1') return;
   if (g.__lhqLiqCollector?.started) return;
   if (typeof WebSocket === 'undefined') { reportHealth('liq:collect', 'other', false, 'no global WebSocket in this Node runtime'); return; }
-  const c: Collector = { started: true, queue: [], flushing: false, sockets: [null, null] };
+  const c: Collector = { started: true, queue: [], flushing: false, stopped: false, lastRowAt: Date.now(), venues: [], sockets: [null, null] };
   g.__lhqLiqCollector = c;
-  const push = (r: LiqRow | null) => { if (r) { c.queue.push(r); if (c.queue.length > MAX_QUEUE) c.queue.shift(); } };
+  const push = (r: LiqRow | null) => { if (r) { c.lastRowAt = Date.now(); c.queue.push(r); if (c.queue.length > MAX_QUEUE) c.queue.shift(); } };
 
   const bnStreams = Object.values(BINANCE_SYMS).map(s => `${s.toLowerCase()}@forceOrder`).join('/');
-  connect(c, 0, 'binance',
-    () => new WebSocket(`wss://fstream.binance.com/stream?streams=${bnStreams}`),
+  connect(c, 0, 'binance', BINANCE_STALE_MS,
+    () => new WebSocket(`wss://fstream.binance.com/market/stream?streams=${bnStreams}`),
     () => { /* the combined stream subscribes by URL */ },
-    data => push(parseBinanceForceOrder(data, Date.now())));
+    data => { const r = parseBinanceForceOrder(data, Date.now()); push(r); return { data: true, kept: r ? 1 : 0 }; });
 
   const topics = Object.values(BYBIT_SYMS).map(s => `allLiquidation.${s}`);
   let bybitHost = 0;
-  connect(c, 1, 'bybit',
+  connect(c, 1, 'bybit', BYBIT_STALE_MS,
     () => new WebSocket(bybitHost++ % 2 === 0 ? 'wss://stream.bybit.com/v5/public/linear' : 'wss://stream.bytick.com/v5/public/linear'),
     ws => {
       for (let i = 0; i < topics.length; i += 25) ws.send(JSON.stringify({ op: 'subscribe', args: topics.slice(i, i + 25) }));
@@ -156,9 +185,40 @@ export function startLiqCollector(): void {
       const ping = setInterval(() => { try { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ op: 'ping' })); else clearInterval(ping); } catch { clearInterval(ping); } }, 20_000);
       ws.addEventListener('close', () => clearInterval(ping));
     },
-    data => { for (const r of parseBybitLiquidation(data, Date.now())) push(r); });
+    data => {
+      const rows = parseBybitLiquidation(data, Date.now());
+      for (const r of rows) push(r);
+      return { data: data.includes('"topic":"allLiquidation.'), kept: rows.length };   // an ack or a pong keeps the socket alive but is not a data message
+    });
 
   const timer = setInterval(() => { void flush(c); }, FLUSH_MS);
   timer.unref?.();
-  process.once('SIGTERM', () => { void flush(c); });
+  let lastSilenceReport = 0;
+  const dog = setInterval(() => {
+    const now = Date.now();
+    for (const v of c.venues) if (v && isStale(now, v.lastMsgAt, v.staleMs)) v.retire(`no message for ${Math.round((now - v.lastMsgAt) / 1000)} s`);
+    /* A silent stop must be VISIBLE: with no liquidation from either venue for LIQ_SILENCE_FAIL_MS the collect row goes FAILED (re-reported every 5 min), and the next row clears it. */
+    if (isStale(now, c.lastRowAt, LIQ_SILENCE_FAIL_MS) && now - lastSilenceReport > 5 * 60_000) {
+      lastSilenceReport = now;
+      reportHealth('liq:collect', 'other', false, `no liquidations received for ${Math.round((now - c.lastRowAt) / 60_000)} min`);
+    }
+  }, WATCHDOG_MS);
+  dog.unref?.();
+  /* HEARTBEAT: "connected" used to be written once at open, so a silent socket and a quiet market read the same. Each open venue now writes what it has seen in the last ~10 minutes, once a minute
+     (data messages, rows kept after the floor, seconds since ANY message), so a stalled feed and a quiet one can be told apart in lhq_api_health. */
+  const beat = setInterval(() => {
+    const now = Date.now();
+    for (const v of c.venues) {
+      if (!v || !v.open) continue;   // a closed socket already reported itself and is on its backoff
+      /* The window START is read BEFORE this beat is pushed (and the history is seeded when the socket opens), so the first heartbeat reports what arrived since open, not 0 / 0. */
+      const first = v.hist[0] ?? { at: now, msgs: v.msgs, kept: v.kept };
+      v.hist.push({ at: now, msgs: v.msgs, kept: v.kept });
+      if (v.hist.length > HEARTBEAT_WINDOW + 1) v.hist.shift();
+      const mins = Math.max(1, Math.round((now - first.at) / 60_000));
+      reportHealth(`liq:${v.name}`, 'other', true, `connected, ${v.msgs - first.msgs} msgs / ${v.kept - first.kept} kept in ${mins} min, last msg ${Math.round((now - v.lastMsgAt) / 1000)}s ago`);
+    }
+  }, HEARTBEAT_MS);
+  beat.unref?.();
+  /* Next's own start handler (next start) also listens for SIGTERM and exits with 143 after its cleanup, so this does not block the exit; it makes a best effort to write the last <5 s of rows and stops the sockets reconnecting. */
+  process.once('SIGTERM', () => { c.stopped = true; for (const s of c.sockets) { try { s?.close(); } catch { /* */ } } void flush(c); });
 }

@@ -4,7 +4,8 @@ import { useNow } from '@/lib/useNow';
 import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
-import { econImpactKey, type EconImpact } from '@/lib/classify';
+import { econImpactKey, econImpactWordKey, type EconImpact } from '@/lib/classify';
+import { localZoneAbbr } from '@/lib/resetTime';
 import PageHint from '@/components/PageHint';
 import { calendarFromResponse } from '@/lib/econCalendarFeed';
 
@@ -27,8 +28,10 @@ type CalEvent = {
 
 type TFn = (key: LabelKey, vars?: Record<string, string | number>) => string;
 
+/* The time is shown in the viewer's own zone and now says which (PM audit A11); hour12:false could print midnight as "24:30" in some engines, so the
+   24-hour cycle is requested explicitly. */
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) + ' ' + localZoneAbbr();
 }
 
 function fmtHeaderDate(iso: string, t: TFn): string {
@@ -102,7 +105,7 @@ const IMPACT_CFG: Record<EconImpact, { color: string; bg: string; border: string
    producer (enrichWithFRED, for past events) and the owner kept that path, so its column
    is expected back; deleting the keys would mean re-adding them across the defaults and
    every locale to restore a column that only needs a render. */
-const COLS = '68px 72px 1fr 70px';
+const COLS = '68px 88px 1fr 70px';   // the COUNTRY column is 88 px so its head is not clipped (#1185)
 
 const COL_LABEL_KEYS: LabelKey[] = [
   'ECON_CALENDAR_COL_TIME', 'ECON_CALENDAR_COL_COUNTRY', 'ECON_CALENDAR_COL_EVENT', 'ECON_CALENDAR_COL_IMPACT',
@@ -133,7 +136,10 @@ export default function EconCalendarPage() {
   }, []);
 
   const sorted = [...events].sort((a, b) => new Date(a.isoDate).getTime() - new Date(b.isoDate).getTime());
-  const next   = sorted.find(e => new Date(e.isoDate).getTime() > now - 3_600_000);
+  /* THE BANNER NAMES THE NEXT HIGH-IMPACT EVENT (#1185: it said "Next high-impact event: Retail Sales" for a medium one). When no high-impact event is ahead it shows the next event of any impact under its own
+     label, "Next event", never under the high-impact one. */
+  const upcomingEvents = sorted.filter(e => new Date(e.isoDate).getTime() > now - 3_600_000);
+  const next   = upcomingEvents.find(e => econImpactKey(e.impact) === 'HIGH') ?? upcomingEvents[0];
 
   const grouped: Record<string, CalEvent[]> = {};
   for (const e of sorted) {
@@ -172,7 +178,7 @@ export default function EconCalendarPage() {
           }}>
             <div>
               <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: ic.color, marginBottom: 3 }}>
-                {released ? t('ECON_CALENDAR_LATEST_RELEASE') : t('ECON_CALENDAR_NEXT_EVENT')}
+                {released ? t('ECON_CALENDAR_LATEST_RELEASE') : econImpactKey(next.impact) === 'HIGH' ? t('ECON_CALENDAR_NEXT_EVENT') : t('ECON_CALENDAR_NEXT_EVENT_ANY')}
               </div>
               <div style={{ fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--txt)' }}>{next.name}</div>
               {/* The hero date is the most prominent claim on this page, so an
@@ -181,11 +187,11 @@ export default function EconCalendarPage() {
                 {next.estimated ? '~' : ''}{fmtTime(next.isoDate)}
                 {next.estimated && (
                   <span
-                    title="This date is computed from a typical release pattern, not a published schedule. It can be off by several days."
+                    title={t('ECON_ESTIMATED_TIP_HERO')}
                     style={{ marginLeft: 6, fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.04em',
                              textTransform: 'uppercase', color: 'var(--amber)' }}
                   >
-                    estimated
+                    {t('ECON_ESTIMATED')}
                   </span>
                 )}
               </div>
@@ -250,7 +256,7 @@ export default function EconCalendarPage() {
                     style={{
                       display: 'grid', gridTemplateColumns: COLS, gap: 8,
                       padding: '11px 16px', alignItems: 'center',
-                      borderLeft: `3px solid ${e.impact === 'HIGH' ? ic.accent : 'transparent'}`,
+                      borderLeft: `3px solid ${econImpactKey(e.impact) === 'HIGH' ? ic.accent : 'transparent'}`,
                       borderBottom: i < dayEvents.length - 1 ? '0.5px solid var(--bdr)' : 'none',
                       /* #684: the overlay that composites this row up is what
                          put --txt3 at 4.46 in dark - four cells, dev's
@@ -314,7 +320,7 @@ export default function EconCalendarPage() {
                   >
                     {/* TIME */}
                     <div
-                      title={e.estimated ? 'Estimated date - computed from a typical release pattern, not a published schedule' : undefined}
+                      title={e.estimated ? t('ECON_ESTIMATED_TIP_ROW') : undefined}
                       style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}
                     >
                       {e.estimated ? '~' : ''}{fmtTime(e.isoDate)}
@@ -339,7 +345,7 @@ export default function EconCalendarPage() {
                       {e.estimated && (
                         <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.04em',
                                       textTransform: 'uppercase', color: 'var(--amber)', marginTop: 1 }}>
-                          estimated
+                          {t('ECON_ESTIMATED')}
                         </div>
                       )}
                       {!isPast && !ctObj.released && (
@@ -367,7 +373,7 @@ export default function EconCalendarPage() {
                         letterSpacing: '.04em',
                         color: ic.color, background: ic.bg, border: `0.5px solid ${ic.border}`,
                       }}>
-                        {e.impact}
+                        {econImpactWordKey(e.impact) ? t(econImpactWordKey(e.impact)!) : '-'}
                       </span>
                     </div>
                   </div>

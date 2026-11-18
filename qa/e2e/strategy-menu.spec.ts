@@ -1,6 +1,6 @@
 /* The ONE strategy menu on /arena (#2358, owner decision 2026-11-14 option A), signed in as account A. The settings write is STUBBED and recorded (nothing reaches the dev row); the settings READ is patched to play a saved
  * choice back. Candles are the real ones of the build under test (the CI stand-in market) unless a cell fails them on purpose.
- *   M1  the menu: Let the read choose, the seven strategies in the owner's order, Custom; no old presets, no duplicate label, no raw key; in en and ru
+ *   M1  the menu: Let the read choose, the fifteen strategies grouped as #2516 ships them, Custom; no old presets, no duplicate label, no raw key; in en and ru
  *   M2  PM's rules: picking a strategy never removes chips (six write arena_strategy ONLY; Bollinger squeeze ADDS BOLL and writes both in ONE request); a chip tap keeps the strategy; Let the read choose / Custom write arena_strategy: null only
  *   M3  the call box sits directly under the dropdown inside the same panel with name, description, verdict + reason, the signals-not-predictions line; Let the read choose and Custom show no call box; a failed candle read
  *       is the UNAVAILABLE state (never WAIT), and so is supply / demand when only the BTC read fails
@@ -14,8 +14,9 @@ import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_
 import { installPaidAiFence } from './_no-paid-ai';
 
 mkdirSync('qa/.shots', { recursive: true });
-const IDS = ['liq_sweep_mss', 'ny_open_breakout', 'ema_stack', 'supply_demand', 'bb_squeeze', 'vwap_reclaim', 'rsi_divergence'];
-const NAMES_EN = ['Liquidity sweep + structure shift', 'New York open breakout', 'EMA 20/50/100/200 stack', 'Supply / demand zone retest', 'Bollinger squeeze breakout', 'VWAP reclaim', 'RSI divergence'];
+/* THE MENU AS #2516 SHIPS IT (13 strategies, GROUPED: Beginner / Trend, Price action / SMC, Sessions): the option order in the DOM is the group order, not the registry order. */
+const IDS = ['ema_stack', 'ema_cross', 'range_bounce', 'liq_sweep_mss', 'supply_demand', 'sr_flip', 'fvg', 'channel', 'rsi_divergence', 'bb_squeeze', 'ny_open_breakout', 'session_sweep', 'vwap_reclaim', 'funding_oi_squeeze', 'cvd_absorption'];
+const NAMES_EN = ['EMA 20/50/100/200 stack', 'Golden / death cross (EMA 50/200)', 'Range bounce', 'Liquidity sweep + structure shift', 'Supply / demand zone retest', 'Support / resistance flip', 'Fair value gap', 'Channel breakout', 'RSI divergence', 'Bollinger squeeze breakout', 'New York open breakout', 'Asia / London session sweep', 'VWAP reclaim', 'Funding + OI squeeze', 'CVD absorption'];
 const OLD = ['Liquidity Sweep', 'Trend Follow', 'Mean Reversion'];
 
 type Open = { width?: number; theme?: 'dark' | 'light'; loc?: string; saved?: string | null; chips?: string[] | null; failKlines?: 'all' | 'btc' | null; coin?: string };
@@ -76,7 +77,7 @@ test.describe('one strategy menu (#2358)', () => {
       await expect(menu(page)).toBeVisible({ timeout: 30_000 });
       const o = await options(page); console.log(`[M1r] ${JSON.stringify(o)}`);
       expect(o.map(x => x.value)).toEqual(['auto', ...IDS, 'custom']);
-      for (const x of o.slice(1, 8)) { expect(x.label, `${x.value} not translated`).toMatch(/[А-Яа-яЁё]/); expect(x.label).not.toMatch(/STRAT_/); }
+      for (const x of o.slice(1, 1 + IDS.length)) { expect(x.label, `${x.value} not translated`).toMatch(/[А-Яа-яЁё]/); expect(x.label).not.toMatch(/STRAT_/); }
       expect(new Set(o.map(x => x.label)).size).toBe(o.length);
     } finally { await ctx.close(); }
   });
@@ -121,15 +122,16 @@ test.describe('one strategy menu (#2358)', () => {
     } finally { await ctx.close(); }
   });
 
-  test('M2d. Let the read choose with chips on writes arena_strategy: null only, leaves the chips, removes the call box, and the menu then reads Custom (chips with no strategy)', async ({ browser }) => {
+  test('M2d. Let the read choose with chips on clears the strategy AND the chips in ONE save, removes the call box, and the menu stays on Let the read choose (hotfix #2408: with the chips left on the menu derived Custom and snapped back)', async ({ browser }) => {
     const { ctx, page, writes } = await openArena(browser, { saved: 'ema_stack', chips: ['SMA', 'MACD'] });
     try {
       await expect(menu(page)).toBeVisible({ timeout: 30_000 }); await expect(box(page)).toBeVisible({ timeout: 20_000 }); const before = writes.length;
       await pick(page, 'auto');
       const mine = strat(writes, before); console.log(`[M2d] writes ${JSON.stringify(mine)}`);
-      expect(mine.length).toBe(1); expect(mine[0]).toMatchObject({ arena_strategy: null }); expect('strategy_selection' in mine[0], 'Let the read choose wrote the chips').toBe(false);
-      await expect(box(page), 'the call box is still showing').toHaveCount(0); expect(await chipOn(page, 'SMA')).toBe('true'); expect(await chipOn(page, 'MACD')).toBe('true');
-      expect(await menu(page).inputValue(), 'chips with no strategy must read as Custom (rule 4)').toBe('custom');
+      expect(mine.length, 'Let the read choose must be ONE request').toBe(1); expect(mine[0]).toMatchObject({ arena_strategy: null, strategy_selection: [] });
+      await expect(box(page), 'the call box is still showing').toHaveCount(0); expect(await chipOn(page, 'SMA'), 'Let the read choose left the SMA chip on').toBe('false'); expect(await chipOn(page, 'MACD'), 'Let the read choose left the MACD chip on').toBe('false');
+      await page.waitForTimeout(2_000);
+      expect(await menu(page).inputValue(), 'the menu must STAY on Let the read choose (it used to snap to Custom from chips that were still on)').toBe('auto');
     } finally { await ctx.close(); }
   });
 
@@ -158,8 +160,10 @@ test.describe('one strategy menu (#2358)', () => {
           return { under: br.top >= sr.bottom - 1, gap: Math.round(br.top - sr.bottom), h: Math.round(br.height), name: b.querySelector('[data-testid="strategy-call-name"]')?.textContent ?? '', desc: (b.querySelector('[data-testid="strategy-call-desc"]')?.textContent ?? '').length, verdict: b.querySelector('[data-testid="strategy-call-verdict"]')?.getAttribute('data-verdict') ?? null, unavailable: !!b.querySelector('[data-testid="strategy-call-unavailable"]'), loading: !!b.querySelector('[data-testid="strategy-call-loading"]'), reason: (b.querySelector('[data-testid="strategy-call-reason"]')?.textContent ?? '').length, note: b.querySelector('[data-testid="strategy-call-note"]')?.textContent ?? '', text: (b.textContent || '') };
         });
         console.log(`[M3] ${id} ${JSON.stringify({ ...g, text: g.text.slice(0, 80) })}`);
-        expect(g.under, `${id}: the box is not under the menu`).toBe(true); expect(g.gap, `${id}: the box is far from the menu`).toBeLessThan(80); expect(g.h, `${id}: the reserved height is gone`).toBeGreaterThanOrEqual(140); /* #2366/#2373: the box is the reserved call block (>= 142 on a tablet, 163 on a phone, 201 wide) plus the description row and the note; it was >= 200 when the box carried a name heading and a card */
-        expect(g.name, `${id}: the duplicate name heading is back (#2366: the menu already says which strategy)`).toBe(''); expect(g.desc, `${id}: no description`).toBeGreaterThan(20); expect(g.note, `${id}: no signals-not-predictions line`).toMatch(/not predictions/i);
+        expect(g.under, `${id}: the box is not under the menu`).toBe(true); expect(g.gap, `${id}: the box is far from the menu`).toBeLessThan(80); expect(g.h, `${id}: the reserved height is gone`).toBeGreaterThanOrEqual(80); /* #2500 compact panel: the reserved call-box height is ~84 px now (was 140); CLS cells prove nothing shifts */ /* #2366/#2373: the box is the reserved call block (>= 142 on a tablet, 163 on a phone, 201 wide) plus the description row and the note; it was >= 200 when the box carried a name heading and a card */
+        expect(g.name, `${id}: the duplicate name heading is back (#2366: the menu already says which strategy)`).toBe(''); expect(g.desc, `${id}: no description`).toBeGreaterThan(20); { /* #2500 compact panel: "Signals, not predictions." is part of the EXPANDED explainer now, not a line of its own: open it first */
+          let note = g.note; if (!note) { await box(page).getByRole('button', { name: /expand/i }).first().click().catch(() => undefined); await page.waitForTimeout(500); note = (await box(page).getByTestId('strategy-call-note').textContent().catch(() => '')) ?? ''; }
+          expect(note, `${id}: no signals-not-predictions line`).toMatch(/not predictions/i); }
         expect(g.verdict !== null || g.unavailable || g.loading, `${id}: neither a verdict, a loading nor an unavailable state`).toBe(true);
         if (g.verdict) { expect(['buy', 'sell', 'wait']).toContain(g.verdict); expect(g.reason, `${id}: a verdict with no reason`).toBeGreaterThan(20); }
         expect(g.text, `${id}: a raw label key shows`).not.toMatch(/STRAT_[A-Z_]+/);

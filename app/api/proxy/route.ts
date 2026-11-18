@@ -18,6 +18,9 @@ import { polledCacheControl } from '@/lib/cacheHeaders';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { exchangeFetch } from '@/lib/exchangeGuard';
+import { trimBybitTickers, trimDeribitBook, trimLlamaStables } from '@/lib/payloadTrim';
+import { COIN_UNIVERSE } from '@/lib/coinUniverse.generated';
+import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS } from '@/lib/coins';
 
 // Google Trends' 7-day bitcoin score barely moves hour to hour, and the
 // unofficial endpoint blocks aggressively under repeated hits - cache long.
@@ -81,6 +84,8 @@ interface PassEntry {
   params: readonly string[];
   ttlMs: number;
   fixed?: Record<string, string>;
+  /** #1651: keeps only the fields this entry's one caller reads, applied to the primary body BEFORE it is cached and serialised. */
+  trim?: (body: unknown) => unknown;
   /* #1237 (#1077 split): a per-entry Bybit retry when the primary upstream
    * fails. Optional and rare (only `binance-24hr` and `depth` have one) -
    * this is a generic passthrough table, and most entries either already
@@ -128,7 +133,29 @@ const CURSOR_PARAMS = ['startTime', 'endTime', 'start', 'end'] as const;
 
 /** What a passthrough parameter's VALUE may be (#1649): symbols and JSON symbol lists (`["BTCUSDT","ETHUSDT"]`), numbers, and short codes
  *  such as 5m, 5min, BTC, option, true. Anything else is a 400 from us before any upstream call. */
+/** How long a passthrough read with a Bybit fallback waits on its primary before the fallback starts. */
+const FALLBACK_AFTER_MS = 3_000;
+
 const PASSTHROUGH_VALUE = /^[A-Za-z0-9_.,:\-[\]"]{1,1000}$/;
+
+/* A SYMBOL MUST BE ONE THE APP TRACKS. Every Bybit and Binance symbol in the coin universe (the same list the client reads); anything else is a 400 from us before any upstream call, and a 400 is never cached. */
+const TRACKED_SYMBOLS: ReadonlySet<string> = new Set(
+  [
+    ...COIN_UNIVERSE.flatMap(r => [r.bybit, r.binance]),
+    ...Object.values(BINANCE_SYMS), ...Object.values(BINANCE_SPOT_SYMS), ...Object.values(BYBIT_SYMS),
+  ].filter((s): s is string => typeof s === 'string' && s.length > 0).map(s => s.toUpperCase()),
+);
+/** `symbol` is one symbol; `symbols` is a JSON array (["BTCUSDT","ETHUSDT"]) or a comma list. true when every symbol named is tracked. */
+function symbolsTracked(raw: string): boolean {
+  let list: unknown;
+  if (raw.trim().startsWith('[')) {
+    try { list = JSON.parse(raw); } catch { return false; }
+  } else {
+    list = raw.split(',');
+  }
+  if (!Array.isArray(list) || list.length === 0 || list.length > 200) return false;
+  return list.every(s => typeof s === 'string' && TRACKED_SYMBOLS.has(s.trim().toUpperCase()));
+}
 
 const PASSTHROUGH: Record<string, PassEntry> = {
   /* Bybit. Note for anyone slicing these later: Bybit returns NEWEST-first and
@@ -136,7 +163,7 @@ const PASSTHROUGH: Record<string, PassEntry> = {
   'recent-trade':    { url: 'https://api.bybit.com/v5/market/recent-trade',
                        params: ['symbol', 'limit'], fixed: { category: 'linear' }, ttlMs: 30_000 },
   'bybit-tickers':   { url: 'https://api.bybit.com/v5/market/tickers',
-                       params: [], fixed: { category: 'linear' }, ttlMs: 30_000 },
+                       params: [], fixed: { category: 'linear' }, ttlMs: 30_000, trim: trimBybitTickers },
   'account-ratio-1': { url: 'https://api.bybit.com/v5/market/account-ratio',
                        params: ['symbol', 'period', 'limit'], fixed: { category: 'linear' }, ttlMs: 120_000 },
   'open-interest-1': { url: 'https://api.bybit.com/v5/market/open-interest',
@@ -325,9 +352,9 @@ const PASSTHROUGH: Record<string, PassEntry> = {
   'fng':             { url: 'https://api.alternative.me/fng/',
                        params: ['limit'], ttlMs: 900_000 },
   'deribit-book':    { url: 'https://www.deribit.com/api/v2/public/get_book_summary_by_currency',
-                       params: ['currency', 'kind'], ttlMs: 60_000 },
+                       params: ['currency', 'kind'], ttlMs: 60_000, trim: trimDeribitBook },
   'llama-stables':   { url: 'https://stablecoins.llama.fi/stablecoins',
-                       params: ['includePrices'], ttlMs: 900_000 },
+                       params: ['includePrices'], ttlMs: 900_000, trim: trimLlamaStables },
 };
 
 export async function GET(req: NextRequest) {
@@ -563,6 +590,7 @@ export async function GET(req: NextRequest) {
       for (const k of entry.params) {
         const v = req.nextUrl.searchParams.get(k);
         if (v != null && v !== '' && !PASSTHROUGH_VALUE.test(v)) return NextResponse.json({ error: `invalid ${k}` }, { status: 400 });
+        if ((k === 'symbol' || k === 'symbols') && v != null && v !== '' && !symbolsTracked(v)) return NextResponse.json({ error: `invalid ${k}` }, { status: 400 });
       }
       const u = new URL(entry.url);
       for (const [k, v] of Object.entries(entry.fixed ?? {})) u.searchParams.set(k, v);
@@ -575,20 +603,44 @@ export async function GET(req: NextRequest) {
        * CACHED read of a fallback-sourced response still reports its real
        * origin - the flag travels with whatever `cached()` stored, not just
        * with the call that produced it (#1237). */
-      const go = async (): Promise<{ body: unknown; viaFallback: boolean }> => {
-        const r = await exchangeFetch(u, { cache: 'no-store' });
-        if (r.ok) return { body: await r.json(), viaFallback: false };
+      /* `json` is the FINISHED response text, serialised once when the entry is built and served as it is on every hit; NextResponse.json(body) re-serialised the whole object on every request (#1651). */
+      const go = async (): Promise<{ json: string; viaFallback: boolean }> => {
+        /* A type WITH a Bybit fallback gives its primary read only FALLBACK_AFTER_MS (counted from the call, so a wait for a free slot
+           is part of it). Before this the fallback started only after the primary FAILED, which could be a 15 s slot wait plus a 15 s fetch:
+           a chart or ticker waiting 30 s to be told what Bybit could have said in 300 ms. A primary that times out or throws now falls to
+           the same fallback as one that answers an error; with no fallback the original error is rethrown unchanged. */
+        const fbUrl = entry.bybitFallback?.buildUrl(req);
+        let r: Response | null = null;
+        let primaryFailure: unknown = null;
+        try {
+          r = await exchangeFetch(u, { cache: 'no-store', ...(fbUrl ? { signal: AbortSignal.timeout(FALLBACK_AFTER_MS) } : {}) });
+        } catch (e) {
+          if (!fbUrl) throw e;
+          primaryFailure = e;
+        }
+        if (r?.ok) {
+          /* THE BODY CAN BE LATE EVEN WHEN THE HEADERS WERE NOT (reliability leftover, PM 2026-11-17). The 3 s signal covers reading the body too, so a primary that answered 200 and then stalled mid-body aborted HERE, outside the try above, and the request failed without ever asking Bybit. A late or unreadable body now falls to the same fallback as a late or failed primary; with no fallback the original error is rethrown unchanged. */
+          try {
+            const body = await r.json();
+            return { json: JSON.stringify(entry.trim ? entry.trim(body) : body), viaFallback: false };
+          } catch (e) {
+            if (!fbUrl) throw e;
+            primaryFailure = e;
+            r = null;
+          }
+        }
 
         /* FAIL LOUDLY (#228). Throwing means cached() stores nothing, so a ban
            is retried rather than pinned, and the caller gets a status instead
            of a plausible-looking empty body. */
-        const err = new Error(`${type} upstream ${r.status}`);
-        (err as Error & { status?: number }).status = r.status;
+        const err = r
+          ? new Error(`${type} upstream ${r.status}`)
+          : (primaryFailure instanceof Error ? primaryFailure : new Error(`${type} upstream unreachable`));
+        if (r) (err as Error & { status?: number }).status = r.status;
 
         /* #1237: try Bybit before giving up, same shape #1240's klines route
            established - never splice, never fabricate, fail loud if the
            fallback also has nothing. */
-        const fbUrl = entry.bybitFallback?.buildUrl(req);
         if (fbUrl) {
           try {
             const fr = await exchangeFetch(fbUrl, { cache: 'no-store' });
@@ -597,7 +649,7 @@ export async function GET(req: NextRequest) {
               // #1249's rule: an empty/malformed fallback body is a failure,
               // not a success - `convert` already returns null for that, so
               // falling through to the original error is correct, not a bug.
-              if (converted != null) return { body: converted, viaFallback: true };
+              if (converted != null) return { json: JSON.stringify(converted), viaFallback: true };
             }
           } catch { /* Bybit fallback also failed - fall through to the original error */ }
         }
@@ -639,8 +691,9 @@ export async function GET(req: NextRequest) {
         const result = cacheable
           ? await cached(`proxy:${type}:${u.search}`, entry.ttlMs, go)
           : await go();
-        return NextResponse.json(result.body, {
+        return new NextResponse(result.json, {
           headers: {
+            'Content-Type': 'application/json',
             ...(cacheable ? PROXY_CACHE : {}),
             // #1237: the only way a caller (or QA) can tell this answer came
             // from the fallback rather than the primary upstream - a header,

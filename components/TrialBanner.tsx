@@ -27,7 +27,9 @@ function localDay(ms: number): string {
 
 export default function TrialBanner() {
   const { isTrial, trialEndsAt } = useAuth();
-  const { t } = useLabels();
+  const { t, locale } = useLabels();
+  /* ru, ko, zh and ar: the label is NOT set in tracked uppercase. Spaced capitals made the Russian label about 180 px, which is what ran into the pill at 360 to 390 px; these scripts read fine in normal case (ko and zh have no case at all). */
+  const plainLabel = locale === 'ru' || locale === 'ko' || locale === 'zh' || locale === 'ar';
   // Called before the early returns below - hooks cannot sit behind a branch.
   // The countdown only ever renders whole days, so a minute tick is more than
   // enough to keep it honest; the point is that it advances at all, which a
@@ -83,6 +85,7 @@ export default function TrialBanner() {
   return (
     <div
       role="status"
+      className="trial-banner"
       style={{
         // ONE ROW at every width (owner, 2026-10-22, #1673 item 2: "put it into horizontal layout"). It wrapped, so at 390 px the countdown
         // and the "Keep Pro" pill stacked on two centred lines. Now the text block shrinks and wraps inside itself (min-width 0) while the
@@ -103,13 +106,14 @@ export default function TrialBanner() {
         lineHeight: 1.45,
       }}
     >
-      {/* Wraps between "PRO TRIAL ·" and the countdown, never inside either: each part is nowrap. */}
-      <span style={{ color: 'var(--txt2)', flex: '0 1 auto', minWidth: 0 }}>
-        <span ref={labelRef} style={{ whiteSpace: 'nowrap' }}>
+      {/* AT MOST TWO LINES (PM, #2413). A flex row that wraps: the label and the countdown share a line when they fit, and the countdown drops to its own line when they do not, so the block is never taller than two lines. The label is one line and clamps with an ellipsis if it alone is wider than the block; the countdown and the pill are never cut. */}
+      <span style={{ color: 'var(--txt2)', flex: '0 1 auto', minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'baseline' }}>
+        <span ref={labelRef} style={{ minWidth: 0, maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'clip' /* NOT 'ellipsis': in Russian at 390 px the label box is 175 px for 186 px of content, and the 11 px that does not fit is the label's trailing margin plus the (hidden) separator dot, so an ellipsis drew a stray "..." after "Pro" for text that was not cut. Clip drops only that dead space. */ }}>
           <span
             style={{
               fontFamily: 'var(--font-mono, monospace)',
-              fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+              fontWeight: 700,
+              letterSpacing: plainLabel ? 'normal' : '0.08em', textTransform: plainLabel ? 'none' : 'uppercase',
               fontSize: 'var(--fs-label)',
               color: accent, marginRight: 10,
             }}
@@ -118,7 +122,6 @@ export default function TrialBanner() {
           </span>
           <span aria-hidden="true" style={{ color: 'var(--txt3)', marginInlineEnd: 8, visibility: wrapped ? 'hidden' : undefined }}>·</span>
         </span>
-        <wbr />
         <strong ref={countRef} style={{ color: 'var(--txt)', fontWeight: 700, whiteSpace: 'nowrap' }}>{label}</strong>
       </span>
       {/* A bordered pill, not a bare text link - the CTA previously differed

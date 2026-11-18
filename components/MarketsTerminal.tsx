@@ -15,12 +15,24 @@ import type { LabelKey } from '@/lib/labelKeys';
 
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
 
-function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): { key: LabelKey | null; col: string } {
+/* The phone form of a signal (PM audit 2026-11-17: "New buy… opening" was cut at 390 px). Same facts in fewer words; the full text stays in the tooltip and on wider screens. */
+const SIGNAL_SHORT: Partial<Record<LabelKey, LabelKey>> = {
+  MARKETS_SIGNAL_LONGS_OVERCROWDED: 'MARKETS_SIGNAL_LONGS_OVERCROWDED_SHORT',
+  MARKETS_SIGNAL_SHORTS_SQUEEZED: 'MARKETS_SIGNAL_SHORTS_SQUEEZED_SHORT',
+  MARKETS_SIGNAL_SMART_BUYERS: 'MARKETS_SIGNAL_SMART_BUYERS_SHORT',
+  MARKETS_SIGNAL_SMART_SELLERS: 'MARKETS_SIGNAL_SMART_SELLERS_SHORT',
+  MARKETS_SIGNAL_NEW_BUYERS: 'MARKETS_SIGNAL_NEW_BUYERS_SHORT',
+  MARKETS_SIGNAL_NEW_SELLERS: 'MARKETS_SIGNAL_NEW_SELLERS_SHORT',
+};
+
+function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): { key: LabelKey | null; col: string; pct?: string } {
   if (!d) return { key: null, col: 'var(--txt-dim)' };
   if (d.fundingRate != null) {
     const fr = d.fundingRate * 100;
-    if (fr >= 0.04) return { key: 'MARKETS_SIGNAL_LONGS_OVERCROWDED', col: 'var(--red)' };
-    if (fr <= -0.02) return { key: 'MARKETS_SIGNAL_SHORTS_SQUEEZED', col: 'var(--green-2)' };
+    // The same funding bands as classifyFunding, the scanner and the dashboard sidebar (S9): +0.05% / -0.03%.
+    const pct = (fr >= 0 ? '+' : '−') + Math.abs(fr).toFixed(2) + '%';
+    if (fr >= 0.05) return { key: 'MARKETS_SIGNAL_LONGS_OVERCROWDED', col: 'var(--red)', pct };
+    if (fr <= -0.03) return { key: 'MARKETS_SIGNAL_SHORTS_SQUEEZED', col: 'var(--green-2)', pct };
   }
   if (d.cvdDivergence === 'bullish') return { key: 'MARKETS_SIGNAL_SMART_BUYERS', col: 'var(--green-2)' };
   if (d.cvdDivergence === 'bearish') return { key: 'MARKETS_SIGNAL_SMART_SELLERS', col: 'var(--red)' };
@@ -61,10 +73,19 @@ export default function MarketsTerminal() {
       const da = store.coins[a];
       const db = store.coins[b];
       let cmp = 0;
-      if (sort === 'volume') cmp = (da?.vol24 ?? 0) - (db?.vol24 ?? 0);
+      /* UNKNOWN SORTS LAST IN BOTH DIRECTIONS (S6). A coin with no volume or change read was sorted as 0, so by change (descending) it landed between the gainers and the losers and by volume (ascending) it came first. */
+      if (sort === 'volume' || sort === 'change') {
+        const num = (v: number | null | undefined) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+        const x = num(sort === 'volume' ? da?.vol24 : da?.change);
+        const y = num(sort === 'volume' ? db?.vol24 : db?.change);
+        if (x === null || y === null) return x === y ? 0 : x === null ? 1 : -1;
+        cmp = x - y;
+      }
       if (sort === 'name')   cmp = a.localeCompare(b);
-      if (sort === 'change') cmp = (da?.change ?? 0) - (db?.change ?? 0);
       if (sort === 'grade') {
+        /* NO DATA SORTS LAST IN BOTH DIRECTIONS (S5). A coin with no price is graded F (label 'No data'), so reversed it came FIRST among the F's, ahead of coins that were actually graded. Unknown is decided before the direction is applied, like volume and change above. */
+        const unknownA = !da?.price, unknownB = !db?.price;
+        if (unknownA || unknownB) return unknownA === unknownB ? 0 : unknownA ? 1 : -1;
         const ga = computeCoinHealth(da).grade;
         const gb = computeCoinHealth(db).grade;
         cmp = (GRADE_ORDER[ga] ?? 5) - (GRADE_ORDER[gb] ?? 5);
@@ -86,12 +107,17 @@ export default function MarketsTerminal() {
   const rangeStart = rows.length === 0 ? 0 : pageSafe * PAGE_SIZE + 1;
   const rangeEnd   = Math.min(rows.length, pageSafe * PAGE_SIZE + PAGE_SIZE);
 
+  const liveCount = COINS.filter(id => Number.isFinite(store.coins[id]?.price)).length;
   const bullCount = COINS.filter(id => topSignal(store.coins[id]).col === 'var(--green-2)').length;
   const bearCount = COINS.filter(id => topSignal(store.coins[id]).col === 'var(--red)').length;
+  /* NOTHING QUALIFIES (#1185, PM 2026-11-17): when prices are in but no coin has a derivatives signal, the Signal column is a wall of "No signal". Say it once in a banner, and on a phone drop the column (and its second row) instead of repeating it forty times. */
+  const noSignals = liveCount > 0 && COINS.every(id => topSignal(store.coins[id]).key === 'MARKETS_SIGNAL_NONE');
 
   function handleSort(key: SortKey) {
     if (sort === key) setSortAsc(v => !v);
-    else { setSort(key); setSortAsc(false); }
+    /* THE FIRST CLICK ON A NEW COLUMN SORTS THE USEFUL WAY (S5). Every column started descending, which put grade F (and every no-data coin, graded F) first, bearish rows first, and Name from Z to A. Name, Grade (best first) and Signal
+       (bullish first) start ascending in their own order; Volume and Change start with the largest. */
+    else { setSort(key); setSortAsc(key === 'name' || key === 'grade' || key === 'signal'); }
   }
 
   function goToArena(id: CoinId) {
@@ -158,13 +184,13 @@ export default function MarketsTerminal() {
               {t('MARKETS_PAGE_TITLE')}
             </div>
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 1, letterSpacing: '.02em' }}>
-              {t('MARKETS_COINS_LIVE_SUFFIX', { count: COINS.length })}
+              {t('MARKETS_COINS_LIVE_SUFFIX', { count: liveCount })}
             </div>
           </div>
           <div className="mkt-mono mkt-counts" style={{ marginLeft: 'auto', display: 'flex', gap: 14, fontSize: 'var(--fs-caption)' }}>
             <span style={{ color: 'var(--green-2)' }}>{t('MARKETS_BULLISH_COUNT', { count: bullCount })}</span>
             <span style={{ color: 'var(--red)' }}>{t('MARKETS_BEARISH_COUNT', { count: bearCount })}</span>
-            <span style={{ color: 'var(--txt3)' }}>{t('MARKETS_NEUTRAL_COUNT', { count: COINS.length - bullCount - bearCount })}</span>
+            <span style={{ color: 'var(--txt3)' }}>{t('MARKETS_NEUTRAL_COUNT', { count: Math.max(0, liveCount - bullCount - bearCount) })}</span>
           </div>
         </div>
 
@@ -201,7 +227,8 @@ export default function MarketsTerminal() {
         </div>
 
         {/* Column headers */}
-        <div className="mkt-mono mkt-hdr-row" style={{
+        {noSignals && <div role="status" className="mkt-no-signals" data-testid="mkt-no-signals">{t('MARKETS_NO_SIGNALS_BANNER')}</div>}
+        <div className={`mkt-mono mkt-hdr-row${noSignals ? ' mkt-nosig' : ''}`} style={{
           display: 'grid',
           gridTemplateColumns: ROW_COLS,
           padding: '0 10px 6px',
@@ -252,7 +279,7 @@ export default function MarketsTerminal() {
           return (
             <div
               key={id}
-              className="mkt-row"
+              className={`mkt-row${noSignals ? ' mkt-nosig' : ''}`}
               onClick={() => goToArena(id)}
               style={{
                 display: 'grid',
@@ -329,12 +356,17 @@ export default function MarketsTerminal() {
               </div>
 
               {/* Signal */}
-              <div className="mkt-signal" title={sig.key ? t(sig.key) : undefined} style={{
+              <div className="mkt-signal" title={sig.key ? t(sig.key, { pct: sig.pct ?? '' }) : undefined} style={{
                 paddingLeft: 12, fontSize: 'var(--fs-caption)',
                 color: sig.col === 'var(--txt-dim)' ? 'var(--txt3)' : sig.col,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
-                {sig.key ? t(sig.key) : '-'}
+                {sig.key ? (
+                  <>
+                    <span className="mkt-sig-full">{t(sig.key, { pct: sig.pct ?? '' })}</span>
+                    <span className="mkt-sig-short">{t(SIGNAL_SHORT[sig.key] ?? sig.key, { pct: sig.pct ?? '' })}</span>
+                  </>
+                ) : '-'}
               </div>
 
               {/* Bottom accent line = buy pressure */}

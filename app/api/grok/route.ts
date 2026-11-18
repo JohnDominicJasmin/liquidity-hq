@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
+import { GROK_SERVER_DEEP_MS, GROK_SERVER_QUICK_MS } from '@/lib/grokDeadlines';
 import { recordAiCall } from '@/lib/aiCallLog';
 import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, VERDICT_RESTATED_CHECK, type ChartData, type GrokContext } from '@/lib/grok';
 import { arenaContextCoinId, COIN_NOT_TRACKED, parseArenaChart, parseArenaContext, parseSelection } from '@/lib/arenaContext';
@@ -8,7 +9,8 @@ import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xa
 import { chartFromCandles } from '@/lib/arenaChartServer';
 import { EMA_SIGNAL_TFS, fetchRibbonCandles, type EMASignalTF } from '@/lib/ribbonCandles';
 import { T } from '@/lib/tables';
-import { getPlanSnapshot, getUsageTier } from '@/lib/entitlements';
+import { getPlanSnapshot, getUsageTierStatus } from '@/lib/entitlements';
+import { selectionForPlan } from '@/lib/strategyRegistry';
 import { aiCoinAllowed, normalizeCoinId } from '@/lib/signalCoinGate';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS, GATED_TFS, isGatedTf, type UsageTier } from '@/lib/limits';
@@ -19,6 +21,7 @@ import { anonServerClient, userClient } from '@/lib/supabase-user';
 import { logDeep502 } from '@/lib/deep502Log';
 import { engineFor, type Engine } from '@/lib/aiEngine';
 import { callClaude, claudeConfigured } from '@/lib/aiProvider';
+import { extractReadInputs } from '@/lib/readSanity';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -103,10 +106,12 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ usage: null });
 
   const today = todayUtc();
-  const [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed }, role] = await Promise.all([
+  const [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed }, plan] = await Promise.all([
     getUsageRow(token, userId, today),
-    getUsageTier(token, userId),
+    getUsageTierStatus(token, userId),
   ]);
+  /* U7: the usage DISPLAY for an account whose plan could not be read shows the Pro numbers, not the Free ones: it used to read as Free, so a Pro user saw 5/3 and the Arena buttons disabled at used >= 5 until a reload. */
+  const role: UsageTier = plan.failed ? 'pro' : plan.tier;
   const deepLimit     = AI_LIMITS[role].deep;
   const quickLimit    = AI_LIMITS[role].quick;
   const chatLimit     = AI_LIMITS[role].chat;
@@ -364,7 +369,9 @@ export async function POST(req: NextRequest) {
       console.warn(`[grok] server chart: candle fetch failed for ${logTag(coin)}/${tf}, keeping the browser's`);
     }
   }
-  const prompt = buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, selection);
+  /* The indicators come from the request body, so the server applies the plan's limit itself: its own plan read says NOT ENTITLED -> only the first indicator (Free is one at a time). Unknown/failed read: as sent (#1119). */
+  const planSelection = selectionForPlan(selection, plan.status === 'not_entitled') as string[];
+  const prompt = buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, planSelection);
 
   /* The second bound. The server's fields are short formatted strings, so this cannot realistically
      fire once the first bound passed - which is why it is worth having: if it ever does, the gather
@@ -448,12 +455,16 @@ export async function POST(req: NextRequest) {
    * control-flow analysis does not follow an assignment made inside a nested closure, and this is
    * read in the `catch` below. Set the moment a 2xx is confirmed, in BOTH branches. */
   const spent = { current: false };
+  /* ONE DEADLINE FOR THE WHOLE READ, UNDER THE CLIENT'S (lib/grok.ts: Quick 90 s, Deep 200 s), plus the client's own disconnect. The client used to give up at 90 s while this route let the upstream call run to 180 s,
+     so a slow Quick read showed "took too long" while we finished it, billed the reservation and threw the answer away. Aborting here lands in the catch below, which refunds (nothing is billed until a 2xx). */
+  const readSignal = AbortSignal.any([req.signal, AbortSignal.timeout(type === 'deep' ? GROK_SERVER_DEEP_MS : GROK_SERVER_QUICK_MS)]);
   try {
     if (type === 'deep') {
       // Responses API with live web + X search. #1651 item 1: X is searched over yesterday and today only - Deep asks why the coin is
       // moving TODAY, and an older post is not today's catalyst.
       const xWindow = searchWindow(DEEP_X_DAYS);
       const r = await xaiFetch('https://api.x.ai/v1/responses', {
+        signal: readSignal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
         body: JSON.stringify({
@@ -506,6 +517,7 @@ export async function POST(req: NextRequest) {
       } else {
       // chat/completions - no search tools, cheaper
       const r = await xaiFetch('https://api.x.ai/v1/chat/completions', {
+        signal: readSignal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
         body: JSON.stringify({
@@ -617,6 +629,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', refunded: refunded !== null, usage: usageAfterRefund(refunded) }, { status: 502 });
   }
   const result = applyResultChecks({ ...parsed, citations }, prompt);
+  /* THE INPUTS THIS READ WAS GIVEN, one line each (PM audit: a read contradicted its own EMA9/VWAP and there was no way to tell what it had been handed). Numbers only: no user, no prompt text. */
+  {
+    const inp = extractReadInputs(prompt);
+    console.log(`[grok] read-inputs type=${logTag(type)} coin=${logTag(coin)} tf=${logTag(tf)} close=${inp.close ?? 'na'} ema9=${inp.ema9 ?? 'na'} vwap=${inp.vwapSide ?? 'na'} clausesDropped=${(result.checks ?? []).filter(c => c.startsWith('prose fixed or dropped')).length}`);
+  }
   // The string is VERDICT_RESTATED_CHECK in lib/grok.ts rather than a literal here: the Deep canary
   // keys its DEGRADED state off this entry, and the response carries no `restated` flag for it to read
   // instead. One definition, so rewording it cannot silently stop the canary noticing.

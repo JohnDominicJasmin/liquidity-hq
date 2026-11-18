@@ -13,10 +13,11 @@ type BotInfo = { ok: boolean; username: string | null; first_name: string | null
    not responding" - a claim about the webhook that a failed read cannot support. The username is kept when getMe answered and only the
    webhook read failed, so the "Open @bot" link still works.
 
-   Both calls run on every /alerts load, so the answer is cached in this process: 5 minutes when it succeeded, 1 minute when it failed (a
-   Telegram outage then costs one 7 s wait a minute, not one per page load). */
+   Both calls run on every /alerts load, so the answer is cached in this process: 5 minutes when it succeeded, 10 seconds when it failed (a
+   Telegram outage then costs one 7 s wait per 10 s, not one per page load; it was 1 minute, which kept a one-off cold-start failure on the page for a
+   minute after Telegram had recovered - QA saw two 503s in a row, then 200). */
 const OK_TTL_MS = 5 * 60_000;
-const FAIL_TTL_MS = 60_000;
+const FAIL_TTL_MS = 10_000;
 let cached: { at: number; ttl: number; info: BotInfo } | null = null;
 
 async function telegram(token: string, method: 'getMe' | 'getWebhookInfo'): Promise<{ ok: boolean; result?: Record<string, unknown> } | null> {

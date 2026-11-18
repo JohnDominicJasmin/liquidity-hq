@@ -21,7 +21,7 @@ const BN_COIN_MAP: Record<string, string> = Object.fromEntries(
   COIN_IDS.map(c => [BINANCE_SYMS[c].toLowerCase(), c.toUpperCase()])
 );
 const BN_STREAMS = BN_SYMBOLS.map(s => `${s}@aggTrade`).join('/');
-const BN_WS_URL  = `wss://fstream.binance.com/stream?streams=${BN_STREAMS}`;
+const BN_WS_URL  = `wss://fstream.binance.com/market/stream?streams=${BN_STREAMS}`;
 
 const BB_SYM_MAP: Record<string, string> = Object.fromEntries(
   COIN_IDS.map(c => [BYBIT_SYMS[c], c.toUpperCase()])
@@ -71,7 +71,7 @@ function fmtUSD(v: number): string {
 }
 
 function fmtTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
 }
 
 export default function WhaleTradesFeed() {
@@ -79,6 +79,13 @@ export default function WhaleTradesFeed() {
   const [feed,     setFeed]     = useState<WhaleTrade[]>([]);
   const [stats,    setStats]    = useState<Stats>({ buyUsd: 0, sellUsd: 0, count: 0 });
   const [status,   setStatus]   = useState<'connecting' | 'live' | 'error'>('connecting');
+  /* A feed that has not connected after 8 s says so instead of staying on skeletons for ever (a socket blocked by a network, a venue refusing us). It keeps retrying underneath; the line goes away when a socket goes live. */
+  const [connectWaited, setConnectWaited] = useState(false);
+  useEffect(() => {
+    if (status === 'live') { setConnectWaited(false); return; }
+    const id = setTimeout(() => setConnectWaited(true), 8_000);
+    return () => clearTimeout(id);
+  }, [status]);
   const [source,   setSource]   = useState<'binance' | 'bybit'>('binance');
   const [msgCount, setMsgCount] = useState(0);
   const historyRef = useRef<WhaleTrade[]>([]);
@@ -331,7 +338,12 @@ export default function WhaleTradesFeed() {
       )}
 
       {/* Feed states */}
-      {feed.length === 0 && status === 'connecting' && (
+      {feed.length === 0 && status !== 'live' && connectWaited && (
+        <div style={{ padding: '10px 14px' }} role="status" aria-live="polite">
+          <div data-testid="whale-feed-connect-failed" style={{ minHeight: 106, color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>{t('WHALE_TRADES_FEED_CONNECT_FAILED')}</div>
+        </div>
+      )}
+      {feed.length === 0 && status === 'connecting' && !connectWaited && (
         <div style={{ padding: '10px 14px' }} role="status" aria-live="polite">
           <span className="sr-only">{t('WHALE_TRADES_FEED_SR_CONNECTING')}</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

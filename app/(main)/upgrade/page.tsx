@@ -589,6 +589,8 @@ export default function UpgradePage() {
           <h1 style={{ fontSize: 'clamp(1.75rem, 5vw, 2.75rem)', fontWeight: 900, letterSpacing: '-.03em', margin: '0 0 14px', lineHeight: 1.1 }}>
             {t('UPGRADE_HERO_TITLE')}
           </h1>
+          {/* The owner's quote (2026-11-17): one small italic muted line under the headline, nothing else around it changed. */}
+          <p style={{ fontSize: 'var(--fs-caption)', fontStyle: 'italic', color: 'var(--txt3)', margin: '0 0 12px', lineHeight: 1.5 }}>{t('UPGRADE_HERO_QUOTE')}</p>
           <p style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)', margin: 0, lineHeight: 1.65, maxWidth: 440, marginInline: 'auto' }}>
             {t('UPGRADE_HERO_SUBTITLE')}
           </p>
@@ -633,6 +635,8 @@ export default function UpgradePage() {
                   ) : (
                     <span style={{ color: 'var(--txt4)', fontWeight: 700, flexShrink: 0, marginTop: 1 }} aria-hidden="true">✗</span>
                   )}
+                  {/* The ✗ is aria-hidden, so a screen reader heard an excluded row as if it were included (PM UI audit, #1185): the exclusion is said in words, visually hidden. */}
+                  {!included && <span className="sr-only">{t('UPGRADE_FREE_NOT_INCLUDED_SR')}{' '}</span>}
                   {t(labelKey, vars)}
                 </li>
               ))}

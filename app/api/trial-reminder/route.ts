@@ -27,7 +27,7 @@ export const dynamic = 'force-dynamic';
 const WINDOW_DAYS = 2;
 
 export async function GET(req: Request) {
-  if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!checkCronAuth(req, { headerOnly: true })) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
     const admin = getSupabaseAdmin();
@@ -56,10 +56,16 @@ export async function GET(req: Request) {
 
     let sent = 0;
     for (const row of due) {
-      // Claim first, send second. If the send fails we do NOT roll the claim
-      // back: a trial reminder is worth strictly less than the risk of looping
-      // on a permanently-failing address and hammering Brevo every run. Same
-      // trade-off the welcome email makes.
+      /* THE ADDRESS IS CHECKED BEFORE THE CLAIM (B5/#5). The email lives in auth.users (not reachable through .from()); one lookup per due row is a handful a day. Only a CONFIRMED, NOT-BANNED address is mailed: a sign-up
+         with someone else's address that was never confirmed used to get a "trial ending" email sent to that person. A skipped row keeps its claim free, so it is mailed once the address is confirmed (inside the window). */
+      const { data: userRes } = await admin.auth.admin.getUserById(row.user_id);
+      const u = userRes?.user;
+      const email = u?.email;
+      if (!email || !u?.email_confirmed_at) continue;
+      const bannedUntil = (u as { banned_until?: string | null }).banned_until;
+      if (bannedUntil && new Date(bannedUntil).getTime() > now) continue;
+
+      // Claim, then send: the claim is what guarantees one send when two runs overlap.
       const { data: claimed } = await admin
         .from(T.user_subscriptions)
         .update({ trial_reminder_sent_at: new Date().toISOString() })
@@ -69,16 +75,12 @@ export async function GET(req: Request) {
         .maybeSingle();
       if (!claimed) continue; // another run got there first
 
-      // The email lives in auth.users, which is not reachable through .from().
-      // Per-user lookup is fine here: this is a handful of rows a day, not a
-      // scan - and it keeps the address out of any table we query in bulk.
-      const { data: userRes } = await admin.auth.admin.getUserById(row.user_id);
-      const email = userRes?.user?.email;
-      if (!email) continue;
-
       const msLeft = new Date(row.trial_ends_at as string).getTime() - now;
       const daysLeft = Math.max(1, Math.ceil(msLeft / 86_400_000));
-      if (await sendTrialEndingEmail({ to: email, daysLeft })) sent++;
+      if (await sendTrialEndingEmail({ to: email, daysLeft })) { sent++; continue; }
+      /* THE CLAIM GOES BACK WHEN THE SEND FAILS (#5). It used to stay, so one Brevo failure meant this user was never reminded. The row is only a candidate while the trial has not ended (the read above filters on it), so a
+         permanently failing address is retried each run only until its trial ends, not for ever. */
+      await admin.from(T.user_subscriptions).update({ trial_reminder_sent_at: null }).eq('user_id', row.user_id);
     }
 
     return NextResponse.json({ ok: true, due: due.length, sent });

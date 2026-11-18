@@ -1,4 +1,5 @@
 'use client';
+import { deadlineSignal } from './deadlineSignal.ts';
 import { useState, useEffect, useRef } from 'react';
 import { CoinId, venueSymbols } from './marketStore.ts';
 import { OKX_SYMS } from './coins.ts';
@@ -19,6 +20,7 @@ import { getWaveTrendConfirmation } from './waveTrend.ts';
 import { fetchBybitKlinesRetry } from './bybitKlines.ts';
 import { firstVenueThatAnswers } from './venueFallback.ts';
 import { priceText } from './numberFormat.ts';
+import type { LabelKey } from './labelKeys.ts';
 
 export type { SignalFilterParams } from './strategyCore.ts';
 export { DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from './strategyCore.ts';
@@ -37,6 +39,8 @@ export interface StrategyCondition {
   pass: boolean | null; // null = not yet relevant / n/a
   detail: string;
   warn?: boolean;       // an amber caution row (e.g. counter-trend); never counted as passing or failing
+  /** The row's `detail` as a label key, for the card to show in the reader's language. `detail` stays English: it is what the AI prompt is built from. Set only where the card shows the detail (the amber counter-trend row). */
+  detailKey?: LabelKey;
 }
 
 export interface StrategySignal {
@@ -134,7 +138,7 @@ interface OHLCV { time: number; open: number; high: number; low: number; close: 
 async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: number): Promise<OHLCV[]> {
   const r = await fetch(
     `/api/market/klines?source=binance-futures&symbol=${sym}&interval=${interval}&limit=${limit}&closed=1`,
-    { signal: AbortSignal.timeout(12_000) }
+    { signal: deadlineSignal(12_000) }
   );
   if (!r.ok) throw new Error(`Binance futures klines ${r.status}`);
   const raw = await r.json() as (string | number)[][];
@@ -172,7 +176,7 @@ async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: n
 async function fetchOkxKlines(instId: string, bar: string, limit: number): Promise<OHLCV[]> {
   const r = await fetch(
     `/api/market/klines?source=okx&symbol=${instId}&interval=${bar}&limit=${limit}&closed=1`,
-    { signal: AbortSignal.timeout(12_000) },
+    { signal: deadlineSignal(12_000) },
   );
   if (!r.ok) throw new Error(`OKX klines ${r.status}`);
   const raw = await r.json() as (string | number)[][];
@@ -191,7 +195,7 @@ async function fetchBybitKlines(sym: string, interval: string, limit: number): P
      as EMA_SIGNAL_FAILED. No new failure UI needed - reusing what's there. */
   const d = await fetchBybitKlinesRetry(sym, interval, limit, {
     extraParams: { closed: '1' },
-    signal: AbortSignal.timeout(12_000),
+    signal: deadlineSignal(12_000),
   });
   if (d === null) throw new Error('Bybit klines failed after retry');
   const list = [...(d?.result?.list ?? [])].reverse();
@@ -333,6 +337,8 @@ export function useEMAStrategy(
      `selection` is: `= false` would read as "still loading" forever on a
      caller that forgot it, which is the failure this is fixing. */
   feedGraceOver: boolean,
+  /* The trader's saved indicator settings (strategy_params), used ONLY to word the readings the AI read receives. Verdicts, gates and signals keep the standard settings (owner, 2026-11-17). Required, like `selection`, so an omitted argument cannot quietly send the defaults. */
+  indicatorParams: Readonly<Record<string, Readonly<Record<string, string | number | boolean>>>>,
 ): StrategySignal {
   const { spreadMinPct, atrMult, persistBoost } = filterParams;
   const [sig, setSig] = useState<StrategySignal>(STRATEGY_LOADING);
@@ -348,6 +354,8 @@ export function useEMAStrategy(
   const paramsRef    = useRef(filterParams);
   const selectionRef = useRef(selection);
   const graceRef     = useRef(feedGraceOver);
+  const indParamsRef = useRef(indicatorParams);
+  indParamsRef.current = indicatorParams;
   frRef.current        = fundingRate;
   oiRef.current         = oiPct;
   paramsRef.current     = filterParams;
@@ -605,23 +613,53 @@ export function useEMAStrategy(
            elements can be null, hence the field names and the null guards. price is this bar's close. */
         const fvNum = (n: number) => n.toLocaleString('en-US', { maximumSignificantDigits: 6 });
         const selectedReadings: Array<{ id: string; text: string }> = [];
-        if (smaSelected && smaLast != null && isFinite(smaLast)) {
-          selectedReadings.push({ id: 'SMA', text: `SMA(12) ${fvNum(smaLast)}, price ${price >= smaLast ? 'above' : 'below'}` });
+        /* THE READINGS USE THE TRADER'S OWN SETTINGS and say so ("RSI(21) 38.2"), owner 2026-11-17. The verdict and its gates above are untouched: they keep the standard settings, so a strategy signal never depends on what a trader typed into a box.
+           A saved value is clamped like the chart clamps it, and a missing or non-numeric one falls to the default. */
+        const ip = indParamsRef.current;
+        const pn = (id: string, key: string, def: number, lo: number, hi: number) => {
+          const v = ip?.[id]?.[key]; const n = typeof v === 'number' ? v : Number(v);
+          return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def;
+        };
+        const pi = (id: string, key: string, def: number, lo: number, hi: number) => Math.round(pn(id, key, def, lo, hi));
+        if (smaSelected) {
+          const len = pi('SMA', 'length', 12, 2, 400);
+          const v = smaArr(cl4, len).at(-1);
+          if (v != null && isFinite(v)) selectedReadings.push({ id: 'SMA', text: `SMA(${len}) ${fvNum(v)}, price ${price >= v ? 'above' : 'below'}` });
         }
-        if (bollSelected && bollLast != null) {
-          const pos = price > bollLast.up ? 'above the upper band'
-            : price < bollLast.dn ? 'below the lower band'
-            : price >= bollLast.mid ? 'between mid and upper' : 'between lower and mid';
-          selectedReadings.push({ id: 'BOLL', text: `Bollinger(20,2) mid ${fvNum(bollLast.mid)} upper ${fvNum(bollLast.up)} lower ${fvNum(bollLast.dn)}, price ${pos}` });
+        if (bollSelected) {
+          const len = pi('BOLL', 'length', 20, 2, 400), mult = pn('BOLL', 'mult', 2, 0.5, 5);
+          const b = bollingerBandsArr(cl4, len, mult).at(-1);
+          if (b != null) {
+            const pos = price > b.up ? 'above the upper band'
+              : price < b.dn ? 'below the lower band'
+              : price >= b.mid ? 'between mid and upper' : 'between lower and mid';
+            selectedReadings.push({ id: 'BOLL', text: `Bollinger(${len},${mult}) mid ${fvNum(b.mid)} upper ${fvNum(b.up)} lower ${fvNum(b.dn)}, price ${pos}` });
+          }
         }
-        if (psarSelected && psarLast != null && isFinite(psarLast)) {
-          selectedReadings.push({ id: 'SAR', text: `PSAR ${fvNum(psarLast)}, dot ${psarLast < price ? 'below price (bullish)' : 'above price (bearish)'}` });
+        if (psarSelected) {
+          const st = pn('SAR', 'start', 0.02, 0.001, 1), sp = pn('SAR', 'step', 0.02, 0.001, 1), mx = pn('SAR', 'max', 0.2, 0.01, 1);
+          const v = psarArr(cRibbon, st, sp, mx).at(-1);
+          if (v != null && isFinite(v)) selectedReadings.push({ id: 'SAR', text: `PSAR(${st},${sp},${mx}) ${fvNum(v)}, dot ${v < price ? 'below price (bullish)' : 'above price (bearish)'}` });
         }
-        if (macdSelected && macdLast != null && isFinite(macdLast.dif) && isFinite(macdLast.dea)) {
-          selectedReadings.push({ id: 'MACD', text: `MACD DIF ${fvNum(macdLast.dif)} / DEA ${fvNum(macdLast.dea)}, DIF ${macdLast.dif >= macdLast.dea ? 'above (bullish)' : 'below (bearish)'} DEA` });
+        if (macdSelected) {
+          const f = pi('MACD', 'fast', 12, 2, 400), s = pi('MACD', 'slow', 26, 2, 400), g = pi('MACD', 'signal', 9, 2, 400);
+          const m = macdArr(cl4, f, s, g).at(-1);
+          if (m != null && isFinite(m.dif) && isFinite(m.dea)) selectedReadings.push({ id: 'MACD', text: `MACD(${f},${s},${g}) DIF ${fvNum(m.dif)} / DEA ${fvNum(m.dea)}, DIF ${m.dif >= m.dea ? 'above (bullish)' : 'below (bearish)'} DEA` });
         }
-        /* NO RSI READING (#1263): RSI is a chart layer now, not a selectable indicator, so `selection`
-           never contains it and a reading here would be dead. `rsiSelected`/`rsiLast` stay - the RSI
+        /* RSI and the EMA ribbon are chart layers, not chips, so they are in the read only when the trader changed their settings (a reading at the standard 14 / 9-20-50-200 is already in the read's own fields, so repeating it would only add words). */
+        const rsiLenU = pi('RSI', 'length', 14, 2, 100), rsiObU = pi('RSI', 'overbought', 70, 50, 95), rsiOsU = pi('RSI', 'oversold', 30, 5, 50);
+        if (rsiLenU !== 14 || rsiObU !== 70 || rsiOsU !== 30) {
+          const r = rsiArr(cl4, rsiLenU).at(-1);
+          if (r != null && isFinite(r)) selectedReadings.push({ id: 'RSI', text: `RSI(${rsiLenU}) ${r.toFixed(1)} (overbought line ${rsiObU}, oversold line ${rsiOsU}): ${r >= rsiObU ? 'overbought' : r <= rsiOsU ? 'oversold' : 'between the lines'}` });
+        }
+        const emaLens = [pi('EMA_RIBBON', 'e1', 9, 2, 400), pi('EMA_RIBBON', 'e2', 20, 2, 400), pi('EMA_RIBBON', 'e3', 50, 2, 400), pi('EMA_RIBBON', 'e4', 200, 2, 400)];
+        if (emaLens.join(',') !== '9,20,50,200') {
+          const parts = emaLens.flatMap(n => { const v = emaArr(cl4, n).at(-1); return v != null && isFinite(v) ? [`EMA(${n}) ${fvNum(v)}`] : []; });
+          const longest = emaArr(cl4, emaLens[3]).at(-1);
+          if (parts.length) selectedReadings.push({ id: 'EMA_RIBBON', text: `EMA ribbon at the trader's lengths: ${parts.join(', ')}${longest != null && isFinite(longest) ? `, price ${price >= longest ? 'above' : 'below'} the longest` : ''}` });
+        }
+        /* NO RSI READING AT THE STANDARD SETTINGS (#1263): RSI is a chart layer now, not a selectable indicator, so `selection`
+           never contains it. `rsiSelected`/`rsiLast` stay - the RSI
            advisory CONDITION below still uses them (it can never move the verdict, see :109). */
 
         // SL / TP (0.5% buffer beyond 50 EMA)
@@ -655,6 +693,7 @@ export function useEMAStrategy(
             pass:  null,
             warn:  true,
             detail: `Counter-trend: price is ${above200D ? 'above' : 'below'} the daily 200 SMA, so this ${judged.setupDir === 'short' ? 'short' : 'long'} is against the daily trend.`,
+            detailKey: (above200D ? (judged.setupDir === 'short' ? 'EMA_DETAIL_CT_ABOVE_SHORT' : 'EMA_DETAIL_CT_ABOVE_LONG') : (judged.setupDir === 'short' ? 'EMA_DETAIL_CT_BELOW_SHORT' : 'EMA_DETAIL_CT_BELOW_LONG')) as LabelKey,
           } as StrategyCondition] : []),
           {
             label: 'Ribbon Aligned',
@@ -1074,7 +1113,7 @@ export function useEMAStrategy(
      // text from "loading…" to "unavailable" with no new data arriving, so it has
      // to re-derive on the flag alone - otherwise the row stays on "loading…"
      // until the next funding tick, which for a dead feed never comes.
-  }, [fundingRate, oiPct, spreadMinPct, atrMult, persistBoost, selection, feedGraceOver]);
+  }, [fundingRate, oiPct, spreadMinPct, atrMult, persistBoost, selection, feedGraceOver, indicatorParams]);
 
   return sig;
 }

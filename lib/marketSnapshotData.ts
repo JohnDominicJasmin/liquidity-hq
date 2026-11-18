@@ -63,7 +63,7 @@
  */
 
 import { COINS, BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, bybitPriceFactor } from './coins.ts';
-import { cached } from './apiCache.ts';
+import { cachedRefresh, cachedAt, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
 import { runPool, HttpStatusError, isRateLimitStatus } from './pool.ts';
 import { parseRatioPair } from './ratioPair.ts';
 import { reportHealth, healthError } from './apiHealth.ts';
@@ -74,7 +74,8 @@ import { exchangeFetch } from './exchangeGuard.ts';
 /* Cadences the client used, kept so nothing gets fresher or staler than it was:
    fetchVolume ran every 3 minutes, fetchLSR every 5. */
 const KLINES_TTL = 3 * 60_000;
-const TICKER_TTL = 3 * 60_000;
+/* 45 s, not 3 min (#1651, PM 2026-11-17): with the client polling every 3 min on top of a 3 min server window, a coin the socket does not overlay could be about 4 minutes behind. The ticker is ONE batched request, so the shorter window costs one call per 45 s per instance, not per visitor. */
+const TICKER_TTL = 45_000;
 const LSR_TTL    = 5 * 60_000;
 
 /* 45 symbols x 2 ratio endpoints is 90 requests. Unbounded parallelism is what
@@ -88,7 +89,8 @@ const CONCURRENCY = 12;
 const SPOT_HOSTS    = ['https://api.binance.com', 'https://api1.binance.com', 'https://api2.binance.com'];
 const FUTURES_HOSTS = ['https://fapi.binance.com', 'https://fapi1.binance.com', 'https://fapi2.binance.com'];
 
-const SYMS = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
+/* HYPE IS IN THIS LIST AGAIN (owner-reported 2026-11-17: VWAP/RSI14/POC/VAH/VAL/MA20 'Unavailable' on HYPE; `klines` held 49 coins and HYPE was the one missing). It was excluded by name with no recorded reason, on the premise that HYPE has no Binance perp, which lib/coins.ts shows false (HYPEUSDT is TRADING on futures and spot). A coin in this list that Binance cannot answer for is not lost: it counts as missing and the per-coin Bybit fallback below asks for it (OWED_COINS). */
+const SYMS = Object.entries(BINANCE_SYMS);
 
 /* TRACKED COINS THIS SNAPSHOT OWES AN ANSWER FOR AND CANNOT ASK BINANCE ABOUT.
  *
@@ -115,12 +117,7 @@ const SYMS = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
  * Bybit symbol, so there is nothing to ask. It is served from Binance and measured working
  * (price 0.1495 on prod, 2026-11-06).
  *
- * `hype` is excluded from `SYMS` by name on the line above and so is not in `COINS`-minus-Binance
- * either, since it HAS a Binance symbol. Its exclusion carries no recorded reason and the
- * justification written elsewhere ("hype has no Binance perp") is false - HYPEUSDT is TRADING on
- * both Binance futures and spot as of 2026-11-06. Left alone here and reported separately rather
- * than quietly widened, because removing a filter whose purpose nobody has established is how a
- * fix becomes an incident. */
+ * `hype` WAS excluded from `SYMS` by name, with no recorded reason, on the false premise that it has no Binance perp (HYPEUSDT is TRADING on both futures and spot). That exclusion is gone (#2513): hype is in `SYMS` like any other Binance coin, and the Bybit fallback below covers it when Binance has nothing. */
 const BYBIT_ONLY_COINS: string[] = COINS.filter(c => !(c in BINANCE_SYMS) && Boolean(BYBIT_SYMS[c]));
 
 /** Every coin either pass owes an answer for - the Binance-reachable ones plus the Bybit-only ones. */
@@ -137,7 +134,7 @@ const OWED_COINS: string[] = [...SYMS.map(([c]) => c), ...BYBIT_ONLY_COINS];
  *
  * The futures fallback below deliberately keeps using `SYMS`: SPX's futures listing is real, so
  * excluding it there would lose a working source. */
-const SPOT_SYMS = Object.entries(BINANCE_SPOT_SYMS).filter(([c]) => c !== 'hype');
+const SPOT_SYMS = Object.entries(BINANCE_SPOT_SYMS);
 
 interface TickerEntry { price: number; change: number; high: number; low: number; vol24: number }
 interface LsrEntry {
@@ -407,7 +404,7 @@ async function buildLsr(): Promise<Record<string, LsrEntry>> {
 
   const banned = await runPool(SYMS, CONCURRENCY, async ([coin, sym]) => {
     const [g, w] = await Promise.all([
-      get(`${host}/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=1`),
+      get(`${host}/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=1h&limit=1`),   // 1h, the same period as the Bybit account ratio and the dashboard widget (#1651)
       get(`${host}/futures/data/topLongShortPositionRatio?symbol=${sym}&period=5m&limit=1`),
     ]);
     const gi = Array.isArray(g) ? (g[0] as Record<string, string>) : null;
@@ -437,6 +434,8 @@ export interface MarketSnapshot {
   partial: string[];
   /** Per-section lists of coins served by Bybit rather than Binance. */
   viaFallback: Record<string, string[]>;
+  /** When the OLDEST section in this response was fetched (epoch ms). The cached sections have different ages, so the response is only as fresh as its oldest part; null when none could be read. */
+  fetchedAt: number | null;
 }
 
 /**
@@ -445,6 +444,14 @@ export interface MarketSnapshot {
  * Returns a result rather than throwing so the route keeps owning its status codes, and so the
  * #1631 gather can decide for itself what an unavailable section means in a prompt.
  */
+/* THE OVERALL DEADLINE ON A COLD SNAPSHOT (reliability leftover, PM 2026-11-17). A cold cache blocks its first caller until the whole fan-out has finished, and with ~45 symbols per section a slow or banned host made that minutes, not seconds, with the visitor's request held the whole time. Each section now waits at most this long for ITS build; past it the caller gets what the other sections have (the section is named in `partial`), or a failure when none answered, and the build is left running to fill the cache for the next caller (cachedRefresh shares the in-flight promise). Long enough for a healthy cold fill (measured 5-8 s), short enough that a stuck host is answered. */
+export const COLD_SNAPSHOT_DEADLINE_MS = 20_000;
+function withinDeadline<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const late = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`snapshot section not ready after ${ms} ms`)), ms); });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+
 export async function marketSnapshotData(): Promise<
   { ok: true; data: MarketSnapshot } | { ok: false; reason: unknown }
 > {
@@ -453,9 +460,9 @@ export async function marketSnapshotData(): Promise<
      whatever arrives and leaves the rest at its previous value, which is how the per-coin version
      behaved when one symbol failed. */
   const [t, k, l] = await Promise.allSettled([
-    cached('mkt:ticker', TICKER_TTL, buildTicker),
-    cached('mkt:klines', KLINES_TTL, buildKlines),
-    cached('mkt:lsr',    LSR_TTL,    buildLsr),
+    withinDeadline(cachedRefresh('mkt:ticker', TICKER_TTL, STALE_WHILE_REFRESH_MS, buildTicker), COLD_SNAPSHOT_DEADLINE_MS),
+    withinDeadline(cachedRefresh('mkt:klines', KLINES_TTL, STALE_WHILE_REFRESH_MS, buildKlines), COLD_SNAPSHOT_DEADLINE_MS),
+    withinDeadline(cachedRefresh('mkt:lsr',    LSR_TTL,    STALE_WHILE_REFRESH_MS, buildLsr),    COLD_SNAPSHOT_DEADLINE_MS),
   ]);
 
   if (t.status === 'rejected' && k.status === 'rejected' && l.status === 'rejected') {
@@ -488,5 +495,12 @@ export async function marketSnapshotData(): Promise<
     ['lsr',    lsr]    as const,
   ].filter(([, v]) => Object.keys(v).length === 0).map(([name]) => name);
 
-  return { ok: true, data: { ticker, klines, lsr, partial, viaFallback } };
+  /* The response is as old as its OLDEST fulfilled section (three caches, three cadences). */
+  const ages = [['mkt:ticker', t], ['mkt:klines', k], ['mkt:lsr', l]]
+    .filter(([, r]) => (r as PromiseSettledResult<unknown>).status === 'fulfilled')
+    .map(([key]) => cachedAt(key as string))
+    .filter((n): n is number => n != null);
+  const fetchedAt = ages.length ? Math.min(...ages) : null;
+
+  return { ok: true, data: { ticker, klines, lsr, partial, viaFallback, fetchedAt } };
 }
