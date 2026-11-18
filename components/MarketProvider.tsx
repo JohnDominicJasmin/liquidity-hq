@@ -13,6 +13,8 @@ import { getAuthToken, getSupabase } from '@/lib/supabase';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { liveOiTrend, bootstrapReadings, trendBetween, type OiReading } from '@/lib/oiTrendWindow';
 import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exchangeFailover';
+import { dropSocket, onPageResume } from '@/lib/socketResume';
+import { reconnectDelayMs, linkState, onBackOnline } from '@/lib/reconnectDelay';
 
 import { WHALE_USD_THRESHOLD, type AggSummary } from '@/lib/aggTradesSummary';
 
@@ -286,7 +288,9 @@ export default function MarketProvider(
          the counter and clears this, which is the only thing that stops it. The five-attempt
          branch that used to live here is gone: it was the start of the 60-second dead window
          described at WS_BACKOFF_CAP_MS, and "gave up on the socket" was never the intent. */
-      const delay = Math.min(2000 * retriesRef.current, WS_BACKOFF_CAP_MS);
+      /* Offline or hidden: lib/reconnectDelay.ts backs off to 30 s (QA, 2026-11-18: ~1,554 sockets in 90 min offline). The `online`
+         and resume handlers in the mount effect reconnect at once. Online and visible, the delay is unchanged. */
+      const delay = reconnectDelayMs(retriesRef.current, { ...linkState(), normalMs: Math.min(2000 * retriesRef.current, WS_BACKOFF_CAP_MS) });
       if (wsRetryRef.current) clearTimeout(wsRetryRef.current);
       wsRetryRef.current = setTimeout(() => {
         wsRetryRef.current = null;
@@ -1518,10 +1522,12 @@ export default function MarketProvider(
     let bnWs: WebSocket | null = null;
     let bbWs: WebSocket | null = null;
     let bnRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    let bbReconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let bbRetryTimer: ReturnType<typeof setInterval> | null = null;
     let confirmTimer: ReturnType<typeof setTimeout> | null = null;
     let bnRetries = 0;
     let bbHostIdx = 0;
+    let bbAttempt = 0;   // Bybit failures since its last open; bbHostIdx keeps alternating hosts regardless
     let active: 'binance' | 'bybit' = 'binance';
     let alive = true;
 
@@ -1536,6 +1542,7 @@ export default function MarketProvider(
 
     function connectBN() {
       if (!alive) return;
+      if (bnRetryTimer) { clearTimeout(bnRetryTimer); bnRetryTimer = null; }
       const ws = new WebSocket('wss://fstream.binance.com/market/ws/!forceOrder@arr');
       bnWs = ws;
       const attemptStartedAt = Date.now();
@@ -1546,7 +1553,8 @@ export default function MarketProvider(
       let settled = false;
 
       const timeoutTimer = setTimeout(() => {
-        if (settled || !connectTimedOut(attemptStartedAt, Date.now(), BN_CONNECT_TIMEOUT_MS)) return;
+        // `bnWs !== ws`: a socket the resume / `online` handler already replaced must not count a failure (WhaleTradesFeed has the same guard).
+        if (settled || bnWs !== ws || !connectTimedOut(attemptStartedAt, Date.now(), BN_CONNECT_TIMEOUT_MS)) return;
         settled = true;
         try { ws.close(); } catch { /* */ }
         handleFailure();
@@ -1625,12 +1633,14 @@ export default function MarketProvider(
           // the next attempt, so don't also fast-retry here.
           return;
         }
-        bnRetryTimer = setTimeout(connectBN, 5_000);
+        // 5 s as before while online and visible; offline or hidden backs off (lib/reconnectDelay.ts).
+        bnRetryTimer = setTimeout(connectBN, reconnectDelayMs(bnRetries, { ...linkState(), normalMs: 5_000 }));
       }
     }
 
     function connectBB() {
       if (!alive || active !== 'bybit') return;
+      if (bbReconnectTimer) { clearTimeout(bbReconnectTimer); bbReconnectTimer = null; }
       // bytick.com is Bybit's alternative domain - same failover host pattern
       // as LiqFeed.tsx's connectBB, which this mirrors.
       const host = bbHostIdx % 2 === 0
@@ -1640,6 +1650,7 @@ export default function MarketProvider(
       bbWs = ws;
       ws.onopen = () => {
         if (!alive) return;
+        bbAttempt = 0;
         ws.send(JSON.stringify({ op: 'subscribe', args: BB_LIQ_TOPICS }));
       };
       ws.onmessage = (e) => {
@@ -1674,12 +1685,23 @@ export default function MarketProvider(
         // reconnect a fallback that is no longer wanted.
         if (!alive || active !== 'bybit') return;
         bbHostIdx++;
-        setTimeout(connectBB, 5_000);
+        bbAttempt++;
+        bbReconnectTimer = setTimeout(connectBB, reconnectDelayMs(bbAttempt, { ...linkState(), normalMs: 5_000 }));
       };
       ws.onerror = () => { try { ws.close(); } catch { /* */ } };
     }
 
     connectBN();
+
+    /* Back on the network, or the tab visible again: the active source's socket, if it is not OPEN, reconnects now with the backoff
+       reset, rather than serving out an offline wait. */
+    const kick = () => {
+      if (!alive) return;
+      if (active === 'binance' && bnWs?.readyState !== WebSocket.OPEN) { dropSocket(bnWs); bnWs = null; bnRetries = 0; connectBN(); }
+      else if (active === 'bybit' && bbWs?.readyState !== WebSocket.OPEN) { dropSocket(bbWs); bbWs = null; bbAttempt = 0; connectBB(); }
+    };
+    const offResume = onPageResume(kick);
+    const offOnline = onBackOnline(kick);
 
     // Cascade analyzer - check every 5s
     const analyzer = setInterval(() => {
@@ -1741,8 +1763,11 @@ export default function MarketProvider(
 
     return () => {
       alive = false;
+      offResume();
+      offOnline();
       clearInterval(analyzer);
       if (bnRetryTimer) clearTimeout(bnRetryTimer);
+      if (bbReconnectTimer) clearTimeout(bbReconnectTimer);
       if (bbRetryTimer) clearInterval(bbRetryTimer);
       if (confirmTimer) clearTimeout(confirmTimer);
       try { bnWs?.close(); } catch { /* */ }
@@ -1824,7 +1849,22 @@ export default function MarketProvider(
     };
     document.addEventListener('visibilitychange', onVisible);
 
+    /* The price socket, back on the network or the tab visible again: if it is not OPEN, reconnect now with the backoff reset instead
+       of serving out an offline wait (lib/reconnectDelay.ts). Detached first, so its onclose cannot queue a second attempt. */
+    const kickPrices = () => {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) return;
+      if (wsRetryRef.current) { clearTimeout(wsRetryRef.current); wsRetryRef.current = null; }
+      retriesRef.current = 0;
+      dropSocket(ws); wsRef.current = null;
+      startWSRef.current();
+    };
+    const offPriceResume = onPageResume(kickPrices);
+    const offPriceOnline = onBackOnline(kickPrices);
+
     return () => {
+      offPriceResume();
+      offPriceOnline();
       if (scannerRetryTimer.current) { clearTimeout(scannerRetryTimer.current); scannerRetryTimer.current = null; }
       intervals.forEach(clearInterval);
       document.removeEventListener('visibilitychange', onVisible);

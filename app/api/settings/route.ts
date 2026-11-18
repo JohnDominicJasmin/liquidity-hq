@@ -6,6 +6,7 @@ import { shouldAcceptFieldWrite } from '@/lib/settingsFieldConcurrency';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { STRATEGY_IDS } from '@/lib/strategies';
+import { isValidSoundPrefs } from '@/lib/arenaSoundPrefs';
 
 function sb(token: string) {
   return userClient(token);
@@ -71,6 +72,7 @@ export async function PATCH(req: NextRequest) {
     'strategy_selection', 'strategy_params', 'arena_strategy',
     'arena_sound',
     'alert_quiet_start', 'alert_quiet_end', 'alert_snooze_until', 'alert_paused',
+    'arena_sound_prefs',
   ];
   const payload: Record<string, unknown> = {};
   for (const key of ALLOWED) {
@@ -104,6 +106,10 @@ export async function PATCH(req: NextRequest) {
   // arena_sound is a tri-state (null = never asked): refuse anything else rather than store a string a client invented.
   if ('arena_sound' in payload && payload.arena_sound !== null && typeof payload.arena_sound !== 'boolean') {
     return NextResponse.json({ error: 'Invalid arena_sound' }, { status: 400 });
+  }
+  // The sound picker's object is checked field by field (lib/arenaSoundPrefs.ts): a known sound id, volume 0-1, three booleans, nothing else.
+  if ('arena_sound_prefs' in payload && !isValidSoundPrefs(payload.arena_sound_prefs)) {
+    return NextResponse.json({ error: 'Invalid arena_sound_prefs' }, { status: 400 });
   }
 
   // Telegram alert controls: hours are whole numbers 0-23 or null, snooze is an ISO time or null, paused is a boolean or null. Anything else is refused,

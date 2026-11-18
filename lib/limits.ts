@@ -28,7 +28,8 @@ export type UsageTier = 'free' | 'trial' | 'pro';
 // lived only in Arena, Settings happily let a free user save `5m` and Arena
 // then silently rewrote it to 1h on load with no explanation.
 export const GATED_TFS = ['1m', '5m', '15m'] as const;
-export const FREE_FALLBACK_TF = '1h';
+/** The NEAREST Free timeframe to the gated ones (PM 2026-11-18: a lapsed Pro with a saved 15m lands on 30m, not 1h). */
+export const FREE_FALLBACK_TF = '30m';
 export function isGatedTf(tf: string): boolean {
   return (GATED_TFS as readonly string[]).includes(tf);
 }

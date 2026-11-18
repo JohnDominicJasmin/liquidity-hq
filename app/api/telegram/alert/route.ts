@@ -34,6 +34,7 @@ import { wilderRsi } from '@/lib/rsi';
 import { exchangeFetch } from '@/lib/exchangeGuard';
 import { validPushEndpoint } from '@/lib/pushEndpoint';
 import { afterSend, dueForRetry, holdExpired, type PendingDelivery, type SendResult } from '@/lib/priceAlertDelivery';
+import { TF_MS } from '@/lib/candles';
 
 export const dynamic = 'force-dynamic';
 
@@ -141,6 +142,12 @@ interface SignalEntry {
   // (Arena's Anti-Chop Filter). Undefined on every other rule_key, which
   // passesThreshold() reads as "no filter-mode gating, always eligible".
   antiChopMode?: boolean;
+  /* Runs once a message carrying this entry was DELIVERED to at least one chat (owner sweep 2026-11-18). The BUY/SELL dedup used to be
+     recorded before the send, so a failed send lost the signal for good. */
+  onSent?: () => void;
+  /* A cooldown kept PER RECIPIENT (owner sweep 2026-11-18). RSI and squeeze used one shared key per coin: the user with the loosest
+     threshold set it off and everyone else was silenced for 4 h, even when the reading later crossed their own stricter level. */
+  cooldown?: { key: string; ms: number };
 }
 
 /* Prices in alert bodies - entry, stop, take profit, broken swing level.
@@ -433,6 +440,40 @@ function resetSendTally(): void {
 
 /* #1667: what one call delivered, per recipient chat, so a caller that must know (price alerts) can tell "sent", "failed" and "paused"
    apart. Every other caller still ignores it, as before. */
+/* A FAILED SEND IS RETRIED BEFORE IT COUNTS AS FAILED (owner sweep 2026-11-18). Prod logged "fetch failed: TypeError" to api.telegram.org
+   (transient network) and those alerts were simply lost. Up to 3 attempts for a network error, a 429 (waiting Telegram's own retry_after,
+   at most 10 s) or a 5xx; a 4xx answer (blocked bot, chat not found) is final at once. Returns the last Response; throws only when
+   every attempt was a network error. */
+export const TG_SEND_ATTEMPTS = 3;
+export function tgRetryDelayMs(attempt: number, status: number | null, retryAfterS: number | null): number | null {
+  if (attempt >= TG_SEND_ATTEMPTS) return null;
+  if (status === 429) return Math.min(10_000, Math.max(1_000, (retryAfterS ?? 1) * 1000));
+  if (status === null || status >= 500) return 1_000 * 2 ** (attempt - 1);
+  return null;
+}
+async function sendWithRetry(token: string, chatId: string, body: string): Promise<Response> {
+  for (let attempt = 1; ; attempt++) {
+    let res: Response | null = null;
+    let err: unknown = null;
+    try {
+      res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: body, parse_mode: 'HTML' }),
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch (e) { err = e; }
+    if (res?.ok) return res;
+    let retryAfter: number | null = null;
+    if (res?.status === 429) {
+      retryAfter = await res.clone().json().then((d: { parameters?: { retry_after?: number } }) => Number(d?.parameters?.retry_after) || null, () => null);
+    }
+    const wait = tgRetryDelayMs(attempt, res ? res.status : null, retryAfter);
+    if (wait === null) { if (res) return res; throw err; }
+    await new Promise(r => setTimeout(r, wait));
+  }
+}
+
 async function tg(token: string, chatId: string | string[], text: string): Promise<SendResult> {
   // Send-only kill switch (/ops/config) - detection/tracking above this call
   // keeps running either way, only the actual outbound message stops.
@@ -454,17 +495,20 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
   // blocked by the user, chat not found, unparseable HTML in the body - was
   // indistinguishable from a successful delivery. Nothing anywhere recorded
   // whether a message actually landed.
+  /* A MESSAGE WITH A BROKEN NUMBER IS NOT SENT (owner sweep 2026-11-18): a malformed exchange row printed "NaN%" to users. A body carrying
+     NaN, Infinity, undefined, a null in a number position ($null, null%, ": null") or [object ...] is held back, counted as failed with its reason,
+     and (for a signal) retried next run. A plain word "null" is allowed: a news headline can say "declared null and void" (QA review of #2560). */
+  if (/\bNaN\b|\bInfinity\b|\bundefined\b|\$null\b|\bnull%|:\s*null\b|\[object /.test(text)) {
+    sendTally.failed += ids.length; result.failed += ids.length;
+    sendTally.reasons.add('malformed message held back (NaN/undefined)');
+    return result;
+  }
   const deadChats = new Set<string>();
   await Promise.all([...byZone.entries()].flatMap(([tz, zoneIds]) => {
     const body = text.includes(TIME_TOKEN) ? text.replaceAll(TIME_TOKEN, alertTimeIn(tz)) : text;
     return zoneIds.map(async id => {
       try {
-        const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: id, text: body, parse_mode: 'HTML' }),
-          signal: AbortSignal.timeout(10_000),
-        });
+        const res = await sendWithRetry(token, id, body);
         if (res.ok) { sendTally.ok++; result.sent++; return; }
         sendTally.failed++; result.failed++;
         // description is Telegram's own reason ("chat not found", "bot was
@@ -531,33 +575,44 @@ async function flushSignals(
     // Group recipients by the exact subset of this coin's entries they're
     // eligible for (identical mute config + threshold -> identical subset ->
     // one send).
-    const groups = new Map<string, { entries: SignalEntry[]; chatIds: string[] }>();
+    const groups = new Map<string, { entries: SignalEntry[]; chatIds: string[]; userIds: string[] }>();
     for (const r of recipients) {
       const eligible = entries.filter(e =>
-        isEligibleFor(mutedByUser, r.userId, e) && passesThreshold(e, thresholdsByUser.get(r.userId)));
+        isEligibleFor(mutedByUser, r.userId, e) && passesThreshold(e, thresholdsByUser.get(r.userId))
+        && !(e.cooldown && onCooldown(`${e.cooldown.key}:${r.userId}`, e.cooldown.ms)));
       for (const e of eligible) eligibleEntries.add(e);
       if (eligible.length === 0) continue;
       const sig = eligible.map(e => e.ruleKey + '_' + (e.dir ?? '')).join('|');
-      if (!groups.has(sig)) groups.set(sig, { entries: eligible, chatIds: [] });
+      if (!groups.has(sig)) groups.set(sig, { entries: eligible, chatIds: [], userIds: [] });
       groups.get(sig)!.chatIds.push(r.chatId);
+      groups.get(sig)!.userIds.push(r.userId);
     }
+    /* After a delivered message: the per-recipient cooldowns of what it carried start (see SignalEntry.cooldown). */
+    const startCooldowns = (elig: SignalEntry[], userIds: string[]) => {
+      for (const e of elig) if (e.cooldown) for (const u of userIds) markSent(`${e.cooldown.key}:${u}`);
+    };
 
     const label = LABELS[coin] ?? coin.toUpperCase();
 
-    await Promise.all([...groups.values()].map(async ({ entries: elig, chatIds }) => {
+    await Promise.all([...groups.values()].map(async ({ entries: elig, chatIds, userIds }) => {
       if (elig.length === 1) {
         // Single signal - send as-is
-        await tg(token, chatIds, elig[0].body);
+        const r = await tg(token, chatIds, elig[0].body);
+        if (r.sent > 0) { elig[0].onSent?.(); startCooldowns(elig, userIds); }
         return;
       }
 
       // Confluence - 2+ signals this group is eligible for on this coin
       const bullets = elig.map(e => `• ${e.title}`).join('\n');
-      await tg(token, chatIds,
-        `🔀 <b>${label} - ${elig.length} Signals Aligned</b>\n\n` +
+      /* "Aligned" only when they point the same way (owner sweep 2026-11-18): a long and a short together are N signals, not a confluence. */
+      const dirs = new Set(elig.map(e => e.dir).filter(Boolean));
+      const head = dirs.size > 1 ? `${elig.length} Signals (mixed directions)` : `${elig.length} Signals Aligned`;
+      const r = await tg(token, chatIds,
+        `🔀 <b>${label} - ${head}</b>\n\n` +
         `${bullets}\n\n` +
         `<i>${stamp}</i>`
       );
+      if (r.sent > 0) { for (const e of elig) e.onSent?.(); startCooldowns(elig, userIds); }
     }));
   }));
 
@@ -845,23 +900,25 @@ async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipie
       const rsi    = computeRSI(closedCloses);
       const r      = rsi.toFixed(1);
       const label  = LABELS[coin];
-      if (rsi >= loosestOb && !onCooldown(`rsi_ob_${coin}`, CD.rsi)) {
+      if (rsi >= loosestOb) {
         queue.push({
           coin, dir: 'short', ruleKey: 'rsi', name: `${label} RSI overbought (${r})`, price,
           title: `RSI Overbought ${r} (1H)`,
-          body: `⚡ <b>${label} RSI Overbought (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Exhaustion - Potential Reversal\nAction: Avoid chasing longs. Watch for rejection / reversal candle.\n\n<i>${stamp}</i>`,
+          body: `⚡ <b>${label} RSI Overbought (1H)</b>\n\nRSI: <b>${r}</b>\nOverbought zone on the 1-hour chart.\n\n<i>${stamp}</i>`,
           metricValue: rsi, thresholdKind: 'rsi_ob', canonicalHit: rsi >= DEFAULT_THRESHOLDS.rsiOb,
+          cooldown: { key: `rsi_ob_${coin}`, ms: CD.rsi },
         });
-        markSent(`rsi_ob_${coin}`); fired.push(`${label} RSI overbought (${r})`);
+        fired.push(`${label} RSI overbought (${r})`);
       }
-      if (rsi <= loosestOs && !onCooldown(`rsi_os_${coin}`, CD.rsi)) {
+      if (rsi <= loosestOs) {
         queue.push({
           coin, dir: 'long', ruleKey: 'rsi', name: `${label} RSI oversold (${r})`, price,
           title: `RSI Oversold ${r} (1H)`,
-          body: `⚡ <b>${label} RSI Oversold (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Oversold - Bounce Setup\nAction: Watch for bounce from key support. Long bias on confirmation.\n\n<i>${stamp}</i>`,
+          body: `⚡ <b>${label} RSI Oversold (1H)</b>\n\nRSI: <b>${r}</b>\nOversold zone on the 1-hour chart.\n\n<i>${stamp}</i>`,
           metricValue: rsi, thresholdKind: 'rsi_os', canonicalHit: rsi <= DEFAULT_THRESHOLDS.rsiOs,
+          cooldown: { key: `rsi_os_${coin}`, ms: CD.rsi },
         });
-        markSent(`rsi_os_${coin}`); fired.push(`${label} RSI oversold (${r})`);
+        fired.push(`${label} RSI oversold (${r})`);
       }
     } catch { /* skip */ }
   }), 6);
@@ -938,9 +995,8 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[], skipCounts: S
             title: `Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
             body: `${emoji} <b>${label} Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})</b>\n\n` +
               `Price: <b>$${fmtAlertPrice(currClose)}</b>\n` +
-              `Signal: ${Math.abs(pct).toFixed(1)}% candle - ${pct > 0 ? 'momentum surge' : 'flash dump'}\n` +
+              `Candle: ${Math.abs(pct).toFixed(1)}% ${pct > 0 ? 'up' : 'down'}\n` +
               (patternStr ? `Pattern: <b>${patternStr}</b> (${bybitInterval === '60' ? '1h' : bybitInterval + 'm'})\n` : '') +
-              `Action: Check volume + OI. Next candle direction is key.` +
               `\n\n<i>${stamp}</i>`,
           });
           markSent(key); fired.push(`${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`);
@@ -1084,6 +1140,9 @@ async function checkNews(
   const fired: string[] = [];
   const chatId = recipientChatIds(recipients, mutedByUser, 'news');
   if (chatId.length === 0) return fired;
+  /* MACRO HEADLINES HAVE THEIR OWN SWITCH (owner sweep 2026-11-18): the "Macro Alert" kind went to everyone with news on, with no way to
+     keep breaking news and drop macro. `macro_news` muted removes a recipient from the macro kind only. */
+  const macroChatId = recipients.filter(r => !isMutedFor(mutedByUser, r.userId, 'news') && !isMutedFor(mutedByUser, r.userId, 'macro_news')).map(r => r.chatId);
   const since = Math.floor(Date.now() / 1000) - 600;
   try {
     const [cryptoR, generalR] = await Promise.allSettled([
@@ -1106,7 +1165,9 @@ async function checkNews(
       if (onCooldown(key, CD.news)) continue;
       const emoji    = type === 'red' ? '🚨' : '📊';
       const label    = type === 'red' ? 'Breaking Alert' : 'Macro Alert';
-      await tg(token, chatId, `${emoji} <b>${label}</b>\n\n<b>${escapeHtml(item.headline)}</b>\nSource: ${escapeHtml(item.source)}\n\n<i>${stamp}</i>`);
+      const to = type === 'red' ? chatId : macroChatId;
+      if (to.length === 0) continue;
+      await tg(token, to, `${emoji} <b>${label}</b>\n\n<b>${escapeHtml(item.headline)}</b>\nSource: ${escapeHtml(item.source)}\n\n<i>${stamp}</i>`);
       markSent(key); fired.push(`news: ${item.headline.slice(0, 50)}`);
     }
   } catch { /* skip */ }
@@ -1151,7 +1212,7 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
             title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
             body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} - ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
               `Open interest: ${(oldest / 1000).toFixed(1)}K → ${(newest / 1000).toFixed(1)}K contracts\n` +
-              `Signal: ${pct > 0 ? 'New money entering - big move likely building' : 'Positions closing - potential trend reversal'}` +
+              `${pct > 0 ? 'Open interest rising: new positions opening.' : 'Open interest falling: positions closing.'}` +
               `\n\n<i>${stamp}</i>`,
           });
           markSent(key); fired.push(`${label} OI ${dir} ${pct.toFixed(1)}%`);
@@ -1184,7 +1245,7 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
             title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
             body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} - ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
               `Open interest changed from ${(oldest / 1000).toFixed(1)}K to ${(newest / 1000).toFixed(1)}K contracts\n` +
-              `Signal: ${pct > 0 ? 'New money entering - big move likely building' : 'Positions closing - potential trend reversal'}` +
+              `${pct > 0 ? 'Open interest rising: new positions opening.' : 'Open interest falling: positions closing.'}` +
               `\n\n<i>${stamp}</i>`,
           });
           markSent(key); fired.push(`${label} OI ${dir} ${pct.toFixed(1)}%`);
@@ -1259,7 +1320,7 @@ async function checkCVD(stamp: string, queue: SignalEntry[], skipCounts: SkipCou
         queue.push({
           coin, ruleKey: 'cvd', name: `${label} bearish CVD divergence`,
           title: `Bearish CVD Divergence`,
-          body: `⚠️ <b>${label} Bearish CVD Divergence</b>\n\nPrice: <b>+${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Negative</b> - sellers dominating volume\nSignal: Price pump not supported by buying - likely a fake move\nAction: Avoid chasing longs. Watch for reversal.\n\n<i>${stamp}</i>`,
+          body: `⚠️ <b>${label} Bearish CVD Divergence</b>\n\nPrice: <b>+${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Negative</b> - sellers dominating volume\nPrice rose while net taker volume was selling.\n\n<i>${stamp}</i>`,
         });
         markSent(`cvd_bear_${coin}`); fired.push(`${label} bearish CVD divergence`);
       }
@@ -1267,7 +1328,7 @@ async function checkCVD(stamp: string, queue: SignalEntry[], skipCounts: SkipCou
         queue.push({
           coin, ruleKey: 'cvd', name: `${label} bullish CVD divergence`,
           title: `Bullish CVD Divergence`,
-          body: `⚡ <b>${label} Bullish CVD Divergence</b>\n\nPrice: <b>${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Positive</b> - buyers absorbing the dip\nSignal: Price drop not matched by sell volume - accumulation signal\nAction: Watch for bounce from key support.\n\n<i>${stamp}</i>`,
+          body: `⚡ <b>${label} Bullish CVD Divergence</b>\n\nPrice: <b>${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Positive</b> - buyers absorbing the dip\nPrice fell while net taker volume was buying.\n\n<i>${stamp}</i>`,
         });
         markSent(`cvd_bull_${coin}`); fired.push(`${label} bullish CVD divergence`);
       }
@@ -1294,7 +1355,7 @@ const WICK_LOOKBACK_MIN = 15;
 
 async function checkPriceAlerts(
   token: string, stamp: string, prices: Record<string, number>,
-  allChatIds: string[], proUserIds: Set<string>
+  allChatIds: string[], proUserIds: Set<string>, mutedByUser: Map<string, Set<string>> = new Map(),
 ): Promise<string[]> {
   const fired: string[] = [];
   try {
@@ -1373,6 +1434,9 @@ async function checkPriceAlerts(
       const hasOwner = !!alert.user_id;
       const ownerChatId = hasOwner ? chatIdByUser.get(alert.user_id!) : undefined;
       if (hasOwner && !ownerChatId) continue;
+      /* The "Price Level Alerts" switch on /alerts mutes the rule key `price_alerts`; it used to have no effect here (owner sweep
+         2026-11-18). Off: the alert is not sent and stays active, so it fires once the switch is back on. */
+      if (hasOwner && isMutedFor(mutedByUser, alert.user_id!, 'price_alerts')) continue;
       if (!hasOwner && allChatIds.length === 0) continue;
       const recipient = hasOwner ? ownerChatId! : allChatIds;
 
@@ -1749,7 +1813,6 @@ async function checkSqueezeAlerts(
     if (score < loosestTh || dir === 'NEUTRAL') continue;
 
     const key = `squeeze_${dir}_${coin}`;
-    if (onCooldown(key, CD.squeeze)) continue;
 
     const label    = LABELS[coin];
     const frPct    = fr != null ? (fr >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : '-';
@@ -1770,8 +1833,8 @@ async function checkSqueezeAlerts(
           `Positioning is short-heavy.\n\n` +
           `<i>${stamp}</i>`,
         metricValue: score, thresholdKind: 'squeeze', canonicalHit,
+        cooldown: { key, ms: CD.squeeze },
       });
-      markSent(key);
       fired.push(`${label} short-heavy positioning (${score}/100)`);
     } else {
       // Longs overcrowded - expect dump to flush them
@@ -1786,8 +1849,8 @@ async function checkSqueezeAlerts(
           `Positioning is long-heavy.\n\n` +
           `<i>${stamp}</i>`,
         metricValue: score, thresholdKind: 'squeeze', canonicalHit,
+        cooldown: { key, ms: CD.squeeze },
       });
-      markSent(key);
       fired.push(`${label} long-heavy positioning (${score}/100)`);
     }
   }
@@ -1951,9 +2014,8 @@ async function checkDistribution(
           body:
             `💰 <b>DISTRIBUTION DETECTED - ${label}/USDT</b>\n` +
             `Score: <b>${res.score}/100</b>\n\n` +
-            `Price still up <b>+${change24hPct.toFixed(1)}%</b> in 24h, but big players look to be taking profits into strength:\n` +
+            `Price still up <b>+${change24hPct.toFixed(1)}%</b> in 24h, while these distribution signs show:\n` +
             res.reasons.map(r => `• ${r}`).join('\n') + '\n\n' +
-            `Caution on new longs - watch for lower highs and loss of VWAP.` +
             `\n\n<i>${stamp}</i>`,
         });
         markSent(key);
@@ -2024,7 +2086,10 @@ async function checkEMASignal(
         // independently since they can hold different "current" signals.
         const dedupKey = `${coin}_${tf}_${mode.dedupSuffix}`;
         if (emaSignalLastTs.get(dedupKey) === latest.timestamp) continue;
-        emaSignalLastTs.set(dedupKey, latest.timestamp);
+        /* AN OLD SIGNAL IS NOT NEWS (owner sweep 2026-11-18): switching a timeframe on sent whatever signal its chart last had, days old,
+           with a stale entry price. A signal more than 3 candles old is recorded as seen and not sent. */
+        if (Date.now() - latest.timestamp > 3 * (TF_MS[tf] ?? Infinity)) { emaSignalLastTs.set(dedupKey, latest.timestamp); continue; }
+        const markSeen = () => emaSignalLastTs.set(dedupKey, latest.timestamp);
 
         const label   = LABELS[coin];
         const fmtP    = fmtSignalPrice;
@@ -2041,6 +2106,7 @@ async function checkEMASignal(
           // DEFAULT_FILTER_PARAMS in strategyCore.ts), same precedent as
           // rsi/squeeze's canonicalHit excluding personal-threshold-only hits.
           canonicalHit: !mode.antiChopMode,
+          onSent: markSeen,
           body:
             `${latest.dir === 'long' ? '🟢' : '🔴'} <b>${label}/USDT ${dirWord} (${tfLabel})</b>\n\n` +
             `Entry: <b>$${fmtP(latest.entryPrice)}</b>\n` +
@@ -2271,7 +2337,8 @@ async function checkStructureSignal(
       // same one is still the latest.
       const dedupKey = `${coin}_${tf}`;
       if (structureLastTs.get(dedupKey) === latest.timestamp) return;
-      structureLastTs.set(dedupKey, latest.timestamp);
+      // Recorded only once a message carrying it was delivered (onSent below), not before the send (owner sweep 2026-11-18).
+      const markSeen = () => structureLastTs.set(dedupKey, latest.timestamp);
 
       const label = LABELS[coin];
       const fmtP  = fmtSignalPrice;
@@ -2290,6 +2357,7 @@ async function checkStructureSignal(
         // the EMA rule's hit rate, and mixing a different system's signals
         // into it would make both numbers meaningless.
         canonicalHit: false,
+        onSent: markSeen,
         body:
           `${isBull ? '🔵' : '🟣'} <b>${label}/USDT ${shortKind} ${isBull ? 'UP' : 'DOWN'} (${tfLabel})</b>\n\n` +
           `${kindWord} - price closed ${isBull ? 'above' : 'below'} the prior swing ` +
@@ -2455,10 +2523,22 @@ export async function GET(req: NextRequest) {
   const timeout = new Promise<NextResponse>(res => {
     timerId = setTimeout(() => res(NextResponse.json({ ok: true, fired: [], note: 'timeout - some checks skipped' })), 28_000);
   });
-  const result = await Promise.race([runAlerts(token), timeout]);
+  /* ONE RUN AT A TIME (owner sweep 2026-11-18). A run keeps going after the 28 s answer above, and a second trigger (a scheduler retry,
+     a manual check) started a second run over the same cooldown state, so the same alert could go out twice. A run that started under
+     5 minutes ago and has not finished makes this call a no-op; the lock frees itself after that in case a run never returns. */
+  if (alertRunStartedAt !== null && Date.now() - alertRunStartedAt < ALERT_RUN_LOCK_MS) {
+    clearTimeout(timerId!);
+    return NextResponse.json({ ok: true, fired: [], note: 'a run is already in progress' });
+  }
+  alertRunStartedAt = Date.now();
+  const run = runAlerts(token).finally(() => { alertRunStartedAt = null; });
+  const result = await Promise.race([run, timeout]);
   clearTimeout(timerId!);
   return result;
 }
+
+const ALERT_RUN_LOCK_MS = 5 * 60_000;
+let alertRunStartedAt: number | null = null;
 
 async function runAlerts(token: string): Promise<NextResponse> {
 
@@ -2587,7 +2667,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   /* MUTES OR THRESHOLDS UNREADABLE (B6): the signal alerts are NOT sent this run. Without them every recipient would be treated as having muted nothing and as using the default thresholds, and the alerts they muted would go out and
      burn their cooldowns. Price alerts depend on neither, so they still run; every cooldown mark is dropped; the next tick tries again; a health row says why. */
   if (!mutedRaw || !thresholdsRaw) {
-    const priceFired = await checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds);
+    const priceFired = await checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds, mutedRaw ?? new Map());
     discardStagedMarks();
     reportHealth('alert:prefs', 'delivery', false, `${!mutedRaw ? 'mutes' : 'thresholds'} could not be read; signal alerts skipped this run, price alerts still sent (${priceFired.length})`);
     return NextResponse.json({ ok: true, skipped: 'prefs_unreadable', fired: priceFired, delivery: { sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons] } });
@@ -2649,7 +2729,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     checkDailySummary(token, recipients, mutedByUser, stamp, frMap),      // global - sends directly
     checkOISpike(stamp, prices, signalQueue, skipCounts),
     checkCVD(stamp, signalQueue, skipCounts),
-    checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds),       // already per-user (own table)
+    checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds, mutedByUser),       // already per-user (own table)
     checkSentimentExtremes(token, recipients, mutedByUser, stamp, frMap, skipCounts), // global - sends directly
     checkSqueezeAlerts(stamp, frMap, lsMap, prices, signalQueue, recipients, thresholdsByUser),
     checkDistribution(stamp, frMap, signalQueue, fullyMutedCoins, skipCounts),

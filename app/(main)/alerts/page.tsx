@@ -563,6 +563,7 @@ export default function AlertsPage() {
     ]},
     { section: t('ALERTS_SECTION_NEWS_SENTIMENT'), items: [
       { key: 'news',               dot: 'var(--red)', title: t('ALERTS_NEWS_TITLE'),         desc: t('ALERTS_NEWS_DESC') },
+      { key: 'macro_news',         dot: '#9ba4ff', title: t('ALERTS_MACRO_NEWS_TITLE'),  desc: t('ALERTS_MACRO_NEWS_DESC') },
       { key: 'fear_greed',         dot: '#f97316', title: t('ALERTS_FEAR_GREED_TITLE'), desc: t('ALERTS_FEAR_GREED_DESC') },
       { key: 'sentiment_extremes', dot: '#f43f5e', title: t('ALERTS_SENTIMENT_EXTREMES_TITLE'),    desc: t('ALERTS_SENTIMENT_EXTREMES_DESC') },
     ]},

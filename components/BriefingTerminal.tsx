@@ -340,7 +340,7 @@ export default function BriefingTerminal() {
   const dxyChg    = store.dxyChg;
   /* A DXY value whose own time is old (weekend, overnight) says "Fri close" (#1651). */
   const dxyStampDate = macroStampDate(store.macroAsOf.dxy, nowMs);
-  const dxySig    = dxyChg == null    ? '-'
+  const dxySig    = dxyChg == null    ? ''   // no 24 h change: an empty line, never a dash (QA review of #2562)
     : dxyChg > 0.2  ? t('BRIEFING_DXY_HEADWIND')
     : dxyChg < -0.2 ? t('BRIEFING_DXY_TAILWIND')
     : t('BRIEFING_DXY_NEUTRAL');
@@ -573,26 +573,32 @@ export default function BriefingTerminal() {
       {/* ── Session Countdown ── */}
       <SessionCountdown />
 
-      {/* ── Macro Pulse ── */}
+      {/* ── Macro Pulse ── A reading that failed once the grace period is over is LEFT OUT, and a missing trend line is empty, never a dash (owner sweep 2026-11-18). */}
       <TPanel>
         <div className="lbl">{t('BRIEFING_MACRO_PULSE_TITLE')}</div>
         <div className="mb-macro-row">
+          {(fng != null || !graceOver) && (
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip text={t('BRIEFING_FNG_TIP')}>{t('BRIEFING_FNG_LABEL')}</Tip></div>
             <div className="mb-macro-val" style={{ color: fngColor }}>{fng != null ? fng : <ReadingGap loading={!graceOver} />}</div>
-            <div className="mb-macro-sub" style={{ color: fngColor }}>{fngWord(t, store.fngLabel) || (fng != null ? '-' : '')}</div>
+            <div className="mb-macro-sub" style={{ color: fngColor }}>{fngWord(t, store.fngLabel)}</div>
           </div>
+          )}
+          {(store.btcDom != null || !graceOver) && (
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip text={t('BRIEFING_BTCDOM_TIP')}>{t('BRIEFING_BTCDOM_LABEL')}</Tip></div>
             <div className="mb-macro-val">{store.btcDom != null ? store.btcDom.toFixed(1) + '%' : <ReadingGap loading={!graceOver} />}</div>
-            <div className="mb-macro-sub" style={{ color: domTrend?.col ?? 'var(--txt3)' }}>{domTrend ? `${domTrend.txt} · ${domWindow}` : (store.btcDom != null ? '-' : '')}</div>
+            <div className="mb-macro-sub" style={{ color: domTrend?.col ?? 'var(--txt3)' }}>{domTrend ? `${domTrend.txt} · ${domWindow}` : ''}</div>
           </div>
+          )}
+          {(store.dxy != null || !graceOver) && (
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_DXY_TIP')}>{t('BRIEFING_DXY_LABEL')}</Tip></div>
             <div className="mb-macro-val">{store.dxy != null ? store.dxy.toFixed(2) : <ReadingGap loading={!graceOver} />}</div>
             <div className="mb-macro-sub" style={{ color: dxyColor }}>{store.dxy != null ? dxySig : ''}</div>
             {dxyStampDate && store.dxy != null && <div className="mb-macro-sub" data-testid="macro-stamp" style={{ color: 'var(--txt3)' }}>{t('MACRO_STRIP_CLOSE_STAMP', { day: dxyStampDate.toLocaleDateString(undefined, { weekday: 'short' }) })}</div>}
           </div>
+          )}
           {etfFlow != null && (
             <div className="mb-macro-item">
               <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_ETF_TIP')}>{t('BRIEFING_ETF_LABEL')}</Tip>{etfDate ? ` · ${t('BRIEFING_ETF_LATEST', { date: fmtEtfDate(etfDate) })}` : ''}</div>
