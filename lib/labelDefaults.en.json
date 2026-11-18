@@ -2751,7 +2751,7 @@
   "TRADE_JOURNAL_STATS_PERFORMANCE_BY_SETUP_LABEL": "Performance by Setup",
   "TRADE_JOURNAL_STATS_TRADES_COUNT": "{wins}/{total} trades",
   "TRADE_JOURNAL_AUTH_TITLE": "Sign in to continue",
-  "TRADE_JOURNAL_AUTH_DESC": "Log your trades and see your win rate, total P&L, average R per trade, streaks, an equity curve, and results by coin and setup. Your journal is private to your account.",
+  "TRADE_JOURNAL_AUTH_DESC": "Log trades to see win rate, P&L, streaks and per-coin results. Only you see it.",
   "TRADE_JOURNAL_LOADING_MESSAGE": "Loading…",
   "REFUND_EYEBROW": "Legal",
   "TRIAL_BANNER_LABEL": "Pro trial",
