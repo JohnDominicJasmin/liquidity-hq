@@ -78,6 +78,39 @@ export interface IndicatorEntry {
   /* Why a row is shaped the way it is, when that is not obvious, is a `// note:` comment on the row itself, not data (nothing read it, and it shipped to every visitor). */
 }
 
+/** Parameter names and enum options go through label keys so the settings box reads in every language. A label with no entry (ATR, K, D, Span B) is a name and stays as written. */
+export const PARAM_LABEL_KEYS: Readonly<Record<string, LabelKey>> = {
+  'Length': 'STRATEGY_PARAM_LENGTH',
+  'Weight': 'STRATEGY_PARAM_WEIGHT',
+  'Multiplier': 'STRATEGY_PARAM_MULTIPLIER',
+  'Conversion': 'STRATEGY_PARAM_CONVERSION',
+  'Base': 'STRATEGY_PARAM_BASE',
+  'Start': 'STRATEGY_PARAM_START',
+  'Step': 'STRATEGY_PARAM_STEP',
+  'Max': 'STRATEGY_PARAM_MAX',
+  'Smoothing': 'STRATEGY_PARAM_SMOOTHING',
+  'Overbought': 'STRATEGY_PARAM_OVERBOUGHT',
+  'Oversold': 'STRATEGY_PARAM_OVERSOLD',
+  'Fast': 'STRATEGY_PARAM_FAST',
+  'Slow': 'STRATEGY_PARAM_SLOW',
+  'Signal': 'STRATEGY_PARAM_SIGNAL',
+  'Lookback': 'STRATEGY_PARAM_LOOKBACK',
+  'Std dev': 'STRATEGY_PARAM_STD_DEV',
+  'ATR mult': 'STRATEGY_PARAM_ATR_MULT',
+  'Anchor': 'STRATEGY_PARAM_ANCHOR',
+  'Baseline': 'STRATEGY_PARAM_BASELINE',
+  'Show top': 'STRATEGY_PARAM_SHOW_TOP',
+  'Line 1': 'STRATEGY_PARAM_LINE_1',
+  'Line 2': 'STRATEGY_PARAM_LINE_2',
+  'Line 3': 'STRATEGY_PARAM_LINE_3',
+  'Line 4': 'STRATEGY_PARAM_LINE_4',
+};
+export const PARAM_OPTION_KEYS: Readonly<Record<string, LabelKey>> = {
+  'session': 'STRATEGY_PARAM_OPT_SESSION',
+  'day': 'STRATEGY_PARAM_OPT_DAY',
+  'week': 'STRATEGY_PARAM_OPT_WEEK',
+};
+
 const period = (key: string, label: string, def: number, min = 2, max = 400): ParamSpec =>
   ({ kind: 'int', key, label, min, max, default: def });
 
