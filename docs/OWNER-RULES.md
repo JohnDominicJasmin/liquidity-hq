@@ -788,6 +788,26 @@ A new screen or a new string is checked against these budgets before it ships. T
 
 Tracked on #1185.
 
+## 26. EVERY SIGNAL IS PROVEN ON REAL MARKET DATA BEFORE IT SHIPS
+
+**Owner, 2026-11-19, first-hand, about the Arena strategy menu:**
+
+> *"Make sure these indicators are properly working, where did you test it before putting it here?"*
+> *"Then do a proper fucking testing."*
+
+The S/R flip strategy shipped and never fired once in the app. Its tests used made-up candles
+written to match its own rule, so they could not fail.
+
+- **Any feature that computes a signal or a number from market data** (strategies, alert triggers,
+  scores, grades, levels, sound triggers, funding/OI/long-short readings) ships only with:
+  1. its signal count on **real candles** (at least BTC/ETH/SOL × 15m/1h/4h over 30 days);
+  2. an **independent oracle**, written by QA from the written rule and not from the app code,
+     that finds the same signals;
+  3. a **screenshot on a deployed URL** showing it where a trader sees it;
+  4. for readings, the value **checked against the exchange's own number**.
+- **Zero signals in 30 days, or a wildly high count, is a finding**, not a pass.
+- Synthetic-candle unit tests stay, but they are not proof that a feature works.
+
 ## Keeping this file true
 
 **RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**
