@@ -1,4 +1,4 @@
--- NOT YET APPLIED TO ANY DATABASE. Apply ONE block per project: the PROD block on prod (qdpwhnvmhqgzijuwopso) by PM/DevOps with the release; the DEV block on dev (wdtjhrilakoitfcezxpx, shared by dev/qa/staging).
+-- SUPERSEDED, DO NOT APPLY: the owner removed this line on 2026-11-18 and 20261119i deletes these rows. Original header follows. Was: apply ONE block per project: the PROD block on prod (qdpwhnvmhqgzijuwopso) by PM/DevOps with the release; the DEV block on dev (wdtjhrilakoitfcezxpx, shared by dev/qa/staging).
 --
 -- One new key (#1651, owner option A, 2026-11-14): ALERTS_SIGNALS_NOT_PREDICTIONS, the plain line on the alerts page that says alerts are signals, not predictions. English ships in lib/labelDefaults.en.json and needs no row. The "about half" is the production measurement (#1651 comment 6873369526).
 -- ko/zh/ru/ar are AI-drafted and not native-reviewed, under the owner's 2026-11-13 ruling (see 20261113b); Arabic is not offered in any picker, so its row is harmless. Upserts by (key, locale). The Telegram footer is English-only (not a label).

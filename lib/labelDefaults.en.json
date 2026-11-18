@@ -103,7 +103,6 @@
   "NEWS_HINT_BODY": "Breaking crypto headlines, tagged by coin and impact.",
   "ALERTS_HINT_TITLE": "Alerts",
   "ALERTS_HINT_BODY": "Set price, RSI, whale and OI alerts per coin. Telegram or push; toggle each.",
-  "ALERTS_SIGNALS_NOT_PREDICTIONS": "Signals, not predictions. Past alerts moved the alert's way about half the time at 24 hours.",
   "STRAT_CARD_TITLE": "Strategy",
   "STRAT_NONE": "None",
   "STRAT_VERDICT_BUY": "BUY",
