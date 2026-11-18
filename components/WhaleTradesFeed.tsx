@@ -6,6 +6,7 @@ import { useLabels } from '@/lib/labels';
 import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exchangeFailover';
 import { signOf } from '@/lib/numberFormat';
+import { socketNeedsReconnect, dropSocket, onPageResume } from '@/lib/socketResume';
 
 /* ── Binance futures combined aggTrade stream, Bybit publicTrade on failover ──
    #1059: client-side failover - a browser that cannot reach Binance (blocked
@@ -120,6 +121,7 @@ export default function WhaleTradesFeed() {
     let bbRetryTimer: ReturnType<typeof setInterval> | null = null;
     let confirmTimer: ReturnType<typeof setTimeout> | null = null;
     let active: 'binance' | 'bybit' = 'binance';
+    let lastMsgAt: number | null = null; // the active socket's last frame, for the resume check (lib/socketResume.ts)
 
     function connectBN() {
       if (!alive) return;
@@ -133,7 +135,7 @@ export default function WhaleTradesFeed() {
       let settled = false;
 
       const timeoutTimer = setTimeout(() => {
-        if (settled || !connectTimedOut(attemptStartedAt, Date.now(), BN_CONNECT_TIMEOUT_MS)) return;
+        if (settled || bnWs !== ws || !connectTimedOut(attemptStartedAt, Date.now(), BN_CONNECT_TIMEOUT_MS)) return;
         settled = true;
         try { ws.close(); } catch { /* */ }
         handleFailure();
@@ -144,6 +146,7 @@ export default function WhaleTradesFeed() {
         clearTimeout(timeoutTimer);
         if (!alive) return;
         bnRetries = 0;
+        lastMsgAt = Date.now();
         setStatus('live');
         if (active !== 'bybit') { active = 'binance'; return; }
         // Recovering from Bybit - don't commit the switch back immediately
@@ -182,6 +185,7 @@ export default function WhaleTradesFeed() {
         handleFailure();
       };
       ws.onmessage = (ev) => {
+        lastMsgAt = Date.now();
         try {
           const msg = JSON.parse(ev.data as string);
           const d   = msg?.data;
@@ -234,6 +238,7 @@ export default function WhaleTradesFeed() {
       bbWs = ws;
       ws.onopen = () => {
         if (!alive) return;
+        lastMsgAt = Date.now();
         setStatus('live');
         ws.send(JSON.stringify({ op: 'subscribe', args: BB_TOPICS }));
       };
@@ -248,6 +253,7 @@ export default function WhaleTradesFeed() {
         setTimeout(connectBB, 5000);
       };
       ws.onmessage = (ev) => {
+        lastMsgAt = Date.now();
         try {
           const msg = JSON.parse(ev.data as string);
           if (msg.op === 'subscribe') return; // subscription ack, not a trade
@@ -267,8 +273,17 @@ export default function WhaleTradesFeed() {
 
     connectBN();
     const iv = setInterval(() => rebuildStats(historyRef.current), 30_000);
+    /* RESUME (owner, 2026-11-18): back from an idle or frozen tab, the ACTIVE source's socket is replaced now if it is not OPEN or
+       has been quiet for 30 s (big coins trade every second, so quiet means dead), instead of waiting for its own timers. */
+    const offResume = onPageResume(() => {
+      if (!alive) return;
+      const now = Date.now();
+      if (active === 'binance' && socketNeedsReconnect(bnWs?.readyState, lastMsgAt, now)) { dropSocket(bnWs); bnWs = null; bnRetries = 0; connectBN(); }
+      else if (active === 'bybit' && socketNeedsReconnect(bbWs?.readyState, lastMsgAt, now)) { dropSocket(bbWs); bbWs = null; connectBB(); }
+    });
     return () => {
       alive = false;
+      offResume();
       clearInterval(iv);
       if (bbRetryTimer) clearInterval(bbRetryTimer);
       if (confirmTimer) clearTimeout(confirmTimer);
