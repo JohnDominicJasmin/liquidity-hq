@@ -6,6 +6,7 @@ import { TF_MS, dropForming, msUntilNextClose } from './candles.ts';
 import { findStrategy, type StrategyResult } from './strategies/index.ts';
 import { strategyUnavailable, type Unavailable } from './strategies/availability.ts';
 import { fetchFundingHistory, fetchOiRelative, fetchTakerMap, fundingClassRelative } from './strategies/liveInputs.ts';
+import { recentSignals, withWatchedDrawing } from './strategies/chartDrawings.ts';
 
 export interface StrategySignalState {
   result: StrategyResult | null;
@@ -56,7 +57,17 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
           const fc = def.needsLive ? fundingClassRelative(fundingRef.current, history, Date.now()) : null;
           const taker = def.needsTaker ? await fetchTakerMap(coin, TF_BN[tf], 300).catch(() => undefined) : undefined;
           if (cancelled) return;
-          setState({ result: def.detect(closed, { coin, tf, tfMs, liqLevels: liqRef.current, btcCandles, ...(fc ?? {}), oiChange6Pct: oi?.oiChange6Pct ?? null, oiExtreme: oi?.oiExtreme ?? null, taker }), loading: false, error: false });
+          const ctx = { coin, tf, tfMs, liqLevels: liqRef.current, btcCandles, ...(fc ?? {}), oiChange6Pct: oi?.oiChange6Pct ?? null, oiExtreme: oi?.oiExtreme ?? null, taker };
+          /* THE CALL FIRST, THE PICTURE AFTER (owner, 2026-11-19: show it on the chart): the verdict and what a WAIT is watching are drawn at once; the arrows of the strategy's past signals come from replaying the
+             same detector over the earlier candles, which can take a moment, so they are added in a second step and never delay the call. */
+          const first = withWatchedDrawing(def, def.detect(closed, ctx), closed, ctx);
+          setState({ result: first, loading: false, error: false });
+          setTimeout(() => {
+            if (cancelled) return;
+            const past = recentSignals(def, closed, ctx);
+            if (cancelled || !past.length) return;
+            setState(prev => (prev.result === first ? { ...prev, result: { ...first, overlay: { levels: [], zones: [], lines: [], marker: null, ...(first.overlay ?? {}), history: past } } } : prev));
+          }, 0);
         }
       } catch {
         if (!cancelled) setState({ result: null, loading: false, error: true });
