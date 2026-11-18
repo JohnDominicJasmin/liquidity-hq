@@ -86,7 +86,7 @@ for (const net of ['slow', 'normal'] as const) {
 for (const net of ['slow', 'normal'] as const) {
   const title = `LB3:/about>click>/faq>click>/about:${net}`;
   test(title, async ({ browser }) => {
-    test.setTimeout(net === 'slow' ? 360_000 : 120_000);
+    test.setTimeout(net === 'slow' ? 360_000 : 240_000); /* QA 2026-11-18: the :normal twin hit the 120 s budget on every CI build of the release (it holds a 30 s idle wait) */
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await ctx.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'en'); localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private */ } });
     const page = await ctx.newPage(); await arm(page, net === 'slow');
