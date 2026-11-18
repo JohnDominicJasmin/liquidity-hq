@@ -213,6 +213,11 @@ async function resolveHost(hosts: readonly string[], pingPath: string): Promise<
  * hence the `* 100`. `turnover24h` is Bybit's quote-currency (USD) 24h
  * volume, matching Binance's `quoteVolume` semantically - `volume24h` would
  * be base-coin units instead, the wrong field for this route's `vol24`. */
+/** A ticker row is usable only when every number in it is finite (a row with a missing field used to become price, change and volume of 0). */
+function tickerEntryFinite(e: TickerEntry): boolean {
+  return [e.price, e.change, e.high, e.low, e.vol24].every(Number.isFinite);
+}
+
 function bybitTickerToEntry(
   t: { lastPrice: string; price24hPcnt: string; highPrice24h: string; lowPrice24h: string; turnover24h: string },
   priceFactor: number,
@@ -265,13 +270,15 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
     for (const d of arr as Record<string, string>[]) {
       const coin = byCoin[d.symbol];
       if (!coin) continue;
-      out[coin] = {
-        price:  parseFloat(d.lastPrice || '0'),
-        change: parseFloat(d.priceChangePercent || '0'),
-        high:   parseFloat(d.highPrice || '0'),
-        low:    parseFloat(d.lowPrice || '0'),
-        vol24:  parseFloat(d.quoteVolume || '0'),
+      const entry: TickerEntry = {
+        price:  parseFloat(d.lastPrice),
+        change: parseFloat(d.priceChangePercent),
+        high:   parseFloat(d.highPrice),
+        low:    parseFloat(d.lowPrice),
+        vol24:  parseFloat(d.quoteVolume),
       };
+      if (!tickerEntryFinite(entry)) continue;   // a row with a missing field is skipped, not drawn as 0
+      out[coin] = entry;
     }
   };
 
@@ -328,7 +335,9 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
         const bbSym = BYBIT_SYMS[coin];
         const t = bbSym ? bbBySymbol[bbSym] : undefined;
         if (!t) continue; // fet - no Bybit linear perp (lib/coins.ts) - or Bybit is down too
-        out[coin] = bybitTickerToEntry(t, bybitPriceFactor(coin));
+        const entry = bybitTickerToEntry(t, bybitPriceFactor(coin));
+        if (!tickerEntryFinite(entry)) continue;
+        out[coin] = entry;
         viaFallback.push(coin);
       }
     } catch { /* Bybit also unreachable - those coins simply stay missing, same as today */ }

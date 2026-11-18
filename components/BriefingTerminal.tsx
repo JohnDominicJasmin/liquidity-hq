@@ -282,6 +282,8 @@ export default function BriefingTerminal() {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body:    JSON.stringify({ context: ctx }),
+        /* 50 s: the server gives up at 45 and refunds, so the browser never waits on a call the server has already ended. */
+        signal:  AbortSignal.timeout(50_000),
       });
       const data = await res.json() as {
         briefing?: string; error?: string; code?: string;
@@ -297,7 +299,9 @@ export default function BriefingTerminal() {
         setBrief(data.briefing ?? '');
         if (data._usage && usage) setUsage({ ...usage, ...data._usage });
       }
-    } catch (e) { setBriefErr(String(e)); }
+    } catch (e) {
+      setBriefErr(e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError') ? t('BRIEFING_UNKNOWN_ERROR') : String(e));
+    }
     setGen(false);
   }
 

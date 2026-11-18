@@ -28,14 +28,14 @@ const APPROVED: Record<string, string> = {
   EMA_PHASE_TRENDING_LONG: 'Trending long - above 9 EMA',
   CHAT_QUICK_5: 'Ask about this setup',
   MARKET_CONDITIONS_WIDGET_SUBTITLE: 'Market conditions',
-  ECON_CALENDAR_HINT_BODY: 'High-impact US macro events - FOMC, NFP, CPI, PCE, GDP and more - and when each one releases. Volatility is often higher around a release.',
+  ECON_CALENDAR_HINT_BODY: 'High-impact US macro events (FOMC, NFP, CPI, PCE, GDP) and release times.',
   OI_TREND_STRONG_UP_SUB: 'Open interest rising with price',
   OI_TREND_WEAK_UP_SUB: 'Open interest falling as price rises',
   OI_TREND_WEAK_DOWN_SUB: 'Open interest falling with price',
   MULTI_TF_ALIGNMENT_FOOTER_CONFLICTING: 'Higher and lower timeframes disagree - no clear alignment.',
   SESSION_COUNTDOWN_STAY_OUT: 'No follow-through',
   EMA_PHASE_FREEZE_LONG: 'Price below 50 EMA',
-  ALERTS_DISTRIBUTION_TITLE: 'Distribution - Selling Into Strength',
+  ALERTS_DISTRIBUTION_TITLE: 'Distribution',
 };
 /* keys whose text is only PARTLY rewritten (a clause dropped) or whose full text is long: scanned for the banned phrases, not matched exactly */
 const SCAN_ONLY = ['EMA_PHASE_DAILY_ABOVE_RIBBON_NOT_BULL', 'EMA_PHASE_DAILY_BELOW_RIBBON_NOT_BEAR', 'EMA_PHASE_VALUE_ZONE_LONG', 'EMA_PHASE_VALUE_ZONE_SHORT'];
