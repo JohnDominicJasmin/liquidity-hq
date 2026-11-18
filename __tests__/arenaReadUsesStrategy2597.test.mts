@@ -19,6 +19,7 @@ import { selectedIndicatorReadings } from '../lib/indicatorReadings.ts';
 import { parseArenaStrategy } from '../lib/arenaContext.ts';
 import { priceText } from '../lib/numberFormat.ts';
 import { strategyReasonText } from '../lib/strategies/reason.ts';
+import { unavailableByRule } from '../qa/fixtures/strategyAvailability.ts';
 
 const LABELS = labelDefaults as Record<string, string>;
 const tEn = (key: string, vars?: Record<string, string | number>) => (LABELS[key] ?? key).replace(/\{(\w+)\}/g, (w, n) => (vars && n in vars ? String(vars[n]) : w));
@@ -40,7 +41,8 @@ function series(seed: number, n: number, tfMs: number): Candle[] {
 const TF_MS = 3_600_000;
 const ALL = series(20261119, 900, TF_MS);
 const VIEW = 300;
-const view = (end: number) => ALL.slice(end - VIEW, end);
+const view = (end: number, n = VIEW) => ALL.slice(end - n, end);   // #2603: ema_cross needs 601 closed candles, so each strategy gets a window of at least its own minCandles
+const viewSize = (def: { minCandles: number }) => Math.max(VIEW, def.minCandles);
 const inputs = (candles: readonly Candle[] | null, over: Partial<StrategyInputs> = {}): StrategyInputs => ({ coin: 'btc', tf: '1h', tfMs: TF_MS, candles: candles as StrategyInputs['candles'], btcCandles: candles as StrategyInputs['candles'], ...over });
 const ctxFor = (over: Record<string, unknown> = {}) => ({ coin: 'BTC', price: '$100', change24h: '+1.00%', ma20: '$99', priceVsMA: 'ABOVE MA20', volRatio: '1.10x', rsi14: '55.0 (Neutral)', rsi1h: '55', rsi4h: '50', rsiDaily: '60', longShortRatio: 'Long 55% / Short 45%', vwap: '$99', takerRatio: 'Buy 50% / Sell 50%', pocLine: '$99', orderWalls: 'none', liqLevels: 'none', news: 'none', upcomingEvents: 'none', oilPrice: '$70', ...over } as unknown as GrokContext);
 const chart = { tf: '1h', ema9: 61000, sma200: 58000, rsi: 55, recent20: 'flat', hi: 62000, lo: 59000, lastClose: 61500 } as unknown as ChartData;
@@ -57,8 +59,8 @@ const found = new Map<string, { buy: number | null; sell: number | null }>();
 for (const def of STRATEGIES) {
   if (NEEDS_LIVE.has(def.id)) continue;
   let buy: number | null = null, sell: number | null = null;
-  for (let end = VIEW; end <= ALL.length && (buy == null || sell == null); end++) {
-    let r; try { r = direct(def, view(end)); } catch { continue; }
+  for (let end = viewSize(def); end <= ALL.length && (buy == null || sell == null); end++) {
+    let r; try { r = direct(def, view(end, viewSize(def))); } catch { continue; }
     if (r.params.noLive === true || r.params.noTaker === true) break;
     if (r.verdict === 'buy' && buy == null) buy = end; if (r.verdict === 'sell' && sell == null) sell = end;
   }
@@ -78,8 +80,14 @@ for (const def of STRATEGIES) {
   const f = found.get(def.id); if (f?.buy != null) windows.push(['BUY', f.buy]); if (f?.sell != null) windows.push(['SELL', f.sell]);
   for (const [label, end] of windows) {
     test(`S1 ${def.id} ${label}: Quick and Deep carry the name, the verdict, the reason and the levels, and tell the read to name it`, () => {
-      const candles = view(end);
+      const candles = view(end, viewSize(def));
       if (NEEDS_LIVE.has(def.id)) return; // S2
+      const na = unavailableByRule(def.id, 'btc', TF_MS);   // #2604: a strategy that cannot run on this timeframe is NO READING with the written sentence, never a WAIT
+      if (na) {
+        const r = arenaStrategyRead(def.id, [], inputs(candles), tEn as never)!; const b = strategyReadBlock(r);
+        const noWait = !b.includes(`${name}: WAIT`), named = b.includes(`${name}: NO READING (`), cause = b.includes(na.slice(0, -1));
+        assert.ok(named && cause && noWait, `${def.id} at 1h: expected NO READING (${na}); got ${b.split(String.fromCharCode(10)).find((l) => l.startsWith(name))}`); return;
+      }
       const d = direct(def, candles);
       const word = d.verdict === 'buy' ? 'BUY' : d.verdict === 'sell' ? 'SELL' : 'WAIT';
       const read = arenaStrategyRead(def.id, [], inputs(candles), tEn as never);
@@ -122,8 +130,9 @@ test('S3. no candles / too few / a timeframe the strategies do not run on: NO RE
       ['null candles', inputs(null), /no candles/], ['empty candles', inputs([]), /no candles/], ...(def.minCandles > 1 ? [['too few', inputs(ALL.slice(0, def.minCandles - 1)), new RegExp('only ' + (def.minCandles - 1) + ' closed candles')] as const] : []), ['unsupported timeframe', inputs(view(ALL.length), { tfMs: undefined, tf: '3d' }), /does not run on this timeframe/],
     ] as const) {
       const read = arenaStrategyRead(def.id, [], inp, tEn as never); const r = read!.readings[0];
+      const na = label === 'unsupported timeframe' ? null : unavailableByRule(def.id, 'btc', TF_MS);   // #2604: the strategy's own availability is judged FIRST, whatever the candles
       assert.equal(r.status, 'none', `${def.id} ${label}: got ${r.status}`);
-      if (r.status === 'none') assert.match(r.why, cause, `${def.id} ${label}`);
+      if (r.status === 'none') assert.ok(na ? r.why.includes(na.slice(0, -1)) : cause.test(r.why), `${def.id} ${label}: why "${r.why}" (availability first: ${na})`);
       const block = strategyReadBlock(read); assert.ok(block.includes(`${name}: NO READING (`) && !block.includes(`${name}: WAIT`), `${def.id} ${label}`);
       assert.ok(block.includes(`must name "${name}" and say it has no reading right now`), `${def.id} ${label}: the read is not told the strategy has no reading`);
     }

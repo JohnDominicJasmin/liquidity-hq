@@ -569,6 +569,17 @@ export function binancePriceFactor(coin: string): number {
  * dragged the Track Record average to -126%. That is a measured incident with a hand-written list
  * naming its own exit condition; this resolver is not the place to overturn it. Such a coin still
  * charts, from Bybit. */
+/** The coin's Binance FUTURES symbol (`fapi`), for funding, open interest and taker volume, from the whole universe row: a TradFi stock (`AAPLUSDT`) and the held `pepe` / `bonk` (`1000PEPEUSDT`, `1000BONKUSDT`) have one. BINANCE_SYMS (the curated map) leaves out the universe and `BINANCE_HOLD`, which only guards the SPOT mapping, so it is the wrong map for futures data. Undefined = no Binance futures listing (`xau`). */
+export function binanceFuturesSymbol(coin: string): string | undefined {
+  if (NO_BINANCE_FUTURES.has(coin)) return undefined;
+  return BY_ID.get(coin)?.binance ?? FUTURES_ONLY_SYMBOL[coin];
+}
+/* TWO CORRECTIONS TO THE GENERATED ROWS, FROM QA's CHECK OF ALL 698 AGAINST BINANCE'S OWN FUTURES exchangeInfo (2026-11-19; 695 agree). `xau` and `on` have `binance: null` in the generated universe, but Binance lists and trades
+ * XAUUSDT and ONUSDT perpetuals, so their funding, open interest and taker volume exist: the symbols are named here for the derivatives reads only (the charts still price them from Bybit). `anthropic` (a pre-IPO row) is the
+ * reverse: the row claims ANTHROPICUSDT but Binance does not list it as TRADING, so the derivatives strategies must say "not available" rather than run and fail the read. Re-check against exchangeInfo before adding to either. */
+const FUTURES_ONLY_SYMBOL: Record<string, string> = { xau: 'XAUUSDT', on: 'ONUSDT' };
+const NO_BINANCE_FUTURES = new Set(['anthropic']);
+
 export function venueSymbols(coin: string): { bybit: string | null; binance: string | null } {
   const row = BY_ID.get(coin);
   if (!row) return { bybit: null, binance: null };
