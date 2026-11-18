@@ -159,6 +159,7 @@ test.describe('The chart says so when it cannot draw a selected indicator (#1347
       await page.waitForTimeout(SETTLE_MS);
       await expect(badge, 'SMA must draw normally first - override-throw only applies to an indicator that is already drawn').toHaveCount(0);
 
+      { const edit = page.locator('button.strat-edit-link').first(); if ((await edit.getAttribute('aria-expanded').catch(() => null)) === 'false') await edit.click().catch(() => undefined); await page.waitForTimeout(600); } /* #2500: the params box is collapsed behind this toggle */
       const input = page.locator('.strat-params input[type="number"]').first();
       await expect(input, 'the params box never rendered for the focused indicator - cannot drive a param edit').toBeVisible({ timeout: 10_000 });
       // The input is DISABLED until the entitlements read resolves as Pro
