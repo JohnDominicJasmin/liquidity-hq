@@ -2,14 +2,14 @@ name: Strategy audit (real data)
 
 # THE 20-ASSET x 8-TIMEFRAME x 16-STRATEGY AUDIT (owner order via PM, 2026-11-19, #2601). Runs HERE, never on the owner's laptop: one job per coin replays every Arena strategy over real
 # candles from Binance's public archive (data.binance.vision, not geo-blocked from a US runner, unlike the live APIs) with the app's own detectors; a last job merges the per-coin files into
-# the tables on the run's summary page and an artifact. Read-only: no key, no secret, no write to any service. The repo is public, so the minutes are free; it still only runs when asked:
-# on a PR that touches the audit script or this file, or by hand (workflow_dispatch, once this file is on the default branch). Not part of the release gate.
+# the tables on the run's summary page and an artifact. Read-only: no key, no secret, no write to any service.
+# MANUAL ONLY (PM, OWNER-RULES section 17: CI runs on the release PR, a 20-job matrix must never fire on every push): it runs when someone ADDS THE LABEL `run-strategy-audit` to a pull request (the
+# `labeled` event only: a push, an open or a reopen starts nothing), or by workflow_dispatch. GitHub offers workflow_dispatch only for a workflow file that is on the default branch (main), so until this
+# file reaches main the label is the way to run it from a branch. Not part of the release gate. A later optional weekly schedule would be added here, not above.
 
 on:
   pull_request:
-    paths:
-      - 'scripts/strategy-audit-matrix.mts'
-      - '.github/workflows/strategy-audit.yml'
+    types: [labeled]
   workflow_dispatch:
     inputs:
       days:
@@ -25,6 +25,7 @@ permissions:
 jobs:
   coin:
     name: audit ${{ matrix.coin }}
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-strategy-audit'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -60,7 +61,7 @@ jobs:
   merge:
     name: merge the tables
     needs: coin
-    if: always()
+    if: always() && (github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-strategy-audit')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
