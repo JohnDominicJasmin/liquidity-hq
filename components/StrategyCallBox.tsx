@@ -4,6 +4,7 @@ import { useLabels } from '@/lib/labels';
 import type { StrategyDef } from '@/lib/strategies';
 import type { StrategySignalState } from '@/lib/useStrategySignal';
 import { priceText } from '@/lib/numberFormat';
+import { watchedItems } from '@/lib/strategies/chartDrawings';
 
 /* THE STRATEGY CALL BOX (owner decision 2026-11-14, option A: ONE strategy menu). The picked strategy's call sits DIRECTLY UNDER the "Strategy set" dropdown, inside the Strategy
  * panel: its name, a one-line description, BUY / SELL / WAIT with the reason in plain words, the invalidation line where the strategy has one, and "Signals, not predictions". A failed read
@@ -28,7 +29,8 @@ export default function StrategyCallBox({ def, state }: Props) {
   const priceParams: Record<string, string> = {};
   for (const [k, v] of Object.entries(r?.params ?? {})) if (typeof v === 'number') priceParams[k] = k === 'tag' || k.startsWith('count') ? String(v) : priceText(v);
   /* ON WAIT THE CALL BLOCK WOULD BE MOSTLY EMPTY (its height is reserved for the tallest call), so it lists the levels the strategy is watching, as text, from the same overlay data the chart draws: only 'watch' and 'confirm' levels (the wrong-if level is a BUY/SELL concern), lowest price first, at most four. Nothing is invented: no levels, no line. */
-  const watched = r && r.verdict === 'wait' ? (r.overlay?.levels ?? []).filter(l => l.role === 'watch' || l.role === 'confirm').sort((a, b) => a.price - b.price).slice(0, 4) : [];
+  /* THE SAME GEOMETRY THE CHART DRAWS, AS TEXT (owner, 2026-11-19: the chart shows it, the panel names it in one short line): the levels, the box edges of a zone and where each line ends now. */
+  const watched = watchedItems(r);
   let reason = '';
   if (r) {
     const alt = def.reasonKeyFor?.(r) ?? null;
@@ -79,7 +81,7 @@ export default function StrategyCallBox({ def, state }: Props) {
               {watched.length > 0 && (
                 <span data-testid="strategy-call-watching">
                   <span style={{ fontWeight: 600 }}>{t('STRAT_WATCHING')}: </span>
-                  {watched.map(l => `${t(l.labelKey, l.labelParams)} ${priceText(l.price)}`).join(' · ')}
+                  {watched.map(l => `${t(l.labelKey, l.labelParams)} ${l.price}`).join(' · ')}
                 </span>
               )}
             </p>

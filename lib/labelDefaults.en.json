@@ -3581,5 +3581,9 @@
   "TG_WH_DISPLACED": "This chat was linked to another LiquidityHQ account, which no longer receives alerts here.",
   "TG_WH_FINISH_FAILED": "Could not finish connecting. Try again.",
   "TG_WH_FINISH_FAILED_LONG": "Could not finish connecting. Press Confirm again, or start again from the app.",
-  "TG_WH_MOVED": "This chat was disconnected: your LiquidityHQ account is now linked to a different chat, so alerts will no longer arrive here."
+  "TG_WH_MOVED": "This chat was disconnected: your LiquidityHQ account is now linked to a different chat, so alerts will no longer arrive here.",
+  "STRAT_OV_SR_LEVEL": "S/R level",
+  "STRAT_OV_BAND_TOP": "Band top",
+  "STRAT_OV_BAND_BOTTOM": "Band bottom",
+  "STRAT_NO_SETUP": "No setup right now"
 }
