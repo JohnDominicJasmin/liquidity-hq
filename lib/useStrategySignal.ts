@@ -55,7 +55,8 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
           const fc = def.needsLive ? fundingClassRelative(fundingRef.current, history, Date.now()) : null;
           const taker = def.needsTaker ? await fetchTakerMap(coin, TF_BN[tf], 300).catch(() => undefined) : undefined;
           if (cancelled) return;
-          setState({ result: def.detect(closed, { coin, tf, tfMs, liqLevels: liqRef.current, btcCandles, ...(fc ?? {}), oiChange6Pct: oi?.oiChange6Pct ?? null, oiExtreme: oi?.oiExtreme ?? null, taker }), loading: false, error: false });
+          const shut = coinKind(coin) === 'stock' && !usCashOpen(Date.now());
+          setState({ result: def.detect(closed, { coin, tf, tfMs, liqLevels: liqRef.current, btcCandles, ...(fc ?? {}), oiChange6Pct: oi?.oiChange6Pct ?? null, oiExtreme: oi?.oiExtreme ?? null, taker }), loading: false, error: false, ...(shut ? { marketClosed: { lastClose: closed[closed.length - 1].close } } : {}) });
         }
       } catch {
         if (!cancelled) setState({ result: null, loading: false, error: true });

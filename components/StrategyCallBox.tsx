@@ -77,6 +77,9 @@ export default function StrategyCallBox({ def, state }: Props) {
               )}
             </p>
           )}
+          {state.marketClosed && (
+            <p data-testid="strategy-call-market-closed" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.35 }}>{t('STRAT_MKT_CLOSED_NOTE', { price: priceText(state.marketClosed.lastClose) })}</p>
+          )}
           {open && r.verdict !== 'wait' && r.params.liq === true && (
             <p style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('STRAT_LIQ_NOTE')}</p>
           )}
