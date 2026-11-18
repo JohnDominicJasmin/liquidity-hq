@@ -609,6 +609,8 @@ function ArenaContent() {
   const { usage: grokUsage, setUsage: setGrokUsage } = useGrokUsage();
   // Track last Quick signal per coin so Deep can compare and show an override notice
   const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
+  /* When each coin's Quick read was made, so a Deep read that replaces it can say so with both times (#1651: the levels of the two can differ and the card did not say which was newer). */
+  const [quickReadAt, setQuickReadAt] = useState<Partial<Record<CoinId, number>>>({});
   const [scannerOpen, setScannerOpen]   = useState(false);
   const [scannerSearch, setScannerSearch] = useState('');
   const scannerSearchRef = useRef<HTMLInputElement>(null);
@@ -1869,7 +1871,7 @@ function ArenaContent() {
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
       setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: selection, paramsAtAnalysis: settingsSig, locale, strategyAtAnalysis: strategy } }));
       // Track Quick signals separately so Deep can show an override notice when they disagree
-      if (mode === 'quick') setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal }));
+      if (mode === 'quick') { setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal })); setQuickReadAt(prev => ({ ...prev, [selectedCoin]: res.analyzedAt })); }
       setDetailIdx(null);
       setHistory(h => [{
         signal: res.signal, confidence: res.confidence,
@@ -2880,6 +2882,9 @@ function ArenaContent() {
           { id: 'cvd',     k: t('ARENA_FCHIP_WHALE_CVD'), v: coinD?.cvdDivergence === 'bullish' ? t('ARENA_FCHIP_V_BULLISH') : coinD?.cvdDivergence === 'bearish' ? t('ARENA_FCHIP_V_BEARISH') : t('ARENA_FCHIP_V_FLAT'), c: coinD?.cvdDivergence === 'bullish' ? GC : coinD?.cvdDivergence === 'bearish' ? RC : NC, a: coinD?.cvdDivergence === 'bullish' ? '↑' : coinD?.cvdDivergence === 'bearish' ? '↓' : '•' },
         ];
         const prevQuickSignal = quickSignals[selectedCoin];
+        const quickAt = quickReadAt[selectedCoin];
+        const showReplaced = cacheEntry?.mode === 'deep' && quickAt != null && Number.isFinite(quickAt) && Number.isFinite(result.analyzedAt) && quickAt < result.analyzedAt;
+        const clock = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
         const showOverride = !!(
           cacheEntry?.mode === 'deep' &&
           prevQuickSignal &&
@@ -2935,6 +2940,10 @@ function ArenaContent() {
             </div>
 
             {/* Deep override notice */}
+            {showReplaced && (
+              <div className="arena-override-notice" data-testid="deep-replaced-quick">{t('ARENA_DEEP_REPLACED_QUICK', { deep: clock(result.analyzedAt), quick: clock(quickAt!) })}</div>
+            )}
+
             {showOverride && (
               <div className="arena-override-notice">
                 {t('ARENA_OVERRIDE_NOTICE_PRE')}{' '}
