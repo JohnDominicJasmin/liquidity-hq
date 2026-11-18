@@ -127,7 +127,9 @@ export default function ResetPasswordPage() {
                 label={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
                 value={confirmPassword}
                 onChange={setConfirmPassword}
-                onEnter={submit}
+                /* No second submit while one runs (QA review of #2587): the button is disabled while loading, Enter was not, and the
+                   others-call made that window up to ~8 s longer. Guarded here, beside the button's own `disabled={loading}`. */
+                onEnter={() => { if (!loading) void submit(); }}
                 autoComplete="new-password"
               />
               <button
