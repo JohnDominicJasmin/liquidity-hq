@@ -78,8 +78,7 @@ test('B7. the fallback message: no NaN / undefined; prints what the user reads',
   const { sent } = await scenario({ binance: 'down', bybit: 'ok', bybitLong: '0.65' });
   assert.doesNotMatch(sent[0].text, /NaN|undefined|null/); console.log('FALLBACK MESSAGE:\n' + sent[0].text.replace(/<[^>]+>/g, ''));
 });
-// FINDING (low): the user cannot tell the ratio came from Bybit. todo = reported, does not fail the run.
-test('B7b. the fallback message names Bybit as the ratio source', { todo: 'the message is identical to the Binance one' }, async () => {
+test('B7b. the fallback message names Bybit as the ratio source', async () => {
   const { sent } = await scenario({ binance: 'down', bybit: 'ok', bybitLong: '0.65' });
   assert.match(sent[0].text, /Bybit/i, 'the message does not say the ratio is from Bybit');
 });
