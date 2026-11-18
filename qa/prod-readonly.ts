@@ -93,6 +93,8 @@ export type Needs = 'none' | 'pro' | 'free';
 /** Specs that may run against production. `needs` is the account tier the spec signs in as
  *  (fixture A is Pro, B is free); 'none' is anonymous. */
 export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; note?: string }> = [
+  { spec: 'chart-resume-2553', needs: 'none', note: 'signed-out: aborts klines in the browser after load and goes offline for 60 s; nothing is written' },
+  { spec: 'funding-coin-overlap-2577', needs: 'none', note: 'signed-out /funding layout measurement; GETs only' },
   { spec: 'nofail-sweep', needs: 'none', note: 'signed-out sweep of every page at 390 and 1280 for failing-data words, placeholders and spinners; GETs only, nothing written' },
   { spec: 'tab-resume', needs: 'none', note: 'signed-out /arena, /dashboard, /markets: freezes the tab through CDP, goes offline and back, reads canvas ink and axis labels; GETs only' },
   { spec: 'lcp-breakdown', needs: 'none', note: 'signed-out LCP element and timing breakdown at 390 px, normal and slow 3G, repeat visit and client-side navigation; GETs only' },
