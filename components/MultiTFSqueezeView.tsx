@@ -258,7 +258,7 @@ export default function MultiTFSqueezeView() {
             {tfs.map((sig, i) => {
               const cols = cellColors(sig);
               /* Neutral is a reading (no lean), shown as a sideways arrow, not a dash that reads as missing data (owner sweep 2026-11-18). */
-              const icon = sig.dir === 'FLUSH' ? '↓' : sig.dir === 'SQUEEZE' ? '↑' : '→';
+              const icon = sig.rsi == null ? '' : sig.dir === 'FLUSH' ? '↓' : sig.dir === 'SQUEEZE' ? '↑' : '→';   // no RSI for this timeframe: an empty cell (QA review of #2562)
               return (
                 <div key={i} style={{ display: 'flex', justifyContent: 'center' }}>
                   <div style={{
@@ -275,7 +275,7 @@ export default function MultiTFSqueezeView() {
                       fontSize: 'var(--fs-caption)', fontWeight: 600, color: sig.rsi != null ? cols.text : 'var(--txt-dim)',
                       fontVariantNumeric: 'tabular-nums',
                     }}>
-                      {formatRsi(sig.rsi)}
+                      {sig.rsi != null ? formatRsi(sig.rsi) : ''}
                     </span>
                   </div>
                 </div>
@@ -288,7 +288,7 @@ export default function MultiTFSqueezeView() {
               color: sq.dir !== 'NEUTRAL' ? sq.color : 'var(--txt-dim)',
               fontVariantNumeric: 'tabular-nums',
             }}>
-              {sq.score}
+              {sq.enough ? sq.score : ''}{/* no inputs for this coin: blank, not a made-up 0 (QA review of #2562) */}
             </span>
           </div>
         );

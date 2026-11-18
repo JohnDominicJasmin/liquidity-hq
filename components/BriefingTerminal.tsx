@@ -340,7 +340,7 @@ export default function BriefingTerminal() {
   const dxyChg    = store.dxyChg;
   /* A DXY value whose own time is old (weekend, overnight) says "Fri close" (#1651). */
   const dxyStampDate = macroStampDate(store.macroAsOf.dxy, nowMs);
-  const dxySig    = dxyChg == null    ? '-'
+  const dxySig    = dxyChg == null    ? ''   // no 24 h change: an empty line, never a dash (QA review of #2562)
     : dxyChg > 0.2  ? t('BRIEFING_DXY_HEADWIND')
     : dxyChg < -0.2 ? t('BRIEFING_DXY_TAILWIND')
     : t('BRIEFING_DXY_NEUTRAL');
