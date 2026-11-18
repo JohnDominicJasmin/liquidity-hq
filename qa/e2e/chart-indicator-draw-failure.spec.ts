@@ -55,22 +55,28 @@ const BADGE = /Couldn.t draw:/;
 const SETTLE_MS = 2_000;
 
 async function resetStrategySelection(page: Page, selection: string[]) {
-  const result = await page.evaluate(async (sel) => {
-    const raw = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
-    const token = raw ? JSON.parse(localStorage.getItem(raw)!).access_token : null;
-    const res = await fetch('/api/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ strategy_selection: sel, knownAsOf: { strategy_selection: new Date().toISOString() } }),
-    });
-    const body = await res.json();
-    localStorage.removeItem('lhq_settings_v1');
-    for (const k of Object.keys(localStorage)) {
-      if (k.startsWith('lhq_settings_unconfirmed_v1')) localStorage.removeItem(k);
-    }
-    return { status: res.status, accepted: body.accepted as string[] | undefined };
-  }, selection);
-  expect(result.accepted, `strategy_selection reset was rejected by the concurrency guard: ${JSON.stringify(result)}`)
+  /* Account A is shared with other parallel specs, so the concurrency guard can reject one reset when another writer got in first (accepted: []). The guard is right to refuse; the cell retries with a fresh knownAsOf instead of failing the run (QA 2026-11-18). */
+  let result: { status: number; accepted: string[] | undefined } = { status: 0, accepted: undefined };
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    result = await page.evaluate(async (sel) => {
+      const raw = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      const token = raw ? JSON.parse(localStorage.getItem(raw)!).access_token : null;
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ strategy_selection: sel, knownAsOf: { strategy_selection: new Date().toISOString() } }),
+      });
+      const body = await res.json();
+      localStorage.removeItem('lhq_settings_v1');
+      for (const k of Object.keys(localStorage)) {
+        if (k.startsWith('lhq_settings_unconfirmed_v1')) localStorage.removeItem(k);
+      }
+      return { status: res.status, accepted: body.accepted as string[] | undefined };
+    }, selection);
+    if (result.accepted?.includes('strategy_selection')) break;
+    await page.waitForTimeout(1_500 * attempt);
+  }
+  expect(result.accepted, `strategy_selection reset was rejected by the concurrency guard after 5 attempts: ${JSON.stringify(result)}`)
     .toContain('strategy_selection');
 }
 
