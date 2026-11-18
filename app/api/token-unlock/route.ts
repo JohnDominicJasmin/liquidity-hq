@@ -19,6 +19,9 @@ class RateLimitError extends Error {
   }
 }
 
+/** Flip to true only when the prompt is fed real unlock-schedule data. */
+const UNLOCK_SOURCE_WIRED: boolean = false;
+
 function sb(token: string) {
   return userClient(token);
 }
@@ -40,8 +43,6 @@ function buildUnlockPrompt(symbol: string): string {
     '[Same rating for 30-90 day window. Note any major cliff events.]',
     'HISTORICAL_PATTERN:',
     '[How has this token historically reacted to unlock events? Has the market absorbed unlocks well or seen sustained sell pressure?]',
-    'RECOMMENDATION:',
-    '[Strategic guidance: should traders be cautious about holding through the next 90 days given the unlock schedule?]',
   ].join('\n');
 }
 
@@ -69,6 +70,13 @@ export async function POST(req: NextRequest) {
   // fresh (unbounded, unrated) xAI call every time. See pendings/PENDING.md.
   if (!/^[A-Z0-9]{2,10}$/.test(symbol)) {
     return NextResponse.json({ error: 'Enter a valid token symbol (e.g. ARB, OP, PYTH)' }, { status: 400 });
+  }
+
+  /* NO UNLOCK DATA SOURCE, SO NO ANSWER (owner sweep 2026-11-18). This read had no vesting data behind it: the model answered from memory
+     and ended with trading advice. Until a real unlock-schedule source is wired in, the route says the data is unavailable BEFORE any
+     paid call (nothing is charged), and the advice section is gone from the prompt. */
+  if (!UNLOCK_SOURCE_WIRED) {
+    return NextResponse.json({ error: 'Token unlock data is not available yet.', code: 'UNAVAILABLE' }, { status: 503 });
   }
 
   try {

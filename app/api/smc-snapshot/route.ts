@@ -79,10 +79,18 @@ async function fetchCandles(symbol: string, interval: string, limit: number): Pr
   }));
 }
 
+/* A PRICE WITH ITS SIGNIFICANT DIGITS (owner sweep 2026-11-18): toFixed(2) printed every sub-cent coin as 0.00, so the model read 20 identical
+   candles. Two decimals from $100, four from $1, otherwise four significant digits. */
+function px(n: number): string {
+  if (!Number.isFinite(n)) return 'n/a';
+  const a = Math.abs(n);
+  return a >= 100 ? n.toFixed(2) : a >= 1 ? n.toFixed(4) : n.toPrecision(4);
+}
+
 function buildSMCPrompt(asset: string, tf: string, candles: Candle[]): string {
   const last20 = candles.slice(-20);
   const ohlcv  = last20.map(c =>
-    `O:${c.open.toFixed(2)} H:${c.high.toFixed(2)} L:${c.low.toFixed(2)} C:${c.close.toFixed(2)} V:${Math.round(c.volume)}`,
+    `O:${px(c.open)} H:${px(c.high)} L:${px(c.low)} C:${px(c.close)} V:${Math.round(c.volume)}`,
   ).join('\n');
 
   const cur   = candles[candles.length - 1].close;
@@ -92,8 +100,8 @@ function buildSMCPrompt(asset: string, tf: string, candles: Candle[]): string {
   return [
     `You are a Smart Money Concepts (SMC) analyst. Analyze the ${tf} price data for ${asset}USDT and identify key SMC structures.`,
     '',
-    `Current price: $${cur.toFixed(2)}`,
-    `50-candle range: $${lo50.toFixed(2)} to $${hi50.toFixed(2)}`,
+    `Current price: $${px(cur)}`,
+    `50-candle range: $${px(lo50)} to $${px(hi50)}`,
     '',
     'LAST 20 CANDLES (OHLCV):',
     ohlcv,

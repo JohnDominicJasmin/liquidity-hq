@@ -11,10 +11,10 @@ const en = JSON.parse(readFileSync(new URL('../lib/labelDefaults.en.json', impor
 const comp = readFileSync(new URL('../components/BtcRiskLevel.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 test('B1. the title and bands say crowding, not risk; the tooltip names the three inputs and says it is not a forecast', () => {
-  assert.equal(en.BTC_RISK_LEVEL_TITLE, 'BTC Crowding (sentiment + funding)');   /* #2521: the card blends sentiment and funding, so it no longer says Long */
+  assert.equal(en.BTC_RISK_LEVEL_TITLE, 'BTC crowding');   /* #2521: the card blends sentiment and funding, so it no longer says Long */
   for (const k of ['BTC_RISK_LEVEL_LOW', 'BTC_RISK_LEVEL_MODERATE', 'BTC_RISK_LEVEL_HIGH', 'BTC_RISK_LEVEL_EXTREME']) { assert.match(en[k], /crowding/i, `${k} does not say crowding`); assert.doesNotMatch(en[k], /risk/i, `${k} still claims risk: "${en[k]}"`); }
   const tip = en.BTC_RISK_LEVEL_TOOLTIP;
-  assert.match(tip, /Fear & Greed/); assert.match(tip, /daily RSI/); assert.match(tip, /funding rate/); assert.match(tip, /only positive funding adds/); assert.match(tip, /not a forecast/i);
+  assert.match(tip, /Fear & Greed/); assert.match(tip, /daily RSI/); assert.match(tip, /funding/); assert.match(tip, /positive funding/); /* #2545 cut the tooltip to rule 22: it still names the three inputs (Fear & Greed, daily RSI, positive funding) */ assert.match(tip, /not a forecast/i);
   assert.doesNotMatch(tip, /dump|downside|pullback is more likely/i, 'the tooltip still claims something about a drop');
 });
 test('B2. "n of 3 inputs" appears only when fewer than three inputs built the score', () => {

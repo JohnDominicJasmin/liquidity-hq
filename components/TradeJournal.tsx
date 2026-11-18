@@ -901,7 +901,6 @@ function Inner() {
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('TRADE_JOURNAL_PAGE_TITLE')}</h1>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('TRADE_JOURNAL_PAGE_SUBTITLE')}</div>
       </div>
 
       {/* Tabs */}

@@ -13,7 +13,10 @@ async function fetchStablecoinSeries(): Promise<number[]> {
   });
   if (!res.ok) throw new Error(`DeFi Llama ${res.status}`);
   const data = (await res.json()) as LlamaEntry[];
-  return data.slice(-91).map(d => d.totalCirculatingUSD?.peggedUSD ?? 0);
+  /* A DAY THE SOURCE LEFT OUT IS DROPPED, NOT COUNTED AS $0 (PM audit 2026-11-17: a zero day gave "Infinity%" or -100% and an AI verdict of CONTRACTING, cached for 24 hours). */
+  return data.slice(-91)
+    .map(d => d.totalCirculatingUSD?.peggedUSD)
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0);
 }
 
 export interface DryPowderNumbers { current: number; prev30: number; prev90: number; series: number[] }

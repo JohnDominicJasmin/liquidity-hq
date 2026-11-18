@@ -4,6 +4,7 @@ import { GEO_KEYWORDS, hasAnyKeyword, tickerEligible } from '@/lib/classify';
 import { useNow } from '@/lib/useNow';
 import { getSupabase } from '@/lib/supabase';
 import { T } from '@/lib/tables';
+import { onPageResume } from '@/lib/socketResume';
 
 // Push-based, not polled. A scheduled job (app/api/news/ingest and
 // app/api/econ-calendar/ingest, see docs/INFRASTRUCTURE.md §2) does the
@@ -431,8 +432,18 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
       if (!eventsLoadedRef.current) hydrateEcon();
     }, 5000);
 
+    /* REALTIME IS NOT ENOUGH ON ITS OWN (owner sweep 2026-11-18). A channel that dropped while the tab slept delivers nothing and says
+       nothing, so the ticker and calendar froze silently. Both are re-read every 5 minutes while visible and whenever the tab comes
+       back; the reads are small and ingestRow skips stories already shown. */
+    const reread = setInterval(() => {
+      if (live && document.visibilityState === 'visible') { void hydrateNews(); void hydrateEcon(); }
+    }, 5 * 60_000);
+    const offResume = onPageResume(() => { if (live) { void hydrateNews(); void hydrateEcon(); } });
+
     return () => {
       live = false;
+      clearInterval(reread);
+      offResume();
       clearTimeout(hydrateFallback);
       sb.removeChannel(newsChannel);
       sb.removeChannel(econChannel);

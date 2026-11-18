@@ -34,7 +34,7 @@ test('M1c. the panel builds the menu as: Let the read choose, the GROUPED strate
   /* THE GROUPS (owner decision 2026-11-17): every group names its label key; the three groups hold exactly these ids in this order; every strategy sits in AT MOST one group; none of the three groups names an unknown strategy */
   assert.deepEqual(STRATEGY_GROUPS.slice(0, 3).map((g) => [g.id, g.labelKey, [...g.ids]]), [
     ['beginner', 'STRATEGY_GROUP_BEGINNER', ['ema_stack', 'ema_cross', 'range_bounce']],
-    ['price', 'STRATEGY_GROUP_PRICE', ['liq_sweep_mss', 'supply_demand', 'sr_flip', 'fvg', 'channel', 'rsi_divergence', 'bb_squeeze']],
+    ['price', 'STRATEGY_GROUP_PRICE', ['liq_sweep_mss', 'supply_demand', 'sr_flip', 'fvg', 'bos_fvg', 'channel', 'rsi_divergence', 'bb_squeeze']],
     ['sessions', 'STRATEGY_GROUP_SESSIONS', ['ny_open_breakout', 'session_sweep', 'vwap_reclaim']],
   ]);
   const all = STRATEGY_GROUPS.flatMap((g) => [...g.ids]); assert.equal(new Set(all).size, all.length, 'a strategy is in two groups');

@@ -20,11 +20,13 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { fngWord } from '@/lib/shortWords';
 import type { LabelKey } from '@/lib/labelKeys';
+import { macroStampDate } from '@/lib/macroStamp';
 import { useGraceElapsed } from '@/lib/useGrace';
 import ReadingGap from '@/components/ReadingGap';
 import { formatRsi } from '@/lib/rsi';
 import { signedUsd } from '@/lib/numberFormat';
 import AiDisclaimer from '@/components/AiDisclaimer';
+import { onPageResume } from '@/lib/socketResume';
 
 /* ── helpers (identical to briefing/page.tsx) ── */
 
@@ -247,7 +249,8 @@ export default function BriefingTerminal() {
         .catch(() => {});
     load();
     const timer = setInterval(load, 5 * 60_000);
-    return () => clearInterval(timer);
+    const offResume = onPageResume(load);   // back from an idle tab: re-read now, not at the next 5-minute tick (owner sweep 2026-11-18)
+    return () => { clearInterval(timer); offResume(); };
   }, []);
 
   const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -282,6 +285,8 @@ export default function BriefingTerminal() {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body:    JSON.stringify({ context: ctx }),
+        /* 50 s: the server gives up at 45 and refunds, so the browser never waits on a call the server has already ended. */
+        signal:  AbortSignal.timeout(50_000),
       });
       const data = await res.json() as {
         briefing?: string; error?: string; code?: string;
@@ -297,7 +302,9 @@ export default function BriefingTerminal() {
         setBrief(data.briefing ?? '');
         if (data._usage && usage) setUsage({ ...usage, ...data._usage });
       }
-    } catch (e) { setBriefErr(String(e)); }
+    } catch (e) {
+      setBriefErr(e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError') ? t('BRIEFING_UNKNOWN_ERROR') : String(e));
+    }
     setGen(false);
   }
 
@@ -331,7 +338,9 @@ export default function BriefingTerminal() {
   const etfColor = etfFlow == null || etfFlow === 0 ? 'var(--txt3)' : etfFlow > 0 ? 'var(--green-2)' : 'var(--red)';
 
   const dxyChg    = store.dxyChg;
-  const dxySig    = dxyChg == null    ? '-'
+  /* A DXY value whose own time is old (weekend, overnight) says "Fri close" (#1651). */
+  const dxyStampDate = macroStampDate(store.macroAsOf.dxy, nowMs);
+  const dxySig    = dxyChg == null    ? ''   // no 24 h change: an empty line, never a dash (QA review of #2562)
     : dxyChg > 0.2  ? t('BRIEFING_DXY_HEADWIND')
     : dxyChg < -0.2 ? t('BRIEFING_DXY_TAILWIND')
     : t('BRIEFING_DXY_NEUTRAL');
@@ -564,25 +573,32 @@ export default function BriefingTerminal() {
       {/* ── Session Countdown ── */}
       <SessionCountdown />
 
-      {/* ── Macro Pulse ── */}
+      {/* ── Macro Pulse ── A reading that failed once the grace period is over is LEFT OUT, and a missing trend line is empty, never a dash (owner sweep 2026-11-18). */}
       <TPanel>
         <div className="lbl">{t('BRIEFING_MACRO_PULSE_TITLE')}</div>
         <div className="mb-macro-row">
+          {(fng != null || !graceOver) && (
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip text={t('BRIEFING_FNG_TIP')}>{t('BRIEFING_FNG_LABEL')}</Tip></div>
             <div className="mb-macro-val" style={{ color: fngColor }}>{fng != null ? fng : <ReadingGap loading={!graceOver} />}</div>
-            <div className="mb-macro-sub" style={{ color: fngColor }}>{fngWord(t, store.fngLabel) || (fng != null ? '-' : '')}</div>
+            <div className="mb-macro-sub" style={{ color: fngColor }}>{fngWord(t, store.fngLabel)}</div>
           </div>
+          )}
+          {(store.btcDom != null || !graceOver) && (
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip text={t('BRIEFING_BTCDOM_TIP')}>{t('BRIEFING_BTCDOM_LABEL')}</Tip></div>
             <div className="mb-macro-val">{store.btcDom != null ? store.btcDom.toFixed(1) + '%' : <ReadingGap loading={!graceOver} />}</div>
-            <div className="mb-macro-sub" style={{ color: domTrend?.col ?? 'var(--txt3)' }}>{domTrend ? `${domTrend.txt} · ${domWindow}` : (store.btcDom != null ? '-' : '')}</div>
+            <div className="mb-macro-sub" style={{ color: domTrend?.col ?? 'var(--txt3)' }}>{domTrend ? `${domTrend.txt} · ${domWindow}` : ''}</div>
           </div>
+          )}
+          {(store.dxy != null || !graceOver) && (
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_DXY_TIP')}>{t('BRIEFING_DXY_LABEL')}</Tip></div>
             <div className="mb-macro-val">{store.dxy != null ? store.dxy.toFixed(2) : <ReadingGap loading={!graceOver} />}</div>
             <div className="mb-macro-sub" style={{ color: dxyColor }}>{store.dxy != null ? dxySig : ''}</div>
+            {dxyStampDate && store.dxy != null && <div className="mb-macro-sub" data-testid="macro-stamp" style={{ color: 'var(--txt3)' }}>{t('MACRO_STRIP_CLOSE_STAMP', { day: dxyStampDate.toLocaleDateString(undefined, { weekday: 'short' }) })}</div>}
           </div>
+          )}
           {etfFlow != null && (
             <div className="mb-macro-item">
               <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_ETF_TIP')}>{t('BRIEFING_ETF_LABEL')}</Tip>{etfDate ? ` · ${t('BRIEFING_ETF_LATEST', { date: fmtEtfDate(etfDate) })}` : ''}</div>

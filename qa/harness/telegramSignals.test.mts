@@ -5,7 +5,7 @@ import { makeWorld, installFakeFetch, loadRoute } from '../telegramWorld.mjs';
 /* QA's Telegram cron harness, SIGNAL half: the real route, a fake network (see qa/telegramWorld.mjs). The world's BTC hourly candles rise without a pause, so BTC reads RSI 100 and the cron
  * queues "RSI Overbought"; the flat default candles make PEPE and BONK fire EMA BUY signals on every timeframe, which the cron bundles into "N Signals Aligned". Those two are an artefact
  * of the synthetic market, used here on purpose: they give one single-signal message and two confluence messages to read, in every scenario.
- * Covers: message text and the signals footer (signal alerts yes, price alerts no), per-type and per-coin mute, repeat/cooldown, trial coin ladder, Free exclusion, send failure. */
+ * Covers: message text and the the ABSENCE of the old signals footer (removed in #2551), per-type and per-coin mute, repeat/cooldown, trial coin ladder, Free exclusion, send failure. */
 
 type World = ReturnType<typeof makeWorld>;
 const rising = Array.from({ length: 300 }, (_, i) => 100 + i);
@@ -16,36 +16,37 @@ async function scenario(o: { alerts?: unknown[]; muted?: Array<{ user_id: string
     lhq_user_subscriptions: [{ user_id: 'u-pro', role: 'pro', trial_ends_at: null, current_period_end: new Date(Date.now() + 30 * 86_400_000).toISOString() }, { user_id: 'u-free', role: 'free', trial_ends_at: null, current_period_end: null }, ...(o.trial ? [TRIAL] : [])],
     lhq_user_settings: [{ user_id: 'u-pro', telegram_chat_id: '1001', timezone: 'UTC' }, { user_id: 'u-free', telegram_chat_id: '2002', timezone: 'UTC' }, ...(o.trial ? [{ user_id: 'u-trial', telegram_chat_id: '3003', timezone: 'UTC' }] : [])],
   };
-  const w: World = makeWorld({ tables }); w.series = { 'BTCUSDT:60': rising }; if (o.mode) w.telegram.mode = o.mode;
+  const w: World = makeWorld({ tables }); w.series = { 'BTCUSDT:60': rising }; w.freshSignals = /PEPE|BONK/; if (o.mode) w.telegram.mode = o.mode;
   installFakeFetch(w);
   const route = await loadRoute();
   return { w, run: route.run };
 }
 type Msg = { chat_id: string; text: string };
 const to = (w: World, chat: string): Msg[] => w.telegram.sent.filter((m: Msg) => m.chat_id === chat);
-const isRsi = (m: Msg) => /RSI Overbought/.test(m.text);
+const isRsi = (m: Msg) => /BTC RSI Overbought/.test(m.text);   // BTC only: the fresh-signal series (qa/telegramWorld.mjs) also lifts PEPE's and BONK's RSI, which is not what these cells are about
 const isGroup = (m: Msg) => /Signals Aligned/.test(m.text);
-const FOOT = /<i>Signals, not predictions\. Past alerts moved the alert's way about half the time at 24 hours\.<\/i>$/;
+/* OWNER ORDER 2026-11-18 (#2551): signal alerts carry NO "Signals, not predictions. Past alerts moved the alert's way…" footer any more. FOOT_ANY catches the old sentence or any rewording that restates it. */
+const FOOT_ANY = /not predictions|past alerts moved|about half the time/i;
 
-test('(2a) a single signal alert reads as a signal and ENDS with the signals-not-predictions footer', async () => {
+test('(2a) a single signal alert reads as a signal and carries NO signals-not-predictions footer', async () => {
   const { w, run } = await scenario();
   const r = await run(); assert.equal(r.status, 200);
   const rsi = to(w, '1001').filter(isRsi); assert.equal(rsi.length, 1, 'one BTC RSI message');
-  assert.match(rsi[0].text, /BTC RSI Overbought \(1H\)/); assert.match(rsi[0].text, /RSI: <b>100\.0<\/b>/); assert.match(rsi[0].text, FOOT);
+  assert.match(rsi[0].text, /BTC RSI Overbought \(1H\)/); assert.match(rsi[0].text, /RSI: <b>100\.0<\/b>/); assert.doesNotMatch(rsi[0].text, FOOT_ANY, 'the removed footer is back');
 });
 
-test('(2b) a confluence message ("N Signals Aligned") lists its signals and ENDS with the footer', async () => {
+test('(2b) a confluence message ("N Signals Aligned") lists its signals and carries NO footer', async () => {
   const { w, run } = await scenario(); await run();
   const groups = to(w, '1001').filter(isGroup); assert.ok(groups.length >= 1, 'no Signals Aligned message');
-  for (const g of groups) { assert.match(g.text, /\d+ Signals Aligned/); assert.match(g.text, /• BUY Signal \(1M\)/); assert.match(g.text, FOOT); }
+  for (const g of groups) { assert.match(g.text, /\d+ Signals Aligned/); assert.match(g.text, /• BUY Signal \(1M\)/); assert.doesNotMatch(g.text, FOOT_ANY, 'the removed footer is back'); }
 });
 
-test('(2c) every signal message carries the footer once; a PRICE alert in the same pass does not carry it', async () => {
+test('(2c) no signal message carries the footer, and neither does a PRICE alert in the same pass', async () => {
   const { w, run } = await scenario({ alerts: [{ id: 1, user_id: 'u-pro', coin: 'btc', target_price: 68_000, direction: 'above', active: true }] });
   await run();
   const msgs = to(w, '1001'); const price = msgs.filter((m: Msg) => /Price Alert Triggered/.test(m.text)); const signals = msgs.filter((m: Msg) => !/Price Alert Triggered/.test(m.text));
-  assert.equal(price.length, 1, 'the price alert was sent'); assert.doesNotMatch(price[0].text, /Signals, not predictions/);
-  assert.ok(signals.length >= 2); for (const s of signals) { assert.match(s.text, FOOT); assert.equal(s.text.split('Signals, not predictions').length - 1, 1, 'exactly one footer'); }
+  assert.equal(price.length, 1, 'the price alert was sent'); assert.doesNotMatch(price[0].text, FOOT_ANY);
+  assert.ok(signals.length >= 2); for (const s of signals) assert.doesNotMatch(s.text, FOOT_ANY, 'the removed footer is back');
 });
 
 test('(3) MUTE by type: muting "rsi" stops the RSI alert only, the other signals still arrive', async () => {

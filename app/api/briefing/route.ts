@@ -122,6 +122,8 @@ export async function POST(req: NextRequest) {
         ],
         max_tokens: 350,
       }),
+      /* 45 SECONDS, NOT THE 180 s FLOOR (PM audit 2026-11-17: "Generating…" for up to three minutes). The browser gives up at 50. */
+      signal: AbortSignal.timeout(45_000),
     });
 
     if (!res.ok) {
@@ -134,6 +136,11 @@ export async function POST(req: NextRequest) {
     billed = true;   // 2xx: the tokens are billed from here
     await recordAiCall({ userId, callType: 'briefing', model: data.model ?? 'grok-4.3', usage: data.usage });
     const briefing = (data.choices?.[0]?.message?.content ?? '').trim();
+    /* AN EMPTY REPLY IS A FAILED ANSWER, not a blank card: the quota is handed back as the Arena does. */
+    if (!briefing) {
+      await refundUsageColumn(userId, 'briefing_count', reservedOn);
+      return NextResponse.json({ error: 'The briefing came back empty. Try again in a moment.' }, { status: 502 });
+    }
 
     return NextResponse.json({
       briefing,
@@ -141,6 +148,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (e) {
     if (!billed) await refundUsageColumn(userId, 'briefing_count', reservedOn);
+    if (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')) {
+      return NextResponse.json({ error: 'The briefing took too long. Try again in a moment.' }, { status: 504 });
+    }
     return apiError('briefing', e, 500, 'Request failed');
   }
 }

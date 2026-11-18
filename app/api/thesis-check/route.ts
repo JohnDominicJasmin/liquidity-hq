@@ -8,6 +8,7 @@ import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { answerWasCutOff } from '@/lib/xaiAnswer';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -132,6 +133,12 @@ export async function POST(req: NextRequest) {
   const data = await res.json();
   await recordAiCall({ userId: authData.user.id, callType: 'thesis_check', model: data.model ?? 'grok-4.3', usage: data.usage });
   const analysis: string = data.choices?.[0]?.message?.content ?? '';
+  /* AN EMPTY OR CUT-OFF ANSWER IS NOT AN ANSWER (owner sweep 2026-11-18): it used to return 200 with a blank or half text and the use
+     was spent. Now the use is given back and the page is told the answer was incomplete. */
+  if (!analysis.trim() || answerWasCutOff(data)) {
+    await refundToolUsage(authData.user.id, 'thesisCheck', reservedOn);
+    return NextResponse.json({ error: 'The AI answer was incomplete. Nothing was charged. Try again.', code: 'AI_INCOMPLETE' }, { status: 502 });
+  }
 
   return NextResponse.json({ analysis });
 }

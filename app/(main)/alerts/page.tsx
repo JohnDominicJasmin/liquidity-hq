@@ -562,6 +562,7 @@ export default function AlertsPage() {
     ]},
     { section: t('ALERTS_SECTION_NEWS_SENTIMENT'), items: [
       { key: 'news',               dot: 'var(--red)', title: t('ALERTS_NEWS_TITLE'),         desc: t('ALERTS_NEWS_DESC') },
+      { key: 'macro_news',         dot: '#9ba4ff', title: t('ALERTS_MACRO_NEWS_TITLE'),  desc: t('ALERTS_MACRO_NEWS_DESC') },
       { key: 'fear_greed',         dot: '#f97316', title: t('ALERTS_FEAR_GREED_TITLE'), desc: t('ALERTS_FEAR_GREED_DESC') },
       { key: 'sentiment_extremes', dot: '#f43f5e', title: t('ALERTS_SENTIMENT_EXTREMES_TITLE'),    desc: t('ALERTS_SENTIMENT_EXTREMES_DESC') },
     ]},
@@ -590,8 +591,6 @@ export default function AlertsPage() {
       <div className="mb-header">
         <h1 className="mb-title">{t('ALERTS_PAGE_TITLE')}</h1>
         <div className="mb-subtitle">{t('ALERTS_PAGE_SUBTITLE')}</div>
-        {/* SIGNALS, NOT PREDICTIONS (owner, option A, 2026-11-14, #1651): said plainly where alerts are set. The "about half" is the production measurement (61.5k outcomes at 24 h, 51 % moved the alert's way, #1651 comment 6873369526); the label is DB-driven so it can be updated when the measurement is. */}
-        <div className="mb-subtitle" data-testid="alerts-signals-note" style={{ marginTop: 4 }}>{t('ALERTS_SIGNALS_NOT_PREDICTIONS')}</div>
       </div>
 
       {SHOW_PERFORMANCE_STATS && <AlertOutcomes />}

@@ -67,19 +67,20 @@ test('W5. REAL classifyFunding: the notes state who is paying, with no direction
   for (const n of notes) assert.doesNotMatch(n, /whales?|go (long|short)|bullish|bearish|trade with caution|dump|squeeze up|overleveraged/i, n);
 });
 test('W6. the funding page tiers are band facts: the label carries the numeric band, the action line says the band per 8 hours', () => {
-  assert.equal(en.FUNDING_SIG_LONGS_OVERCROWDED_LABEL, 'Longs paying - funding +0.05% or more'); assert.equal(en.FUNDING_SIG_SHORTS_OVERCROWDED_LABEL, 'Shorts paying - funding -0.03% or less');
-  assert.equal(en.FUNDING_SIG_BALANCED_LABEL, 'Neutral - funding near zero'); assert.equal(en.FUNDING_SIG_LONGS_HEAVY_LABEL, 'Longs paying - funding +0.02% to +0.05%'); assert.equal(en.FUNDING_SIG_SHORTS_CROWDED_LABEL, 'Shorts paying - funding -0.01% to -0.03%');
+  assert.equal(en.FUNDING_SIG_LONGS_OVERCROWDED_LABEL, 'Longs paying heavily (+0.05%+)'); assert.equal(en.FUNDING_SIG_SHORTS_OVERCROWDED_LABEL, 'Shorts paying heavily (−0.03% or less)');
+  assert.equal(en.FUNDING_SIG_BALANCED_LABEL, 'Balanced'); assert.equal(en.FUNDING_SIG_LONGS_HEAVY_LABEL, 'Longs paying heavily (+0.02–0.05%)'); assert.equal(en.FUNDING_SIG_SHORTS_CROWDED_LABEL, 'Shorts paying heavily (−0.01–0.03%)');
   for (const t of ['LONGS_OVERCROWDED', 'LONGS_HEAVY', 'LONGS_DOMINANT', 'SLIGHT_LONG', 'BALANCED', 'SHORTS_DOMINANT', 'SHORTS_CROWDED', 'SHORTS_OVERCROWDED']) {
     assert.match(en[`FUNDING_SIG_${t}_ACTION`], /^Funding (is|between)/, `${t}: the action line is not a band fact: ${en[`FUNDING_SIG_${t}_ACTION`]}`);
     assert.match(en[`FUNDING_SIG_${t}_HINT`], /paying|Near|baseline|zero/i, `${t}: hint ${en[`FUNDING_SIG_${t}_HINT`]}`);
   }
 });
-test('W7. Telegram: squeeze alert titles state positioning; sentiment and Fear & Greed alerts have no Action line, tighten-stops or reduce-position advice; the RSI and CVD alerts keep their own Action lines', () => {
+test('W7. Telegram: squeeze alert titles state positioning; sentiment and Fear & Greed alerts have no Action line, tighten-stops or reduce-position advice; no alert carries an Action line (#2560: RSI, CVD, open-interest and candle alerts state facts only)', () => {
   const s = read('app/api/telegram/alert/route.ts').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');   // comments are not sent to anyone
   assert.match(s, /Short-heavy positioning - Score/); assert.match(s, /Long-heavy positioning - Score/); assert.match(s, /longs paying shorts/);
   assert.equal(/Short Squeeze Building|Long Flush Building|Longs overcrowded|price likely (dumps|pumps)|Tighten stops on longs|Consider tightening stops|reducing position size|long flush risk elevated|contrarian reversal zone/i.test(s), false, 'an old squeeze / sentiment alert wording is still sent');
   assert.ok(/Positioning is long-heavy\./.test(s) && /Positioning is short-heavy\./.test(s), 'the new positioning lines are gone');
-  assert.ok((s.match(/Action:/g) ?? []).length >= 2, 'the RSI / CVD alerts lost their Action lines (the PR leaves them untouched)');
+  assert.equal((s.match(/Action:/g) ?? []).length, 0, 'an alert carries an Action: line again (advice in a Telegram alert, owner order 2026-11-18)');
+  assert.ok(/Overbought zone on the 1-hour chart./.test(s) && /Oversold zone on the 1-hour chart./.test(s), 'the RSI alerts lost their fact-only wording');
 });
 test('W8. the Market Read keeps its own "Longs overcrowded" wording on its own key', () => {
   assert.equal(en.MARKET_READ_TXT_LONGS_OVERCROWDED, 'Longs overcrowded'); assert.ok(read('lib/marketReadText.ts').includes('MARKET_READ_TXT_LONGS_OVERCROWDED'), 'the Market Read still reads the sidebar key (it would now print "Funding {pct}: longs paying" with no figure)');

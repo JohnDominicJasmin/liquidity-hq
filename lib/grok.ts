@@ -95,7 +95,7 @@ export async function callGrokViaProxy(
     }
     const msg = err.code === 'RATE_LIMIT'
       ? `${err.error ?? 'Rate limit reached.'} Resets at ${nextResetLocalTime()}.`
-      : err.error ?? 'Grok proxy error';
+      : err.error ?? 'The AI read failed. Try again.';  // never the vendor name (product UI says "AI" only)
     throw Object.assign(new Error(msg), { code: err.code, refunded: err.refunded, usage: err.usage });
   }
 
@@ -180,6 +180,12 @@ export function buildVerdictRepairPrompt(answer: string): string {
   ].join('\n');
 }
 
+/** The most WHY bullets a read can carry, Quick and Deep alike (owner rule 22; PM 2026-11-18: 3 bullets, 12 words). */
+export const WHY_MAX = 3;
+/** A bullet over this many words is not a reason a reader takes in at a glance (rule 22 asks for 12); the parser drops it rather than cutting it mid-sentence, and the card falls back to the first sentences of `reasoning` when none is left. */
+const WHY_MAX_WORDS = 12;
+const WHY_LINE_QUICK = "WHY: [UP TO 3 lines, each starting with '- ': ONE reason per line, 12 words or fewer, plain words a beginner understands (no abbreviations the reader must look up), stating what the data shows now - never a forecast, never advice.]";
+const WHY_LINE_DEEP = WHY_LINE_QUICK;
 const SIGNALS: ReadonlyArray<CombinedResult['signal']> = ['BULLISH', 'LEAN BULLISH', 'FLAT', 'LEAN BEARISH', 'BEARISH'];
 const strOrEmpty = (v: unknown): string => (typeof v === 'string' ? v : '');
 const strOrNull = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
@@ -206,10 +212,11 @@ export function normalizeCombinedResult(raw: unknown, tf: string, session: strin
     ? { bullish: c.bullish as number, bearish: c.bearish as number } : null;
   /* #1631 A+D: carried only when the answer has them. A result from before them (a cache, a stub) has none, and "absent" is the true
      reading - an invented empty list would claim the server checked something it never saw. */
-  const extra: Pick<CombinedResult, 'citations' | 'counted' | 'checks'> = {};
+  const extra: Pick<CombinedResult, 'citations' | 'counted' | 'checks' | 'why'> = {};
   if ('citations' in r) extra.citations = strings(r.citations).filter((u) => /^https?:\/\//.test(u)).slice(0, 10);
   if ('counted' in r) extra.counted = counted;
   if ('checks' in r) extra.checks = strings(r.checks);
+  if ('why' in r) extra.why = strings(r.why).slice(0, WHY_MAX);
   return {
     signal: r.signal as CombinedResult['signal'],
     confidence: Math.max(0, Math.min(100, r.confidence)),
@@ -366,7 +373,7 @@ export function buildPrompt(ctx: GrokContext): string {
   const isBtc = /^BTC\b/i.test(ctx.coin);
   const btcOnly = (lines: string[]): string[] => (isBtc ? lines : []);
   return [
-    `You are LiquidityAI - an elite crypto derivatives trader and macro analyst. Your job is to synthesize ALL available data and output a high-conviction directional call for ${ctx.coin}.`,
+    `You are LiquidityAI - a crypto derivatives and macro analyst. Your job is to combine ALL available data and describe what it shows for ${ctx.coin}: which way it leans now and why. Describe; never advise a trade.`,
     '',
     '=== PRICE ACTION ===',
     `Coin: ${ctx.coin}  |  Price: ${ctx.price}  |  24h Change: ${ctx.change24h}`,
@@ -379,7 +386,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '',
     '=== TECHNICALS (MULTI-TIMEFRAME) ===',
     `EMA Ribbon Strategy: ${ctx.emaStrategy}`,
-    '(VERDICT KEY - LONG_SETUP: bullish ribbon 9>20>50 + daily above 200 SMA + price pulled back to 20 EMA value zone = high-probability long entry. SHORT_SETUP: reverse = high-probability short entry. TRENDING_LONG/BEARISH: ribbon aligned but price not yet in entry zone - directional bias, wait for pullback to value zone. FREEZE: ribbon is tangled (EMAs not stacked) or price broke through 50 EMA against trend = no clear bias, avoid new positions.)',
+    '(VERDICT KEY - LONG_SETUP: bullish ribbon 9>20>50 + daily above 200 SMA + price pulled back to 20 EMA value zone = long-setup conditions met. SHORT_SETUP: reverse = short-setup conditions met. TRENDING_LONG/BEARISH: ribbon aligned but price not in the value zone - a directional lean only. FREEZE: ribbon is tangled (EMAs not stacked) or price broke through 50 EMA against trend = no clear bias, avoid new positions.)',
     /* #1631 D: the ribbon rules feed the ONE tier table (SIGNAL DECISION GUIDE) instead of defining tiers of their own. "Upgrade to
        BULLISH with 2 more signals" here, "3+ exhaustion signals + reversal candle" there, and GEX's "fade breakouts" were three
        definitions, and runs resolved them differently. */
@@ -487,7 +494,7 @@ export function buildPrompt(ctx: GrokContext): string {
     `Liquidation cascade (last 4h): ${ctx.cascadeLine}`,
     '(A liquidation cascade = chain reaction of forced liquidations - often precedes exhaustion reversal OR continuation depending on direction. LONG cascade = over-leveraged longs flushed = potential bottom forming. SHORT cascade = shorts squeezed = potential top forming.)',
     `Whale net flow (last 1h, ${ctx.coin}): ${ctx.whaleFlow}`,
-    '(Net whale buying = institutional accumulation signal. Net whale selling = distribution / risk-off. Large single trades >$1M often precede directional moves within 15–30min.)',
+    '(Net whale buying = institutional accumulation signal. Net whale selling = distribution / risk-off. Large single trades >$1M are noted as they happened, not as a forecast.)',
     '',
     // RETAIL SENTIMENT (Google Trends) removed 2026-07-31. Google blocks the
     // unofficial endpoint - confirmed failing from Render and locally - so the
@@ -528,7 +535,7 @@ export function buildPrompt(ctx: GrokContext): string {
     ctx.liqLevels || 'Not available',
     '',
     '=== MACRO EVENTS - RELEASED (LAST 24H) + UPCOMING (48H) ===',
-    '(CRITICAL: Any central bank decision - FOMC, BOJ, ECB, BOE - or tier-1 data released in the last 24h MUST anchor your macro bias. Do not let 1–2 weak technical signals override a confirmed Fed hold/hike or BOJ policy shift. For BOJ specifically: a rate hike = JPY strengthens = global carry trade unwind = risk-off across all assets including crypto. Use the Deep Research mode or the news feed to confirm current BOJ stance if not shown here.)',
+    '(CRITICAL: Any central bank decision - FOMC, BOJ, ECB, BOE - or tier-1 data released in the last 24h MUST anchor your macro bias. Do not let 1–2 weak technical signals override a confirmed Fed hold/hike or BOJ policy shift. For BOJ specifically: a rate hike = JPY strengthens = global carry trade unwind = risk-off across all assets including crypto. If the current BOJ stance is not in the data above, say it is not available rather than assuming it.)',
     ctx.upcomingEvents || 'No events in window',
     '',
     '=== LIVE NEWS FEED (up to 15 alerts, newest first: UTC time, age and source on each line) ===',
@@ -580,7 +587,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '',
     'IF IN BULLISH MOMENTUM REGIME:',
     '  • RSI overbought (> 70) = STRONG UPSIDE MOMENTUM - not automatically a sell signal in a trending move.',
-    '  • Short/Long ratio < 0.5:1 = overleveraged shorts at SQUEEZE RISK = one bullish signal.',
+    '  • Long/Short ratio < 0.5:1 (shorts outnumber longs 2:1) = crowded shorts, squeeze risk = one bullish signal.',
     '',
     'NEUTRAL REGIME: No clear momentum. Apply all signals equally.',
     '',
@@ -634,17 +641,17 @@ export function buildPrompt(ctx: GrokContext): string {
     '1. TECHNICALS - REGIME-AWARE:',
     '   • In BEARISH REGIME: RSI oversold = strong downside momentum. EMA9 < SMA200 = bearish structure. Do NOT use oversold RSI as a buy trigger.',
     '   • In BULLISH REGIME: RSI overbought = strong upside momentum. EMA9 > SMA200 = bullish structure.',
-    '   • Price vs MA20, EMA cross, volume confirmation still apply for timing entries.',
+    '   • Price vs MA20, EMA cross and volume confirmation still apply.',
     '2. DERIVATIVES: Funding rate direction bias, OI trend vs price, long/short imbalance.',
     '   • Long/Short ratio > 1.8:1 during a DECLINE = crowded longs at flush risk = BEARISH signal, not bullish.',
     '   • Long/Short ratio < 0.6:1 during a RALLY = crowded shorts at squeeze risk = BULLISH signal.',
     '3. MACRO: Oil price direction (risk-on/off signal), bond yields (rising = risk-off), BTC dominance.',
     '4. ETF FLOWS: use the dated SPOT ETF section - net inflows = institutional accumulation (bullish), net outflows = distribution (bearish); large flows can drive 3–8% moves. Say the date of any flow you cite.',
     '5. NEWS & SOCIAL: Fed/FOMC statements, SEC rulings, inflation prints (CPI/PPI), geopolitical risk.',
-    '6. TRUMP/WHITE HOUSE: Presidential posts or executive orders about crypto cause immediate 5–15% swings. Rate policy signals affect risk appetite.',
+    '6. TRUMP/WHITE HOUSE: Presidential posts or executive orders about crypto can move price sharply; cite the post if one is in the data. Rate policy signals affect risk appetite.',
     '7. SENTIMENT: Fear & Greed extreme readings as contrarian signals - BUT only in NEUTRAL regime. In Bearish regime, extreme fear can persist.',
     '8. SESSION: NY session (high liquidity) vs Asia/London.',
-    '9. FIBONACCI: In NEUTRAL regime, fib levels (61.8%, 38.2%) are high-probability reversal zones. In BEARISH REGIME, fib supports are likely to fail - treat them as pause zones only.',
+    '9. FIBONACCI: In NEUTRAL regime, fib levels (61.8%, 38.2%) are levels where price has often reacted. In BEARISH REGIME, treat fib supports as possible pause zones, not reversals.',
     '10. ORDER FLOW (CVD): Positive CVD = net buying. Negative = selling pressure. In BEARISH REGIME, CVD bullish divergence is often a temporary absorption trap - require price confirmation before treating as reversal.',
     ...btcOnly(['11. OPTIONS (DERIBIT): P/C ratio > 1.2 = bearish positioning. Max pain acts as price magnet near expiry. Positive basis = healthy bull market.']),
     /* Added with #340. Rule 11 gives a bullish reading for positive basis, and
@@ -656,7 +663,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '13. ORDER BOOK: Large bid walls = support. Large ask walls = resistance. Price often hunts walls before reversing.',
     '14. STABLECOIN FLOWS: judge by the 7d/30d change given, never by the level. Growing USDT+USDC supply = dry powder entering = bullish medium-term. Shrinking = capital leaving - never call a shrinking or unknown supply dry powder.',
     '15. EXCHANGE FLOWS: BTC flowing INTO exchanges = sell pressure. Flowing OUT = accumulation.',
-    ...btcOnly(['16. COINBASE PREMIUM: CB premium > +$30 = US institutions buying aggressively (strong bullish). Negative = US selling/risk-off.']),
+    ...btcOnly(['16. COINBASE PREMIUM: CB premium positive = Coinbase trades above other venues (US demand). Negative = US selling / risk-off.']),
     '17. VWAP: Price above VWAP = institutions paying up (bullish). Price below VWAP = distributing (bearish).',
     '18. OI TREND: OI↑+Price↑ = real trend with conviction. OI↑+Price↓ = new short conviction. OI↓+Price↑ = short covering only (weak). OI↓+Price↓ = long exits (panic).',
     '19. TAKER RATIO: Taker buy >65% = aggressive buyers = real demand (bullish). Taker sell >65% = sellers dumping into bids = distribution/panic (bearish).',
@@ -790,6 +797,8 @@ export interface CombinedResult {
   counted?: { bullish: number; bearish: number } | null;
   /** #1631 D: what applyResultChecks changed or could not check, in plain words. Not shown in the UI. */
   checks?: string[];
+  /** THE READ'S WHY, 1-3 plain-word reasons (Deep up to 5), each 12 words or fewer, stating what the data shows now (owner rule 22). Absent on a read from before it or when the model gave none: the card then falls back to the first sentences of `reasoning`. */
+  why?: string[];
   analyzedAt: number;
   tf: string;
   session: string;
@@ -819,18 +828,18 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     '',
     `=== TECHNICALS vs MACRO WEIGHTING (${chart.tf} timeframe) ===`,
     chart.tf === '1m'
-      ? 'WEIGHTING: Technicals 97% | Macro 3% - 1-minute scalp. Macro is near-irrelevant for tick-level price action. Only factor: if a major CB decision or geopolitical shock occurred <30min ago, widen your stop - do not fight the immediate reaction.'
+      ? 'WEIGHTING: Technicals 97% | Macro 3% - 1-minute scalp. Macro is near-irrelevant for tick-level price action. Only factor: a major CB decision or geopolitical shock in the last 30 min, whose reaction dominates the candles.'
       : chart.tf === '5m'
-        ? 'WEIGHTING: Technicals 95% | Macro 5% - 5-minute scalp. Technicals dominate. Macro only matters as a risk filter: avoid new entries within 15min before a scheduled tier-1 release.'
+        ? 'WEIGHTING: Technicals 95% | Macro 5% - 5-minute scalp. Technicals dominate. Macro only matters as a risk factor: a scheduled tier-1 release within 15 min makes the read less reliable; say so.'
         : chart.tf === '15m'
           ? 'WEIGHTING: Technicals 90% | Macro 10% - 15-minute intraday. Technicals drive the call. Macro sets the session background: if a tier-1 event (FOMC, NFP, CPI) was released <3h ago, treat macro weight as 20% while the data reaction is still playing out.'
           : chart.tf === '30m'
-            ? 'WEIGHTING: Technicals 85% | Macro 15% - 30-minute intraday. Macro sets the session bias direction; technicals determine the entry. If a major event printed in the last 6h, elevate macro to 25% - price is still digesting the move.'
+            ? 'WEIGHTING: Technicals 85% | Macro 15% - 30-minute intraday. Macro sets the session bias direction; technicals set the lean. If a major event printed in the last 6h, elevate macro to 25% - price is still digesting the move.'
             : chart.tf === '1h'
-              ? 'WEIGHTING: Technicals 75% | Macro 25% - 1-hour. Technicals lead but macro context must align. If macro and technicals conflict, lean with macro for the bias and use a tighter confirmation trigger from technicals before entering.'
+              ? 'WEIGHTING: Technicals 75% | Macro 25% - 1-hour. Technicals lead but macro context must align. If macro and technicals conflict, say so and lower the confidence.'
               : chart.tf === '4h'
                 ? 'WEIGHTING: Technicals 55% | Macro 45% - 4-hour swing. Macro is a near-equal co-driver. Fed stance, DXY direction, BOJ carry risk, and geopolitical regime each carry real weight at this timeframe. Do not call a 4h BULLISH against a hawkish macro backdrop without 3+ strong technical confirmations.'
-                : 'WEIGHTING: Technicals 50% | Macro 50% - daily timeframe. Equal weight. Central bank stance, DXY trend, BOJ policy, geopolitical risk, and ETF flows are as important as chart structure. A daily technical setup that contradicts the macro regime requires exceptional confirmation to act on.',
+                : 'WEIGHTING: Technicals 50% | Macro 50% - daily timeframe. Equal weight. Central bank stance, DXY trend, BOJ policy, geopolitical risk, and ETF flows are as important as chart structure. A daily technical setup that contradicts the macro regime needs strong confirmation before it sets the lean.',
     'REMINDER: Apply the MOMENTUM REGIME FILTER above before deciding direction. In a confirmed bearish regime a bullish tier needs the reversal-candle trigger - oscillators alone never override the regime.',
     '',
     // #1631 D: confidence bands only. This used to be a second tier table that disagreed with the SIGNAL DECISION GUIDE.
@@ -844,10 +853,14 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     'CONFIDENCE: [0-100]',
     // #1631 D: the count the tier rests on, in a fixed shape so the server can check the tier against it.
     'COUNTED: bullish [n] ([the bullish signals you counted, comma separated]) | bearish [n] ([the bearish signals you counted])',
+    WHY_LINE_QUICK,
+    '- [reason 1]',
+    '- [reason 2]',
+    '- [reason 3]',
     // #1631 B: with no cluster data both XRP runs still invented a "long flush" target. No data, no raid.
     ...(/^\s*Not available/i.test(ctx.liqLevels ?? '') ? ['(No liquidation cluster data is available for this coin, so a raid cannot be judged: write RAID_SETUP: NONE, RAID_TARGET: N/A, RAID_TRIGGER: N/A.)'] : []),
     'RAID_SETUP: [Analyze the liquidation clusters, long/short crowding, funding rate, and order walls to determine IF a liquidity raid is likely. Output one of: SHORT SQUEEZE (shorts overcrowded + upside liquidation cluster reachable) | LONG FLUSH (longs overcrowded + downside liquidation cluster reachable) | NONE. A raid is likely when: one side is heavily crowded AND there is a visible liquidation cluster within 2-5% of current price AND funding confirms the crowding direction.]',
-    'RAID_TARGET: [The specific price level or range where the liquidation cluster sits - this is where price would hunt before reversing. Format: "$X.XX" or "$X.XX – $X.XX". Write N/A if RAID_SETUP is NONE.]',
+    'RAID_TARGET: [The specific price level or range where the liquidation cluster sits. Format: "$X.XX" or "$X.XX – $X.XX". Write N/A if RAID_SETUP is NONE.]',
     'RAID_TRIGGER: [One sentence: the specific price action, volume, or candle pattern that would CONFIRM the raid is starting. E.g. "Break and hold above $2.05 on the 15m with volume spike triggers short liquidation cascade." Write N/A if RAID_SETUP is NONE.]',
     'LEVELS:',
     '- [price]: [label] | [support or resistance]',
@@ -962,6 +975,17 @@ function parseCombinedResponse(text: string, tf: string, session: string, nowMs:
   // #1631 D: the counts the tier check in applyResultChecks needs.
   const counted = parseCounted(clean);
 
+  /* THE WHY BULLETS (owner rule 22): up to WHY_MAX lines of '- reason' under WHY:, up to the next field. A bullet that says none, or is longer than WHY_MAX_WORDS, is dropped. */
+  const why: string[] = [];
+  const whySect = clean.match(/(?:^|\n)\*{0,2}WHY\*{0,2}:[^\n]*\n([\s\S]*?)(?=\n\*{0,2}(?:RAID_SETUP|RAID_TARGET|RAID_TRIGGER|LEVELS|CATALYSTS|CHART_ANALYSIS|PATTERNS|WAIT_FOR|REASONING)\*{0,2}:|$)/i)?.[1] ?? '';
+  for (const line of whySect.split('\n')) {
+    const m = line.match(/^\s*[-•]\s*(.+)/);
+    if (!m) continue;
+    const b = stripMd(m[1]);
+    if (!b || /^(none|n\/a|\[reason)/i.test(b) || b.split(/\s+/).length > WHY_MAX_WORDS) continue;
+    if (why.length < WHY_MAX) why.push(b);
+  }
+
   // CHART_ANALYSIS - stop at PATTERNS or WAIT_FOR or REASONING
   const chartAnalysis = stripMd(
     clean.match(/CHART_ANALYSIS:\s*([\s\S]*?)(?=\n\*{0,2}PATTERNS\*{0,2}:|\n\*{0,2}WAIT_FOR\*{0,2}:|\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
@@ -1012,7 +1036,7 @@ function parseCombinedResponse(text: string, tf: string, session: string, nowMs:
     clean.match(/\*{0,2}REASONING\*{0,2}:\s*([\s\S]+)/i)?.[1] ?? ''
   );
 
-  return { signal, confidence, bias, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, citations: [], counted, checks: [], analyzedAt: Date.now(), tf, session };
+  return { signal, confidence, bias, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, why, citations: [], counted, checks: [], analyzedAt: Date.now(), tf, session };
 }
 
 /** THE READ, REFUSED RATHER THAN DEFAULTED. Use this. `parseCombinedResponse` above still answers FLAT at 0% for an answer that
@@ -1152,6 +1176,15 @@ export function applyResultChecks(result: CombinedResult, prompt: string): Combi
         (r as unknown as Record<string, string | null>)[field] = text.trim() ? text : (field === 'reasoning' || field === 'chartAnalysis' ? cur : null);
         note2(field, dropped);
       }
+    }
+    if (Array.isArray(r.why)) {
+      const nextWhy: string[] = [];
+      for (const w of r.why) {
+        const { text, dropped } = dropContradictingClauses(w, inputs);
+        if (dropped.length) note2('why', dropped);
+        if (text.trim()) nextWhy.push(text);
+      }
+      r.why = nextWhy;
     }
     if (Array.isArray(r.catalysts)) {
       const nextCat: string[] = [];
@@ -1303,6 +1336,7 @@ export function applyPlainWords(r: CombinedResult): string[] {
   r.reasoning     = fix(r.reasoning);
   r.patterns      = r.patterns.map(fix);
   r.catalysts     = r.catalysts.map(fix);
+  if (r.why)         r.why         = r.why.map(fix);
   if (r.waitFor)     r.waitFor     = fix(r.waitFor);
   if (r.raidTarget)  r.raidTarget  = fix(r.raidTarget);
   if (r.raidTrigger) r.raidTrigger = fix(r.raidTrigger);
@@ -1346,7 +1380,7 @@ export function buildArenaPrompt(
   type: 'quick' | 'deep',
   selection: readonly string[] = [],
 ): string {
-  const base = type === 'quick' ? buildQuickPrompt(ctx, chart) : buildCombinedPrompt(ctx, chart);
+  const base = type === 'quick' ? buildQuickPrompt(ctx, chart) : buildCombinedPrompt(ctx, chart).replace(WHY_LINE_QUICK, WHY_LINE_DEEP);
   if (selection.length === 0) return base;
   return [
     base,
