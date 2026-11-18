@@ -425,11 +425,6 @@ export default function FundingTerminal() {
       <div className="mb-header">
         <h1 className="mb-title">{t('FUNDING_PAGE_TITLE')}</h1>
         <div className="mb-subtitle">{t('FUNDING_PAGE_SUBTITLE')}</div>
-        {!loading && bybitCoins.length > 0 && (
-          <div data-testid="funding-via-bybit" className="mb-subtitle" style={{ marginTop: 6, marginBottom: 0 }}>
-            {t('FUNDING_VIA_BYBIT_NOTE', { coins: bybitCoins.map(c => COIN_LABELS[c] ?? c.toUpperCase()).join(', ') })}
-          </div>
-        )}
       </div>
 
       {/* FR Regime Overview */}
@@ -622,6 +617,9 @@ export default function FundingTerminal() {
                       const current = store.coins[id]?.fundingRate ?? null;
                       const pts     = (history[id] ?? []).slice(-rangeCount);
                       const noData  = pts.length < 2;
+                      /* NOTHING TO SHOW, NO ROW (owner sweep 2026-11-18): a coin with no funding market, or one with neither a current rate
+                         nor any history once loading is done, used to fill its row with "No data" / "Unavailable". It is left out instead. */
+                      if (!loading && (!hasPerp(id) || (current == null && noData))) return null;
                       /* A MISSING FIGURE SAYS WHICH KIND OF MISSING (#1651, PM): still coming (an ellipsis) or not available (the plain words, cause on hover), never a bare dash. ONE WORD PER ROW:
                          the word is said once, in the cell of the figure that is missing first (the current rate); the signal, which is derived from the current rate, stays empty then. */
                       const gap = store.scannerFeed.universe === 'pending'
@@ -649,10 +647,15 @@ export default function FundingTerminal() {
                             >
                               <CoinIcon coin={id} size={16} color={coinBadgeColor(id)} bg={withAlpha(coinBadgeColor(id), '24')} decorative />
                               {COIN_LABELS[id]}
+                              {/* The history is Bybit's (Binance has none for this coin): said on the row, one word, not a sentence above the table (owner sweep 2026-11-18). */}
+                              {bybitCoins.includes(id) && <span data-testid="funding-venue-bybit" style={{ marginLeft: 6, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Bybit</span>}
                             </button>
                           </td>
                           <td style={{ color: current != null ? frColor(current) : 'var(--txt3)', fontWeight: 700 }}>
-                            {current != null ? frFmt(current) : gap}
+                            {/* No live rate: the LAST SETTLED rate from the history, muted, with its time on hover (owner sweep 2026-11-18), never "No data". */}
+                            {current != null ? frFmt(current)
+                              : pts.length ? <span title={new Date(pts[pts.length - 1].ts).toLocaleString()}>{frFmt(pts[pts.length - 1].rate)}</span>
+                              : gap}
                           </td>
                           <td style={{ color: stats ? frColor(stats.avg) : 'var(--txt3)' }}>
                             {stats ? frFmt(stats.avg) : current == null ? null : gap}
@@ -677,7 +680,7 @@ export default function FundingTerminal() {
                                   style={{ display: 'block', width: '100%', height: '36px' }}
                                   ref={el => { sparkRefs.current[id] = el ?? undefined; }}
                                 />
-                              : <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t(hasPerp(id) ? 'STATE_UNAVAILABLE' : 'FUNDING_NO_PERP_LABEL')}</span>
+                              : null
                             }
                           </td>
                         </tr>

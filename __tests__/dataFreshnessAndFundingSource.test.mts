@@ -2,7 +2,7 @@
  *   T1-T3  lib/apiCache.cachedAt (REAL code, mocked clock): null when nothing is cached, the fetch time of the entry, not moved by a cache hit, moved by a refresh
  *   T4     lib/marketSnapshotData: the response's fetchedAt is the OLDEST of the fulfilled sections' cache times (anchor), null when none read
  *   T5     the two routes send ts = the data's age, falling back to now only when nothing is cached
- *   V1-V3  FundingTerminal: reads the route's viaFallback, marks a coin Bybit-sourced both when the route fell back and when the page's own Bybit fallback supplied it, shows the note only after loading with at least one such coin
+ *   V1-V3  FundingTerminal: reads the route's viaFallback, marks a coin Bybit-sourced both when the route fell back and when the page's own Bybit fallback supplied it, (#2555) the note is gone, a one-word Bybit tag sits on the row
  *   K1     the key has English text with {coins}
  * The note's rendering with Binance blocked is a browser cell. */
 import test from 'node:test';
@@ -47,10 +47,13 @@ test('V2. a coin is marked Bybit-sourced when the route fell back to Bybit for i
   assert.ok(FUND.includes('if (!cancelled && pts.length) { setHistory(prev => ({ ...prev, [id]: pts })); setBybitCoins(prev => (prev.includes(id) ? prev : [...prev, id])); }'), 'the page-fallback case is not marked, marked twice, or an empty result is');
   assert.ok(FUND.includes('setBybitCoins([...fromBybit]);'), 'the marked coins are not kept');
 });
-test('V3. the note shows only after loading, only with at least one such coin, names the coins, and never blanks the data', () => {
-  assert.ok(FUND.includes('{!loading && bybitCoins.length > 0 && ('), 'the note is not limited to a loaded page with Bybit coins');
-  assert.ok(FUND.includes("t('FUNDING_VIA_BYBIT_NOTE', { coins: bybitCoins.map(c => COIN_LABELS[c] ?? c.toUpperCase()).join(', ') })"), 'the note does not name the coins');
-  assert.ok(FUND.includes('data-testid="funding-via-bybit"'), 'the test id is gone');
+test('V3. (#2555, owner order) the sentence above the table is GONE; the venue is a one-word tag on the row of each Bybit-sourced coin, shown only for those coins', () => {
+  assert.ok(!FUND.includes('data-testid="funding-via-bybit"'), 'the sentence note is back (funding-via-bybit)');
+  assert.ok(!FUND.includes('FUNDING_VIA_BYBIT_NOTE'), 'the sentence label is used again');
+  assert.ok(FUND.includes('{bybitCoins.includes(id) && <span data-testid="funding-venue-bybit"'), 'the per-row Bybit tag is gone, or is not limited to Bybit-sourced coins');
+  assert.ok(FUND.includes('>Bybit</span>'), 'the tag does not say Bybit');
+  assert.ok(FUND.includes('if (!loading && (!hasPerp(id) || (current == null && noData))) return null;'), 'a row with nothing to show is drawn again ("No data" / "Unavailable")');
+  assert.ok(!FUND.includes("t(hasPerp(id) ? 'STATE_UNAVAILABLE'"), 'the "Unavailable" cell text is back');
 });
 test('K1. FUNDING_VIA_BYBIT_NOTE has English text with {coins} and says it is Bybit\'s', () => {
   const en = JSON.parse(readFileSync(new URL('../lib/labelDefaults.en.json', import.meta.url), 'utf8')) as Record<string, string>;

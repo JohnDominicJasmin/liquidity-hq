@@ -19,7 +19,7 @@
  *
  * The browser side goes from ~50 requests to 1.
  */
-import { cachedRefresh, cachedAt, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
+import { cachedRefresh, cachedServable, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
 import { BYBIT_SYMS } from './coins.ts';
 import { runPool, DEFAULT_CONCURRENCY, HttpStatusError, isRateLimitStatus } from './pool.ts';
 import { exchangeFetch } from './exchangeGuard.ts';
@@ -177,7 +177,7 @@ export async function symbolFanout(
     /* A PARTIAL REFRESH IS A FAILURE WHEN A GOOD ENTRY EXISTS (PM audit 2026-11-17). If fewer than half of the symbols came back (both venues refusing, a run stopped halfway), replacing the cached map with this
        one blanked cells for the whole TTL and the response still said it was fresh. Throwing keeps the last good entry serving (cachedRefresh holds it for a bounded time) and the response carries that entry's own
        time. With NO earlier entry the partial result is still returned, as before: some cells beat none. */
-    if (symbols.length > 0 && Object.keys(data).length / symbols.length < MIN_COVERAGE && cachedAt(key) !== null) {
+    if (symbols.length > 0 && Object.keys(data).length / symbols.length < MIN_COVERAGE && cachedServable(key, ttlMs + STALE_WHILE_REFRESH_MS)) {
       throw new Error(`partial fan-out ${Object.keys(data).length}/${symbols.length} for ${key}: keeping the last good result`);
     }
 

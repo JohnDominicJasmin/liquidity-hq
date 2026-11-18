@@ -1,3 +1,4 @@
+import { exchangeFetch } from '@/lib/exchangeGuard';
 import { NextResponse } from 'next/server';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { reportHealth } from '@/lib/apiHealth';
@@ -40,7 +41,7 @@ export async function GET(req: Request) {
           if (def.needsTaker) {
             const sym = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
             if (!sym) continue;
-            const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${tf}&limit=300`, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
+            const res = await exchangeFetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${tf}&limit=300`, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
             if (!res.ok) { errors.push(`${def.id}/${coin}/${tf}: taker klines ${res.status}`); continue; }
             const raw = (await res.json()) as (string | number)[][];
             taker = new Map(raw.map(k => [+k[0], { buy: +k[9], sell: +k[5] - +k[9] }] as const));
