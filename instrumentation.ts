@@ -37,6 +37,10 @@ export async function register() {
     // The stablecoin supply series behind /research is cached a day; warm it so the first visitor does not wait on DeFi Llama (lib/dryPowderSeries.ts). Never throws.
     const { warmDryPowderSeries } = await import('@/lib/dryPowderSeries');
     warmDryPowderSeries();
+    // A ban an exchange gave this IP before the restart still applies: read the saved breaker state now, before the warm-ups below call
+    // any exchange (lib/exchangeBreakerStore.ts). Not awaited; the first exchange call waits for it briefly. Never throws.
+    const { hydrateExchangeBreaker } = await import('@/lib/exchangeGuard');
+    void hydrateExchangeBreaker();
     /* The market snapshot and the RSI map are cold after every deploy and restart, and the first visitors were served partial data
        while the fan-out filled (owner sweep 2026-11-18). Started a few seconds after boot so the server is up first; never throws, and a
        failed warm simply leaves the cache cold as before. Not in tests or builds (NEXT_RUNTIME is only set by a running server). */
