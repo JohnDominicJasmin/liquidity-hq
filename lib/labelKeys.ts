@@ -419,7 +419,7 @@ export const LABEL_KEYS = [
   // both needed because the frames draw that one key differently in the two
   // bars - OVERVIEW in the desktop nav, DESK in the mobile tab bar. The other
   // four use one label in both places.
-  'TNAV_WORDMARK', 'TNAV_ARIA_LABEL', 'TNAV_MORE_ARIA',
+  'TNAV_WORDMARK', 'TNAV_ARIA_LABEL', 'TNAV_MORE_ARIA', 'TNAV_SESSION_TIP',
   'TNAV_DESK_LABEL', 'TNAV_DESK_TAB_LABEL', 'TNAV_ARENA_LABEL',
   'TNAV_SCAN_LABEL', 'TNAV_FLOW_LABEL', 'TNAV_BOOK_LABEL',
   // #1121: mobile header screen names for every route beyond the five above.

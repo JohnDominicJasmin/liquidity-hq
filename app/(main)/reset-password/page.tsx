@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
-import { updatePassword } from '@/lib/authSession';
+import { updatePassword, signOutOtherSessions } from '@/lib/authSession';
 import LoadingState from '@/components/LoadingState';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
@@ -73,8 +73,13 @@ export default function ResetPasswordPage() {
     setError('');
     // Bounded (#1173) - same hang as Settings' password form.
     const { error } = await updatePassword(sb, password);
+    if (error) { setLoading(false); setError(friendlyAuthError(error.message)); return; }
+    // A reset is how someone takes an account back: end the sessions opened
+    // with the old password, keep this one (#1113). Best effort - the password
+    // has already changed, so a failure here is logged, not shown.
+    const othersError = await signOutOtherSessions(sb);
+    if (othersError) console.error('[auth] ending other sessions after reset failed:', othersError);
     setLoading(false);
-    if (error) { setError(friendlyAuthError(error.message)); return; }
     setDone(true);
     setTimeout(() => router.push('/dashboard'), 1500);
   };
