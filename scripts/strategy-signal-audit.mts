@@ -33,7 +33,7 @@ import { performance } from 'node:perf_hooks';
 import { STRATEGIES } from '../lib/strategies/index.ts';
 import type { StrategyContext } from '../lib/strategies/types.ts';
 import * as liveInputs from '../lib/strategies/liveInputs.ts';
-import { fundingClassOf, oiChange6 } from '../lib/strategies/liveInputs.ts';
+import { fundingClassOf, oiRelative, OI_ROWS } from '../lib/strategies/liveInputs.ts';
 import { TF_MS } from '../lib/candles.ts';
 import type { OHLCV } from '../lib/strategyCore.ts';
 import { swingPivots3 } from '../lib/strategies/shared.ts';
@@ -139,7 +139,9 @@ async function main() {
           if (def.needsLive && live) {
             const fc = live.classAt(all[k].time + tfMs);
             if (fc) Object.assign(ctx, fc);
-            ctx.oiChange6Pct = live.oiChange6At(all[k].time + tfMs);
+            const oiNow = live.oiAt(all[k].time + tfMs);
+            ctx.oiChange6Pct = oiNow?.oiChange6Pct ?? null;
+            ctx.oiExtreme = oiNow?.oiExtreme ?? null;
             if (assume) { const px = all[k].close; ctx.liqLevels = [px * 0.99, px * 1.01]; }
           }
           const stageOf = assume ? undefined : FUNNELS[def.id]?.stage;
@@ -249,9 +251,9 @@ async function liveHistory(sym: string, tf: string, tfMs: number, fromMs: number
       for (const r of fr) { if (r.fundingTime <= ms) v = Number(r.fundingRate); else break; }
       return v;
     },
-    /** The app's own oiChange6 (lib/strategies/liveInputs.ts) on the rows that existed at `ms`. */
-    oiChange6At(ms: number): number | null {
-      return oiChange6(oiSorted.filter(r => Number(r.timestamp) <= ms), tfMs);
+    /** The app's own oiRelative (lib/strategies/liveInputs.ts) on the newest OI_ROWS rows that existed at `ms`: the live change judged against the coin's own changes on this timeframe. */
+    oiAt(ms: number): { oiChange6Pct: number; oiExtreme: boolean } | null {
+      return oiRelative(oiSorted.filter(r => Number(r.timestamp) <= ms).slice(-OI_ROWS), tfMs);
     },
   };
 }
@@ -274,18 +276,16 @@ function triggered(c: readonly OHLCV[], crowdLong: boolean): boolean {
 const FUNNELS: Record<string, Funnel> = {
   /* lib/strategies/fundingOiSqueeze.ts, condition by condition. The cluster condition cannot pass here: the app's liquidation clusters are a live chart estimate with no history. */
   funding_oi_squeeze: {
-    stages: ['evaluated', 'funding known (needs 90-day history)', '1. funding extreme for the coin (replayable)', '+ 2. OI up >= 3% over 6 candles (replayable)', '+ swing trigger against the crowd (replayable)', '+ 3. liquidation cluster within 1.5% (LIVE-ONLY)'],
+    stages: ['evaluated', 'funding known (needs 90-day history)', '1. funding extreme for the coin (replayable)', '+ 2. OI extreme for the coin (replayable)', '+ swing trigger against the crowd (replayable)', '+ 3. liquidation cluster within 1.5% (LIVE-ONLY)'],
     alone: [
-      { label: '(alone) OI up >= 3% over 6 candles', test: (_c, ctx) => ctx.oiChange6Pct != null && ctx.oiChange6Pct >= 3 },
-      { label: '(what-if) funding extreme + OI up >= 1%', test: (_c, ctx) => !!ctx.fundingClass && ctx.fundingClass !== 'none' && ctx.oiChange6Pct != null && ctx.oiChange6Pct >= 1 },
-      { label: '(what-if) funding extreme + OI rising (> 0)', test: (_c, ctx) => !!ctx.fundingClass && ctx.fundingClass !== 'none' && ctx.oiChange6Pct != null && ctx.oiChange6Pct > 0 },
+      { label: '(alone) OI extreme for the coin (top 20% of its own 6-candle changes)', test: (_c, ctx) => ctx.oiExtreme === true },
       { label: '(what-if) funding extreme + swing trigger, OI ignored', test: (c, ctx) => !!ctx.fundingClass && ctx.fundingClass !== 'none' && triggered(c, ctx.fundingClass === 'longs_heavy') },
     ],
     note: 'The last stage needs the live liquidation clusters, which have no history, so the plain row is 0 in a replay by construction (it proves nothing); the `+clusters assumed` row passes it by pretending a cluster sits 1% beyond every close, and is the count of replayable conditions (funding + OI + trigger), an upper bound on live.',
     stage(c, ctx) {
-      if (ctx.fundingClass == null || ctx.oiChange6Pct == null) return 0;
+      if (ctx.fundingClass == null || ctx.oiExtreme == null) return 0;
       if (ctx.fundingClass === 'none') return 1;
-      if (ctx.oiChange6Pct < 3) return 2;
+      if (!ctx.oiExtreme) return 2;
       return triggered(c, ctx.fundingClass === 'longs_heavy') ? 4 : 3;
     },
   },

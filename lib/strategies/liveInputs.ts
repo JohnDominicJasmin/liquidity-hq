@@ -119,17 +119,16 @@ export function oiChange6(rows: ReadonlyArray<{ sumOpenInterest?: string | numbe
 
 /* OPEN INTEREST "RISING" JUDGED AGAINST THE COIN'S OWN HISTORY (PM, 2026-11-19), the same logic as funding. The changes over every 6 candles in the OI history Binance serves (the newest OI_ROWS rows of this timeframe; its history reaches
    back 30 days at most) are the coin's own distribution; the live change (the newest 6 candles) is EXTREME when it is above zero AND at least 80% of the earlier changes were strictly lower (the top 20%). NO READING (null) when there are
-   fewer than OI_MIN_ROWS rows, when they span less than OI_MIN_SPAN_DAYS days, or when the rows are not one candle apart. Never a guess. */
+   fewer than OI_MIN_ROWS rows or when the rows are not one candle apart (a gap). 120 candles is 30 hours at 15 minutes and 5 days at 1 hour: the distribution is the coin's own recent one, on this timeframe. Never a guess. */
 export const OI_ROWS = 500;
 export const OI_MIN_ROWS = 120;
-export const OI_MIN_SPAN_DAYS = 14;
 export const OI_EXTREME_SHARE = 0.8;
 
 export function oiRelative(rows: ReadonlyArray<{ sumOpenInterest?: string | number; timestamp?: number }> | null | undefined, tfMs: number): { oiChange6Pct: number; oiExtreme: boolean } | null {
   if (!Array.isArray(rows) || rows.length < OI_MIN_ROWS) return null;
   const oi = rows.map(r => Number(r.sumOpenInterest)), ts = rows.map(r => Number(r.timestamp));
   const n = rows.length;
-  if (!ts.every(Number.isFinite) || (ts[n - 1] - ts[0]) < OI_MIN_SPAN_DAYS * 86_400_000) return null;
+  if (!ts.every(Number.isFinite)) return null;
   if (Math.abs((ts[n - 1] - ts[0]) / (n - 1) - tfMs) > tfMs * 0.1) return null;
   const chg: number[] = [];
   for (let i = 6; i < n; i++) if (oi[i - 6] > 0 && Number.isFinite(oi[i])) chg.push((oi[i] / oi[i - 6] - 1) * 100);
