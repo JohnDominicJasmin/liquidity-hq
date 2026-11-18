@@ -1287,8 +1287,13 @@ export function adjustConfidence(prompt: string): { delta: number; reasons: stri
   if (/Futures trading is [\d.]+x its usual share against spot/.test(perp)) add(-20, 'futures-led');
   else if (/Futures trading is unusually quiet/.test(perp)) add(10, 'spot-led');
   if (/^(Pre-NY|Asia Session)\b/.test(line('Current session:'))) add(-10, 'Pre-NY / Asia session');
-  if (/\]\s*FREEZE\b/.test(line('EMA Ribbon Strategy:'))) add(-15, 'ribbon FREEZE');
-  if (/^CONFIRMING\b/.test(line('WaveTrend (Cipher B momentum):'))) add(5, 'WaveTrend confirming');
+  /* While the ribbon is still loading, the Arena sends the PREVIOUS selection's ribbon line behind a "[Still loading ...]" caveat, and the WaveTrend line
+     comes from the same frozen reading (app/(main)/arena/page.tsx). Neither adjusts this coin's confidence then. FREEZE counts only as the verdict right
+     after the ribbon's own "[... ribbon ...]" tag. */
+  const ribbon = line('EMA Ribbon Strategy:');
+  const ribbonCurrent = !/^\[Still loading/i.test(ribbon);
+  if (ribbonCurrent && /^\[[^\]]*ribbon[^\]]*\]\s*FREEZE\b/.test(ribbon)) add(-15, 'ribbon FREEZE');
+  if (ribbonCurrent && /^CONFIRMING\b/.test(line('WaveTrend (Cipher B momentum):'))) add(5, 'WaveTrend confirming');
   return { delta, reasons };
 }
 
