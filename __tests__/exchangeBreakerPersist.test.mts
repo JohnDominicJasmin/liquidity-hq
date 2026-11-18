@@ -99,7 +99,7 @@ test('S2. a 429 WITHOUT Retry-After is saved the same way', async () => {
 test('S3. a REAL fresh process: a second copy of the guard module with every global cleared still honours the saved ban', async () => {
   use(fake()); net.answer = { status: 418 }; await call(BN); await flush();
   delete g.__lhqExchangeGuard; delete g.__lhqExchangeBreakerSync;                       // a new process has neither
-  const fresh = await import('../lib/exchangeGuard.ts?fresh=s3');
+  const fresh = await import(`../lib/exchangeGuard.ts?fresh=${'s3'}`);
   assert.equal(fresh.exchangeCoolingDown('binance'), null, 'fresh instance should start with nothing in memory');
   net.binance = 0; net.answer = { status: 200 };
   await assert.rejects(() => fresh.exchangeFetch(BN), /cooling down/); assert.equal(net.binance, 0);
@@ -214,7 +214,7 @@ test('W5b. after the 2 s wait, further calls are NOT held again (mocked clock mo
   await call(BN); tick(2_000);
   const t = process.hrtime.bigint(); assert.equal(await call(BN), 'ok200'); assert.equal(Number(process.hrtime.bigint() - t) / 1e6 < 500, true);
 });
-test('W6. a hung LOAD is retried later (once the hung read is abandoned a new one is started after 60 s)', { todo: 'finding F1: a read that never settles is never retried (real store is bounded by the 15 s read deadline)' }, async () => {
+test('W6. a hung LOAD is retried later (once the hung read is abandoned a new one is started after 60 s)', async () => {
   const s = use(fake({ binance: { openUntil: T0 + 600_000, strikes: 1, lastTripAt: T0 } })); s.loadMode = 'hang';
   await call(BN); tick(2_000); s.loadMode = 'ok'; tick(60_000);
   await call(BN); await flush();
@@ -227,7 +227,7 @@ test('W2b. DOCUMENTS the limit: answers that each lengthen the stop but arrive S
   assert.equal(store.saves < 8, true, `writes: ${store.saves}`); assert.equal((store.row as { binance: { openUntil: number } }).binance.openUntil, T0 + 80_000);
   console.log('W2b spread burst writes =', store.saves);
 });
-test('W7. a save that HANGS forever does not block calls, but must not stop later trips from ever saving again', { todo: 'finding F2: a write that never settles stops all later saves (real write has no deadline)' }, async () => {
+test('W7. a save that HANGS forever does not block calls, but must not stop later trips from ever saving again', async () => {
   const s = use(fake()); s.saveMode = 'hang'; net.answer = { status: 418 };
   assert.equal(await call(BN), 'ok418'); await flush(); assert.equal(s.saves, 1);
   s.saveMode = 'ok'; tick(600_000); await call(BN); await flush();
@@ -263,7 +263,7 @@ test('C3. lastTripAt far in the future (a hand-edited row) never throws out of e
   assert.equal(await call(BN), 'binance: cooling down'); await flush(); assert.equal(coolMs(), 600_000);
 });
 
-test('C4. a row that makes the restore throw internally (lastTripAt 1e17) is not re-read every minute forever', { todo: 'finding F3: a row that makes the restore throw is re-read every 60 s forever' }, async () => {
+test('C4. a row that makes the restore throw internally (lastTripAt 1e17) is not re-read every minute forever', async () => {
   const s = use(fake({ binance: { openUntil: T0 + 600_000, strikes: 1, lastTripAt: 1e17 } }));
   await call(BN); await flush(); tick(60_000); await call(BN); await flush(); tick(60_000); await call(BN); await flush();
   assert.equal(s.loads, 1, `loads: ${s.loads}`);
@@ -321,4 +321,19 @@ test('X2. a short Retry-After 429 on instance B while A saved a 10-minute ban: B
   net.answer = { status: 429, retryAfter: '7' }; await B.exchangeFetch(BN).catch(() => 0); await flush();
   assert.equal(B.exchangeCoolingDown('binance')!.until, T0 + 600_000);
   assert.equal((store.row as { binance: { openUntil: number } }).binance.openUntil, T0 + 600_000);
+});
+
+/* E1 / E2 (QA review of #2571, fixed on the PR): the saved breaker row is scoped per SERVICE (dev, qa and staging share one database), and EXCHANGE_BREAKER_IGNORE_SAVED=1 is the way out of a wrongly-open saved breaker. */
+test('E1. the saved row key differs per service: qa and staging (both APP_ENV=dev) get different keys, prod another; the name is sanitised and bounded', async () => {
+  const { breakerConfigKey } = await import('../lib/exchangeBreakerStore.ts');
+  const qa = breakerConfigKey({ RENDER_SERVICE_NAME: 'liquidity-hq-qa', NEXT_PUBLIC_APP_ENV: 'dev' }), stg = breakerConfigKey({ RENDER_SERVICE_NAME: 'liquidity-hq-staging', NEXT_PUBLIC_APP_ENV: 'dev' }), prod = breakerConfigKey({ RENDER_SERVICE_NAME: 'liquidity-hq-prod', NEXT_PUBLIC_APP_ENV: 'prod' });
+  assert.equal(qa, 'exchange_breaker:liquidity-hq-qa'); assert.equal(stg, 'exchange_breaker:liquidity-hq-staging'); assert.equal(prod, 'exchange_breaker:liquidity-hq-prod'); assert.equal(new Set([qa, stg, prod]).size, 3);
+  assert.equal(breakerConfigKey({ NEXT_PUBLIC_SENTRY_ENV: 'Staging' }), 'exchange_breaker:staging', 'falls back to the error-tracker label, lower-cased');
+  assert.equal(breakerConfigKey({ NEXT_PUBLIC_APP_ENV: 'dev' }), 'exchange_breaker:dev'); assert.equal(breakerConfigKey({}), 'exchange_breaker:local');
+  assert.match(breakerConfigKey({ RENDER_SERVICE_NAME: "a b/c';drop" }), /^exchange_breaker:[a-z0-9_-]+$/, 'only safe characters reach the key'); assert.ok(breakerConfigKey({ RENDER_SERVICE_NAME: 'x'.repeat(500) }).length <= 'exchange_breaker:'.length + 64);
+});
+test('E2. only the exact value "1" switches the saved row off (not "true", "0", "yes", empty)', async () => {
+  const { ignoreSavedBreaker } = await import('../lib/exchangeBreakerStore.ts');
+  assert.equal(ignoreSavedBreaker({ EXCHANGE_BREAKER_IGNORE_SAVED: '1' }), true);
+  for (const v of ['true', '0', 'yes', '', ' 1', '11', undefined]) assert.equal(ignoreSavedBreaker({ EXCHANGE_BREAKER_IGNORE_SAVED: v }), false, `"${String(v)}"`);
 });
