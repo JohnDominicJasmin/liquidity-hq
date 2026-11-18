@@ -1,6 +1,8 @@
 import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { isTypeMuteCallback } from '@/lib/alertTypeMute';
+import { isTypeMuteCallback, parseTypeMuteCallback, typeMuteConfirmation } from '@/lib/alertTypeMute';
+import { localizeTelegram, tgText, typeMuteConfirmationIn, type TgLocale } from '@/lib/telegramI18n';
+import { chatLocale, userLocale, tgLabelsFor } from '@/lib/telegramLabels';
 import { applyTypeMuteTap } from '@/lib/telegramTypeMute';
 import { rateLimit } from '@/lib/rateLimit';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
@@ -85,11 +87,19 @@ function maskEmail(email: string | null | undefined): string {
   return `${local.slice(0, 2)}***@${domain}`;
 }
 
+/** A reply in the language of the account linked to the chat (#1651): read BEFORE anything below can unlink it. English when the chat is not linked. */
+async function speaker(lang: TgLocale) {
+  const labels = await tgLabelsFor(lang);
+  return { labels, tr: (s: string) => localizeTelegram(s, lang, labels) };
+}
+
 async function handleMessage(token: string, message: NonNullable<TgUpdate['message']>) {
   const chat = message.chat;
   const text = (message.text ?? '').trim();
+  let lang = await chatLocale(chat.id);
+  let L = await speaker(lang);
   const say = (reply: string, extra: Record<string, unknown> = {}) =>
-    tgCall(token, 'sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: reply, ...extra });
+    tgCall(token, 'sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: L.tr(reply), ...extra });
 
   /* /stop UNLINKS THIS CHAT FROM WHATEVER ACCOUNT HOLDS IT (PM audit C3). A chat that was linked to someone else's account by a forwarded link
      had no way out except to ask that account's owner. Only the chat itself can say /stop, and it only ever clears its own id. */
@@ -145,11 +155,13 @@ async function handleMessage(token: string, message: NonNullable<TgUpdate['messa
   }
   let email: string | null = null;
   try { email = (await admin.auth.admin.getUserById(row.user_id)).data.user?.email ?? null; } catch { /* name it generically */ }
+  // The chat is not linked yet: the question is in the language of the account the code belongs to.
+  if (lang === 'en') { lang = await userLocale(row.user_id); if (lang !== 'en') L = await speaker(lang); }
   await say(
     `Connect this chat to <b>${esc(maskEmail(email))}</b>?\n\n` +
     `Only confirm if that is your LiquidityHQ account. If someone else sent you this link, ignore it. ` +
     `You can send /stop at any time to disconnect.`,
-    { reply_markup: { inline_keyboard: [[{ text: 'Confirm', callback_data: `link:${code}` }]] } },
+    { reply_markup: { inline_keyboard: [[{ text: tgText('TG_WH_CONFIRM', L.labels), callback_data: `link:${code}` }]] } },
   );
 }
 
@@ -206,9 +218,10 @@ async function chatControl(cmd: 'status' | 'pause' | 'resume', chatId: string): 
 
 async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_query']>) {
   const chat = cb.message?.chat;
+  let L = await speaker(await chatLocale(chat?.id));
   const answer = (text?: string) => tgCall(token, 'answerCallbackQuery', { callback_query_id: cb.id, ...(text ? { text } : {}) });
   const finish = (reply: string) => chat
-    ? tgCall(token, 'sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: reply })
+    ? tgCall(token, 'sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: L.tr(reply) })
     : Promise.resolve(undefined);
   if (!chat || !cb.data?.startsWith('link:')) { await answer(); return; }
 
@@ -235,6 +248,7 @@ async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_q
     return;
   }
 
+  L = await speaker(await userLocale(claimed.user_id)); // the claiming account's language from here on (#1651)
   /* The chat this account was linked to BEFORE, so it can be told it was replaced (C8). A failed read just means nobody is told; it never blocks the link. */
   const { data: before } = await admin.from(T.user_settings).select('telegram_chat_id').eq('user_id', claimed.user_id).maybeSingle();
   const previousChat = typeof before?.telegram_chat_id === 'string' ? before.telegram_chat_id.trim() : '';
@@ -245,7 +259,7 @@ async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_q
   if (error) {
     // Do not leave the user with a burned code and no link: put the code back so Confirm can be pressed again.
     await admin.from(T.telegram_link_codes).update({ used_at: null }).eq('code', code);
-    await answer('Could not finish connecting. Try again.');
+    await answer(L.tr('Could not finish connecting. Try again.'));
     await finish('⚠️ Could not finish connecting. Press Confirm again, or start again from the app.');
     return;
   }
@@ -259,11 +273,11 @@ async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_q
     if (othersErr) throw new Error(othersErr.message);
     displaced = others?.length ?? 0;
   } catch (e) { console.error('[telegram/webhook] could not clear another account from this chat', e instanceof Error ? e.message : 'unknown'); }
-  await answer('Connected');
+  await answer(tgText('TG_WH_CONNECTED_SHORT', L.labels));
   await finish('✅ Connected. Alerts for your LiquidityHQ account will arrive here. Send /stop to disconnect.' + (displaced > 0 ? '\n\nThis chat was linked to another LiquidityHQ account, which no longer receives alerts here.' : ''));
   /* A RE-LINK FROM A NEW CHAT USED TO REPLACE THE OLD ONE SILENTLY: the old chat just stopped receiving alerts with no word. Now it is told. Guarded like every other send here (a failure never turns a finished link into an error). */
   if (previousChat && previousChat !== String(chat.id)) {
-    try { await tgCall(token, 'sendMessage', { chat_id: previousChat, text: 'This chat was disconnected: your LiquidityHQ account is now linked to a different chat, so alerts will no longer arrive here.' }); } catch { /* the old chat may be gone */ }
+    try { await tgCall(token, 'sendMessage', { chat_id: previousChat, text: L.tr('This chat was disconnected: your LiquidityHQ account is now linked to a different chat, so alerts will no longer arrive here.') }); } catch { /* the old chat may be gone */ }
   }
 }
 
@@ -274,5 +288,11 @@ async function handleTypeMute(token: string, cb: NonNullable<TgUpdate['callback_
   let reply: string | null = null;
   try { reply = await applyTypeMuteTap(chatId == null ? null : String(chatId), cb.data); }
   catch (e) { console.error('[telegram/webhook] type mute failed', e instanceof Error ? e.message : 'unknown'); }
+  /* In the chat's language (#1651): the confirmation is rebuilt from the button's own data, anything else goes through the phrase table. */
+  if (reply) {
+    const L = await speaker(await chatLocale(chatId));
+    const want = parseTypeMuteCallback(cb.data);
+    reply = want && reply === typeMuteConfirmation(want.ruleKey, want.hours) ? typeMuteConfirmationIn(want.ruleKey, want.hours, L.labels) : L.tr(reply);
+  }
   await tgCall(token, 'answerCallbackQuery', { callback_query_id: cb.id, ...(reply ? { text: reply } : {}) });
 }
