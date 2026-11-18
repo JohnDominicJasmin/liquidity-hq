@@ -1411,16 +1411,12 @@ export function applyResultChecks(result: CombinedResult, prompt: string, notes:
     show(tier);
   }
 
-  /* THE ADJUSTED NUMBER NEVER EXCEEDS THE TIER'S BAND (QA K9 on #2585). The prompt's CONFIDENCE BANDS top out at LEAN 75 and FLAT 85; the code
-     adjustment above could push a LEAN to 85. After an adjustment, and after any tier correction, the number is capped at the shown tier's top.
-     UPPER BOUND ONLY (PM): a penalty that takes a read under its band is information, so there is no floor. A full tier (BULLISH / BEARISH) keeps
-     0-100. A model number with no adjustment is left as the model gave it. */
-  if (adjusted) {
-    const top = r.signal === 'LEAN BULLISH' || r.signal === 'LEAN BEARISH' ? 75 : r.signal === 'FLAT' ? 85 : null;
-    if (top != null && r.confidence > top) {
-      r.checks.push(`confidence ${r.confidence} capped at the ${r.signal} band top ${top}`);
-      r.confidence = top;
-    }
+  /* A LEAN NEVER EXCEEDS 75 AFTER THE ADJUSTMENT (QA K9 on #2585). The prompt's band for a LEAN is 55-75; the code adjustment above could push one to
+     85. After an adjustment, and after any tier correction, a LEAN is capped at 75. Nothing else is clamped (PM): no floor, FLAT and BULLISH / BEARISH
+     keep the adjusted number. A model number with no adjustment is left as the model gave it. */
+  if (adjusted && (r.signal === 'LEAN BULLISH' || r.signal === 'LEAN BEARISH') && r.confidence > 75) {
+    r.checks.push(`confidence ${r.confidence} capped at 75 (${r.signal})`);
+    r.confidence = 75;
   }
 
   if (/=== REALIZED LIQUIDATION CLUSTERS[^\n]*===\s*\n\s*Not available/.test(prompt) && (r.raidSetup || r.raidTarget || r.raidTrigger)) {
