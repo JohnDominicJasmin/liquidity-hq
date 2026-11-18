@@ -124,7 +124,7 @@ export async function spendCapBlock(
    *  uncapped call on an unconfirmed account would spend money through a fail-open check. A read that succeeded and is over a cap still blocks first, as before. Default false: nothing else changes. */
   failClosedOnUnreadable: boolean = false,
 ): Promise<SpendDecision> {
-  const db = getSupabaseAdmin();
+  const db = getSupabaseAdmin({ deadline: true }); // reads only cut (writes never), so a hung read cannot spin an AI button (owner sweep 2026-11-18)
   const dayStart = dayStartIsoUtc(nowMs);
 
   try {

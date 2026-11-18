@@ -37,6 +37,13 @@ export async function register() {
     // The stablecoin supply series behind /research is cached a day; warm it so the first visitor does not wait on DeFi Llama (lib/dryPowderSeries.ts). Never throws.
     const { warmDryPowderSeries } = await import('@/lib/dryPowderSeries');
     warmDryPowderSeries();
+    /* The market snapshot and the RSI map are cold after every deploy and restart, and the first visitors were served partial data
+       while the fan-out filled (owner sweep 2026-11-18). Started a few seconds after boot so the server is up first; never throws, and a
+       failed warm simply leaves the cache cold as before. Not in tests or builds (NEXT_RUNTIME is only set by a running server). */
+    setTimeout(() => {
+      void import('@/lib/marketSnapshotData').then(m => m.marketSnapshotData()).catch(() => {});
+      void import('@/lib/marketRsi').then(m => m.rsiGroups()).catch(() => {});
+    }, 5_000).unref?.();
   }
 }
 

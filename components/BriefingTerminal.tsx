@@ -26,6 +26,7 @@ import ReadingGap from '@/components/ReadingGap';
 import { formatRsi } from '@/lib/rsi';
 import { signedUsd } from '@/lib/numberFormat';
 import AiDisclaimer from '@/components/AiDisclaimer';
+import { onPageResume } from '@/lib/socketResume';
 
 /* ── helpers (identical to briefing/page.tsx) ── */
 
@@ -248,7 +249,8 @@ export default function BriefingTerminal() {
         .catch(() => {});
     load();
     const timer = setInterval(load, 5 * 60_000);
-    return () => clearInterval(timer);
+    const offResume = onPageResume(load);   // back from an idle tab: re-read now, not at the next 5-minute tick (owner sweep 2026-11-18)
+    return () => { clearInterval(timer); offResume(); };
   }, []);
 
   const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];

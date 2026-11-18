@@ -1362,7 +1362,6 @@
   "FUNDING_TABLE_AVG_COL": "Avg {range}",
   "FUNDING_TABLE_SIGNAL_COL": "Signal",
   "FUNDING_TABLE_LAST_COL": "Last {range}",
-  "FUNDING_NO_PERP_LABEL": "No perp",
   "FUNDING_CHART_SUFFIX": "CHART",
   "FUNDING_NOW_SUFFIX": "now",
   "FUNDING_EXTREME_COUNT": "{count} extreme{plural}",

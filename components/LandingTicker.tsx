@@ -53,6 +53,8 @@ export default function LandingTicker({ mobile, dir, words }: { mobile: boolean;
         const up = chg != null && chg >= 0;
         /* Price AND change both missing: say it ONCE, in the first slot that is rendered (the price on desktop, the change on mobile), not twice. */
         const bothGone = !d?.price && chg == null;
+        /* No price and no change once the read is done: the coin is left out of the band (owner sweep 2026-11-18), not shown as "Unavailable". */
+        if (bothGone && feed !== 'pending') return null;
         return (
           <div key={id} style={{
             display: 'flex', alignItems: 'center', gap: mobile ? 6 : 8,

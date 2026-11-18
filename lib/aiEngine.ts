@@ -59,7 +59,7 @@ async function getEngineMap(): Promise<Partial<Record<AiCallType, Engine>>> {
   if (cache && cache.expires > Date.now()) return cache.data;
   let data: Partial<Record<AiCallType, Engine>> = {};
   try {
-    const { data: row } = await getSupabaseAdmin().from(T.app_config)
+    const { data: row } = await getSupabaseAdmin({ deadline: true }).from(T.app_config)
       .select('value').eq('key', 'ai_engines').maybeSingle();
     const v = (row?.value ?? {}) as Record<string, unknown>;
     // Only an allowlisted Claude model id, for a KNOWN and eligible call type, is honoured. Anything

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useMarket } from '@/lib/marketStore';
 import { useLabels } from '@/lib/labels';
 import { macroStampDate } from '@/lib/macroStamp';
+import { onPageResume } from '@/lib/socketResume';
 
 export default function MacroStrip() {
   const { store } = useMarket();
@@ -18,7 +19,8 @@ export default function MacroStrip() {
         .catch(() => {});
     load();
     const timer = setInterval(load, 5 * 60_000);
-    return () => clearInterval(timer);
+    const offResume = onPageResume(load);   // back from an idle tab: re-read now, not at the next 5-minute tick (owner sweep 2026-11-18)
+    return () => { clearInterval(timer); offResume(); };
   }, []);
 
   const jpyCol = jpyUsd == null ? 'var(--txt3)'

@@ -240,7 +240,9 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
         {/* THE ENTRY / STOP / TARGET ROW IS GONE (PM audit 2026-11-17): it was three dashes under a "No read" headline, with no read behind it to show. */}
 
         <div style={{ marginTop: 4 }}>
-          {evidence.map(row => (
+          {/* A ROW WHOSE READ FAILED IS LEFT OUT (owner sweep 2026-11-18): the public hero printed "Unavailable" in a row when one feed
+              missed. A reading that is still coming keeps its row (with the loading mark); one that failed is not shown at all. */}
+          {evidence.filter(row => row.state !== 'unavailable' && !(row.value == null && row.note === dict.ticker.unavailable)).map(row => (
             <div key={row.label} title={row.title} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 14px', borderBottom: '1px solid var(--bdr2)' }}>
               <span style={{ width: 2, height: 18, flexShrink: 0, background: row.value == null ? 'var(--mark-idle)' : row.col }} />
               <span style={{ minWidth: 76, flexShrink: 0, fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.1em', color: 'var(--txt3)' }}>{row.label}</span>
