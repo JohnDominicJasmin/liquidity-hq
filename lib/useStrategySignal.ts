@@ -4,6 +4,8 @@ import type { CoinId } from './marketStore.ts';
 import { fetchOHLCV, TF_BN, TF_BY } from './useEMAStrategy.ts';
 import { TF_MS, dropForming, msUntilNextClose } from './candles.ts';
 import { findStrategy, type StrategyResult } from './strategies/index.ts';
+import { coinKind } from './coins.ts';
+import { usCashOpen } from './marketHours.ts';
 import { strategyUnavailable, type Unavailable } from './strategies/availability.ts';
 import { fetchFundingHistory, fetchOiRelative, fetchTakerMap, fundingClassRelative } from './strategies/liveInputs.ts';
 import { recentSignals, withWatchedDrawing } from './strategies/chartDrawings.ts';
@@ -14,6 +16,8 @@ export interface StrategySignalState {
   error: boolean;
   /** The picked strategy cannot run on this timeframe (it reads closed candles of 1m to 1d only). An honest end state, not a loading one. */
   unsupportedTf?: boolean;
+  /** A tokenized stock read while the US cash session is closed (lib/marketHours.ts): the call box adds one line with the last close. Absent for every other coin and while the market is open. */
+  marketClosed?: { lastClose: number };
   /** The picked strategy cannot run on this coin or timeframe BY DESIGN (lib/strategies/availability.ts): the call box says why in one line; nothing is fetched. Not an error and not a quiet WAIT. */
   unavailable?: Unavailable;
   /** Runs the read again now (the Retry button of the unavailable state). */
@@ -57,11 +61,12 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
           const fc = def.needsLive ? fundingClassRelative(fundingRef.current, history, Date.now()) : null;
           const taker = def.needsTaker ? await fetchTakerMap(coin, TF_BN[tf], 300).catch(() => undefined) : undefined;
           if (cancelled) return;
+          const shut = coinKind(coin) === 'stock' && !usCashOpen(Date.now());
           const ctx = { coin, tf, tfMs, liqLevels: liqRef.current, btcCandles, ...(fc ?? {}), oiChange6Pct: oi?.oiChange6Pct ?? null, oiExtreme: oi?.oiExtreme ?? null, taker };
           /* THE CALL FIRST, THE PICTURE AFTER (owner, 2026-11-19: show it on the chart): the verdict and what a WAIT is watching are drawn at once; the arrows of the strategy's past signals come from replaying the
              same detector over the earlier candles, which can take a moment, so they are added in a second step and never delay the call. */
           const first = withWatchedDrawing(def, def.detect(closed, ctx), closed, ctx);
-          setState({ result: first, loading: false, error: false });
+          setState({ result: first, loading: false, error: false, ...(shut ? { marketClosed: { lastClose: closed[closed.length - 1].close } } : {}) });
           setTimeout(() => {
             if (cancelled) return;
             const past = recentSignals(def, closed, ctx);

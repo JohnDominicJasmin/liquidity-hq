@@ -3589,6 +3589,8 @@
   "STRAT_SQUEEZE_WAIT_FUNDING": "Funding is not extreme for this coin.",
   "STRAT_SQUEEZE_WAIT_OI": "Open interest is not rising enough for this coin.",
   "STRAT_SQUEEZE_WAIT_TRIGGER": "Funding and open interest are extreme; waiting for a close through the last swing.",
+  "STRAT_MKT_CLOSED": "US market closed: this strategy reads the cash session (09:30-16:00 New York).",
+  "STRAT_MKT_CLOSED_NOTE": "US market closed; last close {price}.",
   "STRAT_NA_TF_MAX": "Works on {tf} or lower.",
   "STRAT_NA_TF_MIN": "Works on {tf} or higher.",
   "STRAT_NA_NO_FUTURES": "Needs futures funding and open interest, not available for {coin}.",
