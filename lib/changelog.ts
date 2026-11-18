@@ -150,12 +150,12 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    /* DRAFT, the release after v2026.11.18 (PM 2026-11-18). THE TAG AND THE DATE ARE SET WHEN THE TAG IS CUT: the date must be the tagged commit's %cs (the
-       changelog test checks it one run after the tag exists). Plain words, 12 words or fewer per line (rule 22); only user-visible changes. Tied to: #2553 (chart
+    /* RELEASED: v2026.11.18.2, tagged on c18bd4f8 (merge of #2575), whose %cs is 2026-11-19, so the date is 2026-11-19 while the tag name keeps 11.18 (the
+       changelog test checks the date against the tag). Plain words, 12 words or fewer per line (rule 22); only user-visible changes. Tied to: #2553 (chart
        after an idle tab, live feeds reconnect), #2555 + #2562 (data stays visible, no data-gap dashes), #2544 + #2549 (AI read at a glance), #2559 (AI accuracy,
        incomplete answers not charged), #2545 (shorter text), #2551 (alert line removed), #2560 (Telegram delivery), #2561 (alert sounds). A line whose PR does not
        merge before the tag is removed. */
-    date: '2026-11-18',
+    date: '2026-11-19',
     tag: 'v2026.11.18.2',
     items: [
       "The chart no longer goes empty after the tab sits idle.",
