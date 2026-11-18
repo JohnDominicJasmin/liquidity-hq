@@ -2938,9 +2938,10 @@ function ArenaContent() {
             {(() => {
               const ps = plainSummary(result.signal, result.levels);
               if (!ps) return null;
+              /* The headline above this card already states the direction, so the summary starts at the level to watch and does not restate it (PM 2026-11-18); with no level to watch it falls back to the verdict, the only thing it has to say. */
               const w = ps.watch ? t(ps.watch.key, { price: ps.watch.price }) : null;
               const cx = w && ps.cancel ? t(ps.cancel.key, { price: ps.cancel.price }) : null;
-              return <p className="av-summary" data-testid="arena-plain-summary">{t(ps.verdictKey)}{w ? ` ${w}${cx ? `; ${cx}` : ''}.` : ''}</p>;
+              return <p className="av-summary" data-testid="arena-plain-summary">{w ? `${w}${cx ? `; ${cx}` : ''}.` : t(ps.verdictKey)}</p>;
             })()}
             {(result.why?.length ?? 0) > 0
               ? <ul className="av-why-list" data-testid="arena-why-list">{result.why!.slice(0, cacheEntry?.mode === 'deep' ? 5 : 3).map((w, i) => <li key={i}><ReasoningText text={w} /></li>)}</ul>
