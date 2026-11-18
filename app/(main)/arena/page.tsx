@@ -149,13 +149,12 @@ function ReasoningText({ text }: { text: string }) {
  *                 Drives the `n/a` in the Status and Score columns - a squeeze score of 0 built
  *                 from no funding is indistinguishable from a real neutral on screen.
  *
- * READABLE_COINS - "will /api/grok accept an AI read for this coin?" `parseArenaContext` checks
- *                 membership of `COINS`, so an untracked coin is refused before any plan read,
- *                 for every tier including Pro. Drives the selector's note and the error line.
+ * READABLE_COINS - "will /api/grok accept an AI read for this coin?" Every row of the coin universe since 2026-11-19 (`parseArenaContext` accepts the 50 curated coins and any universe row,
+ *                 lib/arenaContext.ts isTrackedCoin); the plan ladder still decides who may run it (Free and trial only BTC, ETH, SOL). Drives the selector's note and the error line.
  *
  * If these ever diverge, the comment above each is what says which badge was wrong. */
 const SIGNAL_COINS = new Set<string>(COINS);
-const READABLE_COINS = new Set<string>(COINS);
+const READABLE_COINS = new Set<string>(UNIVERSE_COINS);
 
 /* TRADFI NAMES AND NOTES. The label key per kind, shown on the scanner row and beside the chart. A kind with
    no entry cannot render: this is a Record over every CoinKind, so a new kind fails tsc here. */

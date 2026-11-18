@@ -1642,6 +1642,14 @@ export function withStrategyRead(prompt: string, read: ArenaStrategyRead): strin
   return block ? `${prompt}\n${block}` : prompt;
 }
 
+/** A tokenized stock read while the US cash session is closed (lib/marketHours.ts; PM, 2026-11-19): the prompt says so and names the last close, so the model does not read an overnight perpetual price as a live reaction. Fixed words and the server-formatted price only: nothing
+ *  from the request reaches this line. Unchanged when the market is open or the coin is not a stock. Applied before withReadLanguage, which must stay last. */
+export function withMarketClosedNote(prompt: string, closed: boolean, coin: string, price: string): string {
+  if (!closed) return prompt;
+  return `${prompt}
+MARKET STATUS: ${coin.toUpperCase()} is a tokenized US stock and the US cash market is closed right now. Last close: ${price}. The price and the 24h change above are the last session's, not a live reaction: say the market is closed and read the last close as it is.`;
+}
+
 /** The Arena prompt with the language instruction appended, last, so it is the final thing the model reads. English is returned unchanged. */
 export function withReadLanguage(prompt: string, locale: ReadLocale): string {
   const lang = readLanguageInstruction(locale);
