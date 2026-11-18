@@ -170,6 +170,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Macro headlines have their own alert switch.",
       "Choose from 8 alert sounds, the volume and what plays, in Settings.",
       "Labels and tips across the app are shorter.",
+      "New strategy for day trading: Break of structure + FVG.",
+      "Page headers are one line, without the extra sentence.",
     ],
   },
   {
