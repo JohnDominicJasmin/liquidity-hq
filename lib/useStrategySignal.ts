@@ -48,7 +48,9 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
         if (cancelled) return;
         const btcCandles = btcRaw ? dropForming(btcRaw, tfMs, Date.now()) : undefined;
         const closed = dropForming(raw, tfMs, Date.now());
-        if (closed.length < def.minCandles) { setState({ result: null, loading: false, error: true }); }
+        /* TOO LITTLE HISTORY SAYS SO (PM, 2026-11-19): a coin with fewer closed candles than the strategy needs (the EMA cross wants 601, so a recent listing or a coarse timeframe has too few) used to land in the generic error with a Retry
+           button that could never help. It is an honest end state: the call box says how many the strategy needs and how many this coin has. */
+        if (closed.length < def.minCandles) { setState({ result: null, loading: false, error: false, unavailable: { reasonKey: 'STRAT_NA_TOO_FEW', vars: { need: String(def.minCandles), tf, coin: coin.toUpperCase(), have: String(closed.length) } } }); }
         else {
           /* THE LIVE INPUTS OF THE DERIVATIVES STRATEGIES (phase 2): funding from the page's own feed, open interest history and taker volume read now. A failed read is simply absent, which the strategy answers as "needs live data" / "needs taker data", never as no signal. */
           const [history, oi] = def.needsLive ? await Promise.all([fetchFundingHistory(coin).catch(() => null), fetchOiRelative(coin, tf, tfMs).catch(() => null)]) : [null, null];

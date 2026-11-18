@@ -3588,5 +3588,6 @@
   "STRAT_NA_TF_MAX": "Works on {tf} or lower.",
   "STRAT_NA_TF_MIN": "Works on {tf} or higher.",
   "STRAT_NA_NO_FUTURES": "Needs futures funding and open interest, not available for {coin}.",
-  "STRAT_NA_NO_TRADES": "Needs futures trade data, not available for {coin}."
+  "STRAT_NA_NO_TRADES": "Needs futures trade data, not available for {coin}.",
+  "STRAT_NA_TOO_FEW": "Needs {need} {tf} candles; {coin} has {have}."
 }
