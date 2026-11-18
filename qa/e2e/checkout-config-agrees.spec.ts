@@ -97,6 +97,8 @@ test.describe('#243 checkout config', () => {
     const res = await page.request.get('/api/version');
     expect(res.ok(), `/api/version returned ${res.status()}`).toBe(true);
     const version = (await res.json()) as VersionPayload;
+    /* #2503: /api/version no longer reports the checkout config, so there is no server value to compare with the bundle: recorded skip (the post-deploy PD3 reads the shipped bundle and the /upgrade HTML instead) */
+    if (version.configured == null) { test.info().annotations.push({ type: 'env-skip', description: '#2503: /api/version has no configured block' }); return; }
     const c = version.configured ?? {};
     const expected = expectedButtons(c);
 
