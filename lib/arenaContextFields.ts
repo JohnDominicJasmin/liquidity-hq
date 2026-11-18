@@ -136,6 +136,9 @@ export function arenaNumberFields(
       const ar = accountRatio(coin);
       return ar
         ? `${ar.venue}, accounts, 1h: Long ` + (ar.long * 100).toFixed(1) + '% / Short ' + (ar.short * 100).toFixed(1) + '%'
+          /* The ratio too (QA review of #2559): every rule threshold in the prompt is an L/S RATIO (0.5:1, 0.8:1, 1.8:1), and a model
+             comparing 33% to 0.5 gets it wrong; with the ratio written out it compares like with like. */
+          + (ar.short > 0 ? ` (L/S ${(ar.long / ar.short).toFixed(2)}:1)` : '')
           + (ar.long > 0.6 ? ' (overleveraged longs)' : ar.short > 0.6 ? ' (overleveraged shorts)' : ' (balanced)')
         : '-';
     })(),

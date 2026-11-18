@@ -2944,7 +2944,7 @@ function ArenaContent() {
               return <p className="av-summary" data-testid="arena-plain-summary">{w ? `${w}${cx ? `; ${cx}` : ''}.` : t(ps.verdictKey)}</p>;
             })()}
             {(result.why?.length ?? 0) > 0
-              ? <ul className="av-why-list" data-testid="arena-why-list">{result.why!.slice(0, cacheEntry?.mode === 'deep' ? 5 : 3).map((w, i) => <li key={i}><ReasoningText text={w} /></li>)}</ul>
+              ? <ul className="av-why-list" data-testid="arena-why-list">{result.why!.slice(0, 3).map((w, i) => <li key={i}><ReasoningText text={w} /></li>)}</ul>
               : whyLine && <p className="av-why"><ReasoningText text={whyLine} /></p>}
 
             {/* Factor chips - live signals behind the read */}

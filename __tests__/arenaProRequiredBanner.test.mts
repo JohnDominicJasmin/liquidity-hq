@@ -150,7 +150,8 @@ test('G3. only a 403 with that error is mapped: other statuses and other 403 err
   assert.equal(other403.message, 'Forbidden thing');
   const blank = await proxyAnswers(502, {});
   assert.ok(blank);
-  assert.equal(blank.message, 'Grok proxy error', 'an error with no body still reads "Grok proxy error"');
+  assert.equal(blank.message, 'The AI read failed. Try again.', 'an error with no body reads the plain AI line (#2559)');
+  assert.doesNotMatch(blank.message, /grok|xai|x.ai|proxy|[45]dd/i, 'the no-body message names the vendor, the proxy or a raw status');
   const limited = await proxyAnswers(429, { error: 'Daily limit reached.', code: 'RATE_LIMIT' });
   assert.ok(limited);
   assert.equal(limited.code, 'RATE_LIMIT');

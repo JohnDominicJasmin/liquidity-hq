@@ -9,6 +9,7 @@ import { marketSnapshotData } from '@/lib/marketSnapshotData';
 import { incrementToolUsage, rateLimitMessage, blockedResponse, type UsageBlockReason, refundToolUsage, todayUtc } from '@/lib/aiUsage';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { scoreOnchain } from '@/lib/onchainScore';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // On-chain metrics (MVRV/SOPR/NVT/exchange flow) don't move within minutes, and
@@ -75,7 +76,7 @@ function buildOnChainPrompt(stats: BlockchainStats | null, btcPrice: number): st
     '  SOPR:  <0.97=95, 0.97-1.00=75, 1.00-1.02=55, 1.02-1.06=30, >1.06=10',
     '  NVT:   <50=90, 50-75=70, 75-110=50, 110-150=25, >150=5',
     '  Average the three sub-scores for valuation_score.',
-    '  If a metric is unavailable, use 50 as neutral and note it.',
+    '  If a metric is unavailable, return null for it. Never substitute a number for a metric you did not find.',
     '',
     'ACTIVITY SCORE (active addresses, weight 25%):',
     '  >1.0M=95, 800k-1M=75, 600-800k=55, 400-600k=35, <400k=15',
@@ -191,7 +192,8 @@ export async function GET(req: NextRequest) {
       /* A cut-off answer is named as one (#1631): the cap, not the model, is what to fix. */
       if (!parsed) { await giveBack(); throw new Error(answerWasCutOff(d) ? 'AI answer cut off at the output cap (status incomplete)' : 'Could not parse AI response'); }
 
-      return { ...parsed, blockchain_stats: stats ?? undefined, timestamp: new Date().toISOString() };
+      /* The scores and the verdict are computed from the metrics in code (lib/onchainScore.ts); the model's own arithmetic is not used. */
+      return { ...parsed, ...scoreOnchain(parsed), blockchain_stats: stats ?? undefined, timestamp: new Date().toISOString() };
     });
     return NextResponse.json(result);
   } catch (e) {
