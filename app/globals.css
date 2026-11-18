@@ -9509,6 +9509,8 @@ html[data-sess="1"]:not([data-strat]):not([data-strat-none]) .strat-call-host { 
 @media (max-width: 480px) {
   .mkt-sig-full { display: none; }
   .mkt-sig-short { display: inline; }
+  /* A word longer than its column is hyphenated at a syllable instead of sticking out (QA #2269 cell Y1, /markets ru 390: "Новые покупатели" ran 7 px past the cell and the page was 397 px). The column already has min-width 0 and the cell overflow is visible, so only the break is missing. overflow-wrap stays normal on purpose: `anywhere` chopped words mid-syllable. The cell's title= carries the full text. */
+  .mkt-signal, .mkt-sig-short { overflow-wrap: normal; hyphens: auto; }
 }
 /* Ask AI on the Arena, on a phone: the floating button is hidden. It covered the chart's price axis and the panel's own ASK AI run button, and the page already has Ask LiquidityAI at the top and ASK AI in the run row. */
 @media (max-width: 768px) {
