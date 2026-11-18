@@ -1,3 +1,4 @@
+import { strategyUnavailable } from './strategies/availability.ts';
 import type { OHLCV } from './strategyCore.ts';
 import type { LabelKey } from './labelKeys.ts';
 import { STRATEGIES, findStrategy, type StrategyDef, type StrategyContext } from './strategies/index.ts';
@@ -45,6 +46,8 @@ export interface StrategyInputs {
   fundingClass?: StrategyContext['fundingClass'];
   fundingPct?: number;
   oiChange6Pct?: number | null;
+  /** The open-interest change is in the top 20% of the coin's own changes (liveInputs.ts oiRelative); null = no reading. */
+  oiExtreme?: boolean | null;
 }
 
 type T = (key: LabelKey, vars?: Record<string, string | number>) => string;
@@ -56,6 +59,8 @@ export function readStrategy(def: StrategyDef, inp: StrategyInputs, t: T): Strat
   const name = t(def.nameKey);
   const none = (why: string): StrategyReading => ({ id: def.id, name, status: 'none', why });
   if (!inp.tfMs) return none('this strategy does not run on this timeframe');
+  const na = strategyUnavailable(def.id, inp.coin, inp.tfMs);
+  if (na) return none(t(na.reasonKey, na.vars).replace(/\.$/, ''));   // by design, not a failed read (lib/strategies/availability.ts)
   if (!inp.candles || inp.candles.length === 0) return none('no candles could be read for this coin and timeframe');
   if (inp.candles.length < def.minCandles) return none(`only ${inp.candles.length} closed candles, it needs ${def.minCandles}`);
   const wantsBtc = !!def.needsBtc && inp.coin !== 'btc';
@@ -68,6 +73,7 @@ export function readStrategy(def: StrategyDef, inp: StrategyInputs, t: T): Strat
       ...(inp.taker ? { taker: inp.taker } : {}),
       ...(inp.fundingClass ? { fundingClass: inp.fundingClass, fundingPct: inp.fundingPct } : {}),
       oiChange6Pct: inp.oiChange6Pct ?? null,
+      oiExtreme: inp.oiExtreme ?? null,
     });
   } catch {
     return none('it could not be computed on these candles');

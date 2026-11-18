@@ -1,7 +1,7 @@
 import type { OHLCV } from '../strategyCore.ts';
 import { gapTarget } from './fairValueGap.ts';
 import { lastSwing, SWING } from './liquiditySweepMss.ts';
-import { tradeCall } from './shared.ts';
+import { nearestLevel, srPrices, tradeCall } from './shared.ts';
 import { WAIT, type OverlayLevel, type OverlayZone, type StrategyContext, type StrategyDef, type StrategyResult } from './types.ts';
 
 /* BREAK OF STRUCTURE + FAIR VALUE GAP (owner request 2026-11-18, PM spec). Closed candles only. Swings are lib/strategies/liquiditySweepMss.ts's (SWING = 3 candles each side, confirmed only once
@@ -12,9 +12,11 @@ import { WAIT, type OverlayLevel, type OverlayZone, type StrategyContext, type S
  *        the break: wait.
  *  SELL: the mirror: a close below the latest confirmed swing low, a bearish gap (i-2's low above i's high; the gap is [i high, i-2 low]) in the leg from the latest swing high, the first return up
  *        into it (high at or above the bottom), still unfilled (no close above its top), closing below its top.
+ *  STRICT (PM, 2026-11-19): a gap that ANY candle traded into between its formation and the break (the break candle included) is already MITIGATED and is skipped; an earlier or later gap in the same leg can still qualify.
  *  Entry  = the signal candle's close.
  *  Stop   = the gap's far edge: the bottom of a bullish gap, the top of a bearish one.
- *  Target = fairValueGap's rule (gapTarget): the nearer of the 20-candle swing before the gap and the first support / resistance level at least one risk distance away; none means no target and no R:R.
+ *  Target = fairValueGap's rule (gapTarget), but NEVER closer than one risk distance (PM, 2026-11-19: a target under 1R is not a target): the nearer of the 20-candle swing before the gap and the first support / resistance level, kept only when it is at least one
+ *           risk distance (entry to stop) away; otherwise the first support / resistance level at least one risk distance away; none means no target and no R:R.
  *  Signals, not predictions. */
 
 export const MIN_CANDLES = 30;
@@ -55,6 +57,14 @@ function setupsAt(c: readonly OHLCV[], b: number): Setup[] {
   return out;
 }
 
+/** gapTarget, but never nearer than one risk distance: a swing target closer than that falls back to the first support / resistance level at least one risk distance away (none = no target). */
+function oneRTarget(candles: readonly OHLCV[], gap: number, entry: number, stop: number, dir: 'long' | 'short'): number | null {
+  const risk = Math.abs(entry - stop);
+  const t = gapTarget(candles, gap, entry, stop, dir);
+  if (t != null && Math.abs(t - entry) >= risk) return t;
+  return nearestLevel(srPrices(candles, entry), entry, dir, risk);
+}
+
 export function detectBosFvg(candles: readonly OHLCV[], _ctx: StrategyContext): StrategyResult {
   const n = candles.length;
   if (n < MIN_CANDLES) return WAIT;
@@ -73,7 +83,7 @@ export function detectBosFvg(candles: readonly OHLCV[], _ctx: StrategyContext): 
       if (long ? !(entry > st.bot) : !(entry < st.top)) continue;
       const stop = long ? st.bot : st.top;
       const drawn = overlayParts(candles, st, k);
-      return tradeCall({ ts: last.time, dir: st.dir, entry, stop, target: gapTarget(candles, st.gap, entry, stop, st.dir), params: { bos: st.level, gapLo: st.bot, gapHi: st.top }, levels: drawn.levels, zones: drawn.zones });
+      return tradeCall({ ts: last.time, dir: st.dir, entry, stop, target: oneRTarget(candles, st.gap, entry, stop, st.dir), params: { bos: st.level, gapLo: st.bot, gapHi: st.top }, levels: drawn.levels, zones: drawn.zones });
     }
   }
   /* WAIT: a break whose gap has not been returned to yet (and still can be, inside the window) is what the strategy is watching. */

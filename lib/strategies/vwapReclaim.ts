@@ -7,6 +7,7 @@ import { WAIT, type StrategyContext, type StrategyDef, type StrategyOverlay, typ
  *  BUY (reclaim): a candle CLOSES above VWAP after at least BELOW_BARS consecutive closes below it.
  *  SELL (loss):   a candle CLOSES below VWAP after at least BELOW_BARS consecutive closes above it.
  *  Current only while that candle is one of the last FRESH_BARS closed candles and the session has at least MIN_SESSION_BARS closed candles.
+ *  The session must hold MIN_SESSION_BARS = 6 closed candles before the strategy answers at all, so a reclaim that happens on the 5th candle of the day is reported one candle later, on the 6th (still inside FRESH_BARS).
  *  Works on timeframes up to 1h (a 4h or daily session holds too few candles) and says wait on anything coarser.
  *  Signals, not predictions: this says which side of the day's average price paid, not where price goes next. */
 
