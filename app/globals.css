@@ -5464,6 +5464,24 @@ body.landing .app-content {
 body.landing {
   overflow-x: hidden;
 }
+/* THE SAME RULES FROM THE FIRST PAINT: `html[data-landing]` is set before paint by the landing-init script in components/RootDocument.tsx (the address is `/` or a one-segment locale path), while `body.landing`
+   above is added by an effect after hydration, so the landing page was drawn once inside the shell's padded frame and jumped full-bleed when the effect ran (CLS 0.128 at 390 on staging, QA run on #2602).
+   Hiding the shell chrome and dropping the frame here makes the server HTML's first paint the final layout. Kept in step with the block above. */
+html[data-landing] .app-bar,
+html[data-landing] .nav-drawer,
+html[data-landing] .mobile-tab-bar,
+html[data-landing] .news-ticker,
+html[data-landing] .price-ticker-strip,
+html[data-landing] .gchat-fab,
+html[data-landing] .gchat-panel,
+html[data-landing] .ob-checklist { display: none !important; }
+html[data-landing] .app-content {
+  max-width: 100% !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: var(--banner-h) 0 0 !important;
+}
+html[data-landing] body { overflow-x: hidden; }
 
 /* Scoped to the CURRENT design only - LandingTerminal (data-design="terminal")
    also sets body.landing (it needs the shell-hiding rules further down this

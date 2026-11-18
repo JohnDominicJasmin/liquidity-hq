@@ -4,7 +4,7 @@ import type { CoinId } from './marketStore.ts';
 import { fetchOHLCV, TF_BN, TF_BY } from './useEMAStrategy.ts';
 import { TF_MS, dropForming, msUntilNextClose } from './candles.ts';
 import { findStrategy, type StrategyResult } from './strategies/index.ts';
-import { fetchOiChange6, fetchTakerMap, fundingClassOf } from './strategies/liveInputs.ts';
+import { fetchFundingHistory, fetchOiRelative, fetchTakerMap, fundingClassRelative } from './strategies/liveInputs.ts';
 
 export interface StrategySignalState {
   result: StrategyResult | null;
@@ -46,11 +46,12 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
         if (closed.length < def.minCandles) { setState({ result: null, loading: false, error: true }); }
         else {
           /* THE LIVE INPUTS OF THE DERIVATIVES STRATEGIES (phase 2): funding from the page's own feed, open interest history and taker volume read now. A failed read is simply absent, which the strategy answers as "needs live data" / "needs taker data", never as no signal. */
-          const fc = def.needsLive ? fundingClassOf(fundingRef.current) : null;
-          const oi = def.needsLive ? await fetchOiChange6(coin, tf, tfMs).catch(() => null) : null;
+          const [history, oi] = def.needsLive ? await Promise.all([fetchFundingHistory(coin).catch(() => null), fetchOiRelative(coin, tf, tfMs).catch(() => null)]) : [null, null];
+          /* "Paying heavily" is judged against the coin's own last 90 days (lib/strategies/liveInputs.ts fundingClassRelative); no history is no reading (absent), never a guess. */
+          const fc = def.needsLive ? fundingClassRelative(fundingRef.current, history, Date.now()) : null;
           const taker = def.needsTaker ? await fetchTakerMap(coin, TF_BN[tf], 300).catch(() => undefined) : undefined;
           if (cancelled) return;
-          setState({ result: def.detect(closed, { coin, tf, tfMs, liqLevels: liqRef.current, btcCandles, ...(fc ?? {}), oiChange6Pct: oi, taker }), loading: false, error: false });
+          setState({ result: def.detect(closed, { coin, tf, tfMs, liqLevels: liqRef.current, btcCandles, ...(fc ?? {}), oiChange6Pct: oi?.oiChange6Pct ?? null, oiExtreme: oi?.oiExtreme ?? null, taker }), loading: false, error: false });
         }
       } catch {
         if (!cancelled) setState({ result: null, loading: false, error: true });

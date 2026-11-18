@@ -16,11 +16,13 @@ export interface StrategyContext {
   /** Closed BTC candles on the same timeframe, supplied only to a strategy with needsBtc and only for a coin other than BTC. */
   btcCandles?: readonly OHLCV[];
   /* LIVE DERIVATIVES INPUTS (phase-2 strategies, owner decision 2026-11-17). They are live values, not part of the candles, so the CALLER supplies them and a strategy that needs them says so with `needsLive` / `needsTaker`. Absent means NOT KNOWN, never 'no signal'.
-     fundingClass: the Funding page's "paying heavily" class (longs_heavy at +0.05% or more, shorts_heavy at -0.03% or less); fundingPct: the rate in percent; oiChange6Pct: open interest change over the last 6 candles of this timeframe, in percent;
+     fundingClass: "paying heavily" judged against THE COIN'S OWN last 90 days (liveInputs.ts fundingClassRelative: longs_heavy = a positive rate above 95% of its settlements, shorts_heavy = a negative rate below 95% of them), absent when that history is not available; fundingPct: the rate in percent; oiChange6Pct: open interest change over the last 6 candles of this timeframe, in percent;
      taker: per-candle taker buy / sell volume by candle open time, Binance klines only (absent for a coin without the split). */
   fundingClass?: 'longs_heavy' | 'shorts_heavy' | 'none';
   fundingPct?: number;
   oiChange6Pct?: number | null;
+  /** Open interest's change over the last 6 candles is in the TOP 20% of that coin's own changes on this timeframe (liveInputs.ts oiRelative): true / false, null = no reading (too little history). */
+  oiExtreme?: boolean | null;
   taker?: ReadonlyMap<number, { buy: number; sell: number }>;
 }
 
