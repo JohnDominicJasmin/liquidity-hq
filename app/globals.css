@@ -3961,7 +3961,7 @@ html[data-theme="light"] { background: var(--bg0); }
 .frh-table th    { text-align: left; color: var(--txt3); font-weight: 600; padding: 3px 8px 7px; border-bottom: 0.5px solid var(--bdr); font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
 .frh-table td    { padding: 5px 8px; border-bottom: 0.5px solid var(--bdr); color: var(--txt2); font-variant-numeric: tabular-nums; vertical-align: middle; }
 .frh-table tr:last-child td { border-bottom: none; }
-.frh-coin        { font-weight: 700; color: var(--txt) !important; font-size: var(--fs-caption); width: 46px; }
+.frh-coin        { font-weight: 700; color: var(--txt) !important; font-size: var(--fs-caption); white-space: nowrap; }
 .frh-row         { cursor: pointer; transition: background 0.1s, box-shadow 0.1s; }
 .frh-row:hover   { background: rgba(255,255,255,0.04); }
 .frh-row.on      { background: rgba(26,122,255,0.11) !important; box-shadow: inset 3px 0 0 #1a7aff !important; }
