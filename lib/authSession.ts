@@ -180,6 +180,11 @@ const PASSWORD_UPDATE_TIMEOUT_MS = 15000;
  * own "should be different from the old password" error, which says so. */
 const PASSWORD_UPDATE_UNCONFIRMED = "Couldn't confirm your password change. Check your connection and try again.";
 
+/* The error for that case carries `unconfirmed: true`, so a caller can tell "the server said no" (nothing changed) from "we stopped waiting"
+ * (it may have changed). /reset-password ends the other sessions in the second case too (#1113). */
+export type PasswordUpdateError = { message: string; unconfirmed?: true };
+const unconfirmedError = (): PasswordUpdateError => Object.assign(new Error(PASSWORD_UPDATE_UNCONFIRMED), { unconfirmed: true as const });
+
 type PasswordUpdateCapable = {
   auth: { updateUser: (attributes: { password: string }) => Promise<{ error: { message: string } | null }> };
 };
@@ -198,20 +203,20 @@ type PasswordUpdateCapable = {
 export async function updatePassword(
   sb: PasswordUpdateCapable,
   password: string,
-): Promise<{ error: { message: string } | null }> {
+): Promise<{ error: PasswordUpdateError | null }> {
   // Cleared for the same reason as forceSignOut's timer above.
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const { error } = await Promise.race([
       sb.auth.updateUser({ password }),
-      new Promise<{ error: { message: string } }>(resolve => {
-        timer = setTimeout(() => resolve({ error: new Error(PASSWORD_UPDATE_UNCONFIRMED) }), PASSWORD_UPDATE_TIMEOUT_MS);
+      new Promise<{ error: PasswordUpdateError }>(resolve => {
+        timer = setTimeout(() => resolve({ error: unconfirmedError() }), PASSWORD_UPDATE_TIMEOUT_MS);
       }),
     ]);
     return { error };
   } catch (e) {
     console.error('[auth] updateUser rejected:', e);
-    return { error: new Error(PASSWORD_UPDATE_UNCONFIRMED) };
+    return { error: unconfirmedError() };
   } finally {
     clearTimeout(timer);
   }
