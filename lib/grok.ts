@@ -378,7 +378,9 @@ export interface GrokResult {
 export function traderRsiLines(emaStrategy: string | undefined): { ob: number; os: number } {
   const m = emaStrategy?.match(/overbought line (\d+), oversold line (\d+)/);
   const ob = m ? Number(m[1]) : NaN, os = m ? Number(m[2]) : NaN;
-  return Number.isFinite(ob) && Number.isFinite(os) && os < ob ? { ob, os } : { ob: 70, os: 30 };
+  if (!(Number.isFinite(ob) && Number.isFinite(os) && os < ob)) return { ob: 70, os: 30 };
+  // Clamped like the chart and the settings clamp them (overbought 50-95, oversold 5-50): the line arrives from the browser (QA R1b).
+  return { ob: Math.min(95, Math.max(50, ob)), os: Math.min(50, Math.max(5, os)) };
 }
 
 export function buildPrompt(ctx: GrokContext): string {
