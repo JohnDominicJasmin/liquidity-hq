@@ -175,6 +175,9 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
 /** Every other spec, and why it is kept off production. A spec must appear in exactly one
  *  of the two lists; the unit test enforces it. */
 export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
+  'snapshot-lsr-2555': 'QA cell for a build under test: signs in as the DEV fixtures; CI builds and staging only.',
+  'settings-persist': 'QA cell for a build under test: signs in as the DEV fixtures; CI builds and staging only.',
+  'sound-picker-2561': 'QA cell for a build under test: signs in as the DEV fixtures; CI builds and staging only.',
   'anon-grants': 'API-level cells against the shared DEV database: sends write-verb requests as the anon role and as the A fixture (a DEV-project account that does not exist on production); writes one tiny liquidation event and a throwaway trade it deletes; not a production spec',
   'briefing-row-opens-that-coin': 'signs in as the A fixture, which is a DEV-project Supabase account that does not exist on the production project at all - same first reason as upgrade-purchase-marker. Two stronger ones follow. C1 and C2 INTERCEPT the Supabase user_settings read and serve a stubbed row, so against production they would interpose on a real signed-in account\'s settings read; and C3 deliberately does NOT stub, it OBSERVES the real response to compare the settled URL against whatever the account has saved - which on production means reading a real person\'s saved coin and timeframe. Neither is a write, and the exclusion is not about writes: it is about interposing on, and reading, a real account\'s data. The two annotated cells also pin an OPEN defect (#1263, a cold /arena load ignoring saved settings), so on production they would fail by design and say nothing new.',
   '_record-proxy': 'a recorder of live upstream payloads, not a test',
