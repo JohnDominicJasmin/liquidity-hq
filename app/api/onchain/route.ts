@@ -144,6 +144,8 @@ export async function GET(req: NextRequest) {
       const role = plan.tier;
       /* The usage check and the chain-stats read run AT THE SAME TIME; the stats are cached on their own for 5 minutes so an AI failure's retry does not refetch them. */
       const reservedOn = todayUtc();
+      /* The BTC price read (marketSnapshotData, cached) starts with them: it used to wait for both, in sequence (#1651 lane B). */
+      const snapP = marketSnapshotData().catch(() => null);
       const [usageResult, stats] = await Promise.all([
         incrementToolUsage(authData.user.id, 'onchain', role, reservedOn),
         /* A null (the read failed) must NOT be cached for five minutes: it throws so `cached` stores nothing, and the caller carries on without stats exactly as before. */
@@ -152,7 +154,7 @@ export async function GET(req: NextRequest) {
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason, authData.user.id);
       }
-      const snap = await marketSnapshotData().catch(() => null);
+      const snap = await snapP;
       const serverPrice = snap && snap.ok ? snap.data.ticker.btc?.price : undefined;
       const btcPrice = typeof serverPrice === 'number' && Number.isFinite(serverPrice) && serverPrice > 0 ? serverPrice : 0;
       /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
