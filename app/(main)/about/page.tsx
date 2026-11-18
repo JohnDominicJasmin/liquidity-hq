@@ -14,8 +14,7 @@ export default function About() {
             Same label, same styles, so nothing moves: fs-section and weight 700 are carried explicitly
             and the browser's default h1 margin is zeroed. /  and /upgrade already have one; /about was
             the only page of the three that genuinely did not, which corrects the brief. */}
-        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', margin: '0 0 2px' }}>{t('ABOUT_PAGE_TITLE')}</h1>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>{t('ABOUT_PAGE_SUBTITLE')}</div>
+        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', margin: '0 0 14px' }}>{t('ABOUT_PAGE_TITLE')}</h1>
       </div>
 
       <div className="card">
