@@ -67,8 +67,8 @@ test('W5. REAL classifyFunding: the notes state who is paying, with no direction
   for (const n of notes) assert.doesNotMatch(n, /whales?|go (long|short)|bullish|bearish|trade with caution|dump|squeeze up|overleveraged/i, n);
 });
 test('W6. the funding page tiers are band facts: the label carries the numeric band, the action line says the band per 8 hours', () => {
-  assert.equal(en.FUNDING_SIG_LONGS_OVERCROWDED_LABEL, 'Longs paying - funding +0.05% or more'); assert.equal(en.FUNDING_SIG_SHORTS_OVERCROWDED_LABEL, 'Shorts paying - funding -0.03% or less');
-  assert.equal(en.FUNDING_SIG_BALANCED_LABEL, 'Neutral - funding near zero'); assert.equal(en.FUNDING_SIG_LONGS_HEAVY_LABEL, 'Longs paying - funding +0.02% to +0.05%'); assert.equal(en.FUNDING_SIG_SHORTS_CROWDED_LABEL, 'Shorts paying - funding -0.01% to -0.03%');
+  assert.equal(en.FUNDING_SIG_LONGS_OVERCROWDED_LABEL, 'Longs paying heavily (+0.05%+)'); assert.equal(en.FUNDING_SIG_SHORTS_OVERCROWDED_LABEL, 'Shorts paying heavily (−0.03% or less)');
+  assert.equal(en.FUNDING_SIG_BALANCED_LABEL, 'Balanced'); assert.equal(en.FUNDING_SIG_LONGS_HEAVY_LABEL, 'Longs paying heavily (+0.02–0.05%)'); assert.equal(en.FUNDING_SIG_SHORTS_CROWDED_LABEL, 'Shorts paying heavily (−0.01–0.03%)');
   for (const t of ['LONGS_OVERCROWDED', 'LONGS_HEAVY', 'LONGS_DOMINANT', 'SLIGHT_LONG', 'BALANCED', 'SHORTS_DOMINANT', 'SHORTS_CROWDED', 'SHORTS_OVERCROWDED']) {
     assert.match(en[`FUNDING_SIG_${t}_ACTION`], /^Funding (is|between)/, `${t}: the action line is not a band fact: ${en[`FUNDING_SIG_${t}_ACTION`]}`);
     assert.match(en[`FUNDING_SIG_${t}_HINT`], /paying|Near|baseline|zero/i, `${t}: hint ${en[`FUNDING_SIG_${t}_HINT`]}`);

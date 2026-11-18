@@ -47,8 +47,8 @@ test('B4. the WAIT Watching list: wait only, watch+confirm only, lowest first, a
   assert.ok(box.includes('{watched.length > 0 && (') && box.includes("data-testid=\"strategy-call-watching\"") && box.includes("{t('STRAT_WATCHING')}: "), 'the line is not gated on having levels or lost its label');
 });
 test('B5. the Market Read says how many signals agree; no default still promises a best setup or asks about trading; the Watching key is registered', () => {
-  assert.equal(en.MARKET_READ_EYEBROW_Q, ' · how many signals agree'); assert.equal(en.MARKET_READ_SCALE_GOOD, '≥ 70 most agree'); assert.equal(en.MARKET_READ_GOOD_TICK_TITLE, 'Most signals agree ≥ 70');
-  assert.match(en.MARKET_READ_TIP, /how many signals agree/); assert.match(en.MARKET_READ_TIP, /A description, not advice/);
+  assert.equal(en.MARKET_READ_EYEBROW_Q, ' · how many signals agree'); assert.equal(en.MARKET_READ_SCALE_GOOD, '≥ 70 most agree'); assert.equal(en.MARKET_READ_GOOD_TICK_TITLE, 'Signals agree ≥70');
+  assert.match(en.MARKET_READ_TIP, /how many signals agree/i); assert.match(en.MARKET_READ_TIP, /A description, not advice/);
   assert.equal(en.DASHBOARD_HINT_BODY, 'Your at-a-glance market read - overall conditions and the signals worth a look.');
   const bad = Object.entries(en).filter(([k, v]) => /^(MARKET_READ_|DASHBOARD_HINT_BODY)/.test(k) && /best setup|before you place a trade|good time to trade|is now a good time/i.test(v)).map(([k, v]) => `${k}: ${v}`); assert.deepEqual(bad, []);
   assert.equal(en.STRAT_WATCHING, 'Watching'); assert.ok(read('lib/labelKeys.ts').includes("'STRAT_WATCHING'"), 'STRAT_WATCHING is not registered');
