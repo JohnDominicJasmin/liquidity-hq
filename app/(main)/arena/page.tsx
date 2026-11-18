@@ -205,7 +205,9 @@ const SCANNER_CAT_KEY = 'lhq_arena_scanner_cat';
 /* `locale` is the language the read was WRITTEN in (the AI writes in the user's language). Part of the cache key: an entry in another
    language is not this user's read and is treated as absent, so an English read is never served to a Russian reader. An entry from
    before this field was written in English, so a missing value reads as 'en'. */
-interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep'; selectionAtAnalysis?: readonly string[]; paramsAtAnalysis?: string; locale?: string }
+/* `strategyAtAnalysis`: the picked strategy the read was made with (owner order 2026-11-19, the read names it). Absent on an older entry, which
+   reads as "unknown", never as a change. */
+interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep'; selectionAtAnalysis?: readonly string[]; paramsAtAnalysis?: string; locale?: string; strategyAtAnalysis?: string | null }
 const entryLocale = (e: CacheEntry | undefined | null): string => e?.locale ?? 'en';
 const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
 const ARENA_RESULTS_KEY = 'arena-results-v2';
@@ -917,6 +919,8 @@ function ArenaContent() {
      same indicators in a different click order is not a change. */
   /* The Strategy panel's settings that shape a read (the EMA ribbon and RSI lengths, the stricter-signals switch): recorded with each read and compared here, so changing one marks the read stale like changing the indicator selection does. */
   const settingsSig = JSON.stringify([strategyParams, antiChopEnabled]);
+  /* The picked strategy as the read request sends it: a saved id the registry no longer knows is none, as everywhere else on the page. */
+  const pickedStrategyId = findStrategy(arenaStrategy)?.id ?? null;
   const selectionChanged = (() => {
     /* #1347 item 9: two "we cannot tell" cases must read as NOT changed, not as changed. (1) the selection
        has not been seeded yet (cold load), (2) the entry predates `selectionAtAnalysis` - it was NOT computed
@@ -925,6 +929,8 @@ function ArenaContent() {
     const before = [...cacheEntry.selectionAtAnalysis].sort().join(' ');
     const now = [...strategySelection].sort().join(' ');
     if (before !== now) return true;
+    /* A different picked strategy is a different read too: the read names the strategy it was given. */
+    if (cacheEntry.strategyAtAnalysis !== undefined && cacheEntry.strategyAtAnalysis !== pickedStrategyId) return true;
     return cacheEntry.paramsAtAnalysis !== undefined && cacheEntry.paramsAtAnalysis !== settingsSig;
   })();
   const notifCooldown = useRef<Set<string>>(new Set());
@@ -1673,7 +1679,7 @@ function ArenaContent() {
   // false would make a future caller that forgets it indistinguishable from
   // one that checked and found EMA resolved - the same "dropped argument
   // reads as a deliberate empty one" shape as #1347 item 11.
-  const readMarket = useCallback(async (selection: readonly string[], mode: 'quick' | 'deep', force: boolean, emaLoading: boolean) => {
+  const readMarket = useCallback(async (selection: readonly string[], mode: 'quick' | 'deep', force: boolean, emaLoading: boolean, strategy: string | null) => {
     // #1309 item 24: the toolbar's own Quick/Deep buttons are `disabled`
     // while a read is running, but StrategyPanel's copies of the same three
     // buttons (wired through runStrategy below) were not - a click there
@@ -1728,7 +1734,8 @@ function ArenaContent() {
     if (!force) {
       const currentPrice = store.coins[selectedCoin]?.price ?? 0;
       const entry = resultsCache[selectedCoin];
-      if (entry && entry.mode === mode && entryLocale(entry) === locale) {
+      /* A read made with another picked strategy is not served for this one (the read names the strategy it was given). */
+      if (entry && entry.mode === mode && entryLocale(entry) === locale && (entry.strategyAtAnalysis ?? null) === strategy) {
         const ageSecs  = (Date.now() - entry.result.analyzedAt) / 1000;
         const pricePct = currentPrice > 0
           ? Math.abs(currentPrice - entry.priceAtAnalysis) / currentPrice * 100
@@ -1853,13 +1860,14 @@ function ArenaContent() {
          it, so the coin and timeframe its gates check are read out of the same objects the prompt is built
          from. The indicator selection goes as identifiers; the sentences that tell the model to weigh them
          are instructions and live on the server with the rest of the prompt. */
-      const { result: res, usage } = await callGrokViaProxy(ctx, chartData, mode, selection, locale);
+      /* The picked strategy goes as its id only; the server computes its call from its own candles (owner order 2026-11-19). */
+      const { result: res, usage } = await callGrokViaProxy(ctx, chartData, mode, selection, locale, strategy);
       if (usage) setGrokUsage(usage);
       track.arenaAnalysis(mode, selectedCoin);
 
       // Cache result per coin (with price snapshot for stale-check)
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
-      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: selection, paramsAtAnalysis: settingsSig, locale } }));
+      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: selection, paramsAtAnalysis: settingsSig, locale, strategyAtAnalysis: strategy } }));
       // Track Quick signals separately so Deep can show an override notice when they disagree
       if (mode === 'quick') setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal }));
       setDetailIdx(null);
@@ -2041,7 +2049,7 @@ function ArenaContent() {
     if (coinLocked) return; // #1596: Quick and Deep do not run on a locked coin (the server refuses it too)
     const entry = resultsCache[selectedCoin];
     const force = !!(entry && entryLocale(entry) === locale && entry.mode === kind && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
-    readMarket(selection, kind, force, emaSignal.loading);
+    readMarket(selection, kind, force, emaSignal.loading, pickedStrategyId);
     window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
   };
 
