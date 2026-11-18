@@ -9,6 +9,8 @@ import { isFeatureEnabled } from '@/lib/featureFlags';
 import { isQuietNow, type AlertHoldSettings } from '@/lib/alertQuiet';
 import { lapseNoticeDue, lapseMomentOf, lapsedFromTrial } from '@/lib/planLapse';
 import { planEndedText } from '@/lib/telegramBotText';
+import { localizeTelegram, tgLocaleOf } from '@/lib/telegramI18n';
+import { tgLabelsFor } from '@/lib/telegramLabels';
 import type { PlanRow } from '@/lib/paidPeriod';
 
 /** user_ids whose Telegram alerts are held at `nowMs` (paused, snoozed or in quiet hours).
@@ -50,7 +52,7 @@ export async function sendPlanLapseNotices(token: string, subs: readonly SubRow[
     const ids = [...byUser.keys()];
     for (let i = 0; i < ids.length; i += 200) {
       const { data, error } = await admin.from(T.user_settings)
-        .select('user_id, telegram_chat_id, telegram_lapse_notified_at')
+        .select('user_id, telegram_chat_id, telegram_lapse_notified_at, language')
         .in('user_id', ids.slice(i, i + 200))
         .not('telegram_chat_id', 'is', null);
       if (error) { console.warn('[alert] plan-ended notices skipped: settings unreadable', error.message); return sent; }
@@ -67,10 +69,13 @@ export async function sendPlanLapseNotices(token: string, subs: readonly SubRow[
           .select('user_id');
         if (claimErr || !claimed?.length) continue;
         try {
+          // In the account's saved language (#1651); English when none or when the labels cannot be read.
+          const lang = tgLocaleOf(s.language as string | null | undefined);
+          const text = localizeTelegram(planEndedText(upgradeUrl(), lapsedFromTrial(sub)), lang, await tgLabelsFor(lang));
           const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: planEndedText(upgradeUrl(), lapsedFromTrial(sub)), disable_web_page_preview: true }),
+            body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
             signal: AbortSignal.timeout(10_000),
           });
           if (res.ok) sent++;

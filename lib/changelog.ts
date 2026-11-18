@@ -153,7 +153,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     /* DRAFT, the release after v2026.11.18.2 (PM 2026-11-18). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs.
        Plain words, 12 words or fewer per line (rule 22); only user-visible changes. Tied to: #2565 (Arena header), #2569 (your language), #2567 (bot commands,
        quiet hours, snooze, plan-lapse message), #2574 (inline mute), #2572 (daily summary, test alert), #2576 (multi-timeframe rows), #2578 + #2583 (speed),
-       #2584 (S/R flip), #2587 (chart key, password reset), #2586 (AI use given back). A line whose PR misses the tag is removed. */
+       #2584 (S/R flip), #2587 (chart key, password reset), #2586 (AI use given back), #2590 (Telegram language). A line whose PR misses the tag is removed. */
     date: '2026-11-19',
     tag: 'v2026.11.19',
     items: [
@@ -165,6 +165,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Daily summary at the hour you choose: top coins and squeezes.",
       "Send yourself a test alert from the Alerts page.",
       "Telegram tells you when your plan's alerts pause.",
+      "Telegram alerts arrive in your language.",
       "Multi-timeframe alignment hides timeframes with no reading.",
       "The homepage, Arena and Funding pages load faster.",
       "The S/R flip strategy now signals when a broken level is retested.",
