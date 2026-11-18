@@ -451,6 +451,18 @@ export function tgRetryDelayMs(attempt: number, status: number | null, retryAfte
   if (status === null || status >= 500) return 1_000 * 2 ** (attempt - 1);
   return null;
 }
+/* ONLY A SEND THAT NEVER LEFT IS RETRIED (PM, review of #2567). Telegram's sendMessage has no idempotency key, so a request that timed out AFTER Telegram
+   accepted it would be delivered twice by a retry. A thrown error is retried only when it failed before the request went out: DNS, refused or unreachable
+   connection, or a bare "fetch failed" with no socket code. An AbortSignal timeout, an abort, or a socket reset mid-request is final and counts as failed
+   (delivery unknown). The cost: a timeout that in fact never reached Telegram is lost instead of retried. */
+const PRE_SEND_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH', 'UND_ERR_CONNECT_TIMEOUT']);
+function failedBeforeSend(e: unknown): boolean {
+  if (!(e instanceof Error) || e.name === 'TimeoutError' || e.name === 'AbortError') return false;
+  const code = (e.cause as { code?: unknown } | undefined)?.code;
+  if (typeof code === 'string') return PRE_SEND_CODES.has(code);
+  return e instanceof TypeError && /fetch failed/i.test(e.message);
+}
+
 async function sendWithRetry(token: string, chatId: string, body: string): Promise<Response> {
   for (let attempt = 1; ; attempt++) {
     let res: Response | null = null;
@@ -464,6 +476,7 @@ async function sendWithRetry(token: string, chatId: string, body: string): Promi
       });
     } catch (e) { err = e; }
     if (res?.ok) return res;
+    if (err && !failedBeforeSend(err)) throw err; // a timeout may have been delivered: never resend it (see failedBeforeSend)
     let retryAfter: number | null = null;
     if (res?.status === 429) {
       retryAfter = await res.clone().json().then((d: { parameters?: { retry_after?: number } }) => Number(d?.parameters?.retry_after) || null, () => null);
