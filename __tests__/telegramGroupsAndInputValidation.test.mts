@@ -85,8 +85,14 @@ test('C9a. /start@Bot CODE reads the code exactly like /start CODE (a command fr
     db.tg = []; await send(priv(555, text)); const [m] = sent(); assert.ok(m, `${text}: no reply`); assert.match(textOf(m), /mi\*\*\*@example\.test/, `${text}: the code was not read`);
   }
 });
-test('C9b. "/startfoo" and "/start-x" are not the start command', async () => {
-  code('ABC123'); await send(priv(555, '/startfoo ABC123')); assert.equal(sent().length, 0, '/startfoo was treated as /start'); await send(priv(555, '/starting')); assert.equal(sent().length, 0);
+test('C9b. "/startfoo", "/starting" and "/start-x" are not the start command: nothing is linked or looked up and no Confirm button is offered; since #2567 a private chat is answered with the /help list instead of silence', async () => {
+  code('ABC123');
+  for (const text of ['/startfoo ABC123', '/starting', '/start-x ABC123']) {
+    db.tg = []; await send(priv(555, text)); const m = sent(); assert.equal(m.length, 1, `${text}: one reply (the /help list) expected, got ${m.length}`);
+    assert.match(textOf(m[0]), /^Commands:/, `${text}: was treated as /start or answered with something other than /help: ${textOf(m[0])}`); assert.equal(m[0].reply_markup, undefined, `${text}: a Confirm button was offered`);
+    assert.doesNotMatch(textOf(m[0]), /Connect this chat|Welcome to|mi\*\*\*@/);
+  }
+  assert.equal(db.settings.size, 0, 'a chat was linked'); assert.equal(db.codes.get('ABC123')!.used_at, null, 'the code was spent');
 });
 test('C9c. THE DEFECT: /start CODE from a GROUP links nothing, looks nothing up, and says to open a private chat (a group id would receive one account\'s alerts for everyone in the group)', async () => {
   code('ABC123');

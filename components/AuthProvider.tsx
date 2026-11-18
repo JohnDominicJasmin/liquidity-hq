@@ -1,7 +1,7 @@
 'use client';
 import { deadlineSignal } from '@/lib/deadlineSignal';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabase, noStoredSession } from '@/lib/supabase';
 import { forceSignOut, INACTIVITY_MS, LAST_ACTIVE_KEY } from '@/lib/authSession';
 import type { User } from '@supabase/supabase-js';
 import { posthog } from '@/lib/posthogLazy';
@@ -273,6 +273,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     const sb = getSupabase();
     if (!sb) { setLoading(false); return; }
+    /* A visitor with no stored session is signed out NOW, not when the auth client's lock gets round to saying so
+       (lib/supabase.ts noStoredSession: 6-10 s on a busy phone). The read below still runs and has the last word. */
+    if (noStoredSession()) setLoading(false);
 
     /* Seed initial session, force sign-out if inactive >7 days.
      *

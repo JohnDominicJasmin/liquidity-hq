@@ -89,9 +89,41 @@ const AUTH_TOKEN_TIMEOUT_MS = 8000;
 // function until #1165, the same "one caller gets a fix, the others keep
 // the defect" shape lib/authSession.ts's forceSignOut doc comment already
 // describes for sign-out. Both now import this one instead.
+/* SIGNED OUT, KNOWN WITHOUT ASKING THE AUTH CLIENT (speed sweep, OWNER-RULES 21). Every getSession() takes the
+ * auth client's one exclusive lock, and a page load makes about 14 of them; on a busy phone each hand-over waits
+ * behind the page's own rendering, so a signed-out visitor's "no session" answer arrived 6-10 s after the page
+ * mounted (measured on /arena and /alerts, 4G + 4x CPU) and everything gated on it waited too.
+ * supabase-js keeps the session in ONE localStorage key, `sb-<project ref>-auth-token`. With that key absent and
+ * no sign-in callback in the address bar (implicit-flow tokens in the hash, an auth error, a PKCE `code`), there
+ * is no session for getSession() to find. Anything uncertain (no browser, storage throws, the URL is not parsable)
+ * answers false, so the caller takes the normal path. */
+/* The page was LOADED with a sign-in callback in its address bar (read ONCE, at module load, before supabase-js clears the hash or a router push replaces the URL). supabase-js then validates the tokens over the network BEFORE it writes the session key, so for that whole page life noStoredSession() would read "signed out" for someone who is signing in (QA review of #2578). */
+const LOADED_WITH_CALLBACK = (() => {
+  try {
+    if (typeof window === 'undefined') return false;
+    const { hash, search } = window.location;
+    return /access_token|refresh_token|error/.test(hash) || /[?&](code|error)=/.test(search);
+  } catch { return true; }
+})();
+
+export function noStoredSession(): boolean {
+  if (LOADED_WITH_CALLBACK) return false;
+  try {
+    if (typeof window === 'undefined') return false;
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!url) return false;
+    const key = `sb-${new URL(url).hostname.split('.')[0]}-auth-token`;
+    if (window.localStorage.getItem(key) != null) return false;
+    const { hash, search } = window.location;
+    if (/access_token|refresh_token|error/.test(hash) || /[?&](code|error)=/.test(search)) return false;
+    return true;
+  } catch { return false; }
+}
+
 export async function getAuthToken(): Promise<string | undefined> {
   const sb = getSupabase();
   if (!sb) return undefined;
+  if (noStoredSession()) return undefined;
   // The timeout timer is never cleared when getSession() itself resolves
   // first, which keeps a plain `node --test` process alive until it fires
   // (same shape as lib/rateLimit.ts's sweep interval and

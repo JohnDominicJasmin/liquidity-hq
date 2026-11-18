@@ -24,9 +24,11 @@ export function apiError(
   cause: unknown,
   status = 500,
   clientMessage = 'Something went wrong. Please try again.',
+  /** Fields merged into the body beside `error`, e.g. an AI tool route's `refunded` flag (#1631 U9). Never a cause or detail. */
+  extra: Record<string, unknown> = {},
 ): NextResponse {
   const detail = cause instanceof Error ? cause.message : String(cause);
   console.error(`[${tag}] ${detail}`);
   Sentry.captureException(cause instanceof Error ? cause : new Error(detail), { tags: { route: tag } });
-  return NextResponse.json({ error: clientMessage }, { status });
+  return NextResponse.json({ ...extra, error: clientMessage }, { status });
 }

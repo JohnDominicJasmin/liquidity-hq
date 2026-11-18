@@ -5,6 +5,7 @@ import { checkCronAuth } from '@/lib/cronAuth';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { selectAllRows } from '@/lib/selectAllRows';
 import { planKindOfRow } from '@/lib/paidPeriod';
+import { loadHeldUserIds } from '@/lib/telegramAlertHolds';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,7 +114,8 @@ export async function GET(req: Request) {
     }
   } catch { /* admin not configured - chatIds falls back to the env var below */ }
 
-  // Collect Pro users' Telegram chat IDs
+  // Collect Pro users' Telegram chat IDs. Paused, snoozed or in quiet hours (lib/alertQuiet.ts) gets no macro alert either, same as the main alert cron.
+  const held = await loadHeldUserIds(Date.now());
   const chatIds: string[] = [];
   try {
     const admin = getSupabaseAdmin();
@@ -124,7 +126,7 @@ export async function GET(req: Request) {
       .not('telegram_chat_id', 'is', null)
       .neq('telegram_chat_id', ''));
     for (const row of data ?? []) {
-      if (!proUserIds.has(row.user_id as string)) continue;
+      if (!proUserIds.has(row.user_id as string) || held.has(row.user_id as string)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
       if (id && !chatIds.includes(id)) chatIds.push(id);
     }

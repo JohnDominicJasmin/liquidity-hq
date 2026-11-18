@@ -37,6 +37,12 @@ export function onCooldown(key: string, ms: number): boolean {
   return t !== undefined && Date.now() - t < ms;
 }
 
+/** When `key` last fired (epoch ms), staged marks included; undefined if never. For a check that is not a fixed-length cooldown (the
+ *  daily summary judges "already sent today" on the user's local date, lib/dailySummaryPrefs.ts summaryDueNow). */
+export function lastSentAt(key: string): number | undefined {
+  return staging?.get(key) ?? lastSent.get(key);
+}
+
 /** Records `key` as having fired just now. */
 export function markSent(key: string): void {
   (staging ?? lastSent).set(key, Date.now());

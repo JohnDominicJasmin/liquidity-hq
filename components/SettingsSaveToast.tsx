@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { useSettings } from '@/lib/settings';
 import { useLabels } from '@/lib/labels';
 
@@ -32,6 +33,7 @@ type Shown = 'saving' | 'saved' | 'conflict' | 'error';
 export default function SettingsSaveToast() {
   const { saveStatus, retrySave } = useSettings();
   const { t } = useLabels();
+  const pathname = usePathname();
   /* `seq` restarts the dismiss timer when the same state arrives twice in a
      row (two saves 1s apart each get their full 2s). */
   const [toast, setToast] = useState<{ shown: Shown; seq: number } | null>(null);
@@ -61,6 +63,9 @@ export default function SettingsSaveToast() {
   }, [toast]);
 
   if (!shown) return null;
+  /* ARENA: NO PASSIVE "Saving…" / "Saved" (PM, tracker #1263). Every save on /arena comes from a control that already shows its new state (strategy menu, indicator chips, their settings, the EMA ribbon
+     switch), and the top-centre toast sat over the chart toolbar (S/R, Structure) while it showed. A failed save ('error') and a value adopted from another device ('conflict') still show here. */
+  if ((shown === 'saving' || shown === 'saved') && /(^|\/)arena$/.test(pathname ?? '')) return null;
 
   if (shown === 'error') {
     return (

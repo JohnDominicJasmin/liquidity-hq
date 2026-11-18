@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
       /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
       const reservedOn = todayUtc();
       const giveBack = () => refundToolUsage(authData.user.id, 'tokenUnlock', reservedOn);
-      const usageResult = await incrementToolUsage(authData.user.id, 'tokenUnlock', role);
+      const usageResult = await incrementToolUsage(authData.user.id, 'tokenUnlock', role, reservedOn);
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason, authData.user.id);
       }
