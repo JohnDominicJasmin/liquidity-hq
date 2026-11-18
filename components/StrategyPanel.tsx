@@ -37,6 +37,7 @@ import {
   findIndicator, indicatorLimit, defaultParams, canRender, slottedIds, strategyPlanLabel,
   SELECTABLE_INDICATORS, SELECTABLE_INDICATOR_IDS, LAYER_SETTINGS,
   type IndicatorEntry, type ParamSpec, type OverlayState,
+  PARAM_LABEL_KEYS, PARAM_OPTION_KEYS,
 } from '@/lib/strategyRegistry';
 
 /* The parameter box is COLLAPSED by default (the panel had to be shorter); once the visitor opens it, it stays open for the rest of the session (module memory, not stored). */
@@ -86,12 +87,15 @@ function ParamRow({ spec, value, readOnly, onChange }: {
   readOnly: boolean;
   onChange: (v: string | number) => void;
 }) {
+  const { t } = useLabels();
+  const lk = PARAM_LABEL_KEYS[spec.label];
+  const label = lk ? t(lk) : spec.label;
   if (spec.kind === 'enum') {
     return (
       <div className="strat-prow">
-        <span>{spec.label}</span>
-        <select className="strat-pv" value={String(value)} disabled={readOnly} aria-label={spec.label} onChange={e => onChange(e.target.value)}>
-          {spec.options.map(o => <option key={o} value={o}>{o}</option>)}
+        <span>{label}</span>
+        <select className="strat-pv" value={String(value)} disabled={readOnly} aria-label={label} onChange={e => onChange(e.target.value)}>
+          {spec.options.map(o => <option key={o} value={o}>{PARAM_OPTION_KEYS[o] ? t(PARAM_OPTION_KEYS[o]) : o}</option>)}
         </select>
       </div>
     );
@@ -99,18 +103,18 @@ function ParamRow({ spec, value, readOnly, onChange }: {
   if (spec.kind === 'bool') {
     return (
       <div className="strat-prow">
-        <span>{spec.label}</span>
-        <input className="strat-pv" type="checkbox" checked={Boolean(value)} disabled={readOnly} aria-label={spec.label} onChange={e => onChange(e.target.checked ? 1 : 0)} />
+        <span>{label}</span>
+        <input className="strat-pv" type="checkbox" checked={Boolean(value)} disabled={readOnly} aria-label={label} onChange={e => onChange(e.target.checked ? 1 : 0)} />
       </div>
     );
   }
   return (
     <div className="strat-prow">
-      <span>{spec.label}</span>
+      <span>{label}</span>
       <input
         className="strat-pv" type="number" inputMode="numeric" value={String(value)}
         min={spec.min} max={spec.max} step={spec.kind === 'float' ? spec.step : (spec.step ?? 1)}
-        disabled={readOnly} aria-label={spec.label} onChange={e => onChange(Number(e.target.value))}
+        disabled={readOnly} aria-label={label} onChange={e => onChange(Number(e.target.value))}
       />
     </div>
   );
