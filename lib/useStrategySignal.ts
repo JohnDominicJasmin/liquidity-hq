@@ -4,6 +4,8 @@ import type { CoinId } from './marketStore.ts';
 import { fetchOHLCV, TF_BN, TF_BY } from './useEMAStrategy.ts';
 import { TF_MS, dropForming, msUntilNextClose } from './candles.ts';
 import { findStrategy, type StrategyResult } from './strategies/index.ts';
+import { coinKind } from './coins.ts';
+import { usCashOpen } from './marketHours.ts';
 import { fetchFundingHistory, fetchOiRelative, fetchTakerMap, fundingClassRelative } from './strategies/liveInputs.ts';
 
 export interface StrategySignalState {
@@ -12,6 +14,8 @@ export interface StrategySignalState {
   error: boolean;
   /** The picked strategy cannot run on this timeframe (it reads closed candles of 1m to 1d only). An honest end state, not a loading one. */
   unsupportedTf?: boolean;
+  /** A tokenized stock read while the US cash session is closed (lib/marketHours.ts): the call box adds one line with the last close. Absent for every other coin and while the market is open. */
+  marketClosed?: { lastClose: number };
   /** Runs the read again now (the Retry button of the unavailable state). */
   retry?: () => void;
 }

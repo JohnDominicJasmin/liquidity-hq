@@ -3584,5 +3584,7 @@
   "TG_WH_MOVED": "This chat was disconnected: your LiquidityHQ account is now linked to a different chat, so alerts will no longer arrive here.",
   "STRAT_SQUEEZE_WAIT_FUNDING": "Funding is not extreme for this coin.",
   "STRAT_SQUEEZE_WAIT_OI": "Open interest is not rising enough for this coin.",
-  "STRAT_SQUEEZE_WAIT_TRIGGER": "Funding and open interest are extreme; waiting for a close through the last swing."
+  "STRAT_SQUEEZE_WAIT_TRIGGER": "Funding and open interest are extreme; waiting for a close through the last swing.",
+  "STRAT_MKT_CLOSED": "US market closed: this strategy reads the cash session (09:30-16:00 New York).",
+  "STRAT_MKT_CLOSED_NOTE": "US market closed; last close {price}."
 }
