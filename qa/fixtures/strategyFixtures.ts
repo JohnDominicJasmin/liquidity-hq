@@ -49,8 +49,9 @@ export function flipCall(c: C[], levelP: number, side: 'resistance' | 'support',
   const atr = (i: number) => { const w: number[] = []; for (let j = Math.max(0, i - 13); j <= i; j++) w.push(tr(j)); return w.reduce((x, y) => x + y, 0) / w.length; };
   const up = side === 'resistance', sgn = up ? 1 : -1;
   const beyond = (i: number) => (up ? c[i].close >= levelP + 0.1 * atr(i) : c[i].close <= levelP - 0.1 * atr(i));
-  let broke = -1; for (let i = 1; i <= k; i++) if (beyond(i) && !beyond(i - 1)) broke = i;                 // the latest break
-  if (broke < 0 || broke === k) return { verdict: 'WAIT' };
+  const beyondBack = (i: number) => (up ? c[i].close <= levelP - 0.1 * atr(i) : c[i].close >= levelP + 0.1 * atr(i));   // a close back through the level, by the same margin
+  let broke = -1, backBroke = -1; for (let i = Math.max(1, k - 120); i <= k; i++) { if (beyond(i) && !beyond(i - 1)) broke = i; if (beyondBack(i) && !beyondBack(i - 1)) backBroke = i; }   // the latest break, looked for in the last 120 candles (the header: "the break is looked for in the last LOOKBACK candles")
+  if (broke < 0 || broke === k || backBroke > broke) return { verdict: 'WAIT' };   // CHOICE: "a new break needs a close back on the other side first": a later break the OTHER way voids this one
   let first = -1; for (let i = broke + 4; i <= k; i++) if (up ? c[i].low <= levelP : c[i].high >= levelP) { first = i; break; }
   if (first !== k || !(up ? c[k].close > levelP : c[k].close < levelP)) return { verdict: 'WAIT' };
   const st = up ? Math.min(levelP, c[k].low) : Math.max(levelP, c[k].high);
@@ -131,7 +132,7 @@ export function fvgCall(c: C[], zones: Zone[]): Call {
   const k = c.length - 1;
   const tr = (i: number) => (i === 0 ? c[0].high - c[0].low : Math.max(c[i].high - c[i].low, Math.abs(c[i].high - c[i - 1].close), Math.abs(c[i].low - c[i - 1].close)));
   const atr = (i: number) => { const w: number[] = []; for (let j = Math.max(0, i - 13); j <= i; j++) w.push(tr(j)); return w.reduce((x, y) => x + y, 0) / w.length; };
-  for (let i = k - 1; i >= 2; i--) {
+  for (let i = k - 1; i >= Math.max(2, k - 100); i--) {   // the gap is looked for in the last 100 candles (the header)
     const bull = c[i - 2].high < c[i].low, bear = c[i - 2].low > c[i].high; if (!bull && !bear) continue;
     const top = bull ? c[i].low : c[i - 2].low, bot = bull ? c[i - 2].high : c[i].high;   // bull gap = [bot, top] with bot = c[i-2].high
     let first = -1, filled = false;
