@@ -10,7 +10,7 @@
  * the deploy, and only users who link Telegram afterwards start OFF.
  *
  * WHEN: user_settings.daily_summary_hour (0-23, null = 7) in the user's own user_settings.timezone (null = UTC, same as every other
- * alert stamp). One send per chat per day: the cron's 23 h cooldown, the same one the 7 am summary used.
+ * alert stamp). One send per chat per LOCAL DATE (summaryDueNow in lib/dailySummaryPrefs.ts; it was a 23 h cooldown, which skipped a day when the hour moved earlier - QA F1).
  *
  * WHAT: the three tracked coins with the largest absolute 24 h move (Bybit linear tickers), each with a direction word and one fact
  * line, then every squeeze setup at or above the user's own squeeze threshold. Facts only - no advice. Coins the user muted on /alerts

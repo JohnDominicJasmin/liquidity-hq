@@ -15,7 +15,7 @@ import { checkCronAuth } from '@/lib/cronAuth';
 import { readFng, type FNGData } from '@/lib/fng';
 import { selectAllRows } from '@/lib/selectAllRows';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
-import { onCooldown, markSent, exportCooldownState, importCooldownState, beginStagedMarks, commitStagedMarks, discardStagedMarks } from '@/lib/alertCooldown';
+import { onCooldown, markSent, lastSentAt, exportCooldownState, importCooldownState, beginStagedMarks, commitStagedMarks, discardStagedMarks } from '@/lib/alertCooldown';
 import { apiError } from '@/lib/apiError';
 import { evaluatePriceAlert, type Candle1m } from '@/lib/priceAlertEval';
 import {
@@ -34,7 +34,7 @@ import { exchangeFetch } from '@/lib/exchangeGuard';
 import { validPushEndpoint } from '@/lib/pushEndpoint';
 import { afterSend, dueForRetry, holdExpired, type PendingDelivery, type SendResult } from '@/lib/priceAlertDelivery';
 import { TF_MS } from '@/lib/candles';
-import { isDailySummaryOn, summaryHour, inSummaryWindow, DEFAULT_DAILY_SUMMARY_HOUR, fetchMovers24h, topMovers, squeezeSetups, buildDailySummaryText, type SqueezeRead } from '@/lib/dailySummary';
+import { isDailySummaryOn, summaryHour, summaryDueNow, DEFAULT_DAILY_SUMMARY_HOUR, fetchMovers24h, topMovers, squeezeSetups, buildDailySummaryText, type SqueezeRead } from '@/lib/dailySummary';
 
 export const dynamic = 'force-dynamic';
 
@@ -306,7 +306,6 @@ const CD: Record<string, number> = {
   oi:         2 * 3600_000,
   cvd:       60 * 60_000,
   fng:       23 * 3600_000,   // Fear & Greed extreme (once per day)
-  daily:     23 * 3600_000,   // Daily summary, one per chat per day (lib/dailySummary.ts)
   sentiment:  4 * 3600_000,   // Sentiment Extremes - all 3 indicators aligned
   squeeze:      4 * 3600_000,   // Squeeze/Flush threshold alert per coin per direction
   distribution:  4 * 3600_000,   // Distribution - big players taking profit into strength
@@ -376,7 +375,8 @@ function alertTimeIn(timeZone: string | null): string {
   }
 }
 
-/* checkDailySummary's per-recipient morning-window check.
+/* checkDailySummary's per-recipient window check. The clock reading itself moved to lib/dailySummaryPrefs.ts (localDateTime /
+ * summaryDueNow, QA F1) with the same UTC fallback; the reasoning for that fallback stays here, beside CHAT_TZ.
  *
  * AN UNKNOWN TIMEZONE FALLS BACK TO UTC, AND THAT IS A DELIBERATE BEHAVIOUR CHANGE.
  *
@@ -391,7 +391,11 @@ function alertTimeIn(timeZone: string | null): string {
  *
  * WHY UTC RATHER THAN ANOTHER GUESS: it is the only neutral answer. Any real zone is a guess about
  * where someone lives, and picking one because it is where WE are is the thing being removed. A
- * recipient who sets their timezone is unaffected - this is only the default. */
+ * recipient who sets their timezone is unaffected - this is only the default. A zone Intl rejects
+ * also falls back to UTC, for the same reason.
+ *
+ * Kept, though checkDailySummary now reads the clock through summaryDueNow: __tests__/briefingDominanceFngH23 B4 pins its h23 form. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function localHourMinute(timeZone: string | null, d: Date): { hour: number; min: number } {
   const read = (zone: string) => {
     const parts = new Intl.DateTimeFormat('en-GB', {
@@ -405,8 +409,6 @@ function localHourMinute(timeZone: string | null, d: Date): { hour: number; min:
   try {
     return read(timeZone || 'UTC');
   } catch {
-    /* A bad zone string reaches here - Intl throws on an unknown identifier. UTC rather than a
-       re-guess, same reasoning as above. */
     return read('UTC');
   }
 }
@@ -1555,11 +1557,11 @@ async function checkDailySummary(
 
   const due: { r: Recipient; zone: string }[] = [];
   for (const r of optedIn) {
-    /* UTC when we do not know the recipient's zone (owner, 2026-10-31) - see localHourMinute. */
+    /* UTC when we do not know the recipient's zone (owner, 2026-10-31) - see the note above CHAT_TZ's readers. "Already sent" is the user's local DATE,
+       not a 23 h cooldown (QA F1): moving the hour earlier no longer skips a day. Marker unchanged: the ledger's epoch ms under daily_summary_<chatId>. */
     const zone = CHAT_TZ.get(r.chatId) || 'UTC';
-    const { hour, min } = localHourMinute(zone, d);
-    if (!inSummaryWindow(hour, min, hourByUser.get(r.userId) ?? DEFAULT_DAILY_SUMMARY_HOUR)) continue;
-    if (onCooldown(`daily_summary_${r.chatId}`, CD.daily)) continue;
+    const chosen = hourByUser.get(r.userId) ?? DEFAULT_DAILY_SUMMARY_HOUR;
+    if (!summaryDueNow(lastSentAt(`daily_summary_${r.chatId}`), chosen, zone, d.getTime())) continue;
     due.push({ r, zone });
   }
   if (due.length === 0) return [];
