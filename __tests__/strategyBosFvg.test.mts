@@ -119,13 +119,25 @@ test('f5. the signal is the FIRST return only: the same candle is a BUY while it
   assert.equal(detectBosFvg(toCandles(longer).slice(0, 31), CTX).verdict, 'buy', 'the first touch is a buy while it is the last candle');
 });
 
-test('f6. a gap that has been FILLED (a close below its bottom after it formed) never signals: the gap is formed on candle 20, candle 21 closes at 103 (below the bottom 104), candle 22 is the break (first close above 110); the later return into the old range is no signal', () => {
-  /* the gap [104, 107] is left by candle 20 (candle 18 high 104, candle 20 low 107, close 109: no break yet); candle 21 fills it; candle 22 breaks structure and leaves no new gap (candle 20 high 109, candle 22 low 108) */
-  const world = (dip: Row): Row[] => { const rows = bullRows(); rows.splice(20, 1, [109, 107, 109], dip, [114, 108, 112]); return rows; };
-  const filled = world([109, 102, 103]), control = world([109, 105, 106]);
-  assert.equal(detectBosFvg(toCandles(filled), CTX).verdict, 'wait', 'a filled gap must not signal');
-  const r = detectBosFvg(toCandles(control), CTX);   /* CONTROL: candle 21 closes at 106 (inside the gap range, not below it): the same world is a BUY, so the wait above is the fill and nothing else. The rule counts only candles AFTER the break as a return, so candle 21 touching the gap does not use up the first return */
+/* f6 (RE-PINNED for the STRICT mitigation rule, PM 2026-11-18, #2566 head 5b920c0b): "a gap that any candle traded into between its formation and the break (break candle included) is MITIGATED and skipped; an earlier or later gap in the same leg can still qualify."
+ * The world: gap [104,107] is left by candle 20 (candle 18 high 104, candle 20 low 107, close 109: no break yet); candle 21 is the DIP; candle 22 is the break (first close above 110); the return candle is last. */
+const f6world = (dip: Row, brk: Row = [114, 108, 112]): Row[] => { const rows = bullRows(); rows.splice(20, 1, [109, 107, 109], dip, brk); return rows; };
+test('f6a. a gap price traded INTO before the break is mitigated: wait (a touch to 105 inside [104,107], and a close below the bottom, both)', () => {
+  assert.equal(detectBosFvg(toCandles(f6world([109, 105, 106])), CTX).verdict, 'wait', 'a candle dipped into the gap before the break: the gap is mitigated');
+  assert.equal(detectBosFvg(toCandles(f6world([109, 102, 103])), CTX).verdict, 'wait', 'a close below the gap bottom (filled) is mitigated too');
+});
+test('f6b. the BREAK candle itself touching the gap mitigates it (low 107 equals the gap top: equal counts as a touch); low 108 does not', () => {
+  assert.equal(detectBosFvg(toCandles(f6world([109, 108, 109], [114, 107, 112])), CTX).verdict, 'wait', 'the break candle touched the gap top: mitigated');
+  assert.equal(detectBosFvg(toCandles(f6world([109, 108, 109], [114, 107.01, 112])), CTX).verdict, 'buy', 'low 107.01 is above the top 107: the gap is untouched');
+});
+test('f6c. CONTROL: with the dip staying ABOVE the gap (low 108) the same world is a BUY on the gap [104,107]: the waits above are the mitigation and nothing else', () => {
+  const r = detectBosFvg(toCandles(f6world([109, 108, 109])), CTX);
   assert.equal(r.verdict, 'buy'); assert.equal(r.params.gapLo, 104); assert.equal(r.params.gapHi, 107); assert.equal(r.params.bos, 110);
+});
+test('f6d. ANOTHER gap in the same leg can still qualify: the old gap [104,107] is mitigated by the dip, the break candle leaves a NEW gap [109,110.5] (candle 20 high 109 below candle 22 low 110.5) that the return candle enters', () => {
+  const rows = bullRows({ fill: 0, retClose: 109.8 }); rows.splice(20, 1, [109, 107, 109], [109, 105, 106], [114, 110.5, 112]); for (let i = 0; i < 8; i++) rows.unshift([101, 99, 100]);   /* 8 flat candles in front: MIN_CANDLES (30) needs them; flat equal highs/lows are no swing */
+  const r = detectBosFvg(toCandles(rows), CTX);
+  assert.equal(r.verdict, 'buy', 'the new untouched gap must qualify'); assert.equal(r.params.gapLo, 109); assert.equal(r.params.gapHi, 110.5); assert.equal(r.params.bos, 110);
 });
 
 test('f7. RETURN_WINDOW: a return 20 candles after the break is within the window (buy), 21 candles after is not (wait)', () => {
