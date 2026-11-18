@@ -205,7 +205,8 @@ test.describe('i18n: locale offering and page language', () => {
      * unrendered picker looks identical to a picker with no Arabic in it. */
     await expect(btn, 'the language picker did not render - nothing below would be meaningful').toBeVisible({ timeout: 20_000 });
 
-    await btn.click();
+    /* the button exists in the server HTML before React has attached its click handler: click until the menu is really open (aria-expanded), not once */
+    for (let attempt = 0; attempt < 8 && (await btn.getAttribute('aria-expanded')) !== 'true'; attempt++) { await btn.click(); await page.waitForTimeout(1_200); }
     const labels = (await page.locator('button.lp-lang-btn ~ div a').allInnerTexts())
       .map(s => s.trim()).filter(Boolean);
 

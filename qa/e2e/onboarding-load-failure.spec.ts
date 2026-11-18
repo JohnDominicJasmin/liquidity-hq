@@ -95,7 +95,7 @@ test.describe('#1309 item 13: onboarding read failure must not send a finished u
       await expect(wizard,
         'the onboarding wizard rendered for an ALREADY-FINISHED account on a FAILED read - this is ' +
         'exactly #1309 item 13: unknown was treated as incomplete').toBeHidden({ timeout: 20_000 });
-      await expect(page.getByRole('heading', { name: /dashboard/i }).or(page.locator('body')),
+      await expect(page.getByRole('heading', { name: /dashboard/i }).or(page.locator('body')).first(),
         'dashboard content never rendered either - this run may have measured a dead page, not a ' +
         'real pass').toBeVisible();
 
