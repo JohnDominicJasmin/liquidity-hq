@@ -3280,7 +3280,7 @@
   "CHART_LEGEND_ARIA": "What the chart labels mean",
   "CHART_LEGEND_TITLE": "Chart labels",
   "CHART_LEGEND_SR": "Resistance and support: most-touched swing highs and lows, last 200 candles.",
-  "CHART_LEGEND_MAX_PAIN": "BTC options: the price where most option holders lose most at expiry.",
+  "CHART_LEGEND_MAX_PAIN": "BTC options: price where most options expire worthless.",
   "CHART_LEGEND_GEX_FLIP": "BTC options: above it, moves tend to be calmer; below it, wilder.",
   "CHART_LEGEND_REALIZED": "Dollar total of liquidations that happened near this price, last 24 hours.",
   "CHART_LEGEND_POSITION": "Target, entry and stop of the selected strategy's position box.",
