@@ -28,6 +28,7 @@
 
 import type { GrokContext, ChartData } from './grok.ts';
 import { findIndicator } from './strategyRegistry.ts';
+import { STRATEGY_IDS } from './strategies/index.ts';
 import { COINS } from './coins.ts';
 import { isArenaTf } from './limits.ts';
 
@@ -309,4 +310,18 @@ export function parseSelection(raw: unknown): ArenaParseResult<string[]> {
     out.push(v);
   }
   return { ok: true, value: out };
+}
+
+/**
+ * The Arena strategy the trader picked, as an IDENTIFIER (owner order 2026-11-19: every read uses the picked strategy).
+ *
+ * ONLY THE ID TRAVELS. The strategy's call (verdict, entry, stop, target, reason) is computed by the server from its own closed candles
+ * (lib/arenaStrategyServer.ts); nothing the browser says about the result is read, so a tampered call has nothing to land in. Same
+ * shape as parseSelection: absent / null means none picked, an unknown id is refused rather than dropped.
+ */
+export function parseArenaStrategy(raw: unknown): ArenaParseResult<string | null> {
+  if (raw === undefined || raw === null) return { ok: true, value: null };
+  if (typeof raw !== 'string') return { ok: false, reason: 'strategy is not a string' };
+  if (!STRATEGY_IDS.has(raw)) return { ok: false, reason: 'strategy is not a known strategy' };
+  return { ok: true, value: raw };
 }
