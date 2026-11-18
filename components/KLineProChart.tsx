@@ -843,7 +843,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   }, [onResizeMove, onResizeEnd]);
   const { store } = useMarket();
   const { t: tl } = useLabels();
-  const { entitlementStatus } = useAuth();
+  const { entitlementStatus, entitlementsLoading } = useAuth();
   const coinData = store.coins[coin];
   const srOverlayIds              = useRef<string[]>([]);
   const strategyOverlayIds        = useRef<string[]>([]);
@@ -3479,7 +3479,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             So 'unknown' keeps today's behaviour and only 'not_entitled' locks. Reuses the Draw
             menu's classes so this adds no CSS - globals.css is a landing-gated file and this
             needs none of it. */}
-        {drawStructureAvailable(tf) && entitlementStatus === 'not_entitled' && onUnlock && (
+        {drawStructureAvailable(tf) && entitlementStatus === 'not_entitled' && onUnlock && !entitlementsLoading && (
           <div className="klc-draw-wrap klc-ds-wrap">
             {/* NEVER `requestStructures` ON THIS BRANCH. The server already refuses a Free
                 account, but a call that is certain to be refused is a wasted round trip and, on
@@ -3510,7 +3510,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           </div>
         )}
 
-        {drawStructureAvailable(tf) && entitlementStatus !== 'not_entitled' && (
+        {/* WHILE THE PLAN IS BEING READ, the plain button stands in (inert), not the locked one with its PRO tag: `entitlementStatus` is 'not_entitled' until the read settles, so a Pro account first saw the 170 px locked group (3 toolbar rows at 360 ru) and then the 103-148 px plain one (2 rows), moving the chart 30 px at about 1.5 s (QA run 44192577624, CLS 0.233). */}
+        {((drawStructureAvailable(tf) && entitlementStatus !== 'not_entitled') || (drawStructureAvailable(tf) && entitlementsLoading)) && (
           <div className="klc-draw-wrap klc-ds-wrap" ref={dsWrapRef}>
             <button
               className={`klc-tool-btn klc-draw-btn klc-ds-btn${proposals.length ? ' on' : ''}`}
@@ -3520,7 +3521,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                  own item, no new control. */
               onClick={proposals.length > 0 ? () => setDsMenuOpen(v => !v) : requestStructures}
               aria-expanded={dsMenuShown}
-              disabled={dsLoading}
+              disabled={dsLoading || entitlementsLoading}
               title={tl('DRAW_STRUCTURE_BUTTON')}
             >
               {dsLoading ? tl('DRAW_STRUCTURE_LOADING') : tl('DRAW_STRUCTURE_BUTTON')}
