@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import { isValidSummaryHour } from '@/lib/dailySummaryPrefs';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,8 @@ export interface UserSettings {
   /* The Arena strategy the trader picked (lib/strategies), or null for none. Separate from strategy_selection: that is indicator chips, this is a rule set that
      gives a buy/sell/wait verdict. An unknown id is treated as none on read. */
   arena_strategy:     string | null;
+  /* Hour (0-23) of the opt-in daily Telegram summary, in the user's own timezone. Null = never chosen, which means 07:00 (lib/dailySummary.ts). */
+  daily_summary_hour: number | null;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -87,6 +90,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   strategy_params:    null,
   arena_sound:        null,
   arena_strategy:     null,
+  daily_summary_hour: null,
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -328,6 +332,7 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
       : null,
     arena_sound: typeof row.arena_sound === 'boolean' ? row.arena_sound : null,
     arena_strategy: typeof row.arena_strategy === 'string' && row.arena_strategy ? row.arena_strategy : null,
+    daily_summary_hour: isValidSummaryHour(row.daily_summary_hour) ? row.daily_summary_hour : null,
     strategy_params: (row.strategy_params && typeof row.strategy_params === 'object' && !Array.isArray(row.strategy_params))
       ? row.strategy_params as Record<string, Record<string, string | number | boolean>>
       : null,

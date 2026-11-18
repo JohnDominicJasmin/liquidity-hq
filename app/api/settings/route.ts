@@ -6,6 +6,7 @@ import { shouldAcceptFieldWrite } from '@/lib/settingsFieldConcurrency';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { STRATEGY_IDS } from '@/lib/strategies';
+import { isValidSummaryHour } from '@/lib/dailySummaryPrefs';
 
 function sb(token: string) {
   return userClient(token);
@@ -70,6 +71,7 @@ export async function PATCH(req: NextRequest) {
     'timezone',
     'strategy_selection', 'strategy_params', 'arena_strategy',
     'arena_sound',
+    'daily_summary_hour',
   ];
   const payload: Record<string, unknown> = {};
   for (const key of ALLOWED) {
@@ -103,6 +105,11 @@ export async function PATCH(req: NextRequest) {
   // arena_sound is a tri-state (null = never asked): refuse anything else rather than store a string a client invented.
   if ('arena_sound' in payload && payload.arena_sound !== null && typeof payload.arena_sound !== 'boolean') {
     return NextResponse.json({ error: 'Invalid arena_sound' }, { status: 400 });
+  }
+
+  // daily_summary_hour: a whole hour 0-23, or null for the default (07:00). Anything else is refused.
+  if ('daily_summary_hour' in payload && !isValidSummaryHour(payload.daily_summary_hour)) {
+    return NextResponse.json({ error: 'Invalid daily_summary_hour' }, { status: 400 });
   }
 
   // strategy_selection/strategy_params are jsonb - reject anything that isn't
