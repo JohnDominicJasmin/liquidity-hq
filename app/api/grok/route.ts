@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { GROK_SERVER_DEEP_MS, GROK_SERVER_QUICK_MS } from '@/lib/grokDeadlines';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, VERDICT_RESTATED_CHECK, type ChartData, type GrokContext } from '@/lib/grok';
+import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, resolveReadLocale, VERDICT_RESTATED_CHECK, withReadLanguage, type ChartData, type GrokContext } from '@/lib/grok';
 import { arenaContextCoinId, COIN_NOT_TRACKED, parseArenaChart, parseArenaContext, parseSelection } from '@/lib/arenaContext';
 import { arenaServerNumbers } from '@/lib/arenaServerNumbers';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
@@ -163,7 +163,10 @@ export async function POST(req: NextRequest) {
   }
 
   const type: 'quick' | 'deep' = body.type === 'deep' ? 'deep' : 'quick';
-  const parsedCtx       = parseArenaContext(body.context);
+  /* The reader's language for the free text of the read. One of the five label languages, else English - never refused, since an
+     older tab sends none. Only selects a fixed sentence in lib/grok.ts; the client's string never reaches the prompt. */
+  const locale = resolveReadLocale(body.locale);
+  const parsedCtx      = parseArenaContext(body.context);
   const parsedChart     = parseArenaChart(body.chart);
   const parsedSelection = parseSelection(body.selection);
 
@@ -208,7 +211,7 @@ export async function POST(req: NextRequest) {
      measures about 26,000 characters, so this is roughly 2.4x headroom; anything larger is not the app
      talking. Kept as a check rather than dropped because the per-field caps bound each of 61 fields, and
      61 fields at their individual ceilings still add up. */
-  const clientPrompt = buildArenaPrompt(ctx, chart, type, selection);
+  const clientPrompt = withReadLanguage(buildArenaPrompt(ctx, chart, type, selection), locale);
   if (clientPrompt.length > 64_000) {
     console.warn(`[grok] refused request body: assembled prompt ${clientPrompt.length} chars`);
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
@@ -371,7 +374,7 @@ export async function POST(req: NextRequest) {
   }
   /* The indicators come from the request body, so the server applies the plan's limit itself: its own plan read says NOT ENTITLED -> only the first indicator (Free is one at a time). Unknown/failed read: as sent (#1119). */
   const planSelection = selectionForPlan(selection, plan.status === 'not_entitled') as string[];
-  const prompt = buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, planSelection);
+  const prompt = withReadLanguage(buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, planSelection), locale);
 
   /* The second bound. The server's fields are short formatted strings, so this cannot realistically
      fire once the first bound passed - which is why it is worth having: if it ever does, the gather

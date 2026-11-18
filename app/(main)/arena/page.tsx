@@ -200,7 +200,11 @@ const SCANNER_CAT_KEY = 'lhq_arena_scanner_cat';
 // #985 gap 3: selectionAtAnalysis is optional because entries persisted to
 // localStorage before this shipped won't have it. #1347 item 9: such an entry is
 // "unknown", NOT "computed with no selection" - it never claims the trader changed it.
-interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep'; selectionAtAnalysis?: readonly string[]; paramsAtAnalysis?: string }
+/* `locale` is the language the read was WRITTEN in (the AI writes in the user's language). Part of the cache key: an entry in another
+   language is not this user's read and is treated as absent, so an English read is never served to a Russian reader. An entry from
+   before this field was written in English, so a missing value reads as 'en'. */
+interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep'; selectionAtAnalysis?: readonly string[]; paramsAtAnalysis?: string; locale?: string }
+const entryLocale = (e: CacheEntry | undefined | null): string => e?.locale ?? 'en';
 const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
 const ARENA_RESULTS_KEY = 'arena-results-v2';
 const CACHE_MAX_AGE_MS  = 4 * 60 * 60 * 1000; // 4 hours - older results are discarded
@@ -258,7 +262,7 @@ const TF_FEATURE_LABEL_KEYS: Record<string, LabelKey> = {
 };
 
 function ArenaContent() {
-  const { t } = useLabels();
+  const { t, locale } = useLabels();
   // Clock for the analysis-freshness display and the cache-age gate below.
   // Both used to call Date.now() mid-render, which meant the "just now" label
   // and the expiry check only moved when something else re-rendered the page -
@@ -893,7 +897,9 @@ function ArenaContent() {
   }, []);
 
   // Derived - current coin's cached result (persists across coin switches)
-  const cacheEntry = resultsCache[selectedCoin] ?? null;
+  /* Keyed by coin AND language: a read written in another language is not shown (see CacheEntry). */
+  const cachedForCoin = resultsCache[selectedCoin];
+  const cacheEntry = cachedForCoin && entryLocale(cachedForCoin) === locale ? cachedForCoin : null;
   const result     = cacheEntry?.result ?? null;
   /* #985 gap 3 / #1347 item 4: lifted here from inside the signal card's own
      render (it used to be computed twice - once there, once nowhere - for
@@ -1719,7 +1725,7 @@ function ArenaContent() {
     if (!force) {
       const currentPrice = store.coins[selectedCoin]?.price ?? 0;
       const entry = resultsCache[selectedCoin];
-      if (entry && entry.mode === mode) {
+      if (entry && entry.mode === mode && entryLocale(entry) === locale) {
         const ageSecs  = (Date.now() - entry.result.analyzedAt) / 1000;
         const pricePct = currentPrice > 0
           ? Math.abs(currentPrice - entry.priceAtAnalysis) / currentPrice * 100
@@ -1844,13 +1850,13 @@ function ArenaContent() {
          it, so the coin and timeframe its gates check are read out of the same objects the prompt is built
          from. The indicator selection goes as identifiers; the sentences that tell the model to weigh them
          are instructions and live on the server with the rest of the prompt. */
-      const { result: res, usage } = await callGrokViaProxy(ctx, chartData, mode, selection);
+      const { result: res, usage } = await callGrokViaProxy(ctx, chartData, mode, selection, locale);
       if (usage) setGrokUsage(usage);
       track.arenaAnalysis(mode, selectedCoin);
 
       // Cache result per coin (with price snapshot for stale-check)
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
-      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: selection, paramsAtAnalysis: settingsSig } }));
+      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: selection, paramsAtAnalysis: settingsSig, locale } }));
       // Track Quick signals separately so Deep can show an override notice when they disagree
       if (mode === 'quick') setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal }));
       setDetailIdx(null);
@@ -1971,7 +1977,7 @@ function ArenaContent() {
        #814 exists to fix, reproduced silently and indistinguishable from a
        browser that has genuinely watched no liquidations. It changes at most
        once per LIQ_CLUSTER_REFRESH_MS, so the identity churn is bounded. */
-  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, resultsCache, liqClusters]);
+  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, resultsCache, liqClusters, locale]);
 
   /* #996: the one place QUICK/DEEP/ASK AI run from, so the toolbar buttons
      below and StrategyPanel's own copies of the same three buttons cannot
@@ -2031,7 +2037,7 @@ function ArenaContent() {
     if (!user) { window.location.href = '/login'; return; }
     if (coinLocked) return; // #1596: Quick and Deep do not run on a locked coin (the server refuses it too)
     const entry = resultsCache[selectedCoin];
-    const force = !!(entry && entry.mode === kind && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
+    const force = !!(entry && entryLocale(entry) === locale && entry.mode === kind && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
     readMarket(selection, kind, force, emaSignal.loading);
     window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
   };
@@ -2854,11 +2860,12 @@ function ArenaContent() {
           /* 'stale' prints its own words. Falling through to 'neutral' here was the bug in the first
              cut of this change: the state existed in the type and died at the render, so a dropped
              old vote looked exactly like a coin with no signal at all. */
-          { k: 'Ribbon',    v: ribbonRel === 'agrees' ? 'agrees' : ribbonRel === 'opposes' ? 'opposes' : ribbonRel === 'stale' ? 'no recent signal' : 'neutral', c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '✓' : ribbonRel === 'opposes' ? '✗' : '•' /* agreement with the READ, not a market direction: a green up arrow on a BEARISH read was wrong (PM audit 2026-11-17) */ },
-          { k: 'Squeeze',   v: sqzCount > 0 ? 'building' : flushCount > 0 ? 'flush risk' : 'quiet', c: sqzCount > 0 ? GC : flushCount > 0 ? RC : NC, a: sqzCount > 0 ? '↑' : flushCount > 0 ? '↓' : '•' },
-          { k: 'Funding',   v: frPct == null ? (feedGraceOver ? 'unavailable' : 'loading…') : frPct >= 0.03 ? 'long-heavy' : frPct <= -0.02 ? 'short-heavy' : 'neutral', c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' },
-          { k: 'Multi-TF',  v: tfBull >= 2 ? `${tfBull}/3 up` : tfBear >= 2 ? `${tfBear}/3 down` : (tfBull > 0 && tfBear > 0) ? 'conflicting' : 'mixed', c: tfBull >= 2 ? GC : tfBear >= 2 ? RC : NC, a: tfBull >= 2 ? '↑' : tfBear >= 2 ? '↓' : '•' },
-          { k: 'Whale CVD', v: coinD?.cvdDivergence === 'bullish' ? 'bullish' : coinD?.cvdDivergence === 'bearish' ? 'bearish' : 'flat', c: coinD?.cvdDivergence === 'bullish' ? GC : coinD?.cvdDivergence === 'bearish' ? RC : NC, a: coinD?.cvdDivergence === 'bullish' ? '↑' : coinD?.cvdDivergence === 'bearish' ? '↓' : '•' },
+          /* Chip names and value words are labels (PM ru sign-off 2026-11-18: these were English in every locale). `id` is the React key, so it does not change with the language. */
+          { id: 'ribbon',  k: t('ARENA_FCHIP_RIBBON'),    v: ribbonRel === 'agrees' ? t('ARENA_FCHIP_V_AGREES') : ribbonRel === 'opposes' ? t('ARENA_FCHIP_V_OPPOSES') : ribbonRel === 'stale' ? t('ARENA_FCHIP_V_NO_RECENT') : t('ARENA_FCHIP_V_NEUTRAL'), c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '✓' : ribbonRel === 'opposes' ? '✗' : '•' /* agreement with the READ, not a market direction: a green up arrow on a BEARISH read was wrong (PM audit 2026-11-17) */ },
+          { id: 'squeeze', k: t('ARENA_FCHIP_SQUEEZE'),   v: sqzCount > 0 ? t('ARENA_FCHIP_V_BUILDING') : flushCount > 0 ? t('ARENA_FCHIP_V_FLUSH_RISK') : t('ARENA_FCHIP_V_QUIET'), c: sqzCount > 0 ? GC : flushCount > 0 ? RC : NC, a: sqzCount > 0 ? '↑' : flushCount > 0 ? '↓' : '•' },
+          { id: 'funding', k: t('ARENA_FCHIP_FUNDING'),   v: frPct == null ? (feedGraceOver ? t('ARENA_FCHIP_V_UNAVAILABLE') : t('ARENA_FCHIP_V_LOADING')) : frPct >= 0.03 ? t('ARENA_FCHIP_V_LONG_HEAVY') : frPct <= -0.02 ? t('ARENA_FCHIP_V_SHORT_HEAVY') : t('ARENA_FCHIP_V_NEUTRAL'), c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' },
+          { id: 'multitf', k: t('ARENA_FCHIP_MULTI_TF'),  v: tfBull >= 2 ? t('ARENA_FCHIP_V_TF_UP', { n: tfBull }) : tfBear >= 2 ? t('ARENA_FCHIP_V_TF_DOWN', { n: tfBear }) : (tfBull > 0 && tfBear > 0) ? t('ARENA_FCHIP_V_CONFLICTING') : t('ARENA_FCHIP_V_MIXED'), c: tfBull >= 2 ? GC : tfBear >= 2 ? RC : NC, a: tfBull >= 2 ? '↑' : tfBear >= 2 ? '↓' : '•' },
+          { id: 'cvd',     k: t('ARENA_FCHIP_WHALE_CVD'), v: coinD?.cvdDivergence === 'bullish' ? t('ARENA_FCHIP_V_BULLISH') : coinD?.cvdDivergence === 'bearish' ? t('ARENA_FCHIP_V_BEARISH') : t('ARENA_FCHIP_V_FLAT'), c: coinD?.cvdDivergence === 'bullish' ? GC : coinD?.cvdDivergence === 'bearish' ? RC : NC, a: coinD?.cvdDivergence === 'bullish' ? '↑' : coinD?.cvdDivergence === 'bearish' ? '↓' : '•' },
         ];
         const prevQuickSignal = quickSignals[selectedCoin];
         const showOverride = !!(
@@ -2950,7 +2957,7 @@ function ArenaContent() {
             {/* Factor chips - live signals behind the read */}
             <div className="av-factors">
               {factors.map(f => (
-                <span key={f.k} className="av-fchip"><span style={{ color: f.c }}>{f.a}</span> {f.k} <b>{f.v}</b></span>
+                <span key={f.id} className="av-fchip"><span style={{ color: f.c }}>{f.a}</span> {f.k} <b>{f.v}</b></span>
               ))}
             </div>
 
@@ -3108,8 +3115,9 @@ function ArenaContent() {
               <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>{t('ARENA_REASONING_PATTERNS_TITLE')}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {result.patterns.map((p, i) => {
-                  const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
-                  const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
+                  /* The read is written in the user's language now, so the direction words are matched in ko/zh/ru/ar too; an unmatched pattern stays the neutral blue, as before. */
+                  const isBull = /bull|higher high|engulf.*bull|hammer|morning|бычь|бычий|восходящ|강세|상승|看涨|多头|صعود/i.test(p);
+                  const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top|медвеж|нисходящ|двойная вершина|약세|하락|看跌|空头|هبوط/i.test(p);
                   const col = isBull ? 'var(--green-2)' : isBear ? 'var(--red)' : '#1a7aff';
                   const bg  = isBull ? 'color-mix(in srgb, var(--green-2) 8%, transparent)' : isBear ? 'color-mix(in srgb, var(--red) 8%, transparent)' : 'rgba(26,122,255,0.08)';
                   const bdr = isBull ? 'color-mix(in srgb, var(--green-2) 25%, transparent)' : isBear ? 'color-mix(in srgb, var(--red) 25%, transparent)' : 'rgba(26,122,255,0.25)';

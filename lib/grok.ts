@@ -47,6 +47,8 @@ export async function callGrokViaProxy(
   chart: ChartData,
   type: 'quick' | 'deep',
   selection: readonly string[] = [],
+  /** The reader's language. The server validates it (resolveReadLocale) and asks for the free text in it. */
+  locale: string = 'en',
 ): Promise<{ result: CombinedResult; usage: GrokUsageInfo | null }> {
   const token = await getAuthToken();
 
@@ -60,7 +62,7 @@ export async function callGrokViaProxy(
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ context: ctx, chart, type, selection }),
+      body: JSON.stringify({ context: ctx, chart, type, selection, locale }),
       signal: deadlineSignal(type === 'deep' ? GROK_DEEP_TIMEOUT_MS : GROK_QUICK_TIMEOUT_MS),
     });
   } catch (e) {
@@ -1389,6 +1391,47 @@ export function buildArenaPrompt(
     'ribbon line above, each named with its latest value. Weigh ONLY the indicators whose readings',
     'appear there, give them more weight, and say plainly if they disagree with the rest of the data.',
     'Do not weigh, or name as weighted, any indicator that has no reading line above.',
+  ].join('\n');
+}
+
+/** The Arena prompt with the language instruction appended, last, so it is the final thing the model reads. English is returned unchanged. */
+export function withReadLanguage(prompt: string, locale: ReadLocale): string {
+  const lang = readLanguageInstruction(locale);
+  return lang ? `${prompt}\n\n${lang}` : prompt;
+}
+
+/* ── The language of the read (PM ru sign-off 2026-11-18: the read was English in every locale) ──
+ *
+ * The languages the app has labels for. Anything else, missing or malformed, is English: the value comes from the request body,
+ * and it is used only to pick one of these fixed sentences, so nothing the client sends reaches the prompt as text. */
+export const READ_LOCALES = ['en', 'ko', 'zh', 'ru', 'ar'] as const;
+export type ReadLocale = (typeof READ_LOCALES)[number];
+
+export function resolveReadLocale(v: unknown): ReadLocale {
+  return typeof v === 'string' && (READ_LOCALES as readonly string[]).includes(v) ? (v as ReadLocale) : 'en';
+}
+
+const READ_LANGUAGE_NAMES: Record<Exclude<ReadLocale, 'en'>, string> = {
+  ko: 'Korean',
+  zh: 'Simplified Chinese',
+  ru: 'Russian',
+  ar: 'Arabic',
+};
+
+/** The one instruction that sets the language of the free text, or '' for English (the English prompt is unchanged).
+ *  Everything the parser reads stays in English: the field names, the verdict, bias and raid words, the COUNTED line, the level type,
+ *  the "none" markers and the catalyst timestamp. parseCombinedResponse matches those literally, so only the text between them moves. */
+export function readLanguageInstruction(locale: ReadLocale): string {
+  if (locale === 'en') return '';
+  const name = READ_LANGUAGE_NAMES[locale];
+  return [
+    `=== LANGUAGE: ${name.toUpperCase()} (${locale}) ===`,
+    `Write every free-text value in ${name}: the WHY reasons, the level labels, the RAID_TRIGGER sentence, the catalyst claims, CHART_ANALYSIS, the PATTERNS names, WAIT_FOR and REASONING.`,
+    'Keep these exactly as specified, in English, because the answer is read by a program:',
+    '- every field name with its colon: SIGNAL:, BIAS_LEAN:, CONFIDENCE:, COUNTED:, WHY:, RAID_SETUP:, RAID_TARGET:, RAID_TRIGGER:, LEVELS:, CATALYSTS:, CHART_ANALYSIS:, PATTERNS:, WAIT_FOR:, REASONING:',
+    '- the values of SIGNAL, BIAS_LEAN and RAID_SETUP: BULLISH, LEAN BULLISH, FLAT, LEAN BEARISH, BEARISH, NEUTRAL, SHORT SQUEEZE, LONG FLUSH, NONE',
+    '- the whole COUNTED line, the words support and resistance in LEVELS, N/A, "None detected", "- None in input"',
+    '- the catalyst time in the format YYYY-MM-DD HH:MM UTC, coin tickers, prices and numbers.',
   ].join('\n');
 }
 
