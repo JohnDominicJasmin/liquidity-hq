@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useMarket } from '@/lib/marketStore';
 import { useLabels } from '@/lib/labels';
+import { macroStampDate } from '@/lib/macroStamp';
 
 export default function MacroStrip() {
   const { store } = useMarket();
@@ -32,6 +33,7 @@ export default function MacroStrip() {
   const items = [
     {
       label: 'DXY',
+      asOf: store.macroAsOf.dxy,
       price: store.dxy,
       chg: store.dxyChg,
       fmt: (v: number) => v.toFixed(2),
@@ -41,6 +43,7 @@ export default function MacroStrip() {
     },
     {
       label: 'SPX',
+      asOf: store.macroAsOf.spx,
       price: store.spx,
       chg: store.spxChg,
       fmt: (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 }),
@@ -50,6 +53,7 @@ export default function MacroStrip() {
     },
     {
       label: t('MACRO_STRIP_GOLD'),
+      asOf: store.macroAsOf.gold,
       price: store.gold,
       chg: store.goldChg,
       fmt: (v: number) => '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }),
@@ -63,8 +67,11 @@ export default function MacroStrip() {
     <div className="macro-strip">
       <div className="macro-strip-title">{t('MACRO_STRIP_TITLE')}</div>
       <div className="macro-strip-row">
-        {items.map(({ label, price, chg, fmt, signal }) => {
+        {items.map(({ label, asOf, price, chg, fmt, signal }) => {
           const sig = chg != null ? signal(chg) : null;
+          /* A value whose own time is old (a weekend, the night) says so: "Fri close", never Friday's number shown as if it were now (#1651). */
+          const stampDate = price != null ? macroStampDate(asOf, Date.now()) : null;
+          const stamp = stampDate ? t('MACRO_STRIP_CLOSE_STAMP', { day: stampDate.toLocaleDateString(undefined, { weekday: 'short' }) }) : null;
           return (
             <div key={label} className="macro-item">
               <div className="macro-item-label">{label}</div>
@@ -79,6 +86,7 @@ export default function MacroStrip() {
               {sig && (
                 <div className="macro-item-signal" style={{ color: sig.col }}>{sig.txt}</div>
               )}
+              {stamp && <div className="macro-item-stamp" data-testid="macro-stamp" style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>{stamp}</div>}
             </div>
           );
         })}
