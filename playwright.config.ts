@@ -227,7 +227,8 @@ export default defineConfig({
     // mobile tests fail in ~2ms with "Executable doesn't exist at
     // ...webkit-2336", which reads like 71 product bugs rather than one config
     // line.
-    { name: 'mobile', use: { ...devices['iPhone 13'], browserName: 'chromium' } },
+    /* The mobile project does NOT re-run the specs that build their OWN browser contexts with their own viewports (browser.newContext({ viewport })): the device profile never applies to them, so a second run repeats the desktop run's work. Measured on release run 44205270102 (v2026.11.18 PR #2533): these five took 4,839 s of the mobile job's 13,030 s of cell time, which is what pushed the job past its 2-hour cap (cancelled at test ~907). Added by QA 2026-11-18. */
+    { name: 'mobile', use: { ...devices['iPhone 13'], browserName: 'chromium' }, testIgnore: ['**/landing-2302-2303.spec.ts', '**/landing-overflow-sampling.spec.ts', '**/lcp-breakdown.spec.ts', '**/speed-first-load.spec.ts', '**/landing-honest-states.spec.ts'] },
   ],
 
   // Playwright builds and boots the app itself so CI and local behave the same.
