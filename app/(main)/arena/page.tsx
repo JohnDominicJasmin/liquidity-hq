@@ -2165,7 +2165,7 @@ function ArenaContent() {
           {/* The "How this page works" link sits at the right of the header. The Upgrade pill that used to share this row is gone (#2514: one "With Pro" line per page instead of repeated upgrade prompts). */}
           <span style={{ marginLeft: 'auto', display: 'inline-flex' }}><PageHintLink pageKey="arena" open={arenaHintOpen} onClick={() => setArenaHintOpen(v => !v)} /></span>
         </div>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
+        <div className="arena-subtitle" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
 
       {arenaHintOpen && <PageHintBox title={t('ARENA_HINT_TITLE')} body={t('ARENA_HINT_BODY')} onClose={() => setArenaHintOpen(false)} />}
