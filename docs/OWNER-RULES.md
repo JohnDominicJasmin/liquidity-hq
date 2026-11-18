@@ -737,6 +737,19 @@ Tracked on #1651.
 - A confirmation box from a tool is not a reason to message him. If a tool blocks, route around it
   or fix the tool setting, and tell him in one line only if he must click something.
 
+## 23. IF YOU HAVE A SUGGESTION, DO IT. DO NOT ASK.
+
+**Owner, 2026-11-18, three times in one hour, furious:**
+
+> *"If you already have a suggestion then go with it. Why are you asking question?"*
+> *"We're expecting me to walk on my laptop and answer your question?"*
+
+- **A "Problem / Options / I suggest" block is NOT a way to ask him to pick.** If you can act on
+  your suggestion, act on it and tell him afterwards in one line what was done.
+- Ask him only for what you physically cannot do yourself (his money, a `main` merge, a production
+  deploy), and even then never when he is resting.
+- If a tool blocks the suggestion, do everything else, and do not ask him to click anything.
+
 ## Keeping this file true
 
 **RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**
