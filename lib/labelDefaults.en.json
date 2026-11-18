@@ -239,11 +239,11 @@
   "STRAT_TIP_FVG": "Uses closed candles: gaps between three candles.",
   "STRAT_TIP_SESSION": "Uses candles of 1h or finer, by UTC hour.",
   "STRAT_SQUEEZE_NAME": "Funding + OI squeeze",
-  "STRAT_SQUEEZE_DESC": "Funding at an extreme for this coin with open interest rising, then a close through the last swing against the crowd.",
+  "STRAT_SQUEEZE_DESC": "Funding and open interest both at an extreme for this coin, then a close through the last swing against the crowd.",
   "STRAT_SQUEEZE_BUY": "Shorts paying an extreme rate for this coin (funding {fr}%, OI up {oi}%); closed above {swing}.",
   "STRAT_SQUEEZE_SELL": "Longs paying an extreme rate for this coin (funding {fr}%, OI up {oi}%); closed below {swing}.",
   "STRAT_SQUEEZE_WAIT": "No extreme funding for this coin with OI rising and a trigger.",
-  "STRAT_SQUEEZE_NO_LIVE": "Needs live funding, its 90-day history and open interest.",
+  "STRAT_SQUEEZE_NO_LIVE": "Needs live funding and open interest, each with enough history for this coin.",
   "STRAT_CVD_NAME": "CVD absorption",
   "STRAT_CVD_DESC": "Heavy one-sided taker flow that price held against, then a close past the last candle's range.",
   "STRAT_CVD_BUY": "Heavy selling for {n} candles, price held {low}; closed above {trigger}.",
@@ -3581,5 +3581,8 @@
   "TG_WH_DISPLACED": "This chat was linked to another LiquidityHQ account, which no longer receives alerts here.",
   "TG_WH_FINISH_FAILED": "Could not finish connecting. Try again.",
   "TG_WH_FINISH_FAILED_LONG": "Could not finish connecting. Press Confirm again, or start again from the app.",
-  "TG_WH_MOVED": "This chat was disconnected: your LiquidityHQ account is now linked to a different chat, so alerts will no longer arrive here."
+  "TG_WH_MOVED": "This chat was disconnected: your LiquidityHQ account is now linked to a different chat, so alerts will no longer arrive here.",
+  "STRAT_SQUEEZE_WAIT_FUNDING": "Funding is not extreme for this coin.",
+  "STRAT_SQUEEZE_WAIT_OI": "Open interest is not rising enough for this coin.",
+  "STRAT_SQUEEZE_WAIT_TRIGGER": "Funding and open interest are extreme; waiting for a close through the last swing."
 }

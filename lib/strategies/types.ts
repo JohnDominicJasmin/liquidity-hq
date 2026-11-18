@@ -21,6 +21,8 @@ export interface StrategyContext {
   fundingClass?: 'longs_heavy' | 'shorts_heavy' | 'none';
   fundingPct?: number;
   oiChange6Pct?: number | null;
+  /** Open interest's change over the last 6 candles is in the TOP 20% of that coin's own changes on this timeframe (liveInputs.ts oiRelative): true / false, null = no reading (too little history). */
+  oiExtreme?: boolean | null;
   taker?: ReadonlyMap<number, { buy: number; sell: number }>;
 }
 

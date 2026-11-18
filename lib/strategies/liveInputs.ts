@@ -19,7 +19,7 @@ export function fundingClassOf(rate: number | null | undefined): { fundingClass:
 export const FUNDING_WINDOW_DAYS = 90;
 export const FUNDING_EXTREME_SHARE = 0.95;
 export const FUNDING_MIN_POINTS = 60;
-export const FUNDING_MIN_SPAN_DAYS = 45;
+export const FUNDING_MIN_SPAN_DAYS = 30;
 export interface FundingPoint { time: number; rate: number }
 
 export function fundingClassRelative(rate: number | null | undefined, history: readonly FundingPoint[] | null | undefined, nowMs: number): { fundingClass: 'longs_heavy' | 'shorts_heavy' | 'none'; fundingPct: number } | null {
@@ -47,19 +47,58 @@ export function parseBybitFunding(body: unknown): FundingPoint[] {
   return list.map(r => ({ time: Number(r?.fundingRateTimestamp), rate: Number(r?.fundingRate) })).filter(p => Number.isFinite(p.time) && Number.isFinite(p.rate));
 }
 
-/** The coin's recent settled funding rates through the app's own cached proxy (15 min cache, one request per coin): Binance futures, newest 300 settlements (100 days at 8 h), else Bybit, newest 200 (67 days). Null when neither answers: the strategy then says it has no reading. */
-export async function fetchFundingHistory(coin: string, signal?: AbortSignal): Promise<FundingPoint[] | null> {
+/* THE FUNDING HISTORY IS READ BY TIME, NOT BY COUNT (PM, 2026-11-19). A coin that settles every hour has 24 settlements a day, so "the newest 300" was only 12 days of it. The history is paged back from now to FUNDING_WINDOW_DAYS
+   days by start / end time (Binance futures: oldest first, up to 1000 a page; Bybit: newest first, up to 200 a page). Time cursors are not cached by the proxy, so the result is kept here per coin for FUNDING_CACHE_MS: one read per coin
+   per half hour, however often the strategy runs. The caller accepts a history that reaches back FUNDING_MIN_SPAN_DAYS (30) days; a shorter one is no reading. */
+const FUNDING_CACHE_MS = 30 * 60_000;
+const fundingCache = new Map<string, { at: number; pts: FundingPoint[] }>();
+
+async function pageBinanceFunding(sym: string, start: number, end: number, signal?: AbortSignal): Promise<FundingPoint[]> {
+  const out: FundingPoint[] = [];
+  let cursor = start;
+  for (let page = 0; page < 6; page++) {
+    const r = await fetch(`/api/proxy?type=funding-rate-1&symbol=${sym}&startTime=${cursor}&endTime=${end}&limit=1000`, { signal });
+    if (!r.ok) break;
+    const rows = parseBinanceFunding(await r.json());
+    if (!rows.length) break;
+    out.push(...rows);
+    const last = rows[rows.length - 1].time;
+    if (rows.length < 1000 || last <= cursor) break;
+    cursor = last + 1;
+  }
+  return out;
+}
+
+async function pageBybitFunding(sym: string, start: number, end: number, signal?: AbortSignal): Promise<FundingPoint[]> {
+  const out: FundingPoint[] = [];
+  let upper = end;
+  for (let page = 0; page < 14; page++) {
+    const r = await fetch(`/api/proxy?type=funding-history&symbol=${sym}&startTime=${start}&endTime=${upper}&limit=200`, { signal });
+    if (!r.ok) break;
+    const rows = parseBybitFunding(await r.json());
+    if (!rows.length) break;
+    out.push(...rows);
+    const oldest = Math.min(...rows.map(p => p.time));
+    if (rows.length < 200 || oldest <= start) break;
+    upper = oldest - 1;
+  }
+  return out.sort((a, b) => a.time - b.time);
+}
+
+/** The coin's settled funding rates of the last 90 days, paged by time through the app's proxy (Binance futures, else Bybit), cached per coin for 30 minutes. Null when neither answers. */
+export async function fetchFundingHistory(coin: string, signal?: AbortSignal, nowMs: number = Date.now()): Promise<FundingPoint[] | null> {
+  const hit = fundingCache.get(coin);
+  if (hit && nowMs - hit.at < FUNDING_CACHE_MS) return hit.pts;
   const bn = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
   const by = (BYBIT_SYMS as Record<string, string | undefined>)[coin];
-  const tries: Array<{ url: string; parse: (b: unknown) => FundingPoint[] }> = [];
-  if (bn) tries.push({ url: `/api/proxy?type=funding-rate-1&symbol=${bn}&limit=300`, parse: parseBinanceFunding });
-  if (by) tries.push({ url: `/api/proxy?type=funding-history&symbol=${by}&limit=200`, parse: parseBybitFunding });
-  for (const t of tries) {
+  const start = nowMs - FUNDING_WINDOW_DAYS * 86_400_000;
+  const tries: Array<() => Promise<FundingPoint[]>> = [];
+  if (bn) tries.push(() => pageBinanceFunding(bn, start, nowMs, signal));
+  if (by) tries.push(() => pageBybitFunding(by, start, nowMs, signal));
+  for (const run of tries) {
     try {
-      const r = await fetch(t.url, { signal });
-      if (!r.ok) continue;
-      const pts = t.parse(await r.json());
-      if (pts.length) return pts;
+      const pts = await run();
+      if (pts.length) { fundingCache.set(coin, { at: nowMs, pts }); return pts; }
     } catch (e) {
       if ((e as { name?: string })?.name === 'AbortError') throw e;
     }
@@ -76,6 +115,37 @@ export function oiChange6(rows: ReadonlyArray<{ sumOpenInterest?: string | numbe
   const a = Number(last7[0].sumOpenInterest), b = Number(last7[6].sumOpenInterest);
   if (!(a > 0) || !Number.isFinite(b)) return null;
   return Math.round(((b / a - 1) * 100) * 100) / 100;
+}
+
+/* OPEN INTEREST "RISING" JUDGED AGAINST THE COIN'S OWN HISTORY (PM, 2026-11-19), the same logic as funding. The changes over every 6 candles in the OI history Binance serves (the newest OI_ROWS rows of this timeframe; its history reaches
+   back 30 days at most) are the coin's own distribution; the live change (the newest 6 candles) is EXTREME when it is above zero AND at least 80% of the earlier changes were strictly lower (the top 20%). NO READING (null) when there are
+   fewer than OI_MIN_ROWS rows, when they span less than OI_MIN_SPAN_DAYS days, or when the rows are not one candle apart. Never a guess. */
+export const OI_ROWS = 500;
+export const OI_MIN_ROWS = 120;
+export const OI_MIN_SPAN_DAYS = 14;
+export const OI_EXTREME_SHARE = 0.8;
+
+export function oiRelative(rows: ReadonlyArray<{ sumOpenInterest?: string | number; timestamp?: number }> | null | undefined, tfMs: number): { oiChange6Pct: number; oiExtreme: boolean } | null {
+  if (!Array.isArray(rows) || rows.length < OI_MIN_ROWS) return null;
+  const oi = rows.map(r => Number(r.sumOpenInterest)), ts = rows.map(r => Number(r.timestamp));
+  const n = rows.length;
+  if (!ts.every(Number.isFinite) || (ts[n - 1] - ts[0]) < OI_MIN_SPAN_DAYS * 86_400_000) return null;
+  if (Math.abs((ts[n - 1] - ts[0]) / (n - 1) - tfMs) > tfMs * 0.1) return null;
+  const chg: number[] = [];
+  for (let i = 6; i < n; i++) if (oi[i - 6] > 0 && Number.isFinite(oi[i])) chg.push((oi[i] / oi[i - 6] - 1) * 100);
+  const live = chg[chg.length - 1];
+  const hist = chg.slice(0, -1);
+  if (!Number.isFinite(live) || hist.length < OI_MIN_ROWS - 7) return null;
+  const below = hist.filter(c => c < live).length / hist.length;
+  return { oiChange6Pct: Math.round(live * 100) / 100, oiExtreme: live > 0 && below >= OI_EXTREME_SHARE };
+}
+
+export async function fetchOiRelative(coin: string, tf: string, tfMs: number, signal?: AbortSignal): Promise<{ oiChange6Pct: number; oiExtreme: boolean } | null> {
+  const sym = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
+  if (!sym) return null;
+  const r = await fetch(`/api/proxy?type=oi-hist&symbol=${sym}&period=${tf}&limit=${OI_ROWS}`, { signal });
+  if (!r.ok) return null;
+  return oiRelative((await r.json()) as never, tfMs);
 }
 
 export async function fetchOiChange6(coin: string, tf: string, tfMs: number, signal?: AbortSignal): Promise<number | null> {
