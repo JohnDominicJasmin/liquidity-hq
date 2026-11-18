@@ -5,8 +5,9 @@
  * means ON, no row means OFF. The old `daily_summary` mute row no longer counts (lib/dailySummaryPrefs.ts says why); it cannot switch anyone on.
  *
  * What this cannot do, stated rather than discovered: the opt-out model never stored "I turned it on" (turning a key on DELETES its row),
- * so a user who received the old 7 am summary on purpose looks exactly like one who never touched it. Every existing user starts OFF and
- * turns it on once; no backfill can tell the two apart.
+ * so a user who received the old 7 am summary on purpose looks exactly like one who never touched it. The migration that adds the hour
+ * (20261119v) therefore writes the ON row for every current receiver (linked chat, no 'daily_summary' mute): nobody loses the summary at
+ * the deploy, and only users who link Telegram afterwards start OFF.
  *
  * WHEN: user_settings.daily_summary_hour (0-23, null = 7) in the user's own user_settings.timezone (null = UTC, same as every other
  * alert stamp). One send per chat per day: the cron's 23 h cooldown, the same one the 7 am summary used.

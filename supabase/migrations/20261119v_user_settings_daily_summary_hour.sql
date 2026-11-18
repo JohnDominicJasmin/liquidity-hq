@@ -4,19 +4,53 @@
 -- THE GRANT IS PART OF THIS FILE: 20261021e revoked table-wide insert/update on lhq_user_settings from authenticated and re-granted only an allowlist of columns, so a new column
 -- is not writable by the client until it is granted too (the settings PATCH would fail on it). Idempotent.
 --
--- ORDER: APPLY BEFORE THE DEPLOY THAT USES IT. Without the column the cron's hour read fails and NO daily summary is sent (it never falls back to sending everyone at 07:00),
--- and the hour picker's save fails with the save toast. Reading settings is unaffected (select *).
+-- BACKFILL (PM decision, 2026-11-18): the summary becomes opt-in (a 'daily_summary_on' row in muted_alerts = ON). So that nobody who receives today's briefing loses it, every user
+-- with a linked Telegram chat who has NOT muted 'daily_summary' gets that row now - the same row the /alerts switch writes when turned on. Users who muted it stay off;
+-- users who link Telegram after this runs start off. Idempotent (on conflict on the (user_id, key) primary key do nothing); the DO block reports how many rows it wrote.
+--
+-- ORDER: APPLY BEFORE THE DEPLOY THAT USES IT (column AND backfill together). Without the column the cron's hour read fails and NO daily summary is sent (it never falls back to
+-- sending everyone at 07:00), and the hour picker's save fails with the save toast. Without the backfill, every current receiver stops getting the summary at the deploy.
+-- Reading settings is unaffected (select *).
 --
 -- Run ONE block per project (per 20260912b): prod block on prod qdpwhnvmhqgzijuwopso, the commented dev block on dev wdtjhrilakoitfcezxpx (qa and staging use it).
 --
--- Roll back: alter table lhq_user_settings drop column daily_summary_hour;
+-- Roll back: alter table lhq_user_settings drop column daily_summary_hour; delete from lhq_muted_alerts where key = 'daily_summary_on';
+-- (the delete also removes rows users wrote by turning the switch on after the deploy).
 
 -- ── prod: qdpwhnvmhqgzijuwopso ──────────────────────────────────────────────
 alter table lhq_user_settings add column if not exists daily_summary_hour smallint check (daily_summary_hour between 0 and 23);
 comment on column lhq_user_settings.daily_summary_hour is 'Daily Telegram summary hour (0-23) in the user timezone; null = 07:00.';
 grant insert (daily_summary_hour), update (daily_summary_hour) on public.lhq_user_settings to authenticated;
 
+-- backfill: current receivers keep the summary
+do $$
+declare n integer;
+begin
+  insert into public.lhq_muted_alerts (user_id, key)
+  select s.user_id, 'daily_summary_on'
+  from public.lhq_user_settings s
+  where s.telegram_chat_id is not null and btrim(s.telegram_chat_id) <> ''
+    and not exists (select 1 from public.lhq_muted_alerts m where m.user_id = s.user_id and m.key = 'daily_summary')
+  on conflict (user_id, key) do nothing;
+  get diagnostics n = row_count;
+  raise notice 'daily_summary_on backfill: % rows', n;
+end $$;
+
 -- ── dev: wdtjhrilakoitfcezxpx (apply separately) ────────────────────────────
 -- alter table lhq_dev_user_settings add column if not exists daily_summary_hour smallint check (daily_summary_hour between 0 and 23);
 -- comment on column lhq_dev_user_settings.daily_summary_hour is 'Daily Telegram summary hour (0-23) in the user timezone; null = 07:00.';
 -- grant insert (daily_summary_hour), update (daily_summary_hour) on public.lhq_dev_user_settings to authenticated;
+--
+-- -- backfill: current receivers keep the summary
+-- do $$
+-- declare n integer;
+-- begin
+--   insert into public.lhq_dev_muted_alerts (user_id, key)
+--   select s.user_id, 'daily_summary_on'
+--   from public.lhq_dev_user_settings s
+--   where s.telegram_chat_id is not null and btrim(s.telegram_chat_id) <> ''
+--     and not exists (select 1 from public.lhq_dev_muted_alerts m where m.user_id = s.user_id and m.key = 'daily_summary')
+--   on conflict (user_id, key) do nothing;
+--   get diagnostics n = row_count;
+--   raise notice 'daily_summary_on backfill: % rows', n;
+-- end $$;
