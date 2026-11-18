@@ -93,6 +93,7 @@ export type Needs = 'none' | 'pro' | 'free';
 /** Specs that may run against production. `needs` is the account tier the spec signs in as
  *  (fixture A is Pro, B is free); 'none' is anonymous. */
 export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; note?: string }> = [
+  { spec: 'markets-ru-sideways', needs: 'none', note: 'signed-out /markets (en, ru), /dashboard and /arena at 390 px: page width and the elements past the right edge; GETs only' },
   { spec: 'lcp-breakdown', needs: 'none', note: 'signed-out LCP element and timing breakdown at 390 px, normal and slow 3G, repeat visit and client-side navigation; GETs only' },
   { spec: 'speed-first-load', needs: 'none', note: 'signed-out first-load size, chunk and initiator checks, chat button, consent banner and an intercepted early error; GETs only' },
   { spec: 'landing-overflow-sampling', needs: 'none', note: 'signed-out landing at 360-1440 normal and slow 3G sampled at first parse, 5 s and 30 s; GETs only, nothing clicked' },
@@ -175,6 +176,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
 /** Every other spec, and why it is kept off production. A spec must appear in exactly one
  *  of the two lists; the unit test enforces it. */
 export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
+  'dash-overflow-signed-in': 'signs in as the DEV fixtures; staging/CI only.',
   'anon-grants': 'API-level cells against the shared DEV database: sends write-verb requests as the anon role and as the A fixture (a DEV-project account that does not exist on production); writes one tiny liquidation event and a throwaway trade it deletes; not a production spec',
   'briefing-row-opens-that-coin': 'signs in as the A fixture, which is a DEV-project Supabase account that does not exist on the production project at all - same first reason as upgrade-purchase-marker. Two stronger ones follow. C1 and C2 INTERCEPT the Supabase user_settings read and serve a stubbed row, so against production they would interpose on a real signed-in account\'s settings read; and C3 deliberately does NOT stub, it OBSERVES the real response to compare the settled URL against whatever the account has saved - which on production means reading a real person\'s saved coin and timeframe. Neither is a write, and the exclusion is not about writes: it is about interposing on, and reading, a real account\'s data. The two annotated cells also pin an OPEN defect (#1263, a cold /arena load ignoring saved settings), so on production they would fail by design and say nothing new.',
   '_record-proxy': 'a recorder of live upstream payloads, not a test',
