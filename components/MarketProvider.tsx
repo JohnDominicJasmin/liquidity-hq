@@ -1814,7 +1814,7 @@ export default function MarketProvider(
     fetchStablecoinFlows();
     // CB Premium needs BTC price first: asked for the moment the first BTC price lands (the effect after this one), or after 3 s at the latest
     cbAskedRef.current = false;
-    setTimeout(askCoinbasePremiumOnce, 3000);
+    const cbFallbackTimer = setTimeout(askCoinbasePremiumOnce, 3000);
     // Retry server-proxied APIs that may miss on Render cold start - #1192:
     // conditional on the mount attempt above having actually missed, not
     // unconditional. Every visitor was making 2 extra calls to /api/cmc
@@ -1876,6 +1876,7 @@ export default function MarketProvider(
     return () => {
       offPriceResume();
       offPriceOnline();
+      clearTimeout(cbFallbackTimer);
       if (scannerRetryTimer.current) { clearTimeout(scannerRetryTimer.current); scannerRetryTimer.current = null; }
       intervals.forEach(clearInterval);
       document.removeEventListener('visibilitychange', onVisible);
@@ -1890,7 +1891,7 @@ export default function MarketProvider(
   }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* The first Coinbase premium read, as soon as there is a BTC price to compare it with (see askCoinbasePremiumOnce). */
-  const btcPriced = store.coins.btc?.price != null;
+  const btcPriced = Number.isFinite(store.coins.btc?.price);
   useEffect(() => {
     if (enabled && btcPriced) askCoinbasePremiumOnce();
   }, [enabled, btcPriced, askCoinbasePremiumOnce]);

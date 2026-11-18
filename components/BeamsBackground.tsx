@@ -34,7 +34,7 @@ function createBeam(width: number, height: number): Beam {
 
 const OPACITY_MAP = { subtle: 0.6, medium: 0.8, strong: 1 };
 /** Bitmap pixels per CSS pixel (see setup below). */
-const BITMAP_SCALE = 0.25;
+const BITMAP_SCALE = 0.125;
 
 /* WCAG 2.2.2 Pause, Stop, Hide is Level A, and this component paints the FIRST
    thing a visitor sees on the public marketing homepage.
@@ -88,18 +88,14 @@ export function BeamsBackground({ intensity = 'strong' }: { intensity?: 'subtle'
       return { w: p ? p.offsetWidth : window.innerWidth, h: p ? p.offsetHeight : window.innerHeight };
     };
 
-    /* A QUARTER-RESOLUTION BITMAP, SCALED UP BY CSS (speed sweep, OWNER-RULES 21). Every frame blurs 30 beams on the main thread, and at full
+    /* A LOW-RESOLUTION BITMAP, SCALED UP BY CSS (speed sweep, OWNER-RULES 21). Every frame blurs 30 beams on the main thread, and at full
        device resolution that took about 1.4 s a frame on a 4x-throttled phone: the landing page's main thread was busy for 25-35 s of every
        30, so its market data never started. The picture is nothing but heavily blurred gradients under a further 15 px CSS blur, so a bitmap
-       with one pixel per 4 CSS px holds the same image at about 1/16 (1/144 at 3x) of the work. A canvas blur is measured in BITMAP pixels
-       and ignores ctx.scale, so it was 35 / dpr CSS px before; `blurPx` keeps exactly that size at the new resolution. */
+       with one pixel per 8 CSS px holds the same image (one per 4 still cost about 240-430 ms a frame at 1280 px; one per 8 costs about
+       50 ms, 12-18 ms at 390 px). Each beam keeps its own blur, drawn in the same order, so beams just outside the frame still glow into it.
+       A canvas blur is measured in BITMAP pixels and ignores ctx.scale, so it was 35 / dpr CSS px before; `blurPx` keeps exactly that size
+       at the new resolution. */
     let blurPx = 35;
-    /* ONE BLUR PER FRAME, NOT THIRTY (speed pass 2). The beams are drawn sharp onto this off-screen layer and the layer is blurred once onto the
-       visible canvas. At quarter resolution the 30 separate blurs still cost about 240 ms a frame at 1280 px on a 4x-throttled CPU; one pass
-       costs about 14 ms. The blur is linear, so the picture is the same except where two faint beams overlap (measured: mean 0.7/255, max 11/255). */
-    const layer = document.createElement('canvas');
-    const lctx = layer.getContext('2d');
-    if (!lctx) return;
     const setup = () => {
       const dpr = window.devicePixelRatio || 1;
       const { w, h } = getSize();
@@ -108,9 +104,6 @@ export function BeamsBackground({ intensity = 'strong' }: { intensity?: 'subtle'
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
       ctx.scale(BITMAP_SCALE, BITMAP_SCALE);
-      layer.width = canvas.width;
-      layer.height = canvas.height;
-      lctx.scale(BITMAP_SCALE, BITMAP_SCALE);
       blurPx = (35 * BITMAP_SCALE) / dpr;
       beamsRef.current = Array.from({ length: 30 }, () => createBeam(w, h));
     };
@@ -129,20 +122,21 @@ export function BeamsBackground({ intensity = 'strong' }: { intensity?: 'subtle'
     };
 
     const drawBeam = (beam: Beam) => {
-      lctx.save();
-      lctx.translate(beam.x, beam.y);
-      lctx.rotate((beam.angle * Math.PI) / 180);
+      const { h } = getSize();
+      ctx.save();
+      ctx.translate(beam.x, beam.y);
+      ctx.rotate((beam.angle * Math.PI) / 180);
       const op = beam.opacity * (0.8 + Math.sin(beam.pulse) * 0.2) * OPACITY_MAP[intensity];
-      const g = lctx.createLinearGradient(0, 0, 0, beam.length);
+      const g = ctx.createLinearGradient(0, 0, 0, beam.length);
       g.addColorStop(0,   `hsla(${beam.hue}, 85%, 65%, 0)`);
       g.addColorStop(0.1, `hsla(${beam.hue}, 85%, 65%, ${op * 0.5})`);
       g.addColorStop(0.4, `hsla(${beam.hue}, 85%, 65%, ${op})`);
       g.addColorStop(0.6, `hsla(${beam.hue}, 85%, 65%, ${op})`);
       g.addColorStop(0.9, `hsla(${beam.hue}, 85%, 65%, ${op * 0.5})`);
       g.addColorStop(1,   `hsla(${beam.hue}, 85%, 65%, 0)`);
-      lctx.fillStyle = g;
-      lctx.fillRect(-beam.width / 2, 0, beam.width, beam.length);
-      lctx.restore();
+      ctx.fillStyle = g;
+      ctx.fillRect(-beam.width / 2, 0, beam.width, beam.length);
+      ctx.restore();
     };
 
     /* Draws exactly one frame. Advancing the beams and scheduling the next frame
@@ -153,7 +147,8 @@ export function BeamsBackground({ intensity = 'strong' }: { intensity?: 'subtle'
        The still frame is the same composition, frozen. */
     const animate = () => {
       const { w, h } = getSize();
-      lctx.clearRect(0, 0, w, h);
+      ctx.clearRect(0, 0, w, h);
+      ctx.filter = `blur(${blurPx}px)`;
       const total = beamsRef.current.length;
       beamsRef.current.forEach((beam, i) => {
         if (!reduceMotion) {
@@ -163,10 +158,6 @@ export function BeamsBackground({ intensity = 'strong' }: { intensity?: 'subtle'
         }
         drawBeam(beam);
       });
-      ctx.clearRect(0, 0, w, h);
-      ctx.filter = `blur(${blurPx}px)`;
-      ctx.drawImage(layer, 0, 0, w, h);
-      ctx.filter = 'none';
       if (!reduceMotion) rafRef.current = requestAnimationFrame(animate);
     };
 
