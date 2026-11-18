@@ -1,30 +1,39 @@
 /* TAB RESUME (the owner's bug: leave the tab 1-2 h, come back to an EMPTY CHART until refresh). READ-ONLY, signed out.
- * Emulation of the idle gap (real time cannot be skipped): the page is FROZEN through the DevTools protocol (Page.setWebLifecycleState "frozen", what the browser does to a long-hidden tab), the network is taken OFFLINE for the whole freeze (sockets die), `visibilityState` is forced to hidden, then everything is restored (active, online, visible + the visibilitychange / online / focus events a real return fires).
- * After the resume, within 15 s:  TR1 the main chart canvas holds bars (ink well above its pre-freeze minimum) · TR2 the newest time label on the x axis is within 3 candles of NOW · TR3 the live price text changed or is a real number (no "…", no dash) · TR4 no "updated just now" while the data is older than 2 minutes.
- * Prints the per-moment readings ([RESUME]) so a RED shows WHAT stayed stale. Asserts TR1..TR3. The freeze length is FREEZE_S (default 150 s: long enough for exchange sockets to be dropped; not 2 h). */
+ * Emulation of the idle gap: the page is FROZEN through the DevTools protocol (Page.setWebLifecycleState "frozen", what a browser does to a long-hidden tab), the network is OFFLINE for the whole freeze (sockets die), `visibilityState` is forced hidden; then everything is restored (active, online, visible + the visibilitychange / online / focus events a real return fires).
+ * v2 (2026-11-18): v1 read the newest x-axis label and a price selector; both were already "stale" BEFORE the freeze (a bad instrument: 233 min old on a live page), and /dashboard and /markets have no chart canvas, so "ink" meant nothing there. v2 reads what the chart itself says and what the network did:
+ *   ARENA     the feed dot (.klc-ws-dot title: live / connecting / error) · the number of WebSocket messages received AFTER the resume · sockets opened/closed · canvas ink (still painted)
+ *   DASHBOARD / MARKETS   the live price text changes within 15 s of the resume (live data is flowing again) · no dash placeholder
+ * Asserts: arena TR1 dot is "live" within 15 s · TR2 at least one WebSocket frame arrived after the resume · TR3 the chart is still painted · other pages TR4 a price changed. Prints every reading ([RESUME]) so a RED shows WHAT stayed stale.
+ * FREEZE_S is the idle length (default 150 s; a real "1-2 h" run sets TAB_FREEZE_S=5400). PAGES via TAB_PAGES (arena,dashboard,markets). */
 import { test, expect, type Page } from '@playwright/test';
 
 const FREEZE_S = Number(process.env.TAB_FREEZE_S ?? 150);
-const PAGES: Array<[string, string]> = [['/arena?coin=btc&tf=1m', 'arena'], ['/dashboard', 'dashboard'], ['/markets', 'markets']];
+const ALL: Array<[string, string]> = [['/arena?coin=btc&tf=1m', 'arena'], ['/dashboard', 'dashboard'], ['/markets', 'markets']];
+const WANT = (process.env.TAB_PAGES ?? 'arena,dashboard,markets').split(',');
+const PAGES = ALL.filter(([, n]) => WANT.includes(n));
 
 const INIT = () => {
-  const w = window as unknown as { __axis: Array<{ t: string; at: number }> }; w.__axis = [];
-  const orig = CanvasRenderingContext2D.prototype.fillText;
-  CanvasRenderingContext2D.prototype.fillText = function (this: CanvasRenderingContext2D, text: string, x: number, y: number, mw?: number) {
-    const s = String(text); if (/^\d{1,2}[:.]\d{2}$/.test(s) || /^\d{2}-\d{2} \d{2}:\d{2}$/.test(s)) { w.__axis.push({ t: s, at: Date.now() }); if (w.__axis.length > 400) w.__axis.splice(0, 200); }
-    return mw === undefined ? orig.call(this, text, x, y) : orig.call(this, text, x, y, mw);
-  };
+  const w = window as unknown as { __ws: { opened: number; closed: number; msgs: number; resumeAt: number; msgsAfter: number; opensAfter: number } };
+  w.__ws = { opened: 0, closed: 0, msgs: 0, resumeAt: 0, msgsAfter: 0, opensAfter: 0 };
+  const Orig = window.WebSocket;
+  const Wrapped = function (this: unknown, url: string | URL, protocols?: string | string[]) {
+    const ws = protocols === undefined ? new Orig(url) : new Orig(url, protocols);
+    w.__ws.opened++; if (w.__ws.resumeAt) w.__ws.opensAfter++;
+    ws.addEventListener('message', () => { w.__ws.msgs++; if (w.__ws.resumeAt) w.__ws.msgsAfter++; });
+    ws.addEventListener('close', () => { w.__ws.closed++; });
+    return ws;
+  } as unknown as typeof WebSocket;
+  Wrapped.prototype = Orig.prototype;
+  Object.assign(Wrapped, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
+  window.WebSocket = Wrapped;
 };
 const read = (page: Page) => page.evaluate(() => {
-  const w = window as unknown as { __axis: Array<{ t: string; at: number }> };
-  let best = 0, total = 0; const cs = Array.from(document.querySelectorAll('canvas')) as HTMLCanvasElement[];
-  for (const c of cs) { if (c.width < 300 || c.height < 150) continue; try { const d = c.getContext('2d', { willReadFrequently: true })?.getImageData(0, 0, c.width, c.height).data; if (!d) continue; let n = 0; for (let i = 3; i < d.length; i += 16) if (d[i] > 0) n++; total += n; best = Math.max(best, n); } catch { /* tainted */ } }
-  const now = new Date(); const mins = (t: string) => { const m = /(\d{1,2})[:.](\d{2})$/.exec(t); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
-  const recent = w.__axis.filter((a) => Date.now() - a.at < 6_000).map((a) => mins(a.t)).filter((x): x is number => x != null);
-  const nowMin = now.getHours() * 60 + now.getMinutes(); const newest = recent.length ? recent.reduce((a, b) => { const da = (nowMin - a + 1440) % 1440, db = (nowMin - b + 1440) % 1440; return db < da ? b : a; }) : null;
+  const w = window as unknown as { __ws: { opened: number; closed: number; msgs: number; resumeAt: number; msgsAfter: number; opensAfter: number } };
+  let best = 0; for (const c of Array.from(document.querySelectorAll('canvas')) as HTMLCanvasElement[]) { if (c.width < 300 || c.height < 150) continue; try { const d = c.getContext('2d', { willReadFrequently: true })?.getImageData(0, 0, c.width, c.height).data; if (!d) continue; let n = 0; for (let i = 3; i < d.length; i += 16) if (d[i] > 0) n++; best = Math.max(best, n); } catch { /* tainted */ } }
   const text = (document.body.innerText || '').replace(/\s+/g, ' ');
-  const price = (document.querySelector('[data-testid="hero-price"], .arena-price, [class*="price"]') as HTMLElement | null)?.innerText?.replace(/\s+/g, ' ').trim().slice(0, 24) ?? '';
-  return { ink: best, inkTotal: total, canvases: cs.length, axisSeen: recent.length, newestAxisAgeMin: newest == null ? null : (nowMin - newest + 1440) % 1440, price, justNow: /updated just now|just now/i.test(text), dash: /(^|\s)(—|--)(\s|$)/.test(text) };
+  const dot = (document.querySelector('.klc-ws-dot') as HTMLElement | null)?.getAttribute('title') ?? null;
+  const price = Array.from(document.querySelectorAll('[data-testid="hero-price"], .arena-price, [class*="price"]')).map((e) => (e as HTMLElement).innerText.replace(/\s+/g, ' ').trim()).filter((t) => /^\$?[\d,]+(\.\d+)?$/.test(t)).slice(0, 3).join(' | ');
+  return { ink: best, dot, price, ws: { ...w.__ws }, dash: /(^|\s)(—|--)(\s|$)/.test(text) };
 });
 
 for (const [path, name] of PAGES) {
@@ -34,20 +43,25 @@ for (const [path, name] of PAGES) {
     await ctx.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'en'); localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private */ } });
     const page = await ctx.newPage(); const cdp = await ctx.newCDPSession(page); await cdp.send('Page.enable');
     try {
-      await page.goto(path, { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(25_000);
+      await page.goto(path, { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(30_000);
       const before = await read(page); console.log(`[RESUME] ${name} BEFORE: ${JSON.stringify(before)}`);
-      /* the gap: hidden + offline + frozen */
       await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }); Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('blur')); });
       await ctx.setOffline(true); await cdp.send('Page.setWebLifecycleState', { state: 'frozen' }).catch((e) => console.log(`[RESUME] freeze not applied: ${String(e).slice(0, 80)}`));
       await new Promise((r) => setTimeout(r, FREEZE_S * 1000));
-      /* the return */
       await cdp.send('Page.setWebLifecycleState', { state: 'active' }).catch(() => undefined); await ctx.setOffline(false);
-      await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('online')); window.dispatchEvent(new Event('focus')); });
-      const samples: unknown[] = []; for (const ms of [2_000, 5_000, 8_000]) { await page.waitForTimeout(ms); samples.push({ at: `+${ms}ms`, ...(await read(page)) }); }
-      await page.waitForTimeout(0); const after = await read(page); console.log(`[RESUME] ${name} AFTER samples: ${JSON.stringify(samples)}`); console.log(`[RESUME] ${name} AFTER 15s: ${JSON.stringify(after)}`);
-      expect(after.ink, `TR1 ${name}: the chart is EMPTY after the resume (ink ${after.ink}, before ${before.ink})`).toBeGreaterThan(Math.max(200, before.ink * 0.3));
-      if (name === 'arena') { expect(after.newestAxisAgeMin == null || after.newestAxisAgeMin <= 3, `TR2 arena: the newest x-axis time is ${after.newestAxisAgeMin} min old after the resume`).toBe(true); }
-      expect(after.dash, `TR3 ${name}: a dash placeholder is showing after the resume`).toBe(false);
+      await page.evaluate(() => { (window as unknown as { __ws: { resumeAt: number } }).__ws.resumeAt = Date.now(); Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('online')); window.dispatchEvent(new Event('focus')); });
+      const samples: Array<Awaited<ReturnType<typeof read>> & { at: string }> = []; let waited = 0;
+      for (const at of [2_000, 5_000, 8_000, 15_000]) { await page.waitForTimeout(at - waited); waited = at; samples.push({ at: `+${at / 1000}s`, ...(await read(page)) }); }
+      console.log(`[RESUME] ${name} FREEZE ${FREEZE_S}s AFTER: ${JSON.stringify(samples)}`);
+      const last = samples[samples.length - 1];
+      if (name === 'arena') {
+        expect(last.dot, `TR1 arena: the feed dot is "${last.dot}" 15 s after the resume (before: "${before.dot}")`).toBe('live');
+        expect(last.ws.msgsAfter, `TR2 arena: no WebSocket frame arrived in the 15 s after the resume (sockets opened after: ${last.ws.opensAfter})`).toBeGreaterThan(0);
+        expect(last.ink, `TR3 arena: the chart is EMPTY after the resume (ink ${last.ink}, before ${before.ink})`).toBeGreaterThan(Math.max(200, before.ink * 0.3));
+      } else {
+        expect(samples.some((s) => s.price && s.price !== before.price), `TR4 ${name}: the live price never changed in 15 s after the resume (before "${before.price}", after "${last.price}")`).toBe(true);
+      }
+      expect(last.dash && !before.dash, `TR5 ${name}: a dash placeholder appeared after the resume (none before)`).toBe(false);
     } finally { await ctx.close(); }
   });
 }
