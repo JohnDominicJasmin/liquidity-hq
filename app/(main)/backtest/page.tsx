@@ -591,6 +591,8 @@ export default function BacktestPage() {
               );
             })}
           </div>
+          {/* #1631: no sample stands behind the parameters or the edge rating. */}
+          <div className="mb-subtitle" style={{ marginBottom: 8 }}>{t('BACKTEST_SR_NO_SAMPLE_NOTE')}</div>
           <AiDisclaimer style={{ marginBottom: 14 }} />
 
           {/* Pine Script Export */}

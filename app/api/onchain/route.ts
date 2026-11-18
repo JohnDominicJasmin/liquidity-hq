@@ -145,7 +145,7 @@ export async function GET(req: NextRequest) {
       /* The usage check and the chain-stats read run AT THE SAME TIME; the stats are cached on their own for 5 minutes so an AI failure's retry does not refetch them. */
       const reservedOn = todayUtc();
       const [usageResult, stats] = await Promise.all([
-        incrementToolUsage(authData.user.id, 'onchain', role),
+        incrementToolUsage(authData.user.id, 'onchain', role, reservedOn),
         /* A null (the read failed) must NOT be cached for five minutes: it throws so `cached` stores nothing, and the caller carries on without stats exactly as before. */
         cached('onchain-stats', 5 * 60_000, async () => { const v = await fetchBlockchainStats(); if (!v) throw new Error('no blockchain stats'); return v; }).catch(() => null),
       ]);

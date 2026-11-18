@@ -14,6 +14,7 @@ import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { readFng, type FNGData } from '@/lib/fng';
 import { selectAllRows } from '@/lib/selectAllRows';
+import { loadHeldUserIds, sendPlanLapseNotices } from '@/lib/telegramAlertHolds';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
 import { onCooldown, markSent, lastSentAt, exportCooldownState, importCooldownState, beginStagedMarks, commitStagedMarks, discardStagedMarks } from '@/lib/alertCooldown';
 import { apiError } from '@/lib/apiError';
@@ -34,6 +35,9 @@ import { exchangeFetch } from '@/lib/exchangeGuard';
 import { validPushEndpoint } from '@/lib/pushEndpoint';
 import { afterSend, dueForRetry, holdExpired, type PendingDelivery, type SendResult } from '@/lib/priceAlertDelivery';
 import { TF_MS } from '@/lib/candles';
+import { activeTypeMuteKeys, isTypeMuteRuleKey, typeMuteKeyboard } from '@/lib/alertTypeMute';
+import { loadTypeMutesByUser } from '@/lib/telegramTypeMute';
+import { SQUEEZE_SCORE_MAX } from '@/lib/alertThresholdRanges';
 import { isDailySummaryOn, summaryHour, summaryDueNow, DEFAULT_DAILY_SUMMARY_HOUR, fetchMovers24h, topMovers, squeezeSetups, buildDailySummaryText, type SqueezeRead } from '@/lib/dailySummary';
 
 export const dynamic = 'force-dynamic';
@@ -239,7 +243,8 @@ async function fetchThresholdsByUser(): Promise<Map<string, UserThresholds> | nu
         map.set(String(row.user_id), {
           rsiOb: typeof row.rsi_ob === 'number' ? row.rsi_ob : DEFAULT_THRESHOLDS.rsiOb,
           rsiOs: typeof row.rsi_os === 'number' ? row.rsi_os : DEFAULT_THRESHOLDS.rsiOs,
-          squeezeThreshold: typeof row.squeeze_threshold === 'number' ? row.squeeze_threshold : DEFAULT_THRESHOLDS.squeezeThreshold,
+          /* Capped at the highest score calcSqueezeScore can produce (lib/alertThresholdRanges.ts): a row saved above it when the field allowed 95 would otherwise never fire. */
+          squeezeThreshold: typeof row.squeeze_threshold === 'number' ? Math.min(row.squeeze_threshold, SQUEEZE_SCORE_MAX) : DEFAULT_THRESHOLDS.squeezeThreshold,
           antiChopEnabled: typeof row.anti_chop_enabled === 'boolean' ? row.anti_chop_enabled : DEFAULT_THRESHOLDS.antiChopEnabled,
         });
       }
@@ -358,6 +363,8 @@ function getSession(): string {
    overwrite it with equivalent data. */
 const TIME_TOKEN = '__ALERT_TIME__';
 const CHAT_TZ = new Map<string, string | null>();
+/* Paused, snoozed or in quiet hours (lib/alertQuiet.ts): no Telegram alert of any kind (price alerts included) and no Web Push signal. Rebuilt every run like CHAT_TZ. */
+let HELD_USERS = new Set<string>();
 
 function alertTimeIn(timeZone: string | null): string {
   // Unknown timezone (never opened the web app, or an older row) -> UTC, and
@@ -451,7 +458,19 @@ export function tgRetryDelayMs(attempt: number, status: number | null, retryAfte
   if (status === null || status >= 500) return 1_000 * 2 ** (attempt - 1);
   return null;
 }
-async function sendWithRetry(token: string, chatId: string, body: string): Promise<Response> {
+/* ONLY A SEND THAT NEVER LEFT IS RETRIED (PM, review of #2567). Telegram's sendMessage has no idempotency key, so a request that timed out AFTER Telegram
+   accepted it would be delivered twice by a retry. A thrown error is retried only when it failed before the request went out: DNS, refused or unreachable
+   connection, or a bare "fetch failed" with no socket code. An AbortSignal timeout, an abort, or a socket reset mid-request is final and counts as failed
+   (delivery unknown). The cost: a timeout that in fact never reached Telegram is lost instead of retried. */
+const PRE_SEND_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH', 'UND_ERR_CONNECT_TIMEOUT']);
+function failedBeforeSend(e: unknown): boolean {
+  if (!(e instanceof Error) || e.name === 'TimeoutError' || e.name === 'AbortError') return false;
+  const code = (e.cause as { code?: unknown } | undefined)?.code;
+  if (typeof code === 'string') return PRE_SEND_CODES.has(code);
+  return e instanceof TypeError && /fetch failed/i.test(e.message);
+}
+
+async function sendWithRetry(token: string, chatId: string, body: string, replyMarkup?: TgReplyMarkup): Promise<Response> {
   for (let attempt = 1; ; attempt++) {
     let res: Response | null = null;
     let err: unknown = null;
@@ -459,11 +478,12 @@ async function sendWithRetry(token: string, chatId: string, body: string): Promi
       res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: body, parse_mode: 'HTML' }),
+        body: JSON.stringify({ chat_id: chatId, text: body, parse_mode: 'HTML', ...(replyMarkup ? { reply_markup: replyMarkup } : {}) }),
         signal: AbortSignal.timeout(10_000),
       });
     } catch (e) { err = e; }
     if (res?.ok) return res;
+    if (err && !failedBeforeSend(err)) throw err; // a timeout may have been delivered: never resend it (see failedBeforeSend)
     let retryAfter: number | null = null;
     if (res?.status === 429) {
       retryAfter = await res.clone().json().then((d: { parameters?: { retry_after?: number } }) => Number(d?.parameters?.retry_after) || null, () => null);
@@ -474,7 +494,10 @@ async function sendWithRetry(token: string, chatId: string, body: string): Promi
   }
 }
 
-async function tg(token: string, chatId: string | string[], text: string): Promise<SendResult> {
+/** Buttons under a message (lib/alertTypeMute.ts typeMuteKeyboard): only the OI / CVD / rapid-move alerts carry any. */
+type TgReplyMarkup = { inline_keyboard: { text: string; callback_data: string }[][] };
+
+async function tg(token: string, chatId: string | string[], text: string, replyMarkup?: TgReplyMarkup | null): Promise<SendResult> {
   // Send-only kill switch (/ops/config) - detection/tracking above this call
   // keeps running either way, only the actual outbound message stops.
   if (!(await isFeatureEnabled('telegram'))) { sendTally.paused = true; return { sent: 0, failed: 0, paused: true }; }
@@ -508,7 +531,7 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
     const body = text.includes(TIME_TOKEN) ? text.replaceAll(TIME_TOKEN, alertTimeIn(tz)) : text;
     return zoneIds.map(async id => {
       try {
-        const res = await sendWithRetry(token, id, body);
+        const res = await sendWithRetry(token, id, body, replyMarkup ?? undefined);
         if (res.ok) { sendTally.ok++; result.sent++; return; }
         sendTally.failed++; result.failed++;
         // description is Telegram's own reason ("chat not found", "bot was
@@ -597,7 +620,7 @@ async function flushSignals(
     await Promise.all([...groups.values()].map(async ({ entries: elig, chatIds, userIds }) => {
       if (elig.length === 1) {
         // Single signal - send as-is
-        const r = await tg(token, chatIds, elig[0].body);
+        const r = await tg(token, chatIds, elig[0].body, typeMuteKeyboard([elig[0].ruleKey]));
         if (r.sent > 0) { elig[0].onSent?.(); startCooldowns(elig, userIds); }
         return;
       }
@@ -610,7 +633,8 @@ async function flushSignals(
       const r = await tg(token, chatIds,
         `🔀 <b>${label} - ${head}</b>\n\n` +
         `${bullets}\n\n` +
-        `<i>${stamp}</i>`
+        `<i>${stamp}</i>`,
+        typeMuteKeyboard(elig.map(e => e.ruleKey)),
       );
       if (r.sent > 0) { for (const e of elig) e.onSent?.(); startCooldowns(elig, userIds); }
     }));
@@ -991,7 +1015,8 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[], skipCounts: S
           const emoji    = pct > 0 ? '🚀' : '🔻';
 
           queue.push({
-            coin, ruleKey: 'rapid_move', name: `${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
+            // The move's own direction, so the "Long / Short signals" mutes on /alerts apply to it (a dump is a short signal).
+            coin, dir: pct > 0 ? 'long' : 'short', ruleKey: 'rapid_move', name: `${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
             title: `Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
             body: `${emoji} <b>${label} Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})</b>\n\n` +
               `Price: <b>$${fmtAlertPrice(currClose)}</b>\n` +
@@ -1179,6 +1204,19 @@ async function checkNews(
    ════════════════════════════════════════ */
 interface OIHistItem { sumOpenInterest: string; timestamp: number }
 
+/* THE DIRECTION AN OI ALERT CARRIES (#2560 open list): the price's own direction over the same hour as the OI move, from twelve 5-minute
+   candles. Open interest alone points nowhere; rising OI into a falling price is new shorts, falling OI into a falling price is longs closing,
+   and both read as a short signal, so the "Short signals" mute on /alerts stops them (and "Long signals" the rising-price ones). Asked only
+   when an OI alert actually fires (rare), and not counted as a skip: when the price cannot be read the alert goes out with no direction,
+   exactly as before, and only the direction mutes cannot apply to it. */
+async function oiWindowPriceDir(symbol: string, category: 'linear' | 'spot'): Promise<'long' | 'short' | undefined> {
+  const candles = await fetchBybitCandles(symbol, '5', 13, undefined, category);
+  if (candles.length < 2) return undefined;
+  const first = candles[0].o, last = candles[candles.length - 1].c;
+  if (!(first > 0) || !(last > 0) || last === first) return undefined;
+  return last > first ? 'long' : 'short';
+}
+
 async function checkOISpike(stamp: string, prices: Record<string, number>, queue: SignalEntry[], skipCounts: SkipCounts): Promise<string[]> {
   const fired: string[] = [];
   await runBatched([
@@ -1207,8 +1245,9 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
           const dir = pct > 0 ? 'spike' : 'drop';
           const key = `oi_${dir}_${coin}`;
           if (onCooldown(key, CD.oi)) return;
+          const priceDir = await oiWindowPriceDir(sym, 'linear');
           queue.push({
-            coin, ruleKey: 'oi_spike', name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
+            coin, dir: priceDir, ruleKey: 'oi_spike', name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
             title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
             body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} - ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
               `Open interest: ${(oldest / 1000).toFixed(1)}K → ${(newest / 1000).toFixed(1)}K contracts\n` +
@@ -1240,8 +1279,10 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
           const dir = pct > 0 ? 'spike' : 'drop';
           const key = `oi_${dir}_${coin}`;
           if (onCooldown(key, CD.oi)) return;
+          const fetMarket = bybitSpotOrLinear(coin); // FET has a Bybit spot listing (no Bybit perp), see bybitSpotOrLinear
+          const priceDir = fetMarket ? await oiWindowPriceDir(fetMarket.symbol, fetMarket.category) : undefined;
           queue.push({
-            coin, ruleKey: 'oi_spike', name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
+            coin, dir: priceDir, ruleKey: 'oi_spike', name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
             title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
             body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} - ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
               `Open interest changed from ${(oldest / 1000).toFixed(1)}K to ${(newest / 1000).toFixed(1)}K contracts\n` +
@@ -1318,7 +1359,7 @@ async function checkCVD(stamp: string, queue: SignalEntry[], skipCounts: SkipCou
 
       if (priceChangePct > THRESH && netCVD < 0 && !onCooldown(`cvd_bear_${coin}`, CD.cvd)) {
         queue.push({
-          coin, ruleKey: 'cvd', name: `${label} bearish CVD divergence`,
+          coin, dir: 'short', ruleKey: 'cvd', name: `${label} bearish CVD divergence`,
           title: `Bearish CVD Divergence`,
           body: `⚠️ <b>${label} Bearish CVD Divergence</b>\n\nPrice: <b>+${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Negative</b> - sellers dominating volume\nPrice rose while net taker volume was selling.\n\n<i>${stamp}</i>`,
         });
@@ -1326,7 +1367,7 @@ async function checkCVD(stamp: string, queue: SignalEntry[], skipCounts: SkipCou
       }
       if (priceChangePct < -THRESH && netCVD > 0 && !onCooldown(`cvd_bull_${coin}`, CD.cvd)) {
         queue.push({
-          coin, ruleKey: 'cvd', name: `${label} bullish CVD divergence`,
+          coin, dir: 'long', ruleKey: 'cvd', name: `${label} bullish CVD divergence`,
           title: `Bullish CVD Divergence`,
           body: `⚡ <b>${label} Bullish CVD Divergence</b>\n\nPrice: <b>${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Positive</b> - buyers absorbing the dip\nPrice fell while net taker volume was buying.\n\n<i>${stamp}</i>`,
         });
@@ -1378,7 +1419,7 @@ async function checkPriceAlerts(
     const chatIdByUser = new Map<string, string>();
     for (const row of settingsRes.data ?? []) {
       const userId = row.user_id as string;
-      if (!proUserIds.has(userId)) continue;
+      if (!proUserIds.has(userId) || HELD_USERS.has(userId)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
       if (id) chatIdByUser.set(userId, id);
     }
@@ -1724,6 +1765,8 @@ async function fetchAllLSR(skipCounts: SkipCounts): Promise<Record<string, numbe
   return result;
 }
 
+/* Highest possible score: 40 (funding) + 40 (long/short ratio) = 80. SQUEEZE_SCORE_MAX in lib/alertThresholdRanges.ts caps the Settings field at
+   that number; change both together. */
 function calcSqueezeScore(fr: number | null, longRatio: number | null): { score: number; dir: 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL' } {
   let longRisk = 0, shortRisk = 0;
   if (fr != null) {
@@ -2117,7 +2160,7 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
   // push path used to fan out to EVERY stored subscription - so a free user
   // who enabled browser notifications received the full Pro alert stream.
   const subs = (allSubs as Array<{ endpoint: string; p256dh: string; auth: string; user_id: string }>)
-    .filter(s => proUserIds.has(s.user_id));
+    .filter(s => proUserIds.has(s.user_id) && !HELD_USERS.has(s.user_id)); // paused / snoozed / quiet hours hold push too ("pause all alerts")
   if (!subs.length) return;
 
   webpush.setVapidDetails(email, pubKey, privKey);
@@ -2530,7 +2573,9 @@ async function runAlerts(token: string): Promise<NextResponse> {
       if (kind !== 'free') proUserIds.add(row.user_id as string);
       if (kind === 'trial') trialUserIds.add(row.user_id as string);
     }
+    void sendPlanLapseNotices(token, data ?? [], now); // one "plan ended" message per lapse (lib/planLapse.ts); never throws
   } catch { /* admin key not configured - allChatIds falls back to the env var below */ }
+  HELD_USERS = await loadHeldUserIds(Date.now());
 
   // Collect Pro users who have connected their Telegram
   const allChatIds: string[] = [];
@@ -2547,7 +2592,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     CHAT_TZ.clear();
     for (const row of data ?? []) {
       const userId = row.user_id as string;
-      if (!proUserIds.has(userId)) continue;
+      if (!proUserIds.has(userId) || HELD_USERS.has(userId)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
       if (id && !allChatIds.includes(id)) {
         allChatIds.push(id);
@@ -2564,7 +2609,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   const envChatId = process.env.TELEGRAM_CHAT_ID;
   if (envChatId && !allChatIds.includes(envChatId)) allChatIds.push(envChatId);
 
-  if (allChatIds.length === 0)
+  if (allChatIds.length === 0 && HELD_USERS.size === 0) // everyone held is not "no recipients": the run goes on and sends nothing
     return NextResponse.json({ error: 'No Telegram recipients configured' }, { status: 503 });
 
   // Session-based cooldowns - tighter during pre-NY + NY (12:00-20:00 UTC)
@@ -2643,6 +2688,18 @@ async function runAlerts(token: string): Promise<NextResponse> {
   for (const uid of trialUserIds) {
     const set = new Set(mutedByUser.get(uid) ?? []);
     for (const c of COINS) if (!(FREE_SIGNAL_COINS as readonly string[]).includes(c)) set.add(`coin:${c}`);
+    mutedByUser.set(uid, set);
+  }
+
+  /* "Mute 1 h" / "Mute 4 h" tapped under an OI / CVD / rapid-move alert (lib/alertTypeMute.ts): while it lasts, that rule key counts as muted
+     for that user, on Telegram and Web Push alike (both decide through isEligibleFor). Same shape as the trial ladder above: added for this
+     run only, never written to the mute table, so the /alerts switches are untouched and the mute ends by itself. */
+  const nowForTypeMutes = Date.now();
+  for (const [uid, mutes] of await loadTypeMutesByUser()) {
+    const keys = activeTypeMuteKeys(mutes, nowForTypeMutes);
+    if (keys.length === 0) continue;
+    const set = new Set(mutedByUser.get(uid) ?? []);
+    for (const k of keys) set.add(k);
     mutedByUser.set(uid, set);
   }
 
@@ -2754,7 +2811,9 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // VWAP, none of which the cron holds. See migration 20260801a.
   const agreementByCoin = new Map<string, { rules: Set<string>; net: number }>();
   for (const e of signalQueue) {
-    if (!e.dir) continue;
+    /* OI / CVD / rapid-move entries carry a direction only so the Long / Short mutes reach them (#2560 open list). They are left out of
+       this snapshot so the series recorded so far keeps meaning the same thing; counting them is a separate decision. */
+    if (!e.dir || isTypeMuteRuleKey(e.ruleKey)) continue;
     const a = agreementByCoin.get(e.coin) ?? { rules: new Set<string>(), net: 0 };
     if (!a.rules.has(e.ruleKey)) {
       a.rules.add(e.ruleKey);

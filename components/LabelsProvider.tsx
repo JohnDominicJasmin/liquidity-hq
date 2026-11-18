@@ -3,7 +3,7 @@ import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { htmlLangFor } from '@/lib/htmlLang';
-import { LabelsContext, Locale, loadLocalLocale, saveLocalLocale, interpolate } from '@/lib/labels';
+import { LabelsContext, Locale, loadLocalLocale, saveLocalLocale, saveLocaleCookie, interpolate } from '@/lib/labels';
 import { offeredLocaleFromPath } from '@/lib/locales';
 import type { LabelKey } from '@/lib/labelKeys';
 // Public by construction: this file ships in every visitor's JS. The admin console's `OPS_*` copy
@@ -122,6 +122,8 @@ export default function LabelsProvider({
        then follows `locale`, so <html lang> matches the rendered copy. */
     const fromPath = localeFromPath ? offeredLocaleFromPath(window.location.pathname) : null;
     const real = fromPath ?? loadLocalLocale();
+    // A visitor whose language was saved before the cookie existed gets it now, so their next /arena load is server-rendered in it (#1263). Never from the URL's locale, same rule as above.
+    if (!fromPath) saveLocaleCookie(real);
     setLocaleState(real);
     const cached = loadCachedMap(real);
     /* Merged over the defaults, not substituted for them - a cache written

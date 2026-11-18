@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { isGatedTf, FREE_FALLBACK_TF } from '@/lib/limits';
 import { useSettings } from '@/lib/settings';
+import { THRESHOLD_RANGES, clampThreshold, type ThresholdField } from '@/lib/alertThresholdRanges';
 import CoinMultiSelect from '@/components/CoinMultiSelect';
 import ThemeChips from '@/components/ThemeChips';
 import { track } from '@/lib/analytics';
@@ -489,6 +490,12 @@ export default function SettingsPage() {
     const n = parseFloat(String(v));
     return isNaN(n) ? 0 : n;
   };
+  /* Leaving a threshold field brings its value inside the range (lib/alertThresholdRanges.ts), the same range the server stores, so the field
+     never shows a number the alerts cannot use. Not done while typing: "7" on the way to "75" must not jump to 40. */
+  const clampOnBlur = (field: ThresholdField) => () => {
+    const v = clampThreshold(field, settings[field]);
+    if (v !== null && v !== settings[field]) update({ [field]: v });
+  };
 
   return (
     <div className="st-page" data-testid="settings-page">
@@ -816,11 +823,12 @@ export default function SettingsPage() {
                 className="st-input"
                 aria-label={t('SETTINGS_FIELD_FUNDING_TRIGGER')}
                 type="number"
-                min="0.01"
-                max="0.5"
+                min={THRESHOLD_RANGES.fr_threshold.min}
+                max={THRESHOLD_RANGES.fr_threshold.max}
                 step="0.01"
                 value={settings.fr_threshold}
                 onChange={e => update({ fr_threshold: num(e.target.value) })}
+                onBlur={clampOnBlur('fr_threshold')}
               />
               <span className="st-affix st-suffix">%</span>
             </div>
@@ -835,10 +843,11 @@ export default function SettingsPage() {
                 className="st-input"
                 aria-label={t('SETTINGS_FIELD_FEAR_BELOW')}
                 type="number"
-                min="1"
-                max="40"
+                min={THRESHOLD_RANGES.fng_fear.min}
+                max={THRESHOLD_RANGES.fng_fear.max}
                 value={settings.fng_fear}
                 onChange={e => update({ fng_fear: num(e.target.value) })}
+                onBlur={clampOnBlur('fng_fear')}
               />
             </div>
           </div>
@@ -849,10 +858,11 @@ export default function SettingsPage() {
                 className="st-input"
                 aria-label={t('SETTINGS_FIELD_GREED_ABOVE')}
                 type="number"
-                min="60"
-                max="99"
+                min={THRESHOLD_RANGES.fng_greed.min}
+                max={THRESHOLD_RANGES.fng_greed.max}
                 value={settings.fng_greed}
                 onChange={e => update({ fng_greed: num(e.target.value) })}
+                onBlur={clampOnBlur('fng_greed')}
               />
             </div>
           </div>
@@ -866,10 +876,11 @@ export default function SettingsPage() {
                 className="st-input"
                 aria-label={t('SETTINGS_FIELD_RSI_OB')}
                 type="number"
-                min="60"
-                max="90"
+                min={THRESHOLD_RANGES.rsi_ob.min}
+                max={THRESHOLD_RANGES.rsi_ob.max}
                 value={settings.rsi_ob}
                 onChange={e => update({ rsi_ob: num(e.target.value) })}
+                onBlur={clampOnBlur('rsi_ob')}
               />
             </div>
           </div>
@@ -880,10 +891,11 @@ export default function SettingsPage() {
                 className="st-input"
                 aria-label={t('SETTINGS_FIELD_RSI_OS')}
                 type="number"
-                min="10"
-                max="40"
+                min={THRESHOLD_RANGES.rsi_os.min}
+                max={THRESHOLD_RANGES.rsi_os.max}
                 value={settings.rsi_os}
                 onChange={e => update({ rsi_os: num(e.target.value) })}
+                onBlur={clampOnBlur('rsi_os')}
               />
             </div>
           </div>
@@ -897,10 +909,11 @@ export default function SettingsPage() {
                 className="st-input"
                 aria-label={t('SETTINGS_FIELD_SQUEEZE_SCORE')}
                 type="number"
-                min="40"
-                max="95"
+                min={THRESHOLD_RANGES.squeeze_threshold.min}
+                max={THRESHOLD_RANGES.squeeze_threshold.max}
                 value={settings.squeeze_threshold}
                 onChange={e => update({ squeeze_threshold: num(e.target.value) })}
+                onBlur={clampOnBlur('squeeze_threshold')}
               />
             </div>
           </div>
