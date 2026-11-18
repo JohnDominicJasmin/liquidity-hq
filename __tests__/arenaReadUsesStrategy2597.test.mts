@@ -19,6 +19,7 @@ import { selectedIndicatorReadings } from '../lib/indicatorReadings.ts';
 import { parseArenaStrategy } from '../lib/arenaContext.ts';
 import { priceText } from '../lib/numberFormat.ts';
 import { strategyReasonText } from '../lib/strategies/reason.ts';
+import { unavailableByRule } from '../qa/fixtures/strategyAvailability.ts';
 
 const LABELS = labelDefaults as Record<string, string>;
 const tEn = (key: string, vars?: Record<string, string | number>) => (LABELS[key] ?? key).replace(/\{(\w+)\}/g, (w, n) => (vars && n in vars ? String(vars[n]) : w));
@@ -81,6 +82,12 @@ for (const def of STRATEGIES) {
     test(`S1 ${def.id} ${label}: Quick and Deep carry the name, the verdict, the reason and the levels, and tell the read to name it`, () => {
       const candles = view(end, viewSize(def));
       if (NEEDS_LIVE.has(def.id)) return; // S2
+      const na = unavailableByRule(def.id, 'btc', TF_MS);   // #2604: a strategy that cannot run on this timeframe is NO READING with the written sentence, never a WAIT
+      if (na) {
+        const r = arenaStrategyRead(def.id, [], inputs(candles), tEn as never)!; const b = strategyReadBlock(r);
+        const noWait = !b.includes(`${name}: WAIT`), named = b.includes(`${name}: NO READING (`), cause = b.includes(na.slice(0, -1));
+        assert.ok(named && cause && noWait, `${def.id} at 1h: expected NO READING (${na}); got ${b.split(String.fromCharCode(10)).find((l) => l.startsWith(name))}`); return;
+      }
       const d = direct(def, candles);
       const word = d.verdict === 'buy' ? 'BUY' : d.verdict === 'sell' ? 'SELL' : 'WAIT';
       const read = arenaStrategyRead(def.id, [], inputs(candles), tEn as never);
@@ -123,8 +130,9 @@ test('S3. no candles / too few / a timeframe the strategies do not run on: NO RE
       ['null candles', inputs(null), /no candles/], ['empty candles', inputs([]), /no candles/], ...(def.minCandles > 1 ? [['too few', inputs(ALL.slice(0, def.minCandles - 1)), new RegExp('only ' + (def.minCandles - 1) + ' closed candles')] as const] : []), ['unsupported timeframe', inputs(view(ALL.length), { tfMs: undefined, tf: '3d' }), /does not run on this timeframe/],
     ] as const) {
       const read = arenaStrategyRead(def.id, [], inp, tEn as never); const r = read!.readings[0];
+      const na = label === 'unsupported timeframe' ? null : unavailableByRule(def.id, 'btc', TF_MS);   // #2604: the strategy's own availability is judged FIRST, whatever the candles
       assert.equal(r.status, 'none', `${def.id} ${label}: got ${r.status}`);
-      if (r.status === 'none') assert.match(r.why, cause, `${def.id} ${label}`);
+      if (r.status === 'none') assert.ok(na ? r.why.includes(na.slice(0, -1)) : cause.test(r.why), `${def.id} ${label}: why "${r.why}" (availability first: ${na})`);
       const block = strategyReadBlock(read); assert.ok(block.includes(`${name}: NO READING (`) && !block.includes(`${name}: WAIT`), `${def.id} ${label}`);
       assert.ok(block.includes(`must name "${name}" and say it has no reading right now`), `${def.id} ${label}: the read is not told the strategy has no reading`);
     }
