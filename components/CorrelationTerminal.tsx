@@ -314,10 +314,11 @@ export default function CorrelationTerminal() {
                             transition: 'opacity 0.1s',
                             cursor: diag ? 'default' : 'crosshair',
                           }}
-                          title={diag ? COIN_LABELS[a] : `${COIN_LABELS[a]} / ${COIN_LABELS[b]}: ${r?.toFixed(2) ?? '-'}`}
+                          title={diag ? COIN_LABELS[a] : r !== null ? `${COIN_LABELS[a]} / ${COIN_LABELS[b]}: ${r.toFixed(2)}` : `${COIN_LABELS[a]} / ${COIN_LABELS[b]}`}
                           onMouseEnter={() => setHovered([i, j])}
                         >
-                          {diag ? '-' : r !== null ? r.toFixed(2) : (!done.has(a) || !done.has(b)) ? '…' : '-'}
+                          {/* A pair with no shared history is left blank, never a dash; the diagonal (a coin with itself) is blank too (owner sweep 2026-11-18). */}
+                          {diag ? '' : r !== null ? r.toFixed(2) : (!done.has(a) || !done.has(b)) ? '…' : ''}
                         </div>
                       );
                     })}

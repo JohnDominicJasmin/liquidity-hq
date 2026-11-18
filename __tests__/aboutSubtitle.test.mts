@@ -114,9 +114,22 @@ test('A6. 20261001e is the LAST migration writing the English subtitle, so nothi
 
 /* ══ The page ════════════════════════════════════════════════════════════════════════════════════════ */
 
-test('A7. the About page renders the subtitle through t(\'ABOUT_PAGE_SUBTITLE\'), not a hard-coded string - otherwise the label and the migration change nothing on screen and no locale but English could ever show', () => {
+test('A7. (#2568) the About page renders NO subtitle: the title <h1> is the only header line, ABOUT_PAGE_SUBTITLE is not read by the page, and no subtitle wording is hard-coded in its place', () => {
   const page = stripComments(read(appPath('app/about/page.tsx')));
-  anchorOnce(page, `{t('${KEY}')}`, 'the subtitle render');
+  // positive control: the scan sees the page and its title render, so "no subtitle" is not a blind read
+  anchorOnce(page, `{t('ABOUT_PAGE_TITLE')}`, 'the title render (control)');
+  assert.equal(page.split(KEY).length - 1, 0, `the page still reads ${KEY}`);
+  assert.doesNotMatch(page, /SUBTITLE/, 'the page reads some *_SUBTITLE key');
+  assert.doesNotMatch(page, /--fs-caption\)', color: 'var\(--txt3\)', marginBottom/, 'the empty caption-styled subtitle element is back');
   assert.doesNotMatch(page, /Liquidity Hunter HQ/, 'the page hard-codes the product name line');
   assert.doesNotMatch(page, /market analytics|trading intelligence/i, 'the page hard-codes subtitle wording');
+  // the h1 carries the 14px that the subtitle's marginBottom used to supply, so no orphaned/collapsed gap
+  assert.match(page, /<h1 style=\{\{[^}]*margin: '0 0 14px'/, 'the h1 lost the 14px bottom margin the subtitle used to provide');
+});
+
+test('A7b. (#2568) ABOUT_PAGE_SUBTITLE stays registered and defaulted because lib/structuredData.ts still reads it for the Organization description (the key was NOT orphaned by dropping the render)', () => {
+  const sd = stripComments(read('lib/structuredData.ts'));
+  anchorOnce(sd, `L.${KEY}`, 'structuredData reads the key');
+  anchorOnce(read('lib/labelKeys.ts'), `'${KEY}'`, 'the key in labelKeys.ts');
+  assert.equal(defaults[KEY], NEW_EN);
 });

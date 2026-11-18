@@ -150,6 +150,29 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* DRAFT, the release after v2026.11.18 (PM 2026-11-18). THE TAG AND THE DATE ARE SET WHEN THE TAG IS CUT: the date must be the tagged commit's %cs (the
+       changelog test checks it one run after the tag exists). Plain words, 12 words or fewer per line (rule 22); only user-visible changes. Tied to: #2553 (chart
+       after an idle tab, live feeds reconnect), #2555 + #2562 (data stays visible, no data-gap dashes), #2544 + #2549 (AI read at a glance), #2559 (AI accuracy,
+       incomplete answers not charged), #2545 (shorter text), #2551 (alert line removed), #2560 (Telegram delivery), #2561 (alert sounds). A line whose PR does not
+       merge before the tag is removed. */
+    date: '2026-11-18',
+    tag: 'v2026.11.18.2',
+    items: [
+      "The chart no longer goes empty after the tab sits idle.",
+      "Liquidation and whale-trade feeds reconnect when you return to the tab.",
+      "When a source is slow, the last good value stays visible.",
+      "Far fewer dashes and \"Unavailable\" where data was missing.",
+      "AI reads open with one summary line and up to three reasons.",
+      "Fixed AI reads that read long/short positioning backwards.",
+      "An AI answer that comes back incomplete is not charged.",
+      "Telegram alerts retry instead of being lost.",
+      "Old signals are no longer sent when you switch on a timeframe.",
+      "Macro headlines have their own alert switch.",
+      "Choose from 8 alert sounds, the volume and what plays, in Settings.",
+      "Labels and tips across the app are shorter.",
+    ],
+  },
+  {
     /* DRAFT, v2026.11.18 (PM 2026-11-18): the release after v2026.11.17. THE DATE MUST BE THE TAGGED COMMIT's %cs (the changelog test checks it): set it when the tag is made. Plain words, 12 words or fewer per line (rule 22); only what actually merged is listed; the Arena strategy lines are added as each of those PRs merges. */
     date: '2026-11-18',
     tag: 'v2026.11.18',

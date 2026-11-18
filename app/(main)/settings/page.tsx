@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { isGatedTf } from '@/lib/limits';
+import { isGatedTf, FREE_FALLBACK_TF } from '@/lib/limits';
 import { useSettings } from '@/lib/settings';
 import CoinMultiSelect from '@/components/CoinMultiSelect';
 import ThemeChips from '@/components/ThemeChips';
@@ -13,7 +13,9 @@ import PageHint from '@/components/PageHint';
 import { SkeletonBar } from '@/components/Skeleton';
 import LanguageSelect from '@/components/LanguageSelect';
 import { useLabels } from '@/lib/labels';
-import { playPing, unlockAudio } from '@/lib/arenaSound';
+import { playPing, unlockAudio, previewSound, SOUND_IDS, type SoundId } from '@/lib/arenaSound';
+import { normaliseSoundPrefs, type ArenaSoundPrefs } from '@/lib/arenaSoundPrefs';
+import type { LabelKey } from '@/lib/labelKeys';
 import { getSupabase, getAuthToken } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
 import { updatePassword } from '@/lib/authSession';
@@ -97,12 +99,76 @@ function ArenaSoundToggle() {
           role="switch"
           aria-checked={on}
           aria-label={t('SETTINGS_ARENA_SOUND_TITLE')}
-          onClick={() => { if (!on) { unlockAudio(); window.setTimeout(() => { playPing('move'); }, 60); } update({ arena_sound: !on }); }}
+          onClick={() => { if (!on) { const p = normaliseSoundPrefs(settings.arena_sound_prefs); unlockAudio(); window.setTimeout(() => { playPing('move', { sound: p.sound, volume: p.volume }); }, 60); } update({ arena_sound: !on }); }}
         >
           <span className="st-toggle-thumb" />
         </button>
       </div>
       <div className="st-desc" style={{ marginTop: 8 }}>{t('SETTINGS_ARENA_SOUND_DESC')}</div>
+      {on && <ArenaSoundPicker />}
+    </div>
+  );
+}
+
+const SOUND_LABEL_KEYS: Record<SoundId, LabelKey> = {
+  chime: 'SETTINGS_SOUND_CHIME', bell: 'SETTINGS_SOUND_BELL', pop: 'SETTINGS_SOUND_POP', marimba: 'SETTINGS_SOUND_MARIMBA',
+  beep: 'SETTINGS_SOUND_BEEP', soft: 'SETTINGS_SOUND_SOFT', digital: 'SETTINGS_SOUND_DIGITAL', drop: 'SETTINGS_SOUND_DROP',
+};
+
+/* THE SOUND PICKER (owner, PM-approved spec 2026-11-18): one of 8 sounds (a tap previews it), a volume slider, and a switch per trigger.
+   Shown only while sounds are on. Saved as one object (settings.arena_sound_prefs); untouched, it stays null and the defaults play. */
+function ArenaSoundPicker() {
+  const { t } = useLabels();
+  const { settings, update } = useSettings();
+  const prefs = normaliseSoundPrefs(settings.arena_sound_prefs);
+  const save = (next: ArenaSoundPrefs) => update({ arena_sound_prefs: next as unknown as Record<string, unknown> });
+  const triggers: Array<{ k: keyof ArenaSoundPrefs['on']; label: string }> = [
+    { k: 'signal', label: t('SETTINGS_ARENA_SOUND_TRIGGER_SIGNAL') },
+    { k: 'move', label: t('SETTINGS_ARENA_SOUND_TRIGGER_MOVE') },
+    { k: 'volume', label: t('SETTINGS_ARENA_SOUND_TRIGGER_VOLUME') },
+  ];
+  return (
+    <div data-testid="arena-sound-picker" style={{ marginTop: 12 }}>
+      <div className="st-field-label">{t('SETTINGS_ARENA_SOUND_PICK')}</div>
+      <div className="st-chip-row">
+        {SOUND_IDS.map(id => (
+          <button
+            key={id}
+            type="button"
+            className={`st-chip${prefs.sound === id ? ' on' : ''}`}
+            aria-pressed={prefs.sound === id}
+            data-testid={`arena-sound-${id}`}
+            onClick={() => { previewSound(id, prefs.volume); if (prefs.sound !== id) save({ ...prefs, sound: id }); }}
+          >{t(SOUND_LABEL_KEYS[id])}</button>
+        ))}
+      </div>
+      <label className="st-field-label" htmlFor="arena-sound-volume" style={{ marginTop: 12, display: 'block' }}>{t('SETTINGS_ARENA_SOUND_VOLUME')}</label>
+      <input
+        id="arena-sound-volume"
+        data-testid="arena-sound-volume"
+        type="range" min={0} max={100} step={5}
+        value={Math.round(prefs.volume * 100)}
+        onChange={e => save({ ...prefs, volume: Number(e.target.value) / 100 })}
+        onPointerUp={() => previewSound(prefs.sound, prefs.volume)}
+        onKeyUp={e => { if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' || e.key === 'PageDown') previewSound(prefs.sound, prefs.volume); }}
+        style={{ width: '100%', maxWidth: 280 }}
+      />
+      <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+        {triggers.map(({ k, label }) => (
+          <div key={k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{label}</span>
+            <button
+              type="button"
+              className={`st-toggle${prefs.on[k] ? ' on' : ''}`}
+              role="switch"
+              aria-checked={prefs.on[k]}
+              aria-label={label}
+              data-testid={`arena-sound-on-${k}`}
+              onClick={() => save({ ...prefs, on: { ...prefs.on, [k]: !prefs.on[k] } })}
+            ><span className="st-toggle-thumb" /></button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -656,7 +722,10 @@ export default function SettingsPage() {
         <div className="st-field">
           <label className="st-field-label">{t('SETTINGS_FIELD_DEFAULT_TF')}</label>
           <div className="st-chip-row">
-            {TFS.map(tf => {
+            {/* A Free account holding a saved Pro-only timeframe (a lapsed Pro) sees the nearest Free one selected, the one the Arena opens on,
+                never a disabled chip selected (PM 2026-11-18). */}
+            {(() => { /* While the plan is still being read, a saved Pro-only timeframe is not shown selected on a disabled chip (QA review of #2561): no chip is selected until the plan is known. */
+              const shownTf = isGatedTf(settings.default_tf) && entitlementStatus !== 'entitled' ? (entitlementStatus === 'not_entitled' ? FREE_FALLBACK_TF : null) : settings.default_tf; return TFS.map(tf => {
               // Fast timeframes are Pro-only. Previously every chip was
               // selectable for everyone, so a free user could save 5m here and
               // Arena would silently clamp it back to 1h on load.
@@ -670,8 +739,8 @@ export default function SettingsPage() {
               return (
                 <button
                   key={tf}
-                  className={`st-chip${settings.default_tf === tf ? ' on' : ''}`}
-                  aria-pressed={settings.default_tf === tf}
+                  className={`st-chip${shownTf === tf ? ' on' : ''}`}
+                  aria-pressed={shownTf === tf}
                   onClick={() => { if (!locked) update({ default_tf: tf }); }}
                   disabled={locked}
                   title={locked ? t('SETTINGS_TF_PRO_ONLY') : undefined}
@@ -680,7 +749,7 @@ export default function SettingsPage() {
                   {tf}{locked && <Lock size={12} style={{ marginLeft: 5 }} />}
                 </button>
               );
-            })}
+            }); })()}
           </div>
         </div>
       </Section>

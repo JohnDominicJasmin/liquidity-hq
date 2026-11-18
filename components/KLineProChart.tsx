@@ -23,7 +23,9 @@ import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { LIQ_CLUSTER_LINES, mergeLiqBands } from '@/lib/liqClusters';
 import { findIndicator, toCalcParams, DEFAULT_PANE_INDICATORS, type IndicatorEntry } from '@/lib/strategyRegistry';
 import { isStreamStalled, STREAM_WATCH_EVERY_MS, BYBIT_PING_EVERY_MS, STREAM_SUSPECT_MS } from '@/lib/streamWatch';
-import { checkChartSync, historyRetryDelayMs, HISTORY_ATTEMPT_TIMEOUT_MS } from '@/lib/chartSync';
+import { checkChartSync, historyRetryDelayMs, HISTORY_ATTEMPT_TIMEOUT_MS, periodMs } from '@/lib/chartSync';
+import { resumeAction } from '@/lib/chartResume';
+import { reconnectDelayMs, linkState } from '@/lib/reconnectDelay';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
 import type { StrategyOverlay } from '@/lib/strategies/types';
 
@@ -663,6 +665,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
   const chartRef       = useRef<KChart | null>(null);
   const wsRef          = useRef<{ close: () => void } | null>(null);
+  /* RESUME (owner, 2026-11-18: the chart was empty after the tab sat 1-2 h). The live subscription publishes a "kick" here: on resume
+     it decides from its own socket state whether to reconnect at once (a reconnect backfills the gap). See lib/chartResume.ts. */
+  const wsKickRef      = useRef<{ state: () => { open: boolean; lastMsgAt: number | null }; reconnect: (reason: string) => void } | null>(null);
+  /* The last history that loaded, per coin and timeframe. A reload that fails (the network is still waking up after a sleep, an
+     exchange refuses once) used to hand the chart an EMPTY list, which wiped candles that were on screen a moment before. With this
+     a failed reload keeps them, the "couldn't load" banner and its retry still run, and the chart is never blank because of a retry. */
+  const lastGoodRef    = useRef<{ key: string; bars: { timestamp: number; open: number; high: number; low: number; close: number; volume: number }[] } | null>(null);
   const analysisIds    = useRef<string[]>([]);
   const gexLevelIds    = useRef<string[]>([]);
   const liqClusterIds  = useRef<string[]>([]);
@@ -1911,7 +1920,18 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             }
             return;
           }
+          const loadKey = `${c}|${period.span}${period.type}`;
+          /* A failed load keeps the candles already on screen for this coin and timeframe (lastGoodRef). Returns false when there are
+             none to keep, and the caller then reports the empty chart as before. */
+          const keepLastGood = (): boolean => {
+            const kept = lastGoodRef.current;
+            if (!kept || kept.key !== loadKey || !kept.bars.length) return false;
+            deliveredGenRef.current = myGen;
+            callback(kept.bars, { forward: true });
+            return true;
+          };
           const applyBars = (bars: { timestamp: number; open: number; high: number; low: number; close: number; volume: number }[]) => {
+            if (bars.length) lastGoodRef.current = { key: loadKey, bars };
             if (bars.length) {
               lastCloseRef.current = bars[bars.length - 1].close;
               srSetRef.current(computeSRLevels(bars, bars[bars.length - 1].close));
@@ -1973,7 +1993,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // silent - say so rather than a chart with nothing on it and
                 // no explanation.
                 if (json === null) setHistoryFailed(true);
-                applyBars([]);
+                if (!(json === null && keepLastGood())) applyBars([]);
                 handled = true;
               }
               // else: Bybit had nothing (refused after retries, or genuinely
@@ -2069,14 +2089,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // coin that DOES have a fallback. Surface it the same way.
                 setHistoryFailed(true);
               }
-              applyBars(bars);
+              if (!(bars.length === 0 && keepLastGood())) applyBars(bars);
             } else if (!handled) {
               applyBars([]);
             }
             endFade();
             setLoadingTf(null);
             setBarsTick(n => n + 1);
-          } catch { if (!stale()) { setHistoryFailed(true); deliveredGenRef.current = myGen; callback([], false); endFade(); setLoadingTf(null); } }
+          } catch { if (!stale()) { setHistoryFailed(true); if (!keepLastGood()) { deliveredGenRef.current = myGen; callback([], false); } endFade(); setLoadingTf(null); } }
           void symbol; // suppress unused
         },
 
@@ -2203,7 +2223,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 setWsStatus('connecting');
                 attempt += 1;
                 hostTry += 1;
-                const delay = Math.min(1000 * 2 ** (attempt - 1), 30_000);
+                // Offline or hidden: lib/reconnectDelay.ts backs off to 30 s; `online` and the resume handler reconnect at once.
+                const delay = reconnectDelayMs(attempt, linkState());
                 if (timer) clearTimeout(timer);
                 timer = setTimeout(connect, delay);
               };
@@ -2255,14 +2276,31 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               attempt += 1;
               hostTry += 1;
               if (timer) clearTimeout(timer);
-              timer = setTimeout(connect, Math.min(1000 * 2 ** (attempt - 1), 30_000));
+              timer = setTimeout(connect, reconnectDelayMs(attempt, linkState()));
             }, STREAM_WATCH_EVERY_MS);
 
             connect();
 
+            wsKickRef.current = {
+              state: () => ({ open: !!live && live.readyState === WebSocket.OPEN, lastMsgAt: live ? lastMsgAt : null }),
+              reconnect: () => {
+                if (cancelled) return;
+                const old = live;
+                live = null;
+                suspect = false;
+                if (old) { old.onclose = null; old.onmessage = null; old.onerror = null; try { old.close(); } catch { /* already gone */ } }
+                stopPing();
+                setWsStatus('connecting');
+                attempt = 0;
+                if (timer) clearTimeout(timer);
+                connect();
+              },
+            };
+
             wsRef.current = {
               close: () => {
                 cancelled = true;
+                wsKickRef.current = null;
                 clearInterval(watchdog);
                 stopPing();
                 window.removeEventListener('online', onOnline);
@@ -2396,7 +2434,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 if (cancelled || ws !== live) return;
                 setWsStatus('connecting');
                 attempt += 1;
-                const delay = Math.min(1000 * 2 ** (attempt - 1), 30_000);
+                const delay = reconnectDelayMs(attempt, linkState()); // same rule as the Bybit branch
                 if (timer) clearTimeout(timer);
                 timer = setTimeout(connect, delay);
               };
@@ -2435,14 +2473,30 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               setWsStatus('connecting');
               attempt += 1;
               if (timer) clearTimeout(timer);
-              timer = setTimeout(connect, Math.min(1000 * 2 ** (attempt - 1), 30_000));
+              timer = setTimeout(connect, reconnectDelayMs(attempt, linkState()));
             }, STREAM_WATCH_EVERY_MS);
 
             connect();
 
+            wsKickRef.current = {
+              state: () => ({ open: !!live && live.readyState === WebSocket.OPEN, lastMsgAt: live ? lastMsgAt : null }),
+              reconnect: () => {
+                if (cancelled) return;
+                const old = live;
+                live = null;
+                suspect = false;
+                if (old) { old.onclose = null; old.onmessage = null; old.onerror = null; try { old.close(); } catch { /* already gone */ } }
+                setWsStatus('connecting');
+                attempt = 0;
+                if (timer) clearTimeout(timer);
+                connect();
+              },
+            };
+
             wsRef.current = {
               close: () => {
                 cancelled = true;
+                wsKickRef.current = null;
                 clearInterval(watchdog);
                 window.removeEventListener('online', onOnline);
                 if (timer) clearTimeout(timer);
@@ -2611,16 +2665,65 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     const chart = chartRef.current;
     if (!chart) return;
     const retry = () => { loadGenRef.current += 1; loadBumpedAtRef.current = Date.now(); chart.resetData(); };
-    const timer = setTimeout(() => {
-      historyRetryRef.current += 1;
-      // Offline: do not burn an attempt, the `online` listener below is the trigger.
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
-      retry();
-    }, historyRetryDelayMs(historyRetryRef.current));
+    /* Offline: do not burn an attempt, but do not stop either. This used to `return` and leave the `online` event as the only way
+       back, so an `online` that fired before this effect was listening (or never fired, on a network that came back without the
+       browser noticing) left the chart failed until a refresh. Now it checks again at the same delay. */
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = (ms: number) => {
+      timer = setTimeout(() => {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) { schedule(ms); return; }
+        historyRetryRef.current += 1;
+        retry();
+      }, ms);
+    };
+    schedule(historyRetryDelayMs(historyRetryRef.current));
     const onOnline = () => { clearTimeout(timer); historyRetryRef.current = 0; retry(); };
     window.addEventListener('online', onOnline);
     return () => { clearTimeout(timer); window.removeEventListener('online', onOnline); };
   }, [historyFailed]);
+
+  /* ── Resume: the tab came back (owner, 2026-11-18) ─────────────────────────
+     Hidden for an hour or two, the tab's timers ran about once a minute or not at all, a sleep may have killed the socket without a
+     close event, and the canvas may have lost its pixels. So on visible / pageshow (back-forward cache) / resume (unfrozen):
+     repaint, then ask lib/chartResume.ts what the data needs - nothing, a reconnect now (whose open backfills the gap), or a full
+     reload (no candles, or a gap wider than the backfill). A reload that fails keeps the candles already drawn (lastGoodRef). */
+  useEffect(() => {
+    if (!chartReady) return;
+    const onResume = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      const chart = chartRef.current;
+      if (!chart) return;
+      try { chart.resize(); } catch { /* not laid out yet */ }
+      const list = chart.getDataList();
+      const sock = wsKickRef.current?.state() ?? { open: false, lastMsgAt: null };
+      const action = resumeAction({
+        lastBarTs: list.length ? list[list.length - 1].timestamp : null,
+        periodMs: periodMs(TF_TO_PERIOD[tfRef.current] ?? TF_TO_PERIOD['15m']),
+        now: Date.now(),
+        socketOpen: sock.open,
+        lastMsgAt: sock.lastMsgAt,
+      });
+      if (action.do === 'none') return;
+      console.warn('[chart] resume:', action.do, action.reason);
+      if (action.do === 'reconnect' && wsKickRef.current) { wsKickRef.current.reconnect(action.reason); return; }
+      loadGenRef.current += 1; loadBumpedAtRef.current = Date.now(); historyRetryRef.current = 0;
+      chart.resetData();
+    };
+    const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) onResume(); };
+    /* A canvas whose backing store the browser dropped comes back blank; repaint it. Capture, because the event does not bubble. */
+    const onCanvasRestored = () => { try { chartRef.current?.resize(); } catch { /* ignore */ } };
+    const host = containerRef.current;
+    document.addEventListener('visibilitychange', onResume);
+    document.addEventListener('resume', onResume);
+    window.addEventListener('pageshow', onPageShow);
+    host?.addEventListener('contextrestored', onCanvasRestored, true);
+    return () => {
+      document.removeEventListener('visibilitychange', onResume);
+      document.removeEventListener('resume', onResume);
+      window.removeEventListener('pageshow', onPageShow);
+      host?.removeEventListener('contextrestored', onCanvasRestored, true);
+    };
+  }, [chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Self-heal: the chart must agree with the selected timeframe (#1572) ─
      One check every 10 s (reads about a dozen timestamps): the period klinecharts holds must be the selected one, and once the load for

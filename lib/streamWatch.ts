@@ -7,8 +7,9 @@
 
 /** How long a socket may deliver NOTHING (no candle, no pong) before it is treated as dead and replaced. Bybit's kline topic
  *  pushes about once a second for BTC and the client pings every 20 s; Binance's kline stream pushes every 1-2 s. 60 s is
- *  generous enough that a quiet coin never trips it, and a false trip costs one reconnect plus a gap backfill. */
-export const STREAM_STALL_MS = 60_000;
+ *  generous enough that a quiet coin never trips it, and a false trip costs one reconnect plus a gap backfill. 45 s since
+ *  2026-11-18 (PM, chart empty after idle): two missed Bybit pongs, and still 20+ Binance pushes. */
+export const STREAM_STALL_MS = 45_000;
 
 /** How often the watchdog looks. */
 export const STREAM_WATCH_EVERY_MS = 10_000;
