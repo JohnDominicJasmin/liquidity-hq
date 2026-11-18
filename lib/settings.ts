@@ -222,8 +222,21 @@ export function loadLocalSettings(): UserSettings {
   };
 }
 
-export function saveLocalSettings(s: UserSettings) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch { /* ignore */ }
+export function saveLocalSettings(s: UserSettings, signedIn = true) {
+  /* SIGNED OUT, THE CACHE SAYS NOTHING ABOUT THE ARENA STRATEGY (#1263 box 33, QA). This cache is not keyed by account, and the pre-paint hint (components/RootDocument.tsx) reads a cached
+     `arena_strategy: null` as "this visitor has no saved strategy". A signed-out edit wrote the default null, so the first load after signing in to an account that HAS a strategy claimed "none" and
+     the call box pushed the page once. Without the key the hint claims nothing; the sign-in read writes the account's real value. */
+  try { localStorage.setItem(LS_KEY, JSON.stringify(signedIn ? s : { ...s, arena_strategy: undefined })); } catch { /* ignore */ }
+}
+
+/** A confirmed sign-out: the cached strategy belonged to the account that left, so it stops speaking for the next one (same reason as above). */
+export function forgetCachedArenaStrategy() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const j = JSON.parse(raw) as Record<string, unknown> | null;
+    if (j && typeof j === 'object' && 'arena_strategy' in j) { delete j.arena_strategy; localStorage.setItem(LS_KEY, JSON.stringify(j)); }
+  } catch { /* ignore */ }
 }
 
 // ── Unconfirmed-write tracking (#1188 part 3) ─────────────────────────────

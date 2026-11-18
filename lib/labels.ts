@@ -53,4 +53,16 @@ export function loadLocalLocale(): Locale {
 
 export function saveLocalLocale(l: Locale) {
   try { localStorage.setItem(LS_KEY, l); } catch { /* ignore */ }
+  saveLocaleCookie(l);
+}
+
+/* THE SAME CHOICE, READABLE BY THE SERVER (#1263, "d2"). localStorage never reaches the server, so a page that wants to render the visitor's language on the first paint (app/(main)/arena/layout.tsx)
+   reads this cookie instead. A layout hint only: it decides which label table the first paint uses, nothing about access. English clears it. */
+export const LOCALE_COOKIE = 'lhq_lang';
+export function saveLocaleCookie(l: Locale) {
+  try {
+    document.cookie = l === 'en'
+      ? `${LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`
+      : `${LOCALE_COOKIE}=${encodeURIComponent(l)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+  } catch { /* ignore */ }
 }
