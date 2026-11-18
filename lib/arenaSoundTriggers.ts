@@ -16,7 +16,7 @@ export const MOVE_LOOKBACK = 20;
 export const MOVE_BODY_RATIO = 2;
 export const MOVE_VOLUME_RATIO = 2;
 
-export type PingKind = 'buy' | 'sell' | 'move';
+export type PingKind = 'buy' | 'sell' | 'move' | 'volume';
 
 /** The identity of a signal, or null when there is no usable signal (still loading, errored, or none). */
 export function signalIdentity(sig: { loading?: boolean; error?: unknown; signalTimestamp?: number | null; signalDir?: 'long' | 'short' | null } | null | undefined): string | null {
@@ -32,7 +32,12 @@ export function pingForSignalChange(prev: string | null | undefined, next: strin
   return next.startsWith('long:') ? 'buy' : 'sell';
 }
 
-export interface MoveReading { hit: boolean; bodyRatio: number; volumeRatio: number; candleStart: number }
+/* THE TWO SEPARATE TRIGGERS of the sound picker (owner, PM-approved spec 2026-11-18): a BIG MOVE is the forming candle's body at 2.5x or more the
+   average of the last 20 closed bodies (no volume rule); a VOLUME SPIKE is its volume at 3x or more their average volume. Each plays at most once
+   per candle. `hit` (body 2x AND volume 2x) is the original combined rule and stays for its callers. */
+export const BIG_MOVE_BODY_RATIO = 2.5;
+export const VOLUME_SPIKE_RATIO = 3;
+export interface MoveReading { hit: boolean; bodyRatio: number; volumeRatio: number; candleStart: number; bigMove: boolean; volumeSpike: boolean }
 
 /** Reads the forming candle against the last MOVE_LOOKBACK closed ones. `bars` is oldest first and ends with the forming candle. Null when there is not
  *  enough history, the last bar is not actually forming (a stalled feed), or the averages are zero (nothing to compare with). */
@@ -47,5 +52,8 @@ export function readMove(bars: readonly Bar[], tfMs: number, nowMs: number): Mov
   if (!(avgBody > 0) || !(avgVol > 0) || ![forming.open, forming.close, forming.volume].every(Number.isFinite)) return null;
   const bodyRatio = Math.abs(forming.close - forming.open) / avgBody;
   const volumeRatio = forming.volume / avgVol;
-  return { hit: bodyRatio >= MOVE_BODY_RATIO && volumeRatio >= MOVE_VOLUME_RATIO, bodyRatio, volumeRatio, candleStart: forming.timestamp };
+  return {
+    hit: bodyRatio >= MOVE_BODY_RATIO && volumeRatio >= MOVE_VOLUME_RATIO, bodyRatio, volumeRatio, candleStart: forming.timestamp,
+    bigMove: bodyRatio >= BIG_MOVE_BODY_RATIO, volumeSpike: volumeRatio >= VOLUME_SPIKE_RATIO,
+  };
 }
