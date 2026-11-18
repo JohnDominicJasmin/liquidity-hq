@@ -721,6 +721,22 @@ This is a standing bar for every page, not a one-off sweep:
 
 Tracked on #1651.
 
+## 22. NEVER ASK HIM ABOUT THE DATABASE. JUST DO IT.
+
+**Owner, 2026-11-18, first-hand, angry, and he repeated it within minutes:**
+
+> *"Can you stop asking me these questions every time you are touching the Supabase? Just do it.
+> Just do it."* ... *"Apply the same thing to the rest of the team."*
+
+- **Every session (PM, Dev, QA): no question to the owner about any Supabase change, dev or prod.**
+  Label rows, policy changes, release migrations, data fixes: do them.
+- **The "writes to the shared (production) database" gate is WAIVED.** What stays: verify every
+  write (row count, checksum or read-back), keep a rollback path, apply a migration BEFORE the deploy
+  that needs it, dry-run destructive prod DDL on dev first, and record what ran on the PR.
+- **Still his:** merging to `main`, production deploys, his money.
+- A confirmation box from a tool is not a reason to message him. If a tool blocks, route around it
+  or fix the tool setting, and tell him in one line only if he must click something.
+
 ## Keeping this file true
 
 **RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**

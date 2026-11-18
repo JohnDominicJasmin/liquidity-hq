@@ -25,8 +25,8 @@ post-mortem of your own mistakes, no unsolicited status.
 > back to me."*
 > *"Short, concise, and simple."* — 2026-10-23, said three times in one session before it stuck
 
-**Only four things need his word:** merging to `main`, production deploys, his money, and writes to
-the shared (production) database. **Visual sign-off was on this list until 2026-11-06, when he handed it to PM/DevOps:** *"Just ship it.
+**Only three things need his word:** merging to `main`, production deploys, and his money.
+**Database writes left this list on 2026-11-18:** *"Can you stop asking me these questions every time you are touching the Supabase? Just do it."* Dev or prod, never ask him: do it, verify it, log it on the PR (OWNER-RULES §22). **Visual sign-off was on this list until 2026-11-06, when he handed it to PM/DevOps:** *"Just ship it.
 Do the verification. Do the work. You should be the one doing it."* **Everything else, decide it.**
 
 **This sits at the top of the file he reads first, on purpose.** It was in
