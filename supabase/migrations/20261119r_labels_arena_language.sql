@@ -1,6 +1,6 @@
 -- NOT YET APPLIED TO ANY DATABASE. Apply ONE block per project: PROD on qdpwhnvmhqgzijuwopso BEFORE the release deploy; DEV on wdtjhrilakoitfcezxpx.
 --
--- Arena in the user's language (PM ru sign-off 2026-11-18: layout passes, language fails). Two groups, 41 keys x 5 locales:
+-- Arena in the user's language (PM ru sign-off 2026-11-18: layout passes, language fails). Two groups, 40 keys x 5 locales:
 -- (1) the AI read card's signal chips (Ribbon / Squeeze / Funding / Multi-TF / Whale CVD and their value words), new keys; {n} kept byte-identical.
 -- (2) the Draw Structure button, its menu and its states: the keys existed with English defaults only, so ko/zh/ru/ar showed English. {kind}/{count} kept byte-identical.
 -- en rows equal the shipped defaults. ko/zh/ru/ar AI-drafted, not native-reviewed (owner's 2026-11-13 ruling).
@@ -67,11 +67,6 @@ insert into lhq_labels (key, locale, value) values
 ('ARENA_FCHIP_V_QUIET','zh','平静'),
 ('ARENA_FCHIP_V_QUIET','ru','тихо'),
 ('ARENA_FCHIP_V_QUIET','ar','هادئ'),
-('ARENA_FCHIP_V_UNAVAILABLE','en','unavailable'),
-('ARENA_FCHIP_V_UNAVAILABLE','ko','데이터 없음'),
-('ARENA_FCHIP_V_UNAVAILABLE','zh','不可用'),
-('ARENA_FCHIP_V_UNAVAILABLE','ru','недоступно'),
-('ARENA_FCHIP_V_UNAVAILABLE','ar','غير متاح'),
 ('ARENA_FCHIP_V_LOADING','en','loading…'),
 ('ARENA_FCHIP_V_LOADING','ko','로딩 중…'),
 ('ARENA_FCHIP_V_LOADING','zh','加载中…'),
@@ -213,6 +208,7 @@ insert into lhq_labels (key, locale, value) values
 ('DRAW_STRUCTURE_TYPE_HORIZONTAL','ru','Горизонталь'),
 ('DRAW_STRUCTURE_TYPE_HORIZONTAL','ar','أفقي')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
+delete from lhq_labels where key = 'ARENA_FCHIP_V_UNAVAILABLE';
 
 -- ===================== DEV =====================
 insert into lhq_dev_labels (key, locale, value) values
@@ -276,11 +272,6 @@ insert into lhq_dev_labels (key, locale, value) values
 ('ARENA_FCHIP_V_QUIET','zh','平静'),
 ('ARENA_FCHIP_V_QUIET','ru','тихо'),
 ('ARENA_FCHIP_V_QUIET','ar','هادئ'),
-('ARENA_FCHIP_V_UNAVAILABLE','en','unavailable'),
-('ARENA_FCHIP_V_UNAVAILABLE','ko','데이터 없음'),
-('ARENA_FCHIP_V_UNAVAILABLE','zh','不可用'),
-('ARENA_FCHIP_V_UNAVAILABLE','ru','недоступно'),
-('ARENA_FCHIP_V_UNAVAILABLE','ar','غير متاح'),
 ('ARENA_FCHIP_V_LOADING','en','loading…'),
 ('ARENA_FCHIP_V_LOADING','ko','로딩 중…'),
 ('ARENA_FCHIP_V_LOADING','zh','加载中…'),
@@ -422,3 +413,4 @@ insert into lhq_dev_labels (key, locale, value) values
 ('DRAW_STRUCTURE_TYPE_HORIZONTAL','ru','Горизонталь'),
 ('DRAW_STRUCTURE_TYPE_HORIZONTAL','ar','أفقي')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
+delete from lhq_dev_labels where key = 'ARENA_FCHIP_V_UNAVAILABLE';
