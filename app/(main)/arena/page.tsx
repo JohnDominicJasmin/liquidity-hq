@@ -28,6 +28,8 @@ import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
 import EMASignal from '@/components/EMASignal';
 import ArenaSoundPrompt from '@/components/ArenaSoundPrompt';
+import ArenaSoundLockChip from '@/components/ArenaSoundLockChip';
+import { normaliseSoundPrefs } from '@/lib/arenaSoundPrefs';
 import { useArenaSounds } from '@/lib/useArenaSounds';
 import HigherTfMoveBadge from '@/components/HigherTfMoveBadge';
 import Tip from '@/components/Tip';
@@ -565,7 +567,8 @@ function ArenaContent() {
     [gatedEmaSignal, aboveAnalysisCeiling],
   );
   /* ARENA SOUND ALERTS (owner, 2026-11-14): on only after the visitor said yes (settings.arena_sound === true, saved with the account). The hook pings a NEW buy or sell from the strategy panel's own signal (`emaSignal`) and, once per candle, a big move with big volume from the chart's live bars. */
-  const { onLiveBars } = useArenaSounds({ enabled: settingsLoadStatus === 'ready' && settings.arena_sound === true, coin: selectedCoin, tf: readTf, signal: emaSignal });
+  const soundPrefs = useMemo(() => normaliseSoundPrefs(settings.arena_sound_prefs), [settings.arena_sound_prefs]);
+  const { onLiveBars } = useArenaSounds({ enabled: settingsLoadStatus === 'ready' && settings.arena_sound === true, coin: selectedCoin, tf: readTf, signal: emaSignal, prefs: soundPrefs });
   /* #1613's feedGraceOver moved above the useEMAStrategy call (#1651) - a hook call reading it has to come after its declaration. */
   const [readLoading, setReadLoading] = useState(false);
   // #1309 item 24: state, not a ref, updates asynchronously - two clicks
@@ -3203,6 +3206,7 @@ function ArenaContent() {
       {/* THE FIRST-VISIT SOUND QUESTION is the LAST thing in the rail. It appears only after settings load: above the chart it pushed the whole chart down (CLS 0.164, release run 43595134120), and directly under
           the Strategy card it still pushed Market snapshot and the panels beneath it while they were on screen (QA gate on qa 5b9d1ad, FREE 1280). At the end of the rail there is nothing beneath it in the rail. */}
       <ArenaSoundPrompt />
+      <ArenaSoundLockChip enabled={settingsLoadStatus === 'ready' && settings.arena_sound === true} />
         </aside>
       </div>
 
