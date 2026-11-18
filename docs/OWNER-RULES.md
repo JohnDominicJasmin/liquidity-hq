@@ -757,14 +757,14 @@ Tracked on #1651.
 > *"Let's do parallel development and parallel QA. Multiple items at a time. I know there are tasks
 > that must be done in order, one step at a time. That's the exception."*
 
-- **Dev and QA each run up to 3 lanes at once** with background subagents, one PR per lane, each
+- **Dev and QA each run up to 2 background lanes at once** (was 3; cut on 2026-11-19 after the owner saw each lane burn 100-300k tokens: *"hitting the limit too early also slows us down"*). Anything under about 30 minutes is done directly in the session, no lane. with background subagents, one PR per lane, each
   with a full brief and a narrow scope. The session still reviews and merges what a lane returns;
   QA still gives every merge word itself.
 - **Cloud first** (isolation "remote"): the laptop is low on memory. A local worktree only for a job
   that needs no install or build. Heavy browser runs go to GitHub workflow_dispatch.
 - **The exceptions stay in order:** a migration before the deploy that needs it, the branch chain
   `dev` → `qa` → `staging` → `main`, a fix after the failure it fixes, the release steps.
-- **PM keeps the lanes full.** When one returns, the next queued item starts.
+- **PM keeps the lanes full, within the cap.** When one returns, the next queued item starts.
 
 ## 25. NO WORDY TEXT. THE APP IS NOT AN ESSAY OR A DIARY.
 
