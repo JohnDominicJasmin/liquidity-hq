@@ -14,6 +14,7 @@ import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { readFng, type FNGData } from '@/lib/fng';
 import { selectAllRows } from '@/lib/selectAllRows';
+import { loadHeldUserIds, sendPlanLapseNotices } from '@/lib/telegramAlertHolds';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
 import { onCooldown, markSent, lastSentAt, exportCooldownState, importCooldownState, beginStagedMarks, commitStagedMarks, discardStagedMarks } from '@/lib/alertCooldown';
 import { apiError } from '@/lib/apiError';
@@ -362,6 +363,8 @@ function getSession(): string {
    overwrite it with equivalent data. */
 const TIME_TOKEN = '__ALERT_TIME__';
 const CHAT_TZ = new Map<string, string | null>();
+/* Paused, snoozed or in quiet hours (lib/alertQuiet.ts): no Telegram alert of any kind (price alerts included) and no Web Push signal. Rebuilt every run like CHAT_TZ. */
+let HELD_USERS = new Set<string>();
 
 function alertTimeIn(timeZone: string | null): string {
   // Unknown timezone (never opened the web app, or an older row) -> UTC, and
@@ -455,6 +458,18 @@ export function tgRetryDelayMs(attempt: number, status: number | null, retryAfte
   if (status === null || status >= 500) return 1_000 * 2 ** (attempt - 1);
   return null;
 }
+/* ONLY A SEND THAT NEVER LEFT IS RETRIED (PM, review of #2567). Telegram's sendMessage has no idempotency key, so a request that timed out AFTER Telegram
+   accepted it would be delivered twice by a retry. A thrown error is retried only when it failed before the request went out: DNS, refused or unreachable
+   connection, or a bare "fetch failed" with no socket code. An AbortSignal timeout, an abort, or a socket reset mid-request is final and counts as failed
+   (delivery unknown). The cost: a timeout that in fact never reached Telegram is lost instead of retried. */
+const PRE_SEND_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH', 'UND_ERR_CONNECT_TIMEOUT']);
+function failedBeforeSend(e: unknown): boolean {
+  if (!(e instanceof Error) || e.name === 'TimeoutError' || e.name === 'AbortError') return false;
+  const code = (e.cause as { code?: unknown } | undefined)?.code;
+  if (typeof code === 'string') return PRE_SEND_CODES.has(code);
+  return e instanceof TypeError && /fetch failed/i.test(e.message);
+}
+
 async function sendWithRetry(token: string, chatId: string, body: string, replyMarkup?: TgReplyMarkup): Promise<Response> {
   for (let attempt = 1; ; attempt++) {
     let res: Response | null = null;
@@ -468,6 +483,7 @@ async function sendWithRetry(token: string, chatId: string, body: string, replyM
       });
     } catch (e) { err = e; }
     if (res?.ok) return res;
+    if (err && !failedBeforeSend(err)) throw err; // a timeout may have been delivered: never resend it (see failedBeforeSend)
     let retryAfter: number | null = null;
     if (res?.status === 429) {
       retryAfter = await res.clone().json().then((d: { parameters?: { retry_after?: number } }) => Number(d?.parameters?.retry_after) || null, () => null);
@@ -1403,7 +1419,7 @@ async function checkPriceAlerts(
     const chatIdByUser = new Map<string, string>();
     for (const row of settingsRes.data ?? []) {
       const userId = row.user_id as string;
-      if (!proUserIds.has(userId)) continue;
+      if (!proUserIds.has(userId) || HELD_USERS.has(userId)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
       if (id) chatIdByUser.set(userId, id);
     }
@@ -2144,7 +2160,7 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
   // push path used to fan out to EVERY stored subscription - so a free user
   // who enabled browser notifications received the full Pro alert stream.
   const subs = (allSubs as Array<{ endpoint: string; p256dh: string; auth: string; user_id: string }>)
-    .filter(s => proUserIds.has(s.user_id));
+    .filter(s => proUserIds.has(s.user_id) && !HELD_USERS.has(s.user_id)); // paused / snoozed / quiet hours hold push too ("pause all alerts")
   if (!subs.length) return;
 
   webpush.setVapidDetails(email, pubKey, privKey);
@@ -2557,7 +2573,9 @@ async function runAlerts(token: string): Promise<NextResponse> {
       if (kind !== 'free') proUserIds.add(row.user_id as string);
       if (kind === 'trial') trialUserIds.add(row.user_id as string);
     }
+    void sendPlanLapseNotices(token, data ?? [], now); // one "plan ended" message per lapse (lib/planLapse.ts); never throws
   } catch { /* admin key not configured - allChatIds falls back to the env var below */ }
+  HELD_USERS = await loadHeldUserIds(Date.now());
 
   // Collect Pro users who have connected their Telegram
   const allChatIds: string[] = [];
@@ -2574,7 +2592,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     CHAT_TZ.clear();
     for (const row of data ?? []) {
       const userId = row.user_id as string;
-      if (!proUserIds.has(userId)) continue;
+      if (!proUserIds.has(userId) || HELD_USERS.has(userId)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
       if (id && !allChatIds.includes(id)) {
         allChatIds.push(id);
@@ -2591,7 +2609,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   const envChatId = process.env.TELEGRAM_CHAT_ID;
   if (envChatId && !allChatIds.includes(envChatId)) allChatIds.push(envChatId);
 
-  if (allChatIds.length === 0)
+  if (allChatIds.length === 0 && HELD_USERS.size === 0) // everyone held is not "no recipients": the run goes on and sends nothing
     return NextResponse.json({ error: 'No Telegram recipients configured' }, { status: 503 });
 
   // Session-based cooldowns - tighter during pre-NY + NY (12:00-20:00 UTC)

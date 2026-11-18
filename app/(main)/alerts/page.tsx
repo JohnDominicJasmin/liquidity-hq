@@ -15,6 +15,7 @@ import TelegramTestAlertButton from '@/components/TelegramTestAlertButton';
 import { withAlpha } from '@/lib/color';
 import AlertOutcomes from '@/components/AlertOutcomes';
 import CoinMultiSelect from '@/components/CoinMultiSelect';
+import TelegramQuietControls from '@/components/TelegramQuietControls';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { STRUCTURE_TFS, structureOnKey } from '@/lib/structurePrefs';
@@ -674,6 +675,7 @@ export default function AlertsPage() {
             </div>
             {testState === 'err' && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 8 }}>{testErr}</div>}
             {disconnectError && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 8 }}>{disconnectError}</div>}
+            <TelegramQuietControls />
           </div>
         ) : (
           /* ── Not connected ── */
