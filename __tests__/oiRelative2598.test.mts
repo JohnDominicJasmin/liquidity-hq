@@ -57,8 +57,10 @@ test('O6. no reading (null): 119 rows, an empty or missing history, junk timesta
 test('O7a. the candles must be ONE CANDLE APART: rows on another timeframe are no reading', () => {
   assert.equal(oiRelative(withLive(300, 5), TF * 4), null, 'hourly rows read as 4h rows');
 });
-/* FINDING (low): the PR says "one candle gap = no reading", but the check compares the AVERAGE spacing within 10%, so a single missing row in 300 moves the mean by 0.3% and passes. todo = reported, does not fail the run. */
-test('O7b. a gap in the history is no reading (a 6-candle change across a missing candle spans 7 candles)', { todo: 'oiRelative averages the spacing: one missing row in 300 is not detected' }, () => {
-  assert.equal(oiRelative(rows(300, quiet, [150]), TF), null, 'one candle missing in the middle of the history');
+/* #2598 (head 5e38206b): the newest 7 rows must be 6 candles apart (each within 10%): a gap there is no reading. A gap inside an OLDER 6-candle change leaves that change out of the distribution, the rest still reads. */
+test('O7b. a gap in the newest 7 rows is no reading; a gap in older history only drops that change', () => {
   assert.equal(oiRelative(rows(300, quiet, [296]), TF), null, 'one candle missing inside the last 6 candles: the live change is not over 6 candles');
+  const old = oiRelative(rows(300, quiet, [150]), TF); assert.ok(old, 'a gap in the middle of the history must still give a reading (that 6-candle change is left out)');
+  const wide = oiRelative(withLive(300, 5), TF), gapped = oiRelative(rows(300, (i) => (i >= 294 ? quiet(293) * (1 + 0.05 * ((i - 293) / 6)) : quiet(i)), [150]), TF);
+  assert.ok(wide && gapped && wide.oiExtreme === gapped.oiExtreme, 'an old gap must not change whether a real top-20% rise is extreme');
 });
