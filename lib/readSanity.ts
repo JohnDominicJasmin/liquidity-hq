@@ -113,3 +113,84 @@ export function dropContradictingClauses(text: string, inputs: ReadInputs): Sani
   }
   return { text: out.join(' '), dropped };
 }
+
+/* ── THE LANGUAGE-INDEPENDENT HALF (QA review of #2569, PM 2026-11-18) ─────────────────────────────────────────────────────────────
+ *
+ * dropContradictingClauses above reads English direction words ("below", "above"), so a read written in ko/zh/ru/ar passed through it
+ * unchecked. These checks compare STRUCTURED things only - the side the model declares in its SIDES line, the price it writes next to an
+ * indicator, and each level's type against the close - none of which depend on the language of the sentence around them. The indicator
+ * names (EMA 9, SMA 200, VWAP) and the numbers stay in English and digits in every language, which is what makes them findable. */
+
+export type ReadTarget = Target;
+
+const TARGET_RX: Record<Target, RegExp> = {
+  ema9: /EMA\s?9(?!\d)|(?<!\d)9[\s-]?EMA/gi,
+  sma200: /SMA\s?200(?!\d)|(?<!\d)200[\s-]?(?:day\s+)?SMA/gi,
+  vwap: /VWAP/gi,
+};
+const ANY_TARGET = /EMA\s?9(?!\d)|(?<!\d)9[\s-]?EMA|SMA\s?200(?!\d)|(?<!\d)200[\s-]?(?:day\s+)?SMA|VWAP/i;
+
+/** The targets whose declared side (the model's SIDES line) is the wrong one for these inputs. */
+export function misreadSides(sides: Partial<Record<Target, 'above' | 'below'>> | undefined, inputs: ReadInputs): Target[] {
+  if (!sides) return [];
+  return (Object.keys(sides) as Target[]).filter((t) => {
+    const side = sides[t];
+    return side != null && wrong(side === 'below', t, inputs);
+  });
+}
+
+/** Sentence split that also knows the CJK and Arabic full stops; the end mark stays with its sentence. */
+function sentences(text: string): string[] {
+  return text.split(/(?<=[.!?。！？؟])\s*/).filter((s) => s.trim().length > 0);
+}
+
+/* A price written straight after an indicator name: "EMA9 ($63,980)", "EMA 9 на уровне 63 980", "VWAP 위 64,100". The gap may not contain
+   another indicator name, a digit or a sentence end. A number followed by a letter or % (4h, 2%, 15m) is not a price. Spaces, commas and
+   narrow no-break spaces are all thousands separators (ru writes 63 980). */
+const PRICE_AFTER = /^[^\d.!?。！？؟\n]{0,24}?\$?\s?(\d{1,3}(?:[ ,  ]\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?![\d%A-Za-z])/u;   // NOT \p{L}: a CJK character right after the number (zh/ko) must still count as the end of the price
+/** A number this far from the input is wrong. */
+const PRICE_TOLERANCE = 0.005;
+
+/** The targets a sentence states a WRONG price for. A number outside 0.8x to 1.25x of the input is not taken as a price for it (a percentage, a count). */
+function wrongPriceTargets(sentence: string, inputs: ReadInputs): Target[] {
+  const out: Target[] = [];
+  for (const t of ['ema9', 'sma200'] as const) {
+    const ref = t === 'ema9' ? inputs.ema9 : inputs.sma200;
+    if (ref == null || !(ref > 0)) continue;
+    for (const m of sentence.matchAll(TARGET_RX[t])) {
+      const after = sentence.slice((m.index ?? 0) + m[0].length);
+      const gapEnd = after.search(ANY_TARGET);
+      const window = gapEnd >= 0 ? after.slice(0, gapEnd) : after;
+      const p = PRICE_AFTER.exec(window);
+      if (!p) continue;
+      const n = Number(p[1].replace(/[ ,  ]/g, ''));
+      if (!Number.isFinite(n) || n / ref < 0.8 || n / ref > 1.25) continue;
+      if (Math.abs(n - ref) / ref > PRICE_TOLERANCE) { out.push(t); break; }
+    }
+  }
+  return out;
+}
+
+/** Drops every sentence that names a misread target (from SIDES) or states a wrong price for EMA9 / SMA200. Language-independent. */
+export function dropStructuredContradictions(text: string, inputs: ReadInputs, misread: readonly Target[]): SanityResult {
+  if (!text) return { text, dropped: [] };
+  const dropped: string[] = [];
+  const kept: string[] = [];
+  for (const s of sentences(text)) {
+    const named = misread.some((t) => { TARGET_RX[t].lastIndex = 0; return TARGET_RX[t].test(s); });
+    if (named || wrongPriceTargets(s, inputs).length > 0) { dropped.push(s.trim()); continue; }
+    kept.push(s.trim());
+  }
+  if (!dropped.length) return { text, dropped };
+  // CJK and Arabic sentences are joined without a space, the way they are written; Latin and Cyrillic with one.
+  const joiner = /[　-鿿가-힯]/.test(text) ? '' : ' ';
+  return { text: kept.join(joiner), dropped };
+}
+
+/** A level whose TYPE contradicts the close: support clearly above price, or resistance clearly below it. */
+export function levelContradictsClose(level: { price: number; type: 'support' | 'resistance' }, inputs: ReadInputs): boolean {
+  const c = inputs.close;
+  if (c == null || !(c > 0) || !(level.price > 0)) return false;
+  const gap = (level.price - c) / c;
+  return level.type === 'support' ? gap > 0.002 : gap < -0.002;
+}

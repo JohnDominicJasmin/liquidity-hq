@@ -184,7 +184,7 @@ test('the alert route reads each user-wide table through the helper, ordered by 
     'alert:thresholds': "'user_id'",
     'alert:price_alerts': "'id'",
     'alert:price_alert_chat_ids': "'user_id'",
-    'alert:daily_summary_alerts': "'id'",
+    'alert:daily_summary_hours': "'user_id'",   // #2572: the summary no longer lists price alerts; it reads each user's chosen hour instead (unique per user)
     'alert:push_subscriptions': "'endpoint'",
     'alert:muted_alerts': "['user_id','key']",
     'alert:user_subscriptions': "'user_id'",
@@ -194,6 +194,10 @@ test('the alert route reads each user-wide table through the helper, ordered by 
     assert.ok(got.has(label), `CONTROL: ${label} is no longer read through selectAllRows in the alert route - past 1000 rows it would be clamped silently again`);
     assert.equal(got.get(label), order, `${label} orders by ${got.get(label)}; it must be a unique key or a page boundary can skip or repeat a row`);
   }
+});
+
+test('#2572 NEGATIVE: the daily summary no longer reads every active price alert (the funding / price-alert list parts were removed)', () => {
+  assert.equal(callOrders('app/api/telegram/alert/route.ts').has('alert:daily_summary_alerts'), false, 'the old summary alert read is back');
 });
 
 test('the other crons that walk whole tables use the helper too', () => {
