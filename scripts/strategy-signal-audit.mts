@@ -31,6 +31,7 @@ import type { OHLCV } from '../lib/strategyCore.ts';
 import { swingPivots3 } from '../lib/strategies/shared.ts';
 
 const APP_WINDOW = 299;   // 300 fetched, the forming one dropped (lib/useStrategySignal.ts, app/api/strategies/track/route.ts)
+const windowOf = (def: { candleLimit?: number }) => (def.candleLimit ?? 300) - 1;   // a strategy with `candleLimit` is fetched that many candles, minus the forming one
 const COINS = [{ coin: 'btc', sym: 'BTCUSDT' }, { coin: 'eth', sym: 'ETHUSDT' }, { coin: 'sol', sym: 'SOLUSDT' }] as const;
 const TFS = ['15m', '1h', '4h'] as const;
 const DELAY_MS = 250;
@@ -87,7 +88,7 @@ async function main() {
 
   for (const tf of TFS) {
     const tfMs = TF_MS[tf];
-    const fetchFrom = spanStart - (APP_WINDOW + 5) * tfMs;
+    const fetchFrom = spanStart - (Math.max(APP_WINDOW, ...STRATEGIES.map(windowOf)) + 5) * tfMs;
     for (const { coin, sym } of COINS) {
       const combo = `${coin.toUpperCase()} ${tf}`;
       const all = (await klines('https://api.binance.com/api/v3/klines', sym, tf, fetchFrom)).map(toOhlcv).filter(c => c.time + tfMs <= now);
@@ -112,13 +113,13 @@ async function main() {
         let n = 0, evaluated = 0;
         let t = 0;
         for (let k = first; k < all.length; k++) {
-          const win = all.slice(Math.max(0, k - APP_WINDOW + 1), k + 1);
+          const win = all.slice(Math.max(0, k - windowOf(def) + 1), k + 1);
           if (win.length < def.minCandles) continue;
           const ctx: StrategyContext = { coin, tf, tfMs, oiChange6Pct: null };
           if (def.needsBtc && coin !== 'btc') {
             const b = btcClosed.get(tf)!;
             const end = b.findIndex(c => c.time > all[k].time);
-            ctx.btcCandles = b.slice(0, end < 0 ? b.length : end).slice(-APP_WINDOW);
+            ctx.btcCandles = b.slice(0, end < 0 ? b.length : end).slice(-windowOf(def));
           }
           if (def.needsTaker) ctx.taker = taker;
           if (def.needsLive && live) {
