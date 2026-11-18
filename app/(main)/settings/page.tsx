@@ -99,7 +99,7 @@ function ArenaSoundToggle() {
           role="switch"
           aria-checked={on}
           aria-label={t('SETTINGS_ARENA_SOUND_TITLE')}
-          onClick={() => { if (!on) { unlockAudio(); window.setTimeout(() => { playPing('move'); }, 60); } update({ arena_sound: !on }); }}
+          onClick={() => { if (!on) { const p = normaliseSoundPrefs(settings.arena_sound_prefs); unlockAudio(); window.setTimeout(() => { playPing('move', { sound: p.sound, volume: p.volume }); }, 60); } update({ arena_sound: !on }); }}
         >
           <span className="st-toggle-thumb" />
         </button>
@@ -150,6 +150,7 @@ function ArenaSoundPicker() {
         value={Math.round(prefs.volume * 100)}
         onChange={e => save({ ...prefs, volume: Number(e.target.value) / 100 })}
         onPointerUp={() => previewSound(prefs.sound, prefs.volume)}
+        onKeyUp={e => { if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' || e.key === 'PageDown') previewSound(prefs.sound, prefs.volume); }}
         style={{ width: '100%', maxWidth: 280 }}
       />
       <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
@@ -723,7 +724,8 @@ export default function SettingsPage() {
           <div className="st-chip-row">
             {/* A Free account holding a saved Pro-only timeframe (a lapsed Pro) sees the nearest Free one selected, the one the Arena opens on,
                 never a disabled chip selected (PM 2026-11-18). */}
-            {(() => { const shownTf = entitlementStatus === 'not_entitled' && isGatedTf(settings.default_tf) ? FREE_FALLBACK_TF : settings.default_tf; return TFS.map(tf => {
+            {(() => { /* While the plan is still being read, a saved Pro-only timeframe is not shown selected on a disabled chip (QA review of #2561): no chip is selected until the plan is known. */
+              const shownTf = isGatedTf(settings.default_tf) && entitlementStatus !== 'entitled' ? (entitlementStatus === 'not_entitled' ? FREE_FALLBACK_TF : null) : settings.default_tf; return TFS.map(tf => {
               // Fast timeframes are Pro-only. Previously every chip was
               // selectable for everyone, so a free user could save 5m here and
               // Arena would silently clamp it back to 1h on load.
