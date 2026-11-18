@@ -9,6 +9,7 @@ import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { socketNeedsReconnect, dropSocket, onPageResume } from '@/lib/socketResume';
+import { reconnectDelayMs, linkState, onBackOnline } from '@/lib/reconnectDelay';
 
 /* ── Types ── */
 interface LiqEvent {
@@ -122,6 +123,12 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
   /* When each socket last delivered anything: on resume a socket quiet for 30 s or not OPEN is replaced (lib/socketResume.ts). */
   const bnLastMsgRef    = useRef<number | null>(null);
   const bbLastMsgRef    = useRef<number | null>(null);
+  /* Reconnect state (lib/reconnectDelay.ts): failures since the last open, the pending retry, and whether the feed was unmounted. */
+  const bnAttemptRef    = useRef(0);
+  const bbAttemptRef    = useRef(0);
+  const bnTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bbTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stoppedRef      = useRef(false);
   const historyRef      = useRef<LiqEvent[]>([]);
   const lastEmitRef     = useRef(0);
   const msgRef          = useRef(0);
@@ -223,14 +230,24 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
   const connectBNRef = useRef<() => void>(() => {});
   const BN_SYMBOLS = Object.values(BINANCE_SYMS).map(s => s.toLowerCase());
   const connectBN = useCallback(() => {
-    try { bnWsRef.current?.close(); } catch { /* */ }
+    if (stoppedRef.current) return;
+    if (bnTimerRef.current) { clearTimeout(bnTimerRef.current); bnTimerRef.current = null; }
+    // Detached, so the old socket's onclose cannot queue a second reconnect beside this one.
+    dropSocket(bnWsRef.current);
     // Combined stream: each symbol has its own forceOrder feed
     const streams = BN_SYMBOLS.map(s => `${s}@forceOrder`).join('/');
     const ws = new WebSocket(`wss://fstream.binance.com/market/stream?streams=${streams}`);
     bnWsRef.current = ws;
-    ws.onopen  = () => { bnLastMsgRef.current = Date.now(); setBnStatus('live'); };
+    ws.onopen  = () => { bnLastMsgRef.current = Date.now(); bnAttemptRef.current = 0; setBnStatus('live'); };
     ws.onerror = () => setBnStatus('error');
-    ws.onclose = () => { setBnStatus('error'); setTimeout(() => connectBNRef.current(), 5000); };
+    ws.onclose = () => {
+      if (stoppedRef.current || bnWsRef.current !== ws) return;
+      setBnStatus('error');
+      // 5 s as before while online and visible; offline or hidden backs off to 30 s (QA, 2026-11-18: ~1,554 sockets in 90 min offline).
+      bnAttemptRef.current += 1;
+      bnTimerRef.current = setTimeout(() => { bnTimerRef.current = null; connectBNRef.current(); },
+        reconnectDelayMs(bnAttemptRef.current, { ...linkState(), normalMs: 5000 }));
+    };
     ws.onmessage = (ev) => {
       bnLastMsgRef.current = Date.now();
       try {
@@ -260,7 +277,9 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
   const bbRetriesRef2 = useRef(0);
   const connectBBRef = useRef<() => void>(() => {});
   const connectBB = useCallback(() => {
-    try { bbWsRef.current?.close(); } catch { /* */ }
+    if (stoppedRef.current) return;
+    if (bbTimerRef.current) { clearTimeout(bbTimerRef.current); bbTimerRef.current = null; }
+    dropSocket(bbWsRef.current);
     // bytick.com is Bybit's alternative domain - less likely to be blocked by extensions
     const host = bbRetriesRef2.current % 2 === 0
       ? 'wss://stream.bybit.com/v5/public/linear'
@@ -269,6 +288,7 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
     bbWsRef.current = ws;
     ws.onopen = () => {
       bbLastMsgRef.current = Date.now();
+      bbAttemptRef.current = 0;
       setBbStatus('live');
       // v5 topic: allLiquidation.{symbol} - max 25 topics per subscribe message
       const topics = BYBIT_COINS.map(s => `allLiquidation.${s}`);
@@ -278,9 +298,12 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
     };
     ws.onerror = () => setBbStatus('error');
     ws.onclose = () => {
+      if (stoppedRef.current || bbWsRef.current !== ws) return;
       setBbStatus('error');
-      bbRetriesRef2.current++;
-      setTimeout(() => connectBBRef.current(), 5000);
+      bbRetriesRef2.current++;   // host alternation; independent of the backoff count, which resets on open
+      bbAttemptRef.current += 1;
+      bbTimerRef.current = setTimeout(() => { bbTimerRef.current = null; connectBBRef.current(); },
+        reconnectDelayMs(bbAttemptRef.current, { ...linkState(), normalMs: 5000 }));
     };
     ws.onmessage = (ev) => {
       bbLastMsgRef.current = Date.now();
@@ -307,13 +330,21 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
 
   /* RESUME (owner, 2026-11-18): back from an idle or frozen tab, a socket that is not OPEN or has been quiet for 30 s is replaced now
      rather than whenever its own timer gets to run. dropSocket detaches the old handlers so its onclose cannot queue a second one. */
-  useEffect(() => onPageResume(() => {
-    const now = Date.now();
-    if (socketNeedsReconnect(bnWsRef.current?.readyState, bnLastMsgRef.current, now)) { dropSocket(bnWsRef.current); bnWsRef.current = null; connectBNRef.current(); }
-    if (socketNeedsReconnect(bbWsRef.current?.readyState, bbLastMsgRef.current, now)) { dropSocket(bbWsRef.current); bbWsRef.current = null; connectBBRef.current(); }
-  }), []);
+  /* The same check when the network comes back (`online`): reconnect now with the backoff reset, not after a 30 s offline wait. */
+  useEffect(() => {
+    const kick = () => {
+      if (stoppedRef.current) return;
+      const now = Date.now();
+      if (socketNeedsReconnect(bnWsRef.current?.readyState, bnLastMsgRef.current, now)) { dropSocket(bnWsRef.current); bnWsRef.current = null; bnAttemptRef.current = 0; connectBNRef.current(); }
+      if (socketNeedsReconnect(bbWsRef.current?.readyState, bbLastMsgRef.current, now)) { dropSocket(bbWsRef.current); bbWsRef.current = null; bbAttemptRef.current = 0; connectBBRef.current(); }
+    };
+    const offResume = onPageResume(kick);
+    const offOnline = onBackOnline(kick);
+    return () => { offResume(); offOnline(); };
+  }, []);
 
   useEffect(() => {
+    stoppedRef.current = false;   // a remount (React strict mode runs mount, cleanup, mount) starts the feeds again
     // ── Seed from localStorage (fast, synchronous) ───────────────────────
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -383,8 +414,13 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
     return () => {
       clearInterval(iv);
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      bnWsRef.current?.close();
-      bbWsRef.current?.close();
+      /* Stop the reconnect loops with the component. A plain close() here ran each socket's onclose, which scheduled a reconnect
+         for a feed that no longer existed - and that socket then stayed open for the life of the tab. */
+      stoppedRef.current = true;
+      if (bnTimerRef.current) { clearTimeout(bnTimerRef.current); bnTimerRef.current = null; }
+      if (bbTimerRef.current) { clearTimeout(bbTimerRef.current); bbTimerRef.current = null; }
+      dropSocket(bnWsRef.current); bnWsRef.current = null;
+      dropSocket(bbWsRef.current); bbWsRef.current = null;
       if (cascadeTimer.current) clearTimeout(cascadeTimer.current);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
