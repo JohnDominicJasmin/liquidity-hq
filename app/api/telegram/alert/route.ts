@@ -493,8 +493,9 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
   // indistinguishable from a successful delivery. Nothing anywhere recorded
   // whether a message actually landed.
   /* A MESSAGE WITH A BROKEN NUMBER IS NOT SENT (owner sweep 2026-11-18): a malformed exchange row printed "NaN%" to users. A body carrying
-     NaN, Infinity, undefined, null or [object ...] is held back, counted as failed with its reason, and (for a signal) retried next run. */
-  if (/\bNaN\b|\bInfinity\b|\bundefined\b|\bnull\b|\[object /.test(text)) {
+     NaN, Infinity, undefined, a null in a number position ($null, null%, ": null") or [object ...] is held back, counted as failed with its reason,
+     and (for a signal) retried next run. A plain word "null" is allowed: a news headline can say "declared null and void" (QA review of #2560). */
+  if (/\bNaN\b|\bInfinity\b|\bundefined\b|\$null\b|\bnull%|:\s*null\b|\[object /.test(text)) {
     sendTally.failed += ids.length; result.failed += ids.length;
     sendTally.reasons.add('malformed message held back (NaN/undefined)');
     return result;
