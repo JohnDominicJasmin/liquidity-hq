@@ -1,6 +1,6 @@
 import labelDefaults from './labelDefaults.en.json';
 import type { LabelKey } from './labelKeys.ts';
-import { BINANCE_SYMS } from './coins.ts';
+import { binanceFuturesSymbol, coinRow } from './coins.ts';
 import { deadlineSignal } from './deadlineSignal.ts';
 import { exchangeFetch } from './exchangeGuard.ts';
 import { closedCandles, EMA_SIGNAL_TFS, fetchRibbonCandles, type EMASignalTF } from './ribbonCandles.ts';
@@ -39,7 +39,7 @@ async function closedFor(coin: string, tf: EMASignalTF): Promise<StrategyInputs[
 
 /** Per-candle taker buy / sell volume from Binance futures klines (index 9 = taker buy base volume), the fire log's source. Undefined when unreadable. */
 async function takerFor(coin: string, tf: EMASignalTF): Promise<StrategyInputs['taker']> {
-  const sym = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
+  const sym = binanceFuturesSymbol(coin);
   if (!sym) return undefined;
   try {
     const res = await exchangeFetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${tf}&limit=300`, { cache: 'no-store', signal: deadlineSignal(9_000) });
@@ -59,7 +59,7 @@ async function takerFor(coin: string, tf: EMASignalTF): Promise<StrategyInputs['
 
 /** Funding class + open-interest change over the last 6 candles, the inputs the page hands the squeeze strategy (lib/useStrategySignal.ts). Either missing is left absent. */
 async function liveFor(coin: string, tf: EMASignalTF): Promise<Pick<StrategyInputs, 'fundingClass' | 'fundingPct' | 'oiChange6Pct'>> {
-  const sym = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
+  const sym = binanceFuturesSymbol(coin);
   if (!sym) return {};
   const [funding, oi] = await Promise.all([
     exchangeFetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${sym}`, { cache: 'no-store', signal: deadlineSignal(6_000) })

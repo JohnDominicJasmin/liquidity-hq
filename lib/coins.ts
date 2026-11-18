@@ -569,6 +569,11 @@ export function binancePriceFactor(coin: string): number {
  * dragged the Track Record average to -126%. That is a measured incident with a hand-written list
  * naming its own exit condition; this resolver is not the place to overturn it. Such a coin still
  * charts, from Bybit. */
+/** The coin's Binance FUTURES symbol (`fapi`), for funding, open interest and taker volume, from the whole universe row: a TradFi stock (`AAPLUSDT`) and the held `pepe` / `bonk` (`1000PEPEUSDT`, `1000BONKUSDT`) have one. BINANCE_SYMS (the curated map) leaves out the universe and `BINANCE_HOLD`, which only guards the SPOT mapping, so it is the wrong map for futures data. Undefined = no Binance futures listing (`xau`). */
+export function binanceFuturesSymbol(coin: string): string | undefined {
+  return BY_ID.get(coin)?.binance ?? undefined;
+}
+
 export function venueSymbols(coin: string): { bybit: string | null; binance: string | null } {
   const row = BY_ID.get(coin);
   if (!row) return { bybit: null, binance: null };
