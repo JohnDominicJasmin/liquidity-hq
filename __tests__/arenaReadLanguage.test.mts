@@ -509,18 +509,18 @@ test('L7a. the cache entry records the language of the read, a missing value is 
   assert.equal(entryLocale(undefined), 'en'); assert.equal(entryLocale(null), 'en'); assert.equal(entryLocale({}), 'en', 'an entry saved before this change must read as English');
   assert.equal(entryLocale({ locale: 'ru' }), 'ru');
   assert.match(pageCode, /const cacheEntry = cachedForCoin && entryLocale\(cachedForCoin\) === locale \? cachedForCoin : null;/, 'the displayed entry is not filtered by language');
-  assert.match(pageCode, /if \(entry && entry\.mode === mode && entryLocale\(entry\) === locale\) \{/, 'readMarket would reuse a read written in another language');
+  assert.match(pageCode, /if \(entry && entry\.mode === mode && entryLocale\(entry\) === locale && \(entry\.strategyAtAnalysis \?\? null\) === strategy\) \{/, 'readMarket would reuse a read written in another language, or one made with another picked strategy');
   assert.match(pageCode, /const force = !!\(entry && entryLocale\(entry\) === locale && entry\.mode === kind/, 'the force decision ignores the language');
-  assert.match(pageCode, /paramsAtAnalysis: settingsSig, locale \}/, 'the entry is written without its language');
-  assert.match(pageCode, /callGrokViaProxy\(ctx, chartData, mode, selection, locale\)/, 'the page does not send the locale');
+  assert.match(pageCode, /paramsAtAnalysis: settingsSig, locale, strategyAtAnalysis: strategy \}/, 'the entry is written without its language (and the picked strategy it was made with)');
+  assert.match(pageCode, /callGrokViaProxy\(ctx, chartData, mode, selection, locale, strategy\)/, 'the page does not send the locale (and the picked strategy id)');
   const raw = [...pageCode.matchAll(/resultsCache\[selectedCoin\]/g)].length;
   assert.equal(raw, 3, `resultsCache[selectedCoin] is read in ${raw} places; the three known ones are filtered - a new one needs the same filter`);
 });
 
 test('L7b. the browser helper sends the locale in the JSON body, with an English default', () => {
   const c = stripC(grokLib);
-  assert.match(c, /locale: string = 'en',\s*\): Promise<\{ result: CombinedResult/, 'callGrokViaProxy has no locale parameter defaulting to en');
-  assert.match(c, /body: JSON\.stringify\(\{ context: ctx, chart, type, selection, locale \}\)/, 'the locale is not in the request body');
+  assert.match(c, /locale: string = 'en',\s*strategy: string \| null = null,\s*\): Promise<\{ result: CombinedResult/, 'callGrokViaProxy has no locale parameter defaulting to en, followed by the strategy id (default null)');
+  assert.match(c, /body: JSON\.stringify\(\{ context: ctx, chart, type, selection, locale, strategy \}\)/, 'the locale and the strategy id are not in the request body');
 });
 
 test('L7c. the route validates through resolveReadLocale and passes only the resolved value on (never body.locale itself)', () => {
