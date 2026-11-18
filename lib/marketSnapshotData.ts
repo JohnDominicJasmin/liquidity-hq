@@ -333,7 +333,7 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
    * `pepe`, `bonk` and `xau` are held out of `BINANCE_SYMS` (see `BINANCE_HOLD`), so they never
    * reached `SYMS`, never counted as missing, and the Bybit fallback that can serve all three was
    * never asked for them - 46 of the 50 rendered coins were present on prod on 2026-11-06. They are
-   * in `OWED_COINS`, so they are asked for now. `hype` is still out, by name, on the `SYMS` line. */
+   * in `OWED_COINS`, so they are asked for now. `hype` is in `SYMS` since #2513 (see the note above `SYMS`). */
   const missingCoins = OWED_COINS.filter(c => !out[c]);
   if (missingCoins.length > 0) {
     try {

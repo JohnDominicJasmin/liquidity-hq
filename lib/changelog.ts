@@ -150,12 +150,36 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    /* DRAFT, the release after v2026.11.18 (PM 2026-11-18). THE TAG AND THE DATE ARE SET WHEN THE TAG IS CUT: the date must be the tagged commit's %cs (the
-       changelog test checks it one run after the tag exists). Plain words, 12 words or fewer per line (rule 22); only user-visible changes. Tied to: #2553 (chart
+    /* DRAFT, the release after v2026.11.18.2 (PM 2026-11-18). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs.
+       Plain words, 12 words or fewer per line (rule 22); only user-visible changes. Tied to: #2565 (Arena header), #2569 (your language), #2567 (bot commands,
+       quiet hours, snooze, plan-lapse message), #2574 (inline mute), #2572 (daily summary, test alert), #2576 (multi-timeframe rows), #2578 + #2583 (speed),
+       #2584 (S/R flip), #2587 (chart key, password reset), #2586 (AI use given back). A line whose PR misses the tag is removed. */
+    date: '2026-11-19',
+    tag: 'v2026.11.19',
+    items: [
+      "The Arena header is one short row.",
+      "The Arena and AI reads appear in your language.",
+      "Telegram: /status, /pause, /resume and /help commands.",
+      "Set quiet hours or snooze alerts from the Alerts page.",
+      "Mute an alert type for 1 or 4 hours from Telegram.",
+      "Daily summary at the hour you choose: top coins and squeezes.",
+      "Send yourself a test alert from the Alerts page.",
+      "Telegram tells you when your plan's alerts pause.",
+      "Multi-timeframe alignment hides timeframes with no reading.",
+      "The homepage, Arena and Funding pages load faster.",
+      "The S/R flip strategy now signals when a broken level is retested.",
+      "Tap ? on the Arena chart to see what each label means.",
+      "Resetting your password signs out your other devices.",
+      "AI tools that fail to answer give your use back.",
+    ],
+  },
+  {
+    /* RELEASED: v2026.11.18.2, tagged on c18bd4f8 (merge of #2575), whose %cs is 2026-11-19, so the date is 2026-11-19 while the tag name keeps 11.18 (the
+       changelog test checks the date against the tag). Plain words, 12 words or fewer per line (rule 22); only user-visible changes. Tied to: #2553 (chart
        after an idle tab, live feeds reconnect), #2555 + #2562 (data stays visible, no data-gap dashes), #2544 + #2549 (AI read at a glance), #2559 (AI accuracy,
        incomplete answers not charged), #2545 (shorter text), #2551 (alert line removed), #2560 (Telegram delivery), #2561 (alert sounds). A line whose PR does not
        merge before the tag is removed. */
-    date: '2026-11-18',
+    date: '2026-11-19',
     tag: 'v2026.11.18.2',
     items: [
       "The chart no longer goes empty after the tab sits idle.",

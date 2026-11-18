@@ -1,14 +1,10 @@
 -- HOURS_WIN_*_DESC: the five /hours session descriptions, with the unmeasured claims removed.
 --
--- ── NOT APPLIED. THIS IS PENDING WORK AND NEEDS THE OWNER'S YES ────────────────────────────────
+-- ALREADY APPLIED (prod, verified 2026-11-18).
 --
--- **DO NOT READ THIS FILE AS A RECORD.** 20261105b and 20261101a in this directory are records of
--- rows already live; this one is the opposite and says so here because the two look identical at a
--- glance. Nothing below has been run against any project. 25 rows on prod (5 keys x 5 locales) are
--- a shared-database write, which is one of the three things that go to the owner directly.
--- A DEV BLOCK (25 more rows on lhq_dev_labels) was added after this was written, so qa and staging can show what production will show: see the end of the statements.
---
--- Flip this header to the "ALREADY APPLIED" wording the moment it is run, and say which projects.
+-- A RECORD, not pending work. PM verified the PROD rows (lhq_labels) live on 2026-11-18; the DEV block
+-- (lhq_dev_labels) was read live on dev by Dev on 2026-11-16 (tracker #1263). The header said "NOT APPLIED"
+-- until then; the SQL below is unchanged. Re-running it is harmless (on conflict ... do update).
 --
 -- ── WHY ────────────────────────────────────────────────────────────────────────────────────────
 --
