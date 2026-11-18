@@ -1273,6 +1273,16 @@ export default function MarketProvider(
     } catch { setStore(s => ({ ...s, cbPremiumStatus: s.cbPremiumStatus === 'ok' ? 'ok' : 'failed' })); }
   }, []);
 
+  /* THE FIRST PREMIUM READ WAITS FOR THE BTC PRICE, NOT FOR A FIXED 3 s (speed pass 2). It was a blind 3 s timer after the feeds started, so on
+     the landing page the premium row's "…" was the last placeholder on screen, about 3 s after the price it needs had already arrived. The 3 s
+     timer stays as the latest it can be asked for, so a page whose price never comes still gets its answer ('failed') when it did before. */
+  const cbAskedRef = useRef(false);
+  const askCoinbasePremiumOnce = useCallback(() => {
+    if (cbAskedRef.current) return;
+    cbAskedRef.current = true;
+    void fetchCoinbasePremium();
+  }, [fetchCoinbasePremium]);
+
   /* ── Binance premium index → next FR estimate (Binance perps) ── */
   const fetchPremiumIndex = useCallback(async () => {
     try {
@@ -1802,8 +1812,9 @@ export default function MarketProvider(
     fetchPremiumIndex();
     fetchDeribitOptions();
     fetchStablecoinFlows();
-    // CB Premium needs BTC price first - wait 3s for WS/REST to populate
-    setTimeout(fetchCoinbasePremium, 3000);
+    // CB Premium needs BTC price first: asked for the moment the first BTC price lands (the effect after this one), or after 3 s at the latest
+    cbAskedRef.current = false;
+    const cbFallbackTimer = setTimeout(askCoinbasePremiumOnce, 3000);
     // Retry server-proxied APIs that may miss on Render cold start - #1192:
     // conditional on the mount attempt above having actually missed, not
     // unconditional. Every visitor was making 2 extra calls to /api/cmc
@@ -1865,6 +1876,7 @@ export default function MarketProvider(
     return () => {
       offPriceResume();
       offPriceOnline();
+      clearTimeout(cbFallbackTimer);
       if (scannerRetryTimer.current) { clearTimeout(scannerRetryTimer.current); scannerRetryTimer.current = null; }
       intervals.forEach(clearInterval);
       document.removeEventListener('visibilitychange', onVisible);
@@ -1877,6 +1889,12 @@ export default function MarketProvider(
       if (wsRetryRef.current)  clearTimeout(wsRetryRef.current);
     };
   }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* The first Coinbase premium read, as soon as there is a BTC price to compare it with (see askCoinbasePremiumOnce). */
+  const btcPriced = Number.isFinite(store.coins.btc?.price);
+  useEffect(() => {
+    if (enabled && btcPriced) askCoinbasePremiumOnce();
+  }, [enabled, btcPriced, askCoinbasePremiumOnce]);
 
   return (
     <MarketContext.Provider value={{ store, setStore, selectCoin }}>
