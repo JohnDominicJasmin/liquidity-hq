@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import { SQUEEZE_SCORE_MAX } from '@/lib/alertThresholdRanges';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -316,7 +317,8 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     fng_greed:          +(row.fng_greed       ?? DEFAULT_SETTINGS.fng_greed),
     rsi_ob:             +(row.rsi_ob          ?? DEFAULT_SETTINGS.rsi_ob),
     rsi_os:             +(row.rsi_os          ?? DEFAULT_SETTINGS.rsi_os),
-    squeeze_threshold:  +(row.squeeze_threshold ?? DEFAULT_SETTINGS.squeeze_threshold),
+    // Shown capped at the highest squeeze score (80): a row saved at up to 95 before the cap would display a number no alert can reach.
+    squeeze_threshold:  Math.min(+(row.squeeze_threshold ?? DEFAULT_SETTINGS.squeeze_threshold), SQUEEZE_SCORE_MAX),
     anti_chop_enabled:  !!(row.anti_chop_enabled ?? DEFAULT_SETTINGS.anti_chop_enabled),
     telegram_chat_id:   String(row.telegram_chat_id ?? ''),
     beginner_mode:      !!(row.beginner_mode ?? false),

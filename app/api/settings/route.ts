@@ -6,6 +6,7 @@ import { shouldAcceptFieldWrite } from '@/lib/settingsFieldConcurrency';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { STRATEGY_IDS } from '@/lib/strategies';
+import { clampThreshold, isThresholdField } from '@/lib/alertThresholdRanges';
 
 function sb(token: string) {
   return userClient(token);
@@ -128,6 +129,16 @@ export async function PATCH(req: NextRequest) {
     if (!valid) {
       return NextResponse.json({ error: 'Invalid strategy_params' }, { status: 400 });
     }
+  }
+
+  /* Notification thresholds: brought inside the range the Settings field offers (lib/alertThresholdRanges.ts), so a stored value is always one
+     the alert checks can reach; a squeeze threshold above 80 never fired. Clamped rather than refused: the page saves while the user types, and a
+     refusal would keep a half-typed value unsaved and retried. Anything that is not a number is refused. */
+  for (const key of Object.keys(payload)) {
+    if (!isThresholdField(key)) continue;
+    const v = clampThreshold(key, payload[key]);
+    if (v === null) return NextResponse.json({ error: `Invalid ${key}` }, { status: 400 });
+    payload[key] = v;
   }
 
   const client = sb(token);
