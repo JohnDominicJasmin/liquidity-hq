@@ -136,8 +136,10 @@ export async function POST(req: NextRequest) {
   /* AN EMPTY OR CUT-OFF ANSWER IS NOT AN ANSWER (owner sweep 2026-11-18): it used to return 200 with a blank or half text and the use
      was spent. Now the use is given back and the page is told the answer was incomplete. */
   if (!analysis.trim() || answerWasCutOff(data)) {
-    await refundToolUsage(authData.user.id, 'thesisCheck', reservedOn);
-    return NextResponse.json({ error: 'The AI answer was incomplete. Nothing was charged. Try again.', code: 'AI_INCOMPLETE' }, { status: 502 });
+    /* "Nothing was charged" only when the refund landed: it allows 3 a day and answers null after that (QA review of #2586, U9). */
+    const refunded = (await refundToolUsage(authData.user.id, 'thesisCheck', reservedOn)) !== null;
+    if (!refunded) return NextResponse.json({ error: 'The AI answer was incomplete. Try again.', code: 'AI_INCOMPLETE', refunded }, { status: 502 });
+    return NextResponse.json({ error: 'The AI answer was incomplete. Nothing was charged. Try again.', code: 'AI_INCOMPLETE', refunded }, { status: 502 });
   }
 
   return NextResponse.json({ analysis });
