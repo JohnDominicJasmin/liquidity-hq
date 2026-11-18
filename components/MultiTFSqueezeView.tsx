@@ -257,7 +257,8 @@ export default function MultiTFSqueezeView() {
             {/* TF cells */}
             {tfs.map((sig, i) => {
               const cols = cellColors(sig);
-              const icon = sig.dir === 'FLUSH' ? '↓' : sig.dir === 'SQUEEZE' ? '↑' : '-';
+              /* Neutral is a reading (no lean), shown as a sideways arrow, not a dash that reads as missing data (owner sweep 2026-11-18). */
+              const icon = sig.dir === 'FLUSH' ? '↓' : sig.dir === 'SQUEEZE' ? '↑' : '→';
               return (
                 <div key={i} style={{ display: 'flex', justifyContent: 'center' }}>
                   <div style={{
@@ -287,7 +288,7 @@ export default function MultiTFSqueezeView() {
               color: sq.dir !== 'NEUTRAL' ? sq.color : 'var(--txt-dim)',
               fontVariantNumeric: 'tabular-nums',
             }}>
-              {sq.score > 0 ? sq.score : '-'}
+              {sq.score}
             </span>
           </div>
         );

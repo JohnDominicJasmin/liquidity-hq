@@ -70,6 +70,8 @@ export default function MacroStrip() {
       <div className="macro-strip-title">{t('MACRO_STRIP_TITLE')}</div>
       <div className="macro-strip-row">
         {items.map(({ label, asOf, price, chg, fmt, signal }) => {
+          /* A quote with no price is left out of the strip, and a missing change is empty: never a dash (owner sweep 2026-11-18). */
+          if (price == null) return null;
           const sig = chg != null ? signal(chg) : null;
           /* A value whose own time is old (a weekend, the night) says so: "Fri close", never Friday's number shown as if it were now (#1651). */
           const stampDate = price != null ? macroStampDate(asOf, Date.now()) : null;
@@ -78,12 +80,12 @@ export default function MacroStrip() {
             <div key={label} className="macro-item">
               <div className="macro-item-label">{label}</div>
               <div className="macro-item-price">
-                {price != null ? fmt(price) : '-'}
+                {fmt(price)}
               </div>
               <div className="macro-item-chg" style={{
                 color: chg == null ? 'var(--txt3)' : chg >= 0 ? 'var(--green)' : 'var(--red)',
               }}>
-                {chg != null ? (chg >= 0 ? '↑ +' : '↓ ') + chg.toFixed(2) + '%' : '-'}
+                {chg != null ? (chg >= 0 ? '↑ +' : '↓ ') + chg.toFixed(2) + '%' : ''}
               </div>
               {sig && (
                 <div className="macro-item-signal" style={{ color: sig.col }}>{sig.txt}</div>
@@ -93,21 +95,19 @@ export default function MacroStrip() {
           );
         })}
 
-        {/* JPY carry trade risk indicator */}
-        <div className="macro-item">
+        {/* JPY carry trade risk indicator (left out until it has a rate) */}
+        {jpyUsd != null && <div className="macro-item">
           <div className="macro-item-label">JPY</div>
           <div className="macro-item-price" style={{ color: jpyCol }} title={jpyAsOf != null ? new Date(jpyAsOf).toLocaleString() : undefined}>
-            {jpyUsd != null ? jpyUsd.toFixed(2) : '-'}
+            {jpyUsd.toFixed(2)}
           </div>
           <div className="macro-item-chg" style={{ color: jpyCol }}>
-            {jpyUsd != null
-              ? jpyUsd >= 160 ? t('MACRO_STRIP_JPY_DANGER') : jpyUsd >= 158 ? t('MACRO_STRIP_JPY_WARNING') : t('MACRO_STRIP_JPY_SAFE')
-              : '-'}
+            {jpyUsd >= 160 ? t('MACRO_STRIP_JPY_DANGER') : jpyUsd >= 158 ? t('MACRO_STRIP_JPY_WARNING') : t('MACRO_STRIP_JPY_SAFE')}
           </div>
           {jpySig && (
             <div className="macro-item-signal" style={{ color: jpySig.col }}>{jpySig.txt}</div>
           )}
-        </div>
+        </div>}
       </div>
     </div>
   );
