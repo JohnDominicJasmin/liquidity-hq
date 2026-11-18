@@ -447,7 +447,8 @@ export default function GrokChat() {
           setLoading(false);
           return;
         }
-        throw new Error(`${res.status} - ${j?.error ?? res.statusText}`);
+        /* The server's own sentence, or the translated fallback: never a bare status code like "502 - ..." (owner sweep 2026-11-18). */
+        throw new Error(typeof j?.error === 'string' && j.error.trim() && !/grok|x\.ai|xai/i.test(j.error) ? j.error : t('CHAT_UNKNOWN_ERROR'));
       }
       if (j._usage && usage) setUsage({ ...usage, ...j._usage });
       const reply: string = typeof j.text === 'string' && j.text ? j.text : '(no response)';
