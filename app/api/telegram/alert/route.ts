@@ -15,7 +15,7 @@ import { checkCronAuth } from '@/lib/cronAuth';
 import { readFng, type FNGData } from '@/lib/fng';
 import { selectAllRows } from '@/lib/selectAllRows';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
-import { onCooldown, markSent, exportCooldownState, importCooldownState, beginStagedMarks, commitStagedMarks, discardStagedMarks } from '@/lib/alertCooldown';
+import { onCooldown, markSent, lastSentAt, exportCooldownState, importCooldownState, beginStagedMarks, commitStagedMarks, discardStagedMarks } from '@/lib/alertCooldown';
 import { apiError } from '@/lib/apiError';
 import { evaluatePriceAlert, type Candle1m } from '@/lib/priceAlertEval';
 import {
@@ -34,6 +34,7 @@ import { exchangeFetch } from '@/lib/exchangeGuard';
 import { validPushEndpoint } from '@/lib/pushEndpoint';
 import { afterSend, dueForRetry, holdExpired, type PendingDelivery, type SendResult } from '@/lib/priceAlertDelivery';
 import { TF_MS } from '@/lib/candles';
+import { isDailySummaryOn, summaryHour, summaryDueNow, DEFAULT_DAILY_SUMMARY_HOUR, fetchMovers24h, topMovers, squeezeSetups, buildDailySummaryText, type SqueezeRead } from '@/lib/dailySummary';
 
 export const dynamic = 'force-dynamic';
 
@@ -305,7 +306,6 @@ const CD: Record<string, number> = {
   oi:         2 * 3600_000,
   cvd:       60 * 60_000,
   fng:       23 * 3600_000,   // Fear & Greed extreme (once per day)
-  daily:     23 * 3600_000,   // Daily 7am summary
   sentiment:  4 * 3600_000,   // Sentiment Extremes - all 3 indicators aligned
   squeeze:      4 * 3600_000,   // Squeeze/Flush threshold alert per coin per direction
   distribution:  4 * 3600_000,   // Distribution - big players taking profit into strength
@@ -375,7 +375,8 @@ function alertTimeIn(timeZone: string | null): string {
   }
 }
 
-/* checkDailySummary's per-recipient morning-window check.
+/* checkDailySummary's per-recipient window check. The clock reading itself moved to lib/dailySummaryPrefs.ts (localDateTime /
+ * summaryDueNow, QA F1) with the same UTC fallback; the reasoning for that fallback stays here, beside CHAT_TZ.
  *
  * AN UNKNOWN TIMEZONE FALLS BACK TO UTC, AND THAT IS A DELIBERATE BEHAVIOUR CHANGE.
  *
@@ -390,7 +391,11 @@ function alertTimeIn(timeZone: string | null): string {
  *
  * WHY UTC RATHER THAN ANOTHER GUESS: it is the only neutral answer. Any real zone is a guess about
  * where someone lives, and picking one because it is where WE are is the thing being removed. A
- * recipient who sets their timezone is unaffected - this is only the default. */
+ * recipient who sets their timezone is unaffected - this is only the default. A zone Intl rejects
+ * also falls back to UTC, for the same reason.
+ *
+ * Kept, though checkDailySummary now reads the clock through summaryDueNow: __tests__/briefingDominanceFngH23 B4 pins its h23 form. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function localHourMinute(timeZone: string | null, d: Date): { hour: number; min: number } {
   const read = (zone: string) => {
     const parts = new Intl.DateTimeFormat('en-GB', {
@@ -404,8 +409,6 @@ function localHourMinute(timeZone: string | null, d: Date): { hour: number; min:
   try {
     return read(timeZone || 'UTC');
   } catch {
-    /* A bad zone string reaches here - Intl throws on an unknown identifier. UTC rather than a
-       re-guess, same reasoning as above. */
     return read('UTC');
   }
 }
@@ -1530,109 +1533,71 @@ async function checkFearGreed(
 }
 
 /* ════════════════════════════════════════
-   10. DAILY 7AM SUMMARY, IN EACH RECIPIENT'S OWN TIMEZONE
+   10. DAILY SUMMARY - OPT-IN, AT EACH RECIPIENT'S CHOSEN HOUR IN THEIR OWN TIMEZONE
+   Who, when and what: lib/dailySummary.ts.
    ════════════════════════════════════════ */
 async function checkDailySummary(
   token: string, recipients: Recipient[], mutedByUser: Map<string, Set<string>>, stamp: string,
-  frMap: Record<string, number | null>
+  frMap: Record<string, number | null>, lsMap: Record<string, number | null>, thresholdsByUser: Map<string, UserThresholds>,
 ): Promise<string[]> {
   const d = new Date();
-  // Each recipient's OWN local 7:00-7:30am window, not one fixed instant that
-  // only actually meant "morning" for subscribers in one particular zone. This used to
-  // gate the entire function on a single `(getUTCHours()+8)%24 === 7` check -
-  // correct for that zone, but a "7am summary" that always lands at 7pm the
-  // previous evening for a US Eastern subscriber isn't a morning briefing for
-  // them at all. Cron ticks every few minutes (see the 10-minute slop below)
-  // and checks every recipient's zone each time, so each one gets exactly one
-  // send, at their own morning, on whichever tick happens to land in it - the
-  // per-chatId cooldown is what prevents a second send on the next tick.
-  const eligible: { r: Recipient; zone: string }[] = [];
-  for (const r of recipients) {
-    if (isMutedFor(mutedByUser, r.userId, 'daily_summary')) continue;
-    /* UTC when we do not know the recipient's zone (owner, 2026-10-31) - see localHourMinute. */
-    const zone = CHAT_TZ.get(r.chatId) || 'UTC';
-    const { hour, min } = localHourMinute(zone, d);
-    /* The first 30 minutes of the local 7 o'clock (was 10): the cron ticks every 5 minutes and two missed or slow ticks in a row used to skip the whole day's briefing. One send per day is still guaranteed by the per-chat cooldown. */
-    if (hour !== 7 || min > 30) continue;
-    const cdKey = `daily_summary_${r.chatId}`;
-    if (onCooldown(cdKey, CD.daily)) continue;
-    markSent(cdKey);
-    eligible.push({ r, zone });
-  }
-  if (eligible.length === 0) return [];
+  const optedIn = recipients.filter(r => isDailySummaryOn(mutedByUser.get(r.userId)));
+  if (optedIn.length === 0) return [];
 
-  // Fear & Greed
-  let fngLine    = '';
+  /* Chosen hours. Only non-default hours are stored, so a missing row means 7. A failed read sends nothing this tick (and marks
+     nothing), rather than sending everyone at the default hour: the next tick in the window tries again. */
+  const hourByUser = new Map<string, number>();
   try {
-    const fngRes = await fetch('https://api.alternative.me/fng/', { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
-    if (fngRes.ok) {
-      const fngJson = await fngRes.json() as { data: FNGData[] };
-      /* Already correct before readFng existed - it omitted the line rather than inventing one, which is
-         why the helper is shaped the way it is. Routed through it so there is one reader, not three.
-         One tightening: a non-numeric value used to be printed verbatim; it is now dropped like a
-         missing one. */
-      const read = readFng(fngJson);
-      if (read) { fngLine = `\n😨 F&amp;G: <b>${read.value}</b>` + (read.label ? ` (${read.label})` : ''); }
-    }
-  } catch { /* skip */ }
-
-  // Funding rates - two rows of 4
-  const frParts = COINS.map(coin => {
-    const fr = frMap[coin];
-    if (fr == null) return null;
-    const sign = fr >= 0 ? '+' : '';
-    return `${LABELS[coin]} ${sign}${(fr * 100).toFixed(4)}%`;
-  }).filter(Boolean) as string[];
-  const frBlock    = [frParts.slice(0, 4).join(' · '), frParts.slice(4).join(' · ')].filter(Boolean).join('\n');
-
-  // Active price alerts - grouped by owner so each recipient's summary only
-  // ever shows THEIR OWN alerts. This used to be one shared query with no
-  // user_id filter, pooling every user's alerts (labels included) into the
-  // single broadcast every daily_summary subscriber received - a cross-user
-  // privacy leak, not just an injection risk.
-  const alertsByUser = new Map<string, PriceAlert[]>();
-  try {
-    // Paged (#1397) - past 1000 rows, owners' alerts dropped out of their summary.
     const admin = getSupabaseAdmin();
-    const { data } = await selectAllRows('alert:daily_summary_alerts', 'id', () =>
-      admin.from(T.price_alerts).select('*').eq('active', true));
-    for (const a of (data ?? []) as PriceAlert[]) {
-      if (!a.user_id) continue; // legacy ownerless rows - never shown in anyone's personalized summary
-      const list = alertsByUser.get(a.user_id) ?? [];
-      list.push(a);
-      alertsByUser.set(a.user_id, list);
-    }
-  } catch { /* skip */ }
+    const { data, error } = await selectAllRows('alert:daily_summary_hours', 'user_id', () =>
+      admin.from(T.user_settings).select('user_id, daily_summary_hour').not('daily_summary_hour', 'is', null));
+    if (error) return [];
+    for (const row of data ?? []) hourByUser.set(String(row.user_id), summaryHour(row.daily_summary_hour));
+  } catch { return []; }
 
-  await Promise.all(eligible.map(({ r, zone }) => {
-    // "Today" in the header means the recipient's own calendar date at their
-    // 7am, not UTC's - someone far enough east or west of UTC can be on a
-    // different UTC calendar day than their own local morning.
-    // #1632 item 1: a stored zone that Intl rejects (written directly to the table before the column grants) used to throw here and reject the
-    // whole Promise.all - nobody got the Morning Briefing. Fall back to the historical anchor for that one recipient.
+  const due: { r: Recipient; zone: string }[] = [];
+  for (const r of optedIn) {
+    /* UTC when we do not know the recipient's zone (owner, 2026-10-31) - see the note above CHAT_TZ's readers. "Already sent" is the user's local DATE,
+       not a 23 h cooldown (QA F1): moving the hour earlier no longer skips a day. Marker unchanged: the ledger's epoch ms under daily_summary_<chatId>. */
+    const zone = CHAT_TZ.get(r.chatId) || 'UTC';
+    const chosen = hourByUser.get(r.userId) ?? DEFAULT_DAILY_SUMMARY_HOUR;
+    if (!summaryDueNow(lastSentAt(`daily_summary_${r.chatId}`), chosen, zone, d.getTime())) continue;
+    due.push({ r, zone });
+  }
+  if (due.length === 0) return [];
+
+  /* No market data: nothing is sent and nothing is marked, so the next tick inside the window tries again. */
+  const movers = await fetchMovers24h();
+  if (movers.length === 0) return [];
+
+  const squeezeReads: SqueezeRead[] = COINS.map(coin => {
+    const fr = frMap[coin]; const ls = lsMap[coin];
+    const { score, dir } = calcSqueezeScore(fr, ls);
+    return { coin, label: LABELS[coin] ?? coin.toUpperCase(), score, dir, fundingPct: fr != null ? fr * 100 : null, longPct: ls != null ? ls * 100 : null };
+  });
+
+  const sent = await Promise.all(due.map(async ({ r, zone }) => {
+    // #1632 item 1: a stored zone that Intl rejects must not reject the whole Promise.all - date-stamp that one recipient in UTC.
     let dateStr: string;
     try {
       dateStr = d.toLocaleString('en-GB', { timeZone: zone, weekday: 'short', month: 'short', day: 'numeric' });
     } catch {
-      /* The recipient's own zone threw, so date-stamp in UTC rather than in ours. */
       dateStr = d.toLocaleString('en-GB', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' });
     }
-    const bodyBase =
-      `☀️ <b>Morning Briefing - ${dateStr}</b>` +
-      `${fngLine}\n\n` +
-      `📊 <b>Funding Rates:</b>\n${frBlock}`;
-    const own = alertsByUser.get(r.userId) ?? [];
-    const alertsBlock = own.length
-      ? `\n\n🎯 <b>Active Price Alerts:</b>\n${own.map(a => {
-          const lbl = LABELS[a.coin] ?? a.coin.toUpperCase();
-          const dir = a.direction === 'above' ? '↑' : '↓';
-          return `• ${lbl} ${dir} $${fmtAlertPrice(parseFloat(String(a.target_price)))}${a.label ? ` (${escapeHtml(a.label)})` : ''}`;
-        }).join('\n')}`
-      : '';
-    return tg(token, r.chatId, `${bodyBase}${alertsBlock}\n\n<i>${stamp}</i>`);
+    const excluded = (coin: string) => isMutedFor(mutedByUser, r.userId, `coin:${coin}`);
+    const threshold = (thresholdsByUser.get(r.userId) ?? DEFAULT_THRESHOLDS).squeezeThreshold;
+    const text = buildDailySummaryText({
+      dateStr, stamp, threshold,
+      movers: topMovers(movers, excluded),
+      setups: squeezeSetups(squeezeReads, threshold, excluded),
+    });
+    const res = await tg(token, r.chatId, text);
+    if (res.sent > 0) markSent(`daily_summary_${r.chatId}`);
+    return res.sent > 0;
   }));
 
-  return ['Daily 7am summary'];
+  const n = sent.filter(Boolean).length;
+  return n > 0 ? [`Daily summary (${n})`] : [];
 }
 
 /* ════════════════════════════════════════
@@ -2721,7 +2686,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     checkWhales(stamp, signalQueue, skipCounts),
     checkNews(token, recipients, mutedByUser, stamp),                     // global - sends directly
     checkFearGreed(token, recipients, mutedByUser, stamp),                // global - sends directly
-    checkDailySummary(token, recipients, mutedByUser, stamp, frMap),      // global - sends directly
+    checkDailySummary(token, recipients, mutedByUser, stamp, frMap, lsMap, thresholdsByUser), // per recipient - sends directly
     checkOISpike(stamp, prices, signalQueue, skipCounts),
     checkCVD(stamp, signalQueue, skipCounts),
     checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds, mutedByUser),       // already per-user (own table)
