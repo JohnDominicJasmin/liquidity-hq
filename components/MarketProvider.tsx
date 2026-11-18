@@ -805,6 +805,9 @@ export default function MarketProvider(
         try { await getSupabase()?.auth.refreshSession(); } catch { /* fall through with whatever session there is */ }
         const fresh = await getAuthToken();
         res = await fetch('/api/market/rsi', { headers: fresh ? { Authorization: `Bearer ${fresh}` } : undefined });
+        /* The refresh did not help (still the expired token, or none): ask once more WITHOUT a token, so the reader keeps at least the
+           free timeframes instead of no RSI at all (QA review of #2555). */
+        if (res.status === 401) res = await fetch('/api/market/rsi');
       }
       if (!res.ok) return;
       const body = await res.json() as {
