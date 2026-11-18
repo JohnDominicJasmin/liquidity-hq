@@ -2161,17 +2161,17 @@ function ArenaContent() {
     <div className="arena-term-wrap">
 
       {/* ── PAGE HEADER ── */}
-      <div style={{ padding: '1rem 0 0.75rem' }}>
+      {/* ONE ROW (owner, PM spec 2026-11-18): the title and the help link only. The "LIVE · web + X" badge (jargon, and true only for Deep reads) and the subtitle
+          (it repeated what the four buttons say) are gone; the hint box below still explains Quick vs Deep. Measured 37 px at 390, 40 px at 768 and 1280, en and ru (was ~75 at 1280). */}
+      <div style={{ padding: '0.375rem 0 0.25rem' }}>
         {/* ONE ROW, NEVER TWO, SO THE FREE UPGRADE PILL ARRIVING MOVES NOTHING (CLS gate, QA run 43686322083: +0.316 at 1280 and +0.041 at 390, Free accounts only). The pill used to be 44 px tall in a row of about
             30 px, and on a phone it wrapped onto a row of its own when the plan resolved. Now the row does not wrap, the pill is 28 px (its 44 px touch target is the link around it, UpgradePillLink `tap`), and the live badge
             gives way (ellipsis) instead of the row growing. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'nowrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
           <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px', whiteSpace: 'nowrap', flexShrink: 0 }}>{t('ARENA_PAGE_TITLE')}</div>
-          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent-2)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
           {/* The "How this page works" link sits at the right of the header. The Upgrade pill that used to share this row is gone (#2514: one "With Pro" line per page instead of repeated upgrade prompts). */}
           <span style={{ marginLeft: 'auto', display: 'inline-flex' }}><PageHintLink pageKey="arena" open={arenaHintOpen} onClick={() => setArenaHintOpen(v => !v)} /></span>
         </div>
-        <div className="arena-subtitle" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
 
       {arenaHintOpen && <PageHintBox title={t('ARENA_HINT_TITLE')} body={t('ARENA_HINT_BODY')} onClose={() => setArenaHintOpen(false)} />}
