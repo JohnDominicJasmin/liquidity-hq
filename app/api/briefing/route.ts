@@ -26,6 +26,7 @@ Rules:
 - Do not name a best setup, do not say what to buy, sell or avoid, and do not predict direction or price targets
 - The data has no results for data releases that just came out; do not state or guess them
 - If a reading is missing (shown as ? or N/A), say it is missing
+- A reading shown as - is missing too; never estimate a missing reading
 - No bullet points, no headers
 - Max 60 words per paragraph`;
 

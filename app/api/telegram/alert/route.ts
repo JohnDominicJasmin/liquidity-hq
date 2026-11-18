@@ -37,6 +37,8 @@ import { afterSend, dueForRetry, holdExpired, type PendingDelivery, type SendRes
 import { TF_MS } from '@/lib/candles';
 import { activeTypeMuteKeys, isTypeMuteRuleKey, typeMuteKeyboard } from '@/lib/alertTypeMute';
 import { loadTypeMutesByUser } from '@/lib/telegramTypeMute';
+import { localizeTelegram, localizeKeyboard, tgLocaleOf, tgDateLocale, tgKeep, type TgLocale } from '@/lib/telegramI18n';
+import { tgLabelsForAll } from '@/lib/telegramLabels';
 import { SQUEEZE_SCORE_MAX } from '@/lib/alertThresholdRanges';
 import { isDailySummaryOn, summaryHour, summaryDueNow, DEFAULT_DAILY_SUMMARY_HOUR, fetchMovers24h, topMovers, squeezeSetups, buildDailySummaryText, type SqueezeRead } from '@/lib/dailySummary';
 
@@ -118,8 +120,10 @@ function bybitSpotOrLinear(coin: string): { category: 'spot' | 'linear'; symbol:
 // before insertion into a message body, or it can inject its own tags
 // (e.g. a label containing `<a href="...">`) into a message sent through
 // the app's trusted bot identity.
+// tgKeep (#1651): text that needed escaping is someone else's (a headline, its source, a user's note), so it is also never translated;
+// the invisible markers are removed before the send on every path.
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return tgKeep(s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'));
 }
 
 /* ── Signal queue - for confluence batching ── */
@@ -363,6 +367,10 @@ function getSession(): string {
    overwrite it with equivalent data. */
 const TIME_TOKEN = '__ALERT_TIME__';
 const CHAT_TZ = new Map<string, string | null>();
+/* Each chat's language (user_settings.language) and the label tables for the languages present, rebuilt every run like CHAT_TZ (#1651). tg() renders each
+   message in its reader's language (lib/telegramI18n.ts). A chat not in the map, or a failed label read, gets English. */
+const CHAT_LANG = new Map<string, TgLocale>();
+let TG_LABELS = new Map<TgLocale, Record<string, string> | null>();
 /* Paused, snoozed or in quiet hours (lib/alertQuiet.ts): no Telegram alert of any kind (price alerts included) and no Web Push signal. Rebuilt every run like CHAT_TZ. */
 let HELD_USERS = new Set<string>();
 
@@ -504,12 +512,14 @@ async function tg(token: string, chatId: string | string[], text: string, replyM
   const result: SendResult = { sent: 0, failed: 0, paused: false };
 
   const ids = Array.isArray(chatId) ? chatId : [chatId];
-  // One rendered body per distinct timezone among these recipients.
-  const byZone = new Map<string | null, string[]>();
+  // One rendered body per distinct timezone and language among these recipients.
+  const byZone = new Map<string, { tz: string | null; lang: TgLocale; ids: string[] }>();
   for (const id of ids) {
     const tz = CHAT_TZ.get(id) ?? null;
-    const bucket = byZone.get(tz);
-    if (bucket) bucket.push(id); else byZone.set(tz, [id]);
+    const lang = CHAT_LANG.get(id) ?? 'en';
+    const k = `${tz ?? ''}|${lang}`;
+    const bucket = byZone.get(k);
+    if (bucket) bucket.ids.push(id); else byZone.set(k, { tz, lang, ids: [id] });
   }
   // Still fire-and-forget for the CALLER - a failed send must never abort the
   // rest of a run. But it is no longer silent. This used to be a bare
@@ -527,11 +537,15 @@ async function tg(token: string, chatId: string | string[], text: string, replyM
     return result;
   }
   const deadChats = new Set<string>();
-  await Promise.all([...byZone.entries()].flatMap(([tz, zoneIds]) => {
-    const body = text.includes(TIME_TOKEN) ? text.replaceAll(TIME_TOKEN, alertTimeIn(tz)) : text;
+  await Promise.all([...byZone.values()].flatMap(({ tz, lang, ids: zoneIds }) => {
+    const timed = text.includes(TIME_TOKEN) ? text.replaceAll(TIME_TOKEN, alertTimeIn(tz)) : text;
+    // In the reader's language (#1651): fixed English fragments only; numbers, coins and HTML are untouched, and English is unchanged.
+    const labels = TG_LABELS.get(lang) ?? null;
+    const body = localizeTelegram(timed, lang, labels);
+    const markup = localizeKeyboard(replyMarkup ?? undefined, lang, labels) ?? undefined;
     return zoneIds.map(async id => {
       try {
-        const res = await sendWithRetry(token, id, body, replyMarkup ?? undefined);
+        const res = await sendWithRetry(token, id, body, markup);
         if (res.ok) { sendTally.ok++; result.sent++; return; }
         sendTally.failed++; result.failed++;
         // description is Telegram's own reason ("chat not found", "bot was
@@ -1620,10 +1634,11 @@ async function checkDailySummary(
   const sent = await Promise.all(due.map(async ({ r, zone }) => {
     // #1632 item 1: a stored zone that Intl rejects must not reject the whole Promise.all - date-stamp that one recipient in UTC.
     let dateStr: string;
+    const dateLocale = tgDateLocale(CHAT_LANG.get(r.chatId) ?? 'en'); // the date in the reader's language (#1651)
     try {
-      dateStr = d.toLocaleString('en-GB', { timeZone: zone, weekday: 'short', month: 'short', day: 'numeric' });
+      dateStr = d.toLocaleString(dateLocale, { timeZone: zone, weekday: 'short', month: 'short', day: 'numeric' });
     } catch {
-      dateStr = d.toLocaleString('en-GB', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' });
+      dateStr = d.toLocaleString(dateLocale, { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' });
     }
     const excluded = (coin: string) => isMutedFor(mutedByUser, r.userId, `coin:${coin}`);
     const threshold = (thresholdsByUser.get(r.userId) ?? DEFAULT_THRESHOLDS).squeezeThreshold;
@@ -1666,7 +1681,6 @@ async function checkSentimentExtremes(
 
     // fngR (alternative.me) is not Binance - only lsR's failure counts here.
     if (fngR.status !== 'fulfilled' || !fngR.value.ok) return [];
-    if (lsR.status  !== 'fulfilled' || !lsR.value.ok)  { noteSkip(skipCounts, 'binance'); return []; }
 
     const fngJson = await fngR.value.json() as { data: FNGData[] };
     const fngRead = readFng(fngJson);
@@ -1675,12 +1689,30 @@ async function checkSentimentExtremes(
     // Already parenthesised, or empty - so a missing classification leaves no "( )" behind.
     const fngCls  = fngRead.label ? ` (${fngRead.label})` : '';
 
-    const lsData  = await lsR.value.json() as LSItem[];
-    if (!lsData?.length) return [];
     /* #1651 (QA finding C): an unguarded parseFloat here made both sentiment gates false, so the alert simply did not fire - "no
        extreme" and "we could not read positioning" looked identical. Return early instead: nothing is sent either way, but the
        reason is now in the code rather than in the arithmetic. */
-    const longFrac = parseFloat(lsData[0].longAccount);
+    let longFrac = NaN;
+    let ratioFromBybit = false; // the message says so when Bybit supplied the ratio (QA B7b)
+    if (lsR.status === 'fulfilled' && lsR.value.ok) {
+      const lsData = await lsR.value.json() as LSItem[];
+      longFrac = lsData?.length ? parseFloat(lsData[0].longAccount) : NaN;
+    } else {
+      noteSkip(skipCounts, 'binance');
+    }
+    /* BYBIT USES THE SAME THRESHOLDS (PM decision 2026-11-18, #1651 / OWNER-BLOCKERS row 13): when Binance's BTC ratio cannot be read,
+       Bybit's BTC account ratio (buyRatio = long share) is read instead and judged by the same 60 % lines, as the squeeze check already does. */
+    if (!Number.isFinite(longFrac)) {
+      try {
+        const res = await exchangeFetch('https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=BTCUSDT&period=5min&limit=1', { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
+        if (res.ok) {
+          const d = await res.json() as { result?: { list?: Array<{ buyRatio: string }> } };
+          const item = d.result?.list?.[0];
+          longFrac = item ? parseFloat(item.buyRatio) : NaN;
+          ratioFromBybit = true;
+        }
+      } catch { /* both venues failed: nothing is sent */ }
+    }
     if (!Number.isFinite(longFrac) || longFrac < 0 || longFrac > 1) return [];
     const longPct  = longFrac * 100;   // e.g. 60.87
     const shortPct = 100 - longPct;
@@ -1693,7 +1725,7 @@ async function checkSentimentExtremes(
         `🚨 <b>Sentiment Extremes - All 3 Bearish</b>\n\n` +
         `😱 F&amp;G: <b>${fng}</b>${fngCls}\n` +
         `💸 BTC funding: <b>+${frPct.toFixed(4)}%</b> - longs paying shorts\n` +
-        `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
+        `📊 L/S Ratio${ratioFromBybit ? ' (Bybit)' : ''}: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
         `Signal: All 3 sentiment gauges at extremes - <b>long-heavy positioning</b>` +
         `\n\n<i>${stamp}</i>`
       );
@@ -1708,7 +1740,7 @@ async function checkSentimentExtremes(
         `🟢 <b>Sentiment Extremes - Contrarian BULLISH Setup</b>\n\n` +
         `😨 F&amp;G: <b>${fng}</b>${fngCls}\n` +
         `💸 BTC FR: <b>${frPct.toFixed(4)}%</b> - Shorts paying\n` +
-        `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
+        `📊 L/S Ratio${ratioFromBybit ? ' (Bybit)' : ''}: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
         `Signal: All 3 sentiment gauges at fear extremes - <b>short-heavy positioning</b>` +
         `\n\n<i>${stamp}</i>`
       );
@@ -2585,11 +2617,12 @@ async function runAlerts(token: string): Promise<NextResponse> {
     // Paged (#1397) - a plain read stops at 1000 connected chats.
     const { data } = await selectAllRows('alert:recipients', 'user_id', () => admin
       .from(T.user_settings)
-      .select('user_id, telegram_chat_id, timezone')
+      .select('user_id, telegram_chat_id, timezone, language')
       .not('telegram_chat_id', 'is', null)
       .neq('telegram_chat_id', ''));
     // Rebuilt every run - see the note on CHAT_TZ above.
     CHAT_TZ.clear();
+    CHAT_LANG.clear();
     for (const row of data ?? []) {
       const userId = row.user_id as string;
       if (!proUserIds.has(userId) || HELD_USERS.has(userId)) continue;
@@ -2597,6 +2630,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
       if (id && !allChatIds.includes(id)) {
         allChatIds.push(id);
         CHAT_TZ.set(id, (row.timezone as string | null) || null);
+        CHAT_LANG.set(id, tgLocaleOf(row.language as string | null | undefined));
         recipients.push({ userId, chatId: id });
       }
     }
@@ -2608,6 +2642,8 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // (checkPriceAlerts' legacy branch), not the per-recipient ones below.
   const envChatId = process.env.TELEGRAM_CHAT_ID;
   if (envChatId && !allChatIds.includes(envChatId)) allChatIds.push(envChatId);
+  // The label tables for the languages present this run (one read each; English needs none). A failed read leaves that language in English.
+  TG_LABELS = await tgLabelsForAll(CHAT_LANG.values());
 
   if (allChatIds.length === 0 && HELD_USERS.size === 0) // everyone held is not "no recipients": the run goes on and sends nothing
     return NextResponse.json({ error: 'No Telegram recipients configured' }, { status: 503 });

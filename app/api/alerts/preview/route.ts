@@ -106,6 +106,8 @@ export async function POST(req: NextRequest) {
   const coins = COINS.filter(c => !keys.has(`coin:${c}`) && (!trialOnly || (FREE_SIGNAL_COINS as readonly string[]).includes(c)));
   const emaTfs = EMA_SIGNAL_TFS.filter(tf => !keys.has(`ema_signal_${tf}`));
   const structTfs = STRUCTURE_TFS.filter(tf => isStructureEnabled(keys, tf));
+  // The Long / Short signal mutes (`dir:long`, `dir:short`), which the cron applies to both rules (entryMuteKeys); the preview skipped them (#1651).
+  const dirMuted = (dir: 'long' | 'short') => keys.has(`dir:${dir}`);
 
   if (coins.length === 0) {
     return NextResponse.json({ fired: [], note: 'no coins selected' });
@@ -141,7 +143,7 @@ export async function POST(req: NextRequest) {
         const latest = all[0];
         // `pending` is the live edge - the cron does not treat it as a
         // confirmed call, so neither does this.
-        if (latest && !latest.pending && !tooOld(latest.timestamp)) {
+        if (latest && !latest.pending && !tooOld(latest.timestamp) && !dirMuted(latest.dir)) {
           fired.push(`${label} ${latest.dir === 'long' ? 'BUY' : 'SELL'} signal (${tfLabel})`);
         }
       }
@@ -152,7 +154,7 @@ export async function POST(req: NextRequest) {
           timestamp: c.time, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume,
         })));
         const latest = sigs[sigs.length - 1];
-        if (latest && !tooOld(latest.timestamp)) {
+        if (latest && !tooOld(latest.timestamp) && !dirMuted(latest.dir === 'bull' ? 'long' : 'short')) {
           const kind = latest.kind === 'CHOCH' ? 'CHoCH' : 'BOS';
           fired.push(`${label} ${kind} ${latest.dir === 'bull' ? 'up' : 'down'} (${tfLabel})`);
         }

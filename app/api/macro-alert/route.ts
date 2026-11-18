@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { loadMacroChatPrefs, eventTimeIn } from '@/lib/macroAlertPrefs';
 import { T } from '@/lib/tables';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { isFeatureEnabled } from '@/lib/featureFlags';
@@ -42,17 +43,7 @@ function markSent(key: string) {
   SENT.set(key, Date.now());
 }
 
-// UTC, not Manila. These alerts go out to every subscriber (see the Recipient
-// list in app/api/telegram/alert/route.ts), so a fixed-zone wall-clock stamp
-// was simply someone else's time for most of them. There is no per-user
-// timezone stored anywhere yet; UTC is the one label that is correct for
-// everybody rather than for exactly one country.
-function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-GB', {
-    timeZone: 'UTC',
-    hour: '2-digit', minute: '2-digit',
-  }) + ' UTC';
-}
+// The event time is printed in each reader's saved timezone, UTC when none is saved (lib/macroAlertPrefs.ts eventTimeIn).
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -139,6 +130,15 @@ export async function GET(req: Request) {
     return NextResponse.json({ skipped: true, reason: 'No Telegram recipients' });
   }
 
+  /* The "Macro headlines" switch (muted_alerts `macro_news`) and each reader's timezone (#1651). An unreadable mute list sends nothing
+     this run and marks nothing, so the next run inside the 55-85 min window tries again. */
+  const prefs = await loadMacroChatPrefs();
+  if (!prefs) return NextResponse.json({ skipped: true, reason: 'prefs_unreadable' });
+  const recipients = chatIds.filter(id => !prefs.mutedChats.has(id));
+  if (recipients.length === 0) {
+    return NextResponse.json({ skipped: true, reason: 'All recipients muted macro alerts' });
+  }
+
   // Fetch upcoming events
   const events = await fetchUpcomingEvents();
   const now = Date.now();
@@ -157,17 +157,20 @@ export async function GET(req: Request) {
     const emoji = IMPACT_EMOJI[event.type] ?? '📌';
     const minsStr = Math.round(minsAway);
 
-    let msg = `${emoji} <b>Macro Event in ~${minsStr} min</b>\n\n`;
-    msg += `<b>${event.name}</b>\n`;
-    msg += `🕐 ${fmtTime(event.isoDate)}\n`;
-    if (event.estimate) msg += `Estimate: <b>${event.estimate}</b>`;
-    if (event.previous) msg += `  |  Prev: ${event.previous}`;
-    if (event.estimate || event.previous) msg += '\n';
-    msg += `\n⚠️ <i>High-impact event - watch for volatility</i>`;
+    const msgIn = (timeZone: string | null) => {
+      let msg = `${emoji} <b>Macro Event in ~${minsStr} min</b>\n\n`;
+      msg += `<b>${event.name}</b>\n`;
+      msg += `🕐 ${eventTimeIn(event.isoDate, timeZone)}\n`;
+      if (event.estimate) msg += `Estimate: <b>${event.estimate}</b>`;
+      if (event.previous) msg += `  |  Prev: ${event.previous}`;
+      if (event.estimate || event.previous) msg += '\n';
+      msg += `\n<i>High-impact release</i>`;
+      return msg;
+    };
 
     let anyOk = false;
-    for (const chatId of chatIds) {
-      const ok = await sendTelegram(token, chatId, msg);
+    for (const chatId of recipients) {
+      const ok = await sendTelegram(token, chatId, msgIn(prefs.tzByChat.get(chatId) ?? null));
       if (ok) anyOk = true;
     }
 

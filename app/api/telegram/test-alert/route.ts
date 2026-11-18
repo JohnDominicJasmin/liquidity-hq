@@ -4,6 +4,8 @@ import { hasProFeatures } from '@/lib/entitlements';
 import { rateLimit } from '@/lib/rateLimit';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { localizeTelegram, tgLocaleOf } from '@/lib/telegramI18n';
+import { tgLabelsFor } from '@/lib/telegramLabels';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,12 +42,13 @@ export async function POST(req: NextRequest) {
 
   const { data: row } = await userClient(userToken)
     .from(T.user_settings)
-    .select('telegram_chat_id, timezone')
+    .select('telegram_chat_id, timezone, language')
     .eq('user_id', user.id)
     .maybeSingle();
   const chatId = (row?.telegram_chat_id as string | null | undefined)?.trim() || null;
   if (!chatId) return NextResponse.json({ ok: false, sent: false, error: 'Telegram is not connected' }, { status: 409 });
 
+  const lang = tgLocaleOf(row?.language as string | null | undefined);
   try {
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
@@ -53,10 +56,12 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         chat_id: chatId,
         parse_mode: 'HTML',
-        text:
+        // In the reader's saved language (#1651); English when none or when the labels cannot be read.
+        text: localizeTelegram(
           `🔔 <b>Test alert</b>\n\n` +
           `This is a test from LiquidityHQ. Your alerts arrive in this chat.\n\n` +
           `<i>⏰ ${stampIn((row?.timezone as string | null | undefined) ?? null)}</i>`,
+          lang, await tgLabelsFor(lang)),
       }),
       signal: AbortSignal.timeout(10_000),
     });
