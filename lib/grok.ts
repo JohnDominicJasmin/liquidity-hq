@@ -1233,9 +1233,9 @@ export interface ReadNotes {
   verdict?: Partial<Record<CombinedResult['signal'], string>>;
 }
 export const ENGLISH_READ_NOTES: ReadNotes = {
-  tierUnchecked: '(Shown as {shown}: the answer did not state its signal count, so {said} could not be checked.)',
-  tierCounted: '(Shown as {shown}: {bullish} bullish against {bearish} bearish signals were counted, which does not support {said}.)',
-  spotMissing: 'The perps-vs-spot check was unavailable for this coin, so confidence was not adjusted for it.',
+  tierUnchecked: '(Shown as {shown}: no signal count to confirm {said}.)',
+  tierCounted: "(Shown as {shown}: {bullish} bullish vs {bearish} bearish signals don't support {said}.)",
+  spotMissing: 'No spot data for this coin, so confidence skips the spot check.',
 };
 
 type Tier = CombinedResult['signal'];
