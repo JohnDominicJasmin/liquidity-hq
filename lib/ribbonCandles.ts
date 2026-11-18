@@ -64,10 +64,10 @@ export const BYBIT_KLINE_SYMS: Record<string, string> = Object.fromEntries(
  *  'bybit:klines-fallback' when this is standing in for a failed Binance -
  *  so a spike in the fallback key alone is visible as "Binance is down",
  *  never conflated with Bybit's own normal traffic. */
-async function fetchFromBybit(bySym: string, tf: EMASignalTF, healthSource: string): Promise<OHLCV[]> {
+async function fetchFromBybit(bySym: string, tf: EMASignalTF, healthSource: string, limit = 300): Promise<OHLCV[]> {
   try {
     const res = await exchangeFetch(
-      `https://api.bybit.com/v5/market/kline?category=linear&symbol=${bySym}&interval=${BYBIT_TF_INTERVAL[tf]}&limit=300`,
+      `https://api.bybit.com/v5/market/kline?category=linear&symbol=${bySym}&interval=${BYBIT_TF_INTERVAL[tf]}&limit=${limit}`,
       { cache: 'no-store', signal: deadlineSignal(9_000) }
     );
     if (!res.ok) {
@@ -133,17 +133,19 @@ function bucketOf(tf: EMASignalTF, nowMs: number): number {
   return Math.floor(nowMs / TF_MS[tf]) * TF_MS[tf];
 }
 
-export async function fetchRibbonCandles(coin: string, tf: EMASignalTF, nowMs = Date.now()): Promise<OHLCV[]> {
-  const key = `${coin}|${tf}|${bucketOf(tf, nowMs)}`;
+export async function fetchRibbonCandles(coin: string, tf: EMASignalTF, nowMs = Date.now(), limit = 300): Promise<OHLCV[]> {
+  /* A longer series (a strategy with `candleLimit`) is cached under its own key, so a 300-candle read never evicts or serves it. */
+  const suffix = limit === 300 ? '' : `|L${limit}`;
+  const key = `${coin}|${tf}|${bucketOf(tf, nowMs)}${suffix}`;
   const hit = CANDLE_CACHE.get(key);
   if (hit) return hit;
 
-  const fresh = await fetchRibbonCandlesUncached(coin, tf);
+  const fresh = await fetchRibbonCandlesUncached(coin, tf, limit);
   if (fresh.length > 0) {
     /* Evict this coin+tf's older buckets rather than growing without bound. Scoped to the series
        being replaced, so one coin's eviction never drops another's still-valid entry. */
     const prefix = `${coin}|${tf}|`;
-    for (const k of CANDLE_CACHE.keys()) if (k !== key && k.startsWith(prefix)) CANDLE_CACHE.delete(k);
+    for (const k of CANDLE_CACHE.keys()) if (k !== key && k.startsWith(prefix) && k.endsWith(suffix) && (suffix !== '' || !k.includes('|L'))) CANDLE_CACHE.delete(k);
     CANDLE_CACHE.set(key, fresh);
   }
   return fresh;
@@ -160,12 +162,12 @@ export function clearCandleCache(): void {
   CANDLE_CACHE.clear();
 }
 
-async function fetchRibbonCandlesUncached(coin: string, tf: EMASignalTF): Promise<OHLCV[]> {
+async function fetchRibbonCandlesUncached(coin: string, tf: EMASignalTF, limit = 300): Promise<OHLCV[]> {
   const bnSym = BINANCE_SYMS[coin];
   if (bnSym) {
     try {
       const res = await exchangeFetch(
-        `https://fapi.binance.com/fapi/v1/klines?symbol=${bnSym}&interval=${tf}&limit=300`,
+        `https://fapi.binance.com/fapi/v1/klines?symbol=${bnSym}&interval=${tf}&limit=${limit}`,
         { cache: 'no-store', signal: deadlineSignal(9_000) }
       );
       if (res.ok) {
@@ -192,10 +194,10 @@ async function fetchRibbonCandlesUncached(coin: string, tf: EMASignalTF): Promis
     // Bybit symbol; otherwise there is nothing to fail over to, and this
     // returns [] exactly as it always has for a Binance failure.
     const bySymFallback = BYBIT_SYMS[coin];
-    if (bySymFallback) return fetchFromBybit(bySymFallback, tf, 'bybit:klines-fallback');
+    if (bySymFallback) return fetchFromBybit(bySymFallback, tf, 'bybit:klines-fallback', limit);
     return [];
   }
   const bySym = BYBIT_KLINE_SYMS[coin];
   if (!bySym) return [];
-  return fetchFromBybit(bySym, tf, 'bybit:klines');
+  return fetchFromBybit(bySym, tf, 'bybit:klines', limit);
 }

@@ -115,6 +115,9 @@ export const marketStandIn = (req: Request, url: URL, record: MarketRecord = {})
   if (url.pathname.startsWith('/v5/market/account-ratio')) {
     return json(200, { retCode: 0, result: { list: [{ buyRatio: '0.55', sellRatio: '0.45', timestamp: 1_700_000_000_000 }] } });
   }
+  /* #2598 / #2603: a default auto read judges the squeeze's funding against the coin's OWN 90 days, so the server pages the settled-funding history. Answered EMPTY on both venues (Binance /fapi/v1/fundingRate: a bare array; Bybit /v5/market/funding/history: {result:{list}}): the squeeze then says NO READING (no history), which is what the cells that run an auto read should see. */
+  if (url.pathname === '/fapi/v1/fundingRate') return json(200, []);
+  if (url.pathname.startsWith('/v5/market/funding/history')) return json(200, { retCode: 0, result: { list: [] } });
   if (url.pathname.startsWith('/v5/market/tickers')) {
     return json(200, { retCode: 0, result: { list: [{ symbol: 'HYPEUSDT', lastPrice: '30', price24hPcnt: '0.02', turnover24h: '1000000' }] } });
   }
