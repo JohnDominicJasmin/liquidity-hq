@@ -1,0 +1,71 @@
+-- NOT YET APPLIED TO ANY DATABASE. Apply ONE block per project: PROD on qdpwhnvmhqgzijuwopso BEFORE the release deploy; DEV on wdtjhrilakoitfcezxpx.
+--
+-- Funding + OI squeeze strategy: "paying heavily" is now judged against the coin's own last 90 days (PM, 2026-11-19) instead of a fixed band. Description, BUY / SELL / WAIT sentences, the "needs live data" reason and the menu tip. Six existing keys x 5 locales (new wording); en equals lib/labelDefaults.en.json. ko/zh/ru/ar AI-drafted, not native-reviewed.
+--
+-- ===================== PROD =====================
+insert into lhq_labels (key, locale, value) values
+('STRAT_SQUEEZE_DESC','en','Funding at an extreme for this coin with open interest rising, then a close through the last swing against the crowd.'),
+('STRAT_SQUEEZE_DESC','ko','이 코인의 펀딩이 극단적이고 미결제약정이 늘어난 뒤, 군중 반대 방향 직전 스윙을 종가로 돌파.'),
+('STRAT_SQUEEZE_DESC','zh','该币种资金费率处于极端水平且持仓量上升，随后收盘突破反向的最近一个摆动点。'),
+('STRAT_SQUEEZE_DESC','ru','Фандинг на экстремуме для этой монеты и рост открытого интереса, затем закрытие за последним свингом против толпы.'),
+('STRAT_SQUEEZE_DESC','ar','تمويل في مستوى متطرف لهذه العملة مع ارتفاع الفائدة المفتوحة ثم إغلاق عبر آخر تأرجح عكس الجمهور.'),
+('STRAT_SQUEEZE_BUY','en','Shorts paying an extreme rate for this coin (funding {fr}%, OI up {oi}%); closed above {swing}.'),
+('STRAT_SQUEEZE_BUY','ko','숏이 이 코인 기준 극단적으로 지불 중 (펀딩 {fr}%, OI +{oi}%); {swing} 위로 마감.'),
+('STRAT_SQUEEZE_BUY','zh','空头支付的费率对该币种而言处于极端（资金费率 {fr}%，OI 上升 {oi}%）；收于 {swing} 之上。'),
+('STRAT_SQUEEZE_BUY','ru','Шорты платят экстремально для этой монеты (фандинг {fr}%, OI +{oi}%); закрытие выше {swing}.'),
+('STRAT_SQUEEZE_BUY','ar','المراكز القصيرة تدفع معدلًا متطرفًا لهذه العملة (التمويل {fr}%، OI ارتفع {oi}%)؛ أغلق فوق {swing}.'),
+('STRAT_SQUEEZE_SELL','en','Longs paying an extreme rate for this coin (funding {fr}%, OI up {oi}%); closed below {swing}.'),
+('STRAT_SQUEEZE_SELL','ko','롱이 이 코인 기준 극단적으로 지불 중 (펀딩 {fr}%, OI +{oi}%); {swing} 아래로 마감.'),
+('STRAT_SQUEEZE_SELL','zh','多头支付的费率对该币种而言处于极端（资金费率 {fr}%，OI 上升 {oi}%）；收于 {swing} 之下。'),
+('STRAT_SQUEEZE_SELL','ru','Лонги платят экстремально для этой монеты (фандинг {fr}%, OI +{oi}%); закрытие ниже {swing}.'),
+('STRAT_SQUEEZE_SELL','ar','المراكز الطويلة تدفع معدلًا متطرفًا لهذه العملة (التمويل {fr}%، OI ارتفع {oi}%)؛ أغلق تحت {swing}.'),
+('STRAT_SQUEEZE_WAIT','en','No extreme funding for this coin with OI rising and a trigger.'),
+('STRAT_SQUEEZE_WAIT','ko','이 코인 기준 극단적 펀딩 + OI 증가 + 트리거 없음.'),
+('STRAT_SQUEEZE_WAIT','zh','没有该币种的极端资金费率、OI 上升且出现触发的情形。'),
+('STRAT_SQUEEZE_WAIT','ru','Нет экстремального для монеты фандинга с ростом OI и триггера.'),
+('STRAT_SQUEEZE_WAIT','ar','لا يوجد تمويل متطرف لهذه العملة مع ارتفاع OI ومحفز.'),
+('STRAT_SQUEEZE_NO_LIVE','en','Needs live funding, its 90-day history and open interest.'),
+('STRAT_SQUEEZE_NO_LIVE','ko','실시간 펀딩, 90일 펀딩 기록, 미결제약정이 필요합니다.'),
+('STRAT_SQUEEZE_NO_LIVE','zh','需要实时资金费率、其90天历史和持仓量。'),
+('STRAT_SQUEEZE_NO_LIVE','ru','Нужны актуальные фандинг, его история за 90 дней и открытый интерес.'),
+('STRAT_SQUEEZE_NO_LIVE','ar','يحتاج تمويلًا مباشرًا وسجله لـ90 يومًا والفائدة المفتوحة.'),
+('STRAT_TIP_SQUEEZE','en','Uses live funding against its last 90 days, open interest and liquidation estimates; past candles are not marked.'),
+('STRAT_TIP_SQUEEZE','ko','실시간 펀딩(최근 90일 대비), 미결제약정, 청산 추정치를 사용하며 과거 캔들에는 표시되지 않습니다.'),
+('STRAT_TIP_SQUEEZE','zh','将实时资金费率与其最近90天比较，并使用持仓量和清算估算；不会标记过去的 K 线。'),
+('STRAT_TIP_SQUEEZE','ru','Сравнивает актуальный фандинг с последними 90 днями; использует открытый интерес и оценки ликвидаций; прошлые свечи не отмечаются.'),
+('STRAT_TIP_SQUEEZE','ar','يقارن التمويل المباشر بآخر 90 يومًا ويستخدم الفائدة المفتوحة وتقديرات التصفية؛ لا تُعلَّم الشموع السابقة.')
+on conflict (key, locale) do update set value = excluded.value, updated_at = now();
+
+-- ===================== DEV =====================
+insert into lhq_dev_labels (key, locale, value) values
+('STRAT_SQUEEZE_DESC','en','Funding at an extreme for this coin with open interest rising, then a close through the last swing against the crowd.'),
+('STRAT_SQUEEZE_DESC','ko','이 코인의 펀딩이 극단적이고 미결제약정이 늘어난 뒤, 군중 반대 방향 직전 스윙을 종가로 돌파.'),
+('STRAT_SQUEEZE_DESC','zh','该币种资金费率处于极端水平且持仓量上升，随后收盘突破反向的最近一个摆动点。'),
+('STRAT_SQUEEZE_DESC','ru','Фандинг на экстремуме для этой монеты и рост открытого интереса, затем закрытие за последним свингом против толпы.'),
+('STRAT_SQUEEZE_DESC','ar','تمويل في مستوى متطرف لهذه العملة مع ارتفاع الفائدة المفتوحة ثم إغلاق عبر آخر تأرجح عكس الجمهور.'),
+('STRAT_SQUEEZE_BUY','en','Shorts paying an extreme rate for this coin (funding {fr}%, OI up {oi}%); closed above {swing}.'),
+('STRAT_SQUEEZE_BUY','ko','숏이 이 코인 기준 극단적으로 지불 중 (펀딩 {fr}%, OI +{oi}%); {swing} 위로 마감.'),
+('STRAT_SQUEEZE_BUY','zh','空头支付的费率对该币种而言处于极端（资金费率 {fr}%，OI 上升 {oi}%）；收于 {swing} 之上。'),
+('STRAT_SQUEEZE_BUY','ru','Шорты платят экстремально для этой монеты (фандинг {fr}%, OI +{oi}%); закрытие выше {swing}.'),
+('STRAT_SQUEEZE_BUY','ar','المراكز القصيرة تدفع معدلًا متطرفًا لهذه العملة (التمويل {fr}%، OI ارتفع {oi}%)؛ أغلق فوق {swing}.'),
+('STRAT_SQUEEZE_SELL','en','Longs paying an extreme rate for this coin (funding {fr}%, OI up {oi}%); closed below {swing}.'),
+('STRAT_SQUEEZE_SELL','ko','롱이 이 코인 기준 극단적으로 지불 중 (펀딩 {fr}%, OI +{oi}%); {swing} 아래로 마감.'),
+('STRAT_SQUEEZE_SELL','zh','多头支付的费率对该币种而言处于极端（资金费率 {fr}%，OI 上升 {oi}%）；收于 {swing} 之下。'),
+('STRAT_SQUEEZE_SELL','ru','Лонги платят экстремально для этой монеты (фандинг {fr}%, OI +{oi}%); закрытие ниже {swing}.'),
+('STRAT_SQUEEZE_SELL','ar','المراكز الطويلة تدفع معدلًا متطرفًا لهذه العملة (التمويل {fr}%، OI ارتفع {oi}%)؛ أغلق تحت {swing}.'),
+('STRAT_SQUEEZE_WAIT','en','No extreme funding for this coin with OI rising and a trigger.'),
+('STRAT_SQUEEZE_WAIT','ko','이 코인 기준 극단적 펀딩 + OI 증가 + 트리거 없음.'),
+('STRAT_SQUEEZE_WAIT','zh','没有该币种的极端资金费率、OI 上升且出现触发的情形。'),
+('STRAT_SQUEEZE_WAIT','ru','Нет экстремального для монеты фандинга с ростом OI и триггера.'),
+('STRAT_SQUEEZE_WAIT','ar','لا يوجد تمويل متطرف لهذه العملة مع ارتفاع OI ومحفز.'),
+('STRAT_SQUEEZE_NO_LIVE','en','Needs live funding, its 90-day history and open interest.'),
+('STRAT_SQUEEZE_NO_LIVE','ko','실시간 펀딩, 90일 펀딩 기록, 미결제약정이 필요합니다.'),
+('STRAT_SQUEEZE_NO_LIVE','zh','需要实时资金费率、其90天历史和持仓量。'),
+('STRAT_SQUEEZE_NO_LIVE','ru','Нужны актуальные фандинг, его история за 90 дней и открытый интерес.'),
+('STRAT_SQUEEZE_NO_LIVE','ar','يحتاج تمويلًا مباشرًا وسجله لـ90 يومًا والفائدة المفتوحة.'),
+('STRAT_TIP_SQUEEZE','en','Uses live funding against its last 90 days, open interest and liquidation estimates; past candles are not marked.'),
+('STRAT_TIP_SQUEEZE','ko','실시간 펀딩(최근 90일 대비), 미결제약정, 청산 추정치를 사용하며 과거 캔들에는 표시되지 않습니다.'),
+('STRAT_TIP_SQUEEZE','zh','将实时资金费率与其最近90天比较，并使用持仓量和清算估算；不会标记过去的 K 线。'),
+('STRAT_TIP_SQUEEZE','ru','Сравнивает актуальный фандинг с последними 90 днями; использует открытый интерес и оценки ликвидаций; прошлые свечи не отмечаются.'),
+('STRAT_TIP_SQUEEZE','ar','يقارن التمويل المباشر بآخر 90 يومًا ويستخدم الفائدة المفتوحة وتقديرات التصفية؛ لا تُعلَّم الشموع السابقة.')
+on conflict (key, locale) do update set value = excluded.value, updated_at = now();

@@ -3,8 +3,13 @@ import { nearestLevel, srPrices, swingPivots3, tradeCall } from './shared.ts';
 import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } from './types.ts';
 
 /* FUNDING + OI SQUEEZE (owner decision 2026-11-17, #1263; rules agreed with PM, QA oracle qa/fixtures/strategyFixtures2.ts). Closed candles plus LIVE values the caller supplies (ctx.fundingClass, ctx.oiChange6Pct, ctx.liqLevels).
- *  CROWDED: the Funding page's "paying heavily" class (longs_heavy: the crowd is long; shorts_heavy: the crowd is short), AND open interest up at least +3% over the last 6 candles of this timeframe, AND a liquidation cluster within 1.5% of the price on the crowded side
- *  (below the price for a long crowd, above it for a short crowd).
+ *  CROWDED (all three must hold):
+ *   1. FUNDING EXTREME FOR THIS COIN (PM, 2026-11-19; it was a fixed band, +0.05% / -0.03%, that real funding never reached in a calm month). The live funding rate is compared with the coin's OWN settled funding rates of the last 90 days
+ *      (lib/strategies/liveInputs.ts fundingClassRelative): longs_heavy (the crowd is long) = the rate is above zero and at least 95% of those settlements were strictly lower than it; shorts_heavy (the crowd is short) = the rate is below zero and at
+ *      least 95% of them were strictly higher. Needs 60+ settlements reaching back 45+ days; without that history the caller passes no fundingClass and the answer is "needs live data", never a guess.
+ *   2. OPEN INTEREST up at least +3% over the last 6 candles of this timeframe.
+ *   3. A LIQUIDATION CLUSTER within 1.5% of the price on the crowded side (below the price for a long crowd, above it for a short crowd). Clusters are the chart's LIVE estimate and have no history: with none supplied (ctx.liqLevels absent or empty) this condition
+ *      fails and the answer is a plain WAIT, not "needs live data". Conditions 1 and 2 can be replayed on past candles (scripts/strategy-signal-audit.mts); this one cannot.
  *  TRIGGER: the FIRST close through the last 3-bar swing (last 20 candles before the trigger candle) AGAINST the crowd: a long crowd, a close below the last swing low (SELL); a short crowd, a close above the last swing high (BUY). The candle before was not already through. Fresh: one of the last 2 closed candles.
  *  Entry  = that close.
  *  Stop   = the swing extreme on the crowded side: the last swing HIGH for a SELL, the last swing LOW for a BUY.
