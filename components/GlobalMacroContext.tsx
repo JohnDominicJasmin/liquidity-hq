@@ -9,6 +9,7 @@ import Tip from './Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { macroStampDate } from '@/lib/macroStamp';
 
 interface MacroData {
   // #1309 item 11: null (not a fallback number) means that feed's fetch
@@ -20,6 +21,8 @@ interface MacroData {
   oil: number | null;  oilChg: number | null;
   tnx: number | null;  tnxChg: number | null;
   goldOilRatio: number | null;
+  /** Each quote's own time (ms), so a weekend value says "Fri close" (#1651). Absent on a cached older payload. */
+  asOf?: { dxy?: number | null; vix?: number | null; gold?: number | null; oil?: number | null; tnx?: number | null };
   signal:       string;
   analysis:     string;
   implications: string;
@@ -73,6 +76,7 @@ export default function GlobalMacroContext() {
 
       const res  = await fetch('/api/macro-context', { headers: { Authorization: `Bearer ${token}` }, signal: deadlineSignal(20_000) });
       const json = await res.json() as {
+        asOf?: MacroData['asOf'];
         dxy?: number | null; dxyChg?: number | null; vix?: number | null; vixChg?: number | null;
         gold?: number | null; goldChg?: number | null; oil?: number | null; oilChg?: number | null;
         tnx?: number | null; tnxChg?: number | null; goldOilRatio?: number | null;
@@ -103,6 +107,7 @@ export default function GlobalMacroContext() {
         oil:  json.oil  ?? null, oilChg:  json.oilChg  ?? null,
         tnx:  json.tnx  ?? null, tnxChg:  json.tnxChg  ?? null,
         goldOilRatio: json.goldOilRatio ?? null,
+        asOf: json.asOf,
         signal, analysis, implications, watchLevel,
       };
       setState(data);
@@ -244,7 +249,7 @@ export default function GlobalMacroContext() {
         const d = state;
         // #1309 item 11: `value: null` renders as "unavailable" below,
         // never a fabricated number for a feed that failed to fetch.
-        const rows: { id: string; label: string; value: string | null; chg: number; invertBullish?: boolean }[] = [
+        const rows: { id: string; label: string; value: string | null; chg: number; invertBullish?: boolean; asOf?: number | null }[] = [
           { id: 'dxy',    label: t('GLOBAL_MACRO_CONTEXT_ROW_DXY'),      value: d.dxy  != null ? d.dxy.toFixed(2) : null, chg: d.dxyChg ?? 0, invertBullish: true },
           { id: 'vix',    label: t('GLOBAL_MACRO_CONTEXT_ROW_VIX'),      value: d.vix  != null ? d.vix.toFixed(1) : null, chg: d.vixChg ?? 0, invertBullish: true },
           { id: 'gold',   label: t('GLOBAL_MACRO_CONTEXT_ROW_GOLD'),     value: d.gold != null ? '$' + d.gold.toLocaleString('en-US', { maximumFractionDigits: 0 }) : null, chg: d.goldChg ?? 0 },
@@ -270,7 +275,9 @@ export default function GlobalMacroContext() {
 
             {/* Data grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 8px', marginBottom: 8 }}>
-              {rows.map(r => (
+              {rows.map(r => {
+                const stampDate = r.value != null ? macroStampDate(d.asOf?.[r.id as keyof NonNullable<MacroData['asOf']>], Date.now()) : null;
+                return (
                 <div key={r.id} style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{r.label}</span>
                   {/* #1309 item 11: r.value is null when this feed's fetch
@@ -283,12 +290,14 @@ export default function GlobalMacroContext() {
                       {r.chg !== 0 && (
                         <span style={{ fontSize: 'var(--fs-caption)', color: chgColor(r.chg, r.invertBullish), fontFamily: 'var(--font-mono), monospace' }}>{chgStr(r.chg)}</span>
                       )}
+                      {stampDate && <span data-testid="macro-stamp" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('MACRO_STRIP_CLOSE_STAMP', { day: stampDate.toLocaleDateString(undefined, { weekday: 'short' }) })}</span>}
                     </>
                   ) : (
                     <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', fontStyle: 'italic' }}>{t('GLOBAL_MACRO_CONTEXT_ROW_UNAVAILABLE')}</span>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Analysis */}

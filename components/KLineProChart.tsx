@@ -14,13 +14,18 @@ import type { LabelKey } from '@/lib/labelKeys';
 import { useAuth } from '@/components/AuthProvider';
 import { getAuthToken } from '@/lib/supabase';
 import { drawStructureAvailable, DRAW_STRUCTURE_NOISY_TFS, type DrawableStructure } from '@/lib/drawStructure';
+import { computeSRLevels, type SRLevel } from '@/lib/srLevels';
+import { detectChannel, SR_BAND_PCT } from '@/lib/strategies/channel';
+import type { OHLCV } from '@/lib/strategyCore';
 import Tip from '@/components/Tip';
-import { barsAfter } from '@/lib/candles';
+import { barsAfter, TF_MS } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { LIQ_CLUSTER_LINES, mergeLiqBands } from '@/lib/liqClusters';
 import { findIndicator, toCalcParams, DEFAULT_PANE_INDICATORS, type IndicatorEntry } from '@/lib/strategyRegistry';
 import { isStreamStalled, STREAM_WATCH_EVERY_MS, BYBIT_PING_EVERY_MS, STREAM_SUSPECT_MS } from '@/lib/streamWatch';
-import { checkChartSync, historyRetryDelayMs, HISTORY_ATTEMPT_TIMEOUT_MS } from '@/lib/chartSync';
+import { checkChartSync, historyRetryDelayMs, HISTORY_ATTEMPT_TIMEOUT_MS, periodMs } from '@/lib/chartSync';
+import { resumeAction } from '@/lib/chartResume';
+import { reconnectDelayMs, linkState } from '@/lib/reconnectDelay';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
 import type { StrategyOverlay } from '@/lib/strategies/types';
 
@@ -117,6 +122,8 @@ const DRAWING_GROUP = 'user_drawing';
  * pressed-move (see the emaRibbonLine note below), so a locked proposal can still be hovered
  * but not dragged into something the model never proposed. */
 const PROPOSAL_GROUP = 'structure_proposals';
+/* THE CHANNEL BOX'S OWN GROUP (QA, #2511 blocker): the box and its rails used to be in PROPOSAL_GROUP, so an EMPTY Draw Structure answer ('Nothing proposed on this window') ran clearProposals, which removed the whole group and the box with it, while the state that redraws it (dsClicked) was set back to the same value and never re-ran the effect. The box lives in this group instead; only the box effect (Draw Structure off, coin or timeframe change) removes it. */
+const BOX_GROUP = 'channel_box';
 const drawingsKey = (coin: CoinId) => `lhq_chart_drawings_${coin}`;
 
 interface PersistedOverlay {
@@ -417,6 +424,9 @@ interface Props {
   onShowSRChange:  (next: boolean) => void;
   showLiq:       boolean;
   onShowLiqChange: (next: boolean) => void;
+  /* The EMA ribbon and the RSI pane, owned by the page like S/R and Liq (owner, 2026-11-17). Display only; omitted = shown. */
+  showEma?:      boolean;
+  showRsi?:      boolean;
   /** The only venue in the stored 24 h liquidation history, when it is just one: the Liq button then says so instead of looking complete. */
   liqHistOnly?: 'BN' | 'BB' | null;
   /* Called when a confirmed-Free visitor taps the locked Draw Structure button. The PAGE owns the
@@ -566,7 +576,6 @@ function computeEmaSeries(bars: Array<{ timestamp: number; close: number }>, per
 // chart back where the Arena signal-overload pass found it.
 const PA_MAX = 6;
 
-interface SRLevel { price: number; type: 'support' | 'resistance'; touches: number; }
 
 // Deterministic label spacing for S/R / GEX price tags: derived once from the
 // level prices themselves, not from live pixel positions. Pixel y only exists
@@ -606,53 +615,6 @@ function applyProportionalPaneHeights(chart: KChart, containerHeight: number) {
   chart.setPaneOptions({ id: 'rsi_pane', height: rsiH });
 }
 
-function computeSRLevels(
-  bars: { high: number; low: number; close: number }[],
-  currentPrice: number,
-): SRLevel[] {
-  const lookback = 3;
-  const recent = bars.slice(-200);
-  const CLUSTER_PCT = 0.003;
-
-  const swingHighs: number[] = [];
-  const swingLows: number[] = [];
-
-  for (let i = lookback; i < recent.length - lookback; i++) {
-    const hi = recent[i].high;
-    const lo = recent[i].low;
-    if (
-      recent.slice(i - lookback, i).every(b => b.high <= hi) &&
-      recent.slice(i + 1, i + lookback + 1).every(b => b.high <= hi)
-    ) swingHighs.push(hi);
-    if (
-      recent.slice(i - lookback, i).every(b => b.low >= lo) &&
-      recent.slice(i + 1, i + lookback + 1).every(b => b.low >= lo)
-    ) swingLows.push(lo);
-  }
-
-  const cluster = (prices: number[]) => {
-    const sorted = [...prices].sort((a, b) => a - b);
-    const clusters: { price: number; count: number }[] = [];
-    for (const p of sorted) {
-      const ex = clusters.find(c => Math.abs(c.price - p) / p < CLUSTER_PCT);
-      if (ex) { ex.price = (ex.price * ex.count + p) / (ex.count + 1); ex.count++; }
-      else clusters.push({ price: p, count: 1 });
-    }
-    return clusters.sort((a, b) => b.count - a.count);
-  };
-
-  const resistances = cluster(swingHighs)
-    .filter(c => c.price > currentPrice * 0.999)
-    .slice(0, 3)
-    .map(c => ({ price: c.price, type: 'resistance' as const, touches: c.count }));
-
-  const supports = cluster(swingLows)
-    .filter(c => c.price < currentPrice * 1.001)
-    .slice(0, 3)
-    .map(c => ({ price: c.price, type: 'support' as const, touches: c.count }));
-
-  return [...resistances, ...supports];
-}
 
 /* QA test seam for the indicator-sync failure notice (#1369). Same shape and
    same reasoning as AuthProvider's `qaForcedEntitlementsFailure` (#1184): the
@@ -686,12 +648,30 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, onUnlock, strategyOverlay }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, showEma = true, showRsi = true, onUnlock, strategyOverlay }: Props) {
+  const showEmaRef = useRef(showEma);
+  showEmaRef.current = showEma;
+  /* THE ADJUSTABLE LAYER SETTINGS (owner, 2026-11-17): the four EMA ribbon lengths and the RSI length + overbought / oversold lines. Chart only: the strategy signals keep the standard lengths. Clamped here as well as in the panel, so a stale saved value cannot break the chart. */
+  const num = (v: unknown, d: number, lo: number, hi: number) => { const n = typeof v === 'number' ? v : Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : d; };
+  const emaP = indicatorParams?.EMA_RIBBON;
+  const emaLengths = [num(emaP?.e1, 9, 2, 400), num(emaP?.e2, 20, 2, 400), num(emaP?.e3, 50, 2, 400), num(emaP?.e4, 200, 2, 400)];
+  const emaLengthsKey = emaLengths.join(',');
+  const emaLengthsRef = useRef(emaLengths);
+  emaLengthsRef.current = emaLengths;
+  const rsiP = indicatorParams?.RSI;
+  const rsiLen = num(rsiP?.length, 14, 2, 100), rsiOb = num(rsiP?.overbought, 70, 50, 95), rsiOs = num(rsiP?.oversold, 30, 5, 50);
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
   const chartRef       = useRef<KChart | null>(null);
   const wsRef          = useRef<{ close: () => void } | null>(null);
+  /* RESUME (owner, 2026-11-18: the chart was empty after the tab sat 1-2 h). The live subscription publishes a "kick" here: on resume
+     it decides from its own socket state whether to reconnect at once (a reconnect backfills the gap). See lib/chartResume.ts. */
+  const wsKickRef      = useRef<{ state: () => { open: boolean; lastMsgAt: number | null }; reconnect: (reason: string) => void } | null>(null);
+  /* The last history that loaded, per coin and timeframe. A reload that fails (the network is still waking up after a sleep, an
+     exchange refuses once) used to hand the chart an EMPTY list, which wiped candles that were on screen a moment before. With this
+     a failed reload keeps them, the "couldn't load" banner and its retry still run, and the chart is never blank because of a retry. */
+  const lastGoodRef    = useRef<{ key: string; bars: { timestamp: number; open: number; high: number; low: number; close: number; volume: number }[] } | null>(null);
   const analysisIds    = useRef<string[]>([]);
   const gexLevelIds    = useRef<string[]>([]);
   const liqClusterIds  = useRef<string[]>([]);
@@ -872,7 +852,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   }, [onResizeMove, onResizeEnd]);
   const { store } = useMarket();
   const { t: tl } = useLabels();
-  const { entitlementStatus } = useAuth();
+  const { entitlementStatus, entitlementsLoading } = useAuth();
   const coinData = store.coins[coin];
   const srOverlayIds              = useRef<string[]>([]);
   const strategyOverlayIds        = useRef<string[]>([]);
@@ -1031,9 +1011,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const syncEmaRibbon = useCallback(() => {
     const chart = chartRef.current;
     const bars = emaBarsRef.current;
-    if (!chart || !bars.length) return;
+    if (!chart) return;
+    if (!showEmaRef.current) {
+      /* Switched off: take the four lines off the chart. The bars stay in emaBarsRef, so switching back redraws at once. */
+      emaRibbonIds.current.forEach((id, i) => { if (id) { try { chart.removeOverlay({ id }); } catch { /* already gone */ } emaRibbonIds.current[i] = null; } });
+      return;
+    }
+    if (!bars.length) return;
     EMA_PERIODS.forEach((cfg, idx) => {
-      const series = computeEmaSeries(bars, cfg.period);
+      const series = computeEmaSeries(bars, emaLengthsRef.current[idx] ?? cfg.period);
       if (!series.length) return;
       const points = series.map(p => ({ timestamp: p.timestamp, value: p.value }));
       const existingId = emaRibbonIds.current[idx];
@@ -1078,6 +1064,37 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       }
     });
   }, []);
+
+  const rsiLineIds = useRef<string[]>([]);
+  /* Re-sync when the switch flips; the RSI pane is removed or re-created the same way. */
+  useEffect(() => { syncEmaRibbon(); }, [showEma, emaLengthsKey, syncEmaRibbon]);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    if (!showRsi) {
+      try { chart.removeIndicator({ paneId: 'rsi_pane', name: 'RSI' }); } catch { /* not there */ }
+    } else {
+      try {
+        chart.createIndicator(
+          { name: 'RSI', calcParams: [rsiLen], styles: { lines: [{ color: resolveCssColor('var(--accent-2)'), size: 1.5 }] } },
+          { pane: { id: 'rsi_pane', height: 110, minHeight: 30 } }
+        );
+        applyProportionalPaneHeights(chart, containerRef.current?.getBoundingClientRect().height ?? 0);
+      } catch { /* already present */ }
+      try { chart.overrideIndicator({ name: 'RSI', paneId: 'rsi_pane', calcParams: [rsiLen] } as never); } catch { /* not there yet */ }
+    }
+    /* The overbought / oversold lines, drawn in the RSI pane. Re-drawn whenever the pane or a level changes. */
+    for (const id of rsiLineIds.current) { try { chart.removeOverlay({ id }); } catch { /* gone */ } }
+    rsiLineIds.current = [];
+    if (showRsi) {
+      for (const value of [rsiOb, rsiOs]) {
+        try {
+          const id = chart.createOverlay({ name: 'horizontalStraightLine', paneId: 'rsi_pane', points: [{ value }], lock: true, styles: { line: { style: 'dashed', color: resolveCssColor('var(--txt3)'), size: 1 } } } as never);
+          if (typeof id === 'string') rsiLineIds.current.push(id);
+        } catch { /* the pane is not ready; the next sync draws them */ }
+      }
+    }
+  }, [showRsi, chartReady, rsiLen, rsiOb, rsiOs]);
 
   // Upsert one live-updating bar into the EMA history: replace the last entry
   // if it's the same (still-forming) candle, append if it's a genuinely new
@@ -1761,6 +1778,46 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             ];
           },
         });
+        /* THE POSITION BOX (owner decision 2026-11-17, #1263: "box, no arrow"): from the entry candle, a green reward area between the entry and the target and a red risk area between the entry and the stop, with
+           Target / Entry / Stop labels carrying the price and the percent distance, "R:R x.x" and ONE caption. Three points on the entry candle: the entry, the target (or the entry again when there is none) and the stop.
+           NOTHING in this overlay is a predicted path or an arrow, and none is ever drawn. On a narrow chart the labels are the single letters T / E / S. Locked, no layout space. */
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          ...base, name: 'positionBox', totalStep: 3,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
+            const d = overlay.extendData as { hasTarget: boolean; targetText: string; entryText: string; stopText: string; rrText: string; caption: string };
+            const e = coordinates[0], t = coordinates[1], s = coordinates[2];
+            if (!e || !s || ![e.x, e.y, s.x, s.y].every(isFinite)) return [];
+            const w = bounding?.width ?? 9999;
+            const narrow = w < 460;
+            const x0 = Math.max(0, e.x);
+            const x1 = Math.min(w - 4, x0 + Math.max(110, w * 0.35));
+            if (x1 <= x0) return [];
+            const green = resolveCssColor('var(--green)'), red = resolveCssColor('var(--red)'), ink = resolveCssColor('var(--txt2)');
+            const out: Array<Record<string, unknown>> = [];
+            /* STOP AND TARGET LABELS ARE ALWAYS ON SCREEN (PM/QA 2026-11-18: the SELL stop was off the visible price scale on a short phone chart, so its label was clipped away). A level outside the pane keeps its label, pinned to the pane edge with the full value and an arrow toward the level; the scale is NOT changed, so nothing jumps. */
+            const H = bounding?.height ?? 300;
+            const pin = (y: number, text: string, short: string): { y: number; text: string } => {
+              if (y < 10) return { y: 10, text: `${text} ↑` };
+              if (y > H - 10) return { y: H - 10, text: `${text} ↓` };
+              return { y, text: narrow ? short : text };
+            };
+            if (d.hasTarget && t && [t.x, t.y].every(isFinite)) {
+              out.push({ type: 'rect', attrs: { x: x0, y: Math.min(e.y, t.y), width: x1 - x0, height: Math.max(Math.abs(e.y - t.y), 1) }, styles: { style: 'stroke_fill', color: withAlpha(green, 0.16), borderColor: green, borderSize: 1 } });
+              const tp = pin(t.y < e.y ? t.y + 3 : t.y - 3, d.targetText, 'T');
+              out.push({ type: 'text', attrs: { x: x1 - 4, y: tp.y, text: tp.text, align: 'right', baseline: t.y < e.y ? 'top' : 'bottom' }, styles: { color: green, size: 10, weight: '700' } });
+            }
+            out.push({ type: 'rect', attrs: { x: x0, y: Math.min(e.y, s.y), width: x1 - x0, height: Math.max(Math.abs(e.y - s.y), 1) }, styles: { style: 'stroke_fill', color: withAlpha(red, 0.16), borderColor: red, borderSize: 1 } });
+            const sp = pin(s.y > e.y ? s.y - 3 : s.y + 3, d.stopText, 'S');
+            out.push({ type: 'text', attrs: { x: x1 - 4, y: sp.y, text: sp.text, align: 'right', baseline: s.y > e.y ? 'bottom' : 'top' }, styles: { color: red, size: 10, weight: '700' } });
+            out.push({ type: 'line', attrs: { coordinates: [{ x: x0, y: e.y }, { x: x1, y: e.y }] }, styles: { style: 'solid', color: ink, size: 1 } });
+            out.push({ type: 'text', attrs: { x: x0 + 4, y: e.y - 3, text: narrow ? 'E' : d.entryText, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } });
+            if (d.rrText) out.push({ type: 'text', attrs: { x: x0 + 4, y: e.y + 3, text: d.rrText, align: 'left', baseline: 'top' }, styles: { color: ink, size: 10, weight: '700' } });
+            out.push({ type: 'text', attrs: { x: 6, y: (bounding?.height ?? 300) - 6, text: d.caption, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '400' } });
+            return out;
+          },
+        });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (kc as any).registerOverlay({
           ...base, name: 'strategyMarker',
@@ -1863,7 +1920,18 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             }
             return;
           }
+          const loadKey = `${c}|${period.span}${period.type}`;
+          /* A failed load keeps the candles already on screen for this coin and timeframe (lastGoodRef). Returns false when there are
+             none to keep, and the caller then reports the empty chart as before. */
+          const keepLastGood = (): boolean => {
+            const kept = lastGoodRef.current;
+            if (!kept || kept.key !== loadKey || !kept.bars.length) return false;
+            deliveredGenRef.current = myGen;
+            callback(kept.bars, { forward: true });
+            return true;
+          };
           const applyBars = (bars: { timestamp: number; open: number; high: number; low: number; close: number; volume: number }[]) => {
+            if (bars.length) lastGoodRef.current = { key: loadKey, bars };
             if (bars.length) {
               lastCloseRef.current = bars[bars.length - 1].close;
               srSetRef.current(computeSRLevels(bars, bars[bars.length - 1].close));
@@ -1925,7 +1993,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // silent - say so rather than a chart with nothing on it and
                 // no explanation.
                 if (json === null) setHistoryFailed(true);
-                applyBars([]);
+                if (!(json === null && keepLastGood())) applyBars([]);
                 handled = true;
               }
               // else: Bybit had nothing (refused after retries, or genuinely
@@ -2021,14 +2089,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // coin that DOES have a fallback. Surface it the same way.
                 setHistoryFailed(true);
               }
-              applyBars(bars);
+              if (!(bars.length === 0 && keepLastGood())) applyBars(bars);
             } else if (!handled) {
               applyBars([]);
             }
             endFade();
             setLoadingTf(null);
             setBarsTick(n => n + 1);
-          } catch { if (!stale()) { setHistoryFailed(true); deliveredGenRef.current = myGen; callback([], false); endFade(); setLoadingTf(null); } }
+          } catch { if (!stale()) { setHistoryFailed(true); if (!keepLastGood()) { deliveredGenRef.current = myGen; callback([], false); } endFade(); setLoadingTf(null); } }
           void symbol; // suppress unused
         },
 
@@ -2155,7 +2223,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 setWsStatus('connecting');
                 attempt += 1;
                 hostTry += 1;
-                const delay = Math.min(1000 * 2 ** (attempt - 1), 30_000);
+                // Offline or hidden: lib/reconnectDelay.ts backs off to 30 s; `online` and the resume handler reconnect at once.
+                const delay = reconnectDelayMs(attempt, linkState());
                 if (timer) clearTimeout(timer);
                 timer = setTimeout(connect, delay);
               };
@@ -2207,14 +2276,31 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               attempt += 1;
               hostTry += 1;
               if (timer) clearTimeout(timer);
-              timer = setTimeout(connect, Math.min(1000 * 2 ** (attempt - 1), 30_000));
+              timer = setTimeout(connect, reconnectDelayMs(attempt, linkState()));
             }, STREAM_WATCH_EVERY_MS);
 
             connect();
 
+            wsKickRef.current = {
+              state: () => ({ open: !!live && live.readyState === WebSocket.OPEN, lastMsgAt: live ? lastMsgAt : null }),
+              reconnect: () => {
+                if (cancelled) return;
+                const old = live;
+                live = null;
+                suspect = false;
+                if (old) { old.onclose = null; old.onmessage = null; old.onerror = null; try { old.close(); } catch { /* already gone */ } }
+                stopPing();
+                setWsStatus('connecting');
+                attempt = 0;
+                if (timer) clearTimeout(timer);
+                connect();
+              },
+            };
+
             wsRef.current = {
               close: () => {
                 cancelled = true;
+                wsKickRef.current = null;
                 clearInterval(watchdog);
                 stopPing();
                 window.removeEventListener('online', onOnline);
@@ -2348,7 +2434,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 if (cancelled || ws !== live) return;
                 setWsStatus('connecting');
                 attempt += 1;
-                const delay = Math.min(1000 * 2 ** (attempt - 1), 30_000);
+                const delay = reconnectDelayMs(attempt, linkState()); // same rule as the Bybit branch
                 if (timer) clearTimeout(timer);
                 timer = setTimeout(connect, delay);
               };
@@ -2387,14 +2473,30 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               setWsStatus('connecting');
               attempt += 1;
               if (timer) clearTimeout(timer);
-              timer = setTimeout(connect, Math.min(1000 * 2 ** (attempt - 1), 30_000));
+              timer = setTimeout(connect, reconnectDelayMs(attempt, linkState()));
             }, STREAM_WATCH_EVERY_MS);
 
             connect();
 
+            wsKickRef.current = {
+              state: () => ({ open: !!live && live.readyState === WebSocket.OPEN, lastMsgAt: live ? lastMsgAt : null }),
+              reconnect: () => {
+                if (cancelled) return;
+                const old = live;
+                live = null;
+                suspect = false;
+                if (old) { old.onclose = null; old.onmessage = null; old.onerror = null; try { old.close(); } catch { /* already gone */ } }
+                setWsStatus('connecting');
+                attempt = 0;
+                if (timer) clearTimeout(timer);
+                connect();
+              },
+            };
+
             wsRef.current = {
               close: () => {
                 cancelled = true;
+                wsKickRef.current = null;
                 clearInterval(watchdog);
                 window.removeEventListener('online', onOnline);
                 if (timer) clearTimeout(timer);
@@ -2563,16 +2665,65 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     const chart = chartRef.current;
     if (!chart) return;
     const retry = () => { loadGenRef.current += 1; loadBumpedAtRef.current = Date.now(); chart.resetData(); };
-    const timer = setTimeout(() => {
-      historyRetryRef.current += 1;
-      // Offline: do not burn an attempt, the `online` listener below is the trigger.
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
-      retry();
-    }, historyRetryDelayMs(historyRetryRef.current));
+    /* Offline: do not burn an attempt, but do not stop either. This used to `return` and leave the `online` event as the only way
+       back, so an `online` that fired before this effect was listening (or never fired, on a network that came back without the
+       browser noticing) left the chart failed until a refresh. Now it checks again at the same delay. */
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = (ms: number) => {
+      timer = setTimeout(() => {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) { schedule(ms); return; }
+        historyRetryRef.current += 1;
+        retry();
+      }, ms);
+    };
+    schedule(historyRetryDelayMs(historyRetryRef.current));
     const onOnline = () => { clearTimeout(timer); historyRetryRef.current = 0; retry(); };
     window.addEventListener('online', onOnline);
     return () => { clearTimeout(timer); window.removeEventListener('online', onOnline); };
   }, [historyFailed]);
+
+  /* ── Resume: the tab came back (owner, 2026-11-18) ─────────────────────────
+     Hidden for an hour or two, the tab's timers ran about once a minute or not at all, a sleep may have killed the socket without a
+     close event, and the canvas may have lost its pixels. So on visible / pageshow (back-forward cache) / resume (unfrozen):
+     repaint, then ask lib/chartResume.ts what the data needs - nothing, a reconnect now (whose open backfills the gap), or a full
+     reload (no candles, or a gap wider than the backfill). A reload that fails keeps the candles already drawn (lastGoodRef). */
+  useEffect(() => {
+    if (!chartReady) return;
+    const onResume = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      const chart = chartRef.current;
+      if (!chart) return;
+      try { chart.resize(); } catch { /* not laid out yet */ }
+      const list = chart.getDataList();
+      const sock = wsKickRef.current?.state() ?? { open: false, lastMsgAt: null };
+      const action = resumeAction({
+        lastBarTs: list.length ? list[list.length - 1].timestamp : null,
+        periodMs: periodMs(TF_TO_PERIOD[tfRef.current] ?? TF_TO_PERIOD['15m']),
+        now: Date.now(),
+        socketOpen: sock.open,
+        lastMsgAt: sock.lastMsgAt,
+      });
+      if (action.do === 'none') return;
+      console.warn('[chart] resume:', action.do, action.reason);
+      if (action.do === 'reconnect' && wsKickRef.current) { wsKickRef.current.reconnect(action.reason); return; }
+      loadGenRef.current += 1; loadBumpedAtRef.current = Date.now(); historyRetryRef.current = 0;
+      chart.resetData();
+    };
+    const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) onResume(); };
+    /* A canvas whose backing store the browser dropped comes back blank; repaint it. Capture, because the event does not bubble. */
+    const onCanvasRestored = () => { try { chartRef.current?.resize(); } catch { /* ignore */ } };
+    const host = containerRef.current;
+    document.addEventListener('visibilitychange', onResume);
+    document.addEventListener('resume', onResume);
+    window.addEventListener('pageshow', onPageShow);
+    host?.addEventListener('contextrestored', onCanvasRestored, true);
+    return () => {
+      document.removeEventListener('visibilitychange', onResume);
+      document.removeEventListener('resume', onResume);
+      window.removeEventListener('pageshow', onPageShow);
+      host?.removeEventListener('contextrestored', onCanvasRestored, true);
+    };
+  }, [chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Self-heal: the chart must agree with the selected timeframe (#1572) ─
      One check every 10 s (reads about a dozen timestamps): the period klinecharts holds must be the selected one, and once the load for
@@ -3073,6 +3224,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
   // ── Draw Structure (#1818 option D) ──────────────────────────────────
   const [proposals, setProposals] = useState<DrawableStructure[]>([]);
+  /* TRUE FROM THE CLICK ON DRAW STRUCTURE until the chart is cleared: the Channel strategy's own rails and risk box draw on that click whenever it has a live call, whether or not the model proposes anything (PM, 2026-11-17). */
+  const [dsClicked, setDsClicked] = useState(false);
   const [dsLoading, setDsLoading] = useState(false);
   const [dsError, setDsError] = useState<string | null>(null);
   /* A SUCCESSFUL READ THAT PROPOSED NOTHING IS ITS OWN STATE, not an error and not the initial
@@ -3122,11 +3275,63 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     if (chart) chart.removeOverlay({ groupId: PROPOSAL_GROUP });
     proposalIds.current = [];
     setProposals(prev => (prev.length === 0 ? prev : []));
+    setDsClicked(prev => (prev === false ? prev : false));
     setDsError(prev => (prev === null ? prev : null));
     /* Same bail-out as the two above, for the same reason: this runs from the coin/timeframe
        effect, which is most of what this chart does. */
     setDsNone(prev => (prev === false ? prev : false));
   }, []);
+
+  // ── The Channel strategy's risk box on Draw Structure (owner decision 2026-11-17, #1263) ───────────────
+  // When the user clicks DRAW STRUCTURE AND the Channel strategy has a live BUY / SELL call on the candles, draw the strategy's own channel rails and the position box (reward, risk, Target / Entry / Stop with price and percent, R:R) and the chart's support /
+  // resistance levels as bands, with one caption. No live call: the channel and nothing else (this effect draws nothing). NO PREDICTED PATH OR ARROW, ever. Levels come from the strategy's own rules
+  // (lib/strategies/channel.ts), which is why this does not break the 2026-10-31 "no target, no entry" rule of lib/drawStructure.ts: that rule is about the model's proposals, and this is not one.
+  const boxIds = useRef<string[]>([]);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    boxIds.current.forEach(id => chart.removeOverlay({ id }));
+    boxIds.current = [];
+    chart.removeOverlay({ groupId: BOX_GROUP });
+    if (!dsClicked) return;
+    const list = chart.getDataList();
+    if (!list || list.length < 60) return;
+    const candles: OHLCV[] = list.map(b => ({ time: b.timestamp, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
+    const res = detectChannel(candles, { coin: coinRef.current, tf, tfMs: TF_MS[tf] ?? 0 });
+    if (res.verdict === 'wait' || res.signalTimestamp == null) return;
+    const p = res.params as { entry: number; stop: number; target?: number; rr?: number };
+    if (![p.entry, p.stop].every(Number.isFinite)) return;
+    // The STRATEGY's own channel rails (what it measured), drawn with the box; whatever the model proposes is drawn as before.
+    for (const l of res.overlay?.lines ?? []) {
+      const pts = l.points.map(pt => ({ timestamp: pt.ts, value: pt.price }));
+      if (pts.length >= 2 && pts.every(pt => Number.isFinite(pt.timestamp) && Number.isFinite(pt.value))) {
+        const id = chart.createOverlay({ name: 'strategyPolyline', groupId: BOX_GROUP, lock: true, points: pts, extendData: { role: l.role, text: tl(l.labelKey, l.labelParams) } } as OverlayCreate);
+        if (typeof id === 'string') boxIds.current.push(id);
+      }
+    }
+    const px = currencyPrefix(coinRef.current);
+    const pct = (v: number) => { const x = (v - p.entry) / p.entry * 100; return (x >= 0 ? '+' : '') + x.toFixed(2) + '%'; };
+    const entryTs = res.signalTimestamp;
+    const hasTarget = typeof p.target === 'number' && Number.isFinite(p.target);
+    const create = (o: Record<string, unknown>) => { const id = chart.createOverlay(o as OverlayCreate); if (typeof id === 'string') boxIds.current.push(id); };
+    // S/R levels as bands, across the loaded candles
+    const first = candles[0].time, last = candles[candles.length - 1].time;
+    for (const l of srLevels) {
+      create({ name: 'strategyZone', groupId: BOX_GROUP, lock: true,
+        points: [{ timestamp: first, value: l.price * (1 + SR_BAND_PCT) }, { timestamp: last, value: l.price * (1 - SR_BAND_PCT) }],
+        extendData: { kind: l.type === 'resistance' ? 'supply' : 'demand', text: '' } });
+    }
+    create({ name: 'positionBox', groupId: BOX_GROUP, lock: true,
+      points: [{ timestamp: entryTs, value: p.entry }, { timestamp: entryTs, value: hasTarget ? p.target! : p.entry }, { timestamp: entryTs, value: p.stop }],
+      extendData: {
+        hasTarget,
+        targetText: hasTarget ? `${tl('STRAT_OV_TARGET')} ${px}${fmtPx(p.target!)} (${pct(p.target!)})` : '',
+        entryText: `${tl('STRAT_OV_ENTRY')} ${px}${fmtPx(p.entry)}`,
+        stopText: `${tl('STRAT_OV_STOP')} ${px}${fmtPx(p.stop)} (${pct(p.stop)})`,
+        rrText: hasTarget && typeof p.rr === 'number' ? tl('CHANNEL_BOX_RR', { rr: p.rr.toFixed(1) }) : '',
+        caption: tl('DRAW_STRUCTURE_LEVELS_CAPTION'),
+      } });
+  }, [dsClicked, chartReady, srLevels, barsTick, themeInk, tf]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Proposals are about ONE window. Changing coin or timeframe makes every index they were
      built from meaningless, so they go rather than being redrawn against candles they were
@@ -3167,6 +3372,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     setDsError(null);
     setDsNone(false);
     setDsLoading(true);
+    setDsClicked(true);
     try {
       const token = await getAuthToken();
       if (!token) { setDsError(tl('DRAW_STRUCTURE_SIGNED_OUT')); return; }
@@ -3198,6 +3404,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       }
       const list = (Array.isArray(data.structures) ? data.structures : []) as DrawableStructure[];
       clearProposals();
+      setDsClicked(true);   // clearProposals just reset it: this read is still the one the box belongs to
       const ids: string[] = [];
       for (const s of list) {
         const id = chart.createOverlay({
@@ -3375,7 +3582,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             So 'unknown' keeps today's behaviour and only 'not_entitled' locks. Reuses the Draw
             menu's classes so this adds no CSS - globals.css is a landing-gated file and this
             needs none of it. */}
-        {drawStructureAvailable(tf) && entitlementStatus === 'not_entitled' && onUnlock && (
+        {drawStructureAvailable(tf) && entitlementStatus === 'not_entitled' && onUnlock && !entitlementsLoading && (
           <div className="klc-draw-wrap klc-ds-wrap">
             {/* NEVER `requestStructures` ON THIS BRANCH. The server already refuses a Free
                 account, but a call that is certain to be refused is a wasted round trip and, on
@@ -3406,7 +3613,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           </div>
         )}
 
-        {drawStructureAvailable(tf) && entitlementStatus !== 'not_entitled' && (
+        {/* WHILE THE PLAN IS BEING READ, the plain button stands in (inert), not the locked one with its PRO tag: `entitlementStatus` is 'not_entitled' until the read settles, so a Pro account first saw the 170 px locked group (3 toolbar rows at 360 ru) and then the 103-148 px plain one (2 rows), moving the chart 30 px at about 1.5 s (QA run 44192577624, CLS 0.233). */}
+        {((drawStructureAvailable(tf) && entitlementStatus !== 'not_entitled') || (drawStructureAvailable(tf) && entitlementsLoading)) && (
           <div className="klc-draw-wrap klc-ds-wrap" ref={dsWrapRef}>
             <button
               className={`klc-tool-btn klc-draw-btn klc-ds-btn${proposals.length ? ' on' : ''}`}
@@ -3416,7 +3624,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                  own item, no new control. */
               onClick={proposals.length > 0 ? () => setDsMenuOpen(v => !v) : requestStructures}
               aria-expanded={dsMenuShown}
-              disabled={dsLoading}
+              disabled={dsLoading || entitlementsLoading}
               title={tl('DRAW_STRUCTURE_BUTTON')}
             >
               {dsLoading ? tl('DRAW_STRUCTURE_LOADING') : tl('DRAW_STRUCTURE_BUTTON')}
@@ -3751,14 +3959,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             right: 0,
             top: Math.min(priceLabelY + 11, (containerRef.current?.clientHeight ?? 400) - 90),
             pointerEvents: 'none',
-            background: 'rgba(30,30,30,0.88)',
-            border: '1px solid rgba(255,255,255,0.10)',
+            /* THEME TOKENS, NOT A FIXED DARK CHIP (PM: the countdown read 1.21:1 in the LIGHT theme). --bg1 / --txt2 / --bdr follow the theme; --txt2 on --bg1 is about 5.6:1 in both. */
+            background: 'color-mix(in srgb, var(--bg1) 92%, transparent)',
+            border: '1px solid var(--bdr)',
             borderTop: 'none',
             borderRadius: '0 0 3px 3px',
             padding: '1px 6px 2px',
             fontSize: 'var(--fs-caption)',
             fontFamily: 'monospace',
-            color: 'rgba(255,255,255,0.70)',
+            color: 'var(--txt2)',
             letterSpacing: '0.04em',
             lineHeight: 1.5,
             userSelect: 'none',

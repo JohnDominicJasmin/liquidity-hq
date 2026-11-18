@@ -150,6 +150,63 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* DRAFT, the release after v2026.11.18 (PM 2026-11-18). THE TAG AND THE DATE ARE SET WHEN THE TAG IS CUT: the date must be the tagged commit's %cs (the
+       changelog test checks it one run after the tag exists). Plain words, 12 words or fewer per line (rule 22); only user-visible changes. Tied to: #2553 (chart
+       after an idle tab, live feeds reconnect), #2555 + #2562 (data stays visible, no data-gap dashes), #2544 + #2549 (AI read at a glance), #2559 (AI accuracy,
+       incomplete answers not charged), #2545 (shorter text), #2551 (alert line removed), #2560 (Telegram delivery), #2561 (alert sounds). A line whose PR does not
+       merge before the tag is removed. */
+    date: '2026-11-18',
+    tag: 'v2026.11.18.2',
+    items: [
+      "The chart no longer goes empty after the tab sits idle.",
+      "Liquidation and whale-trade feeds reconnect when you return to the tab.",
+      "When a source is slow, the last good value stays visible.",
+      "Far fewer dashes and \"Unavailable\" where data was missing.",
+      "AI reads open with one summary line and up to three reasons.",
+      "Fixed AI reads that read long/short positioning backwards.",
+      "An AI answer that comes back incomplete is not charged.",
+      "Telegram alerts retry instead of being lost.",
+      "Old signals are no longer sent when you switch on a timeframe.",
+      "Macro headlines have their own alert switch.",
+      "Choose from 8 alert sounds, the volume and what plays, in Settings.",
+      "Labels and tips across the app are shorter.",
+    ],
+  },
+  {
+    /* DRAFT, v2026.11.18 (PM 2026-11-18): the release after v2026.11.17. THE DATE MUST BE THE TAGGED COMMIT's %cs (the changelog test checks it): set it when the tag is made. Plain words, 12 words or fewer per line (rule 22); only what actually merged is listed; the Arena strategy lines are added as each of those PRs merges. */
+    date: '2026-11-18',
+    tag: 'v2026.11.18',
+    items: [
+      "The landing page fits phones and loads faster.",
+      "Sign-in pages have their own titles; menus close with Escape.",
+      "The news ticker has a pause button; low-contrast text is fixed.",
+      "AI reads no longer contradict the EMA, SMA or VWAP numbers.",
+      "HYPE now shows VWAP, RSI and volume levels.",
+      "The Funding page no longer says Binance is unavailable for HYPE.",
+      "Missing readings show \"No data\" or \"Unavailable\" instead of \"Mixed\" or loading.",
+      "The landing headline says \"NO SETUP YET\" when there is no setup.",
+      "Ask AI is hidden on the Arena on phones.",
+      "The dashboard explains the A to F coin grades.",
+      "The conditions score now shows a direction.",
+      "The Arena EMA card shows one verdict.",
+      "The breaking ticker carries only market-moving news.",
+      "Long/short shares now say which exchange they come from.",
+      "Slow or failed market reads end with a clear message.",
+      "The Strategy panel is smaller: the run buttons fit on the first screen.",
+      "Chart layers (EMA ribbon, RSI and more) are switches you set in the panel.",
+      "EMA ribbon and RSI lengths are adjustable; the defaults are unchanged.",
+      "Tapping a locked Quick or Deep button opens the Pro sheet for that coin.",
+      "Draw Structure now draws the Channel strategy's box: entry, stop and target.",
+      "Stop and Target labels stay on screen when a level is off the chart.",
+      "AI reads use your indicator settings.",
+      "Five new strategies: EMA cross, S/R flip, range bounce, fair value gap, session sweep.",
+      "The strategy menu is grouped: Trend, Price action, Sessions.",
+      "Two Derivatives strategies: funding and open interest squeeze, and CVD absorption.",
+      "One short \"With Pro\" line per page replaces repeated upgrade prompts.",
+      "The Upgrade page lists the new strategies, layers and AI settings.",
+    ],
+  },
+  {
     /* DRAFT, NEXT RELEASE (written 2026-11-17 while QA is blocked; HELD for QA's word). THE TAG (v2026.11.17) AND THE DATE (2026-11-17) ARE FINAL (PM): the date must be the TAGGED COMMIT's %cs
        (the changelog test checks it). Grouped as: payments and AI usage, alerts and Telegram, data accuracy, honest wording, speed, screens, translations. Plain words only; not listed on
        purpose: tests, label migrations, database grants, the collector internals and every other internal change. Tied to the PRs (2026-11-17): #2432 #2433 #2436 #2437 #2438 (AI use given back, our-fault 503,

@@ -120,7 +120,8 @@ test('S8. the cancel-without-watch pairing is the CALLER\'s invariant, and this 
      half-sentence. A source assertion is the weaker kind, and it is used here only because the
      alternative is leaving the end-to-end invariant uncovered: this file cannot mount the page. */
   const page = readFileSync('app/(main)/arena/page.tsx', 'utf8');
-  assert.match(page, /const cancel = watch && s\.cancel \?/,
+  /* #2544 renamed the locals (watch/cancel/s became w/cx/ps) when the summary moved to the top of the read card: the pin now matches the SHAPE (a const assigned from a watch-like value && the summary's cancel), not the names */
+  assert.match(page, /const \w+ = \w+ && \w+\.cancel \?/,
     'the Arena render must keep gating the cancel clause on the watch clause; plainSummary alone '
     + 'does not enforce it, so this guard is the only thing standing between a reader and a '
     + 'sentence that cancels something it never named');

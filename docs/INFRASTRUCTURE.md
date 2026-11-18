@@ -264,6 +264,16 @@ Liquidations are collected by the **production Node process itself** (`lib/liqCo
 | Known gap | A deploy or restart drops both sockets for the seconds it takes to reconnect; that window is not backfilled (no history exists to fetch). |
 | Before the release that removes the browser insert | set the variable, deploy, then confirm `liq:collect` is ok and `max(ts)` moves. Only then apply `20261116g` (revokes the anonymous INSERT). Retention is the existing `/api/liq-events/purge`. |
 
+## 2d. The exchange breaker survives a restart (#2571)
+
+When an exchange rate-limits or bans the server, `lib/exchangeGuard.ts` stops calling it for a while. That stop is saved in `app_config` and read back at server start, so a deploy does not forget a ban (`lib/exchangeBreakerStore.ts`).
+
+| | |
+|---|---|
+| Where | One `app_config` row per service: key `exchange_breaker:<env>`, where `<env>` is Render's `RENDER_SERVICE_NAME` (e.g. `liquidity-hq-qa`), else `NEXT_PUBLIC_SENTRY_ENV`, else `NEXT_PUBLIC_APP_ENV`, else `local`. Per service because dev, qa and staging share one database. Value: `{ binance: { openUntil, strikes, lastTripAt }, ... }` in epoch ms. |
+| Limit | A saved stop never runs past 6 h from the moment it is read. Expired entries are ignored. |
+| Stuck open by mistake | Set `EXCHANGE_BREAKER_IGNORE_SAVED=1` on the service and restart: the saved row is not read (the next trip overwrites it). Remove the variable afterwards. Or delete the row: `delete from <prefix>app_config where key = 'exchange_breaker:<env>';` then restart. |
+
 ## 3. Workflow Automation — n8n
 
 Self-hosted, see §1. Login is separate from Render/Supabase/cron-job.org — another credential silo an assistant can't see into without being handed the URL.

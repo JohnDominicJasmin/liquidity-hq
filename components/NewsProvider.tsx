@@ -1,9 +1,10 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { GEO_KEYWORDS, hasAnyKeyword } from '@/lib/classify';
+import { GEO_KEYWORDS, hasAnyKeyword, tickerEligible } from '@/lib/classify';
 import { useNow } from '@/lib/useNow';
 import { getSupabase } from '@/lib/supabase';
 import { T } from '@/lib/tables';
+import { onPageResume } from '@/lib/socketResume';
 
 // Push-based, not polled. A scheduled job (app/api/news/ingest and
 // app/api/econ-calendar/ingest, see docs/INFRASTRUCTURE.md §2) does the
@@ -255,7 +256,13 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     if (!row.headline || isNaN(ts)) return;
     // severity is null for rows that reached the table on a geo-keyword match
     // alone; those still belong in the ticker, at 'amber' as before.
-    pushAlert(row.headline, row.source, ts, (row.severity as Alert['type']) ?? 'amber', row.link ?? undefined, row.image ?? undefined, notify);
+    /* The ticker is for market-moving news (lib/classify.ts tickerEligible); a headline without a market keyword stays in the News tab only. The drop reason is logged outside production so the list can be tuned. */
+    const eligible = tickerEligible(row.headline);
+    if (eligible.ok) {
+      pushAlert(row.headline, row.source, ts, (row.severity as Alert['type']) ?? 'amber', row.link ?? undefined, row.image ?? undefined, notify);
+    } else if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_APP_ENV === 'dev') {
+      console.debug(`[ticker] dropped: ${eligible.reason}: ${row.headline.slice(0, 90)}`);
+    }
     setNewsRows(prev => (prev.some(r => r.dedup_key === row.dedup_key) ? prev : [row, ...prev].slice(0, 200)));
   }, [pushAlert]);
 
@@ -425,8 +432,18 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
       if (!eventsLoadedRef.current) hydrateEcon();
     }, 5000);
 
+    /* REALTIME IS NOT ENOUGH ON ITS OWN (owner sweep 2026-11-18). A channel that dropped while the tab slept delivers nothing and says
+       nothing, so the ticker and calendar froze silently. Both are re-read every 5 minutes while visible and whenever the tab comes
+       back; the reads are small and ingestRow skips stories already shown. */
+    const reread = setInterval(() => {
+      if (live && document.visibilityState === 'visible') { void hydrateNews(); void hydrateEcon(); }
+    }, 5 * 60_000);
+    const offResume = onPageResume(() => { if (live) { void hydrateNews(); void hydrateEcon(); } });
+
     return () => {
       live = false;
+      clearInterval(reread);
+      offResume();
       clearTimeout(hydrateFallback);
       sb.removeChannel(newsChannel);
       sb.removeChannel(econChannel);

@@ -143,7 +143,7 @@ export default function HelpPage() {
                     aria-expanded={open}
                     style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      gap: 12, padding: '16px 20px', background: 'transparent', border: 'none',
+                      gap: 12, padding: '16px 20px', minHeight: 48, background: 'transparent', border: 'none',
                       cursor: 'pointer', textAlign: 'left',
                       fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)',
                     }}

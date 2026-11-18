@@ -180,7 +180,7 @@ export async function getUserCompat(token: string | null | undefined): Promise<C
  *  every paid feature, and a banned account is still stopped at its token's expiry and by AuthProvider's sign-out. */
 export async function isAccountBanned(userId: string): Promise<boolean> {
   try {
-    const { data, error } = await getSupabaseAdmin().from(T.user_status).select('banned').eq('user_id', userId).maybeSingle();
+    const { data, error } = await getSupabaseAdmin({ deadline: true }).from(T.user_status).select('banned').eq('user_id', userId).maybeSingle();
     if (error) return false;
     return (data as { banned?: boolean } | null)?.banned === true;
   } catch {

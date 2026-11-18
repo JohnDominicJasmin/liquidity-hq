@@ -39,7 +39,7 @@ export async function GET() {
 async function loadConfig(): Promise<AppConfigPayload> {
   let data = SAFE_DEFAULT;
   try {
-    const admin = getSupabaseAdmin();
+    const admin = getSupabaseAdmin({ deadline: true });
     const { data: rows, error: qErr } = await admin.from(T.app_config)
       .select('key, value').in('key', ['maintenance_mode', 'announcement_banner', 'feature_flags']);
     // supabase-js resolves {data, error} on failure rather than throwing - log

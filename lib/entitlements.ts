@@ -138,14 +138,21 @@ export async function getUsageTier(token: string, userId: string): Promise<Usage
 // user, is 'not_entitled': there is no account to be Pro. Only a read that
 // throws is 'unknown', for the same #1119 reason getEntitlementStatus() gives.
 export async function getEntitlementStatusFromRequestToken(token: string | null | undefined): Promise<EntitlementStatus> {
-  if (!token) return 'not_entitled';
+  return (await readRequestToken(token)).status;
+}
+
+/* The same read, plus whether a token was SENT but did not resolve to a user (expired while the tab slept, or revoked). A route that
+   serves a Pro part should answer that with 401 so the client refreshes its session and asks again, instead of quietly serving the
+   free view to a Pro user (owner sweep 2026-11-18: an idle Pro tab lost its 5m RSI until a reload). */
+export async function readRequestToken(token: string | null | undefined): Promise<{ status: EntitlementStatus; tokenRejected: boolean }> {
+  if (!token) return { status: 'not_entitled', tokenRejected: false };
   try {
     const { data } = await getUserCompat(token);
     const userId = data.user?.id;
-    if (!userId) return 'not_entitled';
-    return await getEntitlementStatus(token, userId);
+    if (!userId) return { status: 'not_entitled', tokenRejected: true };
+    return { status: await getEntitlementStatus(token, userId), tokenRejected: false };
   } catch {
-    return 'unknown';
+    return { status: 'unknown', tokenRejected: false };
   }
 }
 

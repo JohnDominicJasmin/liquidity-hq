@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { intervalToMs } from './candles.ts';
 import { audioReady, playPing, unlockAudio } from './arenaSound.ts';
 import { pingForSignalChange, readMove, signalIdentity, type Bar } from './arenaSoundTriggers.ts';
+import { DEFAULT_SOUND_PREFS, type ArenaSoundPrefs } from './arenaSoundPrefs.ts';
 
 /* THE ARENA'S SOUND ALERTS (owner-requested, 2026-11-14). Wires lib/arenaSoundTriggers.ts (the rules) to lib/arenaSound.ts (the tones).
  *
@@ -19,14 +20,17 @@ import { pingForSignalChange, readMove, signalIdentity, type Bar } from './arena
  * (Browsers throttle background timers, so a ping can arrive up to about a minute late there, never early.) */
 export interface LiveBarsInfo { coin: string; tf: string; bars: Bar[] }
 
-export function useArenaSounds({ enabled, coin, tf, signal }: {
+export function useArenaSounds({ enabled, coin, tf, signal, prefs = DEFAULT_SOUND_PREFS }: {
   enabled: boolean;
+  /** The sound picker (Settings): which sound, its volume, and which of the three triggers play. */
+  prefs?: ArenaSoundPrefs;
   coin: string;
   tf: string;
   signal: { loading?: boolean; error?: unknown; signalTimestamp?: number | null; signalDir?: 'long' | 'short' | null } | null | undefined;
 }): { onLiveBars: (info: LiveBarsInfo) => void } {
-  const ctxRef = useRef({ enabled, coin, tf });
-  ctxRef.current = { enabled, coin, tf };
+  const ctxRef = useRef({ enabled, coin, tf, prefs });
+  ctxRef.current = { enabled, coin, tf, prefs };
+  const lastVolRef = useRef<{ key: string; candle: number } | null>(null);
   const baseRef = useRef<{ key: string; id: string | null | undefined }>({ key: '', id: undefined });
   const lastMoveRef = useRef<{ key: string; candle: number } | null>(null);
 
@@ -54,7 +58,7 @@ export function useArenaSounds({ enabled, coin, tf, signal }: {
     }
     const kind = pingForSignalChange(base.id, id);
     base.id = id;
-    if (kind && enabled) playPing(kind);
+    if (kind && enabled && ctxRef.current.prefs.on.signal) playPing(kind, { sound: ctxRef.current.prefs.sound, volume: ctxRef.current.prefs.volume });
   }, [coin, tf, id, loading, enabled]);
 
   const onLiveBars = useCallback((info: LiveBarsInfo) => {
@@ -63,10 +67,16 @@ export function useArenaSounds({ enabled, coin, tf, signal }: {
     const tfMs = intervalToMs(cur.tf);
     if (!tfMs) return;
     const r = readMove(info.bars, tfMs, Date.now());
-    if (!r || !r.hit) return;
+    if (!r) return;
     const key = `${cur.coin}|${cur.tf}`;
-    if (lastMoveRef.current && lastMoveRef.current.key === key && lastMoveRef.current.candle === r.candleStart) return;   // once per candle
-    if (playPing('move')) lastMoveRef.current = { key, candle: r.candleStart };
+    const opts = { sound: cur.prefs.sound, volume: cur.prefs.volume };
+    /* Two triggers, each at most once per candle (owner spec 2026-11-18): BIG MOVE (body >= 2.5x) and VOLUME SPIKE (volume >= 3x). */
+    if (cur.prefs.on.move && r.bigMove && !(lastMoveRef.current?.key === key && lastMoveRef.current.candle === r.candleStart)) {
+      if (playPing('move', opts)) lastMoveRef.current = { key, candle: r.candleStart };
+    }
+    if (cur.prefs.on.volume && r.volumeSpike && !(lastVolRef.current?.key === key && lastVolRef.current.candle === r.candleStart)) {
+      if (playPing('volume', opts)) lastVolRef.current = { key, candle: r.candleStart };
+    }
   }, []);
 
   return { onLiveBars };

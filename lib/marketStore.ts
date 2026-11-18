@@ -34,7 +34,7 @@ export interface CoinData {
   volRatio: number | null;
   longRatio: number | null;    // Bybit account ratio - long side (1h)
   shortRatio: number | null;   // Bybit account ratio - short side (1h)
-  bnLongRatio: number | null;       // Binance global account ratio - long side (5m)
+  bnLongRatio: number | null;       // Binance global account ratio - long side (1h)
   bnShortRatio: number | null;      // Binance global account ratio - short side (5m)
   bnWhaleLongRatio: number | null;  // Binance top trader POSITION ratio - long (dollar-weighted)
   bnWhaleShortRatio: number | null; // Binance top trader POSITION ratio - short (dollar-weighted)
@@ -207,6 +207,8 @@ export type MarketStore = {
   btcLiqLevels: LiqLevel[];
   /* Google Trends */
   /* Macro correlations */
+  /** The quote's OWN time (ms) per macro reading, from /api/macro; null when unknown. Lets a surface say "Fri close" for a weekend value instead of showing it as current (#1651). */
+  macroAsOf: { dxy: number | null; spx: number | null; gold: number | null; oil: number | null };
   dxy: number | null;        // US Dollar Index
   dxyChg: number | null;     // 24h % change
   jpy: number | null;        // USD/JPY spot
@@ -271,6 +273,7 @@ export const defaultStore: MarketStore = {
   stablecoinChg30d: null,
   btcExchangeNetFlow: null,
   btcLiqLevels: [],
+  macroAsOf: { dxy: null, spx: null, gold: null, oil: null },
   dxy: null, dxyChg: null,
   jpy: null, jpyChg: null,
   real10y: null,

@@ -19,6 +19,11 @@ type BotInfo = { ok: boolean; username: string | null; first_name: string | null
 const OK_TTL_MS = 5 * 60_000;
 const FAIL_TTL_MS = 10_000;
 let cached: { at: number; ttl: number; info: BotInfo } | null = null;
+/* THE LAST GOOD ANSWER IS SERVED ON A FAILURE (owner sweep 2026-11-18). Prod logged getMe/getWebhookInfo "failed: TypeError" (network
+   to api.telegram.org, transient) and signed-in users saw "Telegram status unavailable" on /alerts although nothing had changed. A
+   failure now retries once and then answers the last good info if it is under 24 h old; only a process that never read it answers 503. */
+const LAST_GOOD_MAX_MS = 24 * 60 * 60_000;
+let lastGood: { at: number; info: BotInfo } | null = null;
 
 async function telegram(token: string, method: 'getMe' | 'getWebhookInfo'): Promise<{ ok: boolean; result?: Record<string, unknown> } | null> {
   try {
@@ -59,11 +64,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(cached.info, { status: cached.info.ok ? 200 : 503 });
   }
 
-  const [me, webhookInfo] = await Promise.all([telegram(token, 'getMe'), telegram(token, 'getWebhookInfo')]);
+  let [me, webhookInfo] = await Promise.all([telegram(token, 'getMe'), telegram(token, 'getWebhookInfo')]);
+  if (!me || !webhookInfo) {
+    await new Promise(r => setTimeout(r, 1_000));
+    [me, webhookInfo] = await Promise.all([me ?? telegram(token, 'getMe'), webhookInfo ?? telegram(token, 'getWebhookInfo')]);
+  }
   const username  = typeof me?.result?.username === 'string' ? me.result.username : null;
   const firstName = typeof me?.result?.first_name === 'string' ? me.result.first_name : null;
 
   if (!me || !webhookInfo) {
+    if (lastGood && Date.now() - lastGood.at < LAST_GOOD_MAX_MS) {
+      cached = { at: Date.now(), info: lastGood.info, ttl: FAIL_TTL_MS };
+      return NextResponse.json(lastGood.info, { headers: { 'x-data-stale': '1', 'x-data-age-ms': String(Date.now() - lastGood.at) } });
+    }
     const info: BotInfo = { ok: false, username, first_name: firstName, webhook_ok: true };
     cached = { at: Date.now(), ttl: FAIL_TTL_MS, info };
     return NextResponse.json(info, { status: 503 });
@@ -103,5 +116,6 @@ export async function GET(req: NextRequest) {
 
   const info: BotInfo = { ok: true, username, first_name: firstName, webhook_ok: webhookOk };
   cached = { at: Date.now(), ttl: OK_TTL_MS, info };
+  lastGood = { at: Date.now(), info };
   return NextResponse.json(info);
 }

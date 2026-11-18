@@ -6,8 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
-import { getEntitlementStatusFromRequestToken } from '@/lib/entitlements';
-import { mergeRsiGroups, rsiGroups } from '@/lib/marketRsi';
+import { readRequestToken } from '@/lib/entitlements';
+import { mergeRsiGroups, rsiCachedAt, rsiGroups } from '@/lib/marketRsi';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,9 +26,11 @@ export async function GET(req: NextRequest) {
        MERGED, never which get fetched, so making it block the fetches would add its latency to
        every response for nothing. The handler did this before the fetching moved to lib/ and it
        would have been easy to lose in the move. */
-    const statusP = getEntitlementStatusFromRequestToken(token); // never rejects
+    const statusP = readRequestToken(token); // never rejects
     const groupsP = rsiGroups();
-    const [status, groups] = await Promise.all([statusP, groupsP]);
+    const [{ status, tokenRejected }, groups] = await Promise.all([statusP, groupsP]);
+    /* A token was sent and is no longer valid: 401, so the client refreshes its session and asks again (MarketProvider.fetchRSI). */
+    if (tokenRejected) return NextResponse.json({ error: 'TOKEN_EXPIRED' }, { status: 401 });
     const res = mergeRsiGroups(groups, status !== 'not_entitled');
 
     if (!res.ok) return apiError('market-rsi', res.reason, 502, 'Upstream unavailable');
@@ -38,7 +40,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       rsi: res.rsi,
       ...(res.viaFallback.length ? { viaFallback: res.viaFallback } : {}),
-      ts: Date.now(),
+      ts: rsiCachedAt() ?? Date.now(),
     }, {
       /* Private since #1263: the body depends on who is asking, so a shared cache must not store
          one caller's response for another. This was 'public, s-maxage=60', and s-maxage explicitly

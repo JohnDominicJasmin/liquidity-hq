@@ -27,6 +27,7 @@
  * marker inconsistency between `'-'` here and `N/A` from `priceText` is real and tracked on #1651;
  * it is not this file's to fix quietly.
  */
+import { accountRatio } from './accountRatioVenue.ts';
 import { priceText } from './numberFormat.ts';
 import type { CoinData } from './marketStore.ts';
 import type { GrokContext } from './grok.ts';
@@ -130,10 +131,17 @@ export function arenaNumberFields(
     volRatio: coin?.volRatio != null
       ? coin.volRatio.toFixed(2) + 'x' + (coin.volRatio >= 1.5 ? ' (spike)' : coin.volRatio <= 0.6 ? ' (dry)' : ' (normal)')
       : '-',
-    longShortRatio: coin?.longRatio != null && coin?.shortRatio != null
-      ? 'Long ' + (coin.longRatio * 100).toFixed(1) + '% / Short ' + (coin.shortRatio * 100).toFixed(1) + '%'
-        + (coin.longRatio > 0.6 ? ' (overleveraged longs)' : coin.shortRatio > 0.6 ? ' (overleveraged shorts)' : ' (balanced)')
-      : '-',
+    /* THE SAME ACCOUNT RATIO THE SCREEN SHOWS, with its venue named (#1651, PM 2026-11-17): Binance (all accounts, 1h), or Bybit for a coin Binance does not list, so the AI and the page agree and the model knows what the figure is. */
+    longShortRatio: (() => {
+      const ar = accountRatio(coin);
+      return ar
+        ? `${ar.venue}, accounts, 1h: Long ` + (ar.long * 100).toFixed(1) + '% / Short ' + (ar.short * 100).toFixed(1) + '%'
+          /* The ratio too (QA review of #2559): every rule threshold in the prompt is an L/S RATIO (0.5:1, 0.8:1, 1.8:1), and a model
+             comparing 33% to 0.5 gets it wrong; with the ratio written out it compares like with like. */
+          + (ar.short > 0 ? ` (L/S ${(ar.long / ar.short).toFixed(2)}:1)` : '')
+          + (ar.long > 0.6 ? ' (overleveraged longs)' : ar.short > 0.6 ? ' (overleveraged shorts)' : ' (balanced)')
+        : '-';
+    })(),
 
     rsi1h: fmt(coin?.rsi1h),
     rsi4h: fmt(coin?.rsi4h),

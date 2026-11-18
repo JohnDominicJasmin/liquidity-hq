@@ -58,7 +58,15 @@
 
 import { apiError } from './apiError.ts';
 import { BINANCE_SYMS, BYBIT_SYMS } from './coins.ts';
-import { cached, cachedRefresh, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
+import { cached, cachedRefresh, cachedAt, cachedServable, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
+
+/** When the oldest of the two RSI groups was fetched (epoch ms), or null when neither is cached: what the response's own time should be. */
+export function rsiCachedAt(): number | null {
+  const a = cachedAt('market-rsi:fast'), b = cachedAt('market-rsi:slow');
+  if (a == null) return b;
+  if (b == null) return a;
+  return Math.min(a, b);
+}
 import { runPool, HttpStatusError, isRateLimitStatus } from './pool.ts';
 import { reportHealth, healthError } from './apiHealth.ts';
 import { computeRSI14 } from './rsi.ts';
@@ -348,6 +356,14 @@ async function buildGroup(fast: boolean): Promise<{ out: RsiMap; viaFallback: st
 
   const { ok, banned } = await runRsiPool(jobs, ep ?? BN_ENDPOINTS[0], out);
   const viaFallback = await fallbackMissing(out, fast);
+  /* A PARTIAL RSI REFRESH DOES NOT REPLACE A GOOD ONE (PM audit 2026-11-17): fewer than half of the series back (both venues refusing, a stopped run) while an earlier entry exists is a failure, so that entry keeps
+     serving. With no earlier entry the partial map is returned, as before. */
+  /* Counted in SERIES on both sides (owner sweep 2026-11-18): `viaFallback` is a list of COINS, and one fallback coin fills several
+     series, so adding it to `ok` (series) under-counted a Binance outage that Bybit fully covered and threw a complete map away. */
+  const got = Object.values(out).reduce((n, row) => n + Object.values(row ?? {}).filter(v => typeof v === 'number' && Number.isFinite(v)).length, 0);
+  if (allJobs.length > 0 && got / allJobs.length < 0.5 && cachedServable(`market-rsi:${fast ? 'fast' : 'slow'}`, (fast ? FAST_TTL : SLOW_TTL) + STALE_WHILE_REFRESH_MS)) {
+    throw new Error(`partial RSI refresh (${fast ? 'fast' : 'slow'}): ${got}/${allJobs.length} series, keeping the last good result`);
+  }
 
   /* Reported per group so a partial outage is visible: the slow group failing
      while the fast one succeeds means Binance is rate-limiting the heavier

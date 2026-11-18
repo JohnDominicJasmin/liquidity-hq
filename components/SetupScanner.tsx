@@ -1,5 +1,6 @@
 'use client';
 import { useMemo, useRef, useState } from 'react';
+import { accountRatio } from '@/lib/accountRatioVenue';
 import { useMarket, COINS, CoinId, CoinData, computeSqueezeScore, classifyFunding } from '@/lib/marketStore';
 import { SkeletonBar } from './Skeleton';
 import { Warn } from '@/components/icons';
@@ -120,38 +121,38 @@ function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
         <RsiBadge      rsi={cd.rsi14} />
       </div>
 
-      {/* Stats row */}
+      {/* Stats row: a stat with no reading is left out, never a dash (owner sweep 2026-11-18) */}
       <div className="scan-stats">
-        <div className="scan-stat">
+        {cd.fundingRate != null && <div className="scan-stat">
           <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_FUNDING')}</span>
           <span className="scan-stat-val" style={{ color: frColor }}>{fmtFR(cd.fundingRate)}</span>
-        </div>
-        <div className="scan-stat">
+        </div>}
+        {accountRatio(cd)?.long != null && <div className="scan-stat">
           <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_LONG_PCT')}</span>
-          <span className="scan-stat-val" style={{ color: (cd.longRatio ?? 0) >= 0.6 ? 'var(--red)' : 'var(--txt-dim)' }}>
-            {fmtRatio(cd.longRatio)}
+          <span className="scan-stat-val" title={accountRatio(cd) ? `${accountRatio(cd)!.venue}, accounts, 1h` : undefined} style={{ color: (accountRatio(cd)?.long ?? 0) >= 0.6 ? 'var(--red)' : 'var(--txt-dim)' }}>
+            {fmtRatio(accountRatio(cd)?.long ?? null)}
           </span>
-        </div>
-        <div className="scan-stat">
+        </div>}
+        {accountRatio(cd)?.short != null && <div className="scan-stat">
           <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_SHORT_PCT')}</span>
-          <span className="scan-stat-val" style={{ color: (cd.shortRatio ?? 0) >= 0.6 ? 'var(--green-2)' : 'var(--txt-dim)' }}>
-            {fmtRatio(cd.shortRatio)}
+          <span className="scan-stat-val" title={accountRatio(cd) ? `${accountRatio(cd)!.venue}, accounts, 1h` : undefined} style={{ color: (accountRatio(cd)?.short ?? 0) >= 0.6 ? 'var(--green-2)' : 'var(--txt-dim)' }}>
+            {fmtRatio(accountRatio(cd)?.short ?? null)}
           </span>
-        </div>
-        <div className="scan-stat">
+        </div>}
+        {cd.volRatio != null && <div className="scan-stat">
           <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_VOL_RATIO')}</span>
           <span className="scan-stat-val" style={{ color: (cd.volRatio ?? 0) >= 1.5 ? 'var(--accent)' : 'var(--txt3)' }}>
             {fmtVR(cd.volRatio)}
           </span>
-        </div>
-        <div className="scan-stat">
+        </div>}
+        {cd.rsi1h != null && <div className="scan-stat">
           <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_RSI_1H')}</span>
           <span className="scan-stat-val">{fmtRSI(cd.rsi1h)}</span>
-        </div>
-        <div className="scan-stat">
+        </div>}
+        {cd.rsi4h != null && <div className="scan-stat">
           <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_RSI_4H')}</span>
           <span className="scan-stat-val">{fmtRSI(cd.rsi4h)}</span>
-        </div>
+        </div>}
       </div>
     </div>
   );

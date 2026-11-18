@@ -30,7 +30,7 @@ test('L2. the English defaults keep the words the screens showed before', () => 
     MACRO_STRIP_DXY_UP: 'USD strengthening', MACRO_STRIP_DXY_DOWN: 'USD weakening', MACRO_STRIP_SPX_UP: 'S&P up {pct} today', MACRO_STRIP_SPX_DOWN: 'S&P down {pct} today',
     MACRO_STRIP_GOLD_UP: 'Gold rising', MACRO_STRIP_GOLD_DOWN: 'Gold falling → risk appetite up',
     ECON_ESTIMATED: 'estimated', ECON_ESTIMATED_TIP_ROW: 'Estimated date - computed from a typical release pattern, not a published schedule',
-    CHART_LIQ_TITLE: 'Toggle realized liquidation clusters - the heaviest price levels where positions were actually liquidated in the last 24h. Price memory, not predicted liquidation levels.',
+    CHART_LIQ_TITLE: 'Toggle realized liquidation clusters: 24h price memory, not predicted liquidation levels.', /* #2545 rule-22 cut */
   };
   const wrong = Object.entries(want).filter(([k, v]) => en[k] !== v).map(([k, v]) => `${k}: ${JSON.stringify(en[k])} != ${JSON.stringify(v)}`);
   assert.deepEqual(wrong, []);

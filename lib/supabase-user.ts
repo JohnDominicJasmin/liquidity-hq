@@ -1,4 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
+import { fetchWithDeadline } from './supabase.ts';
+
+/** Server reads that never answer are abandoned after the shared deadline (lib/supabase.ts); writes are never cut. */
+const serverFetch = (input: RequestInfo | URL, init?: RequestInit) => fetchWithDeadline(input, init);
 
 /* Server-side Supabase clients made for ONE request: as the signed-in caller (their access token, so RLS applies), or with the anon key only.
  *
@@ -16,12 +20,12 @@ export const SERVER_AUTH_OPTIONS = { autoRefreshToken: false, persistSession: fa
 /** A client that acts as the user this access token belongs to, for one request. */
 export function userClient(token: string) {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
+    global: { headers: { Authorization: `Bearer ${token}` }, fetch: serverFetch },
     auth: SERVER_AUTH_OPTIONS,
   });
 }
 
 /** A client with the anon key and no user, for one request. */
 export function anonServerClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: SERVER_AUTH_OPTIONS });
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: SERVER_AUTH_OPTIONS, global: { fetch: serverFetch } });
 }

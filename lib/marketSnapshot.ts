@@ -60,7 +60,8 @@ export const SNAPSHOT_STALE_AFTER_MS = 2 * SNAPSHOT_CADENCE_MS;
  * a slow upstream; six is the scheduler being down, which is the case this
  * exists for. Lower it once the UI can label a stale row, at which point this
  * whole fallback goes - see the removal condition in the page routes. */
-export const SNAPSHOT_TOO_OLD_MS = 30 * 60_000;
+/* TEN MINUTES (was 30; PM audit 2026-11-17: no screen reads the `stale` flag, so a row up to 30 minutes old was shown as live). The job runs every 5 minutes, so ten is two missed runs; past it the route falls through to the live fan-out. */
+export const SNAPSHOT_TOO_OLD_MS = 10 * 60_000;
 
 export type SnapshotRead = {
   payload: unknown;
@@ -84,7 +85,7 @@ export type SnapshotRead = {
  *  whose job has not run, and neither may invent a value. */
 export async function readSnapshot(key: string): Promise<SnapshotRead | null> {
   try {
-    const sb = getSupabaseAdmin();
+    const sb = getSupabaseAdmin({ deadline: true });
     const { data, error } = await sb
       .from(T.market_snapshot)
       .select('payload, source, updated_at')
@@ -304,7 +305,7 @@ export function mergeCoverage(previous: unknown, next: unknown): { payload: unkn
  *  request. Callers: the ingest route, and `app/api/ath` for the `ath` key only -
  *  see the carve-out in this file's header before adding a third. */
 export async function writeSnapshot(key: string, payload: unknown, source: string | null): Promise<void> {
-  const sb = getSupabaseAdmin();
+  const sb = getSupabaseAdmin({ deadline: true });
   const { error } = await sb.from(T.market_snapshot).upsert({
     key,
     payload,

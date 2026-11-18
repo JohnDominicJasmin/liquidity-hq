@@ -7,6 +7,8 @@ import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, blocke
 import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { answerWasCutOff } from '@/lib/xaiAnswer';
+import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -115,13 +117,20 @@ export async function POST(req: NextRequest) {
 
   if (!res.ok) {
     await refundToolUsage(authData.user.id, 'strategyResearch', reservedOn);
-    const err = await res.json().catch(() => ({}));
-    return NextResponse.json({ error: (err as { error?: string }).error ?? 'AI error' }, { status: 502 });
+    const err = await res.json().catch(() => ({})) as { error?: string };
+    /* The provider's own error text is logged, never shown (QA behavioural run of #2559): same as thesis-check and pine-script. */
+    return apiError('strategy-research', err.error ?? 'upstream AI error', 502, 'AI service error');
   }
 
   const data = await res.json();
   await recordAiCall({ userId: authData.user.id, callType: 'strategy_research', model: data.model ?? 'grok-4.3', usage: data.usage });
   const text: string = data.choices?.[0]?.message?.content ?? '';
+  /* AN EMPTY OR CUT-OFF ANSWER IS NOT AN ANSWER (owner sweep 2026-11-18): it used to return 200 with a blank or half text and the use
+     was spent. Now the use is given back and the page is told the answer was incomplete. */
+  if (!text.trim() || answerWasCutOff(data)) {
+    await refundToolUsage(authData.user.id, 'strategyResearch', reservedOn);
+    return NextResponse.json({ error: 'The AI answer was incomplete. Nothing was charged. Try again.', code: 'AI_INCOMPLETE' }, { status: 502 });
+  }
 
   return NextResponse.json({ analysis: text });
 }

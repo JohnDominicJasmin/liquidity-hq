@@ -63,7 +63,16 @@
  */
 
 import { COINS, BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, bybitPriceFactor } from './coins.ts';
-import { cachedRefresh, cachedAt, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
+import { cachedRefresh, cachedAt, cachedServable, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
+
+/* AN EMPTY OR HALF-EMPTY SECTION IS NOT A SUCCESS (owner sweep 2026-11-18). A build that came back with nothing, or with under half of
+   what it owes while a good entry can still be served, used to be cached as a fresh success for the whole TTL: cells blanked for 3-5
+   minutes with a fresh timestamp. Throwing instead keeps the last good entry serving (cachedRefresh) and lets the next caller retry.
+   With nothing good left to serve, a partial section is still returned: some cells beat none. */
+function refusePartial(section: string, key: string, got: number, owed: number, servableMs: number): void {
+  if (got === 0) throw new Error(`${section}: nothing came back (0/${owed})`);
+  if (owed > 0 && got / owed < 0.5 && cachedServable(key, servableMs)) throw new Error(`${section}: partial ${got}/${owed}, keeping the last good result`);
+}
 import { runPool, HttpStatusError, isRateLimitStatus } from './pool.ts';
 import { parseRatioPair } from './ratioPair.ts';
 import { reportHealth, healthError } from './apiHealth.ts';
@@ -74,7 +83,8 @@ import { exchangeFetch } from './exchangeGuard.ts';
 /* Cadences the client used, kept so nothing gets fresher or staler than it was:
    fetchVolume ran every 3 minutes, fetchLSR every 5. */
 const KLINES_TTL = 3 * 60_000;
-const TICKER_TTL = 3 * 60_000;
+/* 45 s, not 3 min (#1651, PM 2026-11-17): with the client polling every 3 min on top of a 3 min server window, a coin the socket does not overlay could be about 4 minutes behind. The ticker is ONE batched request, so the shorter window costs one call per 45 s per instance, not per visitor. */
+const TICKER_TTL = 45_000;
 const LSR_TTL    = 5 * 60_000;
 
 /* 45 symbols x 2 ratio endpoints is 90 requests. Unbounded parallelism is what
@@ -212,6 +222,11 @@ async function resolveHost(hosts: readonly string[], pingPath: string): Promise<
  * hence the `* 100`. `turnover24h` is Bybit's quote-currency (USD) 24h
  * volume, matching Binance's `quoteVolume` semantically - `volume24h` would
  * be base-coin units instead, the wrong field for this route's `vol24`. */
+/** A ticker row is usable only when every number in it is finite (a row with a missing field used to become price, change and volume of 0). */
+function tickerEntryFinite(e: TickerEntry): boolean {
+  return [e.price, e.change, e.high, e.low, e.vol24].every(Number.isFinite);
+}
+
 function bybitTickerToEntry(
   t: { lastPrice: string; price24hPcnt: string; highPrice24h: string; lowPrice24h: string; turnover24h: string },
   priceFactor: number,
@@ -264,13 +279,15 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
     for (const d of arr as Record<string, string>[]) {
       const coin = byCoin[d.symbol];
       if (!coin) continue;
-      out[coin] = {
-        price:  parseFloat(d.lastPrice || '0'),
-        change: parseFloat(d.priceChangePercent || '0'),
-        high:   parseFloat(d.highPrice || '0'),
-        low:    parseFloat(d.lowPrice || '0'),
-        vol24:  parseFloat(d.quoteVolume || '0'),
+      const entry: TickerEntry = {
+        price:  parseFloat(d.lastPrice),
+        change: parseFloat(d.priceChangePercent),
+        high:   parseFloat(d.highPrice),
+        low:    parseFloat(d.lowPrice),
+        vol24:  parseFloat(d.quoteVolume),
       };
+      if (!tickerEntryFinite(entry)) continue;   // a row with a missing field is skipped, not drawn as 0
+      out[coin] = entry;
     }
   };
 
@@ -327,7 +344,9 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
         const bbSym = BYBIT_SYMS[coin];
         const t = bbSym ? bbBySymbol[bbSym] : undefined;
         if (!t) continue; // fet - no Bybit linear perp (lib/coins.ts) - or Bybit is down too
-        out[coin] = bybitTickerToEntry(t, bybitPriceFactor(coin));
+        const entry = bybitTickerToEntry(t, bybitPriceFactor(coin));
+        if (!tickerEntryFinite(entry)) continue;
+        out[coin] = entry;
         viaFallback.push(coin);
       }
     } catch { /* Bybit also unreachable - those coins simply stay missing, same as today */ }
@@ -336,6 +355,7 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
   reportHealth('binance:ticker', 'market', Object.keys(out).length > 0,
     `${Object.keys(out).length} coins via ${source}`
       + (viaFallback.length ? `, ${viaFallback.length} via bybit-fallback` : ''));
+  refusePartial('ticker', 'mkt:ticker', Object.keys(out).length, OWED_COINS.length, TICKER_TTL + STALE_WHILE_REFRESH_MS);
   return { out, viaFallback };
 }
 
@@ -391,6 +411,7 @@ async function buildKlines(): Promise<{ out: Record<string, KlineMetrics>; viaFa
     (banned ? `418/429 after ${Object.keys(out).length}/${OWED_COINS.length}`
             : `${Object.keys(out).length}/${OWED_COINS.length} via ${fut ? 'futures' : (spot ? 'spot' : 'none')}`)
       + (viaFallback.length ? `, ${viaFallback.length} via bybit-fallback` : ''));
+  refusePartial('klines', 'mkt:klines', Object.keys(out).length, OWED_COINS.length, KLINES_TTL + STALE_WHILE_REFRESH_MS);
   return { out, viaFallback };
 }
 
@@ -399,11 +420,11 @@ async function buildKlines(): Promise<{ out: Record<string, KlineMetrics>; viaFa
 async function buildLsr(): Promise<Record<string, LsrEntry>> {
   const host = await resolveHost(FUTURES_HOSTS, '/fapi/v1/ping');
   const out: Record<string, LsrEntry> = {};
-  if (!host) { reportHealth('binance:lsr', 'market', false, 'no reachable futures host'); return out; }
+  if (!host) { reportHealth('binance:lsr', 'market', false, 'no reachable futures host'); throw new Error('lsr: no reachable futures host'); }
 
   const banned = await runPool(SYMS, CONCURRENCY, async ([coin, sym]) => {
     const [g, w] = await Promise.all([
-      get(`${host}/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=1`),
+      get(`${host}/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=1h&limit=1`),   // 1h, the same period as the Bybit account ratio and the dashboard widget (#1651)
       get(`${host}/futures/data/topLongShortPositionRatio?symbol=${sym}&period=5m&limit=1`),
     ]);
     const gi = Array.isArray(g) ? (g[0] as Record<string, string>) : null;
@@ -421,6 +442,7 @@ async function buildLsr(): Promise<Record<string, LsrEntry>> {
 
   reportHealth('binance:lsr', 'market', Object.keys(out).length > 0 && !banned,
     banned ? `418/429 after ${Object.keys(out).length}/${SYMS.length}` : `${Object.keys(out).length}/${SYMS.length}`);
+  refusePartial('lsr', 'mkt:lsr', Object.keys(out).length, SYMS.length, LSR_TTL + STALE_WHILE_REFRESH_MS);
   return out;
 }
 
@@ -443,6 +465,14 @@ export interface MarketSnapshot {
  * Returns a result rather than throwing so the route keeps owning its status codes, and so the
  * #1631 gather can decide for itself what an unavailable section means in a prompt.
  */
+/* THE OVERALL DEADLINE ON A COLD SNAPSHOT (reliability leftover, PM 2026-11-17). A cold cache blocks its first caller until the whole fan-out has finished, and with ~45 symbols per section a slow or banned host made that minutes, not seconds, with the visitor's request held the whole time. Each section now waits at most this long for ITS build; past it the caller gets what the other sections have (the section is named in `partial`), or a failure when none answered, and the build is left running to fill the cache for the next caller (cachedRefresh shares the in-flight promise). Long enough for a healthy cold fill (measured 5-8 s), short enough that a stuck host is answered. */
+export const COLD_SNAPSHOT_DEADLINE_MS = 20_000;
+function withinDeadline<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const late = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`snapshot section not ready after ${ms} ms`)), ms); });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+
 export async function marketSnapshotData(): Promise<
   { ok: true; data: MarketSnapshot } | { ok: false; reason: unknown }
 > {
@@ -451,9 +481,9 @@ export async function marketSnapshotData(): Promise<
      whatever arrives and leaves the rest at its previous value, which is how the per-coin version
      behaved when one symbol failed. */
   const [t, k, l] = await Promise.allSettled([
-    cachedRefresh('mkt:ticker', TICKER_TTL, STALE_WHILE_REFRESH_MS, buildTicker),
-    cachedRefresh('mkt:klines', KLINES_TTL, STALE_WHILE_REFRESH_MS, buildKlines),
-    cachedRefresh('mkt:lsr',    LSR_TTL,    STALE_WHILE_REFRESH_MS, buildLsr),
+    withinDeadline(cachedRefresh('mkt:ticker', TICKER_TTL, STALE_WHILE_REFRESH_MS, buildTicker), COLD_SNAPSHOT_DEADLINE_MS),
+    withinDeadline(cachedRefresh('mkt:klines', KLINES_TTL, STALE_WHILE_REFRESH_MS, buildKlines), COLD_SNAPSHOT_DEADLINE_MS),
+    withinDeadline(cachedRefresh('mkt:lsr',    LSR_TTL,    STALE_WHILE_REFRESH_MS, buildLsr),    COLD_SNAPSHOT_DEADLINE_MS),
   ]);
 
   if (t.status === 'rejected' && k.status === 'rejected' && l.status === 'rejected') {

@@ -9,10 +9,12 @@ import { bybitPriceFactor, binancePriceFactor, BINANCE_SPOT_SYMS, UNIVERSE_BINAN
 import { computeRSI14 } from '@/lib/rsi';
 import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
-import { getAuthToken } from '@/lib/supabase';
+import { getAuthToken, getSupabase } from '@/lib/supabase';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { liveOiTrend, bootstrapReadings, trendBetween, type OiReading } from '@/lib/oiTrendWindow';
 import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exchangeFailover';
+import { dropSocket, onPageResume } from '@/lib/socketResume';
+import { reconnectDelayMs, linkState, onBackOnline } from '@/lib/reconnectDelay';
 
 import { WHALE_USD_THRESHOLD, type AggSummary } from '@/lib/aggTradesSummary';
 
@@ -286,7 +288,9 @@ export default function MarketProvider(
          the counter and clears this, which is the only thing that stops it. The five-attempt
          branch that used to live here is gone: it was the start of the 60-second dead window
          described at WS_BACKOFF_CAP_MS, and "gave up on the socket" was never the intent. */
-      const delay = Math.min(2000 * retriesRef.current, WS_BACKOFF_CAP_MS);
+      /* Offline or hidden: lib/reconnectDelay.ts backs off to 30 s (QA, 2026-11-18: ~1,554 sockets in 90 min offline). The `online`
+         and resume handlers in the mount effect reconnect at once. Online and visible, the delay is unchanged. */
+      const delay = reconnectDelayMs(retriesRef.current, { ...linkState(), normalMs: Math.min(2000 * retriesRef.current, WS_BACKOFF_CAP_MS) });
       if (wsRetryRef.current) clearTimeout(wsRetryRef.current);
       wsRetryRef.current = setTimeout(() => {
         wsRetryRef.current = null;
@@ -796,9 +800,19 @@ export default function MarketProvider(
       /* #1263: the route sends 5m RSI only to a Pro caller, so it needs to
          know who is asking. Signed out, it sends every timeframe except 5m. */
       const token = await getAuthToken();
-      const res = await fetch('/api/market/rsi', {
+      let res = await fetch('/api/market/rsi', {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
+      /* 401 = the token expired while the tab was idle (owner sweep 2026-11-18). Refresh the session once and ask again, so a Pro
+         user keeps the 5m RSI instead of silently getting the free view until a reload. */
+      if (res.status === 401 && token) {
+        try { await getSupabase()?.auth.refreshSession(); } catch { /* fall through with whatever session there is */ }
+        const fresh = await getAuthToken();
+        res = await fetch('/api/market/rsi', { headers: fresh ? { Authorization: `Bearer ${fresh}` } : undefined });
+        /* The refresh did not help (still the expired token, or none): ask once more WITHOUT a token, so the reader keeps at least the
+           free timeframes instead of no RSI at all (QA review of #2555). */
+        if (res.status === 401) res = await fetch('/api/market/rsi');
+      }
       if (!res.ok) return;
       const body = await res.json() as {
         rsi?: Record<string, Partial<Record<
@@ -1305,10 +1319,10 @@ export default function MarketProvider(
       if (!res.ok) return;
       const d: {
         // chg is null when the one-day change is unknown (#1631 C, PM audit) - never a 0 standing in for it.
-        oil:  { price: number; chg: number | null } | null;
-        dxy:  { price: number; chg: number | null } | null;
-        spx:  { price: number; chg: number | null } | null;
-        gold: { price: number; chg: number | null } | null;
+        oil:  { price: number; chg: number | null; asOf?: number | null } | null;
+        dxy:  { price: number; chg: number | null; asOf?: number | null } | null;
+        spx:  { price: number; chg: number | null; asOf?: number | null } | null;
+        gold: { price: number; chg: number | null; asOf?: number | null } | null;
         jpy:  { price: number; chg: number | null } | null;
         tnx:  { price: number; chg: number | null } | null;
         real10y: RealYield | null;
@@ -1319,6 +1333,7 @@ export default function MarketProvider(
 
       setStore(s => ({
         ...s,
+        macroAsOf: { dxy: d.dxy?.asOf ?? null, spx: d.spx?.asOf ?? null, gold: d.gold?.asOf ?? null, oil: d.oil?.asOf ?? null },
         /* PM audit A7: only ^TNX was cleared on a failed read. DXY, S&P, gold, oil and yen kept their LAST value with no age, so a blocked quote
            source left an old DXY on the page indefinitely. Every reading is now unavailable when its read fails, the same rule as the 10Y below. */
         ...(d.oil  ? { oilPrice: d.oil.price, oilChg: d.oil.chg }        : { oilPrice: null, oilChg: null }),
@@ -1342,32 +1357,27 @@ export default function MarketProvider(
 
   /* ── Fear & Greed ── */
   const fetchFNG = useCallback(async () => {
-    try {
-      // #1309 item 25: was '&?limit=2' - see MarketConditionsWidget.tsx for
-      // why the stray '?' breaks the proxy's param forwarding.
-      const res = await fetch('/api/proxy?type=fng&limit=2&format=json', { cache: 'no-cache' });
-      const d = await res.json();
-      const items = d.data;
-      if (!items?.[0]?.value) return;
-      setStore(s => ({
-        ...s,
-        fng: parseInt(items[0].value),
-        fngLabel: items[0].value_classification || '',
-        fngPrev: items[1] ? parseInt(items[1].value) : null,
-      }));
-    } catch {
+    /* ONE RETRY (owner sweep 2026-11-18): a 502 used to be read as "no data" and left Fear & Greed unset until the next 15-minute poll;
+       the proxy now answers a failed refresh with the last good value, and a failure that still gets through is asked again once. */
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
+        // #1309 item 25: was '&?limit=2' - see MarketConditionsWidget.tsx for
+        // why the stray '?' breaks the proxy's param forwarding.
         const res = await fetch('/api/proxy?type=fng&limit=2&format=json', { cache: 'no-cache' });
+        if (!res.ok) throw new Error(`fng ${res.status}`);
         const d = await res.json();
         const items = d.data;
-        if (!items?.[0]?.value) return;
+        if (!items?.[0]?.value) throw new Error('fng: no value');
         setStore(s => ({
           ...s,
           fng: parseInt(items[0].value),
           fngLabel: items[0].value_classification || '',
           fngPrev: items[1] ? parseInt(items[1].value) : null,
         }));
-      } catch { /* */ }
+        return;
+      } catch {
+        if (attempt === 0) await new Promise(r => setTimeout(r, 3000));
+      }
     }
   }, []);
 
@@ -1452,7 +1462,9 @@ export default function MarketProvider(
       const markAltFailed = () => setStore(s => ({ ...s, altSeasonStatus: s.altSeasonStatus === 'ok' ? 'ok' : 'failed' }));
       const btc   = coins.find(c => c.symbol === 'BTC');
       if (!btc) { markAltFailed(); return; }
-      const btc90 = btc.quote?.USD?.percent_change_90d ?? 0;
+      const btc90 = btc.quote?.USD?.percent_change_90d;
+      /* A MISSING BTC 90-DAY CHANGE IS A FAILED READ, not 0% (PM audit 2026-11-17: 0 gave a wrong score that looked fine). */
+      if (typeof btc90 !== 'number' || !Number.isFinite(btc90)) { markAltFailed(); return; }
 
       const eligible = coins
         .filter(c =>
@@ -1510,10 +1522,12 @@ export default function MarketProvider(
     let bnWs: WebSocket | null = null;
     let bbWs: WebSocket | null = null;
     let bnRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    let bbReconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let bbRetryTimer: ReturnType<typeof setInterval> | null = null;
     let confirmTimer: ReturnType<typeof setTimeout> | null = null;
     let bnRetries = 0;
     let bbHostIdx = 0;
+    let bbAttempt = 0;   // Bybit failures since its last open; bbHostIdx keeps alternating hosts regardless
     let active: 'binance' | 'bybit' = 'binance';
     let alive = true;
 
@@ -1528,6 +1542,7 @@ export default function MarketProvider(
 
     function connectBN() {
       if (!alive) return;
+      if (bnRetryTimer) { clearTimeout(bnRetryTimer); bnRetryTimer = null; }
       const ws = new WebSocket('wss://fstream.binance.com/market/ws/!forceOrder@arr');
       bnWs = ws;
       const attemptStartedAt = Date.now();
@@ -1538,7 +1553,8 @@ export default function MarketProvider(
       let settled = false;
 
       const timeoutTimer = setTimeout(() => {
-        if (settled || !connectTimedOut(attemptStartedAt, Date.now(), BN_CONNECT_TIMEOUT_MS)) return;
+        // `bnWs !== ws`: a socket the resume / `online` handler already replaced must not count a failure (WhaleTradesFeed has the same guard).
+        if (settled || bnWs !== ws || !connectTimedOut(attemptStartedAt, Date.now(), BN_CONNECT_TIMEOUT_MS)) return;
         settled = true;
         try { ws.close(); } catch { /* */ }
         handleFailure();
@@ -1617,12 +1633,14 @@ export default function MarketProvider(
           // the next attempt, so don't also fast-retry here.
           return;
         }
-        bnRetryTimer = setTimeout(connectBN, 5_000);
+        // 5 s as before while online and visible; offline or hidden backs off (lib/reconnectDelay.ts).
+        bnRetryTimer = setTimeout(connectBN, reconnectDelayMs(bnRetries, { ...linkState(), normalMs: 5_000 }));
       }
     }
 
     function connectBB() {
       if (!alive || active !== 'bybit') return;
+      if (bbReconnectTimer) { clearTimeout(bbReconnectTimer); bbReconnectTimer = null; }
       // bytick.com is Bybit's alternative domain - same failover host pattern
       // as LiqFeed.tsx's connectBB, which this mirrors.
       const host = bbHostIdx % 2 === 0
@@ -1632,6 +1650,7 @@ export default function MarketProvider(
       bbWs = ws;
       ws.onopen = () => {
         if (!alive) return;
+        bbAttempt = 0;
         ws.send(JSON.stringify({ op: 'subscribe', args: BB_LIQ_TOPICS }));
       };
       ws.onmessage = (e) => {
@@ -1666,12 +1685,23 @@ export default function MarketProvider(
         // reconnect a fallback that is no longer wanted.
         if (!alive || active !== 'bybit') return;
         bbHostIdx++;
-        setTimeout(connectBB, 5_000);
+        bbAttempt++;
+        bbReconnectTimer = setTimeout(connectBB, reconnectDelayMs(bbAttempt, { ...linkState(), normalMs: 5_000 }));
       };
       ws.onerror = () => { try { ws.close(); } catch { /* */ } };
     }
 
     connectBN();
+
+    /* Back on the network, or the tab visible again: the active source's socket, if it is not OPEN, reconnects now with the backoff
+       reset, rather than serving out an offline wait. */
+    const kick = () => {
+      if (!alive) return;
+      if (active === 'binance' && bnWs?.readyState !== WebSocket.OPEN) { dropSocket(bnWs); bnWs = null; bnRetries = 0; connectBN(); }
+      else if (active === 'bybit' && bbWs?.readyState !== WebSocket.OPEN) { dropSocket(bbWs); bbWs = null; bbAttempt = 0; connectBB(); }
+    };
+    const offResume = onPageResume(kick);
+    const offOnline = onBackOnline(kick);
 
     // Cascade analyzer - check every 5s
     const analyzer = setInterval(() => {
@@ -1733,8 +1763,11 @@ export default function MarketProvider(
 
     return () => {
       alive = false;
+      offResume();
+      offOnline();
       clearInterval(analyzer);
       if (bnRetryTimer) clearTimeout(bnRetryTimer);
+      if (bbReconnectTimer) clearTimeout(bbReconnectTimer);
       if (bbRetryTimer) clearInterval(bbRetryTimer);
       if (confirmTimer) clearTimeout(confirmTimer);
       try { bnWs?.close(); } catch { /* */ }
@@ -1788,7 +1821,7 @@ export default function MarketProvider(
     const timers: ReadonlyArray<readonly [() => unknown, number]> = [
       [fetchBybit, 8  * 60 * 1000],
       [fetchLSR, 5  * 60 * 1000],
-      [fetchSnapshot, 3  * 60 * 1000],
+      [fetchSnapshot, 60 * 1000],   // 1 min (was 3): the server snapshot's ticker window is 45 s, so a coin without a live socket is at most about a minute and a half old (#1651)
       [fetchBybitKlines, 3  * 60 * 1000],  // same cadence as Binance klines
       /* HOURLY, NOT DAILY (#1185). The index changes once a day, but a 24-hour interval counted from page load left a long-lived tab up to a day behind. The proxy holds the read for 15 minutes, so this is at most one upstream call an hour per instance; a hidden tab skips the tick and catches up when it returns. */
       [fetchFNG, 60 * 60 * 1000],
@@ -1816,7 +1849,22 @@ export default function MarketProvider(
     };
     document.addEventListener('visibilitychange', onVisible);
 
+    /* The price socket, back on the network or the tab visible again: if it is not OPEN, reconnect now with the backoff reset instead
+       of serving out an offline wait (lib/reconnectDelay.ts). Detached first, so its onclose cannot queue a second attempt. */
+    const kickPrices = () => {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) return;
+      if (wsRetryRef.current) { clearTimeout(wsRetryRef.current); wsRetryRef.current = null; }
+      retriesRef.current = 0;
+      dropSocket(ws); wsRef.current = null;
+      startWSRef.current();
+    };
+    const offPriceResume = onPageResume(kickPrices);
+    const offPriceOnline = onBackOnline(kickPrices);
+
     return () => {
+      offPriceResume();
+      offPriceOnline();
       if (scannerRetryTimer.current) { clearTimeout(scannerRetryTimer.current); scannerRetryTimer.current = null; }
       intervals.forEach(clearInterval);
       document.removeEventListener('visibilitychange', onVisible);

@@ -216,13 +216,16 @@ test('S6. #1639 preview route: a trial previews the Free list only, paid Pro eve
   assert.ok(preview, 'the preview coin list does not apply the Free list for a trial');
 });
 
-test('S7. user price alerts are not laddered: checkPriceAlerts neither takes nor reads the mute map', () => {
+test('S7. user price alerts are not laddered: checkPriceAlerts reads the mute map ONLY for the Price Level Alerts switch (price_alerts), never the plan ladder, a coin or a direction', () => {
   const src = stripTsComments(read('app/api/telegram/alert/route.ts'));
   const start = src.indexOf('async function checkPriceAlerts(');
   assert.ok(start > 0, 'checkPriceAlerts not found');
   const rest = src.slice(start + 10); const next = rest.search(/\n(async )?function /);
   const body = next > 0 ? rest.slice(0, next) : rest;
-  assert.ok(!/mutedByUser/.test(body), 'checkPriceAlerts reads the mute map, so a trial user\'s own price alert on a non-Free coin would be silenced');
+  const uses = body.match(/mutedByUser[^\n]*/g) ?? [];
+  assert.ok(/isMutedFor\(\s*mutedByUser,\s*alert\.user_id!,\s*'price_alerts'\s*\)/.test(body), 'the Price Level Alerts switch (muted key price_alerts) is not honoured: it was dead before #2560 and must stop price alerts');
+  assert.ok(!/isEligibleFor|FREE_SIGNAL_COINS|entryMuteKeys|coin:|dir:/.test(body), 'checkPriceAlerts applies the plan ladder or a per-coin / per-direction mute, so a trial user own price alert on a non-Free coin would be silenced');
+  assert.equal((body.match(/isMutedFor\(\s*mutedByUser,\s*[^,]+,\s*'[^']*'/g) ?? []).filter((m) => !/'price_alerts'/.test(m)).length, 0, 'the mute map is read for a key other than price_alerts');
 });
 
 test('S8. the Free signal list the trial ladder uses is exactly BTC, ETH, SOL (owner rule #1596, scope confirmed on #1639)', () => {

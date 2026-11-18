@@ -34,7 +34,7 @@ export async function getFeatureFlags(): Promise<Record<FeatureFlag, boolean>> {
 
   let data = DEFAULTS;
   try {
-    const admin = getSupabaseAdmin();
+    const admin = getSupabaseAdmin({ deadline: true }); // a hung read must not stall every page that checks a flag (owner sweep 2026-11-18)
     const { data: row } = await admin.from(T.app_config)
       .select('value').eq('key', 'feature_flags').maybeSingle();
     const v = row?.value as Partial<Record<FeatureFlag, boolean>> | undefined;

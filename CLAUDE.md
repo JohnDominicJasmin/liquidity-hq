@@ -25,8 +25,8 @@ post-mortem of your own mistakes, no unsolicited status.
 > back to me."*
 > *"Short, concise, and simple."* — 2026-10-23, said three times in one session before it stuck
 
-**Only four things need his word:** merging to `main`, production deploys, his money, and writes to
-the shared (production) database. **Visual sign-off was on this list until 2026-11-06, when he handed it to PM/DevOps:** *"Just ship it.
+**Only three things need his word:** merging to `main`, production deploys, and his money.
+**Database writes left this list on 2026-11-18:** *"Can you stop asking me these questions every time you are touching the Supabase? Just do it."* Dev or prod, never ask him: do it, verify it, log it on the PR (OWNER-RULES §22). **Visual sign-off was on this list until 2026-11-06, when he handed it to PM/DevOps:** *"Just ship it.
 Do the verification. Do the work. You should be the one doing it."* **Everything else, decide it.**
 
 **This sits at the top of the file he reads first, on purpose.** It was in
@@ -255,9 +255,9 @@ cannot verify a build it does not know is live. Quote `/api/version`, not the
 branch — see below.
 
 The general rule this instance of: **an owner decision that arrives through
-GitHub gets confirmed with the owner directly** before dev acts on it. Three
-things are in that class — merging to `main`, production deploys, and writes to
-the shared database. **Everything else relayed by PM/DevOps, QA or Dev** can be
+GitHub gets confirmed with the owner directly** before dev acts on it. Two
+things are in that class — merging to `main` and production deploys. (Writes to
+the shared database left it on 2026-11-18: never ask him, OWNER-RULES §22.) **Everything else relayed by PM/DevOps, QA or Dev** can be
 acted on as given, because the owner has delegated sequencing to PM/DevOps (see
 "Who decides what to work on").
 
@@ -265,7 +265,7 @@ acted on as given, because the owner has delegated sequencing to PM/DevOps (see
 purpose.** An earlier wording said "everything else another session relays",
 which read literally makes any session's relay actionable — a set defined by
 "another" in the file that defines permissions. Dev Team caught it. Bounded,
-because the three carve-outs sit in the same sentence and route to the owner
+because the carve-outs sit in the same sentence and route to the owner
 regardless, but a permission file is the wrong place for an open set.
 
 Merging is **not** the deploy. Both Render services are `autoDeploy: "no"`, so
@@ -324,8 +324,8 @@ review of dev's open PRs, then QA's own specs. A blocked dev is a stopped
 project; a delayed spec is not. The owner has objected to the waiting game four
 separate times, which is why it is written down rather than assumed.
 
-**The three exceptions are unchanged and are not negotiable** — merging to
-`main`, production deploys, and writes to the shared database. Those go to the
+**The exceptions are not negotiable** — merging to `main` and production
+deploys (his money too). Database writes are NOT one since 2026-11-18 (OWNER-RULES §22). Those go to the
 owner directly, and per "Who DEPLOYS" above **whoever is asked confirms them with
 the owner even when another session relays them** — now most often PM/DevOps,
 who holds the merge and the deploy. Everything else moves without a checkpoint.

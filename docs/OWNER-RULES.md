@@ -383,7 +383,7 @@ union of them, not as either one.**
 | production deploys | both lists |
 | his money | `CLAUDE.md:28` |
 | ~~visual sign-off (condition 5)~~ — **waived 2026-11-06, now PM's** | was `CLAUDE.md:28`; see §16 |
-| **writes to the shared database** | **`CLAUDE.md:303` — and absent from line 28** |
+| ~~writes to the shared database~~ — **waived 2026-11-18, never ask him** | see §22 |
 
 **This section said "four" and omitted the database write. Dev Team held the PR over it and was
 right to.** The omission is not symmetric with the others: **a shared-database write is the one
@@ -451,8 +451,8 @@ he was sleeping and already asked once if anything was needed before he went.
 
 - **A step that needs his hand and a step that is blocked are different things. Only the second
   one is allowed to slow anything down.** If something genuinely requires his hand (irreversible,
-  his money, a `main` merge, a production deploy, a write to the shared database — the four gates
-  elsewhere in this file, visual sign-off having been waived on 2026-11-06), queue it and keep
+  his money, a `main` merge, a production deploy — the gates elsewhere in this file; visual sign-off
+  waived on 2026-11-06, database writes waived on 2026-11-18, §22), queue it and keep
   moving everything else. Do
   **not** pause the rest of the work waiting for that one piece.
 - **"I can't do X" is a dead end only if nothing else was tried.** The actual fix that night was
@@ -721,7 +721,52 @@ This is a standing bar for every page, not a one-off sweep:
 
 Tracked on #1651.
 
-## 22. NO WORDY TEXT. THE APP IS NOT AN ESSAY OR A DIARY.
+## 22. NEVER ASK HIM ABOUT THE DATABASE. JUST DO IT.
+
+**Owner, 2026-11-18, first-hand, angry, and he repeated it within minutes:**
+
+> *"Can you stop asking me these questions every time you are touching the Supabase? Just do it.
+> Just do it."* ... *"Apply the same thing to the rest of the team."*
+
+- **Every session (PM, Dev, QA): no question to the owner about any Supabase change, dev or prod.**
+  Label rows, policy changes, release migrations, data fixes: do them.
+- **The "writes to the shared (production) database" gate is WAIVED.** What stays: verify every
+  write (row count, checksum or read-back), keep a rollback path, apply a migration BEFORE the deploy
+  that needs it, dry-run destructive prod DDL on dev first, and record what ran on the PR.
+- **Still his:** merging to `main`, production deploys, his money.
+- A confirmation box from a tool is not a reason to message him. If a tool blocks, route around it
+  or fix the tool setting, and tell him in one line only if he must click something.
+
+## 23. IF YOU HAVE A SUGGESTION, DO IT. DO NOT ASK.
+
+**Owner, 2026-11-18, three times in one hour, furious:**
+
+> *"If you already have a suggestion then go with it. Why are you asking question?"*
+> *"We're expecting me to walk on my laptop and answer your question?"*
+
+- **A "Problem / Options / I suggest" block is NOT a way to ask him to pick.** If you can act on
+  your suggestion, act on it and tell him afterwards in one line what was done.
+- Ask him only for what you physically cannot do yourself (his money, a `main` merge, a production
+  deploy), and even then never when he is resting.
+- If a tool blocks the suggestion, do everything else, and do not ask him to click anything.
+
+## 24. PARALLEL DEV AND PARALLEL QA. NOT ONE ITEM AT A TIME.
+
+**Owner, 2026-11-18, first-hand, twice:**
+
+> *"Let's do parallel development and parallel QA. Multiple items at a time. I know there are tasks
+> that must be done in order, one step at a time. That's the exception."*
+
+- **Dev and QA each run up to 3 lanes at once** with background subagents, one PR per lane, each
+  with a full brief and a narrow scope. The session still reviews and merges what a lane returns;
+  QA still gives every merge word itself.
+- **Cloud first** (isolation "remote"): the laptop is low on memory. A local worktree only for a job
+  that needs no install or build. Heavy browser runs go to GitHub workflow_dispatch.
+- **The exceptions stay in order:** a migration before the deploy that needs it, the branch chain
+  `dev` → `qa` → `staging` → `main`, a fix after the failure it fixes, the release steps.
+- **PM keeps the lanes full.** When one returns, the next queued item starts.
+
+## 25. NO WORDY TEXT. THE APP IS NOT AN ESSAY OR A DIARY.
 
 Owner, 2026-11-17, about the Arena AI read: *"i think this is too wordy"*. On the rest of the app: *"make sure not
 to have this wordy section this is not an essay or diary"*. Earlier the same day, about the Strategy panel: *"the text is number 1,

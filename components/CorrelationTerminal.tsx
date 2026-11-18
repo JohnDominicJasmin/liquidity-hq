@@ -161,6 +161,8 @@ export default function CorrelationTerminal() {
   const [hovered, setHovered]   = useState<[number, number] | null>(null);
 
   const loading = done.size < COINS.length;   // true while any coin is still being read; the page itself paints at once
+  /* EVERY coin settled and none has data (the price feed is down): say so, instead of an alt-season panel and a heatmap of dashes that read as a result (reliability leftover, PM 2026-11-17). */
+  const allFailed = !loading && Object.keys(rets).length === 0;
   const range = RANGES.find(r => r.key === rangeKey)!;
   const { interval, limit } = range;
 
@@ -225,7 +227,13 @@ export default function CorrelationTerminal() {
 
       {loading && <LoadingState message={t('CORRELATION_LOADING_MESSAGE')} />}
 
-      {(
+      {allFailed && (
+        <TPanel>
+          <div role="status" className="corr-all-failed" data-testid="correlation-all-failed">{t('MARKET_FEED_FAILED')}</div>
+        </TPanel>
+      )}
+
+      {!allFailed && (
         <>
           {/* Alt season signal */}
           <TPanel style={{ border: `0.5px solid ${withAlpha(sig.color, '55')}`, background: sig.bg, borderRadius: 0 }}>
@@ -306,10 +314,11 @@ export default function CorrelationTerminal() {
                             transition: 'opacity 0.1s',
                             cursor: diag ? 'default' : 'crosshair',
                           }}
-                          title={diag ? COIN_LABELS[a] : `${COIN_LABELS[a]} / ${COIN_LABELS[b]}: ${r?.toFixed(2) ?? '-'}`}
+                          title={diag ? COIN_LABELS[a] : r !== null ? `${COIN_LABELS[a]} / ${COIN_LABELS[b]}: ${r.toFixed(2)}` : `${COIN_LABELS[a]} / ${COIN_LABELS[b]}`}
                           onMouseEnter={() => setHovered([i, j])}
                         >
-                          {diag ? '-' : r !== null ? r.toFixed(2) : (!done.has(a) || !done.has(b)) ? '…' : '-'}
+                          {/* A pair with no shared history is left blank, never a dash; the diagonal (a coin with itself) is blank too (owner sweep 2026-11-18). */}
+                          {diag ? '' : r !== null ? r.toFixed(2) : (!done.has(a) || !done.has(b)) ? '…' : ''}
                         </div>
                       );
                     })}

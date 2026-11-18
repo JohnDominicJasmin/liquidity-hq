@@ -4,16 +4,15 @@
  *
  * GET /api/proxy?type=coinglass-flow     → Coinglass BTC exchange net flow
  * GET /api/proxy?type=coinglass-liq      → Coinglass BTC liquidation levels
- * GET /api/proxy?type=trends             → Google Trends bitcoin (7-day score)
  * GET /api/proxy?type=etf                → SoSoValue BTC + ETH ETF net flows
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
-import { cached } from '@/lib/apiCache';
+import { cached, cachedPeek } from '@/lib/apiCache';
 import { etfFlowDays, etfFlowMillions, type EtfFlowDay } from '@/lib/etfFlows';
-import { trackHealth, reportHealth } from '@/lib/apiHealth';
+import { reportHealth } from '@/lib/apiHealth';
 import { polledCacheControl } from '@/lib/cacheHeaders';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
@@ -24,7 +23,6 @@ import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS } from '@/lib/coins';
 
 // Google Trends' 7-day bitcoin score barely moves hour to hour, and the
 // unofficial endpoint blocks aggressively under repeated hits - cache long.
-const TRENDS_TTL = 60 * 60_000;
 
 function sb(token: string) {
   return userClient(token);
@@ -83,6 +81,9 @@ interface PassEntry {
   url: string;
   params: readonly string[];
   ttlMs: number;
+  /** On a failed refresh, answer with the last good body up to this old (marked `x-data-stale: 1`) instead of a 502. For slow-moving
+   *  figures only (owner sweep 2026-11-18: Fear & Greed answered 502 after one 5 s timeout and the card stayed empty). */
+  serveStaleMs?: number;
   fixed?: Record<string, string>;
   /** #1651: keeps only the fields this entry's one caller reads, applied to the primary body BEFORE it is cached and serialised. */
   trim?: (body: unknown) => unknown;
@@ -350,7 +351,7 @@ const PASSTHROUGH: Record<string, PassEntry> = {
   /* Not exchanges, but the same reasoning: still the browser talking to a third
      party on every visit, and each is one global figure the whole app shares. */
   'fng':             { url: 'https://api.alternative.me/fng/',
-                       params: ['limit'], ttlMs: 900_000 },
+                       params: ['limit'], ttlMs: 900_000, serveStaleMs: 24 * 60 * 60_000 },
   'deribit-book':    { url: 'https://www.deribit.com/api/v2/public/get_book_summary_by_currency',
                        params: ['currency', 'kind'], ttlMs: 60_000, trim: trimDeribitBook },
   'llama-stables':   { url: 'https://stablecoins.llama.fi/stablecoins',
@@ -410,75 +411,6 @@ export async function GET(req: NextRequest) {
         { next: { revalidate: 300 }, headers: cgKey ? { 'coinglassSecret': cgKey } : {} }
       );
       return NextResponse.json(await r.json(), { headers: proxyCache(r.ok) });
-    }
-
-    /* ── Google Trends: bitcoin 7-day search score (2-step) ── */
-    if (type === 'trends') {
-      const EMPTY = { default: { timelineData: [] } };
-      try {
-        // Inside cached(), so a cache hit does not re-report success - with a
-        // 1h TTL that would otherwise keep the source green for an hour after
-        // Google started blocking. The catch below turns a block into an empty
-        // 200, which is exactly the shape that hides a dead upstream.
-        const json = await cached('trends', TRENDS_TTL, () => trackHealth(
-          'google-trends:bitcoin', 'other', async () => {
-          // Step 1: get widget token
-          const exploreReq = JSON.stringify({
-            comparisonItem: [{ keyword: 'bitcoin', geo: '', time: 'now 7-d' }],
-            category: 0,
-            property: '',
-          });
-          const exploreUrl =
-            'https://trends.google.com/trends/api/explore?hl=en-US&tz=480&req=' +
-            encodeURIComponent(exploreReq);
-
-          const exploreRes = await exchangeFetch(exploreUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-              'Accept-Language': 'en-US,en;q=0.9',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            },
-            signal: AbortSignal.timeout(8000),
-          });
-
-          // Google blocked / rate-limited - throw so this failure isn't cached
-          if (!exploreRes.ok) throw new Error('trends explore blocked');
-
-          const raw1 = await exploreRes.text();
-          const json1 = JSON.parse(raw1.replace(/^\)\]\}'\n?/, ''));
-          const widgets: Array<{ id: string; token: string; request: unknown }> =
-            json1?.widgets ?? [];
-          const ts = widgets.find(w => w.id === 'TIMESERIES');
-          if (!ts?.token || !ts?.request) throw new Error('trends token missing');
-
-          // Step 2: fetch timeline data
-          const dataUrl =
-            'https://trends.google.com/trends/api/widgetdata/multiline?hl=en-US&tz=480&req=' +
-            encodeURIComponent(JSON.stringify(ts.request)) +
-            '&token=' + encodeURIComponent(ts.token);
-
-          const dataRes = await exchangeFetch(dataUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            },
-            signal: AbortSignal.timeout(8000),
-          });
-
-          if (!dataRes.ok) throw new Error('trends data blocked');
-
-            const raw2 = await dataRes.text();
-            return JSON.parse(raw2.replace(/^\)\]\}'\n?/, ''));
-          },
-          j => {
-            const n = (j as { default?: { timelineData?: unknown[] } })?.default?.timelineData?.length ?? 0;
-            return { ok: n > 0, detail: n > 0 ? `${n} points` : 'no timeline data', items: n };
-          },
-        ));
-        return NextResponse.json(json, { headers: PROXY_CACHE });
-      } catch {
-        // Google Trends blocked / timed out - return empty, never 500, never cached
-        return NextResponse.json(EMPTY);
-      }
     }
 
     /* ── SoSoValue: BTC + ETH spot ETF net flows ── */
@@ -544,7 +476,7 @@ export async function GET(req: NextRequest) {
           // Neither usable is a failed read, reported to health like before.
           if (latest === null && days === null) throw new Error('no usable total_net_inflow in response');
           return { latest, days };
-        });
+        }, { failTtlMs: 60_000 });   // a provider failure is held for 60 s, so a rate limit is not prolonged by every page load
       }
 
       const [btcRes, ethRes] = await Promise.allSettled([
@@ -618,7 +550,17 @@ export async function GET(req: NextRequest) {
           if (!fbUrl) throw e;
           primaryFailure = e;
         }
-        if (r?.ok) { const body = await r.json(); return { json: JSON.stringify(entry.trim ? entry.trim(body) : body), viaFallback: false }; }
+        if (r?.ok) {
+          /* THE BODY CAN BE LATE EVEN WHEN THE HEADERS WERE NOT (reliability leftover, PM 2026-11-17). The 3 s signal covers reading the body too, so a primary that answered 200 and then stalled mid-body aborted HERE, outside the try above, and the request failed without ever asking Bybit. A late or unreadable body now falls to the same fallback as a late or failed primary; with no fallback the original error is rethrown unchanged. */
+          try {
+            const body = await r.json();
+            return { json: JSON.stringify(entry.trim ? entry.trim(body) : body), viaFallback: false };
+          } catch (e) {
+            if (!fbUrl) throw e;
+            primaryFailure = e;
+            r = null;
+          }
+        }
 
         /* FAIL LOUDLY (#228). Throwing means cached() stores nothing, so a ban
            is retried rather than pinned, and the caller gets a status instead
@@ -692,6 +634,13 @@ export async function GET(req: NextRequest) {
           },
         });
       } catch (e) {
+        /* The last good body, when this entry allows it and the request was a cacheable one (same key as above). */
+        const stale = entry.serveStaleMs && entry.ttlMs > 0 ? cachedPeek<{ json: string; viaFallback: boolean }>(`proxy:${type}:${u.search}`, entry.serveStaleMs) : null;
+        if (stale) {
+          return new NextResponse(stale.data.json, {
+            headers: { 'Content-Type': 'application/json', 'x-data-stale': '1', 'x-data-age-ms': String(Date.now() - stale.ts) },
+          });
+        }
         const status = (e as Error & { status?: number }).status;
         return apiError('proxy', e, 502, status
           ? `${type} upstream returned ${status}`
