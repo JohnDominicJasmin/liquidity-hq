@@ -750,6 +750,22 @@ Tracked on #1651.
   deploy), and even then never when he is resting.
 - If a tool blocks the suggestion, do everything else, and do not ask him to click anything.
 
+## 24. PARALLEL DEV AND PARALLEL QA. NOT ONE ITEM AT A TIME.
+
+**Owner, 2026-11-18, first-hand, twice:**
+
+> *"Let's do parallel development and parallel QA. Multiple items at a time. I know there are tasks
+> that must be done in order, one step at a time. That's the exception."*
+
+- **Dev and QA each run up to 3 lanes at once** with background subagents, one PR per lane, each
+  with a full brief and a narrow scope. The session still reviews and merges what a lane returns;
+  QA still gives every merge word itself.
+- **Cloud first** (isolation "remote"): the laptop is low on memory. A local worktree only for a job
+  that needs no install or build. Heavy browser runs go to GitHub workflow_dispatch.
+- **The exceptions stay in order:** a migration before the deploy that needs it, the branch chain
+  `dev` → `qa` → `staging` → `main`, a fix after the failure it fixes, the release steps.
+- **PM keeps the lanes full.** When one returns, the next queued item starts.
+
 ## Keeping this file true
 
 **RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**
