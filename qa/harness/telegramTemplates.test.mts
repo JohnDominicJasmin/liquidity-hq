@@ -13,13 +13,13 @@ import { makeWorld, installFakeFetch, loadRoute } from '../telegramWorld.mjs';
 type World = ReturnType<typeof makeWorld>;
 type Msg = { chat_id: string; text: string };
 const rising = Array.from({ length: 300 }, (_, i) => 100 + i);
-async function scenario(o: { alerts?: unknown[]; series?: Record<string, number[]>; prices?: Record<string, number> | null } = {}) {
+async function scenario(o: { alerts?: unknown[]; series?: Record<string, number[]>; prices?: Record<string, number> | null; fresh?: boolean } = {}) {
   const tables: Record<string, unknown[]> = {
     lhq_price_alerts: o.alerts ?? [], lhq_muted_alerts: [],
     lhq_user_subscriptions: [{ user_id: 'u-pro', role: 'pro', trial_ends_at: null, current_period_end: new Date(Date.now() + 30 * 86_400_000).toISOString() }],
     lhq_user_settings: [{ user_id: 'u-pro', telegram_chat_id: '1001', timezone: 'UTC' }],
   };
-  const w: World = makeWorld({ tables }); w.series = o.series ?? { 'BTCUSDT:60': rising }; if (o.prices === null) w.prices = {}; else if (o.prices) w.prices = o.prices;
+  const w: World = makeWorld({ tables }); w.series = o.series ?? { 'BTCUSDT:60': rising }; w.freshSignals = o.fresh === false ? null : /PEPE|BONK/; if (o.prices === null) w.prices = {}; else if (o.prices) w.prices = o.prices;
   installFakeFetch(w); const route = await loadRoute();
   let status = 0; try { const r = await route.run(); status = r.status; } catch { status = -1; }
   return { w, status };
@@ -35,8 +35,8 @@ async function allMessages() {
   const out: Array<{ world: string; text: string; kind: string }> = [];
   const worlds: Array<[string, Parameters<typeof scenario>[0]]> = [
     ['normal', {}], ['price-alert', { alerts: BASE_ALERT }],
-    ['no-candles', { series: {} }], ['no-prices+alert', { alerts: BASE_ALERT, prices: null }],
-    ['flat-candles-no-btc', { series: { 'BTCUSDT:60': Array.from({ length: 300 }, () => 100) } }],
+    ['no-candles', { series: {}, fresh: false }], ['no-prices+alert', { alerts: BASE_ALERT, prices: null }],
+    ['flat-candles-no-btc', { series: { 'BTCUSDT:60': Array.from({ length: 300 }, () => 100) }, fresh: false }],
   ];
   const statuses: Record<string, number> = {};
   for (const [name, o] of worlds) { const { w, status } = await scenario(o); statuses[name] = status; for (const m of w.telegram.sent as Msg[]) out.push({ world: name, text: m.text, kind: /Price Alert Triggered/.test(m.text) ? 'price' : /Signals Aligned/.test(m.text) ? 'group' : /RSI/.test(m.text) ? 'rsi' : 'other' }); }
