@@ -8,6 +8,7 @@ import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { answerWasCutOff } from '@/lib/xaiAnswer';
+import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -116,8 +117,9 @@ export async function POST(req: NextRequest) {
 
   if (!res.ok) {
     await refundToolUsage(authData.user.id, 'strategyResearch', reservedOn);
-    const err = await res.json().catch(() => ({}));
-    return NextResponse.json({ error: (err as { error?: string }).error ?? 'AI error' }, { status: 502 });
+    const err = await res.json().catch(() => ({})) as { error?: string };
+    /* The provider's own error text is logged, never shown (QA behavioural run of #2559): same as thesis-check and pine-script. */
+    return apiError('strategy-research', err.error ?? 'upstream AI error', 502, 'AI service error');
   }
 
   const data = await res.json();
