@@ -4,6 +4,7 @@ import { getAuthToken } from './supabase.ts';
 import { nextResetLocalTime } from './resetTime.ts';
 import { wilderRsiSeries } from './rsi.ts';
 import { priceText } from './numberFormat.ts';
+import type { ArenaStrategyRead, StrategyReading } from './arenaStrategyRead.ts';
 
 export interface GrokUsageInfo {
   deep_used:     number; deep_limit:     number;
@@ -49,6 +50,8 @@ export async function callGrokViaProxy(
   selection: readonly string[] = [],
   /** The reader's language. The server validates it (resolveReadLocale) and asks for the free text in it. */
   locale: string = 'en',
+  /** The picked Arena strategy's id, or null. Only the id is sent: the server computes the strategy's call itself from its own candles. */
+  strategy: string | null = null,
 ): Promise<{ result: CombinedResult; usage: GrokUsageInfo | null }> {
   const token = await getAuthToken();
 
@@ -62,7 +65,7 @@ export async function callGrokViaProxy(
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ context: ctx, chart, type, selection, locale }),
+      body: JSON.stringify({ context: ctx, chart, type, selection, locale, strategy }),
       signal: deadlineSignal(type === 'deep' ? GROK_DEEP_TIMEOUT_MS : GROK_QUICK_TIMEOUT_MS),
     });
   } catch (e) {
@@ -1588,6 +1591,55 @@ export function buildArenaPrompt(
     'appear there, give them more weight, and say plainly if they disagree with the rest of the data.',
     'Do not weigh, or name as weighted, any indicator that has no reading line above.',
   ].join('\n');
+}
+
+/* ── THE TRADER'S STRATEGY IN THE READ (owner order 2026-11-19: "ALL INDICATORS ... MUST BE CONNECTED TO QUICK AND DEEP RESEARCH") ──
+ *
+ * The selected indicators already reach both reads (buildArenaPrompt above). The picked Arena strategy's call did not: the request carried no
+ * strategy at all. Now the route computes the call from its own closed candles (lib/arenaStrategyServer.ts) and this appends it, the same
+ * block for Quick and Deep, before the language line. INSTRUCTIONS LIVE HERE, DATA ARRIVES TYPED: the readings are numbers, a fixed verdict
+ * word and the label sentence the Arena shows, never text from the request.
+ *
+ * Picked: the one strategy, and the read must name it and say whether its call agrees or disagrees with the read's SIGNAL.
+ * Let the read choose (no strategy, no indicators): every strategy's reading, and the read must name the one it chose.
+ * No reading (no candles, too few, unsupported timeframe, a live input missing): said in words, never shown as a WAIT. */
+export function strategyReadBlock(read: ArenaStrategyRead): string {
+  if (!read || read.readings.length === 0) return '';
+  const line = (s: StrategyReading): string => {
+    if (s.status === 'none') return `${s.name}: NO READING (${s.why}). Do not guess its call.`;
+    const lv = [s.entry != null ? `entry ${priceText(s.entry)}` : '', s.stop != null ? `stop ${priceText(s.stop)}` : '', s.target != null ? `target ${priceText(s.target)}` : ''].filter(Boolean);
+    const age = s.barsAgo == null ? '' : s.barsAgo === 0 ? ' Signal on the latest closed candle.' : ` Signal ${s.barsAgo} closed candle${s.barsAgo === 1 ? '' : 's'} ago.`;
+    return `${s.name}: ${s.verdict}. Reason: ${s.reason}${lv.length ? ` Levels: ${lv.join(', ')}.` : ''}${age}`;
+  };
+  const rules = 'These are rule-based signals computed by the app from closed candles on this timeframe: signals, not predictions, and not advice.';
+  if (read.mode === 'picked') {
+    const s = read.readings[0];
+    return [
+      '',
+      "=== THE TRADER'S STRATEGY ===",
+      rules,
+      line(s),
+      s.status === 'ok'
+        ? `Weigh this call with the rest of the data above; it is one input and does not override the SIGNAL DECISION GUIDE. In REASONING, the first sentence must name "${s.name}", give its call (${s.verdict}) and say whether it agrees or disagrees with your SIGNAL, and why in a few words.`
+        : `In REASONING, the first sentence must name "${s.name}" and say it has no reading right now.`,
+    ].join('\n');
+  }
+  const usable = read.readings.some(s => s.status === 'ok');
+  return [
+    '',
+    '=== STRATEGY CHECK (the trader let the read choose) ===',
+    rules,
+    ...read.readings.map(s => `- ${line(s)}`),
+    usable
+      ? 'Choose the ONE strategy above, among those with a reading, that best fits this chart, and weigh its call with the rest of the data above; it does not override the SIGNAL DECISION GUIDE. In REASONING, the first sentence must name the strategy you chose, give its call (BUY, SELL or WAIT) and say whether it agrees or disagrees with your SIGNAL, and why in a few words.'
+      : 'No strategy has a reading right now. In REASONING, the first sentence must say that no strategy had a reading.',
+  ].join('\n');
+}
+
+/** The Arena prompt with the strategy block appended (unchanged when there is none). Applied before withReadLanguage, which must stay last. */
+export function withStrategyRead(prompt: string, read: ArenaStrategyRead): string {
+  const block = strategyReadBlock(read);
+  return block ? `${prompt}\n${block}` : prompt;
 }
 
 /** The Arena prompt with the language instruction appended, last, so it is the final thing the model reads. English is returned unchanged. */

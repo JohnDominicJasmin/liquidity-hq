@@ -58,6 +58,8 @@ export const marketStandIn = (req: Request, url: URL, record: MarketRecord = {})
 
   /* The mirror-walk pings each host to pick one; answering keeps it off the real network. */
   if (url.pathname.endsWith('/ping')) return json(200, {});
+  /* #2597: the server now computes the picked strategy's inputs itself (lib/arenaStrategyServer.ts liveFor): the funding class comes from Binance's premiumIndex. Shaped like the real answer; a calm, in-band rate. */
+  if (url.pathname === '/fapi/v1/premiumIndex') return json(200, { symbol: new URL(url).searchParams.get('symbol') ?? 'BTCUSDT', markPrice: '60000.00', indexPrice: '60000.00', lastFundingRate: '0.00010000', nextFundingTime: 0, time: 0 });
 
   if (url.pathname.endsWith('/ticker/24hr')) {
     /* The batched spot call passes `symbols=["BTCUSDT",...]`; the futures call passes none and

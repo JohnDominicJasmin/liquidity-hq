@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { GROK_SERVER_DEEP_MS, GROK_SERVER_QUICK_MS } from '@/lib/grokDeadlines';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, readOutputCap, resolveReadLocale, VERDICT_RESTATED_CHECK, withReadLanguage, ENGLISH_READ_NOTES, type ChartData, type ReadLocale, type ReadNotes, type GrokContext } from '@/lib/grok';
-import { arenaContextCoinId, COIN_NOT_TRACKED, parseArenaChart, parseArenaContext, parseSelection } from '@/lib/arenaContext';
+import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, readOutputCap, resolveReadLocale, VERDICT_RESTATED_CHECK, withReadLanguage, withStrategyRead, ENGLISH_READ_NOTES, type ChartData, type ReadLocale, type ReadNotes, type GrokContext } from '@/lib/grok';
+import { arenaContextCoinId, COIN_NOT_TRACKED, parseArenaChart, parseArenaContext, parseArenaStrategy, parseSelection } from '@/lib/arenaContext';
+import { serverStrategyRead } from '@/lib/arenaStrategyServer';
 import { arenaServerNumbers } from '@/lib/arenaServerNumbers';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { chartFromCandles } from '@/lib/arenaChartServer';
@@ -192,13 +193,16 @@ export async function POST(req: NextRequest) {
   const parsedCtx      = parseArenaContext(body.context);
   const parsedChart     = parseArenaChart(body.chart);
   const parsedSelection = parseSelection(body.selection);
+  /* The picked strategy, as an id only. Any other field the body carries about a strategy (a verdict, levels, a reason) is never read: the
+     call is computed below from the server's own candles. */
+  const parsedStrategy  = parseArenaStrategy(body.strategy);
 
   /* The reason names a field, which is exactly what a 400 must not hand to someone probing the shape, so
      it is logged and the caller gets one flat message - with ONE exception, documented on
      COIN_NOT_TRACKED: a coin the user chose is not a shape detail, the tracked list already ships in
      the client bundle, and without a name the page shows this untranslated to someone who picked a
      coin out of our own selector. */
-  for (const p of [parsedCtx, parsedChart, parsedSelection]) {
+  for (const p of [parsedCtx, parsedChart, parsedSelection, parsedStrategy]) {
     if (!p.ok) {
       console.warn(`[grok] refused request body: ${p.reason}`);
       return p.reason === COIN_NOT_TRACKED
@@ -209,6 +213,7 @@ export async function POST(req: NextRequest) {
   const ctx       = (parsedCtx as { ok: true; value: GrokContext }).value;
   const chart     = (parsedChart as { ok: true; value: ChartData }).value;
   const selection = (parsedSelection as { ok: true; value: string[] }).value;
+  const strategyId = (parsedStrategy as { ok: true; value: string | null }).value;
 
   /* ONE SOURCE FOR EACH OF THESE. They are read out of the validated objects the prompt is built from,
      never from separate top-level fields, because a second place to say "which coin" is the whole defect.
@@ -347,6 +352,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Reload the page and try again.', code: 'COIN_REQUIRED' }, { status: 400 });
   }
 
+  /* The indicators come from the request body, so the server applies the plan's limit itself: its own plan read says NOT ENTITLED -> only the first indicator (Free is one at a time). Unknown/failed read: as sent (#1119). */
+  const planSelection = selectionForPlan(selection, plan.status === 'not_entitled') as string[];
+  /* THE PICKED STRATEGY'S CALL, COMPUTED HERE (owner order 2026-11-19). Started after every gate (a refused request reads no candles) and alongside
+     the market numbers, so it adds no wait of its own on a warm cache. Closed candles of the declared coin and timeframe, the Arena's own detector;
+     it never throws, a failed read is a "no reading" line in the prompt. "Let the read choose" (no strategy, no indicators) reads every strategy. */
+  const strategyReadP = serverStrategyRead(coin, tf, strategyId, planSelection);
+
   const gathered = await numbersP!;
   if (!gathered.ok) {
     console.warn(`[grok] market data unavailable for ${logTag(coin)}: ${String(gathered.reason).slice(0, 200)}`);
@@ -395,9 +407,12 @@ export async function POST(req: NextRequest) {
       console.warn(`[grok] server chart: candle fetch failed for ${logTag(coin)}/${tf}, keeping the browser's`);
     }
   }
-  /* The indicators come from the request body, so the server applies the plan's limit itself: its own plan read says NOT ENTITLED -> only the first indicator (Free is one at a time). Unknown/failed read: as sent (#1119). */
-  const planSelection = selectionForPlan(selection, plan.status === 'not_entitled') as string[];
-  const prompt = withReadLanguage(buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, planSelection), locale);
+  const strategyRead = await strategyReadP;
+  if (strategyRead) {
+    // Server-computed ids and fixed words only: nothing from the request body reaches this line.
+    console.log(`[grok] strategy-read mode=${strategyRead.mode} ${strategyRead.mode === 'picked' ? strategyRead.readings.map(s => `id=${s.id} ${s.status === 'ok' ? `verdict=${s.verdict}` : 'no-reading'}`).join(' ') : `with-reading=${strategyRead.readings.filter(s => s.status === 'ok').length}/${strategyRead.readings.length}`}`);
+  }
+  const prompt = withReadLanguage(withStrategyRead(buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, planSelection), strategyRead), locale);
 
   /* The second bound. The server's fields are short formatted strings, so this cannot realistically
      fire once the first bound passed - which is why it is worth having: if it ever does, the gather
