@@ -1625,7 +1625,6 @@ async function checkSentimentExtremes(
 
     // fngR (alternative.me) is not Binance - only lsR's failure counts here.
     if (fngR.status !== 'fulfilled' || !fngR.value.ok) return [];
-    if (lsR.status  !== 'fulfilled' || !lsR.value.ok)  { noteSkip(skipCounts, 'binance'); return []; }
 
     const fngJson = await fngR.value.json() as { data: FNGData[] };
     const fngRead = readFng(fngJson);
@@ -1634,12 +1633,28 @@ async function checkSentimentExtremes(
     // Already parenthesised, or empty - so a missing classification leaves no "( )" behind.
     const fngCls  = fngRead.label ? ` (${fngRead.label})` : '';
 
-    const lsData  = await lsR.value.json() as LSItem[];
-    if (!lsData?.length) return [];
     /* #1651 (QA finding C): an unguarded parseFloat here made both sentiment gates false, so the alert simply did not fire - "no
        extreme" and "we could not read positioning" looked identical. Return early instead: nothing is sent either way, but the
        reason is now in the code rather than in the arithmetic. */
-    const longFrac = parseFloat(lsData[0].longAccount);
+    let longFrac = NaN;
+    if (lsR.status === 'fulfilled' && lsR.value.ok) {
+      const lsData = await lsR.value.json() as LSItem[];
+      longFrac = lsData?.length ? parseFloat(lsData[0].longAccount) : NaN;
+    } else {
+      noteSkip(skipCounts, 'binance');
+    }
+    /* BYBIT USES THE SAME THRESHOLDS (PM decision 2026-11-18, #1651 / OWNER-BLOCKERS row 13): when Binance's BTC ratio cannot be read,
+       Bybit's BTC account ratio (buyRatio = long share) is read instead and judged by the same 60 % lines, as the squeeze check already does. */
+    if (!Number.isFinite(longFrac)) {
+      try {
+        const res = await exchangeFetch('https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=BTCUSDT&period=5min&limit=1', { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
+        if (res.ok) {
+          const d = await res.json() as { result?: { list?: Array<{ buyRatio: string }> } };
+          const item = d.result?.list?.[0];
+          longFrac = item ? parseFloat(item.buyRatio) : NaN;
+        }
+      } catch { /* both venues failed: nothing is sent */ }
+    }
     if (!Number.isFinite(longFrac) || longFrac < 0 || longFrac > 1) return [];
     const longPct  = longFrac * 100;   // e.g. 60.87
     const shortPct = 100 - longPct;

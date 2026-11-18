@@ -21,6 +21,7 @@ import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
 import { needsLiveSearch } from '@/lib/searchTriggers';
 import { describeSelection, selectionForPlan } from '@/lib/strategyRegistry';
+import { describeIndicatorSettings } from '@/lib/indicatorSettingsText';
 import { binanceKlineSource } from '@/lib/coins';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import CoinMultiSelect from './CoinMultiSelect';
@@ -132,6 +133,7 @@ function buildChatContext(
   geoEvents: GeoEvent[],
   structureLine: string,
   selection: string | null,
+  indicatorSettings: string | undefined,
 ) {
   const c  = store.coins[coin];
   const sq = computeSqueezeScore(c);
@@ -159,6 +161,7 @@ function buildChatContext(
     headlines: latestHeadlines.slice(0, 8),
     geo: geoEvents.slice(0, 5).map(g => `[${g.tag}] ${g.headline} (${g.timeStr})`),
     selection: selection || undefined,
+    indicatorSettings,
   };
 }
 
@@ -418,7 +421,7 @@ export default function GrokChat() {
       /* #1631 E: the browser sends DATA (the context below) and the conversation; /api/grok-chat writes the system prompt
          (lib/chatPrompt.ts). An educational question with no search gets the short prompt (minimal), as before. #985 gap 2: the
          selection is read fresh on every turn. */
-      const context = buildChatContext(store, activeCoin, latestHeadlines, geoEvents, structureLine, describeSelection(selectionForPlan(chatSelection, !authLoading && !entitlementsLoading && entitlementStatus === 'not_entitled')));
+      const context = buildChatContext(store, activeCoin, latestHeadlines, geoEvents, structureLine, describeSelection(selectionForPlan(chatSelection, !authLoading && !entitlementsLoading && entitlementStatus === 'not_entitled')), describeIndicatorSettings(settings.strategy_params));
       // Cap at last 8 messages (4 pairs) - prevents token cost growing unbounded
       const apiMsgs = history.slice(-8).map(m => ({ role: m.role, content: m.content }));
 
@@ -464,7 +467,7 @@ export default function GrokChat() {
       setLoading(false);
       setPendingText(null);
     }
-  }, [msgs, coin, liveActive, store, latestHeadlines, geoEvents, user, authLoading, usage, setUsage, chatSelection, entitlementStatus, entitlementsLoading]);
+  }, [msgs, coin, liveActive, store, latestHeadlines, geoEvents, user, authLoading, usage, setUsage, chatSelection, entitlementStatus, entitlementsLoading, settings.strategy_params]);
 
   /* ── Open-with-prompt event from Arena ── */
   useEffect(() => {

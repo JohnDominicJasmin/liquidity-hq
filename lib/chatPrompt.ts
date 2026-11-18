@@ -15,6 +15,7 @@
  *     per message that spent a second chat credit and a second xAI charge. */
 import { COINS, type CoinId } from './coins.ts';
 import { priceText as fmtPrice, signedUsd } from './numberFormat.ts';
+import { INDICATOR_SETTINGS_RULE } from './indicatorSettingsText.ts';
 
 export interface ChatContext {
   coin: CoinId;
@@ -35,6 +36,7 @@ export interface ChatContext {
   sectorRotation?: string; structure?: string; session?: string;
   headlines?: string[]; geo?: string[];
   selection?: string;                            // describeSelection() of the trader's indicators
+  indicatorSettings?: string;                    // lib/indicatorSettingsText describeIndicatorSettings(): the trader's RSI / EMA settings that differ from the defaults
 }
 
 const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
@@ -68,6 +70,7 @@ export function parseChatContext(raw: unknown): ChatContext | null {
     sectorRotation: str(r.sectorRotation, 300), structure: str(r.structure, 300), session: str(r.session, 60),
     headlines: strs(r.headlines, 8, 240), geo: strs(r.geo, 5, 240),
     selection: str(r.selection, 400),
+    indicatorSettings: str(r.indicatorSettings, 200),
   };
 }
 
@@ -115,9 +118,13 @@ export function capChatSelection(selection: string | undefined, notEntitled: boo
 export function buildChatSystemPrompt(ctx: ChatContext, opts: { search: boolean; minimal: boolean }): string {
   const c = ctx.coin.toUpperCase();
   const ln = (k: string, v: string) => `${k}: ${v}`;
-  const watching = ctx.selection
-    ? ['', `The trader is currently weighing these indicators: ${ctx.selection}. Give them more weight in your answer, and say plainly if they disagree with what the rest of the data shows.`]
-    : [];
+  const watching = [
+    ...(ctx.selection
+      ? ['', `The trader is currently weighing these indicators: ${ctx.selection}. Give them more weight in your answer, and say plainly if they disagree with what the rest of the data shows.`]
+      : []),
+    // The trader's own RSI / EMA settings (#1651): the Arena read already gets them; the chat did not.
+    ...(ctx.indicatorSettings ? ['', `The trader's chart settings: ${ctx.indicatorSettings}.`, INDICATOR_SETTINGS_RULE] : []),
+  ];
   if (opts.minimal && !opts.search) {
     return [
       'You are a crypto data assistant embedded in Liquidity Hunter HQ.',
