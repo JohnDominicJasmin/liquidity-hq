@@ -2272,11 +2272,6 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .klc-draw-clear { color: var(--red); margin-top: 2px; border-top: 0.5px solid var(--bdr); border-radius: 0 0 5px 5px; }
 .klc-legend { display: flex; gap: 8px; align-items: center; }
 /* THE TOOLBAR NEVER WRAPS ON A WIDE SCREEN (layout shift, batch 3). At 1280 the Arena chart column is about 900 px and the toolbar's content was within a few px of it, so any late arrival (an alert chip, the plan badge, a page scrollbar taking 15 px, a longer translation) flipped it to a second row and back, about 0.25 CLS each flip. From 1200 px up the row stays ONE row: the spacer before the setup-quality badge absorbs slack, and if it ever truly overflows the badge is the item that gives way (it shrinks and clips) while every button and the fullscreen control keep their size. The toolbar itself is NOT given overflow, because the Draw menus hang below it as absolute children. Below 1200 px the row wraps as before. */
-/* THE TOOLBAR ON A PHONE KEEPS ITS SIZE WHEN A LABEL OR THE PLAN TAG ARRIVES (QA run 44192577624, /ru 360: at about 1.5 s the Draw Structure group went 170 -> 148 px, the row re-wrapped and the chart block grew 30 px, CLS 0.233). The group keeps the wider width, and the bar keeps two rows of height, so a late label can move things inside it but not the chart below. PROVISIONAL until QA measures the real row count at 360. */
-@media (max-width: 520px) {
-  .klc-toolbar { min-height: calc(12px + 2 * (var(--fs-caption) * 1.2 + 8px) + 4px); }
-  .klc-ds-wrap { min-width: 170px; }
-}
 @media (min-width: 1200px) {
   .klc-toolbar { flex-wrap: nowrap; }
   .klc-toolbar > .sq-badge { flex: 0 1 auto; min-width: 0; overflow: hidden; }
