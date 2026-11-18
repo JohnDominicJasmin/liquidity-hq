@@ -74,12 +74,13 @@ test('W6. the funding page tiers are band facts: the label carries the numeric b
     assert.match(en[`FUNDING_SIG_${t}_HINT`], /paying|Near|baseline|zero/i, `${t}: hint ${en[`FUNDING_SIG_${t}_HINT`]}`);
   }
 });
-test('W7. Telegram: squeeze alert titles state positioning; sentiment and Fear & Greed alerts have no Action line, tighten-stops or reduce-position advice; the RSI and CVD alerts keep their own Action lines', () => {
+test('W7. Telegram: squeeze alert titles state positioning; sentiment and Fear & Greed alerts have no Action line, tighten-stops or reduce-position advice; no alert carries an Action line (#2560: RSI, CVD, open-interest and candle alerts state facts only)', () => {
   const s = read('app/api/telegram/alert/route.ts').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');   // comments are not sent to anyone
   assert.match(s, /Short-heavy positioning - Score/); assert.match(s, /Long-heavy positioning - Score/); assert.match(s, /longs paying shorts/);
   assert.equal(/Short Squeeze Building|Long Flush Building|Longs overcrowded|price likely (dumps|pumps)|Tighten stops on longs|Consider tightening stops|reducing position size|long flush risk elevated|contrarian reversal zone/i.test(s), false, 'an old squeeze / sentiment alert wording is still sent');
   assert.ok(/Positioning is long-heavy\./.test(s) && /Positioning is short-heavy\./.test(s), 'the new positioning lines are gone');
-  assert.ok((s.match(/Action:/g) ?? []).length >= 2, 'the RSI / CVD alerts lost their Action lines (the PR leaves them untouched)');
+  assert.equal((s.match(/Action:/g) ?? []).length, 0, 'an alert carries an Action: line again (advice in a Telegram alert, owner order 2026-11-18)');
+  assert.ok(/Overbought zone on the 1-hour chart./.test(s) && /Oversold zone on the 1-hour chart./.test(s), 'the RSI alerts lost their fact-only wording');
 });
 test('W8. the Market Read keeps its own "Longs overcrowded" wording on its own key', () => {
   assert.equal(en.MARKET_READ_TXT_LONGS_OVERCROWDED, 'Longs overcrowded'); assert.ok(read('lib/marketReadText.ts').includes('MARKET_READ_TXT_LONGS_OVERCROWDED'), 'the Market Read still reads the sidebar key (it would now print "Funding {pct}: longs paying" with no figure)');
