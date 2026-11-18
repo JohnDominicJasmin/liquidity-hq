@@ -1,8 +1,9 @@
 -- NOT YET APPLIED TO ANY DATABASE. Apply ONE block per project: PROD on qdpwhnvmhqgzijuwopso BEFORE the release deploy; DEV on wdtjhrilakoitfcezxpx.
 --
--- Arena in the user's language (PM ru sign-off 2026-11-18: layout passes, language fails). Two groups, 40 keys x 5 locales:
+-- Arena in the user's language (PM ru sign-off 2026-11-18: layout passes, language fails). Three groups, 43 keys x 5 locales:
 -- (1) the AI read card's signal chips (Ribbon / Squeeze / Funding / Multi-TF / Whale CVD and their value words), new keys; {n} kept byte-identical.
 -- (2) the Draw Structure button, its menu and its states: the keys existed with English defaults only, so ko/zh/ru/ar showed English. {kind}/{count} kept byte-identical.
+-- (3) the notes the server adds to an AI read's reasoning (tier check, perps-vs-spot), read by /api/grok in the reader's language; {shown}/{said}/{bullish}/{bearish} kept byte-identical.
 -- en rows equal the shipped defaults. ko/zh/ru/ar AI-drafted, not native-reviewed (owner's 2026-11-13 ruling).
 --
 -- ===================== PROD =====================
@@ -206,7 +207,22 @@ insert into lhq_labels (key, locale, value) values
 ('DRAW_STRUCTURE_TYPE_HORIZONTAL','ko','수평선'),
 ('DRAW_STRUCTURE_TYPE_HORIZONTAL','zh','水平线'),
 ('DRAW_STRUCTURE_TYPE_HORIZONTAL','ru','Горизонталь'),
-('DRAW_STRUCTURE_TYPE_HORIZONTAL','ar','أفقي')
+('DRAW_STRUCTURE_TYPE_HORIZONTAL','ar','أفقي'),
+('ARENA_READ_NOTE_TIER_UNCHECKED','en','(Shown as {shown}: the answer did not state its signal count, so {said} could not be checked.)'),
+('ARENA_READ_NOTE_TIER_UNCHECKED','ko','({shown}(으)로 표시: 답변에 신호 개수가 없어 {said}을(를) 확인할 수 없었습니다.)'),
+('ARENA_READ_NOTE_TIER_UNCHECKED','zh','（显示为{shown}：回答未给出信号计数，因此无法核实{said}。）'),
+('ARENA_READ_NOTE_TIER_UNCHECKED','ru','(Показано как «{shown}»: в ответе нет подсчёта сигналов, поэтому «{said}» не проверено.)'),
+('ARENA_READ_NOTE_TIER_UNCHECKED','ar','(عُرض كـ {shown}: لم يذكر الرد عدد الإشارات، لذا تعذّر التحقق من {said}.)'),
+('ARENA_READ_NOTE_TIER_COUNTED','en','(Shown as {shown}: {bullish} bullish against {bearish} bearish signals were counted, which does not support {said}.)'),
+('ARENA_READ_NOTE_TIER_COUNTED','ko','({shown}(으)로 표시: 강세 신호 {bullish}개 대 약세 신호 {bearish}개로는 {said}을(를) 뒷받침하지 않습니다.)'),
+('ARENA_READ_NOTE_TIER_COUNTED','zh','（显示为{shown}：统计到看涨信号{bullish}个、看跌信号{bearish}个，不支持{said}。）'),
+('ARENA_READ_NOTE_TIER_COUNTED','ru','(Показано как «{shown}»: бычьих сигналов {bullish} против медвежьих {bearish}, это не подтверждает «{said}».)'),
+('ARENA_READ_NOTE_TIER_COUNTED','ar','(عُرض كـ {shown}: تم عدّ {bullish} إشارات صعودية مقابل {bearish} هبوطية، وهذا لا يدعم {said}.)'),
+('ARENA_READ_NOTE_SPOT_MISSING','en','The perps-vs-spot check was unavailable for this coin, so confidence was not adjusted for it.'),
+('ARENA_READ_NOTE_SPOT_MISSING','ko','이 코인은 무기한 선물 대 현물 비교를 측정할 수 없어 신뢰도에 반영하지 않았습니다.'),
+('ARENA_READ_NOTE_SPOT_MISSING','zh','该币种无法进行永续合约与现货对比，因此置信度未据此调整。'),
+('ARENA_READ_NOTE_SPOT_MISSING','ru','Для этой монеты сравнить перпетуалы и спот не удалось, поэтому уверенность по нему не корректировалась.'),
+('ARENA_READ_NOTE_SPOT_MISSING','ar','تعذّر قياس مقارنة العقود الدائمة بالسوق الفورية لهذه العملة، لذا لم تُعدَّل الثقة بناءً عليها.')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 delete from lhq_labels where key = 'ARENA_FCHIP_V_UNAVAILABLE';
 
@@ -411,6 +427,21 @@ insert into lhq_dev_labels (key, locale, value) values
 ('DRAW_STRUCTURE_TYPE_HORIZONTAL','ko','수평선'),
 ('DRAW_STRUCTURE_TYPE_HORIZONTAL','zh','水平线'),
 ('DRAW_STRUCTURE_TYPE_HORIZONTAL','ru','Горизонталь'),
-('DRAW_STRUCTURE_TYPE_HORIZONTAL','ar','أفقي')
+('DRAW_STRUCTURE_TYPE_HORIZONTAL','ar','أفقي'),
+('ARENA_READ_NOTE_TIER_UNCHECKED','en','(Shown as {shown}: the answer did not state its signal count, so {said} could not be checked.)'),
+('ARENA_READ_NOTE_TIER_UNCHECKED','ko','({shown}(으)로 표시: 답변에 신호 개수가 없어 {said}을(를) 확인할 수 없었습니다.)'),
+('ARENA_READ_NOTE_TIER_UNCHECKED','zh','（显示为{shown}：回答未给出信号计数，因此无法核实{said}。）'),
+('ARENA_READ_NOTE_TIER_UNCHECKED','ru','(Показано как «{shown}»: в ответе нет подсчёта сигналов, поэтому «{said}» не проверено.)'),
+('ARENA_READ_NOTE_TIER_UNCHECKED','ar','(عُرض كـ {shown}: لم يذكر الرد عدد الإشارات، لذا تعذّر التحقق من {said}.)'),
+('ARENA_READ_NOTE_TIER_COUNTED','en','(Shown as {shown}: {bullish} bullish against {bearish} bearish signals were counted, which does not support {said}.)'),
+('ARENA_READ_NOTE_TIER_COUNTED','ko','({shown}(으)로 표시: 강세 신호 {bullish}개 대 약세 신호 {bearish}개로는 {said}을(를) 뒷받침하지 않습니다.)'),
+('ARENA_READ_NOTE_TIER_COUNTED','zh','（显示为{shown}：统计到看涨信号{bullish}个、看跌信号{bearish}个，不支持{said}。）'),
+('ARENA_READ_NOTE_TIER_COUNTED','ru','(Показано как «{shown}»: бычьих сигналов {bullish} против медвежьих {bearish}, это не подтверждает «{said}».)'),
+('ARENA_READ_NOTE_TIER_COUNTED','ar','(عُرض كـ {shown}: تم عدّ {bullish} إشارات صعودية مقابل {bearish} هبوطية، وهذا لا يدعم {said}.)'),
+('ARENA_READ_NOTE_SPOT_MISSING','en','The perps-vs-spot check was unavailable for this coin, so confidence was not adjusted for it.'),
+('ARENA_READ_NOTE_SPOT_MISSING','ko','이 코인은 무기한 선물 대 현물 비교를 측정할 수 없어 신뢰도에 반영하지 않았습니다.'),
+('ARENA_READ_NOTE_SPOT_MISSING','zh','该币种无法进行永续合约与现货对比，因此置信度未据此调整。'),
+('ARENA_READ_NOTE_SPOT_MISSING','ru','Для этой монеты сравнить перпетуалы и спот не удалось, поэтому уверенность по нему не корректировалась.'),
+('ARENA_READ_NOTE_SPOT_MISSING','ar','تعذّر قياس مقارنة العقود الدائمة بالسوق الفورية لهذه العملة، لذا لم تُعدَّل الثقة بناءً عليها.')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 delete from lhq_dev_labels where key = 'ARENA_FCHIP_V_UNAVAILABLE';

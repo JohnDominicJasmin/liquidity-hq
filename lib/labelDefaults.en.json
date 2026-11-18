@@ -3362,5 +3362,8 @@
   "ARENA_FCHIP_V_MIXED": "mixed",
   "ARENA_FCHIP_V_BULLISH": "bullish",
   "ARENA_FCHIP_V_BEARISH": "bearish",
-  "ARENA_FCHIP_V_FLAT": "flat"
+  "ARENA_FCHIP_V_FLAT": "flat",
+  "ARENA_READ_NOTE_TIER_UNCHECKED": "(Shown as {shown}: the answer did not state its signal count, so {said} could not be checked.)",
+  "ARENA_READ_NOTE_TIER_COUNTED": "(Shown as {shown}: {bullish} bullish against {bearish} bearish signals were counted, which does not support {said}.)",
+  "ARENA_READ_NOTE_SPOT_MISSING": "The perps-vs-spot check was unavailable for this coin, so confidence was not adjusted for it."
 }

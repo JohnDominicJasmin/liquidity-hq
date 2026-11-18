@@ -3116,9 +3116,14 @@ function ArenaContent() {
               <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>{t('ARENA_REASONING_PATTERNS_TITLE')}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {result.patterns.map((p, i) => {
-                  /* The read is written in the user's language now, so the direction words are matched in ko/zh/ru/ar too; an unmatched pattern stays the neutral blue, as before. */
-                  const isBull = /bull|higher high|engulf.*bull|hammer|morning|бычь|бычий|восходящ|강세|상승|看涨|多头|صعود/i.test(p);
-                  const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top|медвеж|нисходящ|двойная вершина|약세|하락|看跌|空头|هبوط/i.test(p);
+                  /* COLOUR FROM THE PARSED ENUM, never from the name (QA review of #2569): the name is in the reader's language, so matching
+                     English words in it coloured every ko/zh/ru/ar pill wrong. The model tags each pattern BULLISH / BEARISH / NEUTRAL and the
+                     parser reads that. Only an untagged pattern in an ENGLISH read (one from before the tag) falls back to the old word match;
+                     an untagged pattern in any other language is neutral blue. */
+                  const tag = result.patternBias?.[i] ?? null;
+                  const englishRead = entryLocale(cacheEntry) === 'en';
+                  const isBull = tag ? tag === 'BULLISH' : englishRead && /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
+                  const isBear = tag ? tag === 'BEARISH' : englishRead && /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
                   const col = isBull ? 'var(--green-2)' : isBear ? 'var(--red)' : '#1a7aff';
                   const bg  = isBull ? 'color-mix(in srgb, var(--green-2) 8%, transparent)' : isBear ? 'color-mix(in srgb, var(--red) 8%, transparent)' : 'rgba(26,122,255,0.08)';
                   const bdr = isBull ? 'color-mix(in srgb, var(--green-2) 25%, transparent)' : isBear ? 'color-mix(in srgb, var(--red) 25%, transparent)' : 'rgba(26,122,255,0.25)';

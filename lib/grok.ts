@@ -1,5 +1,5 @@
 import { deadlineSignal } from './deadlineSignal.ts';
-import { extractReadInputs, dropContradictingClauses } from './readSanity.ts';
+import { extractReadInputs, dropContradictingClauses, dropStructuredContradictions, levelContradictsClose, misreadSides } from './readSanity.ts';
 import { getAuthToken } from './supabase.ts';
 import { nextResetLocalTime } from './resetTime.ts';
 import { wilderRsiSeries } from './rsi.ts';
@@ -159,7 +159,7 @@ const stripMarkdown = (line: string) => line.replace(/[*_`]/g, '');
  *  shown as a confident-looking "Wait". The route asks once more when this is null, then refuses. Same normalisation and patterns as
  *  parseCombinedResponse, so every answer that parsed before still parses. */
 export function parseVerdict(text: string): { signal: CombinedResult['signal']; confidence: number } | null {
-  const clean = text.split('\n').map(stripMarkdown).join('\n');
+  const clean = normalizeHeaders(text).split('\n').map(stripMarkdown).join('\n');
   const signal = clean.match(SIGNAL_LINE)?.[1]?.toUpperCase();
   const conf = clean.match(CONFIDENCE_LINE)?.[1];
   if (!signal || conf == null) return null;
@@ -214,11 +214,15 @@ export function normalizeCombinedResult(raw: unknown, tf: string, session: strin
     ? { bullish: c.bullish as number, bearish: c.bearish as number } : null;
   /* #1631 A+D: carried only when the answer has them. A result from before them (a cache, a stub) has none, and "absent" is the true
      reading - an invented empty list would claim the server checked something it never saw. */
-  const extra: Pick<CombinedResult, 'citations' | 'counted' | 'checks' | 'why'> = {};
+  const extra: Pick<CombinedResult, 'citations' | 'counted' | 'checks' | 'why' | 'patternBias'> = {};
   if ('citations' in r) extra.citations = strings(r.citations).filter((u) => /^https?:\/\//.test(u)).slice(0, 10);
   if ('counted' in r) extra.counted = counted;
   if ('checks' in r) extra.checks = strings(r.checks);
   if ('why' in r) extra.why = strings(r.why).slice(0, WHY_MAX);
+  // Index-aligned with `patterns`, so it is kept only when it still lines up with them; anything that is not one of the three enums is null (neutral colour).
+  if (Array.isArray(r.patternBias) && Array.isArray(r.patterns) && r.patternBias.length === strings(r.patterns).length) {
+    extra.patternBias = (r.patternBias as unknown[]).map((b) => (b === 'BULLISH' || b === 'BEARISH' || b === 'NEUTRAL' ? b : null));
+  }
   return {
     signal: r.signal as CombinedResult['signal'],
     confidence: Math.max(0, Math.min(100, r.confidence)),
@@ -801,10 +805,17 @@ export interface CombinedResult {
   checks?: string[];
   /** THE READ'S WHY, 1-3 plain-word reasons (Deep up to 5), each 12 words or fewer, stating what the data shows now (owner rule 22). Absent on a read from before it or when the model gave none: the card then falls back to the first sentences of `reasoning`. */
   why?: string[];
+  /** The direction the model tagged each pattern with ("- Rising wedge | BEARISH"), index-aligned with `patterns`; null where it gave none. The pill is coloured from this enum, never from the
+   *  (possibly translated) name. Absent when no pattern carried a tag (a read from before it, or a model that ignored it). */
+  patternBias?: (PatternBias | null)[];
+  /** The side of EMA9 / SMA200 / VWAP the model says price is on (its SIDES line, asked for in non-English reads). Checked against the prompt's own numbers by applyResultChecks. */
+  sides?: Partial<Record<'ema9' | 'sma200' | 'vwap', 'above' | 'below'>>;
   analyzedAt: number;
   tf: string;
   session: string;
 }
+
+export type PatternBias = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
 
 export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string {
   const base = buildPrompt(ctx);
@@ -878,7 +889,7 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     '- [third catalyst, same format, if any]',
     'CHART_ANALYSIS: [1-2 sentences on candles and indicators only - no mention of macro here]',
     'PATTERNS:',
-    '- [identify chart patterns from the candle data: e.g. "Bear flag", "Bull flag", "Head and shoulders", "Double top", "Double bottom", "Ascending triangle", "Descending triangle", "Rising wedge", "Falling wedge", "Bullish engulfing", "Bearish engulfing", "Doji reversal", "Higher highs / higher lows", "Lower highs / lower lows" - be specific with price context. Write "None detected" if no clear pattern]',
+    '- [identify chart patterns from the candle data: e.g. "Bear flag", "Bull flag", "Head and shoulders", "Double top", "Double bottom", "Ascending triangle", "Descending triangle", "Rising wedge", "Falling wedge", "Bullish engulfing", "Bearish engulfing", "Doji reversal", "Higher highs / higher lows", "Lower highs / lower lows" - be specific with price context. End each pattern line with " | BULLISH", " | BEARISH" or " | NEUTRAL" for the direction the pattern points. Write "None detected" if no clear pattern]',
     'WAIT_FOR: [REQUIRED when SIGNAL is FLAT, LEAN BULLISH, or LEAN BEARISH. Write exactly: (1) which signals you counted and which direction they lean, (2) the specific price level to watch, (3) what candle/volume pattern would upgrade to BEARISH or BULLISH, (4) what derivative condition (funding, L/S ratio, taker ratio) would confirm the signal. Example (LEAN BEARISH): "2 continuation signals: rising OI + taker sell 63%. Watch $64,200 for a breakdown candle with volume spike. Taker sell above 65% + L/S above 1.5 → BEARISH. Bounce above $65,500 with CVD flip cancels bearish bias." Write N/A if SIGNAL is BULLISH or BEARISH.]',
     'REASONING: [3-4 sentences combining chart + derivatives + macro + news into one directional thesis. If FLAT, state whether selling is EXHAUSTING or CONTINUING and why.]',
   ].join('\n');
@@ -919,6 +930,66 @@ function trimPlaceholders(text: string): string {
     .replace(/\n{3,}/g, '\n\n');
 }
 
+/* ── READS WRITTEN IN ANOTHER LANGUAGE (QA review of #2569, PM 2026-11-18) ───────────────────────────────────────────────────────── */
+
+/** "Nothing here", in any of the five read languages: the English tokens the prompt asks for (NONE, None detected, None in input, N/A) and the
+ *  words a model writes when it translates them anyway. Matched against the WHOLE value (trailing punctuation ignored), so "None of the
+ *  three" or "нет подтверждения" is text, not a marker. A marker becomes an empty field - never a pill, a bullet or a line. */
+const NONE_MARKER = /^(?:none(?:\s+(?:detected|found|in\s+input))?|n\/?a|nil|-+|—|нет(?:\s+данных)?|не\s+обнаружено|отсутству[а-яё]*|없음|해당\s*없음|없습니다|无|没有|暂无|無|لا\s+يوجد|لا\s+توجد|لا\s+شيء)$/iu;
+export function isNoneMarker(s: string | null | undefined): boolean {
+  if (s == null) return false;
+  const v = stripMd(s).replace(/^[\s"'«»“”]+|[\s"'«»“”.。．!！]+$/gu, '');
+  return v.length === 0 || NONE_MARKER.test(v);
+}
+
+/** Header names a model has written instead of the English ones, mapped back to them. The prompt says never to translate a key; this is
+ *  the fallback for when one is translated anyway, which otherwise leaves only a bare verdict (or nothing) readable. */
+const TRANSLATED_HEADERS: Record<string, string> = Object.fromEntries(([
+  ['SIGNAL', ['СИГНАЛ', '신호', '信号', '信號', 'الإشارة', 'الاشارة', 'إشارة']],
+  ['BIAS_LEAN', ['УКЛОН', 'НАКЛОН', 'СМЕЩЕНИЕ', '편향', '바이어스', '偏向', '倾向', 'الميل', 'الانحياز']],
+  ['CONFIDENCE', ['УВЕРЕННОСТЬ', '신뢰도', '확신도', '置信度', '信心', 'الثقة']],
+  ['COUNTED', ['ПОДСЧЁТ', 'ПОДСЧЕТ', 'ПОСЧИТАНО', 'УЧТЕНО', '집계', '카운트', '计数', '统计', 'العدد', 'المحسوب']],
+  ['WHY', ['ПОЧЕМУ', 'ПРИЧИНЫ', '이유', '왜', '原因', '为什么', 'لماذا', 'الأسباب']],
+  ['RAID_SETUP', ['НАСТРОЙКА_РЕЙДА', 'НАСТРОЙКА РЕЙДА', 'СЕТАП_РЕЙДА', 'СЕТАП РЕЙДА', '레이드_설정', '레이드 설정', '突袭设置', '猎杀设置', 'إعداد_الغارة', 'إعداد الغارة']],
+  ['RAID_TARGET', ['ЦЕЛЬ_РЕЙДА', 'ЦЕЛЬ РЕЙДА', '레이드_목표', '레이드 목표', '突袭目标', '猎杀目标', 'هدف_الغارة', 'هدف الغارة']],
+  ['RAID_TRIGGER', ['ТРИГГЕР_РЕЙДА', 'ТРИГГЕР РЕЙДА', '레이드_트리거', '레이드 트리거', '突袭触发', '猎杀触发', 'محفز_الغارة', 'محفز الغارة']],
+  ['LEVELS', ['УРОВНИ', '레벨', '수준', '가격대', '价位', '水平', '关键位', 'المستويات']],
+  ['CATALYSTS', ['КАТАЛИЗАТОРЫ', '촉매', '촉매제', '催化剂', 'المحفزات']],
+  ['CHART_ANALYSIS', ['АНАЛИЗ_ГРАФИКА', 'АНАЛИЗ ГРАФИКА', '차트_분석', '차트 분석', '图表分析', 'تحليل_الرسم', 'تحليل الرسم البياني', 'تحليل الرسم']],
+  ['PATTERNS', ['ПАТТЕРНЫ', 'ФИГУРЫ', 'МОДЕЛИ', '패턴', '形态', '模式', 'الأنماط']],
+  ['WAIT_FOR', ['ЖДАТЬ', 'ОЖИДАТЬ', 'ЧЕГО_ЖДАТЬ', 'ЧЕГО ЖДАТЬ', 'ЖДАТЬ_ЧЕГО', '대기', '기다릴_것', '기다릴 것', '等待', 'انتظر', 'انتظار']],
+  ['REASONING', ['ОБОСНОВАНИЕ', 'РАССУЖДЕНИЕ', 'АРГУМЕНТАЦИЯ', '추론', '근거', '推理', '理由', 'الاستدلال', 'التعليل']],
+  ['SIDES', ['СТОРОНЫ', 'ПОЛОЖЕНИЕ', '위치', '位置', 'المواقع']],
+] as const).flatMap(([en, names]) => names.map((n) => [n.toUpperCase(), en])));
+const ENGLISH_HEADERS = ['SIGNAL', 'BIAS_LEAN', 'CONFIDENCE', 'COUNTED', 'WHY', 'RAID_SETUP', 'RAID_TARGET', 'RAID_TRIGGER', 'LEVELS', 'CATALYSTS', 'CHART_ANALYSIS', 'PATTERNS', 'WAIT_FOR', 'REASONING', 'SIDES'];
+const HEADER_LINE = new RegExp(
+  `^(\\s*[*_]*)(${[...Object.keys(TRANSLATED_HEADERS), ...ENGLISH_HEADERS].sort((a, b) => b.length - a.length).map((h) => h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})([*_]*)\\s*([:：])`,
+  'gimu',
+);
+
+/** Translated header names (and a full-width colon) at the start of a line become the English header the parser reads. An English header
+ *  with an ASCII colon is left exactly as written, so an English answer is returned unchanged. */
+export function normalizeHeaders(text: string): string {
+  return text.replace(HEADER_LINE, (whole, pre: string, name: string, post: string, colon: string) => {
+    const upper = name.toUpperCase();
+    const en = TRANSLATED_HEADERS[upper];
+    if (!en && colon === ':') return whole;
+    return `${pre}${en ?? upper}${post}:`;
+  });
+}
+
+/** The SIDES line ("SIDES: EMA9 ABOVE | SMA200 BELOW | VWAP ABOVE"), or undefined when there is none or it names nothing readable. */
+function parseSides(clean: string): CombinedResult['sides'] {
+  const line = clean.split('\n').map((l) => l.replace(/\*+/g, '').trim()).find((l) => /^SIDES\s*:/i.test(l));
+  if (!line) return undefined;
+  const out: NonNullable<CombinedResult['sides']> = {};
+  for (const m of line.matchAll(/(EMA\s?9|SMA\s?200|VWAP)\s*[:=]?\s*(ABOVE|BELOW)/gi)) {
+    const t = /VWAP/i.test(m[1]) ? 'vwap' : /SMA/i.test(m[1]) ? 'sma200' : 'ema9';
+    out[t] = m[2].toLowerCase() as 'above' | 'below';
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 // Match a field label that Grok may wrap in **bold**
 function fieldRx(name: string): RegExp {
   return new RegExp('\\*{0,2}' + name + '\\*{0,2}:\\s*', 'i');
@@ -931,9 +1002,14 @@ function fieldRx(name: string): RegExp {
    pins that it returns null rather than defaulting. Un-exporting is what makes the safe path the
    only reachable one; a comment asking callers to prefer it is not a mechanism.
    Nothing outside this file imported it - checked before removing the keyword. */
-function parseCombinedResponse(text: string, tf: string, session: string, nowMs: number = Date.now()): CombinedResult {
+function parseCombinedResponse(rawText: string, tf: string, session: string, nowMs: number = Date.now()): CombinedResult {
+  // Translated header names become the English ones first (a no-op for an English answer).
+  const text = normalizeHeaders(rawText);
   // Normalise: strip leading ** from every line so field detection works
-  const clean = text.split('\n').map(l => l.replace(/^\*{1,2}/, '').replace(/\*{1,2}$/, '')).join('\n');
+  const edged = text.split('\n').map(l => l.replace(/^\*{1,2}/, '').replace(/\*{1,2}$/, '')).join('\n');
+  // The SIDES line is read here and then removed, so it can never end up inside a prose field that runs to the next header (or to the end).
+  const sides = parseSides(edged);
+  const clean = sides === undefined ? edged : edged.split('\n').filter((l) => !/^\s*SIDES\s*:/i.test(l)).join('\n');
 
   const pn = (s?: string): number | null => { const v = parseFloat((s ?? '').replace(/[,$]/g, '')); return isNaN(v) || v <= 0 ? null : v; };
 
@@ -984,17 +1060,19 @@ function parseCombinedResponse(text: string, tf: string, session: string, nowMs:
     const m = line.match(/^\s*[-•]\s*(.+)/);
     if (!m) continue;
     const b = stripMd(m[1]);
-    if (!b || /^(none|n\/a|\[reason)/i.test(b) || b.split(/\s+/).length > WHY_MAX_WORDS) continue;
+    if (!b || /^(none|n\/a|\[reason)/i.test(b) || isNoneMarker(b) || b.split(/\s+/).length > WHY_MAX_WORDS) continue;
     if (why.length < WHY_MAX) why.push(b);
   }
 
   // CHART_ANALYSIS - stop at PATTERNS or WAIT_FOR or REASONING
-  const chartAnalysis = stripMd(
+  const chartAnalysisRaw = stripMd(
     clean.match(/CHART_ANALYSIS:\s*([\s\S]*?)(?=\n\*{0,2}PATTERNS\*{0,2}:|\n\*{0,2}WAIT_FOR\*{0,2}:|\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
   );
+  const chartAnalysis = isNoneMarker(chartAnalysisRaw) ? '' : chartAnalysisRaw;
 
-  // PATTERNS - list of detected chart patterns
+  // PATTERNS - list of detected chart patterns, each with the direction tag the prompt asks for (" | BEARISH"), read as an enum
   const patterns: string[] = [];
+  const patternBias: (PatternBias | null)[] = [];
   const patSect = clean.match(/PATTERNS:\s*\n([\s\S]*?)(?=\n\*{0,2}WAIT_FOR\*{0,2}:|\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? '';
   for (const line of patSect.split('\n')) {
     const m = line.match(/^-\s*(.+)/);
@@ -1004,8 +1082,13 @@ function parseCombinedResponse(text: string, tf: string, session: string, nowMs:
          Split on the semicolon and apply the "none" check to each part. Commas are left alone: they appear INSIDE
          one pattern's own description ("Bear flag, 4h"). */
       for (const part of stripMd(m[1]).split(/\s*;\s*/)) {
-        const p = part.trim();
-        if (p && p.toLowerCase() !== 'none detected' && p.toLowerCase() !== 'none') patterns.push(p);
+        const tag = /\s*\|\s*(BULLISH|BEARISH|NEUTRAL)\s*$/i.exec(part);
+        const p = (tag ? part.slice(0, tag.index) : part).trim();
+        // A "none" marker in any of the five languages is no pattern at all, never a pill.
+        if (p && p.toLowerCase() !== 'none detected' && p.toLowerCase() !== 'none' && !isNoneMarker(p)) {
+          patterns.push(p);
+          patternBias.push(tag ? (tag[1].toUpperCase() as PatternBias) : null);
+        }
       }
     }
   }
@@ -1014,7 +1097,7 @@ function parseCombinedResponse(text: string, tf: string, session: string, nowMs:
   const waitForRaw = stripMd(
     clean.match(/\*{0,2}WAIT_FOR\*{0,2}:\s*([\s\S]*?)(?=\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
   );
-  const waitFor = (waitForRaw && waitForRaw.toLowerCase() !== 'n/a' && waitForRaw.trim().length > 5)
+  const waitFor = (waitForRaw && waitForRaw.toLowerCase() !== 'n/a' && !isNoneMarker(waitForRaw) && waitForRaw.trim().length > 5)
     ? waitForRaw.trim()
     : null;
 
@@ -1022,23 +1105,28 @@ function parseCombinedResponse(text: string, tf: string, session: string, nowMs:
   const waitForRaw2 = stripMd(
     clean.match(/\*{0,2}WAIT_FOR\*{0,2}:\s*([\s\S]*?)(?=\n\*{0,2}RAID_SETUP\*{0,2}:|\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
   );
-  const waitForFinal = (waitForRaw2 && waitForRaw2.toLowerCase() !== 'n/a' && waitForRaw2.trim().length > 5)
+  const waitForFinal = (waitForRaw2 && waitForRaw2.toLowerCase() !== 'n/a' && !isNoneMarker(waitForRaw2) && waitForRaw2.trim().length > 5)
     ? waitForRaw2.trim() : waitFor;
 
   // RAID fields
   const raidRaw    = clean.match(/RAID_SETUP:\s*(SHORT SQUEEZE|LONG FLUSH|NONE)/i)?.[1]?.toUpperCase();
   const raidSetup  = raidRaw === 'SHORT SQUEEZE' ? 'SHORT SQUEEZE' : raidRaw === 'LONG FLUSH' ? 'LONG FLUSH' : null;
   const raidTargetRaw  = stripMd(clean.match(/RAID_TARGET:\s*([^\n]+)/i)?.[1] ?? '');
-  const raidTarget = (raidTargetRaw && !/^n\/a$/i.test(raidTargetRaw.trim())) ? raidTargetRaw.trim() : null;
+  const raidTarget = (raidTargetRaw && !/^n\/a$/i.test(raidTargetRaw.trim()) && !isNoneMarker(raidTargetRaw)) ? raidTargetRaw.trim() : null;
   const raidTriggerRaw = stripMd(clean.match(/RAID_TRIGGER:\s*([^\n]+)/i)?.[1] ?? '');
-  const raidTrigger = (raidTriggerRaw && !/^n\/a$/i.test(raidTriggerRaw.trim())) ? raidTriggerRaw.trim() : null;
+  const raidTrigger = (raidTriggerRaw && !/^n\/a$/i.test(raidTriggerRaw.trim()) && !isNoneMarker(raidTriggerRaw)) ? raidTriggerRaw.trim() : null;
 
   // REASONING - handle **REASONING:** pattern
-  const reasoning = stripMd(
+  const reasoningRaw = stripMd(
     clean.match(/\*{0,2}REASONING\*{0,2}:\s*([\s\S]+)/i)?.[1] ?? ''
   );
+  const reasoning = isNoneMarker(reasoningRaw) ? '' : reasoningRaw;
 
-  return { signal, confidence, bias, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, why, citations: [], counted, checks: [], analyzedAt: Date.now(), tf, session };
+  /* The two optional fields are added only when present, so an answer without them parses to exactly the object it always did. */
+  const optional: Pick<CombinedResult, 'patternBias' | 'sides'> = {};
+  if (patternBias.some((b) => b !== null)) optional.patternBias = patternBias;
+  if (sides) optional.sides = sides;
+  return { signal, confidence, bias, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, why, citations: [], counted, checks: [], ...optional, analyzedAt: Date.now(), tf, session };
 }
 
 /** THE READ, REFUSED RATHER THAN DEFAULTED. Use this. `parseCombinedResponse` above still answers FLAT at 0% for an answer that
@@ -1117,7 +1205,7 @@ function ageText(ms: number): string {
  * carries NO age - an age we cannot derive is one we cannot stand behind. A stamp in the future is the model's error, so it gets no age
  * either, and the stamp stays visible so a reader can see what was claimed. */
 function formatCatalyst(raw: string, nowMs: number): string | null {
-  if (!raw || /^none\b/i.test(raw)) return null;
+  if (!raw || /^none\b/i.test(raw) || isNoneMarker(raw)) return null;
   const parts = raw.split('|').map((p) => p.trim()).filter(Boolean);
   if (parts.length < 3) return null;
   const when = parts[parts.length - 1];
@@ -1134,6 +1222,21 @@ function formatCatalyst(raw: string, nowMs: number): string | null {
 
 /** The perps-vs-spot reading's "could not be measured" sentence (lib/perpSpot.ts), as it reaches the prompt. */
 const SPOT_UNAVAILABLE = 'Spot data unavailable for this coin';
+
+/** The sentences the server adds to a read's reasoning, as label templates (ARENA_READ_NOTE_*), so a ko/zh/ru/ar read gets them in its own
+ *  language. `verdict` names the tiers in that language ({shown} / {said}); without it the enum is printed, as the English note always did.
+ *  ENGLISH_READ_NOTES equal the label defaults in lib/labelDefaults.en.json byte for byte. */
+export interface ReadNotes {
+  tierUnchecked: string;
+  tierCounted: string;
+  spotMissing: string;
+  verdict?: Partial<Record<CombinedResult['signal'], string>>;
+}
+export const ENGLISH_READ_NOTES: ReadNotes = {
+  tierUnchecked: '(Shown as {shown}: the answer did not state its signal count, so {said} could not be checked.)',
+  tierCounted: '(Shown as {shown}: {bullish} bullish against {bearish} bearish signals were counted, which does not support {said}.)',
+  spotMissing: 'The perps-vs-spot check was unavailable for this coin, so confidence was not adjusted for it.',
+};
 
 type Tier = CombinedResult['signal'];
 
@@ -1161,7 +1264,7 @@ function tierFromCounts(c: { bullish: number; bearish: number }): Tier {
  *  - With no liquidation cluster data a raid cannot be judged (#1631 B): any raid the model wrote anyway is dropped.
  *  - A perps-vs-spot check that could not be measured must be SAID (the prompt requires it); when the reasoning does not, it is added.
  *  Everything changed is listed in `checks`. */
-export function applyResultChecks(result: CombinedResult, prompt: string): CombinedResult {
+export function applyResultChecks(result: CombinedResult, prompt: string, notes: ReadNotes = ENGLISH_READ_NOTES): CombinedResult {
   const r: CombinedResult & { checks: string[] } = { ...result, checks: [...(result.checks ?? [])] };
 
   /* PROSE MUST NOT CONTRADICT THE INPUTS (PM audit 2026-11-17: "price below EMA9 / below VWAP" while price was above both). A claim that states the wrong side of EMA9, SMA200 or VWAP is fixed or dropped, never shown,
@@ -1197,9 +1300,43 @@ export function applyResultChecks(result: CombinedResult, prompt: string): Combi
       }
       r.catalysts = nextCat;
     }
+
+    /* THE SAME RULE IN ANY LANGUAGE (QA review of #2569). The pass above reads English direction words, so a ko/zh/ru/ar read went through
+       it unchecked. This pass compares structured things only: the SIDES the model declared against the prompt's numbers (a sentence naming
+       a misread indicator is dropped), a price written next to EMA9 / SMA200 against the input, and each level's type against the close.
+       Same fallback as above: reasoning and chartAnalysis are never emptied by it. */
+    const misread = misreadSides(r.sides, inputs);
+    if (misread.length) r.checks.push(`declared side wrong for ${misread.join(', ')}`);
+    for (const field of ['reasoning', 'chartAnalysis', 'waitFor', 'raidTrigger'] as const) {
+      const cur = r[field];
+      if (typeof cur !== 'string' || !cur) continue;
+      const { text, dropped } = dropStructuredContradictions(cur, inputs, misread);
+      if (dropped.length) {
+        (r as unknown as Record<string, string | null>)[field] = text.trim() ? text : (field === 'reasoning' || field === 'chartAnalysis' ? cur : null);
+        note2(field, dropped);
+      }
+    }
+    for (const list of ['why', 'catalysts'] as const) {
+      const items = r[list];
+      if (!Array.isArray(items)) continue;
+      const next: string[] = [];
+      for (const it of items) {
+        const { text, dropped } = dropStructuredContradictions(it, inputs, misread);
+        if (dropped.length) note2(list, dropped);
+        if (text.trim()) next.push(text);
+      }
+      r[list] = next;
+    }
+    const keptLevels = r.levels.filter((l) => !levelContradictsClose(l, inputs));
+    if (keptLevels.length !== r.levels.length) {
+      r.checks.push(`level dropped: type contradicts the close (${r.levels.filter((l) => levelContradictsClose(l, inputs)).map((l) => `${l.type} ${l.price}`).join(', ')})`);
+      r.levels = keptLevels;
+    }
   }
 
   const said = r.signal;
+  const fill = (template: string, vars: Record<string, string | number>) => template.replace(/\{(\w+)\}/g, (whole, k: string) => (k in vars ? String(vars[k]) : whole));
+  const tierName = (t: Tier) => notes.verdict?.[t] ?? t;
   const note = (s: string) => { r.reasoning = `${r.reasoning}${r.reasoning ? ' ' : ''}${s}`; };
   const show = (tier: Tier) => {
     r.signal = tier;
@@ -1211,7 +1348,7 @@ export function applyResultChecks(result: CombinedResult, prompt: string): Combi
     if (said === 'BULLISH' || said === 'BEARISH') {
       const lean: Tier = said === 'BULLISH' ? 'LEAN BULLISH' : 'LEAN BEARISH';
       r.checks.push(`${said} shown as ${lean}: no readable COUNTED line, so the tier could not be checked`);
-      note(`(Shown as ${lean}: the answer did not state its signal count, so ${said} could not be checked.)`);
+      note(fill(notes.tierUnchecked, { shown: tierName(lean), said: tierName(said) }));
       show(lean);
     } else if (said !== 'FLAT') {
       r.checks.push(`${said} not checked: no readable COUNTED line`);
@@ -1219,7 +1356,7 @@ export function applyResultChecks(result: CombinedResult, prompt: string): Combi
   } else if (!tierAllowed(said, r.counted)) {
     const tier = tierFromCounts(r.counted);
     r.checks.push(`${said} shown as ${tier}: ${r.counted.bullish} bullish vs ${r.counted.bearish} bearish counted`);
-    note(`(Shown as ${tier}: ${r.counted.bullish} bullish against ${r.counted.bearish} bearish signals were counted, which does not support ${said}.)`);
+    note(fill(notes.tierCounted, { shown: tierName(tier), said: tierName(said), bullish: r.counted.bullish, bearish: r.counted.bearish }));
     show(tier);
   }
 
@@ -1231,7 +1368,7 @@ export function applyResultChecks(result: CombinedResult, prompt: string): Combi
   // PM's audit of #1668: any "spot" ("BTC spot ETF inflows") used to count as the disclosure. It must name the perps-vs-spot check.
   if (prompt.includes(SPOT_UNAVAILABLE) && !/perps?[\s-]*(vs\.?|versus|against)[\s-]*spot|spot[\s-]*(data|volume|activity|led|reading)|futures[\s-]*led/i.test(r.reasoning)) {
     r.checks.push('perps-vs-spot disclosure added');
-    r.reasoning = `${r.reasoning}${r.reasoning ? ' ' : ''}The perps-vs-spot check was unavailable for this coin, so confidence was not adjusted for it.`;
+    r.reasoning = `${r.reasoning}${r.reasoning ? ' ' : ''}${notes.spotMissing}`;
   }
 
   /* INTERNAL NAMES MUST NOT REACH A READER (#1631, owner's screenshot 2026-11-10: "clear bearish
@@ -1426,13 +1563,32 @@ export function readLanguageInstruction(locale: ReadLocale): string {
   const name = READ_LANGUAGE_NAMES[locale];
   return [
     `=== LANGUAGE: ${name.toUpperCase()} (${locale}) ===`,
-    `Write every free-text value in ${name}: the WHY reasons, the level labels, the RAID_TRIGGER sentence, the catalyst claims, CHART_ANALYSIS, the PATTERNS names, WAIT_FOR and REASONING.`,
+    `Translate VALUES only, never keys. Write every free-text value in ${name}: the WHY reasons, the level labels, the RAID_TRIGGER sentence, the catalyst claims, CHART_ANALYSIS, the PATTERNS names, WAIT_FOR and REASONING.`,
     'Keep these exactly as specified, in English, because the answer is read by a program:',
-    '- every field name with its colon: SIGNAL:, BIAS_LEAN:, CONFIDENCE:, COUNTED:, WHY:, RAID_SETUP:, RAID_TARGET:, RAID_TRIGGER:, LEVELS:, CATALYSTS:, CHART_ANALYSIS:, PATTERNS:, WAIT_FOR:, REASONING:',
+    '- every header exactly in English, with its colon, never translated: SIGNAL:, BIAS_LEAN:, CONFIDENCE:, COUNTED:, SIDES:, WHY:, RAID_SETUP:, RAID_TARGET:, RAID_TRIGGER:, LEVELS:, CATALYSTS:, CHART_ANALYSIS:, PATTERNS:, WAIT_FOR:, REASONING:',
     '- the values of SIGNAL, BIAS_LEAN and RAID_SETUP: BULLISH, LEAN BULLISH, FLAT, LEAN BEARISH, BEARISH, NEUTRAL, SHORT SQUEEZE, LONG FLUSH, NONE',
-    '- the whole COUNTED line, the words support and resistance in LEVELS, N/A, "None detected", "- None in input"',
-    '- the catalyst time in the format YYYY-MM-DD HH:MM UTC, coin tickers, prices and numbers.',
+    '- the whole COUNTED line, the words support and resistance in LEVELS, the direction tag at the end of each PATTERNS line (| BULLISH, | BEARISH, | NEUTRAL)',
+    '- for an empty field or an empty list write the English token NONE, never a translated word for "none"',
+    '- the catalyst time in the format YYYY-MM-DD HH:MM UTC, indicator names (EMA 9, SMA 200, VWAP), coin tickers, prices and numbers.',
+    'Directly after the COUNTED line, add one line in exactly this form, stating where the last close sits against each indicator in the data above:',
+    'SIDES: EMA9 [ABOVE or BELOW] | SMA200 [ABOVE or BELOW] | VWAP [ABOVE or BELOW]',
   ].join('\n');
+}
+
+/* ── THE OUTPUT CAP PER READ (QA review of #2569, item 5) ──────────────────────────────────────────────────────────────────────────────
+ * A Russian read measured about 1.9x the bytes of the English one, so the English caps would cut a translated read off. English keeps its caps
+ * exactly. For the other languages: max(current cap, ceil(en p95 x 2.2)), rounded up to the next 50. The en p95 is from the dev usage log
+ * (completion_tokens, last 60 days, measured by QA 2026-11-18): Quick 1,191 (n=4, max 1,201) and Deep 2,251 (n=24, max 2,345). Small
+ * samples, Quick especially - revisit once the log holds more non-English reads. */
+export const READ_OUTPUT_CAPS = {
+  en: { quickGrok: 800, quickClaude: 1600, deep: 2000 },
+  translated: { quick: 2650, deep: 5000 },
+} as const;
+
+export function readOutputCap(type: 'quick' | 'deep', engine: 'grok' | 'claude', locale: ReadLocale): number {
+  const en = type === 'deep' ? READ_OUTPUT_CAPS.en.deep : engine === 'grok' ? READ_OUTPUT_CAPS.en.quickGrok : READ_OUTPUT_CAPS.en.quickClaude;
+  if (locale === 'en') return en;
+  return Math.max(en, type === 'deep' ? READ_OUTPUT_CAPS.translated.deep : READ_OUTPUT_CAPS.translated.quick);
 }
 
 /* callGrokQuick / callGrokCombined / callGrok and their parseResponse helper
