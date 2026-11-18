@@ -49,11 +49,16 @@ test.describe('#2185 the hero VWAP while the market read loads', () => {
     expect(hasFigure(during), 'a figure appeared before the snapshot answered').toBe(false);
   });
 
-  test('V2. a snapshot that fails (500) shows "Unavailable"', async ({ page }) => {
-    await page.route(SNAP, route => route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"qa: forced"}' }));
+  /* V2 RE-PINNED (#2555, owner order 2026-11-18: "no failing data"): a snapshot that FAILS (500) no longer shows "Unavailable". The VWAP row is LEFT OUT (the landing hero hides a failed row: real value, last good, or hide the row), and nothing on the hero reads "Unavailable". The control is that the request WAS answered with the 500 first, and that the row is present (a dash, no note) while the read is still in flight (V1). */
+  test('V2. a snapshot that fails (500) hides the VWAP row: no "Unavailable", no figure, no bare dash left behind', async ({ page }) => {
+    let answered = 0;
+    await page.route(SNAP, route => { answered++; return route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"qa: forced"}' }); });
     await open(page);
-    await expect.poll(() => vwapRow(page), { timeout: 40_000, message: 'a failed read never produced "Unavailable"' }).toMatch(/unavailable/i);
-    console.log(`[V2] after the failure: "${await vwapRow(page)}"`);
+    await expect.poll(() => answered, { timeout: 40_000, message: 'CONTROL: the snapshot was never requested, so nothing about a failed read was exercised' }).toBeGreaterThan(0);
+    await expect.poll(() => vwapRow(page), { timeout: 40_000, message: 'the failed VWAP row is still on the page' }).toBe('ROW NOT FOUND');
+    const hero = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' '));
+    expect(hero, 'the page says "Unavailable" for a failed read').not.toMatch(/\bunavailable\b/i);
+    console.log(`[V2] after the failure the VWAP row is gone (requests answered with 500: ${answered})`);
   });
 
   test('V3. ok then 500 keeps the last VWAP and shows no "Unavailable"', async ({ page }) => {

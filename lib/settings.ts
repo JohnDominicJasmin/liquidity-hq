@@ -1,4 +1,6 @@
 import { createContext, useContext } from 'react';
+import { SQUEEZE_SCORE_MAX } from '@/lib/alertThresholdRanges';
+import { isValidSummaryHour } from '@/lib/dailySummaryPrefs';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -56,6 +58,14 @@ export interface UserSettings {
   /* The Arena strategy the trader picked (lib/strategies), or null for none. Separate from strategy_selection: that is indicator chips, this is a rule set that
      gives a buy/sell/wait verdict. An unknown id is treated as none on read. */
   arena_strategy:     string | null;
+  /* Telegram alert controls (owner sweep 2026-11-18), all null = not set. Quiet hours are whole hours 0-23 in `timezone` (end not included; start > end crosses
+     midnight); snooze is a time before which nothing is sent; paused is set by /pause in the bot or cleared by Resume. The cron reads them through lib/alertQuiet.ts. */
+  alert_quiet_start:  number | null;
+  alert_quiet_end:    number | null;
+  alert_snooze_until: string | null;
+  alert_paused:       boolean | null;
+  /* Hour (0-23) of the opt-in daily Telegram summary, in the user's own timezone. Null = never chosen, which means 07:00 (lib/dailySummary.ts). */
+  daily_summary_hour: number | null;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -90,6 +100,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
   arena_sound:        null,
   arena_sound_prefs:  null,
   arena_strategy:     null,
+  alert_quiet_start:  null,
+  alert_quiet_end:    null,
+  alert_snooze_until: null,
+  alert_paused:       null,
+  daily_summary_hour: null,
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -302,6 +317,8 @@ export function dropLegacyUnconfirmedKey() {
 
 // ── DB row ↔ UserSettings conversion ─────────────────────────────────────
 
+const isHour = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 23;
+
 export function rowToSettings(row: Record<string, unknown>): UserSettings {
   return {
     account_size:       +(row.account_size    ?? DEFAULT_SETTINGS.account_size),
@@ -319,7 +336,8 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     fng_greed:          +(row.fng_greed       ?? DEFAULT_SETTINGS.fng_greed),
     rsi_ob:             +(row.rsi_ob          ?? DEFAULT_SETTINGS.rsi_ob),
     rsi_os:             +(row.rsi_os          ?? DEFAULT_SETTINGS.rsi_os),
-    squeeze_threshold:  +(row.squeeze_threshold ?? DEFAULT_SETTINGS.squeeze_threshold),
+    // Shown capped at the highest squeeze score (80): a row saved at up to 95 before the cap would display a number no alert can reach.
+    squeeze_threshold:  Math.min(+(row.squeeze_threshold ?? DEFAULT_SETTINGS.squeeze_threshold), SQUEEZE_SCORE_MAX),
     anti_chop_enabled:  !!(row.anti_chop_enabled ?? DEFAULT_SETTINGS.anti_chop_enabled),
     telegram_chat_id:   String(row.telegram_chat_id ?? ''),
     beginner_mode:      !!(row.beginner_mode ?? false),
@@ -332,6 +350,11 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     arena_sound: typeof row.arena_sound === 'boolean' ? row.arena_sound : null,
     arena_sound_prefs: row.arena_sound_prefs && typeof row.arena_sound_prefs === 'object' && !Array.isArray(row.arena_sound_prefs) ? row.arena_sound_prefs as Record<string, unknown> : null,
     arena_strategy: typeof row.arena_strategy === 'string' && row.arena_strategy ? row.arena_strategy : null,
+    alert_quiet_start: isHour(row.alert_quiet_start) ? row.alert_quiet_start : null,
+    alert_quiet_end: isHour(row.alert_quiet_end) ? row.alert_quiet_end : null,
+    alert_snooze_until: typeof row.alert_snooze_until === 'string' && row.alert_snooze_until ? row.alert_snooze_until : null,
+    alert_paused: typeof row.alert_paused === 'boolean' ? row.alert_paused : null,
+    daily_summary_hour: isValidSummaryHour(row.daily_summary_hour) ? row.daily_summary_hour : null,
     strategy_params: (row.strategy_params && typeof row.strategy_params === 'object' && !Array.isArray(row.strategy_params))
       ? row.strategy_params as Record<string, Record<string, string | number | boolean>>
       : null,

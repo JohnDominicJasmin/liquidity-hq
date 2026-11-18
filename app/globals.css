@@ -3961,7 +3961,7 @@ html[data-theme="light"] { background: var(--bg0); }
 .frh-table th    { text-align: left; color: var(--txt3); font-weight: 600; padding: 3px 8px 7px; border-bottom: 0.5px solid var(--bdr); font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
 .frh-table td    { padding: 5px 8px; border-bottom: 0.5px solid var(--bdr); color: var(--txt2); font-variant-numeric: tabular-nums; vertical-align: middle; }
 .frh-table tr:last-child td { border-bottom: none; }
-.frh-coin        { font-weight: 700; color: var(--txt) !important; font-size: var(--fs-caption); width: 46px; }
+.frh-coin        { font-weight: 700; color: var(--txt) !important; font-size: var(--fs-caption); white-space: nowrap; }
 .frh-row         { cursor: pointer; transition: background 0.1s, box-shadow 0.1s; }
 .frh-row:hover   { background: rgba(255,255,255,0.04); }
 .frh-row.on      { background: rgba(26,122,255,0.11) !important; box-shadow: inset 3px 0 0 #1a7aff !important; }
@@ -9571,8 +9571,6 @@ html[data-sess="1"]:not([data-strat]):not([data-strat-none]) .strat-call-host { 
 .arena-more-details[open] > summary::after { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .arena-more-details > summary::after { transition: none; } }
 
-/* THE ARENA SUBTITLE IS TWO LINES ON A PHONE IN EVERY LANGUAGE (QA run 44212858022, /ru 360: at about 0.4 s the workspace below the header dropped 18 px, one caption line, when the translated text arrived with a different line count). The box is always two lines tall and a longer text is cut with an ellipsis. */
-@media (max-width: 639px) { .arena-subtitle { line-height: 1.3; min-height: 2.6em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; } }
 /* THE RUN ROW KEEPS ONE HEIGHT IN EVERY LANGUAGE ON A PHONE (#2500, QA run 44129793911, Russian at 360 px: the row was 80 px in English and the Russian labels arrived at ~440 ms and wrapped it to 165 px, pushing the chart down 103 px = CLS 0.136 / 0.271). Two columns, each button one clipped line, so the labels' language does not change the row's height. */
 @media (max-width: 639px) {
   .arena-run-row { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); }

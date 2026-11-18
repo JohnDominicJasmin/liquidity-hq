@@ -1,8 +1,13 @@
 import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { isTypeMuteCallback } from '@/lib/alertTypeMute';
+import { applyTypeMuteTap } from '@/lib/telegramTypeMute';
 import { rateLimit } from '@/lib/rateLimit';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { isQuietHour } from '@/lib/alertQuiet';
+import { planKindOfRow } from '@/lib/paidPeriod';
+import { BOT_HELP, BOT_NOT_LINKED, BOT_PAUSED, BOT_RESUMED, BOT_RESUMED_NO_PLAN, BOT_SAVE_FAILED, BOT_READ_FAILED, botStatusText } from '@/lib/telegramBotText';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,7 +52,9 @@ export async function POST(req: NextRequest) {
      Telegram redelivered, and the second pass told a successfully linked user the link had "expired". Every send below is guarded and the
      route always answers 200. */
   try {
-    if (update.callback_query) await handleConfirm(token, update.callback_query);
+    /* "Mute 1 h" / "Mute 4 h" on an alert (lib/alertTypeMute.ts) go to their own handler and never reach the link flow below. */
+    if (update.callback_query && isTypeMuteCallback(update.callback_query.data)) await handleTypeMute(token, update.callback_query);
+    else if (update.callback_query) await handleConfirm(token, update.callback_query);
     else if (update.message?.chat) await handleMessage(token, update.message);
   } catch (e) {
     console.error('[telegram/webhook] handler failed', e instanceof Error ? e.message : 'unknown');
@@ -94,7 +101,14 @@ async function handleMessage(token: string, message: NonNullable<TgUpdate['messa
     return;
   }
 
-  if (!/^\/start(@\w+)?(\s|$)/i.test(text)) return;
+  /* /status, /pause, /resume, /help (owner sweep 2026-11-18). Anything else in a private chat gets the /help list instead of silence; in a group
+     only a command is answered, so the bot never replies to ordinary conversation. Each acts only on the account linked to THIS chat. */
+  const cmd = /^\/([a-z]+)(@\w+)?(\s|$)/i.exec(text)?.[1]?.toLowerCase() ?? null;
+  if (cmd === 'status' || cmd === 'pause' || cmd === 'resume') { await say(await chatControl(cmd, String(chat.id))); return; }
+  if (cmd !== 'start') {
+    if (cmd || chat.type === 'private' || !chat.type) await say(BOT_HELP);
+    return;
+  }
 
   // `/start CODE` is the account-linking path. This is the ONLY way a telegram_chat_id gets written: the value comes from Telegram's own
   // update for a chat the sender demonstrably controls, never from a client that could name someone else's. See migration 20260807j.
@@ -137,6 +151,57 @@ async function handleMessage(token: string, message: NonNullable<TgUpdate['messa
     `You can send /stop at any time to disconnect.`,
     { reply_markup: { inline_keyboard: [[{ text: 'Confirm', callback_data: `link:${code}` }]] } },
   );
+}
+
+/** The reply to /status, /pause or /resume for the account linked to `chatId`. The bot is English-only for now (lib/telegramBotText.ts). */
+async function chatControl(cmd: 'status' | 'pause' | 'resume', chatId: string): Promise<string> {
+  const admin = getSupabaseAdmin();
+  if (cmd === 'pause' || cmd === 'resume') {
+    const patch = cmd === 'pause' ? { alert_paused: true } : { alert_paused: false, alert_snooze_until: null };
+    const { data, error } = await admin.from(T.user_settings)
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('telegram_chat_id', chatId)
+      .select('user_id');
+    if (error) return BOT_SAVE_FAILED;
+    if (!data?.length) return BOT_NOT_LINKED;
+    if (cmd === 'pause') return BOT_PAUSED;
+    /* A Free (lapsed) account is not told "on": the cron sends it nothing. A failed plan read falls back to the plain reply. */
+    const { data: sub, error: subErr } = await admin.from(T.user_subscriptions)
+      .select('role, trial_ends_at, current_period_end')
+      .eq('user_id', data[0].user_id)
+      .maybeSingle();
+    return !subErr && planKindOfRow(sub, Date.now()) === 'free' ? BOT_RESUMED_NO_PLAN : BOT_RESUMED;
+  }
+
+  const { data: s, error } = await admin.from(T.user_settings)
+    .select('user_id, timezone, alert_paused, alert_snooze_until, alert_quiet_start, alert_quiet_end')
+    .eq('telegram_chat_id', chatId)
+    .limit(1)
+    .maybeSingle();
+  if (error) return BOT_READ_FAILED;
+  if (!s?.user_id) return BOT_NOT_LINKED;
+  const { data: sub, error: subErr } = await admin.from(T.user_subscriptions)
+    .select('role, trial_ends_at, current_period_end')
+    .eq('user_id', s.user_id)
+    .maybeSingle();
+  if (subErr) return BOT_READ_FAILED;
+
+  const zone = typeof s.timezone === 'string' && s.timezone ? s.timezone : 'UTC';
+  const now = Date.now();
+  const until = s.alert_snooze_until ? Date.parse(String(s.alert_snooze_until)) : NaN;
+  const snoozed = Number.isFinite(until) && now < until;
+  let snoozeUntil: string | null = null;
+  if (snoozed) {
+    try { snoozeUntil = `${new Date(until).toLocaleString('en-GB', { timeZone: zone, weekday: 'short', hour: '2-digit', minute: '2-digit' })} (${zone})`; }
+    catch { snoozeUntil = `${new Date(until).toISOString().slice(0, 16).replace('T', ' ')} UTC`; }
+  }
+  const start = s.alert_quiet_start, end = s.alert_quiet_end;
+  return botStatusText({
+    plan: planKindOfRow(sub, now),
+    alerts: s.alert_paused === true ? 'paused' : snoozed ? 'snoozed' : 'on',
+    snoozeUntil: snoozeUntil && esc(snoozeUntil),
+    quiet: isQuietHour(start) && isQuietHour(end) && start !== end ? { start, end, timeZone: esc(zone) } : null,
+  });
 }
 
 async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_query']>) {
@@ -200,4 +265,14 @@ async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_q
   if (previousChat && previousChat !== String(chat.id)) {
     try { await tgCall(token, 'sendMessage', { chat_id: previousChat, text: 'This chat was disconnected: your LiquidityHQ account is now linked to a different chat, so alerts will no longer arrive here.' }); } catch { /* the old chat may be gone */ }
   }
+}
+
+/** A tap on "Mute 1 h" / "Mute 4 h" under an alert. Only the chat the button sits in is ever affected (lib/telegramTypeMute.ts); data outside the allowlist,
+ *  or a chat linked to no account, writes nothing. The callback is always answered so the button stops spinning; the answer carries text only when a mute was saved (or failed to save). */
+async function handleTypeMute(token: string, cb: NonNullable<TgUpdate['callback_query']>) {
+  const chatId = cb.message?.chat?.id;
+  let reply: string | null = null;
+  try { reply = await applyTypeMuteTap(chatId == null ? null : String(chatId), cb.data); }
+  catch (e) { console.error('[telegram/webhook] type mute failed', e instanceof Error ? e.message : 'unknown'); }
+  await tgCall(token, 'answerCallbackQuery', { callback_query_id: cb.id, ...(reply ? { text: reply } : {}) });
 }

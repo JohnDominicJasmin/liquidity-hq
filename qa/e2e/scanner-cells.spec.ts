@@ -126,7 +126,10 @@ for (const theme of ['dark', 'light'] as const) for (const width of [390, 768, 1
     await ctx.route(/\/api\/proxy\?.*type=bybit-tickers/, async (route) => { await route.fulfill({ status: 200, contentType: 'application/json', body: bybitBody }); });
     const page = await ctx.newPage();
     try {
-      await gotoGuarded(page, '/'); await page.waitForTimeout(16_000);
+      await gotoGuarded(page, '/');
+      /* RE-PINNED (#2555, QA 2026-11-18): the ticker now HIDES a coin with no price, so with only these 5 coins stubbed it has exactly 5 cells (it used to pad with dash cells); and a fixed 16 s wait lost a race on a slow runner (one attempt read every cell as "..."). Poll until the three coins carry a digit (max 45 s) instead. */
+      const readTicker = () => page.evaluate(() => { const cells = Array.from(document.querySelectorAll('.lpt-ticker > div')) as HTMLElement[]; const all = cells.map((c) => (c.innerText || '').replace(/\s+/g, ' ').trim()); const pick = (l: string) => all.find((t) => t.split(' ').includes(l)) ?? ''; return { n: all.length, ok: ['SOL', 'XRP', 'BNB'].every((k) => /\d/.test(pick(k))) }; });
+      await expect.poll(async () => { const r = await readTicker(); return r.n >= 5 && r.ok; }, { timeout: 45_000, message: 'SOL, XRP and BNB never carried a value in the ticker' }).toBe(true);
       const m = await page.evaluate(() => {
         const cells = Array.from(document.querySelectorAll('.lpt-ticker > div')) as HTMLElement[];
         const txt = (c: HTMLElement) => (c.innerText || '').replace(/\s+/g, ' ').trim();
@@ -137,7 +140,7 @@ for (const theme of ['dark', 'light'] as const) for (const width of [390, 768, 1
       console.log(`[K6] ${width} ${theme} ${JSON.stringify(m)}`);
       mkdirSync('qa/.shots', { recursive: true });
       await page.screenshot({ path: `qa/.shots/k6-landing-${width}-${theme}.png` });
-      expect(m.cells, 'the ticker did not render').toBeGreaterThan(5);
+      expect(m.cells, 'the ticker did not render (the 5 stubbed coins, BTC ETH SOL XRP BNB, must each have a cell)').toBeGreaterThanOrEqual(5);
       for (const [k, v] of [['SOL', m.sol], ['XRP', m.xrp], ['BNB', m.bnb]] as const) expect(v && /\d/.test(v), `${k} shows no value in the ticker: "${v}"`).toBeTruthy();
       expect(m.bareDash, 'a ticker cell holds a bare dash').toEqual([]);
     } finally { await ctx.close(); }

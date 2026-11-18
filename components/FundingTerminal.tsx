@@ -638,7 +638,7 @@ export default function FundingTerminal() {
                           onClick={() => { if (!noData) setSelected(id); }}
                           style={selected !== id && current != null ? { boxShadow: `inset 3px 0 0 ${withAlpha(frSignal(current).color, '44')}` } : undefined}
                         >
-                          <td className="frh-coin" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <td className="frh-coin">
                             {/* #1309 item 6: the row's onClick was the ONLY way to choose a coin, and a <tr>
                                 is not focusable, so a keyboard user could never leave BTC. A real button
                                 in the coin cell is: focusable, Enter/Space, announced with its pressed
