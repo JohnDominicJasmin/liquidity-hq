@@ -61,8 +61,7 @@ test('K8. the prompt no longer asks the model for the arithmetic', () => {
     assert.match(p, /the app applies the perps-vs-spot, session, WaveTrend and FREEZE adjustments/);
   }
 });
-// FINDING: reported, does not fail the run (todo)
-test('K9. THE CAP: a LEAN is 55-75% in the prompt\'s own band table, and stays <= 75 after the code adjustment', { todo: 'LEAN 70 + spot-led +10 + WaveTrend +5 shows 85 (band 55-75); the 75 cap only runs when the tier is corrected' }, () => {
+test('K9. THE CAP: a LEAN is 55-75% in the prompt\'s own band table, and stays <= 75 after the code adjustment', () => {
   const { quick } = prompts({ perpSpot: SPOT, waveTrend: 'CONFIRMING - x' }); // +15
   assert.match(quick, /LEAN BEARISH \/ LEAN BULLISH: 55.75% confidence/);
   const r = run(quick, 'LEAN BULLISH', 70, { bullish: 3, bearish: 1 });
