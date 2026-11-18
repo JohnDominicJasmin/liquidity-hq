@@ -4,6 +4,7 @@ import type { CoinId } from './marketStore.ts';
 import { fetchOHLCV, TF_BN, TF_BY } from './useEMAStrategy.ts';
 import { TF_MS, dropForming, msUntilNextClose } from './candles.ts';
 import { findStrategy, type StrategyResult } from './strategies/index.ts';
+import { strategyUnavailable, type Unavailable } from './strategies/availability.ts';
 import { fetchFundingHistory, fetchOiRelative, fetchTakerMap, fundingClassRelative } from './strategies/liveInputs.ts';
 
 export interface StrategySignalState {
@@ -12,6 +13,8 @@ export interface StrategySignalState {
   error: boolean;
   /** The picked strategy cannot run on this timeframe (it reads closed candles of 1m to 1d only). An honest end state, not a loading one. */
   unsupportedTf?: boolean;
+  /** The picked strategy cannot run on this coin or timeframe BY DESIGN (lib/strategies/availability.ts): the call box says why in one line; nothing is fetched. Not an error and not a quiet WAIT. */
+  unavailable?: Unavailable;
   /** Runs the read again now (the Retry button of the unavailable state). */
   retry?: () => void;
 }
@@ -31,6 +34,8 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
     const def = findStrategy(strategyId);
     const tfMs = TF_MS[tf];
     if (!def || !tfMs || !TF_BN[tf]) { setState({ result: null, loading: false, error: false, unsupportedTf: !!def }); return; }
+    const na = strategyUnavailable(def.id, coin, tfMs);
+    if (na) { setState({ result: null, loading: false, error: false, unavailable: na }); return; }
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const run = async () => {
