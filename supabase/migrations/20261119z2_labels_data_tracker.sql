@@ -2,7 +2,7 @@
 --
 -- Purpose: the label rows for #1651's data-tracker fixes (PR #2585): the alerts check-now line, the Macro headlines switch text, and the privacy
 -- policy's factual list of data sources. Three keys x 5 locales; en equals the shipped defaults. ko/zh/ru/ar AI-drafted, not native-reviewed.
---   ALERTS_FIRED_LIST       "Check Alerts Now" lists what is active and sends nothing, so it no longer says "Fired:".
+--   ALERTS_FIRED_LIST       "Check Alerts Now" lists the conditions met now and sends nothing, so it no longer says "Fired:".
 --   ALERTS_MACRO_NEWS_DESC  the "Macro headlines" switch now also covers the reminder before each macro release (app/api/macro-alert).
 --   PRIVACY_SECTION_THIRD_PARTY_BODY  names every data source the app calls and what each supplies (PM decision 2026-11-18; PM signs off).
 --                                    The processor names and the last two sentences are unchanged.
@@ -10,11 +10,11 @@
 --
 -- ===================== PROD =====================
 insert into lhq_labels (key, locale, value) values
-('ALERTS_FIRED_LIST','en','Active now (not sent): {list}'),
-('ALERTS_FIRED_LIST','ko','지금 활성 (전송 안 됨): {list}'),
-('ALERTS_FIRED_LIST','zh','当前生效（未发送）：{list}'),
-('ALERTS_FIRED_LIST','ru','Активно сейчас (не отправлено): {list}'),
-('ALERTS_FIRED_LIST','ar','نشط الآن (لم يُرسل): {list}'),
+('ALERTS_FIRED_LIST','en','Condition met now: {list}'),
+('ALERTS_FIRED_LIST','ko','현재 조건 충족: {list}'),
+('ALERTS_FIRED_LIST','zh','当前已满足条件：{list}'),
+('ALERTS_FIRED_LIST','ru','Условие выполнено сейчас: {list}'),
+('ALERTS_FIRED_LIST','ar','الشرط متحقق الآن: {list}'),
 ('ALERTS_MACRO_NEWS_DESC','en','Fed, inflation and jobs headlines, and a reminder about an hour before each release.'),
 ('ALERTS_MACRO_NEWS_DESC','ko','연준, 물가, 고용 관련 헤드라인과 각 발표 약 1시간 전 알림.'),
 ('ALERTS_MACRO_NEWS_DESC','zh','美联储、通胀和就业相关新闻，以及每次数据公布前约一小时的提醒。'),
@@ -29,11 +29,11 @@ on conflict (key, locale) do update set value = excluded.value, updated_at = now
 
 -- ===================== DEV =====================
 insert into lhq_dev_labels (key, locale, value) values
-('ALERTS_FIRED_LIST','en','Active now (not sent): {list}'),
-('ALERTS_FIRED_LIST','ko','지금 활성 (전송 안 됨): {list}'),
-('ALERTS_FIRED_LIST','zh','当前生效（未发送）：{list}'),
-('ALERTS_FIRED_LIST','ru','Активно сейчас (не отправлено): {list}'),
-('ALERTS_FIRED_LIST','ar','نشط الآن (لم يُرسل): {list}'),
+('ALERTS_FIRED_LIST','en','Condition met now: {list}'),
+('ALERTS_FIRED_LIST','ko','현재 조건 충족: {list}'),
+('ALERTS_FIRED_LIST','zh','当前已满足条件：{list}'),
+('ALERTS_FIRED_LIST','ru','Условие выполнено сейчас: {list}'),
+('ALERTS_FIRED_LIST','ar','الشرط متحقق الآن: {list}'),
 ('ALERTS_MACRO_NEWS_DESC','en','Fed, inflation and jobs headlines, and a reminder about an hour before each release.'),
 ('ALERTS_MACRO_NEWS_DESC','ko','연준, 물가, 고용 관련 헤드라인과 각 발표 약 1시간 전 알림.'),
 ('ALERTS_MACRO_NEWS_DESC','zh','美联储、通胀和就业相关新闻，以及每次数据公布前约一小时的提醒。'),
