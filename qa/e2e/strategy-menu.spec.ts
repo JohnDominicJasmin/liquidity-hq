@@ -1,6 +1,6 @@
 /* The ONE strategy menu on /arena (#2358, owner decision 2026-11-14 option A), signed in as account A. The settings write is STUBBED and recorded (nothing reaches the dev row); the settings READ is patched to play a saved
  * choice back. Candles are the real ones of the build under test (the CI stand-in market) unless a cell fails them on purpose.
- *   M1  the menu: Let the read choose, the fifteen strategies grouped as #2516 ships them, Custom; no old presets, no duplicate label, no raw key; in en and ru
+ *   M1  the menu: Let the read choose, the sixteen strategies grouped as #2516 ships them (+ bos_fvg, #2566), Custom; no old presets, no duplicate label, no raw key; in en and ru
  *   M2  PM's rules: picking a strategy never removes chips (six write arena_strategy ONLY; Bollinger squeeze ADDS BOLL and writes both in ONE request); a chip tap keeps the strategy; Let the read choose / Custom write arena_strategy: null only
  *   M3  the call box sits directly under the dropdown inside the same panel with name, description, verdict + reason, the signals-not-predictions line; Let the read choose and Custom show no call box; a failed candle read
  *       is the UNAVAILABLE state (never WAIT), and so is supply / demand when only the BTC read fails
@@ -14,9 +14,9 @@ import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_
 import { installPaidAiFence } from './_no-paid-ai';
 
 mkdirSync('qa/.shots', { recursive: true });
-/* THE MENU AS #2516 SHIPS IT (13 strategies, GROUPED: Beginner / Trend, Price action / SMC, Sessions): the option order in the DOM is the group order, not the registry order. */
-const IDS = ['ema_stack', 'ema_cross', 'range_bounce', 'liq_sweep_mss', 'supply_demand', 'sr_flip', 'fvg', 'channel', 'rsi_divergence', 'bb_squeeze', 'ny_open_breakout', 'session_sweep', 'vwap_reclaim', 'funding_oi_squeeze', 'cvd_absorption'];
-const NAMES_EN = ['EMA 20/50/100/200 stack', 'Golden / death cross (EMA 50/200)', 'Range bounce', 'Liquidity sweep + structure shift', 'Supply / demand zone retest', 'Support / resistance flip', 'Fair value gap', 'Channel breakout', 'RSI divergence', 'Bollinger squeeze breakout', 'New York open breakout', 'Asia / London session sweep', 'VWAP reclaim', 'Funding + OI squeeze', 'CVD absorption'];
+/* THE MENU AS #2516 + #2566 SHIP IT (16 strategies, GROUPED: Beginner / Trend, Price action / SMC, Sessions): the option order in the DOM is the group order, not the registry order. */
+const IDS = ['ema_stack', 'ema_cross', 'range_bounce', 'liq_sweep_mss', 'supply_demand', 'sr_flip', 'fvg', 'bos_fvg', 'channel', 'rsi_divergence', 'bb_squeeze', 'ny_open_breakout', 'session_sweep', 'vwap_reclaim', 'funding_oi_squeeze', 'cvd_absorption'];
+const NAMES_EN = ['EMA 20/50/100/200 stack', 'Golden / death cross (EMA 50/200)', 'Range bounce', 'Liquidity sweep + structure shift', 'Supply / demand zone retest', 'Support / resistance flip', 'Fair value gap', 'Break of structure + FVG', 'Channel breakout', 'RSI divergence', 'Bollinger squeeze breakout', 'New York open breakout', 'Asia / London session sweep', 'VWAP reclaim', 'Funding + OI squeeze', 'CVD absorption'];
 const OLD = ['Liquidity Sweep', 'Trend Follow', 'Mean Reversion'];
 
 type Open = { width?: number; theme?: 'dark' | 'light'; loc?: string; saved?: string | null; chips?: string[] | null; failKlines?: 'all' | 'btc' | null; coin?: string };

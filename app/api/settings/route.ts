@@ -7,6 +7,7 @@ import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { STRATEGY_IDS } from '@/lib/strategies';
 import { clampThreshold, isThresholdField } from '@/lib/alertThresholdRanges';
+import { isValidSummaryHour } from '@/lib/dailySummaryPrefs';
 import { isValidSoundPrefs } from '@/lib/arenaSoundPrefs';
 
 function sb(token: string) {
@@ -72,6 +73,7 @@ export async function PATCH(req: NextRequest) {
     'timezone',
     'strategy_selection', 'strategy_params', 'arena_strategy',
     'arena_sound',
+    'daily_summary_hour',
     'arena_sound_prefs',
   ];
   const payload: Record<string, unknown> = {};
@@ -110,6 +112,11 @@ export async function PATCH(req: NextRequest) {
   // The sound picker's object is checked field by field (lib/arenaSoundPrefs.ts): a known sound id, volume 0-1, three booleans, nothing else.
   if ('arena_sound_prefs' in payload && !isValidSoundPrefs(payload.arena_sound_prefs)) {
     return NextResponse.json({ error: 'Invalid arena_sound_prefs' }, { status: 400 });
+  }
+
+  // daily_summary_hour: a whole hour 0-23, or null for the default (07:00). Anything else is refused.
+  if ('daily_summary_hour' in payload && !isValidSummaryHour(payload.daily_summary_hour)) {
+    return NextResponse.json({ error: 'Invalid daily_summary_hour' }, { status: 400 });
   }
 
   // strategy_selection/strategy_params are jsonb - reject anything that isn't

@@ -29,8 +29,8 @@ function isSwingLow(c: readonly OHLCV[], j: number): boolean {
   for (let k = 1; k <= SWING; k++) if (!(c[j].low < c[j - k].low && c[j].low < c[j + k].low)) return false;
   return true;
 }
-/** Index of the most recent swing confirmed BEFORE candle i (j + SWING < i), within LOOKBACK, or -1. */
-function lastSwing(c: readonly OHLCV[], i: number, kind: 'high' | 'low'): number {
+/** Index of the most recent swing confirmed BEFORE candle i (j + SWING < i), within LOOKBACK, or -1. Exported for lib/strategies/bosFvg.ts, which reads the same swings. */
+export function lastSwing(c: readonly OHLCV[], i: number, kind: 'high' | 'low'): number {
   for (let j = i - SWING - 1; j >= Math.max(SWING, i - LOOKBACK); j--) {
     if (kind === 'high' ? isSwingHigh(c, j) : isSwingLow(c, j)) return j;
   }

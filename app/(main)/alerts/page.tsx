@@ -9,7 +9,9 @@ import { useSettings } from '@/lib/settings';
 import { readTypeMutes } from '@/lib/alertTypeMute';
 import { getAuthToken } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
-import { utcHourToLocalTime } from '@/lib/resetTime';
+import { DAILY_SUMMARY_ON_KEY, formatSummaryHour, summaryHour } from '@/lib/dailySummaryPrefs';
+import DailySummaryHourPicker from '@/components/DailySummaryHourPicker';
+import TelegramTestAlertButton from '@/components/TelegramTestAlertButton';
 import { withAlpha } from '@/lib/color';
 import AlertOutcomes from '@/components/AlertOutcomes';
 import CoinMultiSelect from '@/components/CoinMultiSelect';
@@ -79,14 +81,9 @@ export default function AlertsPage() {
   const { settings, loading: settingsLoading, refresh: refreshSettings } = useSettings();
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
 
-  // utcHourToLocalTime() uses the runtime's own timezone (toLocaleTimeString with
-  // no explicit zone), so it renders different text on the server (container's
-  // UTC clock) than the client's first hydration pass (viewer's local timezone) -
-  // a text-mismatch hydration error (React #418). Seed with a fixed UTC label
-  // (identical on server and the client's first paint), then swap to the real
-  // localized time once mounted - no flash, no mismatch.
-  const [dailySummaryLocalTime, setDailySummaryLocalTime] = useState('07:00 UTC');
-  useEffect(() => { setDailySummaryLocalTime(utcHourToLocalTime(7)); }, []);
+  // The daily summary is opt-in and goes out at the user's chosen hour in their own timezone (lib/dailySummary.ts). A saved setting, so
+  // no runtime-timezone text and no hydration mismatch.
+  const dailySummaryLocalTime = formatSummaryHour(summaryHour(settings.daily_summary_hour));
 
   // Derived from settings - no separate API call needed
   const isConnected = !settingsLoading && !!settings.telegram_chat_id;
@@ -552,7 +549,8 @@ export default function AlertsPage() {
   const botLink = botUsername ? `https://t.me/${botUsername}` : null;
   const botLabel = botUsername ? `@${botUsername}` : t('ALERTS_BOT_FALLBACK_NAME');
 
-  const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string }[] }[] = [
+  // optIn: the row's PRESENCE means on (lib/structurePrefs.ts model); every other item is opt-out (a row means muted).
+  const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string; optIn?: boolean }[] }[] = [
     { section: t('ALERTS_SECTION_MOMENTUM'), items: [
       { key: 'rsi',        dot: 'var(--amber)', title: t('ALERTS_RSI_TITLE'), desc: t('ALERTS_RSI_DESC') },
       { key: 'rapid_move', dot: 'var(--orange)', title: t('ALERTS_RAPID_MOVES_TITLE'),     desc: t('ALERTS_RAPID_MOVES_DESC') },
@@ -572,7 +570,7 @@ export default function AlertsPage() {
     ]},
     { section: t('ALERTS_SECTION_PRICE_SUMMARY'), items: [
       { key: 'price_alerts',  dot: '#9ba4ff', title: t('ALERTS_PRICE_LEVEL_TITLE'), desc: t('ALERTS_PRICE_LEVEL_DESC') },
-      { key: 'daily_summary', dot: 'var(--amber)', title: t('ALERTS_DAILY_SUMMARY_TITLE', { time: dailySummaryLocalTime }), desc: t('ALERTS_DAILY_SUMMARY_DESC', { time: dailySummaryLocalTime }) },
+      { key: DAILY_SUMMARY_ON_KEY, optIn: true, dot: 'var(--amber)', title: t('ALERTS_DAILY_SUMMARY_TITLE', { time: dailySummaryLocalTime }), desc: t('ALERTS_DAILY_SUMMARY_DESC', { time: dailySummaryLocalTime }) },
     ]},
   ];
 
@@ -665,6 +663,7 @@ export default function AlertsPage() {
               >
                 {testState === 'sending' ? t('ALERTS_TEST_SENDING') : testState === 'ok' ? t('ALERTS_TEST_SENT_OK') : testState === 'err' ? t('ALERTS_TEST_FAILED') : t('ALERTS_SEND_TEST_BUTTON')}
               </button>
+              <TelegramTestAlertButton />
               <button
                 className="tg-action-btn tg-btn-secondary"
                 onClick={disconnectTelegram}
@@ -1168,14 +1167,14 @@ export default function AlertsPage() {
               {group.section}
             </div>
             {group.items.map(c => {
-              const isMuted = muted.has(c.key);
+              const isMuted = c.optIn ? !muted.has(c.key) : muted.has(c.key);
               return (
                 <div key={c.key} className="tg-condition-row" style={{ opacity: isMuted ? 0.45 : 1, transition: 'opacity .15s' }}>
                   <span className="tg-cond-dot" style={{ background: isMuted ? 'var(--txt3)' : c.dot }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)' }}>
                       {c.title}
-                      {isMuted && <span style={{ marginLeft: 6, fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>{t('ALERTS_MUTED_BADGE')}</span>}
+                      {isMuted && !c.optIn && <span style={{ marginLeft: 6, fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>{t('ALERTS_MUTED_BADGE')}</span>}
                     </div>
                     <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
                     {/* The server sends only the mutes still running when the page loaded; the line names its end time, so a lapsed one reads correctly too. */}
@@ -1184,6 +1183,7 @@ export default function AlertsPage() {
                         {t('ALERTS_TYPE_MUTED_UNTIL', { time: new Date(typeMutes[c.key]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}
                       </div>
                     )}
+                    {c.optIn && !isMuted && <DailySummaryHourPicker />}
                   </div>
                   <button
                     role="switch"

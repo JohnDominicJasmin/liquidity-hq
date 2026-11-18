@@ -33,6 +33,8 @@ function createBeam(width: number, height: number): Beam {
 }
 
 const OPACITY_MAP = { subtle: 0.6, medium: 0.8, strong: 1 };
+/** Bitmap pixels per CSS pixel (see setup below). */
+const BITMAP_SCALE = 0.25;
 
 /* WCAG 2.2.2 Pause, Stop, Hide is Level A, and this component paints the FIRST
    thing a visitor sees on the public marketing homepage.
@@ -86,14 +88,21 @@ export function BeamsBackground({ intensity = 'strong' }: { intensity?: 'subtle'
       return { w: p ? p.offsetWidth : window.innerWidth, h: p ? p.offsetHeight : window.innerHeight };
     };
 
+    /* A QUARTER-RESOLUTION BITMAP, SCALED UP BY CSS (speed sweep, OWNER-RULES 21). Every frame blurs 30 beams on the main thread, and at full
+       device resolution that took about 1.4 s a frame on a 4x-throttled phone: the landing page's main thread was busy for 25-35 s of every
+       30, so its market data never started. The picture is nothing but heavily blurred gradients under a further 15 px CSS blur, so a bitmap
+       with one pixel per 4 CSS px holds the same image at about 1/16 (1/144 at 3x) of the work. A canvas blur is measured in BITMAP pixels
+       and ignores ctx.scale, so it was 35 / dpr CSS px before; `blurPx` keeps exactly that size at the new resolution. */
+    let blurPx = 35;
     const setup = () => {
       const dpr = window.devicePixelRatio || 1;
       const { w, h } = getSize();
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
+      canvas.width = Math.max(1, Math.round(w * BITMAP_SCALE));
+      canvas.height = Math.max(1, Math.round(h * BITMAP_SCALE));
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
-      ctx.scale(dpr, dpr);
+      ctx.scale(BITMAP_SCALE, BITMAP_SCALE);
+      blurPx = (35 * BITMAP_SCALE) / dpr;
       beamsRef.current = Array.from({ length: 30 }, () => createBeam(w, h));
     };
 
@@ -137,7 +146,7 @@ export function BeamsBackground({ intensity = 'strong' }: { intensity?: 'subtle'
     const animate = () => {
       const { w, h } = getSize();
       ctx.clearRect(0, 0, w, h);
-      ctx.filter = 'blur(35px)';
+      ctx.filter = `blur(${blurPx}px)`;
       const total = beamsRef.current.length;
       beamsRef.current.forEach((beam, i) => {
         if (!reduceMotion) {

@@ -1,4 +1,5 @@
-/* #2246 (#1651 follow-ups): the landing page's missing readings say which kind of missing, once, in the visitor's language, and the live-read card has no bare dash.
+/* RE-PINNED 2026-11-18 for #2555 (owner order "no failing data": real value, last good, or HIDE the row): the landing no longer prints "Unavailable" or a dash for a reading that failed; the cell or row is LEFT OUT. L1/L2/L3/L5 below now pin that; L4 (a value when the read answers) and the shots are unchanged.
+ * #2246 (#1651 follow-ups), as it was: the landing page's missing readings say which kind of missing, once, in the visitor's language, and the live-read card has no bare dash.
  *
  *   L1  ticker, Binance refused: a coin with NEITHER a price nor a 24H change (HYPE: the Bybit stub does not carry it) says "Unavailable" ONCE, never "n/a n/a", never a dash
  *   L2  live-read card: OI trend, CB prem and OI 1h each read a value, an ellipsis or "Unavailable"; no bare dash; OI 1h has no second dash as a note
@@ -40,41 +41,49 @@ test.describe('#2246 landing honest states', () => {
   test.describe.configure({ timeout: 150_000 });
 
   for (const width of [1280, 390]) {
-    test(`L1. ticker at ${width}px: a coin with neither price nor change says Unavailable once`, async ({ browser }) => {
+    test(`L1. ticker at ${width}px: a coin with neither price nor change is LEFT OUT (no Unavailable, no n/a, no dash); the coins with a quote show it`, async ({ browser }) => {
       const ctx = await browser.newContext({ viewport: { width, height: 900 } }); await setup(ctx); const page = await ctx.newPage();
       try {
-        await gotoGuarded(page, '/'); await page.waitForTimeout(16_000);
+        await gotoGuarded(page, '/');
+        await expect.poll(async () => (await page.evaluate(() => document.querySelectorAll('.lpt-ticker > div').length)), { timeout: 45_000, message: 'CONTROL: the ticker never rendered' }).toBeGreaterThanOrEqual(3);
+        await page.waitForTimeout(6_000);
         const hype = await ticker(page, 'HYPE'); const all = await page.evaluate(() => Array.from(document.querySelectorAll('.lpt-ticker > div')).map(e => ((e as HTMLElement).innerText || '').replace(/\s+/g, ' ').trim()));
-        const naNa = all.filter(t => /n\/a\s+n\/a/i.test(t)); const dash = all.filter(t => /(^|\s)-(\s|$)/.test(t));
-        console.log(`[L1] ${width} HYPE="${hype}" cells=${all.length} "n/a n/a"=${naNa.length} bare dash=${dash.length} sample=${JSON.stringify(all.slice(0, 6))}`);
-        expect(hype, 'the HYPE cell was not found').not.toBeNull();
-        /* PREMISE: HYPE has no quote. Since #2513 it has one, so there is no Unavailable word to read: env/premise skip for this assertion */
-        if (count(hype!, 'Unavailable') === 0 && /[+−-]\d/.test(hype!)) test.info().annotations.push({ type: 'env-skip', description: `HYPE shows a quote ("${hype}")` }); else
-        expect(count(hype!, 'Unavailable'), 'HYPE does not say Unavailable exactly once: "' + hype + '"').toBe(1);
-        expect(naNa, 'a cell still reads n/a n/a').toEqual([]); expect(dash, 'a cell holds a bare dash').toEqual([]);
+        const naNa = all.filter(t => /n\/a\s+n\/a/i.test(t)); const dash = all.filter(t => /(^|\s)-(\s|$)/.test(t)); const unav = all.filter(t => /unavailable/i.test(t));
+        console.log(`[L1] ${width} HYPE=${JSON.stringify(hype)} cells=${all.length} unavailable=${unav.length} n/a n/a=${naNa.length} bare dash=${dash.length} sample=${JSON.stringify(all.slice(0, 6))}`);
+        /* HYPE has no quote in this stub: after #2555 its cell is not drawn at all. If a quote ever exists for it the cell may show it, but never a word or a dash. */
+        if (hype !== null) expect(/[+−-]?\d/.test(hype), 'HYPE is drawn without a value: "' + hype + '"').toBe(true);
+        expect(unav, 'a ticker cell says Unavailable').toEqual([]); expect(naNa, 'a cell reads n/a n/a').toEqual([]); expect(dash, 'a cell holds a bare dash').toEqual([]);
+        for (const c of ['BTC', 'ETH', 'SOL']) { const v = await ticker(page, c); expect(v && /\d/.test(v), c + ' shows no value: "' + v + '"').toBeTruthy(); }
       } finally { await ctx.close(); }
     });
   }
 
-  test('L2. live-read card rows: a value, an ellipsis or Unavailable; no bare dash, no second dash in OI 1h', async ({ browser }) => {
+  test('L2. live-read card rows: a value or an ellipsis while loading; a row with no reading is LEFT OUT; never Unavailable, never a bare dash', async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await setup(ctx, { coinbase: true }); const page = await ctx.newPage();
     try {
-      await gotoGuarded(page, '/'); await page.waitForTimeout(18_000);
+      await gotoGuarded(page, '/'); await page.waitForTimeout(24_000);
       const r = await rows(page); console.log('[L2] ' + JSON.stringify(r));
+      expect(Object.values(r).filter((v) => v !== null).length, 'CONTROL: no live-read row was drawn at all (the card did not render)').toBeGreaterThan(0);
       for (const k of ['OI trend', 'CB prem', 'OI 1h']) {
-        expect(r[k], k + ' row not found').not.toBeNull();
-        expect(/^([+−-]?\d[\d.,]*%?|…|Unavailable|\.\.\.)(\s.*)?$/.test(r[k]!), `${k} reads "${r[k]}"`).toBe(true);
+        if (r[k] === null) continue;   // a row with no reading is hidden (#2555)
+        expect(/^([+−-]?\d[\d.,]*%?|…|\.\.\.)(\s.*)?$/.test(r[k]!), `${k} reads "${r[k]}"`).toBe(true);
+        expect(/unavailable/i.test(r[k]!), `${k} says Unavailable: "${r[k]}"`).toBe(false);
         expect(/(^|\s)[-—–](\s|$)/.test(r[k]!), `${k} holds a bare dash: "${r[k]}"`).toBe(false);
       }
     } finally { await ctx.close(); }
   });
 
-  test('L3. every source fails: OI trend, CB prem and OI 1h all say Unavailable', async ({ browser }) => {
+  test('L3. every source fails: the three live-read rows are LEFT OUT, and nothing on the page says Unavailable', async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await setup(ctx, { failAll: true }); const page = await ctx.newPage();
     try {
       await gotoGuarded(page, '/'); await page.waitForTimeout(30_000);
       const r = await rows(page); console.log('[L3] ' + JSON.stringify(r));
-      for (const k of ['OI trend', 'CB prem', 'OI 1h']) expect(r[k], `${k} after every read failed`).toMatch(/Unavailable/);
+      for (const k of ['OI trend', 'CB prem', 'OI 1h']) {
+        if (r[k] === null) continue;   // hidden: the intended state
+        expect(/unavailable/i.test(r[k]!) || /(^|\s)[-—–](\s|$)/.test(r[k]!), `${k} after every read failed shows a word or a dash instead of being left out: "${r[k]}"`).toBe(false);
+      }
+      const body = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' '));
+      expect(/OI trend[^|]{0,30}unavailable|CB prem[^|]{0,30}unavailable|OI 1h[^|]{0,30}unavailable/i.test(body), 'a live-read label is followed by Unavailable').toBe(false);
     } finally { await ctx.close(); }
   });
 
@@ -91,16 +100,16 @@ test.describe('#2246 landing honest states', () => {
   });
 
   for (const loc of ['ko', 'zh', 'ru']) {
-    test(`L5. /${loc}: the ticker word is the locale's own`, async ({ browser }) => {
+    test(`L5. /${loc}: a coin with no quote is LEFT OUT of the ticker, and the locale's own unavailable word is not shown`, async ({ browser }) => {
       const ctx = await browser.newContext({ viewport: { width: 390, height: 900 } }); await setup(ctx); const page = await ctx.newPage();
       try {
-        await gotoGuarded(page, '/' + loc); await page.waitForTimeout(16_000);
-        const hype = await ticker(page, 'HYPE'); console.log(`[L5] ${loc} HYPE="${hype}" url=${page.url()}`);
-        expect(hype, 'HYPE cell not found').not.toBeNull();
-        /* PREMISE: HYPE has NO quote, so the ticker shows the locale's "unavailable" word. Since #2513 HYPE has data (and a quote on this build), so there is nothing to read: the cell records an env/premise skip instead of failing; the word itself is still pinned for a coin that has no quote by the unit pins on the label. */
-        if (count(hype!, WORDS[loc]) === 0 && /[+−-]\d/.test(hype!)) { test.info().annotations.push({ type: 'env-skip', description: `HYPE shows a quote ("${hype}"): no unavailable word to read (#2513 gave HYPE data)` }); return; }
-        expect(count(hype!, WORDS[loc]), `the ${loc} word "${WORDS[loc]}" is not shown once: "${hype}"`).toBe(1);
-        expect(/n\/a|N\/A/i.test(hype!), 'an English n/a is left').toBe(false);
+        await gotoGuarded(page, '/' + loc);
+        await expect.poll(async () => (await page.evaluate(() => document.querySelectorAll('.lpt-ticker > div').length)), { timeout: 45_000, message: 'CONTROL: the ticker never rendered' }).toBeGreaterThanOrEqual(3);
+        await page.waitForTimeout(6_000);
+        const hype = await ticker(page, 'HYPE'); const all = await page.evaluate(() => Array.from(document.querySelectorAll('.lpt-ticker > div')).map(e => ((e as HTMLElement).innerText || '').replace(/\s+/g, ' ').trim()));
+        console.log(`[L5] ${loc} HYPE=${JSON.stringify(hype)} url=${page.url()} cells=${all.length}`);
+        if (hype !== null) expect(/[+−-]?\d/.test(hype), 'HYPE is drawn without a value: "' + hype + '"').toBe(true);
+        expect(all.filter((t) => t.includes(WORDS[loc]) || /n\/a|N\/A|unavailable/i.test(t)), 'a ticker cell shows an unavailable word').toEqual([]);
       } finally { await ctx.close(); }
     });
   }

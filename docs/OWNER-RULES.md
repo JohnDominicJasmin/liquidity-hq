@@ -766,6 +766,28 @@ Tracked on #1651.
   `dev` → `qa` → `staging` → `main`, a fix after the failure it fixes, the release steps.
 - **PM keeps the lanes full.** When one returns, the next queued item starts.
 
+## 25. NO WORDY TEXT. THE APP IS NOT AN ESSAY OR A DIARY.
+
+Owner, 2026-11-17, about the Arena AI read: *"i think this is too wordy"*. On the rest of the app: *"make sure not
+to have this wordy section this is not an essay or diary"*. Earlier the same day, about the Strategy panel: *"the text is number 1,
+wordy"*.
+
+Word budgets for every screen. Count the words before shipping, the way QA counts upsell strings:
+
+- **Labels and buttons:** 1–3 words.
+- **A verdict or status line:** 12 words or fewer.
+- **A card description or hint:** one line, 15 words or fewer. A page intro box is one line too, or it goes.
+- **A tooltip:** 20 words or fewer.
+- **AI output on screen:** a summary line, then at most 3 bullets of 12 words or fewer each. Anything
+  longer goes behind "More details". The prompt enforces it; the UI never shows a wall of text.
+- **No jargon a beginner cannot read** (no "regime", "dominance", "durability", "structure" stacked in one line), and no
+  forecasts (rule: describe what the data shows).
+- Legal text (the disclaimer and risk disclosure) is the one exception.
+
+A new screen or a new string is checked against these budgets before it ships. The PM audits screenshots for it.
+
+Tracked on #1185.
+
 ## Keeping this file true
 
 **RULES CHANGES GET A PR AND A READER. Added 2026-10-31, and the reason is this file own history.**
