@@ -123,7 +123,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   /* RESERVE ONLY ONCE THE HYPOTHESIS EXISTS (U3): a bad or foreign id answered 404 after the charge. A reserved use is given back when nothing reached the user (a failed or unusable xAI answer, a thrown call, an empty answer), exactly as /api/grok does; nothing is given back once xAI answered 2xx (the tokens are billed). */
   const role = plan.tier;
   const reservedOn = todayUtc();
-  const usageResult = await incrementToolUsage(authData.user.id, 'hypothesisAnalyze', role);
+  const usageResult = await incrementToolUsage(authData.user.id, 'hypothesisAnalyze', role, reservedOn);
   if (usageResult.blocked) {
     return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'hypothesis analyses'));
   }

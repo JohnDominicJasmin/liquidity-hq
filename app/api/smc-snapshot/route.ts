@@ -192,11 +192,13 @@ export async function POST(req: NextRequest) {
       // Only the cache-miss path spends on xAI, so only it needs the daily
       // cap - a cache hit within the 2min TTL stays free for everyone.
       const role = plan.tier;
-      const usageResult = await incrementToolUsage(authData.user.id, 'smcSnapshot', role);
+      /* The day is fixed BEFORE the reservation and the same day is written and refunded (#1631 U12). */
+      const on = todayUtc();
+      const usageResult = await incrementToolUsage(authData.user.id, 'smcSnapshot', role, on);
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason, authData.user.id);
       }
-      reserved.current = { userId: authData.user.id, on: todayUtc() };
+      reserved.current = { userId: authData.user.id, on };
 
       const candles = await fetchCandles(symbol, tf, 50);
       if (candles.length < 20) throw new Error('Not enough candle data - try a different timeframe');
@@ -251,9 +253,14 @@ export async function POST(req: NextRequest) {
      * cannot credit a read nobody paid for. It carries the reservation DATE as well as the user id
      * because refunding against today's date after a call crossed UTC midnight would credit a row
      * that never paid. */
+    /* #1631 U9: whether the use came back is said in the body (`refunded`), as /api/grok does. The refund allows 3 per user per
+     * UTC day and returns null after that; this route used to ignore the result, so the use stayed spent with no signal. */
+    let refund: { refunded?: boolean } = {};
     if (reserved.current) {
-      await refundToolUsage(reserved.current.userId, 'smcSnapshot', reserved.current.on);
+      const n = await refundToolUsage(reserved.current.userId, 'smcSnapshot', reserved.current.on);
+      if (n === null) console.warn('[smc-snapshot] the reserved use was NOT given back (daily refund limit reached, or the refund failed)');
+      refund = { refunded: n !== null };
     }
-    return apiError('smc-snapshot', e, 502, 'Request failed');
+    return apiError('smc-snapshot', e, 502, 'Request failed', refund);
   }
 }
