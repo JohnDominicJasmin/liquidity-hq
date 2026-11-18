@@ -65,6 +65,7 @@ export function detectBosFvg(candles: readonly OHLCV[], _ctx: StrategyContext): 
       if (first < 0) { if (!pending && k - b < RETURN_WINDOW) pending = st; continue; }
       if (first !== k) continue;
       const last = candles[k], entry = last.close;
+      if (!Number.isFinite(entry)) continue;   // a non-finite close is never an entry (QA review of #2566)
       if (long ? !(entry > st.bot) : !(entry < st.top)) continue;
       const stop = long ? st.bot : st.top;
       const drawn = overlayParts(candles, st, k);
