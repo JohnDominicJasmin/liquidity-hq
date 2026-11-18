@@ -253,7 +253,7 @@ test('X4. every cap is actually a cap - below the vendor default it replaces', (
      computed cap appearing here needs the same treatment, so it fails until someone says so. */
   const computed = SITES.filter((s) => s.capField !== null && s.capValue === null).map((s) => s.file);
   assert.deepEqual(
-    [...new Set(computed)], ['app/api/grok-chat/route.ts'],
+    [...new Set(computed)].sort(), ['app/api/grok-chat/route.ts', 'app/api/grok/route.ts'],   /* #2569: the Arena read computes its cap through readOutputCap(type, engine, locale); that function is tested behaviourally in __tests__/readOutputCap.test.mts */
     'a call site computes its cap instead of writing a literal. That is allowed, but the clamp needs ' +
     'its own behavioural test - a computed cap is only a cap if something bounds the input.',
   );
