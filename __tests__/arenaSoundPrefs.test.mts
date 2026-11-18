@@ -228,7 +228,15 @@ test('F1. the Free fallback is 30m: 15m lands on 30m, 1h is untouched, and 30m i
 });
 test('F2. both places use it, and only for a Free (not_entitled) account: Settings chip display and Arena load', () => {
   const st = src('app/(main)/settings/page.tsx'), ar = src('app/(main)/arena/page.tsx');
-  assert.ok(/const shownTf = entitlementStatus === 'not_entitled' && isGatedTf\(settings\.default_tf\) \? FREE_FALLBACK_TF : settings\.default_tf;/.test(st), 'Settings: only Free + a gated saved tf is shown as the fallback; a Pro account shows its own');
+  /* #2561 (QA review): while the plan is UNKNOWN a saved Pro-only tf shows NO chip selected; Free (not_entitled) shows the fallback; entitled shows its own. The expression is read out of the source and RUN over the whole table, so the behaviour is pinned, not its spelling. */
+  const m = /const shownTf = (isGatedTf\(settings\.default_tf\)[^;]*);/.exec(st); assert.ok(m, 'Settings: the shownTf expression was not found');
+  const shownTf = (status: string, saved: string) => new Function('isGatedTf', 'settings', 'entitlementStatus', 'FREE_FALLBACK_TF', 'return ' + m![1])((t: string) => ['1m', '5m', '15m'].includes(t), { default_tf: saved }, status, '30m');
+  assert.equal(shownTf('not_entitled', '15m'), '30m', 'Free with a saved 15m must show 30m');
+  assert.equal(shownTf('not_entitled', '1h'), '1h', 'Free with a saved 1h keeps 1h');
+  assert.equal(shownTf('entitled', '15m'), '15m', 'Pro with a saved 15m keeps 15m');
+  assert.equal(shownTf('unknown', '15m'), null, 'while the plan is unknown a saved Pro-only tf shows no chip selected');
+  assert.equal(shownTf('loading', '15m'), null, 'while the plan loads a saved Pro-only tf shows no chip selected');
+  assert.equal(shownTf('unknown', '1h'), '1h', 'a saved Free tf is shown as itself while the plan is unknown');
   assert.ok(/aria-pressed=\{shownTf === tf\}/.test(st));
   assert.ok(/const FREE_FALLBACK_TF = LIMIT_FREE_FALLBACK_TF as ChartTf;/.test(ar), 'Arena takes the fallback from lib/limits (one source)');
   assert.ok(/if \(authLoading \|\| entitlementsLoading \|\| entitlementStatus !== 'not_entitled'\) return;\s*if \(GATED_TFS\.includes\(readTf\)\) setReadTf\(FREE_FALLBACK_TF\);/.test(ar), 'Arena: clamp acts only for not_entitled, only on a gated tf');
