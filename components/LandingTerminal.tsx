@@ -274,6 +274,8 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
     document.documentElement.dir  = dir;
     return () => {
       document.body.classList.remove('landing');
+      /* data-landing is set before paint by RootDocument's landing-init for the first load; a client-side visit to the app must get its shell back. */
+      document.documentElement.removeAttribute('data-landing');
       document.documentElement.lang = prevLang;
       document.documentElement.dir  = prevDir;
     };
