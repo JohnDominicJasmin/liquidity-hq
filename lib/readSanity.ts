@@ -147,7 +147,7 @@ function sentences(text: string): string[] {
 /* A price written straight after an indicator name: "EMA9 ($63,980)", "EMA 9 на уровне 63 980", "VWAP 위 64,100". The gap may not contain
    another indicator name, a digit or a sentence end. A number followed by a letter or % (4h, 2%, 15m) is not a price. Spaces, commas and
    narrow no-break spaces are all thousands separators (ru writes 63 980). */
-const PRICE_AFTER = /^[^\d.!?。！？؟\n]{0,24}?\$?\s?(\d{1,3}(?:[ ,  ]\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?![\d%\p{L}])/u;
+const PRICE_AFTER = /^[^\d.!?。！？؟\n]{0,24}?\$?\s?(\d{1,3}(?:[ ,  ]\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?![\d%A-Za-z])/u;   // NOT \p{L}: a CJK character right after the number (zh/ko) must still count as the end of the price
 /** A number this far from the input is wrong. */
 const PRICE_TOLERANCE = 0.005;
 
