@@ -22,6 +22,9 @@ function buildStrategyPrompt(description: string): string {
     '',
     `STRATEGY DESCRIPTION: "${description}"`,
     '',
+    /* #1631 (audit 2026-11-16): the parameters and the Strong/Moderate/Weak rating came with no sample behind them and read as measured. */
+    'You have NO backtest, price data or trade results for this strategy: the sample size is zero. Do not state a win rate, expectancy, drawdown or any other figure as if it were measured. The parameters are starting points to test, not tested or optimised values. The edge rating is a judgement from general knowledge, not a measurement; say that in HONEST_ASSESSMENT.',
+    '',
     '=== ANALYSIS TASKS ===',
     '',
     '1. THEORETICAL_EDGE - Explain WHY this strategy would have positive expected value. What market inefficiency or behavioral pattern does it exploit? Be honest - if the edge is weak or well-known (i.e., alpha has decayed), say so.',
@@ -37,7 +40,7 @@ function buildStrategyPrompt(description: string): string {
     '   - Common implementation mistakes',
     '   - Crypto-specific risks (funding rate drag, liquidation cascades, low liquidity wicks)',
     '',
-    '4. PARAMETER_SUGGESTIONS - Concrete starting parameters for crypto futures:',
+    '4. PARAMETER_SUGGESTIONS - Concrete starting parameters for crypto futures, to be tested before use (none of them has been tested here):',
     '   - Recommended timeframe(s)',
     '   - Entry trigger definition',
     '   - Stop loss placement method',
@@ -98,7 +101,7 @@ export async function POST(req: NextRequest) {
   const role = plan.tier;
   /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
   const reservedOn = todayUtc();
-  const usageResult = await incrementToolUsage(authData.user.id, 'strategyResearch', role);
+  const usageResult = await incrementToolUsage(authData.user.id, 'strategyResearch', role, reservedOn);
   if (usageResult.blocked) {
     return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'strategy research runs'));
   }

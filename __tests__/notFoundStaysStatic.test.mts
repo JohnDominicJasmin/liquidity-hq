@@ -208,5 +208,8 @@ test('N5. SWEEP: outside /api, exactly one file reads the request - a new one is
   const NEXT_HEADERS = /from ['"]next\/headers['"]/;
   const hits = files.filter((f) => NEXT_HEADERS.test(code(f))).sort();
   assert.ok(hits.includes(ADMIN), `CONTROL: the pattern does not match ${ADMIN}, the one file known to import next/headers`);
-  assert.deepEqual(hits, [ADMIN], `a file outside /api imports next/headers: ${hits.join(', ')}. If it renders with every page (layout, not-found, a shared provider) this is #1434 again; if it is a single page, add it here with the reason`);
+  /* #2584 (PM's call, d2): app/arena/layout.tsx reads the `lhq_lang` cookie so /arena is server-rendered in ko/zh/ru from the first paint (English unchanged; LabelsProvider back-fills the cookie for users who chose a language before it existed). That makes /arena (and only /arena) dynamic ON PURPOSE: a decision, named here, not an accident. The not-found page and every other route stay static. */
+  const ARENA_LAYOUT = appPath('app/arena/layout.tsx');
+  assert.ok(files.includes(ARENA_LAYOUT), `CONTROL: ${ARENA_LAYOUT} is not in the walk`);
+  assert.deepEqual(hits, [ADMIN, ARENA_LAYOUT].sort(), `a file outside /api imports next/headers: ${hits.join(', ')}. If it renders with every page (layout, not-found, a shared provider) this is #1434 again; if it is a single page, add it here with the reason`);
 });
