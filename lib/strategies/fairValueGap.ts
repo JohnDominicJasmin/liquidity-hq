@@ -15,6 +15,19 @@ export const MIN_CANDLES = 30;
 const LOOKBACK = 100;
 const SWING_BARS = 20;
 
+/** The target rule for a trade off the gap whose third candle is `i`: the nearer of the recent swing (the highest high / lowest low of the SWING_BARS candles before the gap) and the first support /
+ *  resistance level at least one risk distance (entry to stop) away, in the trade's direction; null when neither is beyond the entry. Shared with lib/strategies/bosFvg.ts. */
+export function gapTarget(candles: readonly OHLCV[], i: number, entry: number, stop: number, dir: 'long' | 'short'): number | null {
+  const pre = candles.slice(Math.max(0, i - SWING_BARS - 2), i - 1);
+  const sr = nearestLevel(srPrices(candles, entry), entry, dir, Math.abs(entry - stop));
+  if (dir === 'long') {
+    const cand = [Math.max(...pre.map(c => c.high)), sr].filter((v): v is number => v != null && v > entry);
+    return cand.length ? Math.min(...cand) : null;
+  }
+  const cand = [Math.min(...pre.map(c => c.low)), sr].filter((v): v is number => v != null && v < entry);
+  return cand.length ? Math.max(...cand) : null;
+}
+
 export function detectFairValueGap(candles: readonly OHLCV[], _ctx: StrategyContext): StrategyResult {
   const n = candles.length;
   if (n < MIN_CANDLES) return WAIT;
@@ -31,20 +44,13 @@ export function detectFairValueGap(candles: readonly OHLCV[], _ctx: StrategyCont
       if (first < 0 && (bull ? candles[j].low <= top : candles[j].high >= bot)) first = j;
     }
     if (filled || first !== k) continue;
-    const pre = candles.slice(Math.max(0, i - SWING_BARS - 2), i - 1);
     const last = candles[k], entry = last.close;
     const zone = { top, bottom: bot, fromTs: candles[i].time, toTs: last.time, kind: (bull ? 'demand' : 'supply') as 'demand' | 'supply', labelKey: 'STRAT_OV_FVG' as const };
     if (bull && last.close > bot) {
-      const swing = Math.max(...pre.map(c => c.high));
-      const sr = nearestLevel(srPrices(candles, entry), entry, 'long', Math.abs(entry - bot));
-      const cand = [swing, sr].filter((v): v is number => v != null && v > entry);
-      return tradeCall({ ts: last.time, dir: 'long', entry, stop: bot, target: cand.length ? Math.min(...cand) : null, params: { gapLo: bot, gapHi: top }, zones: [zone] });
+      return tradeCall({ ts: last.time, dir: 'long', entry, stop: bot, target: gapTarget(candles, i, entry, bot, 'long'), params: { gapLo: bot, gapHi: top }, zones: [zone] });
     }
     if (bear && last.close < top) {
-      const swing = Math.min(...pre.map(c => c.low));
-      const sr = nearestLevel(srPrices(candles, entry), entry, 'short', Math.abs(entry - top));
-      const cand = [swing, sr].filter((v): v is number => v != null && v < entry);
-      return tradeCall({ ts: last.time, dir: 'short', entry, stop: top, target: cand.length ? Math.max(...cand) : null, params: { gapLo: bot, gapHi: top }, zones: [zone] });
+      return tradeCall({ ts: last.time, dir: 'short', entry, stop: top, target: gapTarget(candles, i, entry, top, 'short'), params: { gapLo: bot, gapHi: top }, zones: [zone] });
     }
   }
   return WAIT;
