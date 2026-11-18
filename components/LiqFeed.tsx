@@ -8,6 +8,7 @@ import { T } from '@/lib/tables';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { socketNeedsReconnect, dropSocket, onPageResume } from '@/lib/socketResume';
 
 /* ── Types ── */
 interface LiqEvent {
@@ -118,6 +119,9 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
 
   const bnWsRef         = useRef<WebSocket | null>(null);
   const bbWsRef         = useRef<WebSocket | null>(null);
+  /* When each socket last delivered anything: on resume a socket quiet for 30 s or not OPEN is replaced (lib/socketResume.ts). */
+  const bnLastMsgRef    = useRef<number | null>(null);
+  const bbLastMsgRef    = useRef<number | null>(null);
   const historyRef      = useRef<LiqEvent[]>([]);
   const lastEmitRef     = useRef(0);
   const msgRef          = useRef(0);
@@ -224,10 +228,11 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
     const streams = BN_SYMBOLS.map(s => `${s}@forceOrder`).join('/');
     const ws = new WebSocket(`wss://fstream.binance.com/market/stream?streams=${streams}`);
     bnWsRef.current = ws;
-    ws.onopen  = () => setBnStatus('live');
+    ws.onopen  = () => { bnLastMsgRef.current = Date.now(); setBnStatus('live'); };
     ws.onerror = () => setBnStatus('error');
     ws.onclose = () => { setBnStatus('error'); setTimeout(() => connectBNRef.current(), 5000); };
     ws.onmessage = (ev) => {
+      bnLastMsgRef.current = Date.now();
       try {
         const msg = JSON.parse(ev.data as string);
         // Combined stream wraps: {stream:"btcusdt@forceOrder", data:{e,E,o}}
@@ -263,6 +268,7 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
     const ws = new WebSocket(host);
     bbWsRef.current = ws;
     ws.onopen = () => {
+      bbLastMsgRef.current = Date.now();
       setBbStatus('live');
       // v5 topic: allLiquidation.{symbol} - max 25 topics per subscribe message
       const topics = BYBIT_COINS.map(s => `allLiquidation.${s}`);
@@ -277,6 +283,7 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
       setTimeout(() => connectBBRef.current(), 5000);
     };
     ws.onmessage = (ev) => {
+      bbLastMsgRef.current = Date.now();
       try {
         const msg = JSON.parse(ev.data as string);
         if (msg.op === 'subscribe') return;   // ignore subscription ack
@@ -297,6 +304,14 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
   // Same as connectBN's above, and declared before the effect that first calls
   // connectBB() so the ref is populated before any reconnect can run.
   useEffect(() => { connectBBRef.current = connectBB; }, [connectBB]);
+
+  /* RESUME (owner, 2026-11-18): back from an idle or frozen tab, a socket that is not OPEN or has been quiet for 30 s is replaced now
+     rather than whenever its own timer gets to run. dropSocket detaches the old handlers so its onclose cannot queue a second one. */
+  useEffect(() => onPageResume(() => {
+    const now = Date.now();
+    if (socketNeedsReconnect(bnWsRef.current?.readyState, bnLastMsgRef.current, now)) { dropSocket(bnWsRef.current); bnWsRef.current = null; connectBNRef.current(); }
+    if (socketNeedsReconnect(bbWsRef.current?.readyState, bbLastMsgRef.current, now)) { dropSocket(bbWsRef.current); bbWsRef.current = null; connectBBRef.current(); }
+  }), []);
 
   useEffect(() => {
     // ── Seed from localStorage (fast, synchronous) ───────────────────────
