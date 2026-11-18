@@ -2939,12 +2939,12 @@ function ArenaContent() {
               <div className="arena-override-notice">{t('ARENA_STALE_SETTINGS_NOTICE')}</div>
             )}
 
-            {/* THROUGH ReasoningText, not a bare {whyLine} (#1263). whyLine is the first sentences of
-                `result.reasoning`, which the model writes in markdown - so a bare render showed
-                `[label](url)` as literal text here while the lower card (:2779) rendered the same
-                prose with real, scheme-checked links. Same renderer now: bold and links resolve, and
-                an unsafe URL still falls back to plain label text (isSafeHttpUrl), so this cannot
-                become a clickable `javascript:` link either. */}
+            {/* THE WHY LINES GO THROUGH ReasoningText, never a bare string (#1263): both the WHY bullets (`result.why`) and their
+                fallback `whyLine` (the first sentences of `result.reasoning`), rendered further down this block. The model writes
+                markdown, so a bare render showed `[label](url)` as literal text while the reasoning card under the chart
+                (`arena-reasoning-text`) rendered the same prose with real, scheme-checked links. Same renderer: bold and links resolve,
+                and an unsafe URL still falls back to plain label text (isSafeHttpUrl), so this cannot become a clickable
+                `javascript:` link either. */}
             {/* THE READ AT A GLANCE (owner rule 22): ONE plain summary line, then at most three short reasons (Deep: five). The chart read, the patterns and the long reasoning are behind "More details" under the chart. A read with no WHY lines (an older one, or the model gave none) falls back to the first sentences of its reasoning. */}
             {(() => {
               const ps = plainSummary(result.signal, result.levels);

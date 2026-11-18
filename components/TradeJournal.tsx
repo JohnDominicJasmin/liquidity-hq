@@ -203,6 +203,12 @@ function ShadowAccountResult({ text }: { text: string }) {
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
               {content}
             </div>
+            {/* #1631: the shadow stats keep the best trade types of the same trades they are scored on, so they describe the past. Said by the page, not left to the AI. */}
+            {key === 'SHADOW_STRATEGY' && (
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.5, marginTop: 8 }}>
+                {t('TRADE_JOURNAL_SHADOW_HINDSIGHT_NOTE')}
+              </div>
+            )}
           </div>
         );
       })}
@@ -1959,6 +1965,8 @@ function Inner() {
                           </div>
                         );
                       })}
+                      {/* #1631: the check has no live price, so its score is not a reading of the market today. */}
+                      <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.5, marginBottom: 8 }}>{t('TRADE_JOURNAL_THESIS_NO_LIVE_PRICE_NOTE')}</div>
                       <AiDisclaimer />
                     </div>
                   )}

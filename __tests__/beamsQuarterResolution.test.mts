@@ -12,7 +12,7 @@ const setupAt = src.indexOf('const setup = () => {');
 const setup = src.slice(setupAt, src.indexOf('};', setupAt));
 
 test('bitmap is BITMAP_SCALE of the CSS size and the 2D context is scaled by the same factor', () => {
-  assert.match(src, /const BITMAP_SCALE = 0\.25;/);
+  assert.match(src, /const BITMAP_SCALE = 0\.125;/);
   assert.match(setup, /canvas\.width = Math\.max\(1, Math\.round\(w \* BITMAP_SCALE\)\);/);
   assert.match(setup, /canvas\.height = Math\.max\(1, Math\.round\(h \* BITMAP_SCALE\)\);/);
   assert.match(setup, /ctx\.scale\(BITMAP_SCALE, BITMAP_SCALE\);/);

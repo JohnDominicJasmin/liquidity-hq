@@ -140,6 +140,8 @@ export async function incrementUsageColumn(
   poolLimit: number | null = null,
   /** The caller's plan could not be read and `tier` is the generous one it is being served under (POST /api/grok, #2412): the dollar cap then fails CLOSED on an unreadable ledger. */
   unknownPlan: boolean = false,
+  /** The UTC day to write the reservation on: the caller's own `reservedOn`, so the reservation and any refund of it name the SAME day row even when the call straddles 00:00 UTC (#1631 U12). Omitted, it is today. */
+  reservedOn: string = todayUtc(),
 ): Promise<UsageIncrementResult> {
   // Single choke point for all 15 AI routes (see this file's header comment) -
   // checking here instead of per-route means the admin kill switch
@@ -158,9 +160,8 @@ export async function incrementUsageColumn(
     return { blocked: true, reason: dollar.reason, limit: 0 };
   }
 
-  const today = todayUtc();
   const { data, error } = await getSupabaseAdmin().rpc('increment_ai_usage', {
-    p_user_id: userId, p_date: today, p_column: column, p_limit: limit,
+    p_user_id: userId, p_date: reservedOn, p_column: column, p_limit: limit,
     p_global_limit: globalDailyMax(),
     p_pool_limit: poolLimit,
   });
@@ -207,10 +208,13 @@ export async function incrementUsageColumn(
 // a role here is what previously made a trial user share the free limits.
 export async function incrementToolUsage(
   userId: string, tool: ExtraTool, tier: UsageTier,
+  /** See incrementUsageColumn: the day the caller will refund against, if it refunds (#1631 U12). */
+  reservedOn: string = todayUtc(),
 ): Promise<UsageIncrementResult> {
   return incrementUsageColumn(
     userId, tier, EXTRA_TOOL_COLUMN[tool],
     AI_LIMITS[tier][tool], AI_LIMITS[tier].toolPool,
+    false, reservedOn,
   );
 }
 

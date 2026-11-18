@@ -128,6 +128,33 @@ export async function forceSignOut(sb: SignOutCapable | null | undefined, opts?:
   return error;
 }
 
+/**
+ * End every OTHER session of the signed-in user, and keep this one (#1113: a
+ * password reset left refresh tokens issued before it valid on other devices).
+ *
+ * Not forceSignOut(sb, { scope: 'others' }): on an error forceSignOut clears
+ * the LOCAL session, which here would sign out the one device that just proved
+ * it owns the account. Same bound as forceSignOut, never throws, returns the
+ * error (null on success) so a caller can log it.
+ */
+export async function signOutOtherSessions(sb: SignOutCapable | null | undefined): Promise<unknown> {
+  if (!sb) return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const result = await Promise.race([
+      sb.auth.signOut({ scope: 'others' }),
+      new Promise<{ error: unknown }>(resolve => {
+        timer = setTimeout(() => resolve({ error: new Error('signOut timed out') }), SIGN_OUT_TIMEOUT_MS);
+      }),
+    ]);
+    return result.error ?? null;
+  } catch (e) {
+    return e ?? new Error('signOut rejected');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /* How long a password change may take before the form stops waiting (#1173).
  *
  * updateUser() is not just one request. It waits for supabase-js's single auth
@@ -153,6 +180,11 @@ const PASSWORD_UPDATE_TIMEOUT_MS = 15000;
  * own "should be different from the old password" error, which says so. */
 const PASSWORD_UPDATE_UNCONFIRMED = "Couldn't confirm your password change. Check your connection and try again.";
 
+/* The error for that case carries `unconfirmed: true`, so a caller can tell "the server said no" (nothing changed) from "we stopped waiting"
+ * (it may have changed). /reset-password ends the other sessions in the second case too (#1113). */
+export type PasswordUpdateError = { message: string; unconfirmed?: true };
+const unconfirmedError = (): PasswordUpdateError => Object.assign(new Error(PASSWORD_UPDATE_UNCONFIRMED), { unconfirmed: true as const });
+
 type PasswordUpdateCapable = {
   auth: { updateUser: (attributes: { password: string }) => Promise<{ error: { message: string } | null }> };
 };
@@ -171,20 +203,20 @@ type PasswordUpdateCapable = {
 export async function updatePassword(
   sb: PasswordUpdateCapable,
   password: string,
-): Promise<{ error: { message: string } | null }> {
+): Promise<{ error: PasswordUpdateError | null }> {
   // Cleared for the same reason as forceSignOut's timer above.
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const { error } = await Promise.race([
       sb.auth.updateUser({ password }),
-      new Promise<{ error: { message: string } }>(resolve => {
-        timer = setTimeout(() => resolve({ error: new Error(PASSWORD_UPDATE_UNCONFIRMED) }), PASSWORD_UPDATE_TIMEOUT_MS);
+      new Promise<{ error: PasswordUpdateError }>(resolve => {
+        timer = setTimeout(() => resolve({ error: unconfirmedError() }), PASSWORD_UPDATE_TIMEOUT_MS);
       }),
     ]);
     return { error };
   } catch (e) {
     console.error('[auth] updateUser rejected:', e);
-    return { error: new Error(PASSWORD_UPDATE_UNCONFIRMED) };
+    return { error: unconfirmedError() };
   } finally {
     clearTimeout(timer);
   }

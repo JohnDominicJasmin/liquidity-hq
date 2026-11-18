@@ -157,7 +157,7 @@ export async function GET(req: NextRequest) {
       /* The usage check and the Yahoo read run AT THE SAME TIME. A blocked caller wastes one cheap, cached Yahoo read; an allowed one no longer waits for the usage round trip first. */
       const reservedOn = todayUtc();
       const [usageResult, inputs] = await Promise.all([
-        incrementToolUsage(authData.user.id, 'macroContext', role),
+        incrementToolUsage(authData.user.id, 'macroContext', role, reservedOn),
         cached('macro-yahoo', 3 * 60_000, fetchMacroInputs).catch((e: unknown) => e),
       ]);
       if (usageResult.blocked) {

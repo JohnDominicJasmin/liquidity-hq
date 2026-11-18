@@ -7,6 +7,8 @@ import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { answerWasCutOff } from '@/lib/xaiAnswer';
+import { isRoundPrice, stopLossNumber } from '@/lib/roundPrice';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -33,11 +35,14 @@ function buildBiasPrompt(trades: Record<string, unknown>[]): string {
     ? Math.abs(losses.reduce((s, t) => s + ((t.pnl_r as number) ?? 0), 0) / losses.filter(t => t.pnl_r != null).length)
     : 0;
 
-  // Round-number stop detection
+  /* Round-number stops, relative to the price's size (#1631): two or fewer significant digits. The old `sl % 100 === 0` counted a stop of 0
+     and could never match a coin priced under 100. */
   const roundStops = closed.filter(t => {
-    const sl = parseFloat(String(t.stop_loss ?? ''));
-    return !isNaN(sl) && sl % 100 === 0;
+    const sl = stopLossNumber(t.stop_loss);
+    return sl !== null && isRoundPrice(sl);
   }).length;
+  /* A loss bigger than 1R means the trade lost more than its planned stop: the one sign of holding a loser that this log can show. */
+  const beyondStop = losses.filter(t => typeof t.pnl_r === 'number' && (t.pnl_r as number) < -1).length;
 
   // Consecutive trades (same-day, potential revenge trading)
   const sortedByDate = [...closed].sort((a, b) =>
@@ -71,17 +76,20 @@ function buildBiasPrompt(trades: Record<string, unknown>[]): string {
     '',
     `SUMMARY STATS (your last 500 trades at most): ${closed.length} closed trades | ${wins.length} wins | ${losses.length} losses`,
     `Avg win: $${avgWinUsd.toFixed(2)} (${avgWinR.toFixed(2)}R) | Avg loss: $${avgLossUsd.toFixed(2)} (${avgLossR.toFixed(2)}R)`,
-    `Round-number stop losses: ${roundStops} trades | Same-day trades after a loss: ${revengeCount}`,
+    `Round-number stop losses (two or fewer significant digits, e.g. 64000, 3500, 2.5, 0.12): ${roundStops} trades | Same-day trades after a loss: ${revengeCount}`,
+    `Losses larger than 1R (lost more than the planned stop): ${beyondStop}`,
     '',
     '=== TRADE LOG ===',
     tradeLines,
     '',
     '=== BIAS ANALYSIS TASKS ===',
     '',
-    '1. DISPOSITION_EFFECT - Does this trader hold losers too long and cut winners too early?',
-    '   - Compare average win R vs average loss R. If avg loss R > avg win R, this is classic disposition.',
-    '   - Cite 2-3 specific trades where the loss was outsized vs typical win size.',
-    '   - Estimate total P&L lost to this bias (rough $USD impact).',
+    'Use only numbers that are in this log or are sums of numbers in it. Never estimate, project or invent a dollar figure.',
+    '',
+    '1. DISPOSITION_EFFECT - The disposition effect is holding losing trades too long and closing winning trades too early.',
+    '   - This log has no holding times, so the effect cannot be measured directly. Say so.',
+    '   - What the log can show: losses larger than 1R (the trade lost more than its planned stop) and winners closed below their typical R. Cite 2-3 specific trades.',
+    '   - Call it an indication, not a measurement. Average loss R being larger than average win R alone is not the disposition effect.',
     '',
     '2. OVERTRADING - Does the trader overtrade, especially after losses?',
     `   - There are ${revengeCount} trades placed on the same day as a previous losing trade.`,
@@ -94,12 +102,13 @@ function buildBiasPrompt(trades: Record<string, unknown>[]): string {
     '   - Identify any pattern of entering after a gap or very fast move.',
     '',
     '4. ANCHORING_BIAS - Is the trader anchored to round numbers or entry price for risk management?',
-    `   - ${roundStops} stop losses are at round $100 numbers. Flag specific ones.`,
+    `   - ${roundStops} stop losses are at round numbers (two or fewer significant digits). Flag specific ones.`,
     '   - Are take-profits or targets placed at psychologically round numbers?',
     '   - Does the trader\'s stop loss placement appear based on $ amounts rather than price structure?',
     '',
-    '5. PNL_IMPACT - For each bias found, estimate the dollar P&L drag. Which bias is costing the most?',
-    '   Format: "Estimated bias drag: [Disposition Effect: -$X] [Overtrading: -$Y] [Momentum Chasing: -$Z] [Anchoring: -$W]"',
+    '5. PNL_IMPACT - For each bias found, the trades you cited as evidence and the sum of their actual P&L from the log. Which bias\'s cited trades lost the most?',
+    '   Format: "Cited trades: [Disposition Effect: N trades, $X] [Overtrading: N trades, $Y] [Momentum Chasing: N trades, $Z] [Anchoring: N trades, $W]"',
+    '   These are sums of logged P&L, not what the trader would have made without the bias. Do not estimate that.',
     '',
     '6. PRIORITY_FIX - The one behavioral fix that would most improve results. Specific and actionable.',
     '',
@@ -113,7 +122,7 @@ function buildBiasPrompt(trades: Record<string, unknown>[]): string {
     'ANCHORING_BIAS:',
     '[analysis + specific examples]',
     'PNL_IMPACT:',
-    '[estimated drag per bias + total]',
+    '[cited trades and the sum of their logged P&L, per bias]',
     'PRIORITY_FIX:',
     '[the single highest-impact behavioral change with specific instructions]',
   ].join('\n');
@@ -156,7 +165,7 @@ export async function POST(req: NextRequest) {
      slot of the shared tool pool, repeatably up to the cap. A reserved use is given back when nothing reached the user (a failed or unusable xAI answer, a thrown call, an empty answer), exactly as /api/grok does; nothing is given back once xAI answered 2xx (the tokens are billed). */
   const role = plan.tier;
   const reservedOn = todayUtc();
-  const usageResult = await incrementToolUsage(authData.user.id, 'behavioralBias', role);
+  const usageResult = await incrementToolUsage(authData.user.id, 'behavioralBias', role, reservedOn);
   if (usageResult.blocked) {
     return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'bias reports'));
   }
@@ -171,8 +180,13 @@ export async function POST(req: NextRequest) {
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 1400,
     }),
-  });
+    /* A network throw used to escape as a bare 500 with the use kept (#1631). It is given back, and answered like a non-2xx. */
+  }).catch((e: unknown) => e instanceof Error ? e : new Error(String(e)));
 
+  if (res instanceof Error) {
+    await refundToolUsage(authData.user.id, 'behavioralBias', reservedOn);
+    return apiError('behavioral-bias', res, 502, 'AI service error');
+  }
   if (!res.ok) {
     await refundToolUsage(authData.user.id, 'behavioralBias', reservedOn);
     const err = await res.json().catch(() => ({})) as { error?: string };
@@ -182,6 +196,12 @@ export async function POST(req: NextRequest) {
   const data = await res.json();
   await recordAiCall({ userId: authData.user.id, callType: 'behavioral_bias', model: data.model ?? 'grok-4.3', usage: data.usage });
   const text: string = data.choices?.[0]?.message?.content ?? '';
+  /* An empty or cut-off answer is not a report (#1631), as on thesis-check, strategy-research and pine-script: the use is given back. */
+  if (!text.trim() || answerWasCutOff(data)) {
+    /* "Nothing was charged" only when the refund landed (it allows 3 a day, U9). */
+    const refunded = (await refundToolUsage(authData.user.id, 'behavioralBias', reservedOn)) !== null;
+    return NextResponse.json({ error: refunded ? 'The AI answer was incomplete. Nothing was charged. Try again.' : 'The AI answer was incomplete. Try again.', code: 'AI_INCOMPLETE', refunded }, { status: 502 });
+  }
 
   return NextResponse.json({ analysis: text, tradeCount: closed.length });
 }

@@ -318,9 +318,11 @@ export async function POST(req: NextRequest) {
            route and the same hazard applies here.
            Assigned to the outer `reserved` so the catch, which is outside this closure and outside
            `cached()`, can tell a request that paid from one that never got as far as reserving. */
-        const usage = await incrementToolUsage(authData.user.id, 'drawStructure', tier);
+        /* #1631 U12: the day is fixed before the reservation and written WITH it, so the reservation and the refund name one row. */
+        const on = todayUtc();
+        const usage = await incrementToolUsage(authData.user.id, 'drawStructure', tier, on);
         if (usage.blocked) throw new RateLimitError(usage.limit, usage.reason, authData.user.id);
-        reserved.current = { userId: authData.user.id, on: todayUtc() };
+        reserved.current = { userId: authData.user.id, on };
 
         const aiRes = await xaiFetch('https://api.x.ai/v1/chat/completions', {
           method: 'POST',
@@ -412,15 +414,22 @@ export async function POST(req: NextRequest) {
      * NEITHER SAYS WHAT WENT WRONG. A trader cannot act on "the model returned nothing
      * drawable", and naming a cause in the UI is how a log line becomes a claim. The reason and
      * the count go to the log. */
+    /* #1631 U9: WHETHER THE USE CAME BACK IS SAID, as /api/grok's `refunded` does. The refund allows 3 per user per UTC day and
+       returns null after that (or when it fails), and this route used to ignore the result, so the use stayed spent with no
+       signal anywhere. `refunded` is in the body whenever a refund was attempted, and a refund that did not land is logged. */
+    const giveBack = async (): Promise<{ refunded?: boolean }> => {
+      if (!reserved.current) return {};
+      const n = await refundToolUsage(reserved.current.userId, 'drawStructure', reserved.current.on);
+      if (n === null) console.warn('[draw-structure] the reserved use was NOT given back (daily refund limit reached, or the refund failed)');
+      return { refunded: n !== null };
+    };
     if (e instanceof UnreadableAnswerError) {
       console.error(`[draw-structure] UNREADABLE reason=${e.reason} coin=${coin} tf=${tf}`);
-      if (reserved.current) await refundToolUsage(reserved.current.userId, 'drawStructure', reserved.current.on);
-      return NextResponse.json({ error: 'Could not read the chart. Try again.', code: 'BAD_ANSWER' }, { status: 502 });
+      return NextResponse.json({ error: 'Could not read the chart. Try again.', code: 'BAD_ANSWER', ...(await giveBack()) }, { status: 502 });
     }
     if (e instanceof UndrawableAnswerError) {
       console.error(`[draw-structure] UNDRAWABLE proposed=${e.proposed} drawable=0 coin=${coin} tf=${tf}`);
-      if (reserved.current) await refundToolUsage(reserved.current.userId, 'drawStructure', reserved.current.on);
-      return NextResponse.json({ error: 'Could not read the chart. Try again.', code: 'UNDRAWABLE' }, { status: 502 });
+      return NextResponse.json({ error: 'Could not read the chart. Try again.', code: 'UNDRAWABLE', ...(await giveBack()) }, { status: 502 });
     }
     if (e instanceof RateLimitError) {
       /* NO REFUND HERE, AND THAT IS CORRECT RATHER THAN AN OMISSION. `incrementToolUsage` throws
@@ -463,9 +472,7 @@ export async function POST(req: NextRequest) {
      * this cannot credit a read nobody paid for. That is also why it is a box rather than a
      * boolean: it carries the user id and the reservation DATE, and refunding against today's
      * date after a call crossed UTC midnight would credit a row that never paid. */
-    if (reserved.current && !spent.current) {
-      await refundToolUsage(reserved.current.userId, 'drawStructure', reserved.current.on);
-    }
-    return apiError('draw-structure', e, 502, 'Request failed');
+    const refund = reserved.current && !spent.current ? await giveBack() : {};
+    return apiError('draw-structure', e, 502, 'Request failed', refund);
   }
 }

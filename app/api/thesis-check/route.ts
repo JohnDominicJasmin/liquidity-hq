@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
   const role = plan.tier;
   /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
   const reservedOn = todayUtc();
-  const usageResult = await incrementToolUsage(authData.user.id, 'thesisCheck', role);
+  const usageResult = await incrementToolUsage(authData.user.id, 'thesisCheck', role, reservedOn);
   if (usageResult.blocked) {
     return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'thesis checks'));
   }
