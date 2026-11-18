@@ -205,7 +205,7 @@
   "STRAT_FVG_SELL": "First return into the bearish gap {gapLo}-{gapHi}, closed below its top.",
   "STRAT_FVG_WAIT": "No first return into an unfilled gap.",
   "STRAT_BOS_FVG_NAME": "Break of structure + FVG",
-  "STRAT_BOS_FVG_DESC": "For day trading: best on 5m–15m.",
+  "STRAT_BOS_FVG_DESC": "Built for day trading: 5m–15m.",
   "STRAT_BOS_FVG_BUY": "Closed above the swing high {bos}; first return into the gap {gapLo}-{gapHi}, closed above its bottom.",
   "STRAT_BOS_FVG_SELL": "Closed below the swing low {bos}; first return into the gap {gapLo}-{gapHi}, closed below its top.",
   "STRAT_BOS_FVG_WAIT": "No first return into a gap left by a break of structure.",

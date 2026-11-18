@@ -43,9 +43,13 @@ function setupsAt(c: readonly OHLCV[], b: number): Setup[] {
     const level = dir === 'long' ? c[s].high : c[s].low;
     const through = (x: OHLCV) => (dir === 'long' ? x.close > level : x.close < level);
     if (!through(c[b]) || c.slice(s + 1, b).some(through)) continue;
+    /* STRICT (PM 2026-11-18): a gap that any candle traded into between its formation and the break (break candle included) is MITIGATED and
+       skipped; an earlier or later gap in the same leg can still qualify. */
+    const untouched = (i: number, top: number, bot: number) =>
+      !c.slice(i + 1, b + 1).some(x => (dir === 'long' ? x.low <= top : x.high >= bot));
     for (let i = b; i >= legStart + 2; i--) {
-      if (dir === 'long' && c[i - 2].high < c[i].low) out.push({ dir, swing: s, level, bos: b, gap: i, top: c[i].low, bot: c[i - 2].high });
-      if (dir === 'short' && c[i - 2].low > c[i].high) out.push({ dir, swing: s, level, bos: b, gap: i, top: c[i - 2].low, bot: c[i].high });
+      if (dir === 'long' && c[i - 2].high < c[i].low && untouched(i, c[i].low, c[i - 2].high)) out.push({ dir, swing: s, level, bos: b, gap: i, top: c[i].low, bot: c[i - 2].high });
+      if (dir === 'short' && c[i - 2].low > c[i].high && untouched(i, c[i - 2].low, c[i].high)) out.push({ dir, swing: s, level, bos: b, gap: i, top: c[i - 2].low, bot: c[i].high });
     }
   }
   return out;
