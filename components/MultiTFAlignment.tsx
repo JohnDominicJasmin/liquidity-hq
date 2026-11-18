@@ -98,6 +98,8 @@ function BiasBadge({ bias }: { bias: Bias }) {
  * Same shape as #273, where backtesting was gated and still advertised: the
  * feature was blocked and the information was not. */
 function RsiRow({ tf, rsi, bias, last, locked }: { tf: string; rsi: number | null; bias: Bias; last?: boolean; locked?: boolean }) {
+  /* A timeframe with no reading is left out, never a bare dash (owner sweep 2026-11-18; QA staging sweep). A LOCKED row still shows, blurred. */
+  if (!locked && (rsi == null || !Number.isFinite(rsi))) return null;
   if (locked) { rsi = null; bias = 'unknown'; }   // no reading, same as an absent RSI (#1185)
   const pct = rsi != null ? Math.min(100, Math.max(0, rsi)) : 0;
   return (
