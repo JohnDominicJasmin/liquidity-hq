@@ -33,6 +33,7 @@ export type Exchange = 'binance' | 'bybit' | 'okx' | 'hyperliquid';
 export const COOLDOWN_MIN_MS = 10 * 60_000;
 export const COOLDOWN_MAX_MS = 6 * 60 * 60_000;
 const STRIKE_MEMORY_MS = 60 * 60_000;
+export const RETRY_AFTER_FLOOR_MS = 5_000;
 const MAX_IN_FLIGHT: Record<Exchange, number> = { binance: 8, bybit: 8, okx: 4, hyperliquid: 4 };
 const MAX_WAITING = 400;
 const WAIT_TIMEOUT_MS = 15_000;
@@ -156,7 +157,13 @@ async function onRefusal(ex: Exchange, s: ExchangeState, r: Response): Promise<v
 
   s.strikes = now - s.lastTripAt < STRIKE_MEMORY_MS ? s.strikes + 1 : 1;
   s.lastTripAt = now;
-  const ms = Math.min(COOLDOWN_MAX_MS, Math.max(COOLDOWN_MIN_MS * 2 ** (s.strikes - 1), retryAfterMs));
+  /* A 429 that SAYS how long to wait is taken at its word (owner sweep 2026-11-18): Binance and Bybit send Retry-After in seconds,
+     usually well under a minute, and stopping every call for the 10-minute minimum instead turned one busy second into ten minutes
+     of empty cells. Floor of 5 s so a Retry-After of 0/1 cannot hammer. A ban (Binance 418) and a 429 without Retry-After keep the
+     escalating cooldown. */
+  const ms = r.status === 429 && retryAfterMs > 0
+    ? Math.min(COOLDOWN_MAX_MS, Math.max(RETRY_AFTER_FLOOR_MS, retryAfterMs))
+    : Math.min(COOLDOWN_MAX_MS, Math.max(COOLDOWN_MIN_MS * 2 ** (s.strikes - 1), retryAfterMs));
   // Several requests in flight can come back banned together: the breaker opens once, and only the first one reports.
   const alreadyOpen = now < s.openUntil;
   s.openUntil = Math.max(s.openUntil, now + ms);

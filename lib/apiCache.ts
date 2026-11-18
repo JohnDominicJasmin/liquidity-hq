@@ -81,6 +81,21 @@ export function cachedAt(key: string): number | null {
   return store.get(key)?.ts ?? null;
 }
 
+/** Whether the entry under `key` is young enough to still be SERVED (younger than `servableMs`, i.e. ttl + the stale window).
+ *  An entry past that is only a record: a caller that keeps "the last good result" instead of a partial new one must check this,
+ *  not `cachedAt(key) !== null`, or it throws the partial away while nothing good is left to serve (owner sweep 2026-11-18). */
+/** The last good value under `key` and when it was fetched, if it is younger than `maxAgeMs`; null otherwise. For a route that
+ *  keeps its fail-hold (`cached(..., { failTtlMs })`) but answers a failure with the last good value instead of an error. */
+export function cachedPeek<T>(key: string, maxAgeMs: number): { data: T; ts: number } | null {
+  const hit = store.get(key) as { ts: number; data: T } | undefined;
+  return hit && Date.now() - hit.ts < maxAgeMs ? { data: hit.data, ts: hit.ts } : null;
+}
+
+export function cachedServable(key: string, servableMs: number): boolean {
+  const ts = store.get(key)?.ts;
+  return ts != null && Date.now() - ts < servableMs;
+}
+
 export function _cacheSize(): number {
   return store.size;
 }

@@ -9,7 +9,7 @@ import { bybitPriceFactor, binancePriceFactor, BINANCE_SPOT_SYMS, UNIVERSE_BINAN
 import { computeRSI14 } from '@/lib/rsi';
 import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
-import { getAuthToken } from '@/lib/supabase';
+import { getAuthToken, getSupabase } from '@/lib/supabase';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { liveOiTrend, bootstrapReadings, trendBetween, type OiReading } from '@/lib/oiTrendWindow';
 import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exchangeFailover';
@@ -796,9 +796,16 @@ export default function MarketProvider(
       /* #1263: the route sends 5m RSI only to a Pro caller, so it needs to
          know who is asking. Signed out, it sends every timeframe except 5m. */
       const token = await getAuthToken();
-      const res = await fetch('/api/market/rsi', {
+      let res = await fetch('/api/market/rsi', {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
+      /* 401 = the token expired while the tab was idle (owner sweep 2026-11-18). Refresh the session once and ask again, so a Pro
+         user keeps the 5m RSI instead of silently getting the free view until a reload. */
+      if (res.status === 401 && token) {
+        try { await getSupabase()?.auth.refreshSession(); } catch { /* fall through with whatever session there is */ }
+        const fresh = await getAuthToken();
+        res = await fetch('/api/market/rsi', { headers: fresh ? { Authorization: `Bearer ${fresh}` } : undefined });
+      }
       if (!res.ok) return;
       const body = await res.json() as {
         rsi?: Record<string, Partial<Record<
@@ -1343,32 +1350,27 @@ export default function MarketProvider(
 
   /* ── Fear & Greed ── */
   const fetchFNG = useCallback(async () => {
-    try {
-      // #1309 item 25: was '&?limit=2' - see MarketConditionsWidget.tsx for
-      // why the stray '?' breaks the proxy's param forwarding.
-      const res = await fetch('/api/proxy?type=fng&limit=2&format=json', { cache: 'no-cache' });
-      const d = await res.json();
-      const items = d.data;
-      if (!items?.[0]?.value) return;
-      setStore(s => ({
-        ...s,
-        fng: parseInt(items[0].value),
-        fngLabel: items[0].value_classification || '',
-        fngPrev: items[1] ? parseInt(items[1].value) : null,
-      }));
-    } catch {
+    /* ONE RETRY (owner sweep 2026-11-18): a 502 used to be read as "no data" and left Fear & Greed unset until the next 15-minute poll;
+       the proxy now answers a failed refresh with the last good value, and a failure that still gets through is asked again once. */
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
+        // #1309 item 25: was '&?limit=2' - see MarketConditionsWidget.tsx for
+        // why the stray '?' breaks the proxy's param forwarding.
         const res = await fetch('/api/proxy?type=fng&limit=2&format=json', { cache: 'no-cache' });
+        if (!res.ok) throw new Error(`fng ${res.status}`);
         const d = await res.json();
         const items = d.data;
-        if (!items?.[0]?.value) return;
+        if (!items?.[0]?.value) throw new Error('fng: no value');
         setStore(s => ({
           ...s,
           fng: parseInt(items[0].value),
           fngLabel: items[0].value_classification || '',
           fngPrev: items[1] ? parseInt(items[1].value) : null,
         }));
-      } catch { /* */ }
+        return;
+      } catch {
+        if (attempt === 0) await new Promise(r => setTimeout(r, 3000));
+      }
     }
   }, []);
 
