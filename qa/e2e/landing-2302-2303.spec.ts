@@ -117,7 +117,7 @@ for (const width of [1024, 1060, 1099]) for (const th of ['dark', 'light'] as co
       expect(m.panel!.t, 'the panel is not below the CTAs: still two columns').toBeGreaterThanOrEqual(m.ctaBottom!);
       expect(m.panel!.l, 'the panel does not start at the content edge: still two columns').toBeLessThanOrEqual(m.ctaLeft! + 8);
       for (const l of m.ctaLines) expect(l, 'a CTA wraps').toBeLessThanOrEqual(1);
-      expect(m.panel!.r).toBeLessThanOrEqual(m.vw); expect(m.stopRight!).toBeLessThanOrEqual(m.vw); expect(m.tgtRight!).toBeLessThanOrEqual(m.vw);
+      expect(m.panel!.r).toBeLessThanOrEqual(m.vw); /* #2510 removed the Entry/Stop/Target rows from the landing card: they are null by design; when present they must still fit */ if (m.stopRight != null) expect(m.stopRight).toBeLessThanOrEqual(m.vw); if (m.tgtRight != null) expect(m.tgtRight).toBeLessThanOrEqual(m.vw);
       await page.screenshot({ path: `qa/.shots/hero-${width}-${th}.png` }).catch((err) => console.log(`[W1] shot skipped: ${String(err).slice(0, 80)}`));
     } finally { await ctx.close(); }
   });

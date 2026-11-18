@@ -124,6 +124,7 @@ test.describe('indicator parameter edits reach the chart (#1008)', () => {
       await page.locator('select').first().selectOption('custom');
       await chip(page, 'Bollinger').click();
 
+      { const edit = page.locator('button.strat-edit-link').first(); if ((await edit.getAttribute('aria-expanded').catch(() => null)) === 'false') await edit.click().catch(() => undefined); await page.waitForTimeout(600); } /* #2500: the params box is collapsed behind this toggle */
       const paramsSection = page.locator('.strat-params');
       const lengthInput = paramsSection.locator('input').first();
       await expect(lengthInput).toHaveValue('20'); // registry default — confirms the editor actually rendered
