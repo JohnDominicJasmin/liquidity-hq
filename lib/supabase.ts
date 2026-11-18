@@ -97,7 +97,17 @@ const AUTH_TOKEN_TIMEOUT_MS = 8000;
  * no sign-in callback in the address bar (implicit-flow tokens in the hash, an auth error, a PKCE `code`), there
  * is no session for getSession() to find. Anything uncertain (no browser, storage throws, the URL is not parsable)
  * answers false, so the caller takes the normal path. */
+/* The page was LOADED with a sign-in callback in its address bar (read ONCE, at module load, before supabase-js clears the hash or a router push replaces the URL). supabase-js then validates the tokens over the network BEFORE it writes the session key, so for that whole page life noStoredSession() would read "signed out" for someone who is signing in (QA review of #2578). */
+const LOADED_WITH_CALLBACK = (() => {
+  try {
+    if (typeof window === 'undefined') return false;
+    const { hash, search } = window.location;
+    return /access_token|refresh_token|error/.test(hash) || /[?&](code|error)=/.test(search);
+  } catch { return true; }
+})();
+
 export function noStoredSession(): boolean {
+  if (LOADED_WITH_CALLBACK) return false;
   try {
     if (typeof window === 'undefined') return false;
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
