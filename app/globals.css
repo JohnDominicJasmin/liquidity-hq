@@ -2338,6 +2338,10 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
      margin each side, so it is as wide as the chart container and no wider. Long rows (the lower-timeframe note)
      wrap instead of forcing the width. Phone widths only; the manual Draw menu is untouched. */
   .klc-toolbar { position: relative; }
+  /* THE TOOLBAR'S ROW COUNT NEVER MOVES THE CHART ON A PHONE (QA CLS gate on staging, /arena at 360 in Russian: 0.56, the toolbar flipping between one row and two every 1.5-2 s, +0.166 each flip). At this
+     width the toolbar sits on the edge of fitting in one row (ten timeframes, Draw structure, the "?" and fullscreen in 326 px), and any small width change (a label arriving, the feed dot, the plan control) tips it
+     over or back. Two rows of height are reserved from the first paint (6 + 26 + 4 + 26 + 6 px of padding and buttons, plus the border), so one row or two occupy the same space and nothing below moves. */
+  .klc-toolbar { min-height: 69px; align-content: flex-start; }
   .klc-ds-wrap { position: static; }
   .klc-ds-wrap .klc-draw-menu { left: 8px; right: 8px; top: auto; margin-top: 4px; min-width: 0; }
   .klc-ds-wrap .klc-draw-item { white-space: normal; }
