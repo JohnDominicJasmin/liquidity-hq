@@ -6,13 +6,12 @@ import { strategyUnavailable } from '../lib/strategies/availability.ts';
 import { arenaStrategyRead } from '../lib/arenaStrategyRead.ts';
 import { TF_MS, unavailableByRule, HAS_FUTURES } from '../qa/fixtures/strategyAvailability.ts';
 
-/* #2604 "A STRATEGY THAT CANNOT RUN ON THIS COIN OR TIMEFRAME SAYS SO": the availability table against QA's oracle written from the rule (qa/fixtures/strategyAvailability.ts), for every strategy x every timeframe the Arena offers x six coins with
- * futures and two without (xau, on: no Binance futures symbol; checked against Binance exchangeInfo by audit_availability.mts). One answer feeds the call box, the menu tooltip and the server's NO READING line: all three are compared with the oracle's ONE string.
+/* #2604 "A STRATEGY THAT CANNOT RUN ON THIS COIN OR TIMEFRAME SAYS SO": the availability table against QA's oracle written from the rule (qa/fixtures/strategyAvailability.ts), for every strategy x every timeframe the Arena offers x coins with futures (xau and on included: Binance trades XAUUSDT and ONUSDT) and one without (anthropic: no TRADING contract; checked against Binance exchangeInfo by audit_availability.mts). One answer feeds the call box, the menu tooltip and the server's NO READING line: all three are compared with the oracle's ONE string.
  *   AV1 the table: for each cell, available (null) or the oracle's exact English sentence; AV2 the server read: an unavailable cell is NO READING with that sentence, even with no candles; AV3 an available cell is never labelled unavailable;
  *   AV4 the unavailable cells are a fixed small set (so a new silent rule shows up here). */
 const LABELS = labelDefaults as Record<string, string>;
 const tEn = (key: string, vars?: Record<string, string | number>) => (LABELS[key] ?? key).replace(/\{(\w+)\}/g, (w, n) => (vars && n in vars ? String(vars[n]) : w));
-const COINS = ['btc', 'eth', 'sol', 'hype', 'pepe', 'aapl', 'xau', 'on'];
+const COINS = ['btc', 'eth', 'sol', 'hype', 'pepe', 'aapl', 'xau', 'on', 'anthropic'];   // anthropic: a pre-IPO row whose futures contract Binance does not trade
 const ids = STRATEGIES.map((s) => s.id);
 const appText = (id: string, coin: string, tfMs: number) => { const u = strategyUnavailable(id, coin, tfMs); return u ? tEn(u.reasonKey, u.vars) : null; };
 
@@ -44,5 +43,5 @@ test('AV4. the set of unavailable (strategy, timeframe) pairs for a futures coin
   const pairs = new Set<string>();
   for (const id of ids) for (const [tf, ms] of Object.entries(TF_MS)) if (appText(id, 'btc', ms)) pairs.add(`${id}@${tf}`);
   assert.deepEqual([...pairs].sort(), ['funding_oi_squeeze@1m', 'ny_open_breakout@1d', 'ny_open_breakout@1h', 'ny_open_breakout@2h', 'ny_open_breakout@4h', 'session_sweep@1d', 'session_sweep@2h', 'session_sweep@4h', 'vwap_reclaim@1d', 'vwap_reclaim@2h', 'vwap_reclaim@4h']);
-  assert.equal(HAS_FUTURES.has('xau') || HAS_FUTURES.has('on'), false);
+  assert.equal(HAS_FUTURES.has('anthropic'), false, 'the oracle must keep the coin Binance does not trade as having no futures');
 });
