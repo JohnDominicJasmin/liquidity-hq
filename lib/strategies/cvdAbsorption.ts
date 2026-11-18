@@ -68,6 +68,6 @@ export const CVD_ABSORPTION: StrategyDef = {
   needsTaker: true,
   minCandles: MIN_CANDLES,
   chips: [],
-  logTfs: ['1h', '4h'],
+  logTfs: ['15m', '1h', '4h'],
   detect: detectCvdAbsorption,
 };

@@ -8,9 +8,10 @@ import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } fro
  *  Entry  = that candle's close.
  *  Stop   = the lowest low (BUY) / highest high (SELL) of the last 20 candles ending at it.
  *  Target = the first support / resistance level in the trade's direction (the levels the chart draws) that is at least one risk distance (entry to stop) away; none means no target and no R:R.
- *  The EMAs use the standard 2/(n+1) smoothing seeded with the first close, so the cross lands on the same candle as QA's oracle. Signals, not predictions: this says what the averages did. */
+ *  The EMAs use the standard 2/(n+1) smoothing seeded with the first close, so the cross lands on the same candle as QA's oracle. The seed still weighs about 5% in the EMA 200 after 300 candles, so the caller fetches CANDLE_LIMIT = 1000 candles and the strategy needs 601 closed ones; with fewer it says wait (a cross read on an unsettled average lands a candle or more off). Signals, not predictions: this says what the averages did. */
 
-export const MIN_CANDLES = 201;
+export const MIN_CANDLES = 601;   // the EMA 200 is seeded with the first close; after 600 candles (3 x its length) that seed has faded to nothing, so a shorter view says wait (QA real-data audit, 2026-11-19)
+export const CANDLE_LIMIT = 1000;
 const STOP_WINDOW = 20;
 
 export function detectEmaCross(candles: readonly OHLCV[], _ctx: StrategyContext): StrategyResult {
@@ -38,6 +39,7 @@ export const EMA_CROSS: StrategyDef = {
   reasonSellKey: 'STRAT_CROSS_SELL',
   reasonWaitKey: 'STRAT_CROSS_WAIT',
   minCandles: MIN_CANDLES,
+  candleLimit: CANDLE_LIMIT,
   chips: [],
   logTfs: ['1h', '4h'],
   detect: detectEmaCross,

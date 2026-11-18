@@ -1,6 +1,7 @@
 import { findChannel } from './channel.ts';
 import { lastSwing } from './liquiditySweepMss.ts';
 import { RANGE_MIN, nyOpenUtc } from './nyOpenBreakout.ts';
+import { currentRange } from './rangeBounce.ts';
 import { emaSeeded, srPrices, swingPivots3 } from './shared.ts';
 import { lineValueAt } from '../chartStructures.ts';
 import { bollingerBandsArr, type OHLCV } from '../strategyCore.ts';
@@ -174,6 +175,12 @@ export function watchedDrawing(id: string, candles: readonly OHLCV[], ctx: Strat
     case 'ema_cross':
       out.lines = emaLines(candles);
       break;
+    case 'range_bounce': {
+      // the band it trades (last 30 candles before the newest, two touches on each edge): the edges a bounce is waited for
+      const r = currentRange(candles);
+      if (r) out.levels = [level(r.high, r.fromTs, 'STRAT_OV_RANGE_HIGH'), level(r.low, r.fromTs, 'STRAT_OV_RANGE_LOW')];
+      break;
+    }
     default:
       return null;
   }

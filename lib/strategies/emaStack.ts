@@ -11,6 +11,9 @@ import { WAIT, type StrategyContext, type StrategyDef, type StrategyOverlay, typ
  *    BUY:  a candle's low reaches the 20 (or the 50) and it CLOSES back above the 20. Price dipped into the zone and was bought back.
  *    SELL: the mirror: the high reaches the 20 (or the 50) and the candle closes back below the 20.
  *  FRESH FORMATION (secondary): the closed candle where the full stack first formed, with the close on the right side of the 20.
+ *  DETAILS THE RULE HIDES (QA real-data audit, 2026-11-19): the four EMAs are SMA-SEEDED (each starts at the plain average of its first `period` closes, lib/strategyCore.ts emaArr), unlike the cross strategy's first-close seed. A PULLBACK candle
+ *  whose low (BUY) or high (SELL) went THROUGH the EMA 100 is skipped: it broke the zone, it did not pull back into it, even if it closed back above the 20. "Formation" means the FIRST candle of the current unbroken run of
+ *  'stack in order with the close on the trend side of the 20': the signal is stamped on that first candle and stays current for FRESH_BARS candles after it.
  *  Either is current only while its candle is one of the last FRESH_BARS closed candles and the stack still holds. params.pullback tells which one fired
  *  (true = pullback, false = formation); params.tag says whether a pullback reached the 20 or the 50. Needs enough history for a settled EMA200.
  *  Signals, not predictions: this says how price sits against the averages, not where it goes next. */

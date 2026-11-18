@@ -5,6 +5,7 @@ import type { StrategyDef } from '@/lib/strategies';
 import type { StrategySignalState } from '@/lib/useStrategySignal';
 import { priceText } from '@/lib/numberFormat';
 import { watchedItems } from '@/lib/strategies/chartDrawings';
+import { strategyReasonText } from '@/lib/strategies/reason';
 
 /* THE STRATEGY CALL BOX (owner decision 2026-11-14, option A: ONE strategy menu). The picked strategy's call sits DIRECTLY UNDER the "Strategy set" dropdown, inside the Strategy
  * panel: its name, a one-line description, BUY / SELL / WAIT with the reason in plain words, the invalidation line where the strategy has one, and "Signals, not predictions". A failed read
@@ -26,25 +27,22 @@ export default function StrategyCallBox({ def, state }: Props) {
   const open = openFor === def.id;
   const r = state.result;
   const colour = r?.verdict === 'buy' ? 'var(--green)' : r?.verdict === 'sell' ? 'var(--red)' : 'var(--txt2)';
-  const priceParams: Record<string, string> = {};
-  for (const [k, v] of Object.entries(r?.params ?? {})) if (typeof v === 'number') priceParams[k] = k === 'tag' || k.startsWith('count') ? String(v) : priceText(v);
   /* ON WAIT THE CALL BLOCK WOULD BE MOSTLY EMPTY (its height is reserved for the tallest call), so it lists the levels the strategy is watching, as text, from the same overlay data the chart draws: only 'watch' and 'confirm' levels (the wrong-if level is a BUY/SELL concern), lowest price first, at most four. Nothing is invented: no levels, no line. */
   /* THE SAME GEOMETRY THE CHART DRAWS, AS TEXT (owner, 2026-11-19: the chart shows it, the panel names it in one short line): the levels, the box edges of a zone and where each line ends now. */
   const watched = watchedItems(r);
-  let reason = '';
-  if (r) {
-    const alt = def.reasonKeyFor?.(r) ?? null;
-    if (alt) reason = t(alt, { ...priceParams, tag: String(r.params.tag ?? '') });
-    else if (r.verdict === 'buy') reason = t(def.reasonBuyKey, priceParams);
-    else if (r.verdict === 'sell') reason = t(def.reasonSellKey, priceParams);
-    else reason = t(def.reasonWaitKey);
-  }
+  /* The same sentence the AI read is handed for this strategy (lib/strategies/reason.ts). */
+  const reason = r ? strategyReasonText(def, r, t) : '';
   /* FLAT, ANSWER FIRST (owner, 2026-11-15, PM distill pass): no card inside the panel's card and no name heading (the dropdown above already shows it). Order: the call (verdict, reason, invalidation) in the
      reserved .strat-call-dyn block, then the one-line description with its Expand / Collapse link, then "Signals, not predictions" directly after it. Spare reserved height falls at the bottom of the call block. */
   return (
     <div data-testid="strategy-call-box" data-strategy={def.id} aria-live="polite" className="strat-call-box" style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
       <div className="strat-call-dyn" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {state.unsupportedTf ? (
+      {state.unavailable ? (
+        <>
+          <div data-testid="strategy-call-verdict" data-verdict="wait" style={{ fontSize: 'var(--fs-label)', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--txt2)' }}>{t('STRAT_VERDICT_WAIT')}</div>
+          <p data-testid="strategy-call-cant-run" style={{ margin: 0, fontSize: 'var(--fs-label)', color: 'var(--txt)', lineHeight: 1.4 }}>{t(state.unavailable.reasonKey, state.unavailable.vars)}</p>
+        </>
+      ) : state.unsupportedTf ? (
         <div data-testid="strategy-call-tf-unavailable" style={{ color: 'var(--txt2)', fontSize: 'var(--fs-caption)' }}>{t('STRAT_TF_UNAVAILABLE')}</div>
       ) : state.error ? (
         <>

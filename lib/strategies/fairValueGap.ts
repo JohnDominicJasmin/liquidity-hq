@@ -1,5 +1,5 @@
 import type { OHLCV } from '../strategyCore.ts';
-import { nearestLevel, srPrices, tradeCall } from './shared.ts';
+import { atr14, nearestLevel, srPrices, tradeCall } from './shared.ts';
 import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } from './types.ts';
 
 /* FAIR VALUE GAP (owner decision 2026-11-17, #1263). Closed candles only.
@@ -9,9 +9,13 @@ import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } fro
  *  Entry  = the close.
  *  Stop   = the gap's far edge: the bottom of a bullish gap, the top of a bearish one. No buffer.
  *  Target = the nearer of the recent swing (the highest high / lowest low of the 20 candles before the gap) and the first support / resistance level at least one risk distance (entry to stop) away, in the trade's direction; none means no target and no R:R.
+ *  SIZE FILTERS (PM, 2026-11-19; a real-data audit found 10-15% of candles signalling, many on gaps of a few ticks): the gap must be at least MIN_GAP_ATR = 0.5 x ATR(14) tall (ATR at the gap's third candle), and the call's risk (entry to stop)
+ *  at least MIN_RISK_ATR = 0.5 x ATR(14) at the return candle. 0.3, 0.4 and 0.5 were measured on 30 days of BTC / ETH / SOL: 0.5 lands at 2-5% of candles on 15m, 1h and 4h.
  *  The gap is looked for in the last LOOKBACK candles. The call is on the return candle only. Signals, not predictions. */
 
 export const MIN_CANDLES = 30;
+export const MIN_GAP_ATR = 0.5;    // a gap smaller than this many ATRs is noise, not a gap worth returning to
+export const MIN_RISK_ATR = 0.5;   // a call whose risk (entry to stop) is smaller than this many ATRs is not taken
 const LOOKBACK = 100;
 const SWING_BARS = 20;
 
@@ -38,6 +42,7 @@ export function detectFairValueGap(candles: readonly OHLCV[], _ctx: StrategyCont
     if (!bull && !bear) continue;
     const top = bull ? candles[i].low : candles[i - 2].low;
     const bot = bull ? candles[i - 2].high : candles[i].high;
+    if (top - bot < MIN_GAP_ATR * atr14(candles.slice(Math.max(0, i - 14), i + 1), 14)) continue;   // a tiny gap
     let first = -1, filled = false;
     for (let j = i + 1; j <= k; j++) {
       if (bull ? candles[j].close < bot : candles[j].close > top) { filled = true; break; }
@@ -45,11 +50,12 @@ export function detectFairValueGap(candles: readonly OHLCV[], _ctx: StrategyCont
     }
     if (filled || first !== k) continue;
     const last = candles[k], entry = last.close;
+    const atrK = atr14(candles.slice(Math.max(0, k - 14), k + 1), 14);
     const zone = { top, bottom: bot, fromTs: candles[i].time, toTs: last.time, kind: (bull ? 'demand' : 'supply') as 'demand' | 'supply', labelKey: 'STRAT_OV_FVG' as const };
-    if (bull && last.close > bot) {
+    if (bull && last.close > bot && Math.abs(entry - bot) >= MIN_RISK_ATR * atrK) {
       return tradeCall({ ts: last.time, dir: 'long', entry, stop: bot, target: gapTarget(candles, i, entry, bot, 'long'), params: { gapLo: bot, gapHi: top }, zones: [zone] });
     }
-    if (bear && last.close < top) {
+    if (bear && last.close < top && Math.abs(entry - top) >= MIN_RISK_ATR * atrK) {
       return tradeCall({ ts: last.time, dir: 'short', entry, stop: top, target: gapTarget(candles, i, entry, top, 'short'), params: { gapLo: bot, gapHi: top }, zones: [zone] });
     }
   }

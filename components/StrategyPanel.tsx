@@ -28,6 +28,8 @@ import { useAuth } from './AuthProvider';
 import { SkeletonBar } from './Skeleton';
 import StrategyCallBox from './StrategyCallBox';
 import { STRATEGIES, STRATEGY_GROUPS, STRATEGY_TIP_KEYS, findStrategy } from '@/lib/strategies';
+import { strategyUnavailable } from '@/lib/strategies/availability';
+import { TF_MS } from '@/lib/candles';
 import type { StrategySignalState } from '@/lib/useStrategySignal';
 import { EntitlementUnknownCard } from './UpgradeGateModal';
 import type { SettingsLoadStatus } from '@/lib/settings';
@@ -48,6 +50,9 @@ const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.
 export type RunKind = 'quick' | 'deep' | 'ask';
 
 interface Props {
+  /** The coin and timeframe the chart shows: a strategy that cannot run here is greyed in the menu with the reason as its tooltip (lib/strategies/availability.ts). Absent = nothing is greyed. */
+  coin?: string;
+  tf?: string;
   /** The signed-in visitor's plan is still being read: chips and the strategy menu are disabled, and nothing is applied or saved from a click (a Pro account would otherwise be treated as Free and have its saved selection cut). */
   planChecking?: boolean;
   /** What each chart overlay is doing right now, from strategyRegistry's overlayStates() - the same values the chart draws from.
@@ -140,7 +145,7 @@ function LayerChip({ name, on, unavailable, locked = false, onToggle }: { name: 
   );
 }
 
-export default function StrategyPanel({ planChecking = false, layersLocked = false, overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, runGate, strategy, onStrategyPick, strategyState }: Props) {
+export default function StrategyPanel({ planChecking = false, layersLocked = false, overlays, onOverlayToggle, status, onRetry, selected, onSelectedChange, params, onParamsChange, onRun, runGate, strategy, onStrategyPick, strategyState, coin, tf }: Props) {
   const loaded = status === 'ready';
   const { user, loading: authLoading, entitlementStatus, retryEntitlements } = useAuth();
   const planLabel = strategyPlanLabel({ signedIn: !!user, authLoading, entitlementStatus });
@@ -247,7 +252,11 @@ export default function StrategyPanel({ planChecking = false, layersLocked = fal
           {/* GROUPED (owner decision 2026-11-17): Beginner / Trend, Price action / SMC, Sessions. Each option's title is a one-line note on the data it uses. A strategy not placed in a group is still offered, after them. */}
           {STRATEGY_GROUPS.map(g => (
             <optgroup key={g.id} label={t(g.labelKey)}>
-              {g.ids.map(id => findStrategy(id)).filter((s): s is NonNullable<typeof s> => !!s).map(s => <option key={s.id} value={s.id} title={STRATEGY_TIP_KEYS[s.id] ? t(STRATEGY_TIP_KEYS[s.id]) : undefined}>{t(s.nameKey)}</option>)}
+              {g.ids.map(id => findStrategy(id)).filter((s): s is NonNullable<typeof s> => !!s).map(s => {
+                /* A strategy that cannot run on this coin or timeframe is greyed with the reason as its tooltip (lib/strategies/availability.ts); the one already picked stays selectable so the menu never loses the saved value. */
+                const na = coin && tf ? strategyUnavailable(s.id, coin, TF_MS[tf]) : null;
+                return <option key={s.id} value={s.id} disabled={!!na && s.id !== strategy} title={na ? t(na.reasonKey, na.vars) : STRATEGY_TIP_KEYS[s.id] ? t(STRATEGY_TIP_KEYS[s.id]) : undefined}>{t(s.nameKey)}</option>;
+              })}
             </optgroup>
           ))}
           {STRATEGIES.filter(s => !STRATEGY_GROUPS.some(g => g.ids.includes(s.id))).map(s => <option key={s.id} value={s.id}>{t(s.nameKey)}</option>)}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { detectBosFvg, BOS_FVG, MIN_CANDLES, RETURN_WINDOW } from '../lib/strategies/bosFvg.ts';
 import { STRATEGIES, STRATEGY_GROUPS, STRATEGY_IDS, STRATEGY_TIP_KEYS, findStrategy } from '../lib/strategies/index.ts';
 import { LABEL_KEYS } from '../lib/labelKeys.ts';
@@ -24,7 +24,7 @@ import type { StrategyResult } from '../lib/strategies/types.ts';
  *   20    114 / 107 / 112  the BREAK: closes above 110 for the first time; its low 107 is above candle 18's high 104, so the BULLISH GAP is [104, 107]
  *   21..  the pullback fillers: high 111, low just above 107 (107.5, 107.51 ...), close 109.5 (never above 110, never below 104): the gap is not touched and not filled
  *   last  the RETURN candle: low 106 (at or below the gap top 107), close 109 (above the gap bottom 104)
- * So by the rule: BUY, entry 109, stop 104, the swing high 110 is the target (the highest high of the candles before the gap), R:R 1/5 = 0.2, params bos 110 / gapLo 104 / gapHi 107.
+ * So by the rule: BUY, entry 109, stop 104; the swing high 110 is only 1 above the entry (under 1R = 5), so (#2603: a target is never nearer than 1R) the target is the first S/R level at least 1R away: the break candle high 114, R:R 1.0, params bos 110 / gapLo 104 / gapHi 107.
  * WHAT IT CANNOT PROVE: what the chart draws, the label text in a browser, the real market. Browser cells are listed in the QA report on #2566. */
 
 const T0 = 1_700_000_000_000, TF = 900_000;
@@ -60,7 +60,7 @@ test('a. BUY: a first close above the confirmed swing high leaves a bullish gap,
   const p = r.params;
   assert.equal(p.bos, 110, 'the broken swing high'); assert.equal(p.gapLo, 104, 'gap bottom = candle i-2 high'); assert.equal(p.gapHi, 107, 'gap top = candle i low');
   assert.equal(p.entry, 109, 'entry = the signal candle close'); assert.equal(p.stop, 104, 'stop = the gap bottom (far edge)'); assert.equal(p.inv, 104);
-  assert.equal(p.target, 110, 'target = the nearer of the swing before the gap (110) and an S/R level at least one risk (5) away, i.e. 114 or more: so 110'); assert.equal(p.rr, 0.2, '(110-109)/(109-104)');
+  assert.equal(p.target, 114, '#2603 rule: the target is NEVER nearer than 1R (the swing high 110 is only 1 away, under the 5 of risk): the first S/R level at least 1R away is the break candle high 114 (entry 109 + risk 5)'); assert.equal(p.rr, 1, '(114-109)/(109-104)');
   const o = r.overlay!; assert.deepEqual(o.marker, { ts: cs[29].time, dir: 'long' });
   assert.deepEqual(o.zones, [{ top: 107, bottom: 104, fromTs: cs[20].time, toTs: cs[29].time, kind: 'demand', labelKey: 'STRAT_OV_FVG' }]);
   assert.ok(o.levels.some((l) => l.price === 110 && l.role === 'ref' && l.labelKey === 'STRAT_OV_BOS' && l.fromTs === cs[14].time), 'the break level is drawn from the swing high candle');
@@ -73,7 +73,7 @@ test('b. SELL: the mirror market (close below the swing low, a bearish gap, the 
   assert.equal(r.verdict, 'sell'); assert.equal(r.signalDir, 'short'); assert.equal(r.signalTimestamp, cs[29].time);
   const p = r.params;
   assert.equal(p.bos, 90, 'the broken swing low = 200-110'); assert.equal(p.gapLo, 93, 'bearish gap = [i high, i-2 low] = [200-107, 200-104]'); assert.equal(p.gapHi, 96);
-  assert.equal(p.entry, 91); assert.equal(p.stop, 96, 'stop = the gap top (far edge)'); assert.equal(p.target, 90, 'the lowest low before the gap (200-110)'); assert.equal(p.rr, 0.2);
+  assert.equal(p.entry, 91); assert.equal(p.stop, 96, 'stop = the gap top (far edge)'); assert.equal(p.target, 86, '#2603 rule, the mirror: the swing low 90 is only 1 away, under the 5 of risk: the first S/R level at least 1R away is 200-114 = 86'); assert.equal(p.rr, 1);
   const o = r.overlay!; assert.deepEqual(o.marker, { ts: cs[29].time, dir: 'short' });
   assert.deepEqual(o.zones, [{ top: 96, bottom: 93, fromTs: cs[20].time, toTs: cs[29].time, kind: 'supply', labelKey: 'STRAT_OV_FVG' }]);
   assert.ok(finite(r));
@@ -256,9 +256,12 @@ test('m1. migration 20261119o: PROD (lhq_labels) and DEV (lhq_dev_labels) blocks
   assert.equal(/insert into lhq_dev_labels[\s\S]*insert into lhq_labels/.test(sql), false, 'the PROD block must come first and the DEV block second');
 });
 
-test('m2. migration en values equal lib/labelDefaults.en.json, and every key is a LABEL_KEY', () => {
+test('m2. migration en values equal lib/labelDefaults.en.json (unless a LATER held migration re-states the key), and every key is a LABEL_KEY', () => {
   const prod = rows(block('lhq_labels')); const known = new Set<string>(LABEL_KEYS);
-  for (const k of KEYS) { assert.equal(prod.find((r) => r.key === k && r.locale === 'en')!.value, defaults[k], `${k}: the en row differs from the shipped default`); assert.ok(known.has(k), `${k} is not in LABEL_KEYS`); }
+  /* a key this migration set that a later migration (by file name) states again is judged by the LATER one (the latest row wins in the table, and the shipped default follows it): #2603's 20261119z9 re-states STRAT_BOS_FVG_DESC */
+  const dir = new URL('../supabase/migrations/', import.meta.url); const later = readdirSync(dir).filter((f) => f > '20261119o_' && f.endsWith('.sql') && /labels/.test(f)).map((f) => readFileSync(new URL(f, dir), 'utf8'));
+  const restated = (k: string) => later.some((t) => t.includes(`'${k}'`));
+  for (const k of KEYS) { if (restated(k)) { assert.ok(known.has(k), `${k} is not in LABEL_KEYS`); continue; } assert.equal(prod.find((r) => r.key === k && r.locale === 'en')!.value, defaults[k], `${k}: the en row differs from the shipped default`); assert.ok(known.has(k), `${k} is not in LABEL_KEYS`); }
 });
 
 test('m3. every {placeholder} of the English text is kept, with the same names, in every locale; and no locale invents one', () => {
