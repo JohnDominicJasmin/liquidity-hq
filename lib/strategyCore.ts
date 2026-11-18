@@ -426,19 +426,19 @@ export function judgeRibbon(i: {
   let verdict: RibbonVerdict = 'FREEZE';
   let phase = 'No clear setup';
   if (ribbonBull) {
-    if (inVZoneLong) { verdict = 'LONG_SETUP'; phase = 'In Value Zone - price pulled back to 20 EMA, entry eligible'; }
-    else if (price > ema9) { verdict = 'TRENDING_LONG'; phase = 'Trending long - above 9 EMA, wait for pullback into value zone'; }
-    else if (price < ema50) { verdict = 'FREEZE'; phase = 'Price sliced below 50 EMA - ribbon may be breaking, wait'; }
+    if (inVZoneLong) { verdict = 'LONG_SETUP'; phase = 'In Value Zone - price pulled back to 20 EMA'; }
+    else if (price > ema9) { verdict = 'TRENDING_LONG'; phase = 'Trending long - above 9 EMA'; }
+    else if (price < ema50) { verdict = 'FREEZE'; phase = 'Price below 50 EMA'; }
     else { verdict = 'TRENDING_LONG'; phase = 'Between 20 and 50 EMA - ribbon aligned, not yet in entry zone'; }
   } else if (ribbonBear) {
-    if (inVZoneShort) { verdict = 'SHORT_SETUP'; phase = 'In Value Zone - dead-cat bounce to 20 EMA, entry eligible'; }
-    else if (price < ema9) { verdict = 'TRENDING_SHORT'; phase = 'Trending short - below 9 EMA, wait for rally into value zone'; }
+    if (inVZoneShort) { verdict = 'SHORT_SETUP'; phase = 'In Value Zone - price bounced to 20 EMA'; }
+    else if (price < ema9) { verdict = 'TRENDING_SHORT'; phase = 'Trending short - below 9 EMA'; }
     else if (price > ema50) { verdict = 'FREEZE'; phase = 'Price above 50 EMA - bearish breakdown not confirmed yet'; }
     else { verdict = 'TRENDING_SHORT'; phase = 'Between 20 and 50 EMA - ribbon aligned bearish, not in entry zone'; }
   } else {
     phase = above200D
-      ? `Daily above 200 SMA but ${tfLabel} ribbon not bullish - wait for EMA alignment`
-      : `Daily below 200 SMA but ${tfLabel} ribbon not bearish - wait for EMA alignment`;
+      ? `Daily above 200 SMA but ${tfLabel} ribbon not bullish`
+      : `Daily below 200 SMA but ${tfLabel} ribbon not bearish`;
   }
   if (counterTrend && verdict !== 'FREEZE') phase += ' - counter-trend vs the daily 200 SMA';
   return { verdict, phase, setupDir, counterTrend, judgeLong };

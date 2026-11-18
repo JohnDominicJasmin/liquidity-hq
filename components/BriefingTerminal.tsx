@@ -11,6 +11,7 @@ import SessionCountdown from '@/components/SessionCountdown';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { withAlpha } from '@/lib/color';
+import { accountRatio } from '@/lib/accountRatioVenue';
 import { getAuthToken } from '@/lib/supabase';
 import { nextResetLocalTime, localZoneAbbr } from '@/lib/resetTime';
 import PageHint from '@/components/PageHint';
@@ -94,11 +95,12 @@ function getSignalTags(
       else if (fr <= -0.005) tags.push(t('BRIEFING_TAG_FR_NEG'));
     }
   }
-  if (coin.longRatio != null && coin.shortRatio != null) {
-    if (dir === 'LONG_LIQ' && coin.longRatio >= 0.58)
-      tags.push(t('BRIEFING_TAG_LONGS_PCT', { pct: (coin.longRatio * 100).toFixed(0) }));
-    if (dir === 'SHORT_SQ' && coin.shortRatio >= 0.58)
-      tags.push(t('BRIEFING_TAG_SHORTS_PCT', { pct: (coin.shortRatio * 100).toFixed(0) }));
+  const ar = accountRatio(coin);
+  if (ar) {
+    if (dir === 'LONG_LIQ' && ar.long >= 0.58)
+      tags.push(t('BRIEFING_TAG_LONGS_PCT', { pct: (ar.long * 100).toFixed(0) }));
+    if (dir === 'SHORT_SQ' && ar.short >= 0.58)
+      tags.push(t('BRIEFING_TAG_SHORTS_PCT', { pct: (ar.short * 100).toFixed(0) }));
   }
   if (coin.takerBuyRatio != null) {
     if (dir === 'LONG_LIQ' && coin.takerBuyRatio <= 0.42) tags.push(t('BRIEFING_TAG_TAKER_SELL'));
@@ -127,7 +129,7 @@ function buildBriefingContext(
   calendarUnavailable = false,
 ): string {
   const nowUtc = new Date().toLocaleString('en-GB', {
-    timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   });
   const jpyStatus = jpyUsd == null ? 'N/A'
     : jpyUsd >= 160 ? `${jpyUsd.toFixed(2)} - at or above 160. If the yen rises quickly from this level, yen carry trades can be unwound, which has coincided with crypto selloffs before.`
@@ -239,8 +241,9 @@ export default function BriefingTerminal() {
     const load = () =>
       fetch('/api/forex/jpy')
         .then(r => r.json())
-        .then((d: { jpy?: number }) => {
-          if (d?.jpy) { setJpyUsd(d.jpy); setJpyUpdated(new Date()); }
+        .then((d: { jpy?: number; asOf?: number }) => {
+          /* The age shown is the RATE'S own time (asOf from the route), not the moment this page fetched it. */
+          if (d?.jpy) { setJpyUsd(d.jpy); setJpyUpdated(typeof d.asOf === 'number' && d.asOf > 0 ? new Date(d.asOf) : null); }
         })
         .catch(() => {});
     load();
@@ -321,6 +324,11 @@ export default function BriefingTerminal() {
   /* The figure is the latest SETTLED US session, not "today" (PM audit A5): on a Monday morning or a holiday it is Friday's. The dated list already
      exists in the store; its newest date is shown. */
   const etfDate  = store.etfFlowDays?.[0]?.date ?? null;
+  /* "2026-11-13" -> "Nov 13" in the reader's language; a value that is not a date is shown as it came. */
+  const fmtEtfDate = (d: string): string => {
+    const dt = new Date(`${d}T00:00:00Z`);
+    return Number.isFinite(dt.getTime()) ? dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }) : d;
+  };
   const etfColor = etfFlow == null || etfFlow === 0 ? 'var(--txt3)' : etfFlow > 0 ? 'var(--green-2)' : 'var(--red)';
 
   const dxyChg    = store.dxyChg;
@@ -339,7 +347,10 @@ export default function BriefingTerminal() {
   /* THE TREND NEEDS HISTORY AND A REAL MOVE (PM audit A6). It compared the first and last of at most ten five-minute samples (about 50 minutes), so a
      0.01 point rise read "Alts weak" and an unchanged value read "Alts active"; a fresh page load had two samples. It now needs at least six samples
      and a move of at least 0.1 points either way, and otherwise says nothing. */
-  const domMove = btcDomHistory.length >= 6 ? btcDomHistory[btcDomHistory.length - 1] - btcDomHistory[0] : 0;
+  /* THE WINDOW IS STATED (#1185). CoinMarketCap's own 24-hour change is used when it is there, and the label says 24h; without it the short sample window is used and the label says so, instead of presenting about 50 minutes as a trend of unstated length. */
+  const dom24 = store.btcDomChg24h;
+  const domMove = dom24 != null ? dom24 : btcDomHistory.length >= 6 ? btcDomHistory[btcDomHistory.length - 1] - btcDomHistory[0] : 0;
+  const domWindow = dom24 != null ? t('BRIEFING_DOM_WINDOW_24H') : t('BRIEFING_DOM_WINDOW_SHORT');
   const domTrend = domMove >= 0.1
     ? { txt: t('BRIEFING_DOM_ALTS_WEAK'), col: 'var(--amber)' }
     : domMove <= -0.1
@@ -385,7 +396,7 @@ export default function BriefingTerminal() {
       {/* ── Top 3 Setups ── */}
       <TPanel>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div className="lbl" style={{ margin: 0 }}>{t('BRIEFING_TOP3_TITLE')}</div>
+          <div className="lbl" style={{ margin: 0 }}>{t('BRIEFING_TOP3_TITLE')} {t('BRIEFING_TOP_SETUPS_QUALIFY', { n: top3Setups.length })}</div>
           <Link href="/arena" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
             {t('BRIEFING_SEE_ALL_ARENA')}
           </Link>
@@ -562,23 +573,23 @@ export default function BriefingTerminal() {
         <div className="mb-macro-row">
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip text={t('BRIEFING_FNG_TIP')}>{t('BRIEFING_FNG_LABEL')}</Tip></div>
-            <div className="mb-macro-val" style={{ color: fngColor }}>{fng != null ? fng : '-'}</div>
-            <div className="mb-macro-sub" style={{ color: fngColor }}>{fngWord(t, store.fngLabel) || '-'}</div>
+            <div className="mb-macro-val" style={{ color: fngColor }}>{fng != null ? fng : <ReadingGap loading={!graceOver} />}</div>
+            <div className="mb-macro-sub" style={{ color: fngColor }}>{fngWord(t, store.fngLabel) || (fng != null ? '-' : '')}</div>
           </div>
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip text={t('BRIEFING_BTCDOM_TIP')}>{t('BRIEFING_BTCDOM_LABEL')}</Tip></div>
-            <div className="mb-macro-val">{store.btcDom != null ? store.btcDom.toFixed(1) + '%' : '-'}</div>
-            <div className="mb-macro-sub" style={{ color: domTrend?.col ?? 'var(--txt3)' }}>{domTrend?.txt ?? '-'}</div>
+            <div className="mb-macro-val">{store.btcDom != null ? store.btcDom.toFixed(1) + '%' : <ReadingGap loading={!graceOver} />}</div>
+            <div className="mb-macro-sub" style={{ color: domTrend?.col ?? 'var(--txt3)' }}>{domTrend ? `${domTrend.txt} · ${domWindow}` : (store.btcDom != null ? '-' : '')}</div>
           </div>
           <div className="mb-macro-item">
             <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_DXY_TIP')}>{t('BRIEFING_DXY_LABEL')}</Tip></div>
-            <div className="mb-macro-val">{store.dxy != null ? store.dxy.toFixed(2) : '-'}</div>
-            <div className="mb-macro-sub" style={{ color: dxyColor }}>{dxySig}</div>
+            <div className="mb-macro-val">{store.dxy != null ? store.dxy.toFixed(2) : <ReadingGap loading={!graceOver} />}</div>
+            <div className="mb-macro-sub" style={{ color: dxyColor }}>{store.dxy != null ? dxySig : ''}</div>
             {dxyStampDate && store.dxy != null && <div className="mb-macro-sub" data-testid="macro-stamp" style={{ color: 'var(--txt3)' }}>{t('MACRO_STRIP_CLOSE_STAMP', { day: dxyStampDate.toLocaleDateString(undefined, { weekday: 'short' }) })}</div>}
           </div>
           {etfFlow != null && (
             <div className="mb-macro-item">
-              <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_ETF_TIP')}>{t('BRIEFING_ETF_LABEL')}</Tip>{etfDate ? ` · ${etfDate}` : ''}</div>
+              <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_ETF_TIP')}>{t('BRIEFING_ETF_LABEL')}</Tip>{etfDate ? ` · ${t('BRIEFING_ETF_LATEST', { date: fmtEtfDate(etfDate) })}` : ''}</div>
               <div className="mb-macro-val" style={{ color: etfColor }}>
                 {signedUsd(etfFlow, 'M', 0)}
               </div>
@@ -655,7 +666,7 @@ export default function BriefingTerminal() {
             </div>
             {jpyMinutesAgo !== null && (
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 5 }}>
-                {t('BRIEFING_YEN_UPDATED', { time: jpyMinutesAgo < 1 ? 'just now' : `${jpyMinutesAgo}m ago` })}
+                {t('BRIEFING_YEN_UPDATED', { time: jpyMinutesAgo < 1 ? 'just now' : jpyMinutesAgo < 90 ? `${jpyMinutesAgo}m ago` : jpyMinutesAgo < 2880 ? `${Math.round(jpyMinutesAgo / 60)}h ago` : `${Math.round(jpyMinutesAgo / 1440)}d ago` })}
               </div>
             )}
           </>
@@ -702,8 +713,10 @@ export default function BriefingTerminal() {
             </div>
             {!pricesLoaded ? (
               <div style={{ padding: '4px 0' }}>
+                {graceOver ? <ReadingGap loading={false} /> : (<>
                 <SkeletonBar width="55%" height={13} style={{ marginBottom: 8 }} />
                 <SkeletonBar width="38%" height={13} />
+                </>)}
                 <span className="sr-only">{t('BRIEFING_LOADING_MARKET_SR')}</span>
               </div>
             ) : shown.length === 0 ? (
@@ -761,7 +774,7 @@ export default function BriefingTerminal() {
               <div className="mb-event-tag" style={{
                 borderRadius: 0,
                 background: isPast ? 'rgba(100,100,100,0.15)' : lh < 2 ? 'rgba(248,113,113,0.15)' : 'rgba(251,191,36,0.1)',
-                color: isPast ? 'var(--txt3)' : lh < 2 ? 'var(--red)' : 'var(--amber)',
+                color: isPast ? 'var(--txt3)' : lh < 2 ? 'var(--red-soft)' : 'var(--amber)',
               }}>
                 {isPast ? '✓ ' : ''}{e.type}
               </div>

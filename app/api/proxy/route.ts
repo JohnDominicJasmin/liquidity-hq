@@ -19,6 +19,8 @@ import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { exchangeFetch } from '@/lib/exchangeGuard';
 import { trimBybitTickers, trimDeribitBook, trimLlamaStables } from '@/lib/payloadTrim';
+import { COIN_UNIVERSE } from '@/lib/coinUniverse.generated';
+import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS } from '@/lib/coins';
 
 // Google Trends' 7-day bitcoin score barely moves hour to hour, and the
 // unofficial endpoint blocks aggressively under repeated hits - cache long.
@@ -135,6 +137,25 @@ const CURSOR_PARAMS = ['startTime', 'endTime', 'start', 'end'] as const;
 const FALLBACK_AFTER_MS = 3_000;
 
 const PASSTHROUGH_VALUE = /^[A-Za-z0-9_.,:\-[\]"]{1,1000}$/;
+
+/* A SYMBOL MUST BE ONE THE APP TRACKS. Every Bybit and Binance symbol in the coin universe (the same list the client reads); anything else is a 400 from us before any upstream call, and a 400 is never cached. */
+const TRACKED_SYMBOLS: ReadonlySet<string> = new Set(
+  [
+    ...COIN_UNIVERSE.flatMap(r => [r.bybit, r.binance]),
+    ...Object.values(BINANCE_SYMS), ...Object.values(BINANCE_SPOT_SYMS), ...Object.values(BYBIT_SYMS),
+  ].filter((s): s is string => typeof s === 'string' && s.length > 0).map(s => s.toUpperCase()),
+);
+/** `symbol` is one symbol; `symbols` is a JSON array (["BTCUSDT","ETHUSDT"]) or a comma list. true when every symbol named is tracked. */
+function symbolsTracked(raw: string): boolean {
+  let list: unknown;
+  if (raw.trim().startsWith('[')) {
+    try { list = JSON.parse(raw); } catch { return false; }
+  } else {
+    list = raw.split(',');
+  }
+  if (!Array.isArray(list) || list.length === 0 || list.length > 200) return false;
+  return list.every(s => typeof s === 'string' && TRACKED_SYMBOLS.has(s.trim().toUpperCase()));
+}
 
 const PASSTHROUGH: Record<string, PassEntry> = {
   /* Bybit. Note for anyone slicing these later: Bybit returns NEWEST-first and
@@ -569,6 +590,7 @@ export async function GET(req: NextRequest) {
       for (const k of entry.params) {
         const v = req.nextUrl.searchParams.get(k);
         if (v != null && v !== '' && !PASSTHROUGH_VALUE.test(v)) return NextResponse.json({ error: `invalid ${k}` }, { status: 400 });
+        if ((k === 'symbol' || k === 'symbols') && v != null && v !== '' && !symbolsTracked(v)) return NextResponse.json({ error: `invalid ${k}` }, { status: 400 });
       }
       const u = new URL(entry.url);
       for (const [k, v] of Object.entries(entry.fixed ?? {})) u.searchParams.set(k, v);
@@ -596,7 +618,17 @@ export async function GET(req: NextRequest) {
           if (!fbUrl) throw e;
           primaryFailure = e;
         }
-        if (r?.ok) { const body = await r.json(); return { json: JSON.stringify(entry.trim ? entry.trim(body) : body), viaFallback: false }; }
+        if (r?.ok) {
+          /* THE BODY CAN BE LATE EVEN WHEN THE HEADERS WERE NOT (reliability leftover, PM 2026-11-17). The 3 s signal covers reading the body too, so a primary that answered 200 and then stalled mid-body aborted HERE, outside the try above, and the request failed without ever asking Bybit. A late or unreadable body now falls to the same fallback as a late or failed primary; with no fallback the original error is rethrown unchanged. */
+          try {
+            const body = await r.json();
+            return { json: JSON.stringify(entry.trim ? entry.trim(body) : body), viaFallback: false };
+          } catch (e) {
+            if (!fbUrl) throw e;
+            primaryFailure = e;
+            r = null;
+          }
+        }
 
         /* FAIL LOUDLY (#228). Throwing means cached() stores nothing, so a ban
            is retried rather than pinned, and the caller gets a status instead

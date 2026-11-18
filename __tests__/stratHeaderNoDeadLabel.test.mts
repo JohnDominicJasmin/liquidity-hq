@@ -14,7 +14,9 @@ test('D1. no "Edit · Save as" caption and no orphan .strat-cap rule', () => {
   assert.equal(/className="[^"]*\bstrat-cap\b/.test(panel), false, 'a .strat-cap element is back');
   assert.equal(/\.strat-cap\b/.test(css), false, 'a CSS rule still styles .strat-cap although nothing uses it');
 });
-test('D2. the header still has its title, its select and the indicators section', () => {
-  assert.ok(/<div className="strat-lbl">\s*<span>\{t\('STRATEGY_PANEL_SECTION_SET'\)\}<\/span>/.test(panel), 'the Strategy set header title is gone');
-  assert.ok(panel.includes('data-testid="strategy-set-select"') && panel.includes("t('STRATEGY_PANEL_SECTION_INDICATORS')"), 'the strategy select or the indicators section header is gone');
+test('D2. the header still has its title and plan chip, the select (named for assistive tech) and the indicators section', () => {
+  /* RE-ANCHORED for the compact panel (#2500 pass 2): the visible "Strategy set" line is gone; the select carries it as its aria-label. */
+  assert.ok(/<div className="strat-head">\s*<span>\{t\('STRAT_CARD_TITLE'\)\}<\/span>/.test(panel), 'the Strategy card title in the header is gone');
+  assert.ok(panel.includes('data-testid="strategy-set-select"') && /aria-label=\{t\('STRATEGY_PANEL_SECTION_SET'\)\}/.test(panel), 'the strategy select lost its accessible name');
+  assert.ok(panel.includes("t('STRATEGY_PANEL_SECTION_INDICATORS')"), 'the indicators section header is gone');
 });

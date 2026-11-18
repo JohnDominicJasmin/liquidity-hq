@@ -48,6 +48,10 @@ function fmtP(price: number): string {
   if (price >= 1)      return '$' + price.toFixed(3);
   return '$' + price.toFixed(4);
 }
+/* A dollar DISTANCE from the price: whole dollars from 100 up, cents below that (never "$96.590"). */
+function fmtDist(d: number): string {
+  return d >= 100 ? fmtP(d) : '$' + d.toFixed(2);
+}
 function fmtM(v: number): string {
   if (v >= 1000) return '$' + (v / 1000).toFixed(1) + 'B';
   if (v >= 1)    return '$' + v.toFixed(1) + 'M';
@@ -80,14 +84,14 @@ function BandRow({ b }: { b: Band }) {
   const accent = isLong ? 'var(--red)' : 'var(--green-2)';
   return (
     <div className={`liq-row${b.isMagnet ? ' liq-row-magnet' : ''}`} role="row">
-      <span className="liq-row-price">{fmtP(b.price)}</span>
-      <span className="liq-row-dist" style={{ color: 'var(--txt3)' }}>
+      <span className="liq-row-price" role="cell">{fmtP(b.price)}</span>
+      <span className="liq-row-dist" role="cell" style={{ color: 'var(--txt3)' }}>
         {b.distPct < 1 ? b.distPct.toFixed(1) : Math.round(b.distPct)}%
       </span>
-      <span className="liq-row-lev" style={{ color: accent }}>
+      <span className="liq-row-lev" role="cell" style={{ color: accent }}>
         {b.lev}{b.isMagnet ? ' ◆' : ''}
       </span>
-      <div className="liq-row-bar-wrap">
+      <div className="liq-row-bar-wrap" role="cell">
         {/* #1651: the bar is omitted, not zero-width, when there is no amount. `Math.max(b.barPct, 2)` floors every bar at 2%, so an
             unknown row still painted a stub - which reads as "a little liquidity here", a value, exactly what the fix removes from the
             column beside it. The floor stays for real amounts, where it keeps the smallest tier visible. Caught by rendering it: the
@@ -98,7 +102,7 @@ function BandRow({ b }: { b: Band }) {
           boxShadow: b.isMagnet ? `0 0 10px ${withAlpha(accent, '44')}` : 'none',
         }} />}
       </div>
-      <span className="liq-row-usd" style={{ color: b.usdM === null ? 'var(--txt3)' : accent }}>{b.usdM === null ? '-' : fmtM(b.usdM)}</span>
+      <span className="liq-row-usd" role="cell" style={{ color: b.usdM === null ? 'var(--txt3)' : accent }}>{b.usdM === null ? '-' : fmtM(b.usdM)}</span>
     </div>
   );
 }
@@ -199,7 +203,7 @@ export function RealClusters({ clusters, currentPrice, histOnly = null }: { clus
                   {c.label}
                 </div>
                 <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-                  {fmtP(distUsd)} {isAbove ? t('LIQ_CLUSTERS_ABOVE') : t('LIQ_CLUSTERS_BELOW')}
+                  {fmtDist(distUsd)} {isAbove ? t('LIQ_CLUSTERS_ABOVE') : t('LIQ_CLUSTERS_BELOW')}
                 </div>
               </div>
               <div style={{ height: 10, borderRadius: 0, background: 'rgba(255,255,255,0.04)', overflow: 'hidden', display: 'flex' }}>
@@ -406,7 +410,7 @@ export default function LiqTerminal() {
                     <span style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--red)', fontVariantNumeric: 'tabular-nums' }}>
                       {((retailPos?.longRatio ?? cd.bnLongRatio!) * 100).toFixed(0)}%
                     </span>
-                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BINANCE_PERIOD', { period: retailPos ? RANGE_TO_PERIOD[range] : '5m' })}</span>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BINANCE_PERIOD', { period: retailPos ? RANGE_TO_PERIOD[range] : '1h' })}</span>
                   </div>
                 )}
               </div>
@@ -435,7 +439,7 @@ export default function LiqTerminal() {
                 </div>
                 {(retailPos?.shortRatio ?? cd.bnShortRatio) != null && (
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BINANCE_PERIOD', { period: retailPos ? RANGE_TO_PERIOD[range] : '5m' })}</span>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BINANCE_PERIOD', { period: retailPos ? RANGE_TO_PERIOD[range] : '1h' })}</span>
                     <span style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--green-2)', fontVariantNumeric: 'tabular-nums' }}>
                       {((retailPos?.shortRatio ?? cd.bnShortRatio!) * 100).toFixed(0)}%
                     </span>
@@ -511,7 +515,7 @@ export default function LiqTerminal() {
                     </span>
                   </div>
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
-                    {t('LIQ_WHALE_SOURCE_LABEL', { period: whalePos != null ? RANGE_TO_PERIOD[range] : '5m' })}
+                    {t('LIQ_WHALE_SOURCE_LABEL', { period: whalePos != null ? RANGE_TO_PERIOD[range] : '1h' })}
                   </span>
                 </div>
 

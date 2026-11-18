@@ -8,12 +8,13 @@ export default function MacroStrip() {
   const { store } = useMarket();
   const { t } = useLabels();
   const [jpyUsd, setJpyUsd] = useState<number | null>(null);
+  const [jpyAsOf, setJpyAsOf] = useState<number | null>(null);
 
   useEffect(() => {
     const load = () =>
       fetch('/api/forex/jpy')
         .then(r => r.json())
-        .then((d: { jpy?: number }) => { if (d?.jpy) setJpyUsd(d.jpy); })
+        .then((d: { jpy?: number; asOf?: number }) => { if (d?.jpy) { setJpyUsd(d.jpy); setJpyAsOf(typeof d.asOf === 'number' ? d.asOf : null); } })
         .catch(() => {});
     load();
     const timer = setInterval(load, 5 * 60_000);
@@ -26,7 +27,7 @@ export default function MacroStrip() {
     : 'var(--green)';
   const jpySig = jpyUsd == null ? null
     : jpyUsd >= 160 ? { txt: t('MACRO_STRIP_JPY_INTERVENTION'), col: 'var(--red)' }
-    : jpyUsd >= 158 ? { txt: t('MACRO_STRIP_JPY_APPROACHING'), col: 'var(--amber)' }
+    : jpyUsd >= 158 ? { txt: t('MACRO_STRIP_JPY_APPROACHING', { level: '158' }), col: 'var(--amber)' }
     : { txt: t('MACRO_STRIP_JPY_CARRY_STABLE'), col: 'var(--green)' };
 
   const items = [
@@ -46,8 +47,8 @@ export default function MacroStrip() {
       price: store.spx,
       chg: store.spxChg,
       fmt: (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 }),
-      signal: (chg: number) => chg > 0.3 ? { txt: t('MACRO_STRIP_SPX_UP'), col: 'var(--green)' }
-                              : chg < -0.5 ? { txt: t('MACRO_STRIP_SPX_DOWN'), col: 'var(--red)' }
+      signal: (chg: number) => chg > 0.3 ? { txt: t('MACRO_STRIP_SPX_UP', { pct: `${Math.abs(chg).toFixed(1)}%` }), col: 'var(--green)' }
+                              : chg < -0.5 ? { txt: t('MACRO_STRIP_SPX_DOWN', { pct: `${Math.abs(chg).toFixed(1)}%` }), col: 'var(--red)' }
                               : { txt: t('MACRO_STRIP_NEUTRAL'), col: 'var(--txt3)' },
     },
     {
@@ -93,7 +94,7 @@ export default function MacroStrip() {
         {/* JPY carry trade risk indicator */}
         <div className="macro-item">
           <div className="macro-item-label">JPY</div>
-          <div className="macro-item-price" style={{ color: jpyCol }}>
+          <div className="macro-item-price" style={{ color: jpyCol }} title={jpyAsOf != null ? new Date(jpyAsOf).toLocaleString() : undefined}>
             {jpyUsd != null ? jpyUsd.toFixed(2) : '-'}
           </div>
           <div className="macro-item-chg" style={{ color: jpyCol }}>

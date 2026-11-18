@@ -12,6 +12,7 @@ import { reportHealth } from '@/lib/apiHealth';
 import { feedFor } from '@/lib/marketFeeds';
 import { resolveFeedSnapshot } from '@/lib/marketSnapshot';
 import { polledCacheControl } from '@/lib/cacheHeaders';
+import { cachedAt } from '@/lib/apiCache';
 
 const INTERVALS = new Set(['5min', '15min', '30min', '1h', '4h', '1d']);
 /* Capped, and small. Each distinct limit is another fan-out of 50 upstream
@@ -79,7 +80,7 @@ export async function GET(req: NextRequest) {
        `'stopped' in body` is a valid check, the same convention
        /api/market/snapshot uses for `partial`. Reported unhealthy too: a run cut
        short by a ban is not a success with fewer rows. */
-    return NextResponse.json({ data, ok, total, ...(stopped ? { stopped: true } : {}), ts: Date.now() }, {
+    return NextResponse.json({ data, ok, total, ...(stopped ? { stopped: true } : {}), ts: cachedAt(`bybit:open-interest:${intervalTime}:${limit}`) ?? Date.now() }, {
       headers: { 'Cache-Control': polledCacheControl(120) },
     });
   } catch (e) {

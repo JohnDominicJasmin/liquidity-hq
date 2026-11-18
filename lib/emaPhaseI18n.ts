@@ -12,12 +12,12 @@ export interface PhaseI18n { key: LabelKey; params?: Record<string, string>; cou
 const COUNTER = ' - counter-trend vs the daily 200 SMA';
 
 const EXACT: Record<string, LabelKey> = {
-  'In Value Zone - price pulled back to 20 EMA, entry eligible': 'EMA_PHASE_VALUE_ZONE_LONG',
-  'Trending long - above 9 EMA, wait for pullback into value zone': 'EMA_PHASE_TRENDING_LONG',
-  'Price sliced below 50 EMA - ribbon may be breaking, wait': 'EMA_PHASE_FREEZE_LONG',
+  'In Value Zone - price pulled back to 20 EMA': 'EMA_PHASE_VALUE_ZONE_LONG',
+  'Trending long - above 9 EMA': 'EMA_PHASE_TRENDING_LONG',
+  'Price below 50 EMA': 'EMA_PHASE_FREEZE_LONG',
   'Between 20 and 50 EMA - ribbon aligned, not yet in entry zone': 'EMA_PHASE_BETWEEN_LONG',
-  'In Value Zone - dead-cat bounce to 20 EMA, entry eligible': 'EMA_PHASE_VALUE_ZONE_SHORT',
-  'Trending short - below 9 EMA, wait for rally into value zone': 'EMA_PHASE_TRENDING_SHORT',
+  'In Value Zone - price bounced to 20 EMA': 'EMA_PHASE_VALUE_ZONE_SHORT',
+  'Trending short - below 9 EMA': 'EMA_PHASE_TRENDING_SHORT',
   'Price above 50 EMA - bearish breakdown not confirmed yet': 'EMA_PHASE_FREEZE_SHORT',
   'Between 20 and 50 EMA - ribbon aligned bearish, not in entry zone': 'EMA_PHASE_BETWEEN_SHORT',
   'No clear setup': 'EMA_PHASE_NO_SETUP',
@@ -32,8 +32,8 @@ const EXACT: Record<string, LabelKey> = {
   'Selected MACD disagrees with the entry - DIF at or above DEA, waiting': 'EMA_PHASE_SEL_MACD_SHORT',
 };
 
-const DAILY_ABOVE = /^Daily above 200 SMA but (.+) ribbon not bullish - wait for EMA alignment$/;
-const DAILY_BELOW = /^Daily below 200 SMA but (.+) ribbon not bearish - wait for EMA alignment$/;
+const DAILY_ABOVE = /^Daily above 200 SMA but (.+) ribbon not bullish$/;
+const DAILY_BELOW = /^Daily below 200 SMA but (.+) ribbon not bearish$/;
 
 export function phaseI18n(phase: string): PhaseI18n | null {
   let base = phase;

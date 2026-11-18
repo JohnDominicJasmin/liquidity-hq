@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { useLabels } from '@/lib/labels';
-import { UpgradePillLink, useShowFreeUpgrade } from '@/components/UpgradePill';
 import { nextResetLocalTime } from '@/lib/resetTime';
 
 // Visible usage tracker under the Arena AI buttons: today's Quick/Deep tally
@@ -31,11 +30,34 @@ function StatBlock({ label, used, limit }: { label: string; used: number; limit:
   );
 }
 
+/* THE COUNTS ON THE BUTTONS' OWN ROW at 1024 px and wider (PM, #2500: the Strategy panel's run row ended 26 px below the fold at 1280x800, and this separate usage bar was ~44 px of chrome above the chart). One small right-aligned line, "Quick 0/30 · Deep 0/10 · Resets 10:00 PM"; the standalone bar below is hidden at that width (globals.css) and phones keep it. Nothing here moves layout: it sits in the row the buttons already make. */
+export function UsageInline() {
+  const { user } = useAuth();
+  const { usage } = useGrokUsage();
+  const { t } = useLabels();
+  const [resetTime, setResetTime] = useState<string | null>(null);
+  useEffect(() => {
+    const tick = () => setResetTime(nextResetLocalTime());
+    tick();
+    const id = setInterval(tick, 5 * 60_000);
+    return () => clearInterval(id);
+  }, []);
+  if (!user || !usage) return null;
+  const color = (u: number, l: number) => (l > 0 && u / l >= 1 ? 'var(--red)' : l > 0 && u / l >= 0.8 ? 'var(--amber)' : 'var(--txt2)');
+  return (
+    <span className="usage-inline" data-testid="usage-inline" style={{ marginLeft: 'auto', alignSelf: 'center', flex: '1 1 0', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+      <span style={{ color: color(usage.quick_used, usage.quick_limit) }}>{t('USAGE_METER_QUICK_LABEL')} {usage.quick_used}/{usage.quick_limit}</span>
+      {' · '}
+      <span style={{ color: color(usage.deep_used, usage.deep_limit) }}>{t('USAGE_METER_DEEP_LABEL')} {usage.deep_used}/{usage.deep_limit}</span>
+      {resetTime != null && <> · {t('USAGE_METER_RESET_FACT', { time: resetTime })}</>}
+    </span>
+  );
+}
+
 export default function UsageMeter() {
   const { user, isPro } = useAuth();
   const { usage } = useGrokUsage();
   const { t } = useLabels();
-  const showFreeUpgrade = useShowFreeUpgrade();
   const [resetTime, setResetTime] = useState<string | null>(null);
 
   useEffect(() => {
@@ -60,7 +82,6 @@ export default function UsageMeter() {
   if (!usage) {
     return (
       <div className={slotClass} style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
-        {showFreeUpgrade ? <UpgradePillLink testId="usage-meter-upgrade" tap /> : null}
       </div>
     );
   }
@@ -87,14 +108,6 @@ export default function UsageMeter() {
         <span className="usage-reset" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: '0 1 auto' }}>
           {t('USAGE_METER_RESET_FACT', { time: resetTime })}
         </span>
-      )}
-      {/* Free: a real button-style pill, always (was caption text, only near the cap). A trial keeps the old caption link
-          near the cap - TrialBanner already carries its pill. */}
-      {showFreeUpgrade && <UpgradePillLink testId="usage-meter-upgrade" style={{ marginLeft: 'auto' }} tap />}
-      {!isPro && !showFreeUpgrade && nearCap && (
-        <Link href="/upgrade" style={{ marginLeft: 'auto', color: 'var(--accent)', fontWeight: 700, fontSize: 'var(--fs-caption)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-          {t('USAGE_METER_UPGRADE_LINK')}
-        </Link>
       )}
     </div>
     </div>

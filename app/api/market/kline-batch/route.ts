@@ -15,6 +15,7 @@ import { bybitFanout } from '@/lib/bybitFanout';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { polledCacheControl } from '@/lib/cacheHeaders';
+import { cachedAt } from '@/lib/apiCache';
 
 /* Bybit's own interval names. 5 is what the OI bootstrap asks for; the others are the ones the app uses elsewhere, kept to a closed set. */
 const INTERVALS = new Set(['1', '5', '15', '30', '60', '240']);
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
       (body) => (body as { result?: { list?: unknown[] } })?.result?.list ?? null,
     );
     /* `stopped` is reported separately for the same reason as the sibling routes: `ok: 12, total: 49` reads the same for a rate-limit abort and for 37 symbols failing alone. */
-    return NextResponse.json({ data, ok, total, ...(stopped ? { stopped: true } : {}), ts: Date.now() }, {
+    return NextResponse.json({ data, ok, total, ...(stopped ? { stopped: true } : {}), ts: cachedAt(`bybit:kline-batch:${interval}:${limit}`) ?? Date.now() }, {
       headers: { 'Cache-Control': polledCacheControl(TTL_MS / 1000) },
     });
   } catch (e) {
