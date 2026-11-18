@@ -18,8 +18,14 @@
  *   4. Evidence. A ban answer's status and the first 300 characters of its body go to GlitchTip once per trip, so a rate limit ("access too
  *      frequent") can be told from a block (a CloudFront HTML page) - PM's ask on #1649 - and the breaker state is reported to the health
  *      table (lib/apiHealth.ts) as `<exchange>:breaker`.
+ *   5. Memory across a restart. A trip is saved to app_config (lib/exchangeBreakerStore.ts) and read back at server start, so a deploy
+ *      does not forget a ban and call the exchange that just banned this IP (which is what makes Binance extend a 418).
  * Any other host passes straight through to fetch, untouched. */
 import { HttpStatusError } from './pool.ts';
+import {
+  BREAKER_EXCHANGES, COOLDOWN_MAX_MS, mergeBreakerState, supabaseBreakerStore,
+  type BreakerSnapshot, type BreakerStore,
+} from './exchangeBreakerStore.ts';
 
 /* The reporters are imported lazily, on a trip only: they pull in Supabase and Sentry, which a caller of this module (and its tests) should
    not load just to make a request. A reporting failure never fails the call. */
@@ -31,7 +37,7 @@ async function report(ex: Exchange, ok: boolean, detail: string, glitchtip?: str
 export type Exchange = 'binance' | 'bybit' | 'okx' | 'hyperliquid';
 
 export const COOLDOWN_MIN_MS = 10 * 60_000;
-export const COOLDOWN_MAX_MS = 6 * 60 * 60_000;
+export { COOLDOWN_MAX_MS };
 const STRIKE_MEMORY_MS = 60 * 60_000;
 export const RETRY_AFTER_FLOOR_MS = 5_000;
 const MAX_IN_FLIGHT: Record<Exchange, number> = { binance: 8, bybit: 8, okx: 4, hyperliquid: 4 };
@@ -77,6 +83,105 @@ const blank = (): ExchangeState => ({
 });
 const g = globalThis as { __lhqExchangeGuard?: Record<Exchange, ExchangeState> };
 const state = (g.__lhqExchangeGuard ??= { binance: blank(), bybit: blank(), okx: blank(), hyperliquid: blank() });
+
+/* ── The breaker across a restart (lib/exchangeBreakerStore.ts) ───────────────────────────────────────────────────────────────────────
+   Only in a running server (NEXT_RUNTIME is set by Next, not by unit tests or scripts), or when a test installs a store: the existing tests
+   stub fetch and count calls, and an app_config read or write they never asked for would land in their count. */
+interface BreakerSync {
+  hydrated: boolean; hydrating: Promise<void> | null; attempts: number; lastAttemptAt: number; firstCallAt: number; saving: boolean; saveAgain: boolean;
+}
+const blankSync = (): BreakerSync => ({ hydrated: false, hydrating: null, attempts: 0, lastAttemptAt: 0, firstCallAt: 0, saving: false, saveAgain: false });
+const gs = globalThis as { __lhqExchangeBreakerSync?: BreakerSync; __lhqExchangeBreakerStore?: BreakerStore | null };
+let sync = (gs.__lhqExchangeBreakerSync ??= blankSync());
+/** How long the FIRST exchange call in a process waits for the saved state before going ahead without it. */
+const HYDRATE_WAIT_MS = 2_000;
+/** A failed read is retried at most this often, in the background; only the first attempt is ever waited on. */
+const HYDRATE_RETRY_MS = 60_000;
+
+function activeStore(): BreakerStore | null {
+  if (gs.__lhqExchangeBreakerStore !== undefined) return gs.__lhqExchangeBreakerStore;
+  return process.env.NEXT_RUNTIME === 'nodejs' ? supabaseBreakerStore : null;
+}
+
+function memorySnapshot(now: number): BreakerSnapshot {
+  const out: BreakerSnapshot = {};
+  for (const ex of BREAKER_EXCHANGES) {
+    const s = state[ex];
+    if (s.openUntil > now) out[ex] = { openUntil: s.openUntil, strikes: s.strikes, lastTripAt: s.lastTripAt };
+  }
+  return out;
+}
+
+/** Saved cooldowns into memory. Only ones still running apply, and an openUntil only ever moves LATER (never shortened). */
+function applySnapshot(stored: BreakerSnapshot, now: number): void {
+  const merged = mergeBreakerState(memorySnapshot(now), stored, now);
+  for (const ex of BREAKER_EXCHANGES) {
+    const m = merged[ex];
+    if (!m) continue;
+    const s = state[ex];
+    s.openUntil = Math.max(s.openUntil, m.openUntil);
+    s.strikes = Math.max(s.strikes, m.strikes);
+    s.lastTripAt = Math.max(s.lastTripAt, m.lastTripAt);
+    // Without a lastTrip the strikes would never reset after an hour of normal answers (see exchangeFetch).
+    s.lastTrip ??= { status: 0, at: new Date(s.lastTripAt || now).toISOString(), kind: 'restored', body: 'cooldown carried over from before a restart' };
+  }
+}
+
+/** Read the saved breaker state once (server start, instrumentation.ts) and apply it. Never throws; a failed read is retried later. */
+export function hydrateExchangeBreaker(): Promise<void> {
+  const st = activeStore();
+  if (!st || sync.hydrated) return Promise.resolve();
+  if (sync.hydrating) return sync.hydrating;
+  const own = sync;
+  own.attempts++;
+  own.lastAttemptAt = Date.now();
+  const p = (async () => {
+    try { const stored = await st.load(); if (sync === own) { applySnapshot(stored, Date.now()); own.hydrated = true; } }
+    catch { /* unknown, not "nothing banned": retried on a later call */ }
+    finally { own.hydrating = null; }
+  })();
+  own.hydrating = p;
+  return p;
+}
+
+const waitAtMost = (p: Promise<void>, ms: number) => {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([p, new Promise<void>((r) => { t = setTimeout(r, ms); })]).finally(() => clearTimeout(t));
+};
+
+/** Called before every exchange call. The calls in the first HYDRATE_WAIT_MS after a process's first exchange call wait (until then at most)
+ *  for the saved state, so a fresh process does not fire at a banned exchange before it knows; after that a missing state is fetched in the
+ *  background and never waited on. */
+async function ensureHydrated(): Promise<void> {
+  if (sync.hydrated || !activeStore()) return;
+  const now = Date.now();
+  sync.firstCallAt ||= now;
+  const left = sync.firstCallAt + HYDRATE_WAIT_MS - now;
+  if (sync.attempts === 0) { const p = hydrateExchangeBreaker(); if (left > 0) await waitAtMost(p, left); return; }
+  if (sync.hydrating) { if (sync.attempts === 1 && left > 0) await waitAtMost(sync.hydrating, left); return; }
+  if (now - sync.lastAttemptAt >= HYDRATE_RETRY_MS) void hydrateExchangeBreaker();
+}
+
+/** Save the running cooldowns (best effort, never awaited by a request, never throws). Writes are coalesced: a trip while a save is in flight
+ *  queues ONE more save, so a burst of banned answers costs at most two writes. Read-merge-write, so a saved longer ban is kept. */
+function persistBreaker(): void {
+  const st = activeStore();
+  if (!st) return;
+  if (sync.saving) { sync.saveAgain = true; return; }
+  const own = sync;
+  own.saving = true;
+  void (async () => {
+    try {
+      do {
+        own.saveAgain = false;
+        try { const stored = await st.load(); if (sync === own) applySnapshot(stored, Date.now()); } catch { /* unread: save what this process knows */ }
+        if (sync !== own) return; // the state was reset (tests) while this was in flight: nothing of it to save
+        await st.save(memorySnapshot(Date.now()));
+      } while (own.saveAgain && sync === own);
+    } catch { /* best effort: the next trip saves again */ }
+    finally { own.saving = false; }
+  })();
+}
 
 /** Which exchange a URL belongs to, or null for any other host. */
 export function exchangeOf(input: string | URL): Exchange | null {
@@ -166,8 +271,11 @@ async function onRefusal(ex: Exchange, s: ExchangeState, r: Response): Promise<v
     : Math.min(COOLDOWN_MAX_MS, Math.max(COOLDOWN_MIN_MS * 2 ** (s.strikes - 1), retryAfterMs));
   // Several requests in flight can come back banned together: the breaker opens once, and only the first one reports.
   const alreadyOpen = now < s.openUntil;
+  const before = s.openUntil;
+  // Math.max: a later, shorter answer (a 429 with a small Retry-After) never shortens a longer stop already running, restored ones included.
   s.openUntil = Math.max(s.openUntil, now + ms);
-  if (alreadyOpen) return;
+  if (alreadyOpen) { if (s.openUntil > before) persistBreaker(); return; }
+  persistBreaker();
   s.trips++;
   s.lastTrip = { status: r.status, at: new Date(now).toISOString(), kind, body };
   const detail = `HTTP ${r.status} (${kind}); every ${ex} call stopped for ${Math.round(ms / 60_000)} min, strike ${s.strikes}`;
@@ -181,6 +289,7 @@ async function onRefusal(ex: Exchange, s: ExchangeState, r: Response): Promise<v
 export async function exchangeFetch(input: string | URL, init: RequestInit = {}): Promise<Response> {
   const ex = exchangeOf(input);
   if (!ex) return fetch(input, { ...init, signal: init.signal ?? AbortSignal.timeout(NON_EXCHANGE_TIMEOUT_MS) });
+  if (!sync.hydrated && activeStore()) await ensureHydrated();
   const s = state[ex];
   const cool = exchangeCoolingDown(ex);
   if (cool) { s.refused++; throw new HttpStatusError(429, `${ex}: cooling down`); }
@@ -275,10 +384,19 @@ export function exchangeDegraded(now: number = Date.now()): Record<Exchange, { d
   return out;
 }
 
-/** Tests only: forget every exchange's state. */
+/** Tests only: forget every exchange's state - what a restart does to memory. The saved row (the store) is untouched, and the next exchange
+ *  call reads it again, exactly as a fresh process would. */
 export function _resetExchangeGuard(): void {
   for (const ex of Object.keys(state) as Exchange[]) {
     for (const w of state[ex].waiters) w();
     state[ex] = blank();
   }
+  sync = gs.__lhqExchangeBreakerSync = blankSync();
+}
+
+/** Tests only: where the breaker is saved. A store object turns saving and reading on (outside a running server too); null turns it off;
+ *  undefined goes back to the default (app_config, in a running server only). */
+export function _setExchangeBreakerStore(store: BreakerStore | null | undefined): void {
+  if (store === undefined) delete gs.__lhqExchangeBreakerStore;
+  else gs.__lhqExchangeBreakerStore = store;
 }
