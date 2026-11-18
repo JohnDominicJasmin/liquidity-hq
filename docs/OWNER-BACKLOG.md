@@ -10,6 +10,36 @@ signals, decision-making, macro and technicals — plus payments, getting users,
 and the site staying up under traffic. UI audits and polish are `priority: low`
 and only run in a window the owner grants.
 
+## OWNER ASKS 2026-11-18/19: the live checklist (PM keeps it current; nothing here may be dropped)
+
+Owner, 2026-11-19: *"make sure those are on track the things i mentioned and dont forget any of it."* Every Dev/QA/PM session reads this first. PM updates the Status column when an item moves.
+
+| # | Owner ask | Status (PM) | Where |
+|---|---|---|---|
+| 1 | Final sweep: no "unavailable", empty or error text on any page | LIVE v2026.11.18.2; prod sweep 0 hits | #2555 #2562 |
+| 2 | No wordy sections | rule 25; page subtitles + Arena header trim in the next release | #2568 #2565 |
+| 3 | AI prompts accurate (long/short rule was inverted), design, security, backend | LIVE | #2559 #2554 |
+| 4 | Chart empty after an idle tab | LIVE | #2553 #2570 |
+| 5 | Telegram: delivery and every case | delivery LIVE; controls, quiet hours, snooze, inline mute, daily summary, test alert, user language in the next release; daily-summary length cap in progress | #2560 #2567 #2572 #2574 #2590 |
+| 6 | Settings: check them, add what is missing | sound picker LIVE; lapsed-Pro timeframe fallback LIVE | #2561 |
+| 7 | Arena alert sounds: 8 sounds and when they play | LIVE | #2561 |
+| 8 | Remove "Signals, not predictions..." from Telegram and Alerts | LIVE | #2551 |
+| 9 | Break of structure + FVG strategy for day trading | LIVE; tightening (target at least 1R) pending | #2566 |
+| 10 | Arena header is redundant | next release | #2565 |
+| 11 | Every strategy proven on real market data | all 16 audited; fixes pending: S/R flip, FVG, BOS+FVG, channel, EMA cross, range bounce, fire logs | rule-fix PR, #1263 |
+| 12 | ALL indicators and the strategy connected to Quick AND Deep | awaiting QA's word | #2597 |
+| 13 | Strategy shown ON THE CHART, not WAIT text alone (all 16) | branch ready; PR + QA screenshots pending | chart-drawings PR |
+| 14 | 20 assets incl. tokenized stocks x all 8 timeframes x 16 strategies | queued, runs last on GitHub Actions | #1263 plan |
+| 15 | A strategy that cannot run on an asset or timeframe SAYS so | queued | reasons PR |
+| 16 | Funding + OI squeeze must actually fire | revisions in progress | #2598 |
+| 17 | Data-integrity tracker items | tick pass + three fix PRs queued | #1651 |
+| 18 | Open PRs and issues near zero within 16-24 h | in progress | - |
+| 19 | Next release to production when ALL green (approved first-hand) | on qa + staging, QA verifying | - |
+| 20 | PM audits Dev and QA output and rejects what is not aligned | in force | OWNER-RULES 20, 26 |
+| 21 | Team works smoothly, not overwhelmed, no pausing to ask | one plan on #1263; rule 23 applies to every session | #1263 |
+| 22 | One item at a time (parallel lanes reversed) | in force | OWNER-RULES 24 |
+| 23 | Alert-history purge (90 days) scheduled | after the next release deploy | PM |
+
 ## The list, tagged (state as of 2026-10-21)
 
 | # | Item (owner's words, condensed) | Priority | Tracked | State 2026-10-21 |
