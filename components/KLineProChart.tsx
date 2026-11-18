@@ -1,6 +1,6 @@
 'use client';
 import { deadlineSignal } from '@/lib/deadlineSignal';
-import { useEffect, useRef, useState, useCallback, useId } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useId } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { COIN_DEC, CoinId, useMarket, computeSqueezeScore, venueSymbols } from '@/lib/marketStore';
 import { liftClearOfLevels } from '@/lib/chartLabelOffsets';
@@ -748,6 +748,23 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     document.addEventListener('keydown', onKey);
     document.addEventListener('pointerdown', onDown);
     return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onDown); };
+  }, [legendOpen]);
+  /* THE PANEL ALWAYS FITS THE VIEWPORT (QA review of #2587): it opens leftward from the "?", so when the toolbar wraps and the "?" starts a row (421-1199 px) its left edge
+     fell off the screen. Measured before paint and shifted back inside with an 8 px margin; the width cap already makes it narrower than the viewport, so a shift is always enough. */
+  const legendPanelRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = legendPanelRef.current;
+    if (!legendOpen || !el) return;
+    const fit = () => {
+      el.style.transform = '';
+      const r = el.getBoundingClientRect();
+      const vw = document.documentElement.clientWidth;
+      const dx = r.left < 8 ? 8 - r.left : r.right > vw - 8 ? vw - 8 - r.right : 0;
+      if (dx) el.style.transform = `translateX(${Math.round(dx)}px)`;
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
   }, [legendOpen]);
   const [wsStatus,     setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
   /* Set only when getBars EXHAUSTS its retries with nothing usable - not for
@@ -3824,6 +3841,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           {legendOpen && (
             <div
               id={legendPanelId}
+              ref={legendPanelRef}
               className="klc-draw-menu"
               role="region"
               aria-label={tl('CHART_LEGEND_TITLE')}
