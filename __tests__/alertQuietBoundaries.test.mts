@@ -7,6 +7,7 @@
  *   A6  precedence: paused beats snooze beats quiet, and every hold reports its own name
  *   A7  the zone's day change (DST) does not break the hour: Europe/London on the clock-change night
  *   A8  /status-side validators agree with the cron: isQuietHour accepts exactly the integers 0-23
+ *   A9  every job that sends Telegram alerts to the stored chats (alert cron, its Web Push, macro-event cron) is filtered by the held set; a NEW route that talks to Telegram fails this scan until it honours the held set or is listed on purpose
  * WHAT IT CANNOT PROVE: the cron's wiring (qa/harness/telegramQuietSnooze.test.mts) or the database. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,7 +44,7 @@ test('A5. snooze: held until the instant (1 ms before is held, the instant is fr
   const until = '2026-11-18T15:00:00.000Z'; const s = { alert_snooze_until: until };
   assert.equal(held(s, '2026-11-18T14:59:59.999Z'), 'snoozed'); assert.equal(held(s, '2026-11-18T15:00:00.000Z'), null); assert.equal(held(s, '2026-11-18T15:00:00.001Z'), null); assert.equal(held(s, '2026-11-17T15:00:00.000Z'), 'snoozed', 'a snooze a day ahead holds');
   for (const bad of [null, '', 'garbage', '2026-13-45T99:99:99Z']) assert.equal(held({ alert_snooze_until: bad }, '2026-11-18T14:00:00.000Z'), null, JSON.stringify(bad));
-  assert.equal(held({ alert_snooze_until: '9999-12-31T23:59:59.999Z' }, '2026-11-18T14:00:00.000Z'), 'snoozed', 'documented: there is no cap on how far ahead a snooze can be');
+  assert.equal(held({ alert_snooze_until: '9999-12-31T23:59:59.999Z' }, '2026-11-18T14:00:00.000Z'), 'snoozed', 'the pure rule holds for any future snooze; the 7-day cap is enforced where it is saved (settingsAlertControls V5)');
 });
 test('A6. precedence: paused > snoozed > quiet, each reported by name; paused null/false does nothing', () => {
   const all = { alert_paused: true, alert_snooze_until: '2026-11-18T20:00:00.000Z', alert_quiet_start: 22, alert_quiet_end: 7, timezone: 'UTC' }; const t = '2026-11-18T23:00:00.000Z';
@@ -59,4 +60,20 @@ test('A7. a clock-change night does not break the hour: Europe/London 2026-10-25
 test('A8. isQuietHour accepts exactly the whole numbers 0-23', () => {
   for (let h = 0; h < 24; h++) assert.equal(isQuietHour(h), true, String(h));
   for (const bad of [-1, 24, 23.5, NaN, Infinity, '5', null, undefined, true, {}, []]) assert.equal(isQuietHour(bad), false, String(bad));
+});
+
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+const src = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+const routes = (dir: string): string[] => readdirSync(new URL(`../${dir}`, import.meta.url)).flatMap((n) => { const rel = `${dir}/${n}`; return statSync(new URL(`../${rel}`, import.meta.url)).isDirectory() ? routes(rel) : /^route\.ts$/.test(n) ? [rel] : []; });
+test('A9. every job that SENDS Telegram alerts to the stored chats is filtered by the held set (pause / snooze / quiet hours): the alert cron, its Web Push, and the macro-event cron; any other route that talks to Telegram is on a short list of user-initiated or bot-plumbing routes', () => {
+  const alertRoute = src('app/api/telegram/alert/route.ts'); const macro = src('app/api/macro-alert/route.ts');
+  assert.match(alertRoute, /HELD_USERS = await loadHeldUserIds\(Date\.now\(\)\)/, 'the alert cron no longer loads the held users');
+  assert.equal((alertRoute.match(/HELD_USERS\.has\(/g) ?? []).length >= 3, true, 'the alert cron filters by the held set in fewer than three places (price alerts, recipients, push)');
+  const push = alertRoute.slice(alertRoute.indexOf('async function dispatchPush'), alertRoute.indexOf('async function dispatchPush') + 6000);
+  assert.match(push, /\.filter\(s => proUserIds\.has\(s\.user_id\) && !HELD_USERS\.has\(s\.user_id\)\)/, 'dispatchPush (Web Push) is not filtered by the held set');
+  assert.match(macro, /import \{ loadHeldUserIds \} from '@\/lib\/telegramAlertHolds'/); assert.match(macro, /held\.has\(row\.user_id as string\)/, 'the macro-event cron does not skip held users');
+  const TELEGRAM_OK = new Set(['app/api/telegram/alert/route.ts', 'app/api/macro-alert/route.ts', 'app/api/telegram/webhook/route.ts', 'app/api/telegram/send/route.ts', 'app/api/telegram/test/route.ts', 'app/api/telegram/link-code/route.ts', 'app/api/telegram/setup-webhook/route.ts', 'app/api/telegram/bot-info/route.ts']);
+  const talkers = routes('app').filter((r) => src(r).includes('api.telegram.org'));
+  assert.deepEqual(talkers.filter((r) => !TELEGRAM_OK.has(r)), [], 'a new route sends to Telegram: it must honour the held set (lib/telegramAlertHolds.ts loadHeldUserIds) or be added to this list on purpose');
+  assert.ok(talkers.includes('app/api/macro-alert/route.ts'), 'CONTROL: the scan found the macro-event cron');
 });
