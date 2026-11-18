@@ -7,6 +7,7 @@ import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { nextSource, stableEnoughToSwitchBack, connectTimedOut } from '@/lib/exchangeFailover';
 import { signOf } from '@/lib/numberFormat';
 import { socketNeedsReconnect, dropSocket, onPageResume } from '@/lib/socketResume';
+import { reconnectDelayMs, linkState, onBackOnline } from '@/lib/reconnectDelay';
 
 /* ── Binance futures combined aggTrade stream, Bybit publicTrade on failover ──
    #1059: client-side failover - a browser that cannot reach Binance (blocked
@@ -118,6 +119,11 @@ export default function WhaleTradesFeed() {
     let bbWs: WebSocket | null = null;
     let bnRetries = 0;
     let bbHostIdx = 0;
+    let bbAttempt = 0;   // Bybit failures since its last open; bbHostIdx keeps alternating hosts regardless
+    /* The pending quick retries, kept so a resume / `online` reconnect can cancel them: one left running would open a second socket
+       beside the new one. */
+    let bnRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    let bbReconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let bbRetryTimer: ReturnType<typeof setInterval> | null = null;
     let confirmTimer: ReturnType<typeof setTimeout> | null = null;
     let active: 'binance' | 'bybit' = 'binance';
@@ -125,6 +131,7 @@ export default function WhaleTradesFeed() {
 
     function connectBN() {
       if (!alive) return;
+      if (bnRetryTimer) { clearTimeout(bnRetryTimer); bnRetryTimer = null; }
       const ws = new WebSocket(BN_WS_URL);
       bnWs = ws;
       const attemptStartedAt = Date.now();
@@ -223,12 +230,14 @@ export default function WhaleTradesFeed() {
           // the next attempt, so don't also fast-retry here.
           return;
         }
-        setTimeout(connectBN, 2000 * bnRetries);
+        // 2 s x retries as before while online and visible; offline or hidden backs off (lib/reconnectDelay.ts, QA 2026-11-18).
+        bnRetryTimer = setTimeout(connectBN, reconnectDelayMs(bnRetries, { ...linkState(), normalMs: 2000 * bnRetries }));
       }
     }
 
     function connectBB() {
       if (!alive || active !== 'bybit') return;
+      if (bbReconnectTimer) { clearTimeout(bbReconnectTimer); bbReconnectTimer = null; }
       // bytick.com is Bybit's alternative domain - same failover host pattern
       // as LiqFeed.tsx's connectBB, which this mirrors.
       const host = bbHostIdx % 2 === 0
@@ -239,6 +248,7 @@ export default function WhaleTradesFeed() {
       ws.onopen = () => {
         if (!alive) return;
         lastMsgAt = Date.now();
+        bbAttempt = 0;
         setStatus('live');
         ws.send(JSON.stringify({ op: 'subscribe', args: BB_TOPICS }));
       };
@@ -250,7 +260,8 @@ export default function WhaleTradesFeed() {
         if (!alive || active !== 'bybit') return;
         setStatus('error');
         bbHostIdx++;
-        setTimeout(connectBB, 5000);
+        bbAttempt++;
+        bbReconnectTimer = setTimeout(connectBB, reconnectDelayMs(bbAttempt, { ...linkState(), normalMs: 5000 }));
       };
       ws.onmessage = (ev) => {
         lastMsgAt = Date.now();
@@ -275,15 +286,21 @@ export default function WhaleTradesFeed() {
     const iv = setInterval(() => rebuildStats(historyRef.current), 30_000);
     /* RESUME (owner, 2026-11-18): back from an idle or frozen tab, the ACTIVE source's socket is replaced now if it is not OPEN or
        has been quiet for 30 s (big coins trade every second, so quiet means dead), instead of waiting for its own timers. */
-    const offResume = onPageResume(() => {
+    /* The same check when the network comes back (`online`), with the backoff reset, instead of serving out an offline wait. */
+    const kick = () => {
       if (!alive) return;
       const now = Date.now();
       if (active === 'binance' && socketNeedsReconnect(bnWs?.readyState, lastMsgAt, now)) { dropSocket(bnWs); bnWs = null; bnRetries = 0; connectBN(); }
-      else if (active === 'bybit' && socketNeedsReconnect(bbWs?.readyState, lastMsgAt, now)) { dropSocket(bbWs); bbWs = null; connectBB(); }
-    });
+      else if (active === 'bybit' && socketNeedsReconnect(bbWs?.readyState, lastMsgAt, now)) { dropSocket(bbWs); bbWs = null; bbAttempt = 0; connectBB(); }
+    };
+    const offResume = onPageResume(kick);
+    const offOnline = onBackOnline(kick);
     return () => {
       alive = false;
       offResume();
+      offOnline();
+      if (bnRetryTimer) clearTimeout(bnRetryTimer);
+      if (bbReconnectTimer) clearTimeout(bbReconnectTimer);
       clearInterval(iv);
       if (bbRetryTimer) clearInterval(bbRetryTimer);
       if (confirmTimer) clearTimeout(confirmTimer);

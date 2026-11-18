@@ -25,6 +25,7 @@ import { findIndicator, toCalcParams, DEFAULT_PANE_INDICATORS, type IndicatorEnt
 import { isStreamStalled, STREAM_WATCH_EVERY_MS, BYBIT_PING_EVERY_MS, STREAM_SUSPECT_MS } from '@/lib/streamWatch';
 import { checkChartSync, historyRetryDelayMs, HISTORY_ATTEMPT_TIMEOUT_MS, periodMs } from '@/lib/chartSync';
 import { resumeAction } from '@/lib/chartResume';
+import { reconnectDelayMs, linkState } from '@/lib/reconnectDelay';
 import { emaInk, lineInk, type EmaPeriod } from '@/lib/chartInk';
 import type { StrategyOverlay } from '@/lib/strategies/types';
 
@@ -2222,7 +2223,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 setWsStatus('connecting');
                 attempt += 1;
                 hostTry += 1;
-                const delay = Math.min(1000 * 2 ** (attempt - 1), 30_000);
+                // Offline or hidden: lib/reconnectDelay.ts backs off to 30 s; `online` and the resume handler reconnect at once.
+                const delay = reconnectDelayMs(attempt, linkState());
                 if (timer) clearTimeout(timer);
                 timer = setTimeout(connect, delay);
               };
@@ -2274,7 +2276,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               attempt += 1;
               hostTry += 1;
               if (timer) clearTimeout(timer);
-              timer = setTimeout(connect, Math.min(1000 * 2 ** (attempt - 1), 30_000));
+              timer = setTimeout(connect, reconnectDelayMs(attempt, linkState()));
             }, STREAM_WATCH_EVERY_MS);
 
             connect();
@@ -2432,7 +2434,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 if (cancelled || ws !== live) return;
                 setWsStatus('connecting');
                 attempt += 1;
-                const delay = Math.min(1000 * 2 ** (attempt - 1), 30_000);
+                const delay = reconnectDelayMs(attempt, linkState()); // same rule as the Bybit branch
                 if (timer) clearTimeout(timer);
                 timer = setTimeout(connect, delay);
               };
@@ -2471,7 +2473,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               setWsStatus('connecting');
               attempt += 1;
               if (timer) clearTimeout(timer);
-              timer = setTimeout(connect, Math.min(1000 * 2 ** (attempt - 1), 30_000));
+              timer = setTimeout(connect, reconnectDelayMs(attempt, linkState()));
             }, STREAM_WATCH_EVERY_MS);
 
             connect();
