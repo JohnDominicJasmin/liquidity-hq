@@ -1,4 +1,6 @@
 import { createContext, useContext } from 'react';
+import { SQUEEZE_SCORE_MAX } from '@/lib/alertThresholdRanges';
+import { isValidSummaryHour } from '@/lib/dailySummaryPrefs';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -62,6 +64,8 @@ export interface UserSettings {
   alert_quiet_end:    number | null;
   alert_snooze_until: string | null;
   alert_paused:       boolean | null;
+  /* Hour (0-23) of the opt-in daily Telegram summary, in the user's own timezone. Null = never chosen, which means 07:00 (lib/dailySummary.ts). */
+  daily_summary_hour: number | null;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -100,6 +104,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   alert_quiet_end:    null,
   alert_snooze_until: null,
   alert_paused:       null,
+  daily_summary_hour: null,
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -331,7 +336,8 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     fng_greed:          +(row.fng_greed       ?? DEFAULT_SETTINGS.fng_greed),
     rsi_ob:             +(row.rsi_ob          ?? DEFAULT_SETTINGS.rsi_ob),
     rsi_os:             +(row.rsi_os          ?? DEFAULT_SETTINGS.rsi_os),
-    squeeze_threshold:  +(row.squeeze_threshold ?? DEFAULT_SETTINGS.squeeze_threshold),
+    // Shown capped at the highest squeeze score (80): a row saved at up to 95 before the cap would display a number no alert can reach.
+    squeeze_threshold:  Math.min(+(row.squeeze_threshold ?? DEFAULT_SETTINGS.squeeze_threshold), SQUEEZE_SCORE_MAX),
     anti_chop_enabled:  !!(row.anti_chop_enabled ?? DEFAULT_SETTINGS.anti_chop_enabled),
     telegram_chat_id:   String(row.telegram_chat_id ?? ''),
     beginner_mode:      !!(row.beginner_mode ?? false),
@@ -348,6 +354,7 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     alert_quiet_end: isHour(row.alert_quiet_end) ? row.alert_quiet_end : null,
     alert_snooze_until: typeof row.alert_snooze_until === 'string' && row.alert_snooze_until ? row.alert_snooze_until : null,
     alert_paused: typeof row.alert_paused === 'boolean' ? row.alert_paused : null,
+    daily_summary_hour: isValidSummaryHour(row.daily_summary_hour) ? row.daily_summary_hour : null,
     strategy_params: (row.strategy_params && typeof row.strategy_params === 'object' && !Array.isArray(row.strategy_params))
       ? row.strategy_params as Record<string, Record<string, string | number | boolean>>
       : null,

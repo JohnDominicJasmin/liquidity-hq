@@ -1,5 +1,7 @@
 import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { isTypeMuteCallback } from '@/lib/alertTypeMute';
+import { applyTypeMuteTap } from '@/lib/telegramTypeMute';
 import { rateLimit } from '@/lib/rateLimit';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
@@ -50,7 +52,9 @@ export async function POST(req: NextRequest) {
      Telegram redelivered, and the second pass told a successfully linked user the link had "expired". Every send below is guarded and the
      route always answers 200. */
   try {
-    if (update.callback_query) await handleConfirm(token, update.callback_query);
+    /* "Mute 1 h" / "Mute 4 h" on an alert (lib/alertTypeMute.ts) go to their own handler and never reach the link flow below. */
+    if (update.callback_query && isTypeMuteCallback(update.callback_query.data)) await handleTypeMute(token, update.callback_query);
+    else if (update.callback_query) await handleConfirm(token, update.callback_query);
     else if (update.message?.chat) await handleMessage(token, update.message);
   } catch (e) {
     console.error('[telegram/webhook] handler failed', e instanceof Error ? e.message : 'unknown');
@@ -261,4 +265,14 @@ async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_q
   if (previousChat && previousChat !== String(chat.id)) {
     try { await tgCall(token, 'sendMessage', { chat_id: previousChat, text: 'This chat was disconnected: your LiquidityHQ account is now linked to a different chat, so alerts will no longer arrive here.' }); } catch { /* the old chat may be gone */ }
   }
+}
+
+/** A tap on "Mute 1 h" / "Mute 4 h" under an alert. Only the chat the button sits in is ever affected (lib/telegramTypeMute.ts); data outside the allowlist,
+ *  or a chat linked to no account, writes nothing. The callback is always answered so the button stops spinning; the answer carries text only when a mute was saved (or failed to save). */
+async function handleTypeMute(token: string, cb: NonNullable<TgUpdate['callback_query']>) {
+  const chatId = cb.message?.chat?.id;
+  let reply: string | null = null;
+  try { reply = await applyTypeMuteTap(chatId == null ? null : String(chatId), cb.data); }
+  catch (e) { console.error('[telegram/webhook] type mute failed', e instanceof Error ? e.message : 'unknown'); }
+  await tgCall(token, 'answerCallbackQuery', { callback_query_id: cb.id, ...(reply ? { text: reply } : {}) });
 }

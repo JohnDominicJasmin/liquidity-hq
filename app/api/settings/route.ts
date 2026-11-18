@@ -6,6 +6,8 @@ import { shouldAcceptFieldWrite } from '@/lib/settingsFieldConcurrency';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { STRATEGY_IDS } from '@/lib/strategies';
+import { clampThreshold, isThresholdField } from '@/lib/alertThresholdRanges';
+import { isValidSummaryHour } from '@/lib/dailySummaryPrefs';
 import { isValidSoundPrefs } from '@/lib/arenaSoundPrefs';
 
 function sb(token: string) {
@@ -87,6 +89,7 @@ export async function PATCH(req: NextRequest) {
     'strategy_selection', 'strategy_params', 'arena_strategy',
     'arena_sound',
     'alert_quiet_start', 'alert_quiet_end', 'alert_snooze_until', 'alert_paused',
+    'daily_summary_hour',
     'arena_sound_prefs',
   ];
   const payload: Record<string, unknown> = {};
@@ -148,6 +151,10 @@ export async function PATCH(req: NextRequest) {
   if ('alert_paused' in payload && payload.alert_paused !== null && typeof payload.alert_paused !== 'boolean') {
     return NextResponse.json({ error: 'Invalid alert_paused' }, { status: 400 });
   }
+  // daily_summary_hour: a whole hour 0-23, or null for the default (07:00). Anything else is refused.
+  if ('daily_summary_hour' in payload && !isValidSummaryHour(payload.daily_summary_hour)) {
+    return NextResponse.json({ error: 'Invalid daily_summary_hour' }, { status: 400 });
+  }
 
   // strategy_selection/strategy_params are jsonb - reject anything that isn't
   // the shape app/arena/page.tsx actually produces, rather than storing
@@ -172,6 +179,16 @@ export async function PATCH(req: NextRequest) {
     if (!valid) {
       return NextResponse.json({ error: 'Invalid strategy_params' }, { status: 400 });
     }
+  }
+
+  /* Notification thresholds: brought inside the range the Settings field offers (lib/alertThresholdRanges.ts), so a stored value is always one
+     the alert checks can reach; a squeeze threshold above 80 never fired. Clamped rather than refused: the page saves while the user types, and a
+     refusal would keep a half-typed value unsaved and retried. Anything that is not a number is refused. */
+  for (const key of Object.keys(payload)) {
+    if (!isThresholdField(key)) continue;
+    const v = clampThreshold(key, payload[key]);
+    if (v === null) return NextResponse.json({ error: `Invalid ${key}` }, { status: 400 });
+    payload[key] = v;
   }
 
   const client = sb(token);

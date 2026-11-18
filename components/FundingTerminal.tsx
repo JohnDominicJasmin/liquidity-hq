@@ -357,6 +357,12 @@ export default function FundingTerminal() {
       /* THE TABLE PAINTS FROM THE MARKET SNAPSHOT, NOT FROM THIS FETCH. The rows' current rates come from the shared store; this history only feeds the sparklines and the averages. It used to hold the whole page
          (the table was gated on it) until every coin's history, including one-by-one Bybit fallbacks, had come back: a 3.5 s first paint on a cold desktop load. Now the Binance batch lands first and is shown
          at once, then each fallback coin is added as it arrives. */
+      /* A coin Binance does not list at all can only come from Bybit, so its request is SENT NOW, beside the Binance batch, not after it (speed
+         sweep: the three requests waited 3-6 s behind the batch and its render on a 4G phone). Its answer is still applied below, after the
+         batch, exactly as before; only the waiting overlaps. */
+      const early = new Map(COINS
+        .filter(id => !(BINANCE_SYMS as Record<string, string>)[id] && (BYBIT_SYMS as Record<string, string>)[id])
+        .map(id => [id, fetchBybitFR((BYBIT_SYMS as Record<string, string>)[id])] as const));
       const { out: binanceAll, via } = await fetchAllBinanceFR();
       if (cancelled) return;
       const first: FRHistory = {};
@@ -372,7 +378,7 @@ export default function FundingTerminal() {
       setBybitCoins([...fromBybit]);
       setLoading(false);
       needBybit.forEach(async id => {
-        const pts = await fetchBybitFR((BYBIT_SYMS as Record<string, string>)[id]);
+        const pts = await (early.get(id) ?? fetchBybitFR((BYBIT_SYMS as Record<string, string>)[id]));
         if (!cancelled && pts.length) { setHistory(prev => ({ ...prev, [id]: pts })); setBybitCoins(prev => (prev.includes(id) ? prev : [...prev, id])); }
       });
     })();
@@ -632,7 +638,7 @@ export default function FundingTerminal() {
                           onClick={() => { if (!noData) setSelected(id); }}
                           style={selected !== id && current != null ? { boxShadow: `inset 3px 0 0 ${withAlpha(frSignal(current).color, '44')}` } : undefined}
                         >
-                          <td className="frh-coin" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <td className="frh-coin">
                             {/* #1309 item 6: the row's onClick was the ONLY way to choose a coin, and a <tr>
                                 is not focusable, so a keyboard user could never leave BTC. A real button
                                 in the coin cell is: focusable, Enter/Space, announced with its pressed
