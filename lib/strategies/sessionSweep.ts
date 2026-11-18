@@ -4,7 +4,7 @@ import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } fro
 
 /* ASIA / LONDON SESSION SWEEP (owner decision 2026-11-17, #1263; hours confirmed with QA's oracle). Closed candles only, UTC.
  *  Asia is 00:00-08:00 and London 07:00-12:00 UTC. A session's RANGE is the lowest low and highest high of the candles that OPEN inside it, on the last candle's UTC day.
- *  The call is on the last closed candle when it opens from 0 to 4 hours after the session ends (hour end to end+4):
+ *  The call is on the last closed candle when it opens from 0 to 4 hours after the session ends (hour end to end+4). THE WINDOW IS TESTED BY UTC HOUR NUMBER (QA audit, 2026-11-19), so the whole of hour end+4 counts: a candle that opens at end+4:45 is inside it.
  *  BUY:  its low is below the session low and it CLOSES back at or above the session low (a wick below, back inside).
  *  SELL: its high is above the session high and it CLOSES at or below the session high.
  *  Entry  = the close.

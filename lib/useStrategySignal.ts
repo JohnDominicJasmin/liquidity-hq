@@ -42,7 +42,7 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
       try {
         const wantsBtc = !!def.needsBtc && coin !== 'btc';
         const [raw, btcRaw] = await Promise.all([
-          fetchOHLCV(coin, TF_BN[tf], TF_BY[tf], 300),
+          fetchOHLCV(coin, TF_BN[tf], TF_BY[tf], def.candleLimit ?? 300),
           wantsBtc ? fetchOHLCV('btc', TF_BN[tf], TF_BY[tf], 300) : Promise.resolve(undefined),
         ]);
         if (cancelled) return;
