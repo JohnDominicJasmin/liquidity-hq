@@ -15,7 +15,7 @@
 import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { stripTypeScriptTypes } from 'node:module';
+import ts from 'typescript';
 import { LABEL_KEYS } from '../lib/labelKeys.ts';
 
 const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
@@ -38,7 +38,7 @@ function mutate(src: string, from: string, to: string): string {
 }
 /** transpile a TypeScript snippet to JS and import it */
 async function loadTs(code: string): Promise<any> {
-  const js = stripTypeScriptTypes(code);
+  const js = ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;   // the repo's own transpiler: node:module's stripTypeScriptTypes is not in its Node types (TS2305)
   return import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'));
 }
 const must = (cond: unknown, msg: string, out: string[]) => { if (!cond) out.push(msg); };
@@ -205,7 +205,7 @@ async function authRun(src: string): Promise<string[]> {
   must(st.removed.length === 0, 'a rejection cleared the local session', p);
   // A2c hang
   st = fakeStorage();
-  mock.timers.enable({ apis: ['setTimeout'] });
+  mock.timers.enable({ apis: ['setTimeout'] } as never);   // the repo's @types/node predates the `apis` option
   try {
     const pending = fn({ auth: { signOut: () => new Promise(() => {}) } });
     mock.timers.tick(8000);
