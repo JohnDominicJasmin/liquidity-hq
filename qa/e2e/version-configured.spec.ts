@@ -65,7 +65,8 @@ test.describe('/api/version configured block', () => {
     expect(body.commit, '/api/version reported no commit - this is not the version endpoint')
       .toEqual(expect.any(String));
     expect(body.branch).toEqual(expect.any(String));
-    expect(body.appEnv).toEqual(expect.any(String));
+    /* #2503: the endpoint returns the commit and branch to everyone and nothing else (no appEnv, no configured block) */
+    expect(Object.keys(body).sort(), '/api/version must return exactly {branch, commit}').toEqual(['branch', 'commit']);
   });
 
   test('no secret-shaped value appears anywhere in the response', async () => {

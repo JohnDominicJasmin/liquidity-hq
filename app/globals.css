@@ -1077,7 +1077,9 @@ body::after {
    70:30 - calendar carries more content (5 rows) than the gauge card. */
 .dash-conditions-row { display: grid; grid-template-columns: 7fr 3fr; gap: 14px; align-items: start; }
 @media (max-width: 760px) {
-  .dash-conditions-row { grid-template-columns: 1fr; }
+  /* minmax(0, 1fr), not 1fr: a bare 1fr is minmax(auto, 1fr), so the single column grew to the widest child's min-content (391 px at a 390 viewport, QA run 44222132363: the page scrolled 17 px sideways). The children may now shrink to the column. */
+  .dash-conditions-row { grid-template-columns: minmax(0, 1fr); }
+  .dash-conditions-row > * { min-width: 0; max-width: 100%; }
 }
 /* These reuse .av-rail-panel (bg4 - a subtle gray elevation step meant for a
    narrow rail against a dark page). Full-width here, next to the white
