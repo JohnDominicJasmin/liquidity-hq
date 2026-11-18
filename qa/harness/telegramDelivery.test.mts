@@ -4,6 +4,8 @@ import { makeWorld, installFakeFetch, loadRoute } from '../telegramWorld.mjs';
 
 /* QA's DELIVERY cells for #2560 (owner sweep 2026-11-18): the REAL alert route, a fake network, nothing leaves the machine. Written against the behaviour the owner asked for, not against the code.
  *   D1  a send that fails twice then succeeds is DELIVERED (retry), exactly once; a 400 (chat not found) is final after 1 attempt
+ *       (#2567 idempotent retry) D1a a bare TypeError "fetch failed" (the request never went out) is retried to delivery exactly once; D1c a timeout AFTER Telegram accepted the message is NOT retried (one copy, one attempt) and counts as failed;
+ *       D1d an AbortError, a socket reset (ECONNRESET), a fetch failure named TimeoutError/AbortError and an unidentified plain Error are never retried; D1e a bare "fetch failed", ECONNREFUSED and ENOTFOUND are retried to delivery exactly once
  *   D2  an alert is marked sent only AFTER Telegram accepts it: every attempt fails in run 1 (nothing delivered), the network heals, run 2 delivers it (never a silent loss)
  *   D3  the "Price Level Alerts" switch (muted key price_alerts) stops price alerts and the alert STAYS active; switched back on, it fires
  *   D4  the RSI cooldown is PER RECIPIENT: run 1 reaches only user A (B has RSI muted), run 2 reaches B (A is on cooldown and is not sent it again)
@@ -36,11 +38,44 @@ function failSends(n: number, kind: 'throw' | '500') {
   return { restore: () => { globalThis.fetch = real; }, count: () => c };
 }
 
-test('D1a. a send that fails twice (network, then 500) and succeeds on the third attempt is delivered exactly once', async () => {
+/** The FIRST Telegram send is handled by `how`; every other send passes through. 'before': the request never went out (the throw replaces it). 'after': Telegram ACCEPTED the message (it is delivered and recorded), then the answer is lost to the thrown error. */
+function firstSend(how: { when: 'before' | 'after'; error: () => Error }) {
+  const real = globalThis.fetch; let first: string | null = null; let n = 0;
+  globalThis.fetch = (async (input: unknown, init?: unknown) => {
+    if (isSend(input) && n === 0) { n++; first = String(JSON.parse(String((init as { body?: string })?.body ?? '{}')).text); if (how.when === 'after') await real(input as never, init as never); throw how.error(); }
+    return real(input as never, init as never);
+  }) as typeof fetch;
+  return { restore: () => { globalThis.fetch = real; }, text: () => first };
+}
+const timeoutError = () => new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+const withCause = (code: string) => () => Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(code), { code }) });
+const copies = (w: World, text: string | null) => ({ delivered: w.telegram.sent.filter((m: Msg) => m.text === text).length, attempts: w.telegram.attempts.filter((m: Msg) => m.text === text).length });
+
+test('D1a. a send that fails twice (a bare TypeError "fetch failed" before the request goes out, then a 500) and succeeds on the third attempt is delivered exactly once', async () => {
   const { w, run } = await scenario(); const real = globalThis.fetch; let c = 0;
-  globalThis.fetch = (async (i: unknown, init?: unknown) => { if (isSend(i) && c < 2) { c++; if (c === 1) throw new Error('network down'); return new Response('{"ok":false}', { status: 500 }); } return real(i as never, init as never); }) as typeof fetch;
+  globalThis.fetch = (async (i: unknown, init?: unknown) => { if (isSend(i) && c < 2) { c++; if (c === 1) throw new TypeError('fetch failed'); return new Response('{"ok":false}', { status: 500 }); } return real(i as never, init as never); }) as typeof fetch;
   try { await run(); } finally { globalThis.fetch = real; }
   assert.equal(c, 2, 'CONTROL: the two failures were injected'); assert.equal(to(w, '1001').filter(btcRsi).length, 1, 'the alert was lost or doubled after the retries');
+});
+test('D1c. a timeout AFTER the request went out (Telegram accepted it, the answer was lost) is NOT retried: exactly one copy is delivered, one attempt is made, and the run counts it as failed', async () => {
+  const { w, run } = await scenario(); const f = firstSend({ when: 'after', error: timeoutError }); let res: { body: Record<string, unknown> | null };
+  try { res = await run(); } finally { f.restore(); }
+  assert.ok(f.text(), 'CONTROL: a send was intercepted'); const c = copies(w, f.text()); assert.deepEqual(c, { delivered: 1, attempts: 1 }, `a message that may already have been delivered was sent again: ${JSON.stringify(c)}`);
+  const d = (res.body as { delivery?: { failed?: number } })?.delivery; assert.ok((d?.failed ?? 0) >= 1, `the timeout was not counted as failed: ${JSON.stringify(d)}`);
+});
+test('D1d. an AbortError and a socket reset mid-request (TypeError "fetch failed" caused by ECONNRESET) are NOT retried either, nor a fetch failure that carries the TimeoutError / AbortError name (one attempt each), and neither is an unidentified plain Error', async () => {
+  for (const [name, error] of [['AbortError', () => new DOMException('aborted', 'AbortError')], ['ECONNRESET', withCause('ECONNRESET')], ['a TypeError named TimeoutError', () => Object.assign(new TypeError('fetch failed'), { name: 'TimeoutError' })], ['a TypeError named AbortError', () => Object.assign(new TypeError('fetch failed'), { name: 'AbortError' })]] as const) {
+    const { w, run } = await scenario(); const f = firstSend({ when: 'after', error }); try { await run(); } finally { f.restore(); }
+    assert.deepEqual(copies(w, f.text()), { delivered: 1, attempts: 1 }, `${name} was retried`);
+  }
+  const plain = await scenario(); const pf = firstSend({ when: 'before', error: () => new Error('network down') }); try { await plain.run(); } finally { pf.restore(); }
+  assert.ok(pf.text(), 'CONTROL: intercepted'); assert.deepEqual(copies(plain.w, pf.text()), { delivered: 0, attempts: 0 }, 'an unidentified plain Error was retried (it is final: delivery unknown)');
+});
+test('D1e. a bare TypeError "fetch failed" and ECONNREFUSED/ENOTFOUND (the request never went out) ARE retried and delivered exactly once (the thrown first attempt never reached Telegram, so one request arrives)', async () => {
+  for (const [name, error] of [['bare fetch failed', () => new TypeError('fetch failed')], ['ECONNREFUSED', withCause('ECONNREFUSED')], ['ENOTFOUND', withCause('ENOTFOUND')]] as const) {
+    const { w, run } = await scenario(); const f = firstSend({ when: 'before', error }); try { await run(); } finally { f.restore(); }
+    const c = copies(w, f.text()); assert.ok(f.text(), 'CONTROL: the first send was intercepted (it never reached the network)'); assert.deepEqual(c, { delivered: 1, attempts: 1 }, `${name}: the retry did not deliver the message exactly once (${JSON.stringify(c)}; attempts counts the requests that reached Telegram, the first one was thrown before it went out)`);
+  }
 });
 test('D1b. a 400 (chat not found) is final: one attempt, no retry, nothing delivered', async () => {
   const { w, run } = await scenario(); w.telegram.mode = '400'; await run();

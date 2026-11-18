@@ -4,6 +4,7 @@
  * P1  the PROD block (lhq_labels) and the DEV block (lhq_dev_labels) hold the same 65 rows; every one of 13 keys has the 5 locales en ko zh ru ar, once
  * P2  every en value equals lib/labelDefaults.en.json; every key is in lib/labelKeys.ts; every {placeholder} of en is kept in the other four; no empty value, no angle bracket, no AI vendor name
  * P3  every key is used by components/TelegramQuietControls.tsx and every ALERTS_* key that component uses is a key of the migration or of the shipped defaults
+ * P4  the quiet-pair label migration 20261119y (ALERTS_QUIET_BOTH): 5 locales, PROD = DEV, en = the shipped default, registered, shown by the component, unique file prefix
  * Q1  additive only: only `add column if not exists`, `comment on column` and `grant`; no drop/alter type/not null/delete/update/truncate outside the commented rollback line
  * Q2  the five columns, with the right types; the hour columns carry a 0-23 check; every column is nullable with no default (old rows stay "not set")
  * Q3  grants: the four settings columns only, `to authenticated`, never anon or public, and telegram_lapse_notified_at (server-only) is NOT granted; every column /api/settings accepts is granted
@@ -12,7 +13,7 @@
  * WHAT IT CANNOT PROVE: that the SQL runs on the live schema. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const labelsSql = read('supabase/migrations/20261119p_labels_telegram_controls.sql');
@@ -46,6 +47,16 @@ test('P2. en equals the shipped defaults; every key is registered; placeholders 
 test('P3. the component uses every key and only known keys', () => {
   const keys = [...new Set(rows(split(labelsSql).prod).map((r) => r.key))]; for (const k of keys) assert.ok(component.includes(k), `${k} is not used by the component`);
   for (const m of component.matchAll(/ALERTS_[A-Z0-9_]+/g)) assert.ok(keys.includes(m[0]) || m[0] in en, `the component uses unknown ${m[0]}`);
+});
+
+const pairSql = read('supabase/migrations/20261119y_labels_telegram_quiet_pair.sql');
+test('P4. the quiet-pair label (20261119y): ALERTS_QUIET_BOTH x 5 locales, PROD and DEV identical, en equals the shipped default, registered, shown by the component; the file name is the only one with its prefix', () => {
+  const { prod, dev } = split(pairSql); const P = rows(prod), D = rows(dev);
+  assert.match(prod, /insert into lhq_labels \(key, locale, value\)/); assert.match(dev, /insert into lhq_dev_labels \(key, locale, value\)/); assert.equal(/lhq_dev_labels/.test(prod), false); assert.equal(/\blhq_labels\b/.test(dev), false);
+  assert.equal(P.length, 5); assert.deepEqual(D, P, 'the DEV row differs from the PROD row'); assert.deepEqual(P.map((r) => r.key), Array(5).fill('ALERTS_QUIET_BOTH')); assert.deepEqual(P.map((r) => r.loc).sort(), [...LOCALES].sort());
+  assert.equal(P.find((r) => r.loc === 'en')!.val, en.ALERTS_QUIET_BOTH); assert.ok(keysSrc.includes("'ALERTS_QUIET_BOTH'")); assert.ok(component.includes('ALERTS_QUIET_BOTH')); assert.ok(P.every((r) => r.val.trim().length > 0 && !/[<>{}]/.test(r.val)));
+  assert.equal((pairSql.match(/on conflict \(key, locale\) do update set value = excluded\.value, updated_at = now\(\);/g) ?? []).length, 2);
+  const same = readdirSync(new URL('../supabase/migrations/', import.meta.url)).filter((f) => f.startsWith('20261119y')); assert.deepEqual(same, ['20261119y_labels_telegram_quiet_pair.sql'], 'two migrations share the 20261119y prefix');
 });
 
 const live = colsSql.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');           // statements outside comments

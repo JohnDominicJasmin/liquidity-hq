@@ -27,7 +27,7 @@ async function scenario(users: Array<Row & { id: string; chat: string | null; su
   const list = users.length ? users : [{ id: 'u-a', chat: '1001', timezone: 'Asia/Manila', sub: PRO }, { id: 'u-b', chat: '2002', timezone: 'Europe/London', sub: PRO }];
   const w = makeWorld({ tables: {
     lhq_user_subscriptions: list.map((u) => ({ user_id: u.id, ...(u.sub ?? PRO) })),
-    lhq_user_settings: list.map((u) => { const { id, chat, sub, ...rest } = u; return { user_id: id, telegram_chat_id: chat, timezone: 'UTC', ...rest }; }),
+    lhq_user_settings: list.map((u) => { const { id, chat, sub, ...rest } = u; return { user_id: id, telegram_chat_id: chat, ...{ timezone: 'UTC' }, ...rest }; }),
     lhq_telegram_link_codes: [],
   } }) as ReturnType<typeof makeWorld> & { patches: Array<{ table: string; query: string; body: Row; hit: number }>; failTable: Record<string, string>; missingColumns: Record<string, string[]> };
   installControlsWorld(w);
@@ -64,8 +64,8 @@ test('B1b. /status shows paused, snoozed (in the account timezone), quiet window
   const sn = await t('3002'); assert.match(sn, /Alerts: snoozed until \w{3},? \d\d:\d\d \(Asia\/Manila\)/, sn);
   const manila = new Date(until).toLocaleString('en-GB', { timeZone: 'Asia/Manila', weekday: 'short', hour: '2-digit', minute: '2-digit' }); assert.ok(sn.includes(manila), `the snooze end is not shown in the account's own zone: ${sn} vs ${manila}`);
   const q = await t('3003'); assert.match(q, /Quiet hours: 22:00-07:00 \(America\/New_York\)/); assert.match(q, /Plan: Pro trial/);
-  assert.match(await t('3004'), /Plan: Free \(Telegram alerts need Pro\)/);
-  assert.match(await t('3005'), /Plan: Free/, 'a Pro whose period ended 10 days ago (past the 48 h grace) must read Free');
+  const free = await t('3004'); assert.match(free, /Plan: Free \(Telegram alerts need Pro\)/); assert.match(free, /Alerts: off \(your plan does not include Telegram alerts\)/, `a Free account must not read "on": ${free}`);
+  const lapsed = await t('3005'); assert.match(lapsed, /Plan: Free/, 'a Pro whose period ended 10 days ago (past the 48 h grace) must read Free'); assert.match(lapsed, /Alerts: off \(your plan/);
   assert.match(await t('3006'), /Alerts: paused/, 'paused must win over a snooze');
 });
 test('B2. /status, /pause and /resume from an UNLINKED chat say how to connect and disclose nothing about any account', async () => {
@@ -154,8 +154,12 @@ test('B10. odd settings: an invalid stored timezone, a null timezone and equal s
   const h = (await post('6003', '/status')).reply!; assert.ok(!h.includes('<b>x</b>'), `an unescaped zone reached the HTML: ${h}`); assert.ok(h.includes('&lt;b&gt;x&lt;/b&gt;&amp;'));
   assert.match((await post('6004', '/status')).reply!, /Quiet hours: off/, 'an out-of-range stored hour must read as off');
 });
-test('B11. FINDING: a lapsed (Free) account must not be told "Alerts are on" by /resume or "Alerts: on" by /status, because the cron sends it nothing', async () => {
-  const { post } = await scenario([{ id: 'u-free', chat: '4100', timezone: 'UTC', sub: FREE, alert_paused: true }]);
-  const r = await post('4100', '/resume'); const s = await post('4100', '/status');
-  assert.doesNotMatch(r.reply!, /Alerts are on/, `/resume to a Free account: ${r.reply}`); assert.doesNotMatch(s.reply!, /Alerts: on/, `/status to a Free account: ${s.reply}`);
+test('B11. a lapsed (Free) account is never told "on": /resume says the pause is cleared but alerts stay off (plan), /status says "Alerts: off (your plan ...)"; Pro and trial still get "Alerts are on"; a failed plan read falls back to the plain reply', async () => {
+  const { post, w, row } = await scenario([{ id: 'u-free', chat: '4100', timezone: 'UTC', sub: FREE, alert_paused: true }, { id: 'u-pro', chat: '4101', timezone: 'UTC', sub: PRO, alert_paused: true }, { id: 'u-trial', chat: '4102', timezone: 'UTC', sub: TRIAL, alert_paused: true }, { id: 'u-lapsed', chat: '4103', timezone: 'UTC', sub: LAPSED_PRO, alert_paused: true }, { id: 'u-x', chat: '4104', timezone: 'UTC', sub: FREE, alert_paused: true }]);
+  const NO_PLAN = 'Pause cleared, but alerts stay off: your plan does not include Telegram alerts. Upgrade to Pro to get them.';
+  assert.equal((await post('4100', '/resume')).reply, NO_PLAN); assert.equal(row('u-free').alert_paused, false, 'the pause itself is still cleared');
+  assert.equal((await post('4103', '/resume')).reply, NO_PLAN); assert.match((await post('4100', '/status')).reply!, /Alerts: off \(your plan does not include Telegram alerts\)/);
+  assert.match((await post('4101', '/resume')).reply!, /^Alerts are on\./, 'CONTROL: Pro'); assert.match((await post('4102', '/resume')).reply!, /^Alerts are on\./, 'CONTROL: trial'); assert.match((await post('4101', '/status')).reply!, /Alerts: on/, 'CONTROL: Pro status');
+  w.failTable.lhq_user_subscriptions = 'GET'; assert.match((await post('4104', '/resume')).reply!, /^Alerts are on\./, 'a failed plan read must not turn the resume into an error'); assert.equal(row('u-x').alert_paused, false);
+  assert.ok(NO_PLAN.split(/\s+/).length <= 40, 'the no-plan reply is over 40 words');
 });
