@@ -45,6 +45,8 @@ export interface StrategyInputs {
   fundingClass?: StrategyContext['fundingClass'];
   fundingPct?: number;
   oiChange6Pct?: number | null;
+  /** The open-interest change is in the top 20% of the coin's own changes (liveInputs.ts oiRelative); null = no reading. */
+  oiExtreme?: boolean | null;
 }
 
 type T = (key: LabelKey, vars?: Record<string, string | number>) => string;
@@ -68,6 +70,7 @@ export function readStrategy(def: StrategyDef, inp: StrategyInputs, t: T): Strat
       ...(inp.taker ? { taker: inp.taker } : {}),
       ...(inp.fundingClass ? { fundingClass: inp.fundingClass, fundingPct: inp.fundingPct } : {}),
       oiChange6Pct: inp.oiChange6Pct ?? null,
+      oiExtreme: inp.oiExtreme ?? null,
     });
   } catch {
     return none('it could not be computed on these candles');

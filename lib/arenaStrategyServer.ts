@@ -1,10 +1,10 @@
 import labelDefaults from './labelDefaults.en.json';
 import type { LabelKey } from './labelKeys.ts';
-import { BINANCE_SYMS } from './coins.ts';
+import { BINANCE_SYMS, BYBIT_SYMS } from './coins.ts';
 import { deadlineSignal } from './deadlineSignal.ts';
 import { exchangeFetch } from './exchangeGuard.ts';
 import { closedCandles, EMA_SIGNAL_TFS, fetchRibbonCandles, type EMASignalTF } from './ribbonCandles.ts';
-import { fundingClassOf, oiChange6 } from './strategies/liveInputs.ts';
+import { FUNDING_WINDOW_DAYS, OI_ROWS, fundingClassRelative, oiRelative, parseBinanceFunding, parseBybitFunding, type FundingPoint } from './strategies/liveInputs.ts';
 import { arenaStrategyRead, strategiesFor, type ArenaStrategyRead, type StrategyInputs } from './arenaStrategyRead.ts';
 
 /* THE SERVER COMPUTES THE PICKED STRATEGY ITSELF (owner order 2026-11-19). The request carries only the strategy's id; this reads the closed
@@ -28,9 +28,9 @@ const TF_MS: Record<EMASignalTF, number> = {
   '1m': 60_000, '5m': 300_000, '15m': 900_000, '30m': 1_800_000, '1h': 3_600_000, '2h': 7_200_000, '4h': 14_400_000, '1d': 86_400_000,
 };
 
-async function closedFor(coin: string, tf: EMASignalTF): Promise<StrategyInputs['candles']> {
+async function closedFor(coin: string, tf: EMASignalTF, limit = 300): Promise<StrategyInputs['candles']> {
   try {
-    const all = await fetchRibbonCandles(coin, tf);
+    const all = await fetchRibbonCandles(coin, tf, undefined, limit);
     return all.length ? closedCandles(all, tf) : null;
   } catch {
     return null;
@@ -57,19 +57,67 @@ async function takerFor(coin: string, tf: EMASignalTF): Promise<StrategyInputs['
   }
 }
 
-/** Funding class + open-interest change over the last 6 candles, the inputs the page hands the squeeze strategy (lib/useStrategySignal.ts). Either missing is left absent. */
-async function liveFor(coin: string, tf: EMASignalTF): Promise<Pick<StrategyInputs, 'fundingClass' | 'fundingPct' | 'oiChange6Pct'>> {
+/* THE FUNDING HISTORY, SERVER SIDE: the same rule as the browser's (lib/strategies/liveInputs.ts fundingClassRelative, the coin's own settled funding of the last 90 days paged by TIME), read straight from the exchange and kept 30 minutes per coin. */
+const FUNDING_CACHE_MS = 30 * 60_000;
+const fundingCache = new Map<string, { at: number; pts: FundingPoint[] }>();
+
+async function fundingHistoryFor(coin: string): Promise<FundingPoint[] | null> {
+  const hit = fundingCache.get(coin);
+  const now = Date.now();
+  if (hit && now - hit.at < FUNDING_CACHE_MS) return hit.pts;
+  const start = now - FUNDING_WINDOW_DAYS * 86_400_000;
+  const bn = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
+  const by = (BYBIT_SYMS as Record<string, string | undefined>)[coin];
+  const get = async (url: string): Promise<unknown> => {
+    const r = await exchangeFetch(url, { cache: 'no-store', signal: deadlineSignal(6_000) });
+    return r.ok ? r.json() : null;
+  };
+  const out: FundingPoint[] = [];
+  try {
+    if (bn) {
+      let cursor = start;
+      for (let page = 0; page < 6; page++) {
+        const rows = parseBinanceFunding(await get(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${bn}&startTime=${cursor}&endTime=${now}&limit=1000`));
+        if (!rows.length) break;
+        out.push(...rows);
+        const last = rows[rows.length - 1].time;
+        if (rows.length < 1000 || last <= cursor) break;
+        cursor = last + 1;
+      }
+    }
+    if (!out.length && by) {
+      let upper = now;
+      for (let page = 0; page < 14; page++) {
+        const rows = parseBybitFunding(await get(`https://api.bybit.com/v5/market/funding/history?category=linear&symbol=${by}&startTime=${start}&endTime=${upper}&limit=200`));
+        if (!rows.length) break;
+        out.push(...rows);
+        const oldest = Math.min(...rows.map(p => p.time));
+        if (rows.length < 200 || oldest <= start) break;
+        upper = oldest - 1;
+      }
+      out.sort((a, b) => a.time - b.time);
+    }
+  } catch { /* what was read so far is judged below: too little history is no reading */ }
+  if (!out.length) return null;
+  fundingCache.set(coin, { at: now, pts: out });
+  return out;
+}
+
+/** The inputs the page hands the squeeze strategy (lib/useStrategySignal.ts), judged the same way: funding against the coin's own 90 days, open interest against its own recent changes. Either missing is left absent. */
+async function liveFor(coin: string, tf: EMASignalTF): Promise<Pick<StrategyInputs, 'fundingClass' | 'fundingPct' | 'oiChange6Pct' | 'oiExtreme'>> {
   const sym = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
   if (!sym) return {};
-  const [funding, oi] = await Promise.all([
+  const [rate, history, oi] = await Promise.all([
     exchangeFetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${sym}`, { cache: 'no-store', signal: deadlineSignal(6_000) })
-      .then(async r => (r.ok ? fundingClassOf(Number(((await r.json()) as { lastFundingRate?: string }).lastFundingRate)) : null))
+      .then(async r => (r.ok ? Number(((await r.json()) as { lastFundingRate?: string }).lastFundingRate) : null))
       .catch(() => null),
-    exchangeFetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=${tf}&limit=7`, { cache: 'no-store', signal: deadlineSignal(6_000) })
-      .then(async r => (r.ok ? oiChange6((await r.json()) as never, TF_MS[tf]) : null))
+    fundingHistoryFor(coin).catch(() => null),
+    exchangeFetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=${tf}&limit=${OI_ROWS}`, { cache: 'no-store', signal: deadlineSignal(6_000) })
+      .then(async r => (r.ok ? oiRelative((await r.json()) as never, TF_MS[tf]) : null))
       .catch(() => null),
   ]);
-  return { ...(funding ?? {}), oiChange6Pct: oi };
+  const funding = fundingClassRelative(rate, history, Date.now());
+  return { ...(funding ?? {}), oiChange6Pct: oi?.oiChange6Pct ?? null, oiExtreme: oi?.oiExtreme ?? null };
 }
 
 export async function serverStrategyRead(coin: string, tf: string, strategyId: string | null, selection: readonly string[]): Promise<ArenaStrategyRead> {
@@ -80,7 +128,7 @@ export async function serverStrategyRead(coin: string, tf: string, strategyId: s
   if (defs.length && supported) {
     const needsBtc = coin !== 'btc' && defs.some(d => d.needsBtc);
     const [candles, btcCandles, taker, live] = await Promise.all([
-      closedFor(coin, stf),
+      closedFor(coin, stf, Math.max(300, ...defs.map(d => d.candleLimit ?? 300))),
       needsBtc ? closedFor('btc', stf) : Promise.resolve(undefined),
       defs.some(d => d.needsTaker) ? takerFor(coin, stf) : Promise.resolve(undefined),
       defs.some(d => d.needsLive) ? liveFor(coin, stf) : Promise.resolve({}),
