@@ -36,7 +36,7 @@ import { installPaidAiFence } from './_no-paid-ai';
  * separate source of flake unrelated to what this file measures.
  *
  * ASSERTED BY LABEL KEY, NOT BY RENDERED ENGLISH. The stale notice's wording is
- * read from the served label map (ARENA_STALE_SELECTION_PRE) rather than typed here - the
+ * read from the served label map (ARENA_STALE_SETTINGS_NOTICE since #2544; it was ARENA_STALE_SELECTION_PRE) rather than typed here - the
  * DATABASE rows layered over the shipped defaults, as the client renders them, NOT
  * /api/labels alone, which does not carry a key that has no row - and
  * the ASK AI prompt is identified by the fixed payload's own marker token, which
@@ -138,8 +138,9 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
   await expect(quickBtn).toBeEnabled({ timeout: 20_000 });
 
   const labels = await servedLabels(page.request);
-  const stalePre = labels.ARENA_STALE_SELECTION_PRE;
-  expect(stalePre, 'ARENA_STALE_SELECTION_PRE is in neither the served labels nor the shipped defaults - cannot identify the stale notice by key').toBeTruthy();
+  /* RE-PINNED 2026-11-18 (#2544, "the AI read at a glance" + the no-wordy rule): the stale-read banner is now the one short sentence ARENA_STALE_SETTINGS_NOTICE ("Settings changed since this read. Run again.") in BOTH places, the signal card and the reasoning block; the long ARENA_STALE_SELECTION_PRE sentence is no longer rendered. Same assertion, same two places: it is still read from the served label map by key, not typed here. */
+  const stalePre = labels.ARENA_STALE_SETTINGS_NOTICE;
+  expect(stalePre, 'ARENA_STALE_SETTINGS_NOTICE is in neither the served labels nor the shipped defaults - cannot identify the stale notice by key').toBeTruthy();
   const noResultPrefix = (labels.ARENA_CHAT_PROMPT_NO_RESULT ?? '').split('{')[0];
   expect(noResultPrefix, 'ARENA_CHAT_PROMPT_NO_RESULT is in neither the served labels nor the shipped defaults').toBeTruthy();
 
