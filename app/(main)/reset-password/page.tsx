@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
-import { updatePassword } from '@/lib/authSession';
+import { updatePassword, signOutOtherSessions } from '@/lib/authSession';
 import LoadingState from '@/components/LoadingState';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
@@ -73,8 +73,16 @@ export default function ResetPasswordPage() {
     setError('');
     // Bounded (#1173) - same hang as Settings' password form.
     const { error } = await updatePassword(sb, password);
+    // The 15 s bound fired, so the password may have changed anyway: end the other sessions in that case too (harmless if it
+    // did not). Not awaited, never throws (signOutOtherSessions returns its error), and this session is kept (QA review of #2587).
+    if (error?.unconfirmed) void signOutOtherSessions(sb).then(e => { if (e) console.error('[auth] ending other sessions after an unconfirmed reset failed:', e); });
+    if (error) { setLoading(false); setError(friendlyAuthError(error.message)); return; }
+    // A reset is how someone takes an account back: end the sessions opened
+    // with the old password, keep this one (#1113). Best effort - the password
+    // has already changed, so a failure here is logged, not shown.
+    const othersError = await signOutOtherSessions(sb);
+    if (othersError) console.error('[auth] ending other sessions after reset failed:', othersError);
     setLoading(false);
-    if (error) { setError(friendlyAuthError(error.message)); return; }
     setDone(true);
     setTimeout(() => router.push('/dashboard'), 1500);
   };
@@ -122,7 +130,9 @@ export default function ResetPasswordPage() {
                 label={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
                 value={confirmPassword}
                 onChange={setConfirmPassword}
-                onEnter={submit}
+                /* No second submit while one runs (QA review of #2587): the button is disabled while loading, Enter was not, and the
+                   others-call made that window up to ~8 s longer. Guarded here, beside the button's own `disabled={loading}`. */
+                onEnter={() => { if (!loading) void submit(); }}
                 autoComplete="new-password"
               />
               <button

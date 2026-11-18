@@ -16,12 +16,21 @@ const LOOKBACK = 120;
 export function detectSrFlip(candles: readonly OHLCV[], _ctx: StrategyContext): StrategyResult {
   const n = candles.length;
   if (n < MIN_CANDLES) return WAIT;
-  // The levels as they stood before the retest candle, so the retest itself does not create or move them.
-  return flipFromLevels(candles, srPrices(candles.slice(0, n - 1), candles[n - 2].close));
+  /* THE LEVEL THAT FLIPPED IS THE ONE THE CHART DREW AT THE BREAK (QA oracle AO2, #1263 box 18). The chart keeps only resistances ABOVE the price and supports BELOW it, so after a break and a retest the
+     broken level is on the other side and is no longer in the chart's list: reading the levels at the retest made this strategy say WAIT on every real flip. So the levels this rule watches are, for each
+     candle in the window that closed through one, the chart's levels as they stood just before that candle. */
+  const k = n - 1;
+  const atBreak = new Set<number>();
+  for (let i = Math.max(1, k - LOOKBACK); i < k; i++) {
+    const c = candles[i].close, p = candles[i - 1].close;
+    for (const L of srPrices(candles.slice(0, i), p)) if ((c > L && p <= L) || (c < L && p >= L)) atBreak.add(L);
+  }
+  // The TARGET stays on the chart's levels as they stand at the retest (the lines the trader sees), so the retest itself does not create or move them.
+  return flipFromLevels(candles, [...atBreak], srPrices(candles.slice(0, n - 1), candles[n - 2].close));
 }
 
-/** The rule itself, on a given list of level prices (the chart's levels in the app; a fixture's own level in a test). */
-export function flipFromLevels(candles: readonly OHLCV[], levels: readonly number[]): StrategyResult {
+/** The rule itself, on a given list of level prices (the levels at their breaks in the app; a fixture's own level in a test). `targets` are the levels a target is picked from (the chart's own at the retest; defaults to `levels`). */
+export function flipFromLevels(candles: readonly OHLCV[], levels: readonly number[], targets: readonly number[] = levels): StrategyResult {
   const n = candles.length;
   if (n < 4) return WAIT;
   const k = n - 1, last = candles[k];
@@ -49,7 +58,7 @@ export function flipFromLevels(candles: readonly OHLCV[], levels: readonly numbe
   const { dir, level } = best;
   const entry = last.close;
   const stop = dir === 'long' ? Math.min(level, last.low) : Math.max(level, last.high);
-  const others = levels.filter(p => p !== level);
+  const others = targets.filter(p => p !== level);
   const target = nearestLevel(others, entry, dir, Math.abs(entry - stop));
   return tradeCall({
     ts: last.time, dir, entry, stop, target, params: { level },
