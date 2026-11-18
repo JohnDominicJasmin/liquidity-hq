@@ -40,7 +40,8 @@ function series(seed: number, n: number, tfMs: number): Candle[] {
 const TF_MS = 3_600_000;
 const ALL = series(20261119, 900, TF_MS);
 const VIEW = 300;
-const view = (end: number) => ALL.slice(end - VIEW, end);
+const view = (end: number, n = VIEW) => ALL.slice(end - n, end);   // #2603: ema_cross needs 601 closed candles, so each strategy gets a window of at least its own minCandles
+const viewSize = (def: { minCandles: number }) => Math.max(VIEW, def.minCandles);
 const inputs = (candles: readonly Candle[] | null, over: Partial<StrategyInputs> = {}): StrategyInputs => ({ coin: 'btc', tf: '1h', tfMs: TF_MS, candles: candles as StrategyInputs['candles'], btcCandles: candles as StrategyInputs['candles'], ...over });
 const ctxFor = (over: Record<string, unknown> = {}) => ({ coin: 'BTC', price: '$100', change24h: '+1.00%', ma20: '$99', priceVsMA: 'ABOVE MA20', volRatio: '1.10x', rsi14: '55.0 (Neutral)', rsi1h: '55', rsi4h: '50', rsiDaily: '60', longShortRatio: 'Long 55% / Short 45%', vwap: '$99', takerRatio: 'Buy 50% / Sell 50%', pocLine: '$99', orderWalls: 'none', liqLevels: 'none', news: 'none', upcomingEvents: 'none', oilPrice: '$70', ...over } as unknown as GrokContext);
 const chart = { tf: '1h', ema9: 61000, sma200: 58000, rsi: 55, recent20: 'flat', hi: 62000, lo: 59000, lastClose: 61500 } as unknown as ChartData;
@@ -57,8 +58,8 @@ const found = new Map<string, { buy: number | null; sell: number | null }>();
 for (const def of STRATEGIES) {
   if (NEEDS_LIVE.has(def.id)) continue;
   let buy: number | null = null, sell: number | null = null;
-  for (let end = VIEW; end <= ALL.length && (buy == null || sell == null); end++) {
-    let r; try { r = direct(def, view(end)); } catch { continue; }
+  for (let end = viewSize(def); end <= ALL.length && (buy == null || sell == null); end++) {
+    let r; try { r = direct(def, view(end, viewSize(def))); } catch { continue; }
     if (r.params.noLive === true || r.params.noTaker === true) break;
     if (r.verdict === 'buy' && buy == null) buy = end; if (r.verdict === 'sell' && sell == null) sell = end;
   }
@@ -78,7 +79,7 @@ for (const def of STRATEGIES) {
   const f = found.get(def.id); if (f?.buy != null) windows.push(['BUY', f.buy]); if (f?.sell != null) windows.push(['SELL', f.sell]);
   for (const [label, end] of windows) {
     test(`S1 ${def.id} ${label}: Quick and Deep carry the name, the verdict, the reason and the levels, and tell the read to name it`, () => {
-      const candles = view(end);
+      const candles = view(end, viewSize(def));
       if (NEEDS_LIVE.has(def.id)) return; // S2
       const d = direct(def, candles);
       const word = d.verdict === 'buy' ? 'BUY' : d.verdict === 'sell' ? 'SELL' : 'WAIT';
