@@ -3510,7 +3510,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           </div>
         )}
 
-        /* WHILE THE PLAN IS BEING READ, the plain button stands in (inert), not the locked one with its PRO tag: `entitlementStatus` is 'not_entitled' until the read settles, so a Pro account first saw the 170 px locked group (3 toolbar rows at 360 ru) and then the 103-148 px plain one (2 rows), moving the chart 30 px at about 1.5 s (QA run 44192577624, CLS 0.233). */
+        {/* WHILE THE PLAN IS BEING READ, the plain button stands in (inert), not the locked one with its PRO tag: `entitlementStatus` is 'not_entitled' until the read settles, so a Pro account first saw the 170 px locked group (3 toolbar rows at 360 ru) and then the 103-148 px plain one (2 rows), moving the chart 30 px at about 1.5 s (QA run 44192577624, CLS 0.233). */}
         {((drawStructureAvailable(tf) && entitlementStatus !== 'not_entitled') || (drawStructureAvailable(tf) && entitlementsLoading)) && (
           <div className="klc-draw-wrap klc-ds-wrap" ref={dsWrapRef}>
             <button
