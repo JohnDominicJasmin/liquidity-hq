@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { fetchAuthUser, getUserCompat } from '@/lib/authUser';
+import { activeTypeMuteKeys, readTypeMutes } from '@/lib/alertTypeMute';
 
 async function getAuthedUserId(req: NextRequest | Request, askAuth = false): Promise<string | null> {
   const token = (req.headers as Headers).get('Authorization')?.replace('Bearer ', '');
@@ -51,7 +52,17 @@ export async function GET(req: NextRequest) {
     // actually chosen. An error status lets the page treat "unknown" as
     // unknown instead of as "brand new user".
     if (error) { console.error('[alert-prefs] GET:', error.message); return NextResponse.json({ error: 'Failed to load' }, { status: 503 }); }
-    return NextResponse.json({ muted: (data ?? []).map(r => String(r.key)) });
+    /* Types muted for 1 h / 4 h from a Telegram alert's buttons (lib/alertTypeMute.ts), only the ones still running, so /alerts can say so.
+       Not part of the fail-closed rule above: these never decide re-seeding, so a failed read (or the column not there yet) answers with none. */
+    const typeMutes: Record<string, string> = {};
+    try {
+      const { data: s, error: sErr } = await db.from(T.user_settings).select('alert_type_mutes').eq('user_id', userId).maybeSingle();
+      if (!sErr) {
+        const all = readTypeMutes(s?.alert_type_mutes);
+        for (const k of activeTypeMuteKeys(all, Date.now())) typeMutes[k] = all[k];
+      }
+    } catch { /* none shown */ }
+    return NextResponse.json({ muted: (data ?? []).map(r => String(r.key)), typeMutes });
   } catch (e) {
     console.error('[alert-prefs] GET exception:', e instanceof Error ? e.message : String(e));
     return NextResponse.json({ error: 'Failed to load' }, { status: 503 });

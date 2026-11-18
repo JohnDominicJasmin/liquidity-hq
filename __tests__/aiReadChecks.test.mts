@@ -9,6 +9,7 @@
  *
  * WHAT IT CANNOT PROVE: what the model writes (no billed call), or that the Arena card renders "claim - source, when" (a component). */
 import test, { after, afterEach, beforeEach } from 'node:test';
+import * as fs from 'node:fs';
 import { register } from 'node:module';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
@@ -242,7 +243,10 @@ test('C3. a raid is dropped only when the clusters section says "Not available";
   assert.equal(dropped.raidSetup, null); assert.equal(dropped.raidTarget, null); assert.equal(dropped.raidTrigger, null);
   assert.equal(applyResultChecks(base(raid), '=== REALIZED LIQUIDATION CLUSTERS (XRP/USDT) ===\n$2.31 $1.2M longs\n').raidSetup, 'LONG FLUSH');
   const spotPrompt = 'x\nSpot data unavailable for this coin\ny';
-  assert.match(applyResultChecks(base({ reasoning: 'No mention.' }), spotPrompt).reasoning, /perps-vs-spot check was unavailable/);
+  const spotNote = applyResultChecks(base({ reasoning: 'No mention.' }), spotPrompt).reasoning;
+  /* WORDING-NEUTRAL (owner order 2026-11-18: no "unavailable" in the product): the note must exist, name the spot check and confidence, never say "unavailable", and be the label default word for word so a reword is one label change */
+  assert.match(spotNote, /spot/i); assert.match(spotNote, /confidence/i); assert.doesNotMatch(spotNote, /unavailable/i, 'owner order 2026-11-18: no "unavailable" in the product'); assert.ok(spotNote.startsWith('No mention.') && spotNote.length > 'No mention.'.length + 20, 'the note is not appended to the read');
+  assert.ok(spotNote.includes(JSON.parse(fs.readFileSync(new URL('../lib/labelDefaults.en.json', import.meta.url), 'utf8')).ARENA_READ_NOTE_SPOT_MISSING), 'the appended note is not the label default (ARENA_READ_NOTE_SPOT_MISSING)');
   assert.equal(applyResultChecks(base({ reasoning: 'Spot volume was not available.' }), spotPrompt).reasoning, 'Spot volume was not available.');
   assert.equal(applyResultChecks(base({ reasoning: 'No mention.' }), 'no such sentence').reasoning, 'No mention.');
 });
