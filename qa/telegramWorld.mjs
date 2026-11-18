@@ -7,6 +7,7 @@ import path from 'node:path';
 const root = path.resolve('.');
 const PRO = { role: 'pro', trial_ends_at: null, current_period_end: new Date(Date.now() + 30 * 86_400_000).toISOString() };
 
+const FRESH_JUMP = [...Array.from({ length: 277 }, () => 100), ...Array.from({ length: 20 }, () => 97), 101, 101, 101];   // flat, a 3% dip (the ribbon crosses DOWN), then back up on the last candles: the newest CLOSED candle carries a fresh BUY cross (found by search against lib/strategyCore.detectEMASignals; the flat default alone crosses on the OLDEST bar, which the cron now drops as more than 3 candles old)
 export function makeWorld(over = {}) {
   const w = {
     tables: {
@@ -79,7 +80,7 @@ export function installFakeFetch(w) {
     if (/bybit/.test(u.host) && u.pathname === '/v5/market/kline') {
       const sym = u.searchParams.get('symbol'); const iv = u.searchParams.get('interval'); const limit = Math.min(Number(u.searchParams.get('limit') ?? 200), 1000);
       const ms = ({ D: 86_400_000, W: 604_800_000, M: 2_592_000_000 })[iv] ?? Number(iv) * 60_000;
-      const closes = (w.series && (w.series[`${sym}:${iv}`] ?? w.series[`${sym}:*`])) || null;       // oldest -> newest
+      const closes = (w.series && (w.series[`${sym}:${iv}`] ?? w.series[`${sym}:*`])) || (w.freshSignals && (iv !== '60' || w.freshHourly) && w.freshSignals.test(sym) ? FRESH_JUMP : null);       // oldest -> newest (w.freshSignals, #2560: a symbol with no series of its own gets a flat market whose LAST candle jumps, so its EMA ribbon crosses on the newest bar: a signal that is NOT old; the flat default alone crosses on the oldest bar, which the cron now drops as more than 3 candles old)
       const start = Math.floor((w.anchor ?? Date.now()) / ms) * ms;   // w.anchor pins the candle clock: "the same market a minute later" stays the same candles
       const list = []; for (let i = 0; i < limit; i++) {
         const fromEnd = i; const c = closes ? (closes[closes.length - 1 - fromEnd] ?? closes[0]) : (w.prices[sym] ?? 100);

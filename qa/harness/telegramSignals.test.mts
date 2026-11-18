@@ -16,14 +16,14 @@ async function scenario(o: { alerts?: unknown[]; muted?: Array<{ user_id: string
     lhq_user_subscriptions: [{ user_id: 'u-pro', role: 'pro', trial_ends_at: null, current_period_end: new Date(Date.now() + 30 * 86_400_000).toISOString() }, { user_id: 'u-free', role: 'free', trial_ends_at: null, current_period_end: null }, ...(o.trial ? [TRIAL] : [])],
     lhq_user_settings: [{ user_id: 'u-pro', telegram_chat_id: '1001', timezone: 'UTC' }, { user_id: 'u-free', telegram_chat_id: '2002', timezone: 'UTC' }, ...(o.trial ? [{ user_id: 'u-trial', telegram_chat_id: '3003', timezone: 'UTC' }] : [])],
   };
-  const w: World = makeWorld({ tables }); w.series = { 'BTCUSDT:60': rising }; if (o.mode) w.telegram.mode = o.mode;
+  const w: World = makeWorld({ tables }); w.series = { 'BTCUSDT:60': rising }; w.freshSignals = /PEPE|BONK/; if (o.mode) w.telegram.mode = o.mode;
   installFakeFetch(w);
   const route = await loadRoute();
   return { w, run: route.run };
 }
 type Msg = { chat_id: string; text: string };
 const to = (w: World, chat: string): Msg[] => w.telegram.sent.filter((m: Msg) => m.chat_id === chat);
-const isRsi = (m: Msg) => /RSI Overbought/.test(m.text);
+const isRsi = (m: Msg) => /BTC RSI Overbought/.test(m.text);   // BTC only: the fresh-signal series (qa/telegramWorld.mjs) also lifts PEPE's and BONK's RSI, which is not what these cells are about
 const isGroup = (m: Msg) => /Signals Aligned/.test(m.text);
 /* OWNER ORDER 2026-11-18 (#2551): signal alerts carry NO "Signals, not predictions. Past alerts moved the alert's way…" footer any more. FOOT_ANY catches the old sentence or any rewording that restates it. */
 const FOOT_ANY = /not predictions|past alerts moved|about half the time/i;
