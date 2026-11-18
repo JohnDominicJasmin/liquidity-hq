@@ -1,6 +1,6 @@
 'use client';
 import { deadlineSignal } from '@/lib/deadlineSignal';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useId } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { COIN_DEC, CoinId, useMarket, computeSqueezeScore, venueSymbols } from '@/lib/marketStore';
 import { liftClearOfLevels } from '@/lib/chartLabelOffsets';
@@ -732,6 +732,23 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     document.addEventListener('pointerdown', onDown);
     return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onDown); };
   }, [drawMenuOpen]);
+  /* THE "?" LEGEND (#1113, PM 2026-11-19): one line per label the chart and the scanner bar print in shorthand (R/S, MAX PAIN, γ FLIP, REALIZED, T/E/S, ↑n, ↓n, the A-F grade).
+     Same close rules as the Draw menu: Escape (focus back to the button) or a press outside. */
+  const [legendOpen, setLegendOpen] = useState(false);
+  const legendWrapRef = useRef<HTMLDivElement>(null);
+  const legendPanelId = useId();
+  useEffect(() => {
+    if (!legendOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setLegendOpen(false);
+      legendWrapRef.current?.querySelector<HTMLElement>('button')?.focus();
+    };
+    const onDown = (e: PointerEvent) => { if (!legendWrapRef.current?.contains(e.target as Node)) setLegendOpen(false); };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onDown);
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onDown); };
+  }, [legendOpen]);
   const [wsStatus,     setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
   /* Set only when getBars EXHAUSTS its retries with nothing usable - not for
      an upstream that answered OK with a genuinely empty coin. #1073's real
@@ -3791,6 +3808,45 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         {/* THE FEED DOT TAKES NO ROOM IN THE TOOLBAR ROW (arena layout shift, #1263). It was a 6 px flex item after the button, so on a phone it was the item that wrapped onto its OWN row when something
             else in the row changed width, adding a row and pushing the whole chart canvas down 13 px (CLS 0.104 on every signed-in 390 px load, QA run 43647909628). It now hangs just outside the button's
             right edge, in the toolbar's own padding, so it sits where it did and can never make a row. */}
+        {/* The legend reuses existing classes only (globals.css is landing-gated): `klc-clear` is the class the phone rule lets through, so the "?" stays visible at 390 where the manual tools hide;
+            `klc-ds-wrap` makes the toolbar the menu's anchor on a phone, so the panel spans the chart instead of spilling off the right edge. */}
+        <div className="klc-draw-wrap klc-ds-wrap" ref={legendWrapRef}>
+          <button
+            className={`klc-tool-btn klc-clear${legendOpen ? ' on' : ''}`}
+            onClick={() => setLegendOpen(v => !v)}
+            aria-expanded={legendOpen}
+            aria-controls={legendPanelId}
+            aria-label={tl('CHART_LEGEND_ARIA')}
+            title={tl('CHART_LEGEND_ARIA')}
+          >
+            ?
+          </button>
+          {legendOpen && (
+            <div
+              id={legendPanelId}
+              className="klc-draw-menu"
+              role="region"
+              aria-label={tl('CHART_LEGEND_TITLE')}
+              style={{ left: 'auto', right: 0, width: 'min(320px, calc(100vw - 32px))', cursor: 'default' }}
+            >
+              <div className="klc-draw-item" style={{ whiteSpace: 'normal', cursor: 'default', color: 'var(--txt)' }}>{tl('CHART_LEGEND_TITLE')}</div>
+              {([
+                ['R / S', 'CHART_LEGEND_SR'],
+                ['MAX PAIN', 'CHART_LEGEND_MAX_PAIN'],
+                ['γ FLIP', 'CHART_LEGEND_GEX_FLIP'],
+                ['REALIZED', 'CHART_LEGEND_REALIZED'],
+                ['T · E · S', 'CHART_LEGEND_POSITION'],
+                ['↑ n', 'CHART_LEGEND_SQZ_UP'],
+                ['↓ n', 'CHART_LEGEND_SQZ_DOWN'],
+                ['A–F', 'CHART_LEGEND_GRADE'],
+              ] as const).map(([chip, key]) => (
+                <div key={key} className="klc-draw-item" style={{ whiteSpace: 'normal', cursor: 'default', fontWeight: 400 }}>
+                  <strong style={{ fontFamily: 'var(--font-mono), monospace', color: 'var(--txt)' }}>{chip}</strong> {tl(key)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <span className="klc-fs-wrap">
           <button
             className="klc-tool-btn klc-fullscreen-btn"
