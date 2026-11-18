@@ -186,7 +186,9 @@ test('L1. the four RSI timeframe labels: five locales each, English equal to the
   /* Every ('KEY','locale','value') row in one migration. Other migrations in this folder open a line with (' and are not label rows at
      all - two columns, or a different table - so a row is kept only when it has all three parts; a tolerant parse here, because this test
      now reads the whole folder rather than one known file. */
-  const rowsIn = (file: string) => read(`supabase/migrations/${file}`).split('\n').filter((l) => l.startsWith("('"))
+  /* A migration with a PROD block AND a DEV block (the label migrations since #2545: `insert into lhq_labels`, then `insert into lhq_dev_labels`) writes every row twice: only the PROD block is the row set that ships, so the DEV block is cut off before the rows are read. */
+  const prodBlock = (sql: string) => { const dev = sql.search(/insert into lhq_dev_labels/i); return dev > 0 ? sql.slice(0, dev) : sql; };
+  const rowsIn = (file: string) => prodBlock(read(`supabase/migrations/${file}`)).split('\n').filter((l) => l.startsWith("('"))
     .map((l) => l.replace(/^\('/, '').replace(/'\)[,;]?\s*$/, '').split("','"))
     .filter((parts) => parts.length === 3 && parts.every((p) => typeof p === 'string'))
     .map(([key, locale, value]) => ({ key, locale, value: value.split("''").join("'") }));
