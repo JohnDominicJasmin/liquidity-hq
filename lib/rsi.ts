@@ -51,6 +51,11 @@ export function wilderRsiSeries(closes: readonly number[], period: number = RSI_
 /** The latest Wilder RSI of these closes, unrounded; null with fewer than period + 1 closes or a non-finite input. */
 export function wilderRsi(closes: readonly number[], period: number = RSI_PERIOD): number | null {
   if (closes.length < period + 1) return null;
+  /* NO MOVEMENT IN THE WINDOW, NO READING (#1651). Wilder smoothing keeps the averages of moves that are now outside the window, so a
+     series that moved and then stopped still returns a mid-range number. When none of the last `period` changes moved, there is
+     nothing to judge: null, the same as too few closes. Live data never comes close (longest flat run measured: 2-4 closes). */
+  const tail = closes.slice(-(period + 1));
+  if (tail.every((c) => c === tail[0])) return null;
   const v = wilderRsiSeries(closes, period)[closes.length - 1];
   return Number.isFinite(v) ? v : null;
 }

@@ -15,6 +15,7 @@
  *     per message that spent a second chat credit and a second xAI charge. */
 import { COINS, type CoinId } from './coins.ts';
 import { priceText as fmtPrice, signedUsd } from './numberFormat.ts';
+import { INDICATOR_SETTINGS_RULE, INDICATOR_SETTINGS_SHAPE } from './indicatorSettingsText.ts';
 
 export interface ChatContext {
   coin: CoinId;
@@ -35,6 +36,7 @@ export interface ChatContext {
   sectorRotation?: string; structure?: string; session?: string;
   headlines?: string[]; geo?: string[];
   selection?: string;                            // describeSelection() of the trader's indicators
+  indicatorSettings?: string;                    // lib/indicatorSettingsText describeIndicatorSettings(): the trader's RSI / EMA settings that differ from the defaults
 }
 
 const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
@@ -45,6 +47,9 @@ const str = (v: unknown, max: number): string | undefined => {
 };
 const strs = (v: unknown, n: number, max: number): string[] | undefined =>
   Array.isArray(v) ? v.map((x) => str(x, max)).filter((x): x is string => !!x).slice(0, n) : undefined;
+
+/** The trader's settings line, only in the exact shape the app builds (lib/indicatorSettingsText.ts); free text is dropped (QA R7b). */
+const shapedSettings = (s: string | undefined): string | undefined => (s && INDICATOR_SETTINGS_SHAPE.test(s) ? s : undefined);
 
 /** The browser's context, reduced to known fields of the right type and size. Null when the coin is not one this app tracks. */
 export function parseChatContext(raw: unknown): ChatContext | null {
@@ -68,6 +73,7 @@ export function parseChatContext(raw: unknown): ChatContext | null {
     sectorRotation: str(r.sectorRotation, 300), structure: str(r.structure, 300), session: str(r.session, 60),
     headlines: strs(r.headlines, 8, 240), geo: strs(r.geo, 5, 240),
     selection: str(r.selection, 400),
+    indicatorSettings: shapedSettings(str(r.indicatorSettings, 200)),
   };
 }
 
@@ -76,20 +82,13 @@ const or = (v: string | undefined) => v ?? '-';
 
 export const FOLLOW_UPS_MARKER = 'FOLLOW-UPS:';
 
+/* DESCRIBE, DO NOT FORECAST (#1651, owner sweep 2026-11-18). The chat used to carry the Arena's EMA filter rules (EMA50 slope, ATR(14)
+   buffer, EMA9/20 spread, WaveTrend), but the chat's data has none of those values, so the model was told to apply rules it could not
+   check; and "it will reverse" was a forecast. Both are gone. One missing-value rule: "-" means no reading. */
 const HEAD = [
-  'You are an elite crypto derivatives trader and analyst assistant embedded in Liquidity Hunter HQ.',
-  'The trader asks short, direct questions. Give concise, bullet-pointed, actionable answers.',
-  'Flag when data is missing. Never invent numbers. Be honest about uncertainty.',
-];
-
-const EMA_FILTERS = [
-  '=== EMA SIGNAL QUALITY FILTERS (apply before accepting any EMA cross signal) ===',
-  'Before calling LONG or SHORT based on an EMA cross, ALL THREE of these filters must pass:',
-  '1. EMA50 Slope: EMA50 must be trending in the signal direction over the last 5 bars (≥ 0.1% slope). Flat EMA50 = price is ranging = EMA cross is noise. Call FREEZE/FLAT instead.',
-  '2. ATR Buffer: Price must close beyond EMA50 by at least 35% of ATR(14). A marginal 1-tick graze of EMA50 is not a confirmation - it will reverse. Only a meaningful body close clearing the buffer is valid.',
-  '3. Ribbon Spread: EMA9 and EMA20 must be at least 0.3% of price apart. If the two lines are visually overlapping (tight spread), the ribbon is tangled = chop zone = the cross is noise. Call FREEZE/FLAT instead.',
-  'If any filter fails → downgrade the signal: LONG → LEAN LONG, SHORT → LEAN SHORT, or FLAT if all fail.',
-  'WaveTrend Confirming (Cipher B momentum, separate confirming layer - NOT a 4th mandatory filter): checks for a bullish/bearish divergence between price and the WaveTrend oscillator, or a recent cross from oversold/overbought agreeing with the signal direction. If it confirms, mention it as added confidence. If it does not confirm, do not auto-downgrade the signal - just note the momentum oscillator has not caught up yet, since it lags slightly behind the EMA cross by design.',
+  'You are a crypto derivatives data assistant embedded in Liquidity Hunter HQ.',
+  'The trader asks short, direct questions. Give concise, bullet-pointed answers that describe what the data shows. Do not predict prices or tell the trader to buy or sell.',
+  'A value of "-" means no reading: say it is missing, never estimate it. Never invent numbers. Be honest about uncertainty.',
 ];
 
 const SEARCH_INSTRUCTIONS = [
@@ -122,13 +121,17 @@ export function capChatSelection(selection: string | undefined, notEntitled: boo
 export function buildChatSystemPrompt(ctx: ChatContext, opts: { search: boolean; minimal: boolean }): string {
   const c = ctx.coin.toUpperCase();
   const ln = (k: string, v: string) => `${k}: ${v}`;
-  const watching = ctx.selection
-    ? ['', `The trader is currently weighing these indicators: ${ctx.selection}. Give them more weight in your answer, and say plainly if they disagree with what the rest of the data shows.`]
-    : [];
+  const watching = [
+    ...(ctx.selection
+      ? ['', `The trader is currently weighing these indicators: ${ctx.selection}. Give them more weight in your answer, and say plainly if they disagree with what the rest of the data shows.`]
+      : []),
+    // The trader's own RSI / EMA settings (#1651): the Arena read already gets them; the chat did not.
+    ...(ctx.indicatorSettings ? ['', `The trader's chart settings: ${ctx.indicatorSettings}.`, INDICATOR_SETTINGS_RULE] : []),
+  ];
   if (opts.minimal && !opts.search) {
     return [
-      'You are an elite crypto trading analyst assistant embedded in Liquidity Hunter HQ.',
-      'Answer concisely and directly. Flag uncertainty.',
+      'You are a crypto data assistant embedded in Liquidity Hunter HQ.',
+      'Answer concisely and directly. Do not predict prices or tell the trader to buy or sell. Flag uncertainty.',
       `Coin: ${c}/USDT` + (ctx.price != null ? ` · Price: ${fmtPrice(ctx.price)}` : ''),
       NO_TOOLS,
       ...watching,
@@ -147,7 +150,7 @@ export function buildChatSystemPrompt(ctx: ChatContext, opts: { search: boolean;
     ln('24h Change', ctx.change != null ? pct(ctx.change, 2) : '-'),
     ln('High/Low', ctx.high != null && ctx.low != null ? `${fmtPrice(ctx.high)} / ${fmtPrice(ctx.low)}` : '-'),
     ln('RSI 15m/1h/4h/1D', [0, 1, 2, 3].map((i) => (rsi[i] != null ? (rsi[i] as number).toFixed(0) : '-')).join(' / ')),
-    ln('CVD Divergence', ctx.cvdDivergence === 'bullish' ? 'BULLISH - price falling but net buying rising (smart money accumulating)'
+    ln('CVD Divergence', ctx.cvdDivergence === 'bullish' ? 'BULLISH - price falling but net buying rising'
       : ctx.cvdDivergence === 'bearish' ? 'BEARISH - price rising but net selling rising (distribution)' : 'None'),
     ln('MA20 (15m)', ctx.ma20 != null ? fmtPrice(ctx.ma20) : '-'),
     ln('Vol ratio', ctx.volRatio != null ? ctx.volRatio.toFixed(2) + 'x' : '-'),
@@ -157,8 +160,6 @@ export function buildChatSystemPrompt(ctx: ChatContext, opts: { search: boolean;
     ln(ctx.ratioVenue ? `Long/Short % (${ctx.ratioVenue}, accounts, 1h)` : 'Long/Short %', ctx.longRatio != null ? (ctx.longRatio * 100).toFixed(1) + '% / ' + ((ctx.shortRatio ?? 0) * 100).toFixed(1) + '%' : '-'),
     ln('Squeeze score', or(ctx.squeeze)),
     ln('Basis', ctx.basisPct != null ? ctx.basisPct.toFixed(4) + '%' : '-'),
-    '',
-    ...EMA_FILTERS,
     ln('Order book', ctx.bidWalls?.length ? 'Bids: ' + ctx.bidWalls.map(fmtPrice).join(', ') : '-'),
     '',
     '=== MACRO ===',

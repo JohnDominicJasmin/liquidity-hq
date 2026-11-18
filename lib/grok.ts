@@ -373,13 +373,27 @@ export interface GrokResult {
   reasoning: string;
 }
 
+/* THE TRADER'S RSI LINES (#1651, owner sweep 2026-11-18). The rule text said "< 30" / "> 70" whatever the trader's chart drew. useEMAStrategy puts
+   the trader's lines on the ribbon line when they differ from 70 / 30 ("overbought line 75, oversold line 25"); the rules use them, else 70 / 30. */
+export function traderRsiLines(emaStrategy: string | undefined): { ob: number; os: number } {
+  const m = emaStrategy?.match(/overbought line (\d+), oversold line (\d+)/);
+  const ob = m ? Number(m[1]) : NaN, os = m ? Number(m[2]) : NaN;
+  if (!(Number.isFinite(ob) && Number.isFinite(os) && os < ob)) return { ob: 70, os: 30 };
+  // Clamped like the chart and the settings clamp them (overbought 50-95, oversold 5-50): the line arrives from the browser (QA R1b).
+  return { ob: Math.min(95, Math.max(50, ob)), os: Math.min(50, Math.max(5, os)) };
+}
+
 export function buildPrompt(ctx: GrokContext): string {
+  const { ob: rsiOb, os: rsiOs } = traderRsiLines(ctx.emaStrategy);
+  const traderEma = /EMA ribbon at the trader's lengths/.test(ctx.emaStrategy ?? '');
   /* #1631 B: BTC's option market (Deribit P/C, max pain, GEX) and the Coinbase BTC premium are BTC's own data. They were handed to every
      coin - with "WEIGHT GEX HEAVILY" - and a Pro XRP Deep read rested its "bearish regime" on BTC's premium. Only a BTC read gets them now. */
   const isBtc = /^BTC\b/i.test(ctx.coin);
   const btcOnly = (lines: string[]): string[] => (isBtc ? lines : []);
   return [
     `You are LiquidityAI - a crypto derivatives and macro analyst. Your job is to combine ALL available data and describe what it shows for ${ctx.coin}: which way it leans now and why. Describe; never advise a trade.`,
+    // ONE MISSING-VALUE RULE (#1651): every field below falls back to one of these when it has no reading.
+    'A value of "-", "N/A", "Not available" or "unavailable" means there is no reading: say it is missing, never estimate it.',
     '',
     '=== PRICE ACTION ===',
     `Coin: ${ctx.coin}  |  Price: ${ctx.price}  |  24h Change: ${ctx.change24h}`,
@@ -401,7 +415,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '  • SHORT_SETUP → one bearish signal (+20 to the bearish case) AND a BEARISH trigger. With 2+ other bearish signals → BEARISH.',
     '  • TRENDING_LONG → one bullish signal (+10), NOT a trigger - price is not at the entry zone, so on its own it cannot make BULLISH.',
     '  • TRENDING_SHORT → one bearish signal (+10), NOT a trigger - on its own it cannot make BEARISH.',
-    '  • FREEZE → subtract 15 from confidence. Ribbon is in consolidation. Prefer FLAT unless one side counts 4+ signals.',
+    '  • FREEZE → ribbon is in consolidation. Prefer FLAT unless one side counts 4+ signals.',
     `EMA50 Slope (last 5 bars): ${ctx.ema50Slope}`,
     `ATR(14) buffer: ${ctx.emaATR}`,
     '(Anti-chop filters - ALL THREE must pass before treating any EMA signal as valid:',
@@ -409,7 +423,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '  2. ATR buffer: price must close beyond EMA50 by ≥ 35% of ATR(14). A 1-tick graze of EMA50 is noise. If the buffer is not cleared, the confirmation is rejected - do NOT call BULLISH/BEARISH on marginal EMA50 touches.',
     '  3. Ribbon spread: EMA9 and EMA20 must be ≥ 0.3% of price apart at signal confirmation. Tangled EMAs (tight spread) = chop = no signal. If the ribbon is visually overlapping, the cross is noise - do NOT call BULLISH/BEARISH, call FREEZE.)',
     `WaveTrend (Cipher B momentum): ${ctx.waveTrend}`,
-    '(WaveTrend is a confirming layer, NOT a 4th mandatory anti-chop filter - it checks for a bullish/bearish divergence or a cross-from-oversold/overbought agreeing with the EMA signal direction. If it confirms, add +5 confidence. If it does not confirm, do not downgrade automatically - just note the momentum oscillator has not caught up yet.)',
+    '(WaveTrend is a confirming layer, NOT a 4th mandatory anti-chop filter - it checks for a bullish/bearish divergence or a cross-from-oversold/overbought agreeing with the EMA signal direction. If it confirms, say so. If it does not confirm, do not downgrade - just note the momentum oscillator has not caught up yet.)',
     `Market Structure (4H): ${ctx.marketStructure}`,
     `Latest structure break (price action only): ${ctx.structureBreak}`,
     '(BOS = price took out the prior swing in the direction it was already going: continuation. CHoCH = it took one out AGAINST the prevailing swing structure: the first hint the trend may be turning. This is derived from swing highs and lows alone - it is INDEPENDENT of the EMA ribbon signal above, so when the two disagree, say so rather than resolving it silently. A break on above-average volume carries more weight than one that drifted through on light volume.)',
@@ -577,7 +591,7 @@ export function buildPrompt(ctx: GrokContext): string {
     `  • Price below VWAP → ${ctx.vwap}`,
     '',
     'IF IN BEARISH MOMENTUM REGIME:',
-    '  • RSI oversold (< 30) = STRONG DOWNSIDE MOMENTUM - NOT a buy signal alone. Combine with exhaustion checklist.',
+    `  • RSI oversold (< ${rsiOs}) = STRONG DOWNSIDE MOMENTUM - NOT a buy signal alone. Combine with exhaustion checklist.`,
     '  • CVD bullish divergence during selloff = absorption signal. Still require reversal candle confirmation before calling BULLISH.',
     '  • Fibonacci support + 3+ exhaustion signals = a BULLISH case even in a bearish regime, once the reversal-candle trigger prints (SIGNAL DECISION GUIDE).',
     '  • Long/Short ratio > 1.8:1 during selloff = overleveraged longs at FLUSH RISK = one bearish signal, not a bullish one.',
@@ -592,10 +606,12 @@ export function buildPrompt(ctx: GrokContext): string {
     `  • Taker buy > 55% → ${ctx.takerRatio}`,
     '',
     'IF IN BULLISH MOMENTUM REGIME:',
-    '  • RSI overbought (> 70) = STRONG UPSIDE MOMENTUM - not automatically a sell signal in a trending move.',
+    `  • RSI overbought (> ${rsiOb}) = STRONG UPSIDE MOMENTUM - not automatically a sell signal in a trending move.`,
     '  • Long/Short ratio < 0.5:1 (shorts outnumber longs 2:1) = crowded shorts, squeeze risk = one bullish signal.',
     '',
     'NEUTRAL REGIME: No clear momentum. Apply all signals equally.',
+    ...(rsiOb !== 70 || rsiOs !== 30 ? [`(Overbought / oversold use the trader's own RSI lines, ${rsiOb} / ${rsiOs}. The RSI values given are RSI(14).)`] : []),
+    ...(traderEma ? ["(EMA9 / SMA200 in these rules are the chart lines given in the chart section. The trader's own ribbon lengths and values are in the selected indicator readings on the EMA Ribbon line.)"] : []),
     '',
     '=== PULLBACK EXHAUSTION vs FALLING KNIFE CHECKLIST (Required in BEARISH REGIME) ===',
     'You MUST determine whether selling is EXHAUSTING or CONTINUING before choosing BULLISH/BEARISH/FLAT.',
@@ -690,7 +706,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '  1. The momentum regime (the filter above).',
     '  2. The signal count and the tier table above.',
     '  3. Caps: TRENDING_LONG / TRENDING_SHORT are not triggers; FREEZE prefers FLAT unless one side has 4+; for BTC, the GEX regime decides whether a breakout counts.',
-    '  4. Confidence only, never the tier or the direction: perps vs spot, session, WaveTrend, FREEZE -15.',
+    '  4. Never the tier or the direction: perps vs spot, session, WaveTrend, FREEZE. The app adjusts CONFIDENCE for these itself after your answer.',
     'If your count meets a tier and you output a lower one, say which rule above held it back.',
     '',
     /* #1631, owner's screenshot 2026-11-10: the read came back saying "clear bearish technical
@@ -712,14 +728,13 @@ export function buildPrompt(ctx: GrokContext): string {
        futures-led means the evidence behind the read is weaker, NOT that the
        trade is the other way - the same reason the Confluence side uses a
        penalty rather than a directional vote. */
-    'PERPS VS SPOT WEIGHTING - adjusts confidence only, NEVER the direction:',
-    '  - Futures-led (perp activity elevated vs its own normal): subtract 20 from confidence. The move is driven by leverage rather than by people buying the coin, so it unwinds faster. Do NOT flip the signal direction for this.',
-    '  - Spot-led (perp activity unusually quiet): add 10 to confidence. More of the move is real buying.',
-    '  - Could not be measured: do NOT adjust confidence, and SAY in your reasoning that the perps-vs-spot check was unavailable for this coin. A number quietly left unchanged reads as though the check passed.',
-    'SESSION WEIGHTING - session timing adjusts confidence only, NOT the signal tier:',
-    '  • NY / London: standard confidence, all tiers available.',
-    '  • Pre-NY / Asia: subtract 10 from confidence. LEAN BEARISH and LEAN BULLISH are fully valid.',
-    '  "Pre-NY session" is NEVER a standalone reason for FLAT - reduce confidence, not tier.',
+    /* CONFIDENCE ARITHMETIC IS DONE IN CODE (#1651, owner sweep 2026-11-18): the model was told to subtract 20 / 10 / 15 and add 10 / 5, and
+       models do arithmetic unreliably. adjustConfidence() below applies the same numbers to the model's CONFIDENCE after parsing. */
+    'PERPS VS SPOT and SESSION - never change the direction or the tier. Give CONFIDENCE from the signal count and the bands only: the app applies the perps-vs-spot, session, WaveTrend and FREEZE adjustments to it after your answer, so do not apply them yourself.',
+    '  - Futures-led (perp activity elevated vs its own normal): the move is driven by leverage rather than by people buying the coin. Do NOT flip the signal direction for this.',
+    '  - Spot-led (perp activity unusually quiet): more of the move is real buying.',
+    '  - Could not be measured: SAY in your reasoning that the perps-vs-spot check was unavailable for this coin.',
+    '  • Pre-NY / Asia: LEAN BEARISH and LEAN BULLISH are fully valid. "Pre-NY session" is NEVER a standalone reason for FLAT.',
     '',
     /* #1631 item 1: the third line used to read "NEVER output FLAT just because you are uncertain - own the direction when signals
        support it." It was written when FLAT was being used as a dodge, and the anti-dodge half is kept. The absolute is dropped,
@@ -819,6 +834,7 @@ export type PatternBias = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
 
 export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string {
   const base = buildPrompt(ctx);
+  const rsiLines = traderRsiLines(ctx.emaStrategy);
   // Inject chart section + replace output format
   const splitAt = base.indexOf('Output in EXACTLY this format');
   const body = splitAt > -1 ? base.slice(0, splitAt) : base;
@@ -830,7 +846,7 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     `Range (visible 80 candles): High ${priceText(chart.hi)} / Low ${priceText(chart.lo)}`,
     `EMA 9:   ${chart.ema9   != null ? priceText(chart.ema9)   : '-'}`,
     `SMA 200: ${chart.sma200 != null ? priceText(chart.sma200) : '-'}`,
-    `RSI(14): ${chart.rsi    != null ? chart.rsi.toFixed(1) + (chart.rsi >= 70 ? ' (Overbought)' : chart.rsi <= 30 ? ' (Oversold)' : ' (Neutral)') : '-'}`,
+    `RSI(14): ${chart.rsi    != null ? chart.rsi.toFixed(1) + (chart.rsi >= rsiLines.ob ? ' (Overbought)' : chart.rsi <= rsiLines.os ? ' (Oversold)' : ' (Neutral)') : '-'}`,
     `EMA/SMA cross: ${chart.ema9 != null && chart.sma200 != null ? (chart.ema9 > chart.sma200 ? 'EMA 9 ABOVE SMA 200 - bullish structure (one bullish signal)' : 'EMA 9 BELOW SMA 200 - bearish structure (one bearish signal); a bullish tier still needs the reversal-candle trigger') : '-'}`,
     `Price vs SMA200: ${chart.sma200 != null ? (chart.lastClose > chart.sma200 ? `ABOVE SMA200 (${priceText(chart.sma200)}) - bullish` : `BELOW SMA200 (${priceText(chart.sma200)}) - bearish, do not call BULLISH without the reversal-candle trigger (SIGNAL DECISION GUIDE)`) : '-'}`,
     // #1631 C: says what is sent. Arena slices the last 15 (the field is still called recent20); the label claimed 20.
@@ -1256,6 +1272,33 @@ function tierFromCounts(c: { bullish: number; bearish: number }): Tier {
   return c.bullish > c.bearish ? 'LEAN BULLISH' : 'LEAN BEARISH';
 }
 
+/** CONFIDENCE ADJUSTMENTS, COMPUTED IN CODE FROM THE PROMPT'S OWN LINES (#1651, owner sweep 2026-11-18). The prompt used to ask the model to do
+ *  this arithmetic. Same numbers as before (#340 Option B for perps vs spot): futures-led -20, spot-led +10, Pre-NY / Asia session -10, ribbon
+ *  FREEZE -15, WaveTrend confirming +5. A line that is missing or says it could not be measured adds nothing. */
+export function adjustConfidence(prompt: string): { delta: number; reasons: string[] } {
+  const line = (prefix: string) => {
+    const i = prompt.indexOf(prefix);
+    if (i < 0) return '';
+    const end = prompt.indexOf('\n', i);
+    return prompt.slice(i + prefix.length, end < 0 ? undefined : end).trim();
+  };
+  let delta = 0;
+  const reasons: string[] = [];
+  const add = (n: number, why: string) => { delta += n; reasons.push(`${n > 0 ? '+' : ''}${n} ${why}`); };
+  const perp = line('Perp vs spot ACTIVITY - trading volume, not price:');
+  if (/Futures trading is [\d.]+x its usual share against spot/.test(perp)) add(-20, 'futures-led');
+  else if (/Futures trading is unusually quiet/.test(perp)) add(10, 'spot-led');
+  if (/^(Pre-NY|Asia Session)\b/.test(line('Current session:'))) add(-10, 'Pre-NY / Asia session');
+  /* While the ribbon is still loading, the Arena sends the PREVIOUS selection's ribbon line behind a "[Still loading ...]" caveat, and the WaveTrend line
+     comes from the same frozen reading (app/(main)/arena/page.tsx). Neither adjusts this coin's confidence then. FREEZE counts only as the verdict right
+     after the ribbon's own "[... ribbon ...]" tag. */
+  const ribbon = line('EMA Ribbon Strategy:');
+  const ribbonCurrent = !/^\[Still loading/i.test(ribbon);
+  if (ribbonCurrent && /^\[[^\]]*ribbon[^\]]*\]\s*FREEZE\b/.test(ribbon)) add(-15, 'ribbon FREEZE');
+  if (ribbonCurrent && /^CONFIRMING\b/.test(line('WaveTrend (Cipher B momentum):'))) add(5, 'WaveTrend confirming');
+  return { delta, reasons };
+}
+
 /** #1631 D: the rules the prompt states that the answer can be checked against, applied after parsing, on the server (it has the prompt).
  *  - The tier must be one the SIGNAL DECISION GUIDE allows for the model's own COUNTED line. One it does not allow is replaced by the tier
  *    the count gives (PM's audit of #1668: it used to fall back to the same side's LEAN, so BULLISH on 0 vs 5 became LEAN BULLISH 75),
@@ -1334,6 +1377,14 @@ export function applyResultChecks(result: CombinedResult, prompt: string, notes:
     }
   }
 
+  // Confidence adjustments in code, before the tier check below (whose cap at 75 then still holds).
+  const adj = adjustConfidence(prompt);
+  const adjusted = adj.delta !== 0;
+  if (adjusted) {
+    r.confidence = Math.max(0, Math.min(100, Math.round(r.confidence + adj.delta)));
+    r.checks.push(`confidence adjusted in code: ${adj.reasons.join(', ')}`);
+  }
+
   const said = r.signal;
   const fill = (template: string, vars: Record<string, string | number>) => template.replace(/\{(\w+)\}/g, (whole, k: string) => (k in vars ? String(vars[k]) : whole));
   const tierName = (t: Tier) => notes.verdict?.[t] ?? t;
@@ -1358,6 +1409,14 @@ export function applyResultChecks(result: CombinedResult, prompt: string, notes:
     r.checks.push(`${said} shown as ${tier}: ${r.counted.bullish} bullish vs ${r.counted.bearish} bearish counted`);
     note(fill(notes.tierCounted, { shown: tierName(tier), said: tierName(said), bullish: r.counted.bullish, bearish: r.counted.bearish }));
     show(tier);
+  }
+
+  /* A LEAN NEVER EXCEEDS 75 AFTER THE ADJUSTMENT (QA K9 on #2585). The prompt's band for a LEAN is 55-75; the code adjustment above could push one to
+     85. After an adjustment, and after any tier correction, a LEAN is capped at 75. Nothing else is clamped (PM): no floor, FLAT and BULLISH / BEARISH
+     keep the adjusted number. A model number with no adjustment is left as the model gave it. */
+  if (adjusted && (r.signal === 'LEAN BULLISH' || r.signal === 'LEAN BEARISH') && r.confidence > 75) {
+    r.checks.push(`confidence ${r.confidence} capped at 75 (${r.signal})`);
+    r.confidence = 75;
   }
 
   if (/=== REALIZED LIQUIDATION CLUSTERS[^\n]*===\s*\n\s*Not available/.test(prompt) && (r.raidSetup || r.raidTarget || r.raidTrigger)) {
