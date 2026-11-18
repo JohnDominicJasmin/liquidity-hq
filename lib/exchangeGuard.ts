@@ -23,7 +23,7 @@
  * Any other host passes straight through to fetch, untouched. */
 import { HttpStatusError } from './pool.ts';
 import {
-  BREAKER_EXCHANGES, COOLDOWN_MAX_MS, mergeBreakerState, supabaseBreakerStore,
+  BREAKER_EXCHANGES, COOLDOWN_MAX_MS, ignoreSavedBreaker, mergeBreakerState, supabaseBreakerStore,
   type BreakerSnapshot, type BreakerStore,
 } from './exchangeBreakerStore.ts';
 
@@ -88,19 +88,34 @@ const state = (g.__lhqExchangeGuard ??= { binance: blank(), bybit: blank(), okx:
    Only in a running server (NEXT_RUNTIME is set by Next, not by unit tests or scripts), or when a test installs a store: the existing tests
    stub fetch and count calls, and an app_config read or write they never asked for would land in their count. */
 interface BreakerSync {
-  hydrated: boolean; hydrating: Promise<void> | null; attempts: number; lastAttemptAt: number; firstCallAt: number; saving: boolean; saveAgain: boolean;
+  hydrated: boolean; hydrating: Promise<void> | null; hydrateToken: object | null; attempts: number; lastAttemptAt: number; firstCallAt: number;
+  saving: object | null; savingSince: number; saveAgain: boolean;
 }
-const blankSync = (): BreakerSync => ({ hydrated: false, hydrating: null, attempts: 0, lastAttemptAt: 0, firstCallAt: 0, saving: false, saveAgain: false });
+const blankSync = (): BreakerSync => ({
+  hydrated: false, hydrating: null, hydrateToken: null, attempts: 0, lastAttemptAt: 0, firstCallAt: 0, saving: null, savingSince: 0, saveAgain: false,
+});
 const gs = globalThis as { __lhqExchangeBreakerSync?: BreakerSync; __lhqExchangeBreakerStore?: BreakerStore | null };
 let sync = (gs.__lhqExchangeBreakerSync ??= blankSync());
 /** How long the FIRST exchange call in a process waits for the saved state before going ahead without it. */
 const HYDRATE_WAIT_MS = 2_000;
-/** A failed read is retried at most this often, in the background; only the first attempt is ever waited on. */
+/** A failed read is retried at most this often, in the background; only the first attempt is ever waited on. A read or a write still
+ *  pending after this long is abandoned, so one that never settles cannot block every later read or save (QA review of #2571, F1/F2). */
 const HYDRATE_RETRY_MS = 60_000;
+/** Every store call is also cut after this long (a real timer; the line above is measured on the clock). */
+const STORE_CALL_TIMEOUT_MS = 20_000;
 
 function activeStore(): BreakerStore | null {
   if (gs.__lhqExchangeBreakerStore !== undefined) return gs.__lhqExchangeBreakerStore;
   return process.env.NEXT_RUNTIME === 'nodejs' ? supabaseBreakerStore : null;
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    t = setTimeout(() => reject(new Error('exchange breaker store: timed out')), ms);
+    (t as { unref?: () => void }).unref?.(); // never what keeps a process alive
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(t));
 }
 
 function memorySnapshot(now: number): BreakerSnapshot {
@@ -112,7 +127,8 @@ function memorySnapshot(now: number): BreakerSnapshot {
   return out;
 }
 
-/** Saved cooldowns into memory. Only ones still running apply, and an openUntil only ever moves LATER (never shortened). */
+/** Saved cooldowns into memory. Only ones still running apply, and an openUntil only ever moves LATER (never shortened). Cannot throw on a
+ *  bad time: a lastTripAt Date cannot represent falls back to now. */
 function applySnapshot(stored: BreakerSnapshot, now: number): void {
   const merged = mergeBreakerState(memorySnapshot(now), stored, now);
   for (const ex of BREAKER_EXCHANGES) {
@@ -122,25 +138,36 @@ function applySnapshot(stored: BreakerSnapshot, now: number): void {
     s.openUntil = Math.max(s.openUntil, m.openUntil);
     s.strikes = Math.max(s.strikes, m.strikes);
     s.lastTripAt = Math.max(s.lastTripAt, m.lastTripAt);
+    const at = new Date(s.lastTripAt || now);
     // Without a lastTrip the strikes would never reset after an hour of normal answers (see exchangeFetch).
-    s.lastTrip ??= { status: 0, at: new Date(s.lastTripAt || now).toISOString(), kind: 'restored', body: 'cooldown carried over from before a restart' };
+    s.lastTrip ??= {
+      status: 0, at: (Number.isNaN(at.getTime()) ? new Date(now) : at).toISOString(), kind: 'restored', body: 'cooldown carried over from before a restart',
+    };
   }
 }
 
-/** Read the saved breaker state once (server start, instrumentation.ts) and apply it. Never throws; a failed read is retried later. */
+/** Read the saved breaker state once (server start, instrumentation.ts) and apply it. Never throws; a failed read is retried later.
+ *  EXCHANGE_BREAKER_IGNORE_SAVED=1 skips the read entirely (docs/INFRASTRUCTURE.md 2d). */
 export function hydrateExchangeBreaker(): Promise<void> {
   const st = activeStore();
   if (!st || sync.hydrated) return Promise.resolve();
-  if (sync.hydrating) return sync.hydrating;
+  if (ignoreSavedBreaker()) { sync.hydrated = true; return Promise.resolve(); }
+  const now = Date.now();
+  if (sync.hydrating && now - sync.lastAttemptAt < HYDRATE_RETRY_MS) return sync.hydrating;
+  // Either nothing is in flight, or the read in flight has been pending for a minute and is abandoned (its late answer is still applied).
   const own = sync;
+  const token = {};
   own.attempts++;
-  own.lastAttemptAt = Date.now();
+  own.lastAttemptAt = now;
+  own.hydrateToken = token;
   const p = (async () => {
-    try { const stored = await st.load(); if (sync === own) { applySnapshot(stored, Date.now()); own.hydrated = true; } }
-    catch { /* unknown, not "nothing banned": retried on a later call */ }
-    finally { own.hydrating = null; }
+    try {
+      const stored = await withTimeout(st.load(), STORE_CALL_TIMEOUT_MS);
+      if (sync === own) { applySnapshot(stored, Date.now()); own.hydrated = true; }
+    } catch { /* unknown, not "nothing banned": retried on a later call */ }
+    finally { if (own.hydrateToken === token) { own.hydrating = null; own.hydrateToken = null; } }
   })();
-  own.hydrating = p;
+  if (own.hydrateToken === token) own.hydrating = p;
   return p;
 }
 
@@ -158,28 +185,36 @@ async function ensureHydrated(): Promise<void> {
   sync.firstCallAt ||= now;
   const left = sync.firstCallAt + HYDRATE_WAIT_MS - now;
   if (sync.attempts === 0) { const p = hydrateExchangeBreaker(); if (left > 0) await waitAtMost(p, left); return; }
-  if (sync.hydrating) { if (sync.attempts === 1 && left > 0) await waitAtMost(sync.hydrating, left); return; }
-  if (now - sync.lastAttemptAt >= HYDRATE_RETRY_MS) void hydrateExchangeBreaker();
+  if (now - sync.lastAttemptAt >= HYDRATE_RETRY_MS) { void hydrateExchangeBreaker(); return; }
+  if (sync.hydrating && sync.attempts === 1 && left > 0) await waitAtMost(sync.hydrating, left);
 }
 
 /** Save the running cooldowns (best effort, never awaited by a request, never throws). Writes are coalesced: a trip while a save is in flight
- *  queues ONE more save, so a burst of banned answers costs at most two writes. Read-merge-write, so a saved longer ban is kept. */
+ *  queues ONE more save, so a burst of banned answers costs at most two writes. Read-merge-write, so a saved longer ban is kept. A save
+ *  pending for a minute is abandoned so it cannot stop every later one. */
 function persistBreaker(): void {
   const st = activeStore();
   if (!st) return;
-  if (sync.saving) { sync.saveAgain = true; return; }
+  const now = Date.now();
+  if (sync.saving && now - sync.savingSince < HYDRATE_RETRY_MS) { sync.saveAgain = true; return; }
   const own = sync;
-  own.saving = true;
+  const token = {};
+  own.saving = token;
+  own.savingSince = now;
+  const mine = () => sync === own && own.saving === token;
   void (async () => {
     try {
       do {
         own.saveAgain = false;
-        try { const stored = await st.load(); if (sync === own) applySnapshot(stored, Date.now()); } catch { /* unread: save what this process knows */ }
-        if (sync !== own) return; // the state was reset (tests) while this was in flight: nothing of it to save
-        await st.save(memorySnapshot(Date.now()));
-      } while (own.saveAgain && sync === own);
+        if (!ignoreSavedBreaker()) {
+          try { const stored = await withTimeout(st.load(), STORE_CALL_TIMEOUT_MS); if (mine()) applySnapshot(stored, Date.now()); }
+          catch { /* unread: save what this process knows */ }
+        }
+        if (!mine()) return; // reset (tests) or abandoned while in flight: nothing of it to save
+        await withTimeout(st.save(memorySnapshot(Date.now())), STORE_CALL_TIMEOUT_MS);
+      } while (own.saveAgain && mine());
     } catch { /* best effort: the next trip saves again */ }
-    finally { own.saving = false; }
+    finally { if (own.saving === token) own.saving = null; }
   })();
 }
 
