@@ -10,7 +10,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { LABEL_KEYS } from '../lib/labelKeys.ts';
 
 const dir = new URL('../supabase/migrations/', import.meta.url);
-const files = readdirSync(dir).filter((f) => /^202611(1[7-9]|[23]\d)[a-z]_labels_.*\.sql$/.test(f) && !/^20261117[a-m,o-t,y-z]_/.test(f)).sort();
+const files = readdirSync(dir).filter((f) => /^202611(1[7-9]|[23]\d)[a-z]\d?_labels_.*\.sql$/.test(f) && !/^20261117[a-m,o-t,y-z]_/.test(f)).sort();
 const defaults = JSON.parse(readFileSync(new URL('../lib/labelDefaults.en.json', import.meta.url), 'utf8')) as Record<string, string>;
 const keys = new Set<string>(LABEL_KEYS as readonly string[]);
 const ph = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');

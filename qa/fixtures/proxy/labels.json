@@ -1129,7 +1129,7 @@
     "ALERTS_CHECK_FAILED_RETRY": "✕ Failed - retry?",
     "ALERTS_CHECK_NOW_BUTTON": "Check Alerts Now",
     "ALERTS_NO_CONDITIONS_ACTIVE": "✓ No conditions active right now.",
-    "ALERTS_FIRED_LIST": "Fired: {list}",
+    "ALERTS_FIRED_LIST": "Condition met now: {list}",
     "ALERTS_CONDITIONS_LABEL": "Alert Conditions",
     "ALERTS_MUTE_HINT_PREFIX": "Toggle off to mute.",
     "ALERTS_AI_BADGE_LABEL": "AI",
