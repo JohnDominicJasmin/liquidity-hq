@@ -1,0 +1,87 @@
+name: Strategy audit (real data)
+
+# THE 20-ASSET x 8-TIMEFRAME x 16-STRATEGY AUDIT (owner order via PM, 2026-11-19, #2601). Runs HERE, never on the owner's laptop: one job per coin replays every Arena strategy over real
+# candles from Binance's public archive (data.binance.vision, not geo-blocked from a US runner, unlike the live APIs) with the app's own detectors; a last job merges the per-coin files into
+# the tables on the run's summary page and an artifact. Read-only: no key, no secret, no write to any service. The repo is public, so the minutes are free; it still only runs when asked:
+# on a PR that touches the audit script or this file, or by hand (workflow_dispatch, once this file is on the default branch). Not part of the release gate.
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/strategy-audit-matrix.mts'
+      - '.github/workflows/strategy-audit.yml'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Days of candles per timeframe (1d always uses 180)'
+        default: '30'
+      tfs:
+        description: 'Comma list of timeframes (default all eight)'
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  coin:
+    name: audit ${{ matrix.coin }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        coin: [btc, eth, sol, xrp, bnb, doge, ada, avax, link, sui, hype, tao, pepe, wif, xau, aapl, nvda, tsla, mstr, coin]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Probe the archive (one file)
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2026-10.zip")
+          echo "data.binance.vision answered HTTP $code"
+      - name: Replay every strategy for ${{ matrix.coin }}
+        env:
+          DAYS: ${{ github.event.inputs.days || '30' }}
+          TFS: ${{ github.event.inputs.tfs }}
+        run: |
+          args="--coin ${{ matrix.coin }} --days ${DAYS} --out .work/matrix"
+          if [ -n "${TFS}" ]; then args="$args --tfs ${TFS}"; fi
+          node --import ./qa/alias-register.mjs scripts/strategy-audit-matrix.mts $args
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: matrix-${{ matrix.coin }}
+          path: .work/matrix/${{ matrix.coin }}.json
+          if-no-files-found: warn
+
+  merge:
+    name: merge the tables
+    needs: coin
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: matrix-*
+          path: .work/matrix
+          merge-multiple: true
+      - name: Merge
+        run: |
+          node --import ./qa/alias-register.mjs scripts/strategy-audit-matrix.mts --merge .work/matrix > .work/matrix/merge.log
+          cat .work/matrix/matrix.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: strategy-audit-matrix
+          path: |
+            .work/matrix/matrix.md
+            .work/matrix/matrix.json
