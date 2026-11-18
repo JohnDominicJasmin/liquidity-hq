@@ -47,7 +47,11 @@ test('H3. /correlation withDeadline: rejection -> fallback at once, slow -> fall
   assert.ok(corr.includes('{ signal: deadlineSignal(FETCH_DEADLINE_MS) }') && corr.includes('attemptTimeoutMs: FETCH_DEADLINE_MS'), 'a per-request deadline is gone from the Binance or Bybit read');
   assert.equal(/await Promise\.all\(COINS\.map/.test(corr), false, 'a Promise.all over every coin gates the page again');
   assert.ok(corr.includes("const loading = done.size < COINS.length;") && corr.includes('setDone(prev => new Set(prev).add(id));'), 'each coin no longer settles on its own');
-  assert.ok(corr.includes("r !== null ? r.toFixed(2) : (!done.has(a) || !done.has(b)) ? '…' : '-'"), 'a loading cell and a no-data cell no longer read differently');
+  /* #2562 (owner sweep 2026-11-18, no data-gap dashes): a loading cell reads "…", a no-data cell and the diagonal are BLANK, never a dash. */
+  assert.ok(corr.includes("{diag ? '' : r !== null ? r.toFixed(2) : (!done.has(a) || !done.has(b)) ? '…' : ''}"), 'a loading cell and a no-data cell no longer read differently');
+  assert.equal(corr.includes("(!done.has(a) || !done.has(b)) ? '…' : '-'"), false, 'the old dash for a no-data cell is back');
+  assert.equal(corr.includes("{diag ? '-' :"), false, 'the old dash on the diagonal is back');
+  assert.equal(corr.includes("?.toFixed(2) ?? '-'"), false, 'the old dash in the cell tooltip is back');
   assert.ok(corr.includes('setRets({});') && corr.includes('setDone(new Set());'), 'switching range keeps the previous range\'s returns or done set');
 });
 test('H4. /funding paints from the snapshot: no table-wide gate; batch shown first; Bybit fallbacks merge in; the batch deadline falls back to {}', () => {
