@@ -102,22 +102,23 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   const d = store.coins[LIVE_READ_COIN];
   const oi1h = useOI1h(LIVE_READ_COIN);
 
-  /* THE CLOCK IS THE CLIENT'S OR IT IS NOTHING (#1651).
+  /* THE CLOCK IS THE CLIENT'S, AND IT TICKS (#1651).
 
-     `new Date()` in the markup runs on the SERVER during the initial render, so the first paint of
-     a public page carried the SERVER'S wall clock - and `suppressHydrationWarning` on that span
-     hid the mismatch rather than the cause. A visitor in Manila saw a London time for a moment and
-     had no way to know which it was.
+     It is the visitor's own wall clock, set only after mount: `new Date()` in the markup ran on the SERVER during the first render, so a visitor in Manila briefly saw a London time.
 
-     A mounted flag rather than the data's as-of time, which would be the better label: the store
-     does not keep the snapshot's `ts` today, so that is provider plumbing and this is a low item.
-     Named here so the better fix is not re-derived from scratch.
-
-     The expression is unchanged, so it still refreshes whenever this component re-renders, which on
-     this page is whenever the store updates. No timer is added, because adding one would be a new
-     failure mode for a cosmetic line. */
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+     IT USED TO BE READ ONLY WHEN THIS COMPONENT RE-RENDERED, which is whenever the market store updates. A quiet or throttled store (a background or idle tab, a slow feed) meant no re-render, so the line could sit an hour
+     behind real time on the front page (QA: 16:50 at about 17:55Z). It now has its own state, refreshed every 30 seconds and the moment the tab becomes visible again, so what it shows is never more than about
+     half a minute old. The timer is cleared on unmount and costs one tiny re-render of this panel per tick. A ticking clock over a DEAD feed would read as a live stamp, so it is left blank while the price read has failed with nothing delivered (store.pricesFailed). (The better label would be the data's own as-of time; the store does not keep the snapshot's `ts`, which is
+     provider plumbing and a separate item.) */
+  const [clockMs, setClockMs] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setClockMs(Date.now());
+    tick();
+    const iv = setInterval(tick, 30_000);
+    const onVisible = () => { if (!document.hidden) tick(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVisible); };
+  }, []);
   const sq = computeSqueezeScore(d);
 
   /* DESIGN A (#1651): the verdict needs all THREE inputs present (funding, long/short, taker flow),
@@ -206,7 +207,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
   ];
 
   return (
-    <div style={{
+    <div className="lp-read-panel" style={{
       width: mobile ? '100%' : 472, flexShrink: 0, background: 'var(--bg1)', border: '1px solid var(--bdr)',
     }}>
       <div style={{ height: 34, display: 'flex', alignItems: 'center', padding: '0 14px', gap: 9, borderBottom: '1px solid var(--bdr)' }}>
@@ -215,7 +216,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
           {dict.liveRead.title} · {LIVE_READ_COIN.toUpperCase()}
         </span>
         <span style={{ marginLeft: 'auto', fontSize: 10, fontFamily: 'var(--font-mono), monospace', color: 'var(--txt3)' }}>
-          {mounted ? new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false }) : ''}
+          {clockMs !== null && !store.pricesFailed ? new Date(clockMs).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : ''}
         </span>
       </div>
 
@@ -236,16 +237,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, background: 'var(--bdr)', marginTop: 16 }}>
-          {([lr.levels.entry, lr.levels.stop, lr.levels.target]).map(label => (
-            <div key={label} style={{ background: 'var(--bg1)', padding: mobile ? '9px 10px' : '11px 12px' }}>
-              <div style={{ fontSize: 9, fontFamily: 'var(--font-mono), monospace', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--txt3)' }}>{label}</div>
-              <div style={{ fontSize: mobile ? 12.5 : 13.5, fontFamily: 'var(--font-mono), monospace', fontWeight: 600, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums', marginTop: 5 }}>
-                <EmptyValue />
-              </div>
-            </div>
-          ))}
-        </div>
+        {/* THE ENTRY / STOP / TARGET ROW IS GONE (PM audit 2026-11-17): it was three dashes under a "No read" headline, with no read behind it to show. */}
 
         <div style={{ marginTop: 4 }}>
           {evidence.map(row => (
@@ -334,14 +326,14 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
       <LandingTicker mobile={!isDesktop} dir={dir} words={dict.ticker} />
 
       {/* ── HERO — glow/beams intentionally kept, see file header ── */}
-      <section style={{ position: 'relative', padding: heroWide ? '76px 40px 64px' : '34px 18px 30px' }}>
+      <section className="lp-hero-sec" style={{ position: 'relative', padding: heroWide ? '76px 40px 64px' : '34px 18px 30px' }}>
         <BeamsBackground intensity="medium" />
         <div className="lp-hero-glow" />
-        <div style={{
+        <div className="lp-hero-wrap" style={{
           position: 'relative', zIndex: 2, display: 'flex',
           flexDirection: heroWide ? 'row' : 'column', gap: heroWide ? 56 : 30,
         }}>
-          <div style={{ flex: heroWide ? 1 : undefined }}>
+          <div className="lp-hero-col" style={{ flex: heroWide ? 1 : undefined }}>
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 8, border: '1px solid var(--bdr)',
               background: 'var(--bg1)', padding: '7px 13px',
@@ -361,14 +353,14 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
               {dict.hero.h1Line1}<br />
               <span style={{ color: 'var(--accent)' }}>{dict.hero.h1Line2}</span>
             </h1>
-            <p style={{
+            <p className="lp-hero-sub" style={{
               fontSize: heroWide ? 17 : 14.5, lineHeight: 1.6, color: 'var(--txt2)',
               marginTop: heroWide ? 22 : 14, maxWidth: heroWide ? 600 : undefined,
             }}>
               {dict.hero.sub}
             </p>
-            <div style={{ display: 'flex', flexDirection: heroWide ? 'row' : 'column', gap: heroWide ? 12 : 9, marginTop: heroWide ? 30 : 22 }}>
-              <Link href="/login?signup=1" style={{
+            <div className="lp-hero-cta" style={{ display: 'flex', flexDirection: heroWide ? 'row' : 'column', gap: heroWide ? 12 : 9, marginTop: heroWide ? 30 : 22 }}>
+              <Link href="/login?signup=1" className="lp-hero-btn lp-hero-btn-a" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 height: heroWide ? 50 : 48, padding: heroWide ? '0 30px' : undefined,
                 background: 'var(--accent)', color: 'var(--bg0)', fontFamily: 'var(--font-mono), monospace',
@@ -377,7 +369,7 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
               }}>
                 {dict.hero.ctaPrimary}
               </Link>
-              <Link href="/briefing" style={{
+              <Link href="/briefing" className="lp-hero-btn lp-hero-btn-b" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 height: heroWide ? 50 : 46, padding: heroWide ? '0 26px' : undefined,
                 border: '1px solid var(--border-input)', color: 'var(--txt2)', fontFamily: 'var(--font-mono), monospace',
@@ -391,9 +383,9 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
             </p>
 
             {heroWide ? (
-              <div style={{ display: 'flex', marginTop: 40, borderTop: '1px solid var(--bdr)', paddingTop: 24 }}>
+              <div className="lp-hero-stats-wide" style={{ display: 'flex', marginTop: 40, borderTop: '1px solid var(--bdr)', paddingTop: 24 }}>
                 {[dict.hero.stats.coins, dict.hero.stats.ai, dict.hero.stats.telegram].map((label, i) => (
-                  <div key={label} style={{ paddingRight: 38, marginRight: 38, borderRight: i < 2 ? '1px solid var(--bdr)' : undefined }}>
+                  <div key={label} className="lp-hero-stat" style={{ paddingRight: 38, marginRight: 38, borderRight: i < 2 ? '1px solid var(--bdr)' : undefined }}>
                     <div style={{ fontSize: 26, fontFamily: 'var(--font-mono), monospace', fontWeight: 700, color: 'var(--txt)', lineHeight: 1 }}>
                       {['50', 'AI', 'Auto'][i]}
                     </div>

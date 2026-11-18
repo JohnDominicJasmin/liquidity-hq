@@ -4,6 +4,7 @@ import type { CoinId } from './marketStore.ts';
 import { fetchOHLCV, TF_BN, TF_BY } from './useEMAStrategy.ts';
 import { TF_MS, dropForming, msUntilNextClose } from './candles.ts';
 import { findStrategy, type StrategyResult } from './strategies/index.ts';
+import { fetchOiChange6, fetchTakerMap, fundingClassOf } from './strategies/liveInputs.ts';
 
 export interface StrategySignalState {
   result: StrategyResult | null;
@@ -17,12 +18,14 @@ export interface StrategySignalState {
 
 /* Runs the selected Arena strategy (lib/strategies) over the CLOSED candles of the displayed coin and timeframe, and again at each candle close. No strategy selected
  * means no fetch at all. A failed read is `error`, never a quiet "wait": unknown is not neutral. `liqLevels` only adds a note to the reason, it never changes the verdict. */
-export function useStrategySignal(coin: CoinId, tf: string, strategyId: string | null, liqLevels?: readonly number[]): StrategySignalState {
+export function useStrategySignal(coin: CoinId, tf: string, strategyId: string | null, liqLevels?: readonly number[], fundingRate?: number | null): StrategySignalState {
   const [state, setState] = useState<StrategySignalState>({ result: null, loading: false, error: false });
   const [nonce, setNonce] = useState(0);
   const retry = useCallback(() => setNonce(n => n + 1), []);
   const liqRef = useRef(liqLevels);
   liqRef.current = liqLevels;
+  const fundingRef = useRef(fundingRate);
+  fundingRef.current = fundingRate;
 
   useEffect(() => {
     const def = findStrategy(strategyId);
@@ -41,7 +44,14 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
         const btcCandles = btcRaw ? dropForming(btcRaw, tfMs, Date.now()) : undefined;
         const closed = dropForming(raw, tfMs, Date.now());
         if (closed.length < def.minCandles) { setState({ result: null, loading: false, error: true }); }
-        else setState({ result: def.detect(closed, { coin, tf, tfMs, liqLevels: liqRef.current, btcCandles }), loading: false, error: false });
+        else {
+          /* THE LIVE INPUTS OF THE DERIVATIVES STRATEGIES (phase 2): funding from the page's own feed, open interest history and taker volume read now. A failed read is simply absent, which the strategy answers as "needs live data" / "needs taker data", never as no signal. */
+          const fc = def.needsLive ? fundingClassOf(fundingRef.current) : null;
+          const oi = def.needsLive ? await fetchOiChange6(coin, tf, tfMs).catch(() => null) : null;
+          const taker = def.needsTaker ? await fetchTakerMap(coin, TF_BN[tf], 300).catch(() => undefined) : undefined;
+          if (cancelled) return;
+          setState({ result: def.detect(closed, { coin, tf, tfMs, liqLevels: liqRef.current, btcCandles, ...(fc ?? {}), oiChange6Pct: oi, taker }), loading: false, error: false });
+        }
       } catch {
         if (!cancelled) setState({ result: null, loading: false, error: true });
       }

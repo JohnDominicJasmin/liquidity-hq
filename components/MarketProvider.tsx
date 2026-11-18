@@ -208,7 +208,7 @@ export default function MarketProvider(
          No symptom, because the fallback works - the ticker had numbers, they just never came from
          the source this call names. Same defect as the market snapshot's batched ticker; see
          `BINANCE_SPOT_SYMS` in lib/coins.ts. */
-      const syms = Object.values(BINANCE_SPOT_SYMS).filter(s => s !== 'HYPEUSDT');
+      const syms = Object.values(BINANCE_SPOT_SYMS);
       const batch = encodeURIComponent(JSON.stringify(syms));
       const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`, { signal: deadlineSignal(REST_POLL_TIMEOUT_MS) });
       const data = await res.json();
@@ -1408,11 +1408,14 @@ export default function MarketProvider(
       const d = await res.json();
       const dom    = d?.data?.btc_dominance   as number | undefined;
       const ethDom = d?.data?.eth_dominance   as number | undefined;
+      /* CoinMarketCap's own 24-hour change of BTC dominance, in percentage points (#1185). Null when the field is absent: the Briefing then falls back to the short sample window and says so. */
+      const domChg24 = d?.data?.btc_dominance_24h_percentage_change as number | undefined;
       if (dom) {
         setStore(s => ({
           ...s,
           btcDom:       parseFloat(dom.toFixed(2)),
           btcDomHistory:[...s.btcDomHistory.slice(-9), parseFloat(dom.toFixed(2))],
+          btcDomChg24h: typeof domChg24 === 'number' && Number.isFinite(domChg24) ? domChg24 : s.btcDomChg24h,
           ethDom:       ethDom != null ? parseFloat(ethDom.toFixed(2)) : s.ethDom,
         }));
         // #1192: real dominance data means this attempt did not miss - the
@@ -1785,9 +1788,10 @@ export default function MarketProvider(
     const timers: ReadonlyArray<readonly [() => unknown, number]> = [
       [fetchBybit, 8  * 60 * 1000],
       [fetchLSR, 5  * 60 * 1000],
-      [fetchSnapshot, 3  * 60 * 1000],
+      [fetchSnapshot, 60 * 1000],   // 1 min (was 3): the server snapshot's ticker window is 45 s, so a coin without a live socket is at most about a minute and a half old (#1651)
       [fetchBybitKlines, 3  * 60 * 1000],  // same cadence as Binance klines
-      [fetchFNG, 24  * 60 * 60 * 1000],
+      /* HOURLY, NOT DAILY (#1185). The index changes once a day, but a 24-hour interval counted from page load left a long-lived tab up to a day behind. The proxy holds the read for 15 minutes, so this is at most one upstream call an hour per instance; a hidden tab skips the tick and catches up when it returns. */
+      [fetchFNG, 60 * 60 * 1000],
       [fetchCMCGlobal, 5  * 60 * 1000],  // BTC/ETH dom - CMC, every 5m
       [fetchAltSeason, 15  * 60 * 1000],  // 90d score - slow-moving, every 15m
       [fetchMacro, 10  * 60 * 1000],

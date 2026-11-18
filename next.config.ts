@@ -25,7 +25,7 @@ const whopApi = whopSandbox ? 'https://sandbox-api.whop.com' : 'https://api.whop
 
 // Content Security Policy
 // - script-src 'unsafe-inline': required for Next.js hydration inline scripts
-// - script-src 'unsafe-eval': required for GSAP and motion in dev + some Next.js internals
+// - script-src 'unsafe-eval': development only (hot reload tooling); it is not sent in production builds
 // - style-src 'unsafe-inline': required - app uses extensive inline style props
 // - connect-src 'self': covers same-origin API routes and HMR WebSocket in dev
 // - img-src https:: coin logos and chart images may come from any HTTPS origin
@@ -36,7 +36,7 @@ const csp = [
   // https://challenges.cloudflare.com: Cloudflare Turnstile (CAPTCHA on the
   // magic-link sign-in form, app/login/page.tsx) - loads its widget script
   // from here and renders inside an iframe from the same origin.
-  `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com https://challenges.cloudflare.com https://cdn.whop.com`,
+  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'production' ? '' : " 'unsafe-eval'"} https://us-assets.i.posthog.com https://challenges.cloudflare.com https://cdn.whop.com`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",
@@ -130,6 +130,10 @@ const nextConfig: NextConfig = {
     turbopackFileSystemCacheForBuild: false,
     /* FOUR BUILD WORKERS, NOT FORTY-SEVEN (#1185). Render's build machine reports 48 CPUs, so Next starts 47 workers to collect page data and generate the 92 static pages, and each worker loads the server bundle. With the Turbopack cache off (above) a build compiles cold and holds the compiler's memory too, and the 47 workers on top exceeded the 8 GiB build limit: every cold build was OOM-killed at "Generating static pages using 47 workers (0/92)" (liquidity-hq-qa, cf536fae). Warm builds fit only because the compile was tiny, which is also how a stale cache shipped. 4 workers keeps the peak well under the limit; generating 92 pages takes seconds either way. */
     cpus: 4,
+    /* INLINE THE STYLESHEET: AN EXPERIMENT, OFF BY DEFAULT (speed audit 2026-11-17). The text paints the moment the one 46 KB stylesheet arrives, and on a slow connection that request waits behind scripts and fonts. Next's experimental inlineCss puts the
+       CSS in the HTML instead (no separate request; not cached across pages; duplicated in the page payload; production builds only). Whether the trade is worth it is a measurement, so it is switched on by the build
+       variable INLINE_CSS=1 on ONE service (staging) for QA to compare, and does nothing anywhere else. */
+    ...(process.env.INLINE_CSS === '1' ? { inlineCss: true } : {}),
   },
 
   // Remove X-Powered-By: Next.js header (don't leak stack info)

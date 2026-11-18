@@ -139,7 +139,7 @@ function SentimentBadge({ headline }: { headline: string }) {
   const prefix = coins.length === 1 ? `${coins[0]}: ` : '';
   const cfg = s === 'bullish'
     ? { bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',   color: 'var(--green-2)', label: t('NEWS_SENTIMENT_BULLISH', { prefix }) }
-    : { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: 'var(--red)', label: t('NEWS_SENTIMENT_BEARISH', { prefix }) };
+    : { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: 'var(--red-soft)', label: t('NEWS_SENTIMENT_BEARISH', { prefix }) };
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',
@@ -765,7 +765,7 @@ export default function NewsPage() {
                   const urgent = e.h >= -0.5 && e.h < 2;
                   const soon = e.h < 24;
                   const past = e.h < 0;
-                  const timeLocal = e.dt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+                  const timeLocal = e.dt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
                   const note = ECON_NOTES[e.type];
                   const borderColor = urgent ? 'var(--red)' : soon ? 'var(--amber)' : 'var(--purple)';
                   return (

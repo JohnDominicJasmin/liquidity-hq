@@ -200,7 +200,7 @@ test.describe('Antislop audit 001 - AS-F (#1309 items 23, 24, 25)', () => {
       // `disabled={readLoading}` - this test is specifically about the
       // panel's buttons, which call the shared runStrategy() with a guard
       // added by AS-F: `disabled={running}`, StrategyPanel.tsx:404).
-      const quickBtn = page.getByRole('button', { name: 'QUICK', exact: true });
+      const quickBtn = page.getByRole('button', { name: /^quick$/i });
       await expect(quickBtn, 'StrategyPanel\'s QUICK button never rendered - this run measured nothing')
         .toBeVisible({ timeout: 15_000 });
 

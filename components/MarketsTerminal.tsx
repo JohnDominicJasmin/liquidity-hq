@@ -15,6 +15,16 @@ import type { LabelKey } from '@/lib/labelKeys';
 
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
 
+/* The phone form of a signal (PM audit 2026-11-17: "New buy… opening" was cut at 390 px). Same facts in fewer words; the full text stays in the tooltip and on wider screens. */
+const SIGNAL_SHORT: Partial<Record<LabelKey, LabelKey>> = {
+  MARKETS_SIGNAL_LONGS_OVERCROWDED: 'MARKETS_SIGNAL_LONGS_OVERCROWDED_SHORT',
+  MARKETS_SIGNAL_SHORTS_SQUEEZED: 'MARKETS_SIGNAL_SHORTS_SQUEEZED_SHORT',
+  MARKETS_SIGNAL_SMART_BUYERS: 'MARKETS_SIGNAL_SMART_BUYERS_SHORT',
+  MARKETS_SIGNAL_SMART_SELLERS: 'MARKETS_SIGNAL_SMART_SELLERS_SHORT',
+  MARKETS_SIGNAL_NEW_BUYERS: 'MARKETS_SIGNAL_NEW_BUYERS_SHORT',
+  MARKETS_SIGNAL_NEW_SELLERS: 'MARKETS_SIGNAL_NEW_SELLERS_SHORT',
+};
+
 function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): { key: LabelKey | null; col: string; pct?: string } {
   if (!d) return { key: null, col: 'var(--txt-dim)' };
   if (d.fundingRate != null) {
@@ -100,6 +110,8 @@ export default function MarketsTerminal() {
   const liveCount = COINS.filter(id => Number.isFinite(store.coins[id]?.price)).length;
   const bullCount = COINS.filter(id => topSignal(store.coins[id]).col === 'var(--green-2)').length;
   const bearCount = COINS.filter(id => topSignal(store.coins[id]).col === 'var(--red)').length;
+  /* NOTHING QUALIFIES (#1185, PM 2026-11-17): when prices are in but no coin has a derivatives signal, the Signal column is a wall of "No signal". Say it once in a banner, and on a phone drop the column (and its second row) instead of repeating it forty times. */
+  const noSignals = liveCount > 0 && COINS.every(id => topSignal(store.coins[id]).key === 'MARKETS_SIGNAL_NONE');
 
   function handleSort(key: SortKey) {
     if (sort === key) setSortAsc(v => !v);
@@ -215,7 +227,8 @@ export default function MarketsTerminal() {
         </div>
 
         {/* Column headers */}
-        <div className="mkt-mono mkt-hdr-row" style={{
+        {noSignals && <div role="status" className="mkt-no-signals" data-testid="mkt-no-signals">{t('MARKETS_NO_SIGNALS_BANNER')}</div>}
+        <div className={`mkt-mono mkt-hdr-row${noSignals ? ' mkt-nosig' : ''}`} style={{
           display: 'grid',
           gridTemplateColumns: ROW_COLS,
           padding: '0 10px 6px',
@@ -266,7 +279,7 @@ export default function MarketsTerminal() {
           return (
             <div
               key={id}
-              className="mkt-row"
+              className={`mkt-row${noSignals ? ' mkt-nosig' : ''}`}
               onClick={() => goToArena(id)}
               style={{
                 display: 'grid',
@@ -348,7 +361,12 @@ export default function MarketsTerminal() {
                 color: sig.col === 'var(--txt-dim)' ? 'var(--txt3)' : sig.col,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
-                {sig.key ? t(sig.key, { pct: sig.pct ?? '' }) : '-'}
+                {sig.key ? (
+                  <>
+                    <span className="mkt-sig-full">{t(sig.key, { pct: sig.pct ?? '' })}</span>
+                    <span className="mkt-sig-short">{t(SIGNAL_SHORT[sig.key] ?? sig.key, { pct: sig.pct ?? '' })}</span>
+                  </>
+                ) : '-'}
               </div>
 
               {/* Bottom accent line = buy pressure */}
