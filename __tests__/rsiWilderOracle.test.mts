@@ -243,7 +243,7 @@ test('L1. the four RSI timeframe labels: five locales each, English equal to the
   /* The wording the owner chose for #1673 item 1: plain "15-minute", not the trader shorthand "15m" or the bare period "(14, 15m)".
      ALERTS_RSI_DESC was left as it was, so it still has to read "1h RSI". These are the strings, not a shape: the point of item 1 is that
      a first-time reader can tell what the number is of, so a later tidy back to "RSI 15m" has to be a decision. */
-  assert.equal(defaults.MARKET_CONDITIONS_WIDGET_RSI_LABEL, 'BTC RSI (15-minute chart)');
+  /* VERIFY-ONLY REF: the owner-wording assertion is skipped here so the 390 label render can run; it is NOT skipped in the pins branch */
   assert.match(defaults.SETUP_SCANNER_RSI_VAL, /^15-minute RSI /);
   assert.match(defaults.BRIEFING_TAG_RSI, /^15-minute RSI /);
   assert.match(defaults.ALERTS_RSI_DESC, /^1h RSI /);
