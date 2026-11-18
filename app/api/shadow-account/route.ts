@@ -8,6 +8,7 @@ import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { apiError } from '@/lib/apiError';
 import { answerWasCutOff } from '@/lib/xaiAnswer';
+import { SHADOW_NO_PICK_TEXT } from '@/lib/shadowStrategy';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -65,7 +66,7 @@ function buildShadowPrompt(trades: Record<string, unknown>[]): string {
     '   - Leverage vs outcome correlation',
     '   - Any patterns visible in the notes field',
     '',
-    `3. SHADOW_STRATEGY - Recompute the stats over ONLY the trade types that did best above, keeping a trade type only if it has at least ${SHADOW_MIN_TRADES_PER_TYPE} closed trades. Format: "Shadow Win Rate: X% (actual: Y%) | Shadow Avg R: X (actual: Y) | Trades kept: N of N closed". The trade types were picked from these same trades after the fact, so this describes past trades; it is not a forecast and not a tested strategy. Say that in one plain sentence. If no trade type has ${SHADOW_MIN_TRADES_PER_TYPE} closed trades, write "Not enough trades per type to compare." and nothing else.`,
+    `3. SHADOW_STRATEGY - Recompute the stats over ONLY the trade types that did best above, keeping a trade type only if it has at least ${SHADOW_MIN_TRADES_PER_TYPE} closed trades. Format: "Shadow Win Rate: X% (actual: Y%) | Shadow Avg R: X (actual: Y) | Trades kept: N of N closed". The trade types were picked from these same trades after the fact, so this describes past trades; it is not a forecast and not a tested strategy. Say that in one plain sentence. If no trade type has ${SHADOW_MIN_TRADES_PER_TYPE} closed trades, write "${SHADOW_NO_PICK_TEXT}" and nothing else.`,
     '',
     '4. RULE_VIOLATIONS - Name 3-5 specific trades (by date + coin) that broke the trader\'s own implied best rules. Explain what rule was broken.',
     '',
