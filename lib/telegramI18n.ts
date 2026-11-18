@@ -17,10 +17,12 @@
 import labelDefaults from './labelDefaults.en.json';
 import { TG_PHRASES } from './telegramPhrases.ts';
 
-export type TgLocale = 'en' | 'ko' | 'zh' | 'ru' | 'ar';
-export const TG_LOCALES: readonly TgLocale[] = ['en', 'ko', 'zh', 'ru', 'ar'];
+/* ARABIC IS ENGLISH HERE, AS IN THE APP (PM, 2026-11-18): `ar` is held until right-to-left layout ships (lib/locales.ts AVAILABLE_LOCALES), so an
+   account that saved `ar` gets English messages. The ar label rows in migration 20261119z5 stay, unused, ready for when it returns. */
+export type TgLocale = 'en' | 'ko' | 'zh' | 'ru';
+export const TG_LOCALES: readonly TgLocale[] = ['en', 'ko', 'zh', 'ru'];
 
-/** The saved app language as a Telegram locale; anything else (null, a locale the bot has no copy for) is English. */
+/** The saved app language as a Telegram locale; anything else (null, `ar`, a locale the bot has no copy for) is English. */
 export function tgLocaleOf(language: string | null | undefined): TgLocale {
   return (TG_LOCALES as readonly string[]).includes(language ?? '') ? (language as TgLocale) : 'en';
 }
@@ -106,7 +108,7 @@ export function typeMuteConfirmationIn(ruleKey: string, hours: number, labels: R
   return tgText('TG_MUTED_FOR', labels, { type: tgLabel(TYPE_KEY[ruleKey] ?? '', labels), h: hours });
 }
 
-/** The BCP 47 tag for dates in the reader's language (the daily summary's date line). Latin digits in Arabic, like every number in the message. */
+/** The BCP 47 tag for dates in the reader's language (the daily summary's date line). */
 export function tgDateLocale(locale: TgLocale): string {
-  return locale === 'ko' ? 'ko-KR' : locale === 'zh' ? 'zh-CN' : locale === 'ru' ? 'ru-RU' : locale === 'ar' ? 'ar-u-nu-latn' : 'en-GB';
+  return locale === 'ko' ? 'ko-KR' : locale === 'zh' ? 'zh-CN' : locale === 'ru' ? 'ru-RU' : 'en-GB';
 }
