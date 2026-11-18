@@ -155,7 +155,12 @@ export default function StrategyPanel({ planChecking = false, layersLocked = fal
   /* THE CALL BOX'S FIRST-PAINT RESERVE ENDS WITH THE ANSWER. `<html data-strat="1">` (components/RootDocument.tsx) reserves the box's height from a cached saved strategy; once the settings have loaded and no strategy is
      picked (none was saved, or the visitor chose "Let the read choose" / Custom), the reserve is removed so it never leaves an empty band. A visitor's own pick is not a layout shift. */
   useEffect(() => {
-    if (loaded && !pickedStrategy) document.documentElement.removeAttribute('data-strat');
+    if (!loaded) return;
+    const h = document.documentElement;
+    if (pickedStrategy) { h.removeAttribute('data-strat-none'); return; }
+    /* data-strat-none ends the signed-in reserve in globals.css (the data-sess rule); it was documented but never set, so a visitor on "Let the read choose" kept an empty ~90 px band under the menu. */
+    h.removeAttribute('data-strat');
+    h.setAttribute('data-strat-none', '1');
   }, [loaded, pickedStrategy]);
   /* 'Custom' picked with no chip on has nothing else to derive it from, so it is remembered here: without it the menu fell back to 'Let the read choose' the moment it was picked. */
   const [customPicked, setCustomPicked] = useState(false);
@@ -385,7 +390,7 @@ export default function StrategyPanel({ planChecking = false, layersLocked = fal
       <div className="strat-sect">
         <div className="strat-lbl"><span>{t('STRATEGY_PANEL_SECTION_RUN')}</span></div>
         <div className="strat-actions">
-          {([['quick', 'QUICK', 'pri'], ['deep', 'DEEP', ''], ['ask', 'ASK AI', '']] as const).map(([kind, text, cls]) => {
+          {([['quick', t('STRATEGY_PANEL_RUN_QUICK'), 'pri'], ['deep', t('STRATEGY_PANEL_RUN_DEEP'), ''], ['ask', t('STRATEGY_PANEL_RUN_ASK'), '']] as const).map(([kind, text, cls]) => {
             const g = runGate?.[kind];
             const locked = !!g?.locked;
             return (

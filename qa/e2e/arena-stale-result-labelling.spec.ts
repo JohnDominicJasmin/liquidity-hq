@@ -129,7 +129,7 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
     await expect(el).toHaveAttribute('aria-pressed', 'true');
   }
 
-  const quickBtn = page.getByRole('button', { name: 'QUICK', exact: true });
+  const quickBtn = page.getByRole('button', { name: /^quick$/i });
   await expect(quickBtn).toBeVisible({ timeout: 15_000 });
   await quickBtn.click();
   await expect.poll(() => grokPosts.length, { message: 'QUICK never reached the stubbed /api/grok', timeout: 20_000 }).toBe(1);
@@ -148,7 +148,7 @@ async function arrangeFreshRead(browser: Browser, firstPick: string[]) {
 
   const askAi = async (): Promise<{ userPrompt: string; selection: string }> => {
     const before = chatBodies.length;
-    await page.getByRole('button', { name: 'ASK AI', exact: true }).click();
+    await page.getByRole('button', { name: /^ask ai$/i }).click();
     // #1668 (owner, 2026-10-21): the click fills the question in and sends NOTHING - no AI use is spent until Send.
     await expect(page.locator('textarea').first(), 'ASK AI did not fill the question into the chat input').not.toHaveValue('', { timeout: 5_000 });
     await page.waitForTimeout(1_500);

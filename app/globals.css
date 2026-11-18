@@ -1077,7 +1077,9 @@ body::after {
    70:30 - calendar carries more content (5 rows) than the gauge card. */
 .dash-conditions-row { display: grid; grid-template-columns: 7fr 3fr; gap: 14px; align-items: start; }
 @media (max-width: 760px) {
-  .dash-conditions-row { grid-template-columns: 1fr; }
+  /* minmax(0, 1fr), not 1fr: a bare 1fr is minmax(auto, 1fr), so the single column grew to the widest child's min-content (391 px at a 390 viewport, QA run 44222132363: the page scrolled 17 px sideways). The children may now shrink to the column. */
+  .dash-conditions-row { grid-template-columns: minmax(0, 1fr); }
+  .dash-conditions-row > * { min-width: 0; max-width: 100%; }
 }
 /* These reuse .av-rail-panel (bg4 - a subtle gray elevation step meant for a
    narrow rail against a dark page). Full-width here, next to the white
@@ -4083,6 +4085,8 @@ html[data-sess="1"] .arena-set-alert-pending { display: revert; }
    meter's whole band (2 + 43 + 10 px) reserved from the FIRST paint instead of from the moment the session read resolves. flow-root so the slot's own margins stay inside the host. */
 .usage-meter-host { display: flow-root; }
 html[data-sess="1"] .usage-meter-host { min-height: 55px; }
+/* The bar is for phones and tablets only: the inline counts show on the button row from 1024 px. This rule comes AFTER the two above, which re-showed the bar at 1280 (same specificity, later wins) so usage was drawn twice. */
+@media (min-width: 1024px) { .usage-meter-host, html[data-sess="1"] .usage-meter-host { display: none; min-height: 0; } }
 /* One 43 px slot for every account (PM, #2368). The Upgrade pill is 28 px tall here (it was 44, which made the Free row 62 px); its 44 px touch target is the link around it (UpgradePillLink `tap`, negative margins), not a pseudo-element. */
 .usage-auth-link {
   color: var(--accent-2); text-decoration: none; font-weight: 600;
