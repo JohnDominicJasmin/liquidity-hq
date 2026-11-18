@@ -15,7 +15,7 @@ const count = (s: string, needle: string) => s.split(needle).length - 1;
 
 /* route, how a refund is written there, how many refund sites (non-2xx, throw, and for onchain also an unparseable 2xx) */
 const ROUTES: { file: string; reserve: string; refund: string; sites: number; why: string }[] = [
-  { file: 'app/api/briefing/route.ts', reserve: 'incrementUsageColumn(', refund: "refundUsageColumn(userId, 'briefing_count', reservedOn)", sites: 2, why: 'non-2xx and a throw before the 2xx (a billed flag guards the throw)' },
+  { file: 'app/api/briefing/route.ts', reserve: 'incrementUsageColumn(', refund: "refundUsageColumn(userId, 'briefing_count', reservedOn)", sites: 3, why: 'non-2xx, an EMPTY 2xx reply (#2509: a blank card is a failed answer), and a throw before the 2xx (a billed flag guards the throw)' },
   { file: 'app/api/token-unlock/route.ts', reserve: "incrementToolUsage(authData.user.id, 'tokenUnlock'", refund: 'giveBack()', sites: 2, why: 'throw and non-2xx, inside the cache miss' },
   { file: 'app/api/onchain/route.ts', reserve: "incrementToolUsage(authData.user.id, 'onchain'", refund: 'giveBack()', sites: 3, why: 'throw, non-2xx and an unparseable / cut-off 2xx (the user got nothing)' },
   { file: 'app/api/thesis-check/route.ts', reserve: "incrementToolUsage(authData.user.id, 'thesisCheck'", refund: "refundToolUsage(authData.user.id, 'thesisCheck', reservedOn)", sites: 2, why: 'throw and non-2xx' },

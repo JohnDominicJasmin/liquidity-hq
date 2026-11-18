@@ -32,6 +32,8 @@ export function fetchWithDeadline(input: RequestInfo | URL, init?: RequestInit, 
     const bodyTimer = setTimeout(() => ctl.abort(new DOMException('The operation timed out.', 'TimeoutError')), left);
     /* Aborting after the body has finished is a no-op, so the timer needs no completion tracking; it only cuts a body that is still arriving at the cap. */
     ctl.signal.addEventListener('abort', () => clearTimeout(bodyTimer), { once: true });
+    /* On a server or in a test runner an armed timer keeps the process alive until it fires (the body cap, 60 s, after every finished read: a unit file that made three reads took 61 s to exit). Browsers return a number with no unref, so this is a no-op there. */
+    (bodyTimer as unknown as { unref?: () => void }).unref?.();
     return res;
   }, e => { clearTimeout(timer); throw e; });
 }
