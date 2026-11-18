@@ -99,8 +99,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const start = () => setLandingFeedsReady(true);
     const idle = () => {
       const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
-      if (typeof w.requestIdleCallback === 'function') w.requestIdleCallback(start, { timeout: 3000 });
-      else setTimeout(start, 1500);
+      /* At most 1 s after load (PM 2026-11-19, speed target: data on / within 8 s on 4G + 4x CPU). The hero's beams leave a 4x-throttled
+         phone almost no idle time, so the old 3 s timeout was what the feeds actually waited for. The text has painted by `load`. */
+      if (typeof w.requestIdleCallback === 'function') w.requestIdleCallback(start, { timeout: 1000 });
+      else setTimeout(start, 1000);
     };
     if (document.readyState === 'complete') idle();
     else { window.addEventListener('load', idle, { once: true }); return () => window.removeEventListener('load', idle); }
