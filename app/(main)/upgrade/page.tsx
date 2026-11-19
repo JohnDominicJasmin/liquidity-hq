@@ -463,10 +463,10 @@ export default function UpgradePage() {
           inline-in-a-sentence exception does not cover them. */}
       <p style={{ margin: '8px 0 0', display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
         <Link href="/refund" style={{ color: 'var(--txt3)', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
-          Refund Policy
+          {t('PF_LINK_REFUND')}
         </Link>
         <Link href="/security" style={{ color: 'var(--txt3)', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
-          Security &amp; data
+          {t('UPGRADE_LINK_SECURITY_DATA')}
         </Link>
       </p>
     </div>
