@@ -136,7 +136,7 @@ function buildBriefingContext(
     timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   });
   const jpyStatus = jpyUsd == null ? 'N/A'
-    : jpyUsd >= 160 ? `${jpyUsd.toFixed(2)} - at or above 160. If the yen rises quickly from this level, yen carry trades can be unwound, which has coincided with crypto selloffs before.`
+    : jpyUsd >= 160 ? `${jpyUsd.toFixed(2)} - at or above 160`
     : jpyUsd >= 158 ? `${jpyUsd.toFixed(2)} - between 158 and 160`
     : `${jpyUsd.toFixed(2)} - below 158`;
   const lines = [
