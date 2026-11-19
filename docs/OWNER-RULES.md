@@ -750,28 +750,28 @@ Tracked on #1651.
   deploy), and even then never when he is resting.
 - If a tool blocks the suggestion, do everything else, and do not ask him to click anything.
 
-## 24. TWO BACKGROUND TASKS AT A TIME IN DEV AND QA (SET 2026-11-19, LATER THE SAME DAY)
+## 24. ONE BACKGROUND TASK AT A TIME IN DEV AND QA (SET 2026-11-19, LATE)
 
-**Owner, 2026-11-19, first-hand to PM:** *"run 2 background task at a time in both dev and qa now"*.
+**Owner, 2026-11-19, first-hand to PM:** *"sorry i think 2 background task each is too consuming, change it to 1 background task each"*.
 
-This is the current rule. It replaces the one-at-a-time rule he set earlier the same day, which replaced
-the open-ended parallel lanes of 2026-11-18. The history matters because the cost is real:
+This is the current rule. The same day went through three settings, and the history is kept because each
+change was about cost:
 
 - **2026-11-18:** parallel lanes, no cap. Background agents re-read the code at 100-300k tokens each and the
   sessions hit their usage limits within hours.
-- **2026-11-19 morning:** reversed to one item at a time, no background agents (*"It is much faster to run the
-  normal one by one and not hit the limit than to work multiple tasks but hit the limit too often and fast."*).
-- **2026-11-19 evening:** two at a time, in both Dev and QA.
+- **2026-11-19 morning:** one item at a time, no background agents (*"It is much faster to run the normal one by
+  one and not hit the limit than to work multiple tasks but hit the limit too often and fast."*).
+- **2026-11-19 evening:** two background tasks each (*"run 2 background task at a time in both dev and qa now"*).
+- **2026-11-19 late:** one background task each, because two used too much.
 
 How to apply it:
 
-- **Dev and QA each run at most 2 tasks at once** (the session itself plus one background task, or two
-  background tasks): never more.
-- **PM gives each session two lanes that touch different files**, so the lanes never conflict.
-- **Each background task gets a narrow brief** (files to read, what to change, what to prove), so it does not
-  re-read the codebase.
+- **Dev and QA each run their own session plus at most ONE background task.** Never two helpers.
+- **PM gives each session two lanes that touch different files**: one in the session, one in the helper.
+- **The helper gets a narrow brief** (files to read, what to change, what to prove), so it does not re-read
+  the codebase.
 - **Heavy browser runs still go to GitHub Actions**, which do not use the session's tokens.
-- If the sessions start hitting their usage limits again, PM drops back to one lane and tells the owner in one line.
+- If the sessions start hitting their usage limits again, PM drops to no helpers and tells the owner in one line.
 
 ## 25. NO WORDY TEXT. THE APP IS NOT AN ESSAY OR A DIARY.
 
