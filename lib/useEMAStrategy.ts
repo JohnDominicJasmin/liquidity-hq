@@ -665,11 +665,11 @@ export function useEMAStrategy(
             pass:  judgeLong ? ema9 > ema20 : ema9 < ema20,
             detail: judgeLong
               ? (ema9 > ema20
-                ? `EMA9 ${fmt(ema9)} crossed above EMA20 ${fmt(ema20)} - bullish cross confirmed`
-                : `EMA9 ${fmt(ema9)} still below EMA20 ${fmt(ema20)} - waiting for bullish cross`)
+                ? `EMA9 ${fmt(ema9)} crossed above EMA20 ${fmt(ema20)} - bullish cross`
+                : `EMA9 ${fmt(ema9)} still below EMA20 ${fmt(ema20)} - no bullish cross yet`)
               : (ema9 < ema20
-                ? `EMA9 ${fmt(ema9)} crossed below EMA20 ${fmt(ema20)} - bearish cross confirmed`
-                : `EMA9 ${fmt(ema9)} still above EMA20 ${fmt(ema20)} - waiting for bearish cross`),
+                ? `EMA9 ${fmt(ema9)} crossed below EMA20 ${fmt(ema20)} - bearish cross`
+                : `EMA9 ${fmt(ema9)} still above EMA20 ${fmt(ema20)} - no bearish cross yet`),
             ...crossRef({ judgeLong, ema9, ema20, fmt }),
           },
           {
@@ -677,19 +677,19 @@ export function useEMAStrategy(
             pass:  judgeLong ? price > ema50 : price < ema50,
             detail: judgeLong
               ? (price > ema50
-                ? `Close ${cur}${fmt(price)} above EMA50 ${cur}${fmt(ema50)} - long entry confirmed`
-                : `Close ${cur}${fmt(price)} below EMA50 ${cur}${fmt(ema50)} - wait for candle close above EMA 50`)
+                ? `Close ${cur}${fmt(price)} above EMA50 ${cur}${fmt(ema50)}`
+                : `Close ${cur}${fmt(price)} below EMA50 ${cur}${fmt(ema50)}`)
               : (price < ema50
-                ? `Close ${cur}${fmt(price)} below EMA50 ${cur}${fmt(ema50)} - short entry confirmed`
-                : `Close ${cur}${fmt(price)} above EMA50 ${cur}${fmt(ema50)} - wait for candle close below EMA 50`),
+                ? `Close ${cur}${fmt(price)} below EMA50 ${cur}${fmt(ema50)}`
+                : `Close ${cur}${fmt(price)} above EMA50 ${cur}${fmt(ema50)}`),
             ...closeRef({ judgeLong, price, ema50, cur, fmt }),
           },
           {
             label: 'Price in Value Zone',
             pass:  (verdict === 'LONG_SETUP' || verdict === 'SHORT_SETUP') ? inValueZone : null,
             detail: inValueZone
-              ? `Price in EMA9–EMA20 zone - entry eligible`
-              : `Not in value zone yet - wait for pullback to 20 EMA`,
+              ? `Price in EMA9–EMA20 zone`
+              : `Price not in EMA9–EMA20 zone`,
             ...zoneRef(inValueZone),
           },
           {

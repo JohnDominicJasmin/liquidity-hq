@@ -606,7 +606,7 @@ export default function FundingTerminal() {
                 )}
               </div>
               {/* Scrollable table */}
-              <div className="frh-list-scroll">
+              <div className="frh-list-scroll" role="region" tabIndex={0} aria-label={t('FUNDING_PAGE_TITLE')}>
                 <table className="frh-table">
                   <thead>
                     <tr>

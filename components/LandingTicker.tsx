@@ -39,6 +39,10 @@ export default function LandingTicker({ mobile, dir, words }: { mobile: boolean;
   return (
     <div
       className="lpt-ticker"
+      /* A scroll area the keyboard can reach: focusable and named (axe scrollable-region-focusable, #1185). */
+      role="region"
+      tabIndex={0}
+      aria-label={words.region}
       style={{
         height: mobile ? 30 : 34, flexShrink: 0, borderBottom: '1px solid var(--bdr)',
         display: 'flex', alignItems: 'stretch', overflowX: 'auto',
