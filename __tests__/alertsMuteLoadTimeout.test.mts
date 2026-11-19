@@ -117,7 +117,8 @@ test('the alerts page maps signed-in-without-a-token to the labelled failure, an
 test('CONTROL: the checks can fail - each mutation of the page is caught', () => {
   const mutations: Array<[string, string, string]> = [
     ['drop the !user guard', "if (!user) { setMutedLoaded(true); return; }", ''],
-    ['timeout treated as signed-out (no failure state)', 'if (!token) { setMuteLoadFailed(true); setMutedLoaded(true); return; }', 'if (!token) { setMutedLoaded(true); return; }'],
+    ['timeout treated as signed-out (no failure state)', 'if (!token) { if (!retryMuteLater()) { setMuteLoadFailed(true); setMutedLoaded(true); } return; }', 'if (!token) { retryMuteLater(); setMutedLoaded(true); return; }'],
+    ['retries used up but the line never shown', 'if (!token) { if (!retryMuteLater()) { setMuteLoadFailed(true); setMutedLoaded(true); } return; }', 'if (!token) { if (!retryMuteLater()) { setMutedLoaded(true); } return; }'],
     ['signed-out raises the failure', "if (!user) { setMutedLoaded(true); return; }", 'if (!user) { setMuteLoadFailed(true); setMutedLoaded(true); return; }'],
     ['banner loses its label', "t('ALERTS_MUTE_LOAD_FAILED')", "'failed'"],
     ['banner loses its retry', 'onClick={loadMutePrefs}', 'onClick={() => {}}'],
