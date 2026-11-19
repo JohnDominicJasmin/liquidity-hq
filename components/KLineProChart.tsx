@@ -17,7 +17,7 @@ import { getAuthToken } from '@/lib/supabase';
 import { drawStructureAvailable, DRAW_STRUCTURE_NOISY_TFS, type DrawableStructure } from '@/lib/drawStructure';
 import { computeSRLevels, type SRLevel } from '@/lib/srLevels';
 import { detectChannel, SR_BAND_PCT } from '@/lib/strategies/channel';
-import type { OHLCV } from '@/lib/strategyCore';
+import { psarArr, type OHLCV } from '@/lib/strategyCore';
 import Tip from '@/components/Tip';
 import { barsAfter, TF_MS } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
@@ -1153,6 +1153,26 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     (async () => {
       const kc = await import('klinecharts');
       if (disposed || !containerRef.current) return;
+
+      /* THE SAR DOTS ARE TEXTBOOK WILDER (PM, 2026-11-20, QA indicators matrix #1263 D2): klinecharts' own SAR uses the current bar's extreme point and resets its acceleration factor asymmetrically, so only 1-5% of its dots matched
+         TradingView's. A custom indicator registered UNDER THE SAME NAME replaces the built-in (klinecharts keeps one indicator class per name), keeps its figure, dot colours and the same calcParams (percent units: [2, 2, 20] = 0.02 / 0.02 / 0.2),
+         and calls psarArr (lib/strategyCore.ts), the calculation the EMA card's PSAR row and the AI's PSAR reading use too. */
+      (kc as unknown as { registerIndicator: (i: unknown) => void }).registerIndicator({
+        name: 'SAR', shortName: 'SAR', series: 'price', calcParams: [2, 2, 20], precision: 2, shouldOhlc: true,
+        figures: [{
+          key: 'sar', title: 'SAR: ', type: 'circle',
+          styles: ({ data, indicator, defaultStyles }: { data: { current?: { sar?: number; high?: number; low?: number } }; indicator: { styles?: { circles?: Array<{ upColor?: string; downColor?: string }> } }; defaultStyles: { circles: Array<{ upColor: string; downColor: string }> } }) => {
+            const cur = data.current;
+            const sar = cur?.sar ?? Number.MIN_SAFE_INTEGER, half = ((cur?.high ?? 0) + (cur?.low ?? 0)) / 2;
+            return { color: sar < half ? (indicator.styles?.circles?.[0]?.upColor ?? defaultStyles.circles[0].upColor) : (indicator.styles?.circles?.[0]?.downColor ?? defaultStyles.circles[0].downColor) };
+          },
+        }],
+        calc: (dataList: Array<{ timestamp: number; open: number; high: number; low: number; close: number; volume?: number }>, indicator: { calcParams: number[] }) => {
+          const [a0, a1, a2] = indicator.calcParams;
+          const vals = psarArr(dataList.map(d => ({ time: d.timestamp, open: d.open, high: d.high, low: d.low, close: d.close, volume: d.volume ?? 0 })), a0 / 100, a1 / 100, a2 / 100);
+          return vals.map(v => (Number.isFinite(v) ? { sar: v } : {}));
+        },
+      });
 
       const chart = kc.init(containerRef.current);
       if (!chart) return;

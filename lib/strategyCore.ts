@@ -101,83 +101,47 @@ export function bollingerBandsArr(
   return result;
 }
 
-/* Parabolic SAR, matching klinecharts' actual `stopAndReverse.calc`
- * (node_modules/klinecharts/dist/index.esm.js) rather than a textbook
- * writeup - same discipline as smaNMArr/bollingerBandsArr, and worth it
- * here specifically: klinecharts' SAR has a real asymmetry between its two
- * branches that a from-memory implementation would not reproduce.
- *
- * `startAf`/`step`/`maxAf` are TRUE UNITS here (0.02/0.02/0.2, the
- * registry's own defaults) - NOT klinecharts' internal calcParams, which
- * are those same values x100 (`createIndicator`'s `stopAndReverse.calc`
- * divides by 100 before using them - see `toCalcParams` in
- * strategyRegistry.ts and #1007/#1008). Passing true units straight in
- * here is what keeps this function's output matching what the chart draws
- * when a trader has PSAR selected via the panel - the whole point of
- * porting the exact algorithm rather than a cleaner equivalent one.
- *
- * THE ASYMMETRY, PRESERVED RATHER THAN "FIXED": on a bullish-to-bearish
- * reversal the acceleration factor resets to `startAf` (uptrend branch);
- * on a bearish-to-bullish reversal it resets to 0, not `startAf`
- * (downtrend branch, `af = 0` in the compiled source). This looks like a
- * copy-paste bug in klinecharts itself - but per the owner's ruling on
- * #985 gap 1, klinecharts is the SPECIFICATION for what its own indicators
- * compute, not a reference to improve on. A "corrected" symmetric version
- * would silently disagree with the actual line the chart draws for the
- * same selected indicator, which is a worse defect than reproducing an
- * upstream quirk. The first-bar-advances-af-once quirk (`ep === -100`
- * triggers immediately at i=0, so `af` is already `startAf + step` by the
- * time the first SAR value is emitted) is preserved the same way. */
+/* PARABOLIC SAR, TEXTBOOK WILDER (PM, 2026-11-20, QA indicators matrix #1263 D2: the old port reproduced klinecharts' SAR, which uses the CURRENT bar's extreme point, advances the acceleration
+ * factor once before the first value and resets it to 0 on a flip to down, so only 1-5% of its dots equalled the textbook ones and a trader comparing with TradingView saw different dots).
+ * This is the standard recursion, the same one TradingView's ta.sar and Wilder's own definition use:
+ *   INIT (bar 1): the trend is up when close[1] > close[0] (SAR starts at low[0], extreme point = high[1]), else down (SAR starts at high[0], extreme point = low[1]); AF = startAf. Bar 0 has no value.
+ *   EACH BAR:     SAR = SAR(prev) + AF(prev) x (EP(prev) - SAR(prev)). If the trend was up and that SAR is above this bar's low (down: below its high) the trend REVERSES: SAR = the old extreme point
+ *                 (clamped to this bar's high / low), the extreme point = this bar's low / high, AF = startAf, and no further clamping on that bar.
+ *   NO REVERSAL:  a NEW extreme point (the bar's high in an up trend, low in a down trend) moves EP there and raises AF by `step` up to `maxAf`; then SAR may not enter the previous TWO bars' range
+ *                 (up: not above the lower of low[-1], low[-2]; down: not below the higher of high[-1], high[-2]).
+ * `startAf`/`step`/`maxAf` are TRUE units (0.02 / 0.02 / 0.2). The chart's SAR indicator (components/KLineProChart.tsx, registered over klinecharts' own) calls this same function, so the dots, the EMA
+ * card's PSAR row and the AI's PSAR reading all come from one calculation. Proof against a separately written reference on raw Binance candles: PR body of the change that introduced this. */
 export function psarArr(
   candles: OHLCV[], startAf = 0.02, step = 0.02, maxAf = 0.2,
 ): number[] {
-  const result = new Array<number>(candles.length).fill(NaN);
-  if (!candles.length) return result;
-
+  const n = candles.length;
+  const out = new Array<number>(n).fill(NaN);
+  if (n < 2) return out;
+  let below = candles[1].close > candles[0].close;          // SAR below price = up trend
+  let ep = below ? candles[1].high : candles[1].low;
+  let sar = below ? candles[0].low : candles[0].high;
   let af = startAf;
-  let ep = -100;          // sentinel: "not yet set", matching klinecharts' own -100
-  let isIncreasing = false;
-  let sar = 0;
-
-  for (let i = 0; i < candles.length; i++) {
-    const preSar = sar;
-    const { high, low } = candles[i];
-    const prev = candles[Math.max(1, i) - 1]; // candles[i-1], or candles[0] at i=0
-
-    if (isIncreasing) {
-      if (ep === -100 || ep < high) {
-        ep = high;
-        af = Math.min(af + step, maxAf);
-      }
-      sar = preSar + af * (ep - preSar);
-      const lowMin = Math.min(prev.low, low);
-      if (sar > low) {
-        sar = ep;
-        af = startAf;
-        ep = -100;
-        isIncreasing = !isIncreasing;
-      } else if (sar > lowMin) {
-        sar = lowMin;
-      }
-    } else {
-      if (ep === -100 || ep > low) {
-        ep = low;
-        af = Math.min(af + step, maxAf);
-      }
-      sar = preSar + af * (ep - preSar);
-      const highMax = Math.max(prev.high, high);
-      if (sar < high) {
-        sar = ep;
-        af = 0; // klinecharts' own asymmetry - see the doc comment above
-        ep = -100;
-        isIncreasing = !isIncreasing;
-      } else if (sar < highMax) {
-        sar = highMax;
+  out[1] = sar;
+  for (let i = 2; i < n; i++) {
+    const c = candles[i];
+    const prevBelow = below, prevEp = ep;
+    sar = sar + af * (prevEp - sar);
+    let firstOfTrend = false;
+    if (prevBelow) {
+      if (sar > c.low) { below = false; sar = Math.max(c.high, prevEp); ep = c.low; af = startAf; firstOfTrend = true; }
+    } else if (sar < c.high) { below = true; sar = Math.min(c.low, prevEp); ep = c.high; af = startAf; firstOfTrend = true; }
+    if (!firstOfTrend) {
+      if (below) {
+        if (c.high > ep) { ep = c.high; af = Math.min(af + step, maxAf); }
+        sar = Math.min(sar, candles[i - 1].low, candles[i - 2].low);
+      } else {
+        if (c.low < ep) { ep = c.low; af = Math.min(af + step, maxAf); }
+        sar = Math.max(sar, candles[i - 1].high, candles[i - 2].high);
       }
     }
-    result[i] = sar;
+    out[i] = sar;
   }
-  return result;
+  return out;
 }
 
 export interface MACDResult { dif: number; dea: number; macd: number }
