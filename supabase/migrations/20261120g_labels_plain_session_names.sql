@@ -1,7 +1,7 @@
 -- NOT YET APPLIED TO ANY DATABASE. Apply ONE block per project: PROD on qdpwhnvmhqgzijuwopso BEFORE the release deploy; DEV on wdtjhrilakoitfcezxpx.
 --
--- Plain session names in the Arena top bar and market read (PM 2026-11-19, #1113: 'God Tier' means nothing to a beginner). 3 keys x 5 locales; en equals the shipped defaults. ko/zh/ru/ar AI-drafted, not native-reviewed.
---   SESSION_NAME_GOD 'God Tier' -> 'Sunday window' (Sun 15:00-19:00 UTC)   SESSION_NAME_PRIME 'Prime' -> 'Evening window' (daily 18:00-21:00 UTC)   SESSION_NAME_DEAD 'Dead Zone' -> 'Quiet hours'
+-- One plain name for each session window everywhere (PM 2026-11-19, #1113: 'God Tier' means nothing to a beginner; one name on the Arena bar, /hours and the glossary). 10 keys x 5 locales; en equals the shipped defaults. ko/zh/ru/ar AI-drafted, not native-reviewed.
+--   God Tier -> Sunday window (Sun 15:00-19:00 UTC)   Prime -> Evening window (daily 18:00-21:00 UTC)   Dead Zone -> Quiet hours (weekdays 04:00-07:00 UTC). The /hours Sunday badge (HOURS_WIN_GOD_BADGE, 'LOW VOLUME') is not a name and is unchanged.
 --
 -- ===================== PROD =====================
 insert into lhq_labels (key, locale, value) values
@@ -19,7 +19,42 @@ insert into lhq_labels (key, locale, value) values
 ('SESSION_NAME_DEAD','ko','조용한 시간'),
 ('SESSION_NAME_DEAD','zh','清淡时段'),
 ('SESSION_NAME_DEAD','ru','Тихие часы'),
-('SESSION_NAME_DEAD','ar','ساعات هادئة')
+('SESSION_NAME_DEAD','ar','ساعات هادئة'),
+('HOURS_DEAD_ZONE_MSG','en','Quiet hours window'),
+('HOURS_DEAD_ZONE_MSG','ko','조용한 시간대'),
+('HOURS_DEAD_ZONE_MSG','zh','清淡时段'),
+('HOURS_DEAD_ZONE_MSG','ru','Окно тихих часов'),
+('HOURS_DEAD_ZONE_MSG','ar','نافذة الساعات الهادئة'),
+('HOURS_OUTSIDE_PRIME','en','Outside the evening window'),
+('HOURS_OUTSIDE_PRIME','ko','저녁 구간 밖'),
+('HOURS_OUTSIDE_PRIME','zh','晚间时段之外'),
+('HOURS_OUTSIDE_PRIME','ru','Вне вечернего окна'),
+('HOURS_OUTSIDE_PRIME','ar','خارج نافذة المساء'),
+('HOURS_SEG_PRIME','en','EVENING'),
+('HOURS_SEG_PRIME','ko','저녁'),
+('HOURS_SEG_PRIME','zh','晚间'),
+('HOURS_SEG_PRIME','ru','ВЕЧЕР'),
+('HOURS_SEG_PRIME','ar','المساء'),
+('HOURS_DOT_DEAD_ZONE','en','· Quiet hours'),
+('HOURS_DOT_DEAD_ZONE','ko','· 조용한 시간'),
+('HOURS_DOT_DEAD_ZONE','zh','· 清淡时段'),
+('HOURS_DOT_DEAD_ZONE','ru','· Тихие часы'),
+('HOURS_DOT_DEAD_ZONE','ar','· ساعات هادئة'),
+('HOURS_WIN_PRIME_BADGE','en','EVENING'),
+('HOURS_WIN_PRIME_BADGE','ko','저녁'),
+('HOURS_WIN_PRIME_BADGE','zh','晚间'),
+('HOURS_WIN_PRIME_BADGE','ru','ВЕЧЕР'),
+('HOURS_WIN_PRIME_BADGE','ar','المساء'),
+('HOURS_WIN_DEAD_BADGE','en','QUIET HOURS'),
+('HOURS_WIN_DEAD_BADGE','ko','조용한 시간'),
+('HOURS_WIN_DEAD_BADGE','zh','清淡时段'),
+('HOURS_WIN_DEAD_BADGE','ru','ТИХИЕ ЧАСЫ'),
+('HOURS_WIN_DEAD_BADGE','ar','ساعات هادئة'),
+('SESSION_COUNTDOWN_DEAD_ZONE','en','QUIET HOURS'),
+('SESSION_COUNTDOWN_DEAD_ZONE','ko','조용한 시간'),
+('SESSION_COUNTDOWN_DEAD_ZONE','zh','清淡时段'),
+('SESSION_COUNTDOWN_DEAD_ZONE','ru','ТИХИЕ ЧАСЫ'),
+('SESSION_COUNTDOWN_DEAD_ZONE','ar','ساعات هادئة')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
 
 -- ===================== DEV =====================
@@ -38,5 +73,40 @@ insert into lhq_dev_labels (key, locale, value) values
 ('SESSION_NAME_DEAD','ko','조용한 시간'),
 ('SESSION_NAME_DEAD','zh','清淡时段'),
 ('SESSION_NAME_DEAD','ru','Тихие часы'),
-('SESSION_NAME_DEAD','ar','ساعات هادئة')
+('SESSION_NAME_DEAD','ar','ساعات هادئة'),
+('HOURS_DEAD_ZONE_MSG','en','Quiet hours window'),
+('HOURS_DEAD_ZONE_MSG','ko','조용한 시간대'),
+('HOURS_DEAD_ZONE_MSG','zh','清淡时段'),
+('HOURS_DEAD_ZONE_MSG','ru','Окно тихих часов'),
+('HOURS_DEAD_ZONE_MSG','ar','نافذة الساعات الهادئة'),
+('HOURS_OUTSIDE_PRIME','en','Outside the evening window'),
+('HOURS_OUTSIDE_PRIME','ko','저녁 구간 밖'),
+('HOURS_OUTSIDE_PRIME','zh','晚间时段之外'),
+('HOURS_OUTSIDE_PRIME','ru','Вне вечернего окна'),
+('HOURS_OUTSIDE_PRIME','ar','خارج نافذة المساء'),
+('HOURS_SEG_PRIME','en','EVENING'),
+('HOURS_SEG_PRIME','ko','저녁'),
+('HOURS_SEG_PRIME','zh','晚间'),
+('HOURS_SEG_PRIME','ru','ВЕЧЕР'),
+('HOURS_SEG_PRIME','ar','المساء'),
+('HOURS_DOT_DEAD_ZONE','en','· Quiet hours'),
+('HOURS_DOT_DEAD_ZONE','ko','· 조용한 시간'),
+('HOURS_DOT_DEAD_ZONE','zh','· 清淡时段'),
+('HOURS_DOT_DEAD_ZONE','ru','· Тихие часы'),
+('HOURS_DOT_DEAD_ZONE','ar','· ساعات هادئة'),
+('HOURS_WIN_PRIME_BADGE','en','EVENING'),
+('HOURS_WIN_PRIME_BADGE','ko','저녁'),
+('HOURS_WIN_PRIME_BADGE','zh','晚间'),
+('HOURS_WIN_PRIME_BADGE','ru','ВЕЧЕР'),
+('HOURS_WIN_PRIME_BADGE','ar','المساء'),
+('HOURS_WIN_DEAD_BADGE','en','QUIET HOURS'),
+('HOURS_WIN_DEAD_BADGE','ko','조용한 시간'),
+('HOURS_WIN_DEAD_BADGE','zh','清淡时段'),
+('HOURS_WIN_DEAD_BADGE','ru','ТИХИЕ ЧАСЫ'),
+('HOURS_WIN_DEAD_BADGE','ar','ساعات هادئة'),
+('SESSION_COUNTDOWN_DEAD_ZONE','en','QUIET HOURS'),
+('SESSION_COUNTDOWN_DEAD_ZONE','ko','조용한 시간'),
+('SESSION_COUNTDOWN_DEAD_ZONE','zh','清淡时段'),
+('SESSION_COUNTDOWN_DEAD_ZONE','ru','ТИХИЕ ЧАСЫ'),
+('SESSION_COUNTDOWN_DEAD_ZONE','ar','ساعات هادئة')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
