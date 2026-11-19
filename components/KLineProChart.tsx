@@ -3239,7 +3239,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           { name: entry.id, calcParams },
           entry.pane === 'own'
             ? { pane: { id: `strat_${key.toLowerCase()}`, height: 90, minHeight: 30 } }
-            : { pane: { id: 'candle_pane' } },
+            /* STACKED, so two or three candle-pane indicators (SMA / SAR / Bollinger) all draw (QA indicators matrix #1263, D1 HIGH: without isStack klinecharts removes the pane's earlier indicator when another is created, so choosing two or more drew only the LAST while the chips of all read pressed). */
+            : { isStack: true, pane: { id: 'candle_pane' } },
         );
         /* NULL, NOT A THROW. `createIndicator` returns `Nullable<string>` and
          * gives back null for a name klinecharts does not know - it does not

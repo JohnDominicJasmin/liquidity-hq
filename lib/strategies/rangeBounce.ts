@@ -38,7 +38,8 @@ export function detectRangeBounce(candles: readonly OHLCV[], _ctx: StrategyConte
   const n = candles.length;
   if (n < MIN_CANDLES) return WAIT;
   const range = currentRange(candles);
-  if (!range) return WAIT;
+  /* NO RANGE SAYS SO (QA drawings audit #1263): the call box reads "No range found..." instead of a bare "No bounce" with nothing drawn. */
+  if (!range) return { ...WAIT, params: { none: true } };
   const { high, low, w } = range;
   const win = candles.slice(0, -1).slice(-RANGE_BARS);
   const tol = TOUCH_FRAC * w;
@@ -63,6 +64,7 @@ export const RANGE_BOUNCE: StrategyDef = {
   reasonBuyKey: 'STRAT_RANGE_BUY',
   reasonSellKey: 'STRAT_RANGE_SELL',
   reasonWaitKey: 'STRAT_RANGE_WAIT',
+  reasonKeyFor: r => (r.params.none ? 'STRAT_RANGE_WAIT_NONE' : null),
   minCandles: MIN_CANDLES,
   chips: [],
   logTfs: ['15m', '1h', '4h'],
