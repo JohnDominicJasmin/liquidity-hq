@@ -125,6 +125,8 @@ export default function ResetPasswordPage() {
                 onChange={setPassword}
                 autoComplete="new-password"
                 showRules
+                invalid={!!error}
+                describedBy="reset-error"
               />
               <PasswordField
                 label={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
@@ -134,6 +136,8 @@ export default function ResetPasswordPage() {
                    others-call made that window up to ~8 s longer. Guarded here, beside the button's own `disabled={loading}`. */
                 onEnter={() => { if (!loading) void submit(); }}
                 autoComplete="new-password"
+                invalid={!!error}
+                describedBy="reset-error"
               />
               <button
                 className="login-email-btn"
@@ -144,7 +148,7 @@ export default function ResetPasswordPage() {
               </button>
             </div>
 
-            {error && <div className="login-error" data-testid="login-error">{error}</div>}
+            {error && <div className="login-error" id="reset-error" data-testid="login-error" role="alert">{error}</div>}
           </>
         )}
       </div>
