@@ -1796,12 +1796,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const y0 = Math.min(a.y, b.y), h = Math.abs(a.y - b.y);
             if (x1 <= x0) return [];
             const ink = resolveCssColor(kind === 'demand' ? 'var(--green)' : 'var(--red)');
-            /* THE LABEL SITS AT THE ZONE'S RIGHT END (QA visual, tracker 1263 box 9): at the left corner above the top it sat on the EMA Buy triangle of the impulse candle that leaves the zone. Demand: above
-               the top edge, right-aligned. Supply mirrors it: under the bottom edge, right-aligned. */
+            /* THE LABEL SITS AT THE ZONE'S FAR EDGE, RIGHT END (#1263 box 9, then box 91). The Buy / Sell triangle of the signal candle sits on the PRICE side of the zone (a long's marker is below the candle's low, which is
+               just above a demand zone's top), so a label above a demand zone's top covered it (box 91, "Demand" on top of the Buy marker). Demand: under the BOTTOM edge, right-aligned. Supply mirrors it: above the TOP
+               edge, right-aligned. Neither covers the marker, which is on the other side. */
             const demand = kind === 'demand';
             return [
               { type: 'rect', attrs: { x: x0, y: y0, width: x1 - x0, height: Math.max(h, 1) }, styles: { style: 'stroke_fill', color: withAlpha(ink, 0.14), borderColor: ink, borderSize: 1 } },
-              { type: 'text', attrs: { x: x1 - 4, y: demand ? y0 - 3 : y0 + Math.max(h, 1) + 3, text, align: 'right', baseline: demand ? 'bottom' : 'top' }, styles: { color: ink, size: 10, weight: '700' } },
+              { type: 'text', attrs: { x: x1 - 4, y: demand ? y0 + Math.max(h, 1) + 3 : y0 - 3, text, align: 'right', baseline: demand ? 'top' : 'bottom' }, styles: { color: ink, size: 10, weight: '700' } },
             ];
           },
         });
