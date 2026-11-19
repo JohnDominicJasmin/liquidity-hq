@@ -236,6 +236,8 @@ export function withWatchedDrawing(def: StrategyDef, result: StrategyResult, can
   const base = lastClose != null && Number.isFinite(lastClose) ? { ...result, lastClose } : result;
   if (result.verdict !== 'wait' || !empty(result.overlay)) return base;
   const w = watchedDrawing(def.id, candles, ctx);
+  /* A FAIR VALUE GAP WITH NO OPEN GAP says so (QA drawings audit #1263: fvg 1h drew only past arrows and no box): every recent gap has been returned to or filled, so the call box reads "No open gap..." instead of a bare wait. */
+  if (def.id === 'fvg' && openGapBoxes(candles).length === 0) return { ...(w ? { ...base, overlay: w } : base), params: { ...base.params, none: true } };
   return w ? { ...base, overlay: w } : base;
 }
 
