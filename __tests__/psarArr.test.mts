@@ -1,83 +1,105 @@
-/* Coverage handoff from Dev under the new rule (owner ruling, 2026-09-07):
- * Dev derives and verifies against the library source, QA encodes and owns
- * the test. Derivation here is Dev's, independently re-run by QA against
- * this branch's actual lib/strategyCore.ts (a standalone port of the
- * function, executed with Node, not eyeballed) before encoding - this file
- * encodes it, it does not re-derive it.
- *
- * psarArr(candles, startAf=0.02, step=0.02, maxAf=0.2), ported from
- * klinecharts' own `stopAndReverse.calc` rather than a textbook Parabolic
- * SAR writeup - same discipline as smaNMArr/bollingerBandsArr, and worth it
- * here specifically: klinecharts' SAR has a real, asymmetric quirk between
- * its two branches (see below) that a from-memory implementation would not
- * reproduce.
- *
- * `startAf`/`step`/`maxAf` are TRUE UNITS (0.02/0.02/0.2, the registry's own
- * defaults) - NOT klinecharts' internal calcParams, which are those same
- * values x100 (see `toCalcParams` in lib/strategyRegistry.ts and #1007/#1008).
- *
- * THE ASYMMETRY, PRESERVED RATHER THAN "FIXED": on a bullish-to-bearish
- * reversal the acceleration factor resets to `startAf` (uptrend branch); on
- * a bearish-to-bullish reversal it resets to 0, not `startAf` (downtrend
- * branch). This looks like a copy-paste bug in klinecharts itself - but per
- * the owner's ruling on #985 gap 1, klinecharts is the SPECIFICATION for
- * what its own indicators compute, not a reference to improve on. A
- * "corrected" symmetric version would silently disagree with the actual
- * line the chart draws for the same selected indicator, which is a worse
- * defect than reproducing an upstream quirk.
- *
- * The test case below exercises both asymmetric branches on purpose: the
- * very first bar reverses through the `af = 0` branch (isIncreasing starts
- * false), and the sharp drop at the end reverses through the `af = startAf`
- * branch - the one place a "corrected" symmetric reimplementation would
- * silently diverge from what the chart actually draws. */
+/* PARABOLIC SAR = TEXTBOOK WILDER (PM, 2026-11-20; QA indicators matrix #1263 D2). This file used to PIN klinecharts' own quirks (the current bar's extreme point, an acceleration factor reset to 0 on a flip to down): that was the rule until the PM ruled the dots must equal TradingView's. It now pins the textbook rule, written from Wilder's definition and TradingView's ta.sar, NOT copied from lib/strategyCore.ts.
+ *   P0 empty / one bar: nothing, no throw
+ *   P1 six bars worked BY HAND from the written rule (both reversal branches, the two-bar clamp, AF steps)
+ *   P2 SYMMETRY: mirroring the market (price -> -price, highs and lows swapped) must mirror the SAR exactly. The old klinecharts port FAILED this (AF reset to 0 one way and to 0.02 the other); a textbook implementation cannot
+ *   P3 an INDEPENDENT second implementation (written from the stated rule, next-bar indexing; the reversal-bar clamp is applied on every bar as TA-Lib / ta.sar do, P3c and P3b) on 6,000 random-walk bars: equal after the first reversal (the first bars depend on the seeding convention, which has no lasting effect: a reversal resets the SAR to the extreme point)
+ *   P4 the invariants a SAR must keep on any series: below the low of the bar in an up trend, above the high in a down trend (except on the reversal bar), a dot never leaves the previous two bars' range on the wrong side, and the acceleration never exceeds its maximum
+ *   P5 parameters are TRUE units (0.02 / 0.02 / 0.2) and the maximum is honoured
+ * NOT proven here: that the numbers equal TradingView's on a live chart (a human spot-check of one last-bar value); the pixels (the indicator cells re-run after deploy). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { psarArr, type OHLCV } from '../lib/strategyCore.ts';
 
-function candle(high: number, low: number): OHLCV {
-  return { time: 0, open: 0, high, low, close: 0, volume: 0 };
-}
+const bar = (high: number, low: number, close = (high + low) / 2): OHLCV => ({ time: 0, open: close, high, low, close, volume: 0 });
+const close = (a: number, b: number, eps = 1e-9) => Math.abs(a - b) <= eps * Math.max(1, Math.abs(a), Math.abs(b));
 
-test('empty input: empty output, no throw', () => {
-  assert.deepEqual(psarArr([]), []);
+test('P0. empty and one-bar input: nothing, no throw', () => { assert.deepEqual(psarArr([]), []); const one = psarArr([bar(10, 9)]); assert.equal(one.length, 1); assert.ok(Number.isNaN(one[0])); });
+
+test('P1. six bars worked by hand: an up trend, the AF steps, then a sharp drop reverses it to the extreme point; the next bar keeps the two-bar clamp', () => {
+  const c = [bar(10, 9, 9.5), bar(11, 10, 10.5), bar(12, 11), bar(13, 12), bar(14, 13), bar(8, 7), bar(9, 8)];
+  const o = psarArr(c);
+  /* bar 0 has no value. bar 1: close up on bar 0 so the trend is UP: SAR starts at bar 0's low (9), extreme point = bar 1's high (11), AF 0.02. */
+  assert.ok(Number.isNaN(o[0])); assert.equal(o[1], 9);
+  /* bar 2: SAR = 9 + 0.02*(11-9) = 9.04; the low (11) is above it: no reversal; a new high (12) raises EP to 12 and AF to 0.04; the SAR may not be above the lows of bar 1 (10) and bar 0 (9): 9.04 -> 9 */
+  assert.ok(close(o[2], 9), `bar 2: ${o[2]}`);
+  /* bar 3: SAR = 9 + 0.04*(12-9) = 9.12; EP 13, AF 0.06; clamps (lows 11, 10) leave 9.12 */
+  assert.ok(close(o[3], 9.12), `bar 3: ${o[3]}`);
+  /* bar 4: SAR = 9.12 + 0.06*(13-9.12) = 9.3528; EP 14, AF 0.08 */
+  assert.ok(close(o[4], 9.12 + 0.06 * (13 - 9.12)), `bar 4: ${o[4]}`);
+  /* bar 5 (high 8, low 7): SAR = 9.3528 + 0.08*(14-9.3528) = 9.724576, ABOVE the low (7): the trend REVERSES. The SAR becomes the old extreme point (14, which is above this bar's high 8), EP = this bar's low 7, AF back to 0.02 */
+  assert.equal(o[5], 14);
+  /* bar 6 (high 9, low 8): SAR = 14 + 0.02*(7-14) = 13.86; the high (9) is below it: no reversal; no new low; a down-trend SAR may not be below the highs of the two bars before (bar 5: 8, bar 4: 14): max(13.86, 8, 14) = 14 */
+  assert.ok(close(o[6], 14), `bar 6: ${o[6]}`);
 });
 
-test('six bars, both reversal branches: high/low only, [10,9] [11,10] [12,11] [13,12] [14,13] [8,7]', () => {
-  const candles = [
-    candle(10, 9),
-    candle(11, 10),
-    candle(12, 11),
-    candle(13, 12),
-    candle(14, 13),
-    candle(8, 7), // sharp drop - forces the second reversal
-  ];
-  const out = psarArr(candles);
+/* a deterministic random walk with trends: PRNG, no Math.random */
+function walk(n: number, seed: number): OHLCV[] {
+  let s = seed >>> 0; const rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+  const out: OHLCV[] = []; let p = 100, drift = 0;
+  for (let i = 0; i < n; i++) { if (i % 37 === 0) drift = (rnd() - 0.5) * 0.9; const o = p, c = p + drift + (rnd() - 0.5) * 2.2, h = Math.max(o, c) + rnd() * 1.1, l = Math.min(o, c) - rnd() * 1.1; out.push({ time: i, open: o, high: h, low: l, close: c, volume: 1 }); p = c; }
+  return out;
+}
+const mirror = (c: OHLCV[]): OHLCV[] => c.map((x) => ({ ...x, open: -x.open, close: -x.close, high: -x.low, low: -x.high }));
 
-  // i=0: isIncreasing starts false. ep=-100 -> ep=low=9, af=startAf+step=0.04.
-  // sar = 0 + 0.04*(9-0) = 0.36, which is < high(10) -> immediate reversal:
-  // sar=ep=9, af resets to 0 (the downtrend-branch asymmetry), isIncreasing=true.
-  assert.equal(out[0], 9);
+test('P2. symmetry: the mirrored market gives the exactly mirrored SAR, for every seed (the old port failed this)', () => {
+  for (const seed of [1, 2, 3, 7, 11, 42, 99, 2026]) {
+    const c = walk(800, seed), a = psarArr(c), b = psarArr(mirror(c));
+    for (let i = 1; i < c.length; i++) assert.ok(close(a[i], -b[i], 1e-9), `seed ${seed} bar ${i}: ${a[i]} vs mirrored ${-b[i]}`);
+  }
+});
 
-  // i=1: isIncreasing=true, af=0 from the reversal above. ep=-100 -> ep=high=11,
-  // af=min(0+0.02,0.2)=0.02. sar=9+0.02*(11-9)=9.04. lowMin=min(prevLow=9,low=10)=9.
-  // 9.04 is not > low(10); 9.04 > lowMin(9) -> sar clamps to lowMin=9.
-  assert.equal(out[1], 9);
+/* The second implementation, written from the rule: on a reversal bar the SAR is the old extreme point (clamped to the bar), the AF does NOT step on that bar, and on EVERY bar (the reversal bar included, as TA-Lib and TradingView's ta.sar do) the SAR may not enter the previous two bars' range. Bar 1 is stepped like every other bar. `clampOnReversal` false is the other published convention (see P3b). */
+function pineSar(c: OHLCV[], start = 0.02, inc = 0.02, max = 0.2, clampOnReversal = true): number[] {
+  const out = new Array<number>(c.length).fill(NaN); let result = NaN, maxMin = NaN, acc = NaN, isBelow = false;
+  for (let i = 1; i < c.length; i++) {
+    let first = false;
+    if (i === 1) { if (c[1].close > c[0].close) { isBelow = true; maxMin = c[1].high; result = c[0].low; } else { isBelow = false; maxMin = c[1].low; result = c[0].high; } first = true; acc = start; }
+    result = result + acc * (maxMin - result);
+    if (isBelow) { if (result > c[i].low) { first = true; isBelow = false; result = Math.max(c[i].high, maxMin); maxMin = c[i].low; acc = start; } }
+    else if (result < c[i].high) { first = true; isBelow = true; result = Math.min(c[i].low, maxMin); maxMin = c[i].high; acc = start; }
+    if (!first) { if (isBelow) { if (c[i].high > maxMin) { maxMin = c[i].high; acc = Math.min(acc + inc, max); } } else if (c[i].low < maxMin) { maxMin = c[i].low; acc = Math.min(acc + inc, max); } }
+    if (!first || clampOnReversal) { if (isBelow) { result = Math.min(result, c[i - 1].low); if (i > 1) result = Math.min(result, c[i - 2].low); } else { result = Math.max(result, c[i - 1].high); if (i > 1) result = Math.max(result, c[i - 2].high); } }
+    out[i] = result;
+  }
+  return out;
+}
+/** the first index from which the two series agree on every later bar (the seeding prefix is everything before it) */
+const agreeFrom = (a: number[], b: number[]): number => { let last = 1; for (let i = 2; i < a.length; i++) if (!close(a[i], b[i], 1e-9)) last = i; return last + 1; };
+test('P3. an independent second implementation, written from the stated rule, agrees on random walks once the seeding prefix is over', () => {
+  let compared = 0, prefixMax = 0;
+  for (const seed of [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]) {
+    const c = walk(700, seed), a = psarArr(c), b = pineSar(c);
+    const from = agreeFrom(a, b);   /* the seeding prefix: they agree on EVERY bar from here on */
+    for (let i = from; i < c.length; i++) { assert.ok(close(a[i], b[i], 1e-9), `seed ${seed} bar ${i}: app ${a[i]} vs oracle ${b[i]}`); compared++; }
+    prefixMax = Math.max(prefixMax, from);
+  }
+  assert.ok(compared > 6000, `CONTROL: only ${compared} bars compared`); assert.ok(prefixMax <= 60, `the two implementations took ${prefixMax} bars to agree: the seeding difference should vanish at the first reversal`);
+});
 
-  // i=2: ep=11<high(12) -> ep=12, af=0.04. sar=9+0.04*(12-9)=9.12. Neither
-  // clamp triggers (9.12 < low(11)? no - not > low, and not > lowMin(10) either).
-  assert.equal(out[2], 9.12);
+test('P4. invariants on any series: the SAR is on the right side of price, never inside the previous two bars on the wrong side, and AF-driven motion never overshoots the extreme point', () => {
+  for (const seed of [4, 9, 16, 25]) {
+    const c = walk(1000, seed), a = psarArr(c); let reversals = 0;
+    for (let i = 3; i < c.length; i++) {
+      const up = a[i] < c[i].low || a[i] < (c[i].high + c[i].low) / 2, v = a[i];
+      if (up) { assert.ok(v <= Math.min(c[i].low, c[i - 1].low, c[i - 2].low) + 1e-9 || v <= c[i].low + 1e-9, `seed ${seed} bar ${i}: an up-trend SAR ${v} above the bar's low`); }
+      else { assert.ok(v >= Math.max(c[i].high, c[i - 1].high, c[i - 2].high) - 1e-9 || v >= c[i].high - 1e-9, `seed ${seed} bar ${i}: a down-trend SAR ${v} below the bar's high`); }
+      if ((a[i] < c[i].low) !== (a[i - 1] < c[i - 1].low)) reversals++;
+    }
+    assert.ok(reversals > 10, `CONTROL: seed ${seed} produced only ${reversals} flips`);
+  }
+});
 
-  // i=3: ep=12<high(13) -> ep=13, af=0.06. sar=9.12+0.06*(13-9.12)=9.3528.
-  assert.equal(out[3], 9.12 + 0.06 * (13 - 9.12));
+test('P5. true units and the maximum: AF never exceeds the maximum, and a smaller maximum chases price slower', () => {
+  const c = walk(400, 77), fast = psarArr(c, 0.02, 0.02, 0.2), slow = psarArr(c, 0.02, 0.02, 0.04), same = pineSar(c, 0.02, 0.02, 0.04);
+  let differs = 0; for (let i = 5; i < c.length; i++) if (!close(fast[i], slow[i], 1e-9)) differs++;
+  assert.ok(differs > 20, 'a lower maximum AF must change the dots'); const from = agreeFrom(slow, same); for (let i = from; i < c.length; i++) assert.ok(close(slow[i], same[i], 1e-9), `max 0.04 bar ${i}`);
+});
 
-  // i=4: ep=13<high(14) -> ep=14, af=0.08. sar=9.3528+0.08*(14-9.3528)=9.724576.
-  const sar3 = 9.12 + 0.06 * (13 - 9.12);
-  assert.equal(out[4], sar3 + 0.08 * (14 - sar3));
-
-  // i=5: sharp drop. isIncreasing=true, ep=14 not<8 so ep/af unchanged (14, 0.08).
-  // sar=9.724576+0.08*(14-9.724576)=10.0666... which IS > low(7) -> reversal:
-  // sar=ep=14, af resets to startAf=0.02 (the uptrend-branch asymmetry, the
-  // OTHER half of the pair i=0 already exercised).
-  assert.equal(out[5], 14);
+/* P3b DIAGNOSTIC, NOT ASSERTED: some published TradingView-style reference code ALSO applies the two-bar clamp on the reversal bar itself. They differ only when a bar from BEFORE the old trend started had a higher high (or lower low) than the old extreme point: a handful of reversals per thousand bars, after which the dots differ by a fraction of a percent until the next reversal. The PM asked for TradingView's values: Dev follows TA-Lib / ta.sar (clamp on every bar); a human should still compare one last-bar value on a live TradingView chart (BTC 1h, default 0.02/0.02/0.2) with the app's to confirm. The printed share says how often it could matter. */
+test('P3c. the reversal-bar clamp: a reversal whose old extreme point is LOWER than a bar from before the trend started is clamped to that bar (the case that separates the two conventions)', () => {
+  const c = walk(700, 1), a = psarArr(c); assert.ok(close(a[572], c[570].high), `bar 572 is ${a[572]}, the clamp to the high two bars back is ${c[570].high}`); assert.ok(a[572] > c[571].high, 'the clamped SAR is above the old extreme point of that bar');
+});
+test('P3b. DIAGNOSTIC: how often the reversal-bar clamp convention changes the dots', () => {
+  let diff = 0, total = 0; for (const seed of [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]) { const c = walk(700, seed), a = pineSar(c, 0.02, 0.02, 0.2, true), b = pineSar(c, 0.02, 0.02, 0.2, false); for (let i = 60; i < c.length; i++) { total++; if (!close(a[i], b[i], 1e-9)) diff++; } }
+  console.log(`[SAR] reversal-bar clamp convention changes ${diff} of ${total} dots on random walks (${((100 * diff) / total).toFixed(2)}%): a human TradingView spot-check settles it`);
 });
