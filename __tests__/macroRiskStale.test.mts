@@ -124,8 +124,8 @@ test('a stale calendar and an unmeasurable yield both report, neither hides the 
   const r = computeMacroRisk([], null, NOW, true, computeRealYield([], NOW));
   assert.equal(r.unknown, true);
   assert.equal(r.reasons.length, 2);
-  assert.ok(r.reasons.some(x => /Economic calendar is out of date/.test(x)));
-  assert.ok(r.reasons.some(x => /real yield unavailable/.test(x)));
+  assert.ok(r.reasons.some(x => /^Macro risk excludes the event calendar, which is out of date\.$/.test(x)), '#2695 (PM): the stale calendar says what the macro risk EXCLUDES, not what failed');
+  assert.ok(r.reasons.some(x => /^Macro risk excludes the 10Y real yield\.$/.test(x)), '#2695 (PM): the unmeasurable yield says what the macro risk EXCLUDES');
 });
 
 test('omitting the real yield reproduces the previous behaviour exactly', () => {
