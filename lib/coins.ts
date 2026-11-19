@@ -638,6 +638,13 @@ export function arenaPriceUnit(coin: string): number {
   return f > 0 && f < 1 ? 1 / f : 1;
 }
 
+/* A COIN WHOSE LIQUIDATION FEED COMES IN MIXED UNITS (PM, 2026-11-20, data-integrity rule): the liquidation rows keep each event's price raw, in the contract unit of the venue that reported it, and the clusters mix both venues. Where Bybit and Binance list the coin with a DIFFERENT multiplier
+ * (sats: Bybit 10000x, Binance 1000x; tag, toshi, turbo: Bybit 1000x, Binance per-token) one cluster list holds two scales, so the Arena draws no liquidation layer and quotes no liquidation note for it. Converting at ingest is tracked on #1651 (post-freeze). */
+export function liqUnitsMixed(coin: string): boolean {
+  const v = venueSymbols(coin);
+  return !!v.bybit && !!v.binance && symbolDenominationFactor(v.bybit) !== symbolDenominationFactor(v.binance);
+}
+
 export function chartDisplaySymbol(coin: string): string {
   /* THE PREFIX THE EXCHANGE LISTS THE PERP WITH (PM, 2026-11-20): 1000PEPE, 10000SATS, 1000000MOG, not a flat "1000". */
   const prefix = /^(\d+)/.exec(venueSymbols(coin).bybit ?? '')?.[1] ?? '';

@@ -17,7 +17,7 @@ import { getAuthToken } from '@/lib/supabase';
 import { drawStructureAvailable, DRAW_STRUCTURE_NOISY_TFS, type DrawableStructure } from '@/lib/drawStructure';
 import { computeSRLevels, type SRLevel } from '@/lib/srLevels';
 import { detectChannel, SR_BAND_PCT } from '@/lib/strategies/channel';
-import { psarArr, type OHLCV } from '@/lib/strategyCore';
+import { psarArr, smaArr, type OHLCV } from '@/lib/strategyCore';
 import Tip from '@/components/Tip';
 import { barsAfter, TF_MS } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
@@ -1171,6 +1171,17 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           const [a0, a1, a2] = indicator.calcParams;
           const vals = psarArr(dataList.map(d => ({ time: d.timestamp, open: d.open, high: d.high, low: d.low, close: d.close, volume: d.volume ?? 0 })), a0 / 100, a1 / 100, a2 / 100);
           return vals.map(v => (Number.isFinite(v) ? { sar: v } : {}));
+        },
+      });
+
+      /* THE SMA LINE IS A ROLLING MEAN, AS ITS NAME SAYS (#1007; PM, 2026-11-20, QA indicators matrix: "draws EMA(12)"): klinecharts' own 'SMA' is the recursive SMA(N,M), which at its defaults IS EMA(12), while the verdict gating, the AI's reading and the blurb ("Simple moving average") already
+         use the rolling mean of the last N closes. A custom indicator registered under the same name replaces the built-in and draws smaArr (lib/strategyCore.ts) of the closes over ONE parameter, the length (default 12), so the line, the read and the gate are one calculation. */
+      (kc as unknown as { registerIndicator: (i: unknown) => void }).registerIndicator({
+        name: 'SMA', shortName: 'SMA', series: 'price', calcParams: [12], precision: 2, shouldOhlc: true,
+        figures: [{ key: 'sma', title: 'SMA: ', type: 'line' }],
+        calc: (dataList: Array<{ close: number }>, indicator: { calcParams: number[] }) => {
+          const len = Math.max(2, Math.round(indicator.calcParams[0] ?? 12));
+          return smaArr(dataList.map(d => d.close), len).map(v => (Number.isFinite(v) ? { sma: v } : {}));
         },
       });
 
