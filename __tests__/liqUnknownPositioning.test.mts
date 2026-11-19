@@ -68,8 +68,9 @@ test('U2b. THE BAR ELEMENT IS OMITTED on a row with no amount, not merely zero-w
   assert.match(gated, /Math\.max\(b\.barPct, 2\)/,
     'the 2% floor is no longer inside the gated element - check where it moved before trusting this row');
 
-  /* The amount column's dash is the other half of the same row, and it is cheap to pin here. */
-  assert.match(body, /b\.usdM === null \? '-'/, 'the amount column no longer renders "-" for an unknown amount');
+  /* The amount column is the other half of the same row, and it is cheap to pin here. #2693 (owner's zero-failure-text rule): an unknown amount is BLANK, no longer a dash. */
+  assert.match(body, /b\.usdM === null \? ''/, 'the amount column does not render blank for an unknown amount');
+  assert.equal(/b\.usdM === null \? '[-\u2013]'/.test(body), false, 'a dash is back in the amount column for an unknown amount');
 });
 
 test('U3. no split: no magnet is crowned and no totals are claimed', () => {

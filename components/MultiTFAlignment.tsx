@@ -231,6 +231,9 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
   const verdictBorder = noData ? 'var(--bdr)' : verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 40%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 40%, transparent)' : verdict === 'conflicting' ? 'color-mix(in srgb, var(--amber) 40%, transparent)' : 'var(--border-input)';
   const verdictBg = noData ? 'transparent' : verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 10%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 10%, transparent)' : verdict === 'conflicting' ? 'color-mix(in srgb, var(--amber) 10%, transparent)' : 'transparent';
 
+  /* NOTHING TO SHOW AFTER THE WAIT: THE CARD IS LEFT OUT (QA signed-out matrix 2020-11-20, owner's zero-failure-text rule): it said "No data" over rows of dashes and "RSI readings unavailable right now". Every hook above has run, so returning here is safe. */
+  if (noDataShown) return null;
+
   const footerText = loadingState
     ? ''
     : noData

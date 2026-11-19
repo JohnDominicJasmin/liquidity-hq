@@ -99,7 +99,7 @@ function BandRow({ b }: { b: Band }) {
           boxShadow: b.isMagnet ? `0 0 10px ${withAlpha(accent, '44')}` : 'none',
         }} />}
       </div>
-      <span className="liq-row-usd" role="cell" style={{ color: b.usdM === null ? 'var(--txt3)' : accent }}>{b.usdM === null ? '-' : fmtM(b.usdM)}</span>
+      <span className="liq-row-usd" role="cell" style={{ color: b.usdM === null ? 'var(--txt3)' : accent }}>{b.usdM === null ? '' : fmtM(b.usdM)}</span>
     </div>
   );
 }
