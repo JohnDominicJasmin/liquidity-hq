@@ -45,7 +45,7 @@ export function formatClustersForPrompt<T extends { coin: string; price: number;
   limit: number = LIQ_CLUSTER_LINES,
 ): string {
   /* A coin whose liquidation feed comes in mixed units is not quoted (PM, 2026-11-20, lib/coins.ts liqUnitsMixed). */
-  if (liqUnitsMixed(coin)) return 'Not available for this coin (levels come in mixed units)';
+  if (liqUnitsMixed(coin)) return 'Not used for this coin (levels come in mixed units)';
   const top = topClustersForCoin(buckets, coin, limit);
   if (top.length === 0) return 'Not available';
   return top
