@@ -60,10 +60,11 @@ function barless(): (p: string) => boolean {
   const authRoutes = [...auth[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
   assert.ok(authRoutes.includes('/login'), 'CONTROL: AUTH_ROUTES no longer lists /login');
   assert.match(src, /const isChromeless = \(pathname: string\) => pathname === '\/ops' \|\| pathname\.startsWith\('\/ops\/'\);/, 'CONTROL: the chromeless (/ops) rule changed shape - re-derive the bar-less list');
-  // The two pages proxy.ts sends to /dashboard never render at all.
-  const proxy = read('proxy.ts').match(/matcher:\s*\[([^\]]*)\]/);
-  assert.ok(proxy, 'CONTROL: proxy.ts has no matcher');
+  // The two pages proxy.ts sends to /dashboard never render at all: read from its BLOCKED set (the matcher is wide since #2636, the team-only gate, so it no longer names them).
+  const proxy = read('proxy.ts').match(/const BLOCKED = new Set\(\[([^\]]*)\]\)/);
+  assert.ok(proxy, 'CONTROL: proxy.ts has no BLOCKED set');
   const redirected = [...proxy[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  assert.deepEqual(redirected, ['/backtest', '/live-tracking'], 'CONTROL: the hidden pages changed');
   return (p) => rendersOwnNav(p) || authRoutes.includes(p) || p === '/ops' || p.startsWith('/ops/') || redirected.includes(p);
 }
 

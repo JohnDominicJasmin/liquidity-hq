@@ -1087,6 +1087,10 @@ jobs:
           # run is NOT the same measurement as the gate run.
           E2E_BASE_URL: ${{ inputs.base_url }}
 
+          # THE TEAM-ONLY GATE (#2636): dev, qa and staging answer 401 without this password. Empty until the owner's secret exists, and then playwright.config.ts sends it (as HTTP Basic, to the origin under test only,
+          # never to production). An empty secret changes nothing: the config adds no credentials.
+          SITE_GATE_PASSWORD: ${{ secrets.SITE_GATE_PASSWORD }}
+
           # ── RELEASE-GATE EXCHANGE STUB (#1259) ──────────────────────────────
           #
           # ⚠️ THIS BLOCK'S PREMISE CHANGED ON 2026-10-29. It said "this job only

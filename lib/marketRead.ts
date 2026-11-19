@@ -187,7 +187,8 @@ export function computeMarketRead(store: MarketStore, manualFund: FundingSide | 
   factors.push({ key: 'fng', label: 'Fear & Greed', value: fngLabel, sub: fng == null ? undefined : String(fng) });
   factors.push({ key: 'day', label: 'Day', value: dayLabel });
   factors.push({ key: 'fund', label: 'Funding', value: fundLabel });
-  factors.push({ key: 'sm', label: 'Smart money', value: sm.label, sub: `${sm.total > 0 ? '+' : ''}${sm.total}/${sm.max}` });
+  /* A WORD ONLY, no "+1/10" (#1185, PM audit 2026-11-17): the denominator changed from one read to the next and nothing said what was counted. */
+  factors.push({ key: 'sm', label: 'Smart money', value: sm.label });
 
   return { pending, missing, score, band, verdict, sub, factors, fundingSide, autoFundingSide, contrarian: computeContrarian(store) };
 }

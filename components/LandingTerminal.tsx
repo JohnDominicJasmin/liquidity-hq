@@ -104,7 +104,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
 
   /* THE CLOCK IS THE CLIENT'S, AND IT TICKS (#1651).
 
-     It is the visitor's own wall clock, set only after mount: `new Date()` in the markup ran on the SERVER during the first render, so a visitor in Manila briefly saw a London time.
+     It is the visitor's own wall clock, set only after mount: `new Date()` in the markup ran on the SERVER during the first render, so a visitor in another timezone briefly saw the server's time.
 
      IT USED TO BE READ ONLY WHEN THIS COMPONENT RE-RENDERED, which is whenever the market store updates. A quiet or throttled store (a background or idle tab, a slow feed) meant no re-render, so the line could sit an hour
      behind real time on the front page (QA: 16:50 at about 17:55Z). It now has its own state, refreshed every 30 seconds and the moment the tab becomes visible again, so what it shows is never more than about
@@ -151,7 +151,10 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
     weak_up:     { txt: lr.oiTrend.weak_up,     col: 'var(--txt)' },
     weak_down:   { txt: lr.oiTrend.weak_down,   col: 'var(--txt)' },
   };
-  const oiRow = d?.oiTrend ? oiTrendTxt[d.oiTrend] : null;
+  /* THE SAME HOUR AS THE "OI 1h" ROW BELOW (#1185, PM audit 2026-11-17: "OI trend: Strong up" beside "OI 1h: -1.23%, short covering"): when the 1h samples carry both the OI and the price change, the trend word comes from them; the store's trend is the fallback while they do not. */
+  const oi1hBoth = oi1h.pct != null && oi1h.pricePct != null;
+  const oiTrendFrom1h = oi1hBoth ? oiTrend1h(oi1h.pct, oi1h.pricePct) : null;
+  const oiRow = oi1hBoth ? (oiTrendFrom1h ? oiTrendTxt[oiTrendFrom1h] : null) : (d?.oiTrend ? oiTrendTxt[d.oiTrend] : null);
 
   const fr = d?.fundingRate;
   const frInfo = fr != null ? classifyFunding(fr) : null;

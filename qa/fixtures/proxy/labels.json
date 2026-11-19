@@ -806,7 +806,7 @@
     "LIQ_LEGEND_MAGNET_BOLD": "Magnet",
     "LIQ_LEGEND_MAGNET_TEXT": "the largest estimated cluster in the selected window. The most likely price target for the next big move.",
     "LIQ_DISCLAIMER": "Model only - price levels are mathematically correct (1/leverage), bar widths and USD amounts show relative density across tiers modeled from open interest.",
-    "FUNDING_PAGE_TITLE": "Funding Rate History",
+    "FUNDING_PAGE_TITLE": "Funding",
     "FUNDING_PAGE_SUBTITLE": "8-hour settlement · red above zero = longs paying · green below = shorts paying",
     "FUNDING_REGIME_OVERVIEW_TIP": "A snapshot of every coin's current funding regime: crowded-short setups (squeeze candidates), crowded-long setups (dump risk), and coins whose funding rate is extreme enough to arbitrage.",
     "FUNDING_REGIME_OVERVIEW_LABEL": "Regime Overview",

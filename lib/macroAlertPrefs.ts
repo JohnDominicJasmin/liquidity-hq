@@ -17,7 +17,7 @@ export interface MacroChatPrefs {
   tzByChat: Map<string, string | null>;
 }
 
-/** "14:30 GMT+8" in the reader's zone; "06:30 UTC" when the zone is unknown or not a valid IANA name. */
+/** "14:30 GMT+2" (or "09:30 EST", "21:30 GMT+8": whatever the reader's zone is) in the reader's zone; "06:30 UTC" when the zone is unknown or not a valid IANA name. */
 export function eventTimeIn(iso: string, timeZone: string | null): string {
   const d = new Date(iso);
   const utc = () => d.toLocaleTimeString('en-GB', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' }) + ' UTC';
