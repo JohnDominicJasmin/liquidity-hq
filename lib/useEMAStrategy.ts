@@ -205,6 +205,8 @@ async function fetchBybitKlines(sym: string, interval: string, limit: number): P
   });
   if (d === null) throw new Error('Bybit klines failed after retry');
   const list = [...(d?.result?.list ?? [])].reverse();
+  /* NO CANDLES FROM A VENUE IS A FAILED READ, NOT "THE COIN HAS 0" (QA drawings audit #1263: BTC 1d said "BTC has 0"): throwing lets fetchOHLCV try the next venue, and only when all fail does the card say it could not read. */
+  if (!list.length) throw new Error('Bybit returned no candles');
   // 1000PEPEUSDT / 1000BONKUSDT are quoted per 1000 tokens. This feeds the
   // Arena EMA Signal card's entry / stop-loss / take-profit, which are shown as
   // dollar prices next to a ticker quoting per-token - so without this those
