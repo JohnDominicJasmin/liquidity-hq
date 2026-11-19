@@ -101,42 +101,66 @@ export function bollingerBandsArr(
   return result;
 }
 
-/* PARABOLIC SAR, TEXTBOOK WILDER (PM, 2026-11-20, QA indicators matrix #1263 D2: the old port reproduced klinecharts' SAR, which uses the CURRENT bar's extreme point, advances the acceleration
- * factor once before the first value and resets it to 0 on a flip to down, so only 1-5% of its dots equalled the textbook ones and a trader comparing with TradingView saw different dots).
- * This is the standard recursion, the same one TradingView's ta.sar and Wilder's own definition use:
- *   INIT (bar 1): the trend is up when close[1] > close[0] (SAR starts at low[0], extreme point = high[1]), else down (SAR starts at high[0], extreme point = low[1]); AF = startAf. Bar 0 has no value.
- *   EACH BAR:     SAR = SAR(prev) + AF(prev) x (EP(prev) - SAR(prev)). If the trend was up and that SAR is above this bar's low (down: below its high) the trend REVERSES: SAR = the old extreme point
- *                 (clamped to this bar's high / low), the extreme point = this bar's low / high, AF = startAf (AF does not step on that bar).
- *   NO REVERSAL:  a NEW extreme point (the bar's high in an up trend, low in a down trend) moves EP there and raises AF by `step` up to `maxAf`; then SAR may not enter the previous TWO bars' range
- *                 (up: not above the lower of low[-1], low[-2]; down: not below the higher of high[-1], high[-2]). That last clamp applies on every bar, the reversal bar included.
- * `startAf`/`step`/`maxAf` are TRUE units (0.02 / 0.02 / 0.2). The chart's SAR indicator (components/KLineProChart.tsx, registered over klinecharts' own) calls this same function, so the dots, the EMA
- * card's PSAR row and the AI's PSAR reading all come from one calculation. Proof against a separately written reference on raw Binance candles: PR body of the change that introduced this. */
+/* PARABOLIC SAR, PORTED FROM TA-LIB (PM, 2026-11-20, QA indicators matrix #1263 D2: klinecharts' own SAR matched the textbook on 1-5% of dots; a first rewrite from memory of the Pine ta.sar then turned out to differ from the documented
+ * reference on 7-13% of bars). This is a line-by-line port of TA-Lib's `TA_SAR` (https://github.com/TA-Lib/ta-lib/blob/main/src/ta_func/ta_SAR.c, lines 196-370 of main: the initial direction from -DM, the long / short branches, the
+ * reversal "override" and the clamps), the canonical Wilder implementation:
+ *   INIT          direction from TA_MINUS_DM on bars 0-1: short when (low[0] - low[1]) > 0 and > (high[1] - high[0]), else long. Long: SAR = low[0], EP = high[1]. Short: SAR = high[0], EP = low[1]. AF = startAf.
+ *   EACH BAR      (the SAR for this bar was computed, and CLAMPED, at the end of the previous bar) long: if low <= SAR the trend reverses: SAR := EP, raised to the previous and this bar's high, that value is this bar's output,
+ *                 AF := startAf, EP := this bar's low, and the SAR for the next bar = SAR + AF x (EP - SAR) raised to the previous and this bar's high. Otherwise this bar's output is the SAR, a new high moves EP up and steps AF
+ *                 by `step` (capped at `maxAf`), and the next bar's SAR = SAR + AF x (EP - SAR) lowered to the previous and this bar's low. Short is the mirror (high >= SAR, clamps the other way).
+ *   The clamp comes BEFORE the next bar's reversal test, which is what separates this from the earlier rewrite. Bar 0 has no value (TA-Lib's first output is bar 1).
+ * `startAf`/`step`/`maxAf` are TRUE units (0.02 / 0.02 / 0.2). The chart's SAR indicator (components/KLineProChart.tsx) calls this same function, so the dots, the EMA card's PSAR row and the AI's PSAR reading come from one calculation.
+ * Proof: the PR body (bar-for-bar equality with a Python port of the same C file on six real Binance series; TradingView's own dots are NOT verified). */
 export function psarArr(
   candles: OHLCV[], startAf = 0.02, step = 0.02, maxAf = 0.2,
 ): number[] {
   const n = candles.length;
   const out = new Array<number>(n).fill(NaN);
   if (n < 2) return out;
-  let below = candles[1].close > candles[0].close;          // SAR below price = up trend
-  let ep = below ? candles[1].high : candles[1].low;
-  let sar = below ? candles[0].low : candles[0].high;
-  let af = startAf;
-  out[1] = sar;
-  for (let i = 2; i < n; i++) {
-    const c = candles[i];
-    const prevBelow = below, prevEp = ep;
-    sar = sar + af * (prevEp - sar);
-    let firstOfTrend = false;
-    if (prevBelow) {
-      if (sar > c.low) { below = false; sar = Math.max(c.high, prevEp); ep = c.low; af = startAf; firstOfTrend = true; }
-    } else if (sar < c.high) { below = true; sar = Math.min(c.low, prevEp); ep = c.high; af = startAf; firstOfTrend = true; }
-    if (!firstOfTrend) {
-      if (below) { if (c.high > ep) { ep = c.high; af = Math.min(af + step, maxAf); } }
-      else if (c.low < ep) { ep = c.low; af = Math.min(af + step, maxAf); }
+  let af = Math.min(startAf, maxAf);
+  const accel = af;
+  const upMove = candles[1].high - candles[0].high, downMove = candles[0].low - candles[1].low;
+  const minusDm = downMove > 0 && downMove > upMove ? downMove : 0;   // TA_MINUS_DM, period 1
+  let isLong = !(minusDm > 0);
+  let ep = isLong ? candles[1].high : candles[1].low;
+  let sar = isLong ? candles[0].low : candles[0].high;
+  let newLow = candles[1].low, newHigh = candles[1].high;   // "cheat on the newLow and newHigh for the first iteration"
+  for (let t = 1; t < n; t++) {
+    const prevLow = newLow, prevHigh = newHigh;
+    newLow = candles[t].low; newHigh = candles[t].high;
+    if (isLong) {
+      if (newLow <= sar) {
+        isLong = false; sar = ep;
+        if (sar < prevHigh) sar = prevHigh;
+        if (sar < newHigh) sar = newHigh;
+        out[t] = sar;
+        af = accel; ep = newLow;
+        sar = sar + af * (ep - sar);
+        if (sar < prevHigh) sar = prevHigh;
+        if (sar < newHigh) sar = newHigh;
+      } else {
+        out[t] = sar;
+        if (newHigh > ep) { ep = newHigh; af = Math.min(af + step, maxAf); }
+        sar = sar + af * (ep - sar);
+        if (sar > prevLow) sar = prevLow;
+        if (sar > newLow) sar = newLow;
+      }
+    } else if (newHigh >= sar) {
+      isLong = true; sar = ep;
+      if (sar > prevLow) sar = prevLow;
+      if (sar > newLow) sar = newLow;
+      out[t] = sar;
+      af = accel; ep = newHigh;
+      sar = sar + af * (ep - sar);
+      if (sar > prevLow) sar = prevLow;
+      if (sar > newLow) sar = newLow;
+    } else {
+      out[t] = sar;
+      if (newLow < ep) { ep = newLow; af = Math.min(af + step, maxAf); }
+      sar = sar + af * (ep - sar);
+      if (sar < prevHigh) sar = prevHigh;
+      if (sar < newHigh) sar = newHigh;
     }
-    /* The clamp applies on EVERY bar, the reversal bar included (TA-Lib and TradingView's Pine ta.sar both do: QA's independent second implementation caught that the first version here skipped it on a reversal bar). */
-    sar = below ? Math.min(sar, candles[i - 1].low, candles[i - 2].low) : Math.max(sar, candles[i - 1].high, candles[i - 2].high);
-    out[i] = sar;
   }
   return out;
 }
