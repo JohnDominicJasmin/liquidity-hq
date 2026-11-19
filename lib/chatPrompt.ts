@@ -33,6 +33,8 @@ export interface ChatContext {
   fng?: number; fngLabel?: string; btcDom?: number;
   btcPcRatio?: number; btcMaxPain?: number;
   stablecoinSupply?: number; stablecoinChg30d?: number; etfNetFlow?: number; ethEtfNetFlow?: number; btcExchangeNetFlow?: number;
+  /** The settled US session (YYYY-MM-DD) each ETF figure belongs to; a figure without its day is not sent (#1651 L117). */
+  etfFlowDate?: string; ethEtfFlowDate?: string;
   sectorRotation?: string; structure?: string; session?: string;
   headlines?: string[]; geo?: string[];
   selection?: string;                            // describeSelection() of the trader's indicators
@@ -50,6 +52,9 @@ const strs = (v: unknown, n: number, max: number): string[] | undefined =>
 
 /** The trader's settings line, only in the exact shape the app builds (lib/indicatorSettingsText.ts); free text is dropped (QA R7b). */
 const shapedSettings = (s: string | undefined): string | undefined => (s && INDICATOR_SETTINGS_SHAPE.test(s) ? s : undefined);
+
+/** A settled-session day as the proxy writes it, or undefined (the value is printed into the prompt, so only the exact shape passes). */
+const flowDay = (v: unknown): string | undefined => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
 
 /** The browser's context, reduced to known fields of the right type and size. Null when the coin is not one this app tracks. */
 export function parseChatContext(raw: unknown): ChatContext | null {
@@ -69,6 +74,7 @@ export function parseChatContext(raw: unknown): ChatContext | null {
     fng: num(r.fng), fngLabel: str(r.fngLabel, 40), btcDom: num(r.btcDom),
     btcPcRatio: num(r.btcPcRatio), btcMaxPain: num(r.btcMaxPain),
     stablecoinSupply: num(r.stablecoinSupply), stablecoinChg30d: num(r.stablecoinChg30d), etfNetFlow: num(r.etfNetFlow), ethEtfNetFlow: num(r.ethEtfNetFlow),
+    etfFlowDate: flowDay(r.etfFlowDate), ethEtfFlowDate: flowDay(r.ethEtfFlowDate),
     btcExchangeNetFlow: num(r.btcExchangeNetFlow),
     sectorRotation: str(r.sectorRotation, 300), structure: str(r.structure, 300), session: str(r.session, 60),
     headlines: strs(r.headlines, 8, 240), geo: strs(r.geo, 5, 240),
@@ -174,8 +180,9 @@ export function buildChatSystemPrompt(ctx: ChatContext, opts: { search: boolean;
       ? '$' + ctx.stablecoinSupply.toFixed(1) + 'B' + (ctx.stablecoinChg30d != null
         ? ` (30d ${signedUsd(ctx.stablecoinChg30d, 'B', 1)}${ctx.stablecoinChg30d <= -0.5 ? ' - shrinking, not dry powder' : ''})` : '')
       : '-'),
-    ln('BTC ETF flow', ctx.etfNetFlow != null ? signedUsd(ctx.etfNetFlow, 'M', 0) : '-'),
-    ln('ETH ETF flow', ctx.ethEtfNetFlow != null ? signedUsd(ctx.ethEtfNetFlow, 'M', 0) : '-'),
+    /* NEVER AN UNDATED FIGURE (#1651 L117): the flow is the latest SETTLED US session, so it is printed with its day and left out when the day is unknown. */
+    ln('BTC ETF flow', ctx.etfNetFlow != null && ctx.etfFlowDate ? `${signedUsd(ctx.etfNetFlow, 'M', 0)} (settled session ${ctx.etfFlowDate})` : '-'),
+    ln('ETH ETF flow', ctx.ethEtfNetFlow != null && ctx.ethEtfFlowDate ? `${signedUsd(ctx.ethEtfNetFlow, 'M', 0)} (settled session ${ctx.ethEtfFlowDate})` : '-'),
     ln('BTC exchange net flow', ctx.btcExchangeNetFlow != null ? signedUsd(ctx.btcExchangeNetFlow, 'M', 1) : '-'),
     ln('Sector rotation', or(ctx.sectorRotation)),
     ln('Structure break (1h)', or(ctx.structure)),
