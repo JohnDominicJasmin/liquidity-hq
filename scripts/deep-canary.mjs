@@ -66,6 +66,21 @@ import { ARENA_CONTEXT_KEYS, parseArenaContext, parseArenaChart, parseSelection 
 import { COINS } from '../lib/coins.ts';
 import { ARENA_TFS } from '../lib/limits.ts';
 import { VERDICT_RESTATED_CHECK } from '../lib/verdictChecks.ts';
+import { createHmac } from 'node:crypto';
+
+/* THE SITE GATE (#2636 / #2672, issue #2674): dev, qa and staging sit behind a team password. A Bearer-carrying request never gets a browser's cached Basic credentials, so the canary sends the gate COOKIE the
+   gate accepts: lhq_gate = HMAC-SHA256(key = the password, "lhq-gate-v1") as hex. Only when SITE_GATE_PASSWORD is set, and NEVER to a production host (a value derived from the team password must not leave the
+   team's own sites). It is an ALLOWLIST of the three gated hosts, not a denylist of production: any other host (production, a typo, a look-alike) gets nothing. With no password set it adds nothing, so a canary pointed
+   at an ungated site behaves as before. */
+const GATED_HOSTS = new Set(['liquidity-hq-dev.onrender.com', 'liquidity-hq-qa.onrender.com', 'liquidity-hq-staging.onrender.com']);
+export function gateCookieHeader(base, env = process.env) {
+  const pw = env.SITE_GATE_PASSWORD ?? '';
+  if (!pw) return {};
+  let host;
+  try { host = new URL(base).hostname.toLowerCase(); } catch { return {}; }
+  if (!GATED_HOSTS.has(host)) return {};
+  return { Cookie: `lhq_gate=${createHmac('sha256', pw).update('lhq-gate-v1', 'utf8').digest('hex')}` };
+}
 
 const BASE        = (process.env.CANARY_BASE_URL ?? '').replace(/\/+$/, '');
 const SB_URL      = (process.env.CANARY_SUPABASE_URL ?? '').replace(/\/+$/, '');
@@ -336,7 +351,7 @@ async function run() {
   /* 4. THE DEEP READ, on its own budget now the service is warm. */
   const deep = await timed(`${BASE}/api/grok`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...gateCookieHeader(BASE) },
     body: JSON.stringify(body),
   }, DEEP_TIMEOUT_MS, 'deep');
 
