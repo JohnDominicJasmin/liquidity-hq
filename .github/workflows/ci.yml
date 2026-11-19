@@ -1086,6 +1086,7 @@ jobs:
           # skip the build entirely. See the input's own comment for why a remote
           # run is NOT the same measurement as the gate run.
           E2E_BASE_URL: ${{ inputs.base_url }}
+          E2E_ALLOW_PRODUCTION: ${{ (inputs.base_url == 'https://liquidity-hq.onrender.com' || inputs.base_url == 'https://liquidity-hq.com') && '1' || '' }}   # QA 2026-11-19, PM-ordered read-only prod sweep: only the read-only allowlist can run against production
 
           # ── RELEASE-GATE EXCHANGE STUB (#1259) ──────────────────────────────
           #
