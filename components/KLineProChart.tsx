@@ -1845,7 +1845,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             /* LABELS THAT WOULD LAND ON ONE ANOTHER ARE KEPT APART (QA #1263 L104, 390 px: when the stop or the target sits within about a label height of the entry, its label printed over the entry / R:R text, and over
                the channel tags). A Target or Stop label never sits closer than APART_PX to the entry line: it is pushed outward, away from the entry, to that distance. */
             const APART_PX = 14;
-            const apart = (y: number, outward: 1 | -1): number => (Math.abs(y - e.y) >= APART_PX ? y : e.y + outward * APART_PX);
+            const apart = (y: number, outward: 1 | -1): number => (Math.abs(y - e.y) >= APART_PX ? y : Math.min(H - 10, Math.max(10, e.y + outward * APART_PX)));   // clamped inside the pane: a pushed label stays on the pane, so only an OFF-pane level gets the arrow (the 2026-11-18 rule)
             const pin = (y: number, text: string, short: string): { y: number; text: string } => {
               if (y < 10) return { y: 10, text: `${text} ↑` };
               if (y > H - 10) return { y: H - 10, text: `${text} ↓` };
