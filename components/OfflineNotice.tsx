@@ -21,7 +21,6 @@ export default function OfflineNotice() {
   }, []);
 
   /* THE LIVE REGION EXISTS, EMPTY, BEFORE THE MESSAGE (WCAG 4.1.3; QA a11y rule U5): a role="status" node created together with its text is not announced, so the container is always mounted and the amber box is rendered inside it. */
-  /* ARENA: the top-centre spot is the chart toolbar (S/R, Structure) and this notice stays up until the connection returns, so while the Arena chart is on the page it sits at the bottom instead (css `body:has(.at-chart) .offline-notice-region .st-save-toast`). */
   return (
     <div role="status" className="offline-notice-region" data-testid="offline-notice-region">
       {offline && (
