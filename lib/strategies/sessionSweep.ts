@@ -10,6 +10,7 @@ import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } fro
  *  Entry  = the close.
  *  Stop   = the sweep wick: the candle's low (BUY) / high (SELL).
  *  Target = the opposite side of the session range.
+ *  ONE SWEEP PER SESSION AND DIRECTION: if an earlier candle after the session (inside the same window) already swept that side and closed back, the later candle is not a new signal.
  *  Needs candles of 1h or finer (5m to 1h), and at least 80% of the session's candles present. Anything coarser, an incomplete session or no sweep: wait. Signals, not predictions. */
 
 export const MIN_CANDLES = 12;
@@ -31,8 +32,12 @@ export function detectSessionSweep(candles: readonly OHLCV[], ctx: StrategyConte
     const lo = Math.min(...inS.map(c => c.low)), hi = Math.max(...inS.map(c => c.high));
     const fromTs = inS[0].time;
     const edges = (up: boolean) => [{ price: up ? hi : lo, role: 'ref' as const, fromTs, labelKey: (up ? 'STRAT_OV_SESSION_HIGH' : 'STRAT_OV_SESSION_LOW') as 'STRAT_OV_SESSION_HIGH' | 'STRAT_OV_SESSION_LOW' }];
-    if (x.low < lo && x.close >= lo) return tradeCall({ ts: x.time, dir: 'long', entry: x.close, stop: x.low, target: hi, params: { sessionLo: lo, sessionHi: hi }, levels: edges(false) });
-    if (x.high > hi && x.close <= hi) return tradeCall({ ts: x.time, dir: 'short', entry: x.close, stop: x.high, target: lo, params: { sessionLo: lo, sessionHi: hi }, levels: edges(true) });
+    /* ONE SWEEP PER SESSION AND DIRECTION (PM, 2026-11-19; a real-data audit found it on 10-12% of 1h candles, because every later candle of the 4-hour window that re-swept the same extreme was a new signal): a candle
+       that opens after the session ended and swept the same side before the last candle already was the sweep. */
+    const after = candles.filter(c => c.time >= day + s.endH * H && c.time < x.time);
+    const sweptLow = after.some(c => c.low < lo && c.close >= lo), sweptHigh = after.some(c => c.high > hi && c.close <= hi);
+    if (x.low < lo && x.close >= lo && !sweptLow) return tradeCall({ ts: x.time, dir: 'long', entry: x.close, stop: x.low, target: hi, params: { sessionLo: lo, sessionHi: hi }, levels: edges(false) });
+    if (x.high > hi && x.close <= hi && !sweptHigh) return tradeCall({ ts: x.time, dir: 'short', entry: x.close, stop: x.high, target: lo, params: { sessionLo: lo, sessionHi: hi }, levels: edges(true) });
   }
   return WAIT;
 }
