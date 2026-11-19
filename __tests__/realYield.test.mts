@@ -60,7 +60,8 @@ test('an observation older than the stale window degrades to unknown', () => {
   // The value is still carried - it is real, just old. What must not survive is
   // the SIGNAL, because a 40bp move six days ago is not today's backdrop.
   assert.equal(r.changeBp, 40);
-  assert.match(r.note, /cannot be checked/);
+  /* #2695 (PM): the note says what the macro risk EXCLUDES, and how old the reading is, never a failure word. */
+  assert.match(r.note, /^Macro risk excludes the 10Y real yield, last updated 6 days ago.$/);
 });
 
 test('a long weekend is not stale - Friday read on Tuesday still counts', () => {
@@ -74,7 +75,7 @@ test('one observation is not enough to state a direction', () => {
   const r = computeRealYield([[NOW - DAY, 1.83]], NOW);
   assert.equal(r.signal, 'unknown');
   assert.equal(r.value, null);
-  assert.match(r.note, /unavailable/);
+  assert.equal(r.note, 'Macro risk excludes the 10Y real yield.');   // #2695: what is excluded, not what failed
 });
 
 test('no observations reports unavailable rather than zero', () => {
