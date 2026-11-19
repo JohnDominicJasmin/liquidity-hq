@@ -148,7 +148,8 @@ export default function ResetPasswordPage() {
               </button>
             </div>
 
-            {error && <div className="login-error" id="reset-error" data-testid="login-error" role="alert">{error}</div>}
+            {/* The alert container is always in the page, empty, and the error text lands in it (WCAG 4.1.3; the /login and /forgot-password pattern: .login-error:empty collapses it). A role="alert" created together with its text is not announced. */}
+            <div className="login-error" id="reset-error" data-testid="login-error" role="alert">{error}</div>
           </>
         )}
       </div>
