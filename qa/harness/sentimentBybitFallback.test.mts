@@ -42,15 +42,16 @@ async function scenario(o: { binance: Ls; binanceLong?: string; bybit: 'ok' | 'd
   const sent = w.telegram.sent.filter((m: { text: string }) => /Sentiment Extremes/.test(m.text)) as Array<{ chat_id: string; text: string }>;
   return { w, r, sent, calls };
 }
-const ls = (t: string) => t.match(/L\/S Ratio: <b>([\d.]+)% Long<\/b> \/ ([\d.]+)% Short/);
+/* the line discloses its source: "L/S Ratio: ..." from Binance, "L/S Ratio (Bybit): ..." when the ratio came from Bybit (route.ts ratioFromBybit) */
+const ls = (t: string) => t.match(/L\/S Ratio(?: \(Bybit\))?: <b>([\d.]+)% Long<\/b> \/ ([\d.]+)% Short/);
 
 test('B1. Binance answers: its number is used and Bybit\'s ratio is never called', async () => {
   const { r, sent, calls } = await scenario({ binance: 'ok', binanceLong: '0.62', bybit: 'ok', bybitLong: '0.99' });
-  assert.equal(r.status, 200); assert.ok(sent.length >= 1, 'no sentiment alert'); assert.deepEqual(ls(sent[0].text)?.slice(1, 3), ['62.0', '38.0']); assert.equal(calls.bybitLs, 0);
+  assert.equal(r.status, 200); assert.ok(sent.length >= 1, 'no sentiment alert'); assert.deepEqual(ls(sent[0].text)?.slice(1, 3), ['62.0', '38.0']); assert.equal(calls.bybitLs, 0); assert.ok(!/L\/S Ratio \(Bybit\)/.test(sent[0].text), 'a Binance ratio must not be labelled Bybit');
 });
 test('B2. Binance down, Bybit 65 %: the alert fires on Bybit\'s 65.0 % / 35.0 %', async () => {
   const { r, sent, calls } = await scenario({ binance: 'down', bybit: 'ok', bybitLong: '0.65' });
-  assert.equal(r.status, 200); assert.ok(sent.length >= 1, 'no alert on the fallback'); assert.deepEqual(ls(sent[0].text)?.slice(1, 3), ['65.0', '35.0']); assert.equal(calls.bybitLs, 1); assert.match(sent[0].text, /All 3 Bearish/);
+  assert.equal(r.status, 200); assert.ok(sent.length >= 1, 'no alert on the fallback'); assert.deepEqual(ls(sent[0].text)?.slice(1, 3), ['65.0', '35.0']); assert.equal(calls.bybitLs, 1); assert.match(sent[0].text, /L\/S Ratio \(Bybit\): /, 'a ratio that came from Bybit must say so'); assert.match(sent[0].text, /All 3 Bearish/);
 });
 test('B3. Binance\'s thresholds on Bybit: 59.9 % none, 60 % fires; contrarian 40 % fires, 40.1 % none', { timeout: 300_000 }, async () => {
   assert.equal((await scenario({ binance: 'down', bybit: 'ok', bybitLong: '0.599' })).sent.length, 0, '59.9 % fired');

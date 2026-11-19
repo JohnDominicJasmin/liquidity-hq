@@ -92,8 +92,9 @@ async function readRows(page: Page) {
 
 /** Load /arena and prove the Multi-TF card rendered before reading anything. */
 async function multiTf(page: Page, signedIn: boolean) {
-  if (signedIn) await gotoSignedIn(page, '/arena');
-  else await gotoGuarded(page, '/arena');
+  /* THE COIN IS NAMED, NOT LEFT TO THE ACCOUNT (release #2622, mobile): the pins below are for BTC. A signed-in account opens /arena on ITS saved default coin (the Pro fixture opens on ETH), the page then reads ETH's RSI (not pinned), and since #2576 a timeframe with no reading is LEFT OUT of the card: 1 row (the 15m one) instead of 7. QA's probe (runs 44466581138, 44464671049): same account, same pins, `/arena` = 1 row, `/arena?coin=btc` = all 7 rows. */
+  if (signedIn) await gotoSignedIn(page, '/arena?coin=btc');
+  else await gotoGuarded(page, '/arena?coin=btc');
   await page.waitForTimeout(9000);
 
   const card = page.locator('div').filter({ hasText: /MULTI-TIMEFRAME ALIGNMENT/i }).first();
