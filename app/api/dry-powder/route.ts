@@ -4,6 +4,7 @@ import { getDryPowderNumbers } from '@/lib/dryPowderSeries';
 import { readDryPowderAnalysis, readLatestDryPowderAnalysis } from '@/lib/dryPowderAnalysis';
 import { hasProFeatures } from '@/lib/entitlements';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
+import { bearerToken } from '@/lib/bearerToken';
 
 /* THE AI TEXT IS READ, NOT WRITTEN, HERE (PM, 2026-11-19, #1651 L103). The server writes it once a day (lib/dryPowderAnalysis.ts, from the scheduled market ingest), so a Pro visit reads a stored row
  * in about a second and spends nothing: the card used to say "Preparing the AI read" for about 21 s because the first visit of the hour paid for the AI call. The per-visitor usage reservation and refund
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
 }
 
 async function handle(req: NextRequest, marks: { auth?: number; plan?: number }, t0: number): Promise<NextResponse> {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data: authData } = await getUserCompatForBilledCall(token);

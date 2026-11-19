@@ -4,6 +4,7 @@ import { hasProFeatures } from '@/lib/entitlements';
 import { rateLimit } from '@/lib/rateLimit';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { bearerToken } from '@/lib/bearerToken';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,8 +27,7 @@ export async function GET(req: NextRequest) {
   // through to the global TELEGRAM_CHAT_ID env var below with no auth check
   // and no rate limit - anyone could spam the owner's real Telegram chat on
   // demand. Auth is now mandatory before any send can happen.
-  const authHeader = req.headers.get('Authorization');
-  const userToken = authHeader?.replace('Bearer ', '');
+  const userToken = bearerToken(req.headers);
   if (!userToken) return NextResponse.json({ ok: false, error: 'Sign in required' }, { status: 401 });
 
   const sb = makeSb(userToken);

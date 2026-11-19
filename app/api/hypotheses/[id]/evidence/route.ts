@@ -5,13 +5,14 @@ import { T } from '@/lib/tables';
 import { TEXT_LIMITS, limitRefusal } from '@/lib/ownRowLimits';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { bearerToken } from '@/lib/bearerToken';
 
 function sb(token: string) {
   return userClient(token);
 }
 
 function auth(req: NextRequest) {
-  return req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
+  return bearerToken(req.headers) ?? '';
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

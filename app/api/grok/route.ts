@@ -28,6 +28,7 @@ import { engineFor, type Engine } from '@/lib/aiEngine';
 import { callClaude, claudeConfigured } from '@/lib/aiProvider';
 import { extractReadInputs } from '@/lib/readSanity';
 import { getLabels } from '@/lib/labelsServer';
+import { bearerToken } from '@/lib/bearerToken';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -126,7 +127,7 @@ function toolPoolLimitFor(role: UsageTier): number {
 
 // ── GET - return today's usage without running an analysis ──────────────────
 export async function GET(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '') || undefined;
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ usage: null });
 
   const { data } = await getUserCompat(token);
@@ -249,7 +250,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
   }
 
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '') || undefined;
+  const token = bearerToken(req.headers);
 
   // Auth required for both Quick and Deep - prevents unauthenticated API burn
   let userId: string | null = null;

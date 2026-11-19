@@ -9,6 +9,7 @@ import { STRATEGY_IDS } from '@/lib/strategies';
 import { clampThreshold, isThresholdField } from '@/lib/alertThresholdRanges';
 import { isValidSummaryHour } from '@/lib/dailySummaryPrefs';
 import { isValidSoundPrefs } from '@/lib/arenaSoundPrefs';
+import { bearerToken } from '@/lib/bearerToken';
 
 function sb(token: string) {
   return userClient(token);
@@ -48,7 +49,7 @@ function isSnoozeTime(v: unknown, nowMs: number): boolean {
 
 // GET - return current settings row (or null if not yet saved)
 export async function GET(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const user = await getUser(token);
@@ -66,7 +67,7 @@ export async function GET(req: NextRequest) {
 
 // PATCH - upsert settings (only the fields sent)
 export async function PATCH(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const user = await getUser(token);

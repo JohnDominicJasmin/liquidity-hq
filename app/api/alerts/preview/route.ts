@@ -10,6 +10,7 @@ import { detectEMASignals, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@
 import { detectStructureSignals } from '@/lib/priceAction';
 import { STRUCTURE_TFS, isStructureEnabled } from '@/lib/structurePrefs';
 import { getUserCompat } from '@/lib/authUser';
+import { bearerToken } from '@/lib/bearerToken';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +59,7 @@ const RATE_LIMIT = 4;
 const RATE_WINDOW_MS = 60_000;
 
 async function authedUserId(req: NextRequest): Promise<{ userId: string; token: string } | null> {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return null;
   // #1397: verified locally (lib/authUser.ts), no Auth round trip per request.
   const { data } = await getUserCompat(token);

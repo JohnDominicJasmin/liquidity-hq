@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { fetchAuthUser } from '@/lib/authUser';
 import { validPushEndpoint, validPushKey } from '@/lib/pushEndpoint';
+import { bearerToken } from '@/lib/bearerToken';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,7 @@ function unauthorized() {
 }
 
 async function getUser(req: NextRequest) {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return null;
   try {
     // #1397 review: this route WRITES with the service role on the strength of the token alone, so it asks Auth (fetchAuthUser): a signed-out,

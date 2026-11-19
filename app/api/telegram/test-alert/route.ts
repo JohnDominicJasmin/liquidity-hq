@@ -6,6 +6,7 @@ import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { localizeTelegram, tgLocaleOf } from '@/lib/telegramI18n';
 import { tgLabelsFor } from '@/lib/telegramLabels';
+import { bearerToken } from '@/lib/bearerToken';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,7 @@ function stampIn(timeZone: string | null): string {
 }
 
 export async function POST(req: NextRequest) {
-  const userToken = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const userToken = bearerToken(req.headers);
   if (!userToken) return NextResponse.json({ ok: false, sent: false, error: 'Sign in required' }, { status: 401 });
   const { data: { user } } = await getUserCompat(userToken);
   if (!user) return NextResponse.json({ ok: false, sent: false, error: 'Sign in required' }, { status: 401 });

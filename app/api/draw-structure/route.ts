@@ -39,6 +39,7 @@ import {
   type DrawableStructure, type RawProposal,
 } from '@/lib/drawStructure';
 import type { StructureCandle } from '@/lib/chartStructures';
+import { bearerToken } from '@/lib/bearerToken';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -209,7 +210,7 @@ class UndrawableAnswerError extends Error {
 }
 
 export async function POST(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data: authData } = await getUserCompatForBilledCall(token);

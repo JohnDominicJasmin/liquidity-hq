@@ -9,6 +9,7 @@ import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { answerWasCutOff } from '@/lib/xaiAnswer';
 import { isRoundPrice, stopLossNumber } from '@/lib/roundPrice';
+import { bearerToken } from '@/lib/bearerToken';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -129,7 +130,7 @@ function buildBiasPrompt(trades: Record<string, unknown>[]): string {
 }
 
 export async function POST(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data: authData } = await getUserCompatForBilledCall(token);

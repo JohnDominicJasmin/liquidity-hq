@@ -7,6 +7,7 @@ import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { bearerToken } from '@/lib/bearerToken';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // Vesting schedules don't change hour to hour, and every visitor checking the
@@ -47,7 +48,7 @@ function buildUnlockPrompt(symbol: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const authToken = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const authToken = bearerToken(req.headers);
   if (!authToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data: authData } = await getUserCompatForBilledCall(authToken);

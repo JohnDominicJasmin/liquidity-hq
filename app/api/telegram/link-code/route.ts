@@ -5,6 +5,7 @@ import { rateLimit } from '@/lib/rateLimit';
 import { T } from '@/lib/tables';
 import { makeLinkCode } from '@/lib/telegramLinkCode';
 import { fetchAuthUser } from '@/lib/authUser';
+import { bearerToken } from '@/lib/bearerToken';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,7 +41,7 @@ async function getBotUsername(): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // #1397 review: this route WRITES with the service role on the strength of the token alone, so it asks Auth (fetchAuthUser): a signed-out,
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
 // Safe to expose: it only ever clears the CALLER's own row, and clearing is
 // not a privileged action - worst case someone stops their own alerts.
 export async function DELETE(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // #1397 review: this route WRITES with the service role on the strength of the token alone, so it asks Auth (fetchAuthUser): a signed-out,
