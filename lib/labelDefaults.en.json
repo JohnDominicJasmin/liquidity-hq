@@ -1812,7 +1812,7 @@
   "BRIEFING_YEN_DANGER": "USD/JPY at 160+",
   "BRIEFING_YEN_WARNING": "WARNING",
   "BRIEFING_YEN_SAFE": "SAFE",
-  "BRIEFING_YEN_DANGER_DESC": "USD/JPY is at or above 160. Yen carry-trade unwinds have coincided with past crypto selloffs.",
+  "BRIEFING_YEN_DANGER_DESC": "USD/JPY is at or above 160.",
   "BRIEFING_YEN_WARNING_DESC": "USD/JPY is between 158 and 160.",
   "BRIEFING_YEN_SAFE_DESC": "USD/JPY is below 158.",
   "BRIEFING_YEN_PAIR_LABEL": "USD/JPY",
