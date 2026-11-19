@@ -226,6 +226,11 @@ export default function MarketsTerminal() {
           ))}
         </div>
 
+        {/* THE LETTERS HAVE WORDS HERE TOO (#1185, PM 2026-11-17): the same one-line legend /dashboard carries, so the Grade column is readable without the tooltip. */}
+        <div className="csb2-grade-legend" data-testid="mkt-grade-legend">
+          {(['A', 'B', 'C', 'D', 'F'] as const).map((g, i) => <span key={g}>{i > 0 ? ' · ' : ''}<strong style={{ color: 'var(--txt2)' }}>{g}</strong> {t(`COIN_HEALTH_GRADE_${g}` as const)}</span>)}
+        </div>
+
         {/* Column headers */}
         {noSignals && <div role="status" className="mkt-no-signals" data-testid="mkt-no-signals">{t('MARKETS_NO_SIGNALS_BANNER')}</div>}
         <div className={`mkt-mono mkt-hdr-row${noSignals ? ' mkt-nosig' : ''}`} style={{

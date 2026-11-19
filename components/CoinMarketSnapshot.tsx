@@ -80,7 +80,7 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
     : frPct <= -0.005? 'COIN_MARKET_SNAPSHOT_FR_MILD_SHORT_BIAS'
     : 'COIN_MARKET_SNAPSHOT_FR_NEUTRAL';
 
-  const { txt: oi1hTxt, col: oi1hCol } = oi1hSignal(oi1h.pct, null);
+  const { key: oi1hKey, col: oi1hCol } = oi1hSignal(oi1h.pct, null);
   const oi1hPctStr = oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : '-';
 
   return (
@@ -123,7 +123,7 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
               {oi1h.loading
                 ? <SkeletonBar width={90} height={11} radius={4} />
                 : oi1h.pct != null
-                ? t('COIN_MARKET_SNAPSHOT_OI_1H_TREND_SUFFIX', { txt: oi1hTxt })
+                ? t('COIN_MARKET_SNAPSHOT_OI_1H_TREND_SUFFIX', { txt: oi1hKey ? t(oi1hKey) : '' })
                 : oi1h.reason === 'short-window'
                 ? t('COIN_MARKET_SNAPSHOT_OI_1H_SHORT_WINDOW')
                 : t('GLOBAL_MACRO_CONTEXT_ROW_UNAVAILABLE')}
