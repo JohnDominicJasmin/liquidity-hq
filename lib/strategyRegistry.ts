@@ -125,7 +125,8 @@ export const INDICATORS: readonly IndicatorEntry[] = [
   },
   {
     id: 'SMA', label: 'SMA', blurbKey: 'STRATEGY_BLURB_SMA', group: 'trend', source: 'builtin', pane: 'candle',
-    paramSchema: [period('length', 'Length', 12), period('weight', 'Weight', 2, 1, 10)],
+    paramSchema: [period('length', 'Length', 12)],
+    // THE CHART LINE IS NOW A ROLLING MEAN TOO (#1007, 2026-11-20): components/KLineProChart.tsx registers a custom 'SMA' indicator over smaArr, so the line, the verdict gating and the AI reading are one calculation, and the old Weight parameter (klinecharts' SMA(N,M)) is gone. The notes below describe the earlier state.
     // id is correctly 'SMA' - klinecharts does ship an indicator by that
     // name (unlike ADX/STOCH, this is not a basis mismatch). What klinecharts'
     // 'SMA' actually COMPUTES for the CHART LINE is still not a rolling mean
