@@ -287,14 +287,14 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
     }}>
 
       {/* ── NAV ── */}
-      <nav style={{
+      <nav className="lt-nav" style={{
         height: isDesktop ? 56 : 52, display: 'flex', alignItems: 'center',
         padding: isDesktop ? '0 40px' : '0 16px', gap: isDesktop ? 12 : 6,
         borderBottom: '1px solid var(--bdr)',
       }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <BrandMark size={isDesktop ? 26 : 22} tone="dark" radiusPct={0} />
-          <span style={{
+          <BrandMark size={isDesktop ? 26 : 22} tone="dark" radiusPct={0} className="lt-brand-mark" />
+          <span className="lt-brand-text" style={{
             fontFamily: 'var(--font-mono), monospace', fontWeight: 700, letterSpacing: '.16em',
             fontSize: isDesktop ? 14 : 11.5, color: 'var(--txt)', whiteSpace: 'nowrap',
             overflow: 'hidden', textOverflow: 'ellipsis',
@@ -308,7 +308,7 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
         <Link href="/learn" className="lt-nav-learn">
           {dict.nav.learn}
         </Link>
-        <Link href="/login" style={{
+        <Link href="/login" className="lt-nav-signin" style={{
           fontFamily: 'var(--font-mono), monospace', fontSize: 11.5, letterSpacing: '.12em',
           color: 'var(--txt2)', border: '1px solid var(--border-input)',
           padding: isDesktop ? '9px 16px' : '9px 10px',
@@ -316,13 +316,14 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
         }}>
           {isDesktop ? dict.nav.signIn : dict.nav.signIn}
         </Link>
-        <Link href="/login?signup=1" style={{
+        <Link href="/login?signup=1" className="lt-nav-start" style={{
           fontFamily: 'var(--font-mono), monospace', fontSize: 11.5, fontWeight: 700, letterSpacing: '.12em',
           color: 'var(--bg0)', background: 'var(--accent)',
           padding: isDesktop ? '10px 18px' : '10px 12px',
           textDecoration: 'none', textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0,
         }}>
-          {isDesktop ? dict.nav.getStarted : dict.liveRead.start}
+          {/* Both words are in the markup and CSS picks one at the same 768 px line as isDesktop, so the button is the right width on the first paint instead of changing it when the page hydrates (QA: Get started 166 px wide, then START 66 px, +0.125 CLS at 390). */}
+          <span className="lt-lbl-wide">{dict.nav.getStarted}</span><span className="lt-lbl-narrow">{dict.liveRead.start}</span>
         </Link>
       </nav>
 
