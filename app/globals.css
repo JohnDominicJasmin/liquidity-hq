@@ -1193,6 +1193,10 @@ body[data-rpm-level="high"]::before {
   background: radial-gradient(ellipse 80% 25% at 50% 0%, rgba(251,191,36,0.035) 0%, transparent 70%);
   animation: rpm-glow-pulse 6s ease-in-out infinite;
 }
+/* With reduced motion asked for, the glow stays but stops pulsing (#1185, QA run 44076050799: it kept running on /dashboard). */
+@media (prefers-reduced-motion: reduce) {
+  body[data-rpm-level="extreme"]::before, body[data-rpm-level="high"]::before { animation: none; }
+}
 
 /* ── SESSION PILL (navbar) ── */
 .session-pill-wrap { flex-shrink: 0; }
@@ -1397,10 +1401,11 @@ body[data-rpm-level="high"]::before {
 }
 
 @media (max-width: 760px) {
-  .news-ticker { height: 19px; }
+  /* 24px, not 19 (#1185, WCAG 2.5.8): the two buttons were 32x19 and 26x19 here. The page's top padding already reserves 32px for the bar, so the 5px costs no layout. */
+  .news-ticker { height: 24px; }
   .ticker-badge { font-size: 0.625rem; padding: 1px 5px; line-height: 12px; }
-  .ticker-content span { font-size: var(--fs-micro); line-height: 19px; }
-  .ticker-close { height: 19px; width: 26px; }
+  .ticker-content span { font-size: var(--fs-micro); line-height: 24px; }
+  .ticker-close { height: 24px; width: 32px; }
 }
 
 @keyframes ticker-scroll {

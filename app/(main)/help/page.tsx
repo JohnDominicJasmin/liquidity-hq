@@ -109,7 +109,7 @@ export default function HelpPage() {
               exception does not apply to them. */}
           {/* A literal, like components/PlatformFooter.tsx: FAQ is the same three
               letters in every locale we offer, and a translated one would be wrong. */}
-          <Link href="/faq" style={{ color: 'var(--accent)', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
+          <Link href="/faq" style={{ color: 'var(--accent)', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', minHeight: 24, minWidth: 24 }}>
             FAQ
           </Link>
           <Link href="/learn" style={{ color: 'var(--accent)', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
