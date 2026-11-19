@@ -536,7 +536,7 @@ function TSelectedCoinCard() {
   /* ONE SURFACE, ONE ANSWER (#1185, PM 2026-11-19, QA's note on #2650): the selected-coin card takes its OI word from the same 1h samples as the OI cards (the store's own trend is another window and could disagree); the store trend is only the fallback while the
      1h samples have not answered. */
   const oi1h = useOI1h(id);
-  const oi1hAnswered = oi1h.pct != null && oi1h.pricePct != null;
+  const oi1hAnswered = oi1h.coin === id && oi1h.pct != null && oi1h.pricePct != null;   // the hook hands back the previous coin's snapshot for one render after a coin change
   const oiKey = oi1hAnswered ? oiTrend1h(oi1h.pct, oi1h.pricePct) : d?.oiTrend ?? null;
   const oi = oiKey ? OI_TREND_META[oiKey] : null;
   const patternName = patternWord(t, d?.chartPattern?.split(';')[0].split('(')[0].trim());
