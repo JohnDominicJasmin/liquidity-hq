@@ -111,8 +111,8 @@ add('funding none (no source)', fundingRef('fet', null, null, false), fundingDet
 add('funding none (grace over)', fundingRef('btc', null, null, true), fundingDetail('btc', null, null, true));
 add('funding loading', fundingRef('btc', null, null, false), fundingDetail('btc', null, null, false));
 add('oi none', oiDetailRef(null, null), 'Open interest data unavailable');
-add('oi ok', oiDetailRef(1.234, true), 'Open interest +1.23% in 1h - stable or rising (healthy)');
-add('oi drop', oiDetailRef(-6.5, false), 'Open interest -6.50% in 1h - sharp drop (abort - position covering cascade)');
+add('oi ok', oiDetailRef(1.234, true), 'Open interest +1.23% in 1h - stable or rising');
+add('oi drop', oiDetailRef(-6.5, false), 'Open interest -6.50% in 1h - sharp drop');
 add('vol none', volumeRef(0, 5e6), 'Volume data unavailable');
 add('vol', volumeRef(2e6, 3e6), 'Candle vol 3.00M vs MA 2.00M (150%)');
 add('rsi unavailable', ind('RSI', false, true, false, false, false, { value: '' }), 'RSI unavailable');
