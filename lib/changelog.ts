@@ -150,6 +150,27 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* DRAFT, the release after v2026.11.20 (Dev 2026-11-19, PM). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs (rule 22). Plain words, 12 words or fewer per line;
+       only user-visible changes. Tied to: #2645 (correlation tint), #2647 (Free trader copy, lock badge, Trading Sessions), #2650 (one OI hour, Funding title, micro-cap prices), #2651 (offline notice), #2652 (small
+       text), #2653 + #2655 + #2665 (facts, not advice), #2656 (news hero), #2649 (accessibility), #2662 (Russian banner), #2663 (EMA hover text), #2666 (zone label). */
+    date: '2026-11-20',
+    tag: 'v2026.11.21',
+    items: [
+      "Correlation: weak correlations no longer show a colour tint.",
+      "Both Open Interest cards on the Dashboard now use the same hour.",
+      "Markets: very small coin prices keep their digits.",
+      "A notice shows when your connection drops.",
+      "Arena: Pro-only timeframes show a lock.",
+      "Arena: Supply and Demand labels no longer cover the signal marker.",
+      "The Best Hours page is now called Trading Sessions.",
+      "Alerts, the risk card and Market Read state facts without advice.",
+      "Hover text on the EMA rows follows your language.",
+      "News: the first story is text only on desktop.",
+      "Accessibility: clearer labels, keyboard focus and reduced-motion support.",
+      "Russian: the trial banner is shorter.",
+    ],
+  },
+  {
     /* DRAFT, the release after v2026.11.19 (PM 2026-11-19). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs. Plain words, 12 words or fewer per line
        (rule 22); only user-visible changes. Tied to: #2628 (Research AI summary written once a day), #2627 (Markets blank cells). A line whose PR misses the tag is removed. */
     date: '2026-11-19',
@@ -157,6 +178,9 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       "Research: the AI summary now loads instantly.",
       "Markets: blank cells replace 'No data' when buy pressure is missing.",
+      "Arena: the strategy panel no longer jumps when you tap a chip.",
+      "Briefing: the ETF flow always shows its date.",
+      "Session windows use plain names everywhere.",
     ],
   },
   {
