@@ -9562,6 +9562,25 @@ html[data-sess="1"]:not([data-strat]):not([data-strat-none]) .strat-call-host { 
   .lp-read-panel { width: 100% !important; max-width: 100%; }
 }
 
+/* LANDING NAV AND TICKER ON A PHONE BEFORE THE PAGE HYDRATES (QA run 44417587423, "/" at 390 px: +0.125 CLS at ~300 ms, every locale). The server HTML is the desktop tree, and the nav bar, its buttons and the ticker took their phone sizes only when
+   the page's JavaScript ran: the bar 56 to 52 px, "Get started" (166 px) to "START" (66 px), the ticker 34 to 30 px with its price column dropped. These give the same values the component sets after hydration (isDesktop is false below 768 px), so the first paint is
+   already the phone one and hydration changes nothing. 768 px and up: nothing here applies. */
+.lt-lbl-narrow { display: none; }
+@media (max-width: 767px) {
+  .lt-nav { height: 52px !important; padding: 0 16px !important; gap: 6px !important; }
+  .lt-brand-mark { width: 22px !important; height: 22px !important; }
+  .lt-brand-text { font-size: 11.5px !important; }
+  .lt-nav-signin { padding: 9px 10px !important; }
+  .lt-nav-start { padding: 10px 12px !important; }
+  .lt-lbl-wide { display: none; }
+  .lt-lbl-narrow { display: inline; }
+  .lpt-ticker { height: 30px !important; -webkit-mask-image: linear-gradient(90deg, #000 86%, transparent); mask-image: linear-gradient(90deg, #000 86%, transparent); }
+  .lpt-ticker[dir="rtl"], [dir="rtl"] .lpt-ticker { -webkit-mask-image: linear-gradient(270deg, #000 86%, transparent); mask-image: linear-gradient(270deg, #000 86%, transparent); }
+  .lpt-tk-cell { gap: 6px !important; padding: 0 12px !important; }
+  .lpt-tk-cell > span:first-child, .lpt-tk-cell > span:last-child { font-size: 10px !important; }
+  .lpt-tk-price { display: none !important; }
+}
+
 /* MARKETS, NOTHING QUALIFIES (#1185): with no derivatives signal anywhere the Signal column is dropped on a phone (its cell, its head and the fifth grid column), and the banner above the table says it once. */
 @media (max-width: 480px) {
   .mkt-nosig.mkt-row, .mkt-nosig.mkt-hdr-row { grid-template-columns: 62px minmax(60px, 1fr) 76px 62px !important; }
