@@ -152,7 +152,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     /* DRAFT, the release after v2026.11.19 (PM 2026-11-19). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs. Plain words, 12 words or fewer per line
        (rule 22); only user-visible changes. Tied to: #2628 (Research AI summary written once a day), #2627 (Markets blank cells). A line whose PR misses the tag is removed. */
-    date: '2026-11-20',
+    date: '2026-11-19',
     tag: 'v2026.11.20',
     items: [
       "Research: the AI summary now loads instantly.",
