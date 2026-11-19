@@ -20,16 +20,28 @@ const TOUCH_FRAC = 0.1;
 const EDGE_ZONE = 0.25;
 const MIN_TOUCHES = 2;
 
-export function detectRangeBounce(candles: readonly OHLCV[], _ctx: StrategyContext): StrategyResult {
-  const n = candles.length;
-  if (n < MIN_CANDLES) return WAIT;
+/** The range the strategy trades, or null when there is none: the last RANGE_BARS candles BEFORE the last one, a band no taller than MAX_BAND_ATR x ATR(14) with at least MIN_TOUCHES touches on each edge. The detector and the chart's
+ *  "watching" drawing (lib/strategies/chartDrawings.ts) both read it, so the band drawn is the band the call is made against. `fromTs` is where the band starts. */
+export function currentRange(candles: readonly OHLCV[]): { high: number; low: number; w: number; fromTs: number } | null {
+  if (candles.length < MIN_CANDLES) return null;
   const before = candles.slice(0, -1);
   const win = before.slice(-RANGE_BARS);
   const high = Math.max(...win.map(c => c.high)), low = Math.min(...win.map(c => c.low));
   const w = high - low;
-  if (!(w > 0) || w > MAX_BAND_ATR * atr14(before.slice(-15), 14)) return WAIT;
+  if (!(w > 0) || w > MAX_BAND_ATR * atr14(before.slice(-15), 14)) return null;
   const tol = TOUCH_FRAC * w;
-  if (win.filter(c => c.high >= high - tol).length < MIN_TOUCHES || win.filter(c => c.low <= low + tol).length < MIN_TOUCHES) return WAIT;
+  if (win.filter(c => c.high >= high - tol).length < MIN_TOUCHES || win.filter(c => c.low <= low + tol).length < MIN_TOUCHES) return null;
+  return { high, low, w, fromTs: win[0].time };
+}
+
+export function detectRangeBounce(candles: readonly OHLCV[], _ctx: StrategyContext): StrategyResult {
+  const n = candles.length;
+  if (n < MIN_CANDLES) return WAIT;
+  const range = currentRange(candles);
+  if (!range) return WAIT;
+  const { high, low, w } = range;
+  const win = candles.slice(0, -1).slice(-RANGE_BARS);
+  const tol = TOUCH_FRAC * w;
   const x = candles[n - 1];
   const edges = [
     { price: high, role: 'watch' as const, fromTs: win[0].time, labelKey: 'STRAT_OV_RANGE_HIGH' as const },

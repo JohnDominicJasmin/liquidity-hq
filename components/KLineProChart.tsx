@@ -444,6 +444,8 @@ interface Props {
   /** What the PICKED Arena strategy draws on the main price chart (lib/strategies overlay: its key levels, zone or line, and the arrow on a signal candle). Null when no strategy is picked or the read has not
    *  arrived; the latest state only, cleared and redrawn whenever it changes (a new strategy, coin or timeframe). Canvas overlays only: nothing here takes layout space. */
   strategyOverlay?: StrategyOverlay | null;
+  /** The picked strategy says WAIT and has nothing at all to draw (no levels, no zone, no line, no past signal): the chart says so with a short chip instead of staying silent (owner, 2026-11-19). */
+  strategyNoSetup?: boolean;
 }
 
 const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d','1w','1M'];
@@ -648,7 +650,7 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, showEma = true, showRsi = true, onUnlock, strategyOverlay }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, showEma = true, showRsi = true, onUnlock, strategyOverlay, strategyNoSetup }: Props) {
   const showEmaRef = useRef(showEma);
   showEmaRef.current = showEma;
   /* THE ADJUSTABLE LAYER SETTINGS (owner, 2026-11-17): the four EMA ribbon lengths and the RSI length + overbought / oversold lines. Chart only: the strategy signals keep the standard lengths. Clamped here as well as in the panel, so a stale saved value cannot break the chart. */
@@ -1860,14 +1862,17 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           ...base, name: 'strategyMarker',
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
-            const { dir } = overlay.extendData as { dir: 'long' | 'short' };
+            const { dir, past } = overlay.extendData as { dir: 'long' | 'short'; past?: boolean };
             const c = coordinates[0];
             if (!c || !isFinite(c.x) || !isFinite(c.y) || c.y < 0) return [];
-            const ink = resolveCssColor(dir === 'long' ? 'var(--green)' : 'var(--red)');
+            const solid = resolveCssColor(dir === 'long' ? 'var(--green)' : 'var(--red)');
+            // a PAST signal's arrow is smaller and lighter than the live call's, so the one that is current still reads first (owner, 2026-11-19: a trader sees the strategy working on the candles)
+            const ink = past ? withAlpha(solid, 0.6) : solid;
+            const half = past ? 4.5 : 6, tip = past ? 5 : 6, depth = past ? 13 : 18;
             // a triangle pointing at the candle: below a long's low, above a short's high
-            const tipY = dir === 'long' ? c.y + 6 : c.y - 6;
-            const baseY = dir === 'long' ? c.y + 18 : c.y - 18;
-            return [{ type: 'polygon', attrs: { coordinates: [{ x: c.x, y: tipY }, { x: c.x - 6, y: baseY }, { x: c.x + 6, y: baseY }] }, styles: { style: 'stroke_fill', color: ink, borderColor: ink, borderSize: 1 } }];
+            const tipY = dir === 'long' ? c.y + tip : c.y - tip;
+            const baseY = dir === 'long' ? c.y + depth : c.y - depth;
+            return [{ type: 'polygon', attrs: { coordinates: [{ x: c.x, y: tipY }, { x: c.x - half, y: baseY }, { x: c.x + half, y: baseY }] }, styles: { style: 'stroke_fill', color: ink, borderColor: ink, borderSize: 1 } }];
           },
         });
       }
@@ -2968,6 +2973,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       const bar = chart.getDataList().find(b => b.timestamp === ov.marker!.ts);
       if (bar) add('strategyMarker', [{ timestamp: bar.timestamp, value: ov.marker.dir === 'long' ? bar.low : bar.high }], { dir: ov.marker.dir });
     }
+    // the strategy's last few PAST signals on the candles in view (lib/strategies/chartDrawings.ts recentSignals): the same detector run on the earlier candles
+    if (ov.history?.length) {
+      const bars = chart.getDataList();
+      const byTs = new Map(bars.map(b => [b.timestamp, b]));
+      for (const h of ov.history) {
+        const bar = byTs.get(h.ts);
+        if (bar) add('strategyMarker', [{ timestamp: bar.timestamp, value: h.dir === 'long' ? bar.low : bar.high }], { dir: h.dir, past: true });
+      }
+    }
   }, [strategyOverlay, chartReady, themeInk, ovLabelProbe, barsTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Publish the newest structure break upward. Separate from the drawing effect
@@ -3967,6 +3981,20 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             timeframe loads so it never stacks with the loading label; top-left, clear of the
             centre loading label and the price-anchored countdown. Reads the flag the EMA hook
             sets, so it can never disagree with whether the markers were actually filtered. */}
+        {strategyNoSetup && !loadingTf && (
+          <div
+            role="status"
+            data-testid="chart-strategy-no-setup"
+            style={{
+              position: 'absolute', top: emaSignal?.markersFilteredBySelection ? 38 : 10, left: 10,
+              padding: '3px 10px', borderRadius: 4, pointerEvents: 'none', whiteSpace: 'nowrap',
+              fontSize: 'var(--fs-caption)', fontWeight: 600, letterSpacing: '.02em',
+              color: 'var(--txt2)', background: 'var(--bg1)', border: '1px solid var(--bdr3)',
+            }}
+          >
+            {tl('STRAT_NO_SETUP')}
+          </div>
+        )}
         {emaSignal?.markersFilteredBySelection && !loadingTf && (
           <div
             role="status"
