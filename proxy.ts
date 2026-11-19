@@ -30,30 +30,52 @@
  */
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { SITE_GATE_REALM, SITE_GATE_ROBOTS_TAG, SITE_GATE_ROBOTS_TXT, siteGateDecision } from '@/lib/siteGate';
 
 /** Exact paths only. A future /backtest/results should be a deliberate decision,
  *  not something that silently inherits this one — same reasoning as
  *  `isChromeless` and the (now removed) market-data exemption in AppShell. */
 const BLOCKED = new Set(['/backtest', '/live-tracking']);
 
+/* THE TEAM-ONLY GATE (lib/siteGate.ts; owner ask 2026-11-19): when SITE_GATE_PASSWORD is set (dev, qa and staging, never production) every page and API needs HTTP Basic auth, every response carries
+   `X-Robots-Tag: noindex, nofollow`, and /robots.txt says "disallow all". With the variable unset or empty this function behaves exactly as before: the gate code below is never reached. */
 export function proxy(request: NextRequest) {
+  const gatePassword = process.env.SITE_GATE_PASSWORD;
+  if (gatePassword) {
+    const decision = siteGateDecision(
+      { pathname: request.nextUrl.pathname, authorization: request.headers.get('authorization'), cronSecretHeader: request.headers.get('x-cron-secret') },
+      { password: gatePassword, cronSecret: process.env.CRON_SECRET },
+    );
+    if (decision === 'robots') {
+      return new NextResponse(SITE_GATE_ROBOTS_TXT, { status: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': SITE_GATE_ROBOTS_TAG } });
+    }
+    if (decision === 'deny') {
+      return new NextResponse('Authentication required.', {
+        status: 401,
+        headers: { 'WWW-Authenticate': `Basic realm="${SITE_GATE_REALM}", charset="UTF-8"`, 'X-Robots-Tag': SITE_GATE_ROBOTS_TAG, 'Cache-Control': 'no-store' },
+      });
+    }
+    const res = routeBlocked(request) ?? NextResponse.next();
+    res.headers.set('X-Robots-Tag', SITE_GATE_ROBOTS_TAG);
+    return res;
+  }
+  return routeBlocked(request) ?? NextResponse.next();
+}
+
+function routeBlocked(request: NextRequest): NextResponse | null {
   if (BLOCKED.has(request.nextUrl.pathname)) {
     /* 307, the NextResponse.redirect default: a temporary redirect, because
        these pages are hidden rather than retired. A 308 would be cached by
        browsers and would outlive the decision. */
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
-  return NextResponse.next();
+  return null;
 }
 
-/* Scoped to exactly the two blocked paths again (#1434).
- *
- * From 2026-09-13 (#1251) this ran on every page request, to tag each one with
- * an `x-lhq-pathname` header that app/not-found.tsx read back through
- * `headers()` to log which path had 404'd. That read is what broke the 404s it
- * was meant to explain - see app/not-found.tsx - and it is gone, so nothing
- * reads the tag any more. A two-entry lookup gains nothing from running on
- * every other request. */
+/* THE MATCHER IS WIDE NOW, AND THE FUNCTION IS A NO-OP FOR THE OLD CASE. It was scoped to the two blocked paths (#1434: from 2026-09-13 this ran on every page request to tag each one with an
+   `x-lhq-pathname` header that app/not-found.tsx read back through `headers()`; that READ broke the 404s it was meant to explain, and it is gone). The gate has to see every page and API request,
+   and a matcher must be a constant (it cannot depend on the environment), so it matches everything except Next's own static assets; with SITE_GATE_PASSWORD unset the function returns
+   `NextResponse.next()` for every path but the two blocked ones, which it redirects exactly as before. Nothing here reads headers() or sets a header when the gate is off. */
 export const config = {
-  matcher: ['/backtest', '/live-tracking'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };

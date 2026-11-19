@@ -6,9 +6,9 @@ import { trackHealth } from '@/lib/apiHealth';
 // Coinbase Exchange public ticker - no auth required, no CORS issues from server
 const CB_TICKER = 'https://api.exchange.coinbase.com/products/BTC-USD/ticker';
 const CB_USDT_TICKER = 'https://api.exchange.coinbase.com/products/USDT-USD/ticker';
-// Short TTL - still collapses concurrent visitor fan-out into one upstream
-// call without the price visibly lagging.
-const CACHE_TTL = 5_000;
+// 20 s: every visitor's page asks every 30 s (MarketProvider fetchCoinbasePremium), and the premium is a spread of two prices that move far less than that in 20 s. It was 5 s, which let concurrent visitors
+// at random phases drive up to 12 upstream rounds a minute (two Coinbase tickers each); at 20 s it is at most 3 whatever the visitor count (#1651 L13, traffic inventory).
+const CACHE_TTL = 20_000;
 // How long the answer waits for the USDT rate after the BTC price is in. A slower rate answers null this time (premium unknown), not late.
 const USDT_WAIT_MS = 1_000;
 

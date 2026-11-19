@@ -338,7 +338,7 @@ async function runBatched<T>(tasks: Array<() => Promise<T>>, batchSize = 5): Pro
  * instants that are the same for every reader on earth. Shifting UTC by 8 is just how the thresholds
  * below were written down; `sessionHour >= 15 && < 21.5` is UTC 07:00-13:30 either way.
  *
- * So the offset stays and the names go. They were `phtHour` and `pht`, which read as the operator's
+ * So the offset stays and the names go. They were named for one fixed zone, which read as the operator's
  * clock and made a correct computation look like a parochial one. **The arithmetic is deliberately
  * untouched**: rewriting the thresholds in UTC means re-deriving five comparisons across a modulo
  * boundary, and a renamed variable cannot move a session edge while a rewritten threshold can. */
@@ -2657,7 +2657,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
 
   // TIME_TOKEN, not a rendered time: tg() replaces it per recipient with that
   // subscriber's own local clock (falling back to UTC when we don't know their
-  // timezone). Was a single Manila time for everyone, then a single UTC time -
+  // timezone). Was a single fixed-zone time for everyone, then a single UTC time -
   // correct but still nobody's actual wall clock. The session name beside it is
   // already timezone-independent.
   const stamp = `⏰ ${TIME_TOKEN} · ${getSession()}`;

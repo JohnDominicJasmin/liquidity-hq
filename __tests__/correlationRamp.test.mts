@@ -89,9 +89,9 @@ test('the ramp is monotonic away from zero', () => {
      the green ramp from a 4% floor and r <= 0 takes the red one from 6%, so
      tintPct(0.01) < tintPct(0) by construction. My first version asserted
      across the boundary and failed at r=0.01 - the test was wrong, not the
-     ramp. Worth noting the quirk it exposed: r exactly 0 renders a faint RED
-     tint rather than a neutral one, because the branch is `r > 0`. Pre-existing
-     and cosmetic at 6% alpha, recorded rather than changed here. */
+     ramp. (The quirk it exposed, r exactly 0 rendering a faint RED
+     tint, was fixed in #2645: r = 0 and the weak positive band are untinted now, pinned in
+     correlationQuietBand2645.test.mts.) */
   for (let i = 2; i <= 100; i++) {
     assert.ok(tintPct(i / 100) >= tintPct((i - 1) / 100), `positive ramp dipped at r=${i / 100}`);
     assert.ok(tintPct(-i / 100) >= tintPct(-(i - 1) / 100), `negative ramp dipped at r=${-i / 100}`);
