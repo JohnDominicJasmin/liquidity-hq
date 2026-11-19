@@ -533,7 +533,12 @@ function TSelectedCoinCard() {
   const chg = d?.change ?? null;   // unknown stays null: never a real-looking +0.00% (#1651)
   const up  = chg != null && chg >= 0;
   const badgeCol = coinBadgeColor(id);
-  const oi = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
+  /* ONE SURFACE, ONE ANSWER (#1185, PM 2026-11-19, QA's note on #2650): the selected-coin card takes its OI word from the same 1h samples as the OI cards (the store's own trend is another window and could disagree); the store trend is only the fallback while the
+     1h samples have not answered. */
+  const oi1h = useOI1h(id);
+  const oi1hAnswered = oi1h.pct != null && oi1h.pricePct != null;
+  const oiKey = oi1hAnswered ? oiTrend1h(oi1h.pct, oi1h.pricePct) : d?.oiTrend ?? null;
+  const oi = oiKey ? OI_TREND_META[oiKey] : null;
   const patternName = patternWord(t, d?.chartPattern?.split(';')[0].split('(')[0].trim());
   const pattern = patternName ? patternName + ' · 15m' : patternName;   // the window is stated (S8)
   const sigText = oi ? t(oi.txtKey) : (pattern || null);
