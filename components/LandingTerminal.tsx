@@ -151,7 +151,10 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
     weak_up:     { txt: lr.oiTrend.weak_up,     col: 'var(--txt)' },
     weak_down:   { txt: lr.oiTrend.weak_down,   col: 'var(--txt)' },
   };
-  const oiRow = d?.oiTrend ? oiTrendTxt[d.oiTrend] : null;
+  /* THE SAME HOUR AS THE "OI 1h" ROW BELOW (#1185, PM audit 2026-11-17: "OI trend: Strong up" beside "OI 1h: -1.23%, short covering"): when the 1h samples carry both the OI and the price change, the trend word comes from them; the store's trend is the fallback while they do not. */
+  const oi1hBoth = oi1h.pct != null && oi1h.pricePct != null;
+  const oiTrendFrom1h = oi1hBoth ? oiTrend1h(oi1h.pct, oi1h.pricePct) : null;
+  const oiRow = oi1hBoth ? (oiTrendFrom1h ? oiTrendTxt[oiTrendFrom1h] : null) : (d?.oiTrend ? oiTrendTxt[d.oiTrend] : null);
 
   const fr = d?.fundingRate;
   const frInfo = fr != null ? classifyFunding(fr) : null;
