@@ -2341,11 +2341,10 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
   /* THE TOOLBAR'S ROW COUNT NEVER MOVES THE CHART ON A PHONE (QA CLS gate on staging, /arena at 360 in Russian: 0.56, the toolbar flipping between one row and two every 1.5-2 s, +0.166 each flip). At this
      width the toolbar sits on the edge of fitting in one row (ten timeframes, Draw structure, the "?" and fullscreen in 326 px), and any small width change (a label arriving, the feed dot, the plan control) tips it
      over or back. Two rows of height are reserved from the first paint (6 + 26 + 4 + 26 + 6 px of padding and buttons, plus the border), so one row or two occupy the same space and nothing below moves. */
-  .klc-toolbar { min-height: 69px; align-content: flex-start; }
+  .klc-toolbar { min-height: 100px; align-content: flex-start; }
   /* RUSSIAN NEEDS THREE ROWS (QA probe on this change, ru at 360 px, signed out: the toolbar is two rows with the English labels and THREE once the Russian labels land, +30 px, CLS 0.244 on a first-ever Russian load; a returning
      Russian user, whose lhq_lang cookie makes /arena render the Russian labels on the server, measured 0.05). `html[data-lang="ru"]` is set before paint from the stored language by the head script in components/RootDocument.tsx, so
      the three rows (6 + 26 + 4 + 26 + 4 + 26 + 6 px plus the border) are reserved from the first paint even when the page is still English. Other languages keep two rows until measured. */
-  html[data-lang="ru"] .klc-toolbar { min-height: 100px; }
   .klc-ds-wrap { position: static; }
   .klc-ds-wrap .klc-draw-menu { left: 8px; right: 8px; top: auto; margin-top: 4px; min-width: 0; }
   .klc-ds-wrap .klc-draw-item { white-space: normal; }
