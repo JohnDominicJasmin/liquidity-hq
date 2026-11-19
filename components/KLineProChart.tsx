@@ -9,6 +9,7 @@ import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
 import { Lock, Warn } from '@/components/icons';
+import { isGatedTf } from '@/lib/limits';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { useAuth } from '@/components/AuthProvider';
@@ -1156,6 +1157,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       const chart = kc.init(containerRef.current);
       if (!chart) return;
       chartRef.current = chart;
+      /* klinecharts gives its inner element `tabindex="1"`. A positive tabindex jumps ahead of the page's own tab order (axe `tabindex`, PM audit 2026-11-17, #1185), so it is set to 0: the chart stays reachable, in its place. */
+      for (const el of [containerRef.current, ...Array.from(containerRef.current.querySelectorAll<HTMLElement>('[tabindex]'))]) {
+        if (Number(el.getAttribute('tabindex')) > 0) el.setAttribute('tabindex', '0');
+      }
 
       // Apply current theme via setStyles (avoids DeepPartial type gymnastics)
       const dark = document.documentElement.getAttribute('data-theme') !== 'light';
@@ -1837,6 +1842,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const out: Array<Record<string, unknown>> = [];
             /* STOP AND TARGET LABELS ARE ALWAYS ON SCREEN (PM/QA 2026-11-18: the SELL stop was off the visible price scale on a short phone chart, so its label was clipped away). A level outside the pane keeps its label, pinned to the pane edge with the full value and an arrow toward the level; the scale is NOT changed, so nothing jumps. */
             const H = bounding?.height ?? 300;
+            /* LABELS THAT WOULD LAND ON ONE ANOTHER ARE KEPT APART (QA #1263 L104, 390 px: when the stop or the target sits within about a label height of the entry, its label printed over the entry / R:R text, and over
+               the channel tags). A Target or Stop label never sits closer than APART_PX to the entry line: it is pushed outward, away from the entry, to that distance. */
+            const APART_PX = 14;
+            const apart = (y: number, outward: 1 | -1): number => (Math.abs(y - e.y) >= APART_PX ? y : Math.min(H - 10, Math.max(10, e.y + outward * APART_PX)));   // clamped inside the pane: a pushed label stays on the pane, so only an OFF-pane level gets the arrow (the 2026-11-18 rule)
             const pin = (y: number, text: string, short: string): { y: number; text: string } => {
               if (y < 10) return { y: 10, text: `${text} ↑` };
               if (y > H - 10) return { y: H - 10, text: `${text} ↓` };
@@ -1844,11 +1853,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             };
             if (d.hasTarget && t && [t.x, t.y].every(isFinite)) {
               out.push({ type: 'rect', attrs: { x: x0, y: Math.min(e.y, t.y), width: x1 - x0, height: Math.max(Math.abs(e.y - t.y), 1) }, styles: { style: 'stroke_fill', color: withAlpha(green, 0.16), borderColor: green, borderSize: 1 } });
-              const tp = pin(t.y < e.y ? t.y + 3 : t.y - 3, d.targetText, 'T');
+              const tp = pin(apart(t.y < e.y ? t.y + 3 : t.y - 3, t.y < e.y ? -1 : 1), d.targetText, 'T');
               out.push({ type: 'text', attrs: { x: x1 - 4, y: tp.y, text: tp.text, align: 'right', baseline: t.y < e.y ? 'top' : 'bottom' }, styles: { color: green, size: 10, weight: '700' } });
             }
             out.push({ type: 'rect', attrs: { x: x0, y: Math.min(e.y, s.y), width: x1 - x0, height: Math.max(Math.abs(e.y - s.y), 1) }, styles: { style: 'stroke_fill', color: withAlpha(red, 0.16), borderColor: red, borderSize: 1 } });
-            const sp = pin(s.y > e.y ? s.y - 3 : s.y + 3, d.stopText, 'S');
+            const sp = pin(apart(s.y > e.y ? s.y - 3 : s.y + 3, s.y > e.y ? 1 : -1), d.stopText, 'S');
             out.push({ type: 'text', attrs: { x: x1 - 4, y: sp.y, text: sp.text, align: 'right', baseline: s.y > e.y ? 'bottom' : 'top' }, styles: { color: red, size: 10, weight: '700' } });
             out.push({ type: 'line', attrs: { coordinates: [{ x: x0, y: e.y }, { x: x1, y: e.y }] }, styles: { style: 'solid', color: ink, size: 1 } });
             out.push({ type: 'text', attrs: { x: x0 + 4, y: e.y - 3, text: narrow ? 'E' : d.entryText, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } });
@@ -3607,15 +3616,25 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           </span>
         )}
         {/* TF selector */}
-        {TFS.map(t => (
-          <button
-            key={t}
-            className={`klc-tool-btn klc-tf-btn${tf === t ? ' on' : ''}`}
-            onClick={() => onTfChange?.(t)}
-          >
-            {t}
-          </button>
-        ))}
+        {TFS.map(t => {
+          /* THE FAST TIMEFRAMES SHOW THEIR LOCK TO A CONFIRMED FREE ACCOUNT (#1185, PM 2026-11-17): the click already opens the upgrade modal, but nothing said so before it. The lock is a badge over the button's corner, so no width changes when the plan read settles; the name says PRO for a screen reader. */
+          const locked = isGatedTf(t) && entitlementStatus === 'not_entitled' && !entitlementsLoading;
+          return (
+            <button
+              key={t}
+              className={`klc-tool-btn klc-tf-btn${tf === t ? ' on' : ''}`}
+              onClick={() => onTfChange?.(t)}
+              {...(locked ? { 'aria-label': `${t} ${tl('DRAW_STRUCTURE_PRO_TAG')}`, title: `${t} ${tl('DRAW_STRUCTURE_PRO_TAG')}`, style: { position: 'relative' as const } } : {})}
+            >
+              {t}
+              {locked && (
+                <span aria-hidden="true" style={{ position: 'absolute', top: -5, right: -4, display: 'inline-flex', background: 'var(--bg2)', borderRadius: '50%', padding: 1, color: 'var(--accent-2)' }}>
+                  <Lock size={9} />
+                </span>
+              )}
+            </button>
+          );
+        })}
         <div className="klc-sep" />
 
         {/* DRAW STRUCTURE. Offered on 4h and 1d only - from the owner's own answers on 28

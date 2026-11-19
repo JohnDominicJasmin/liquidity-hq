@@ -188,7 +188,7 @@ export default function NavDrawer() {
         ref={drawerRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Navigation menu"
+        aria-label={t('A11Y_NAV_MENU')}
         tabIndex={-1}
         className={`nav-drawer${drawerOpen ? ' open' : ''}`}
         /* inert while closed - the same fix as GrokChat. The drawer is hidden
@@ -224,7 +224,7 @@ export default function NavDrawer() {
                 spellCheck={false}
               />
               {navQuery && (
-                <button className="nav-search-clear" onClick={() => setNavQuery('')} aria-label="Clear search" type="button">
+                <button className="nav-search-clear" onClick={() => setNavQuery('')} aria-label={t('FUNDING_CLEAR_SEARCH_ARIA')} type="button">
                   <svg width="13" height="13" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                     <line x1="5" y1="5" x2="15" y2="15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
                     <line x1="15" y1="5" x2="5" y2="15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />

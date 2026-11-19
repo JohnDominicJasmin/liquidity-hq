@@ -96,8 +96,8 @@ export function computeContrarian(store: MarketStore): Contrarian | null {
     count,
     label: isBear ? 'Longs overcrowded' : 'Shorts overcrowded',
     desc: isBear
-      ? (count >= 3 ? 'All 3 crowd signals lean bearish - high flush risk. Tighten stops or wait.' : 'Crowd is leaning long - elevated flush risk. Avoid chasing longs.')
-      : (count >= 3 ? 'All 3 crowd signals lean bullish - high squeeze potential. Watch for a sharp reversal.' : 'Crowd is leaning short - squeeze risk building. Watch for a reversal, not a buy yet.'),
+      ? (count >= 3 ? 'All 3 crowd signals show heavy long positioning.' : '2 of 3 crowd signals show heavy long positioning.')
+      : (count >= 3 ? 'All 3 crowd signals show heavy short positioning.' : '2 of 3 crowd signals show heavy short positioning.'),
   };
 }
 
@@ -185,7 +185,8 @@ export function computeMarketRead(store: MarketStore, manualFund: FundingSide | 
   const factors: Factor[] = [];
   if (wall.has) factors.push({ key: 'wall', label: 'Order wall', value: wall.pct != null && wall.pct <= 1 ? 'Tight' : wall.label ? 'Nearby' : 'Far', sub: wall.label || undefined });
   factors.push({ key: 'fng', label: 'Fear & Greed', value: fngLabel, sub: fng == null ? undefined : String(fng) });
-  factors.push({ key: 'day', label: 'Day', value: dayLabel });
+  /* The sub says how much the weekday adds to the score (out of 15), so the tile states why it is there (#1185). */
+  factors.push({ key: 'day', label: 'Day', value: dayLabel, sub: `${dayScore}/15` });
   factors.push({ key: 'fund', label: 'Funding', value: fundLabel });
   /* A WORD ONLY, no "+1/10" (#1185, PM audit 2026-11-17): the denominator changed from one read to the next and nothing said what was counted. */
   factors.push({ key: 'sm', label: 'Smart money', value: sm.label });

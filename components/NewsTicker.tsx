@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useNews } from './NewsProvider';
 import { useNow } from '@/lib/useNow';
+import { useLabels } from '@/lib/labels';
 
 function decodeEntities(str: string): string {
   if (typeof document === 'undefined') return str;
@@ -18,6 +19,7 @@ function timeAgo(ts: number): string {
 }
 
 export default function NewsTicker() {
+  const { t } = useLabels();
   const { alerts } = useNews();
   const spanRef = useRef<HTMLSpanElement>(null);
   const [duration, setDuration] = useState(60);
@@ -132,8 +134,8 @@ export default function NewsTicker() {
         className="ticker-close ticker-pause"
         onClick={() => setPaused(p => !p)}
         aria-pressed={paused}
-        aria-label={paused ? 'Resume scrolling headlines' : 'Pause scrolling headlines'}
-        title={paused ? 'Resume' : 'Pause'}
+        aria-label={paused ? t('A11Y_TICKER_RESUME') : t('A11Y_TICKER_PAUSE')}
+        title={paused ? t('A11Y_TICKER_RESUME') : t('A11Y_TICKER_PAUSE')}
         type="button"
       >
         <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -145,8 +147,8 @@ export default function NewsTicker() {
       <button
         className="ticker-close"
         onClick={dismiss}
-        aria-label="Hide news until a newer alert"
-        title="Hide until a newer alert"
+        aria-label={t('A11Y_TICKER_HIDE')}
+        title={t('A11Y_TICKER_HIDE')}
         type="button"
       >
         <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">

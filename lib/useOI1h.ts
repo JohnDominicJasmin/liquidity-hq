@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { CoinId } from './marketStore.ts';
 import { COIN_UNIVERSE } from './coinUniverse.generated.ts';
 import { oiHistChange } from './oiTrend1h.ts';
+import type { LabelKey } from './labelKeys.ts';
 
 /* ── Endpoints ──
  *
@@ -184,22 +185,25 @@ export function useOI1h(coin: CoinId): OI1hData {
 }
 
 /* ── Derive signal text from pct + oiTrend ── */
-const OI_TREND_TXT: Record<string, string> = {
-  strong_up:   'New longs - real trend ▲',
-  strong_down: 'New shorts - real dump ▼',
-  weak_up:     'Short covering - weak pump',
-  weak_down:   'Long exits - no panic',
+/* The text DESCRIBES what open interest and price did; it does not call a trend "real" or a move "weak" (#1185, owner rule: describe, never advise).
+   `txt` is the English, which the AI prompt reads; `key` is the label key the screens show, so a ru/ko/zh/ar visitor no longer sees "Stable" in English. */
+const OI_TREND_TXT: Record<string, { txt: string; key: LabelKey }> = {
+  strong_up:   { txt: 'New longs opening ▲',  key: 'OI_1H_SIGNAL_NEW_LONGS' },
+  strong_down: { txt: 'New shorts opening ▼', key: 'OI_1H_SIGNAL_NEW_SHORTS' },
+  weak_up:     { txt: 'Short covering',       key: 'OI_1H_SIGNAL_SHORT_COVER' },
+  weak_down:   { txt: 'Long exits',           key: 'OI_1H_SIGNAL_LONG_EXITS' },
 };
 
-export function oi1hSignal(pct: number | null, oiTrend?: string | null): { txt: string; col: string } {
-  if (pct == null) return { txt: '-', col: 'var(--txt3)' };
+export function oi1hSignal(pct: number | null, oiTrend?: string | null): { txt: string; col: string; key: LabelKey | null } {
+  if (pct == null) return { txt: '-', col: 'var(--txt3)', key: null };
   const isPos   = pct > 0;
   const isSpike = Math.abs(pct) >= 10;
-  const trendTxt = oiTrend ? OI_TREND_TXT[oiTrend] : null;
+  const trend = oiTrend ? OI_TREND_TXT[oiTrend] : null;
 
-  const txt = isSpike
-    ? (trendTxt ?? (isPos ? 'OI spike - rising' : 'OI spike - unwinding'))
-    : trendTxt ?? (Math.abs(pct) < 2 ? 'Stable' : isPos ? 'Rising' : 'Unwinding');
+  const picked: { txt: string; key: LabelKey } = isSpike
+    ? (trend ?? (isPos ? { txt: 'OI spike - rising', key: 'OI_1H_SIGNAL_SPIKE_UP' } : { txt: 'OI spike - unwinding', key: 'OI_1H_SIGNAL_SPIKE_DOWN' }))
+    : trend ?? (Math.abs(pct) < 2 ? { txt: 'Stable', key: 'OI_1H_SIGNAL_STABLE' } : isPos ? { txt: 'Rising', key: 'OI_1H_SIGNAL_RISING' } : { txt: 'Unwinding', key: 'OI_1H_SIGNAL_UNWINDING' });
+  const txt = picked.txt;
 
   // --green/--red, not the -soft variants (#546 C9): --green-soft/--red-soft
   // are undeclared in terminal's 16-token palette and fall through to the
@@ -210,5 +214,5 @@ export function oi1hSignal(pct: number | null, oiTrend?: string | null): { txt: 
     : pct < 0                  ? 'var(--red)'
     : 'var(--txt3)';
 
-  return { txt, col };
+  return { txt, col, key: picked.key };
 }
