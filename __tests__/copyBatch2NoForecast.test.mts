@@ -19,7 +19,7 @@ const APPROVED: Record<string, string> = {
   LIQ_WHALE_LONG_SQUEEZE_BODY: "Retail is {retailPct}% long and whales are {whalePct}% short.",
   LIQ_WHALE_SHORT_SQUEEZE_BODY: "Retail is {retailPct}% short and whales are {whalePct}% long.",
   LIQ_LEGEND_MAGNET_BOLD: "Densest cluster",
-  LIQ_LEGEND_MAGNET_TEXT: "the largest estimated cluster in the selected window.",
+  LIQ_LEGEND_MAGNET_TEXT: "the largest estimated cluster in the window.",   /* #2653 (rule 25): "selected" dropped; the legend is a one-line budget */
   FUNDING_REGIME_OVERVIEW_TIP: "Each coin's funding regime: crowded shorts, crowded longs, or extreme funding rates.",
   FUNDING_LEGEND_POSITIVE_DESC: "longs paying shorts",
   FUNDING_LEGEND_NEGATIVE_DESC: "shorts paying longs",
@@ -31,8 +31,8 @@ const APPROVED: Record<string, string> = {
   MULTI_TF_ALIGNMENT_FOOTER_MIXED: "No clear directional bias across timeframes.",
   GEX_TABLE_LEAN_MAGNET_ABOVE: "strongest level (${strike}K) above price",
   GEX_TABLE_LEAN_MAGNET_BELOW: "strongest level (${strike}K) below price",
-  GEX_TABLE_REGIME_DESC_RANGING: "dealer positioning dampens moves in this regime",
-  GEX_TABLE_REGIME_DESC_TRENDING: "dealer positioning amplifies moves in this regime",
+  GEX_TABLE_REGIME_DESC_RANGING: "dealers dampen moves",   /* #2653 (rule 25): the lean line is one short line. Still describes, does not forecast */
+  GEX_TABLE_REGIME_DESC_TRENDING: "dealers amplify moves",
   GEX_TABLE_COL_WALL_STRENGTH: "Wall strength",
   GEX_TABLE_STRONGEST_MAGNET_LABEL: "Strongest level:",
   GEX_TABLE_STRONGEST_MAGNET_DESC: "- the strike with the largest gamma exposure",
