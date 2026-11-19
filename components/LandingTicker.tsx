@@ -56,7 +56,7 @@ export default function LandingTicker({ mobile, dir, words }: { mobile: boolean;
         /* No price and no change once the read is done: the coin is left out of the band (owner sweep 2026-11-18), not shown as "Unavailable". */
         if (bothGone && feed !== 'pending') return null;
         return (
-          <div key={id} style={{
+          <div key={id} className="lpt-tk-cell" style={{
             display: 'flex', alignItems: 'center', gap: mobile ? 6 : 8,
             padding: mobile ? '0 12px' : '0 16px',
             borderRight: '1px solid var(--bdr3)', flexShrink: 0,
@@ -67,7 +67,7 @@ export default function LandingTicker({ mobile, dir, words }: { mobile: boolean;
               {coinLabel(id)}
             </span>
             {!mobile && (
-              <span style={{ fontSize: 11, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>
+              <span className="lpt-tk-price" style={{ fontSize: 11, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>
                 {d?.price ? fmtPrice(d.price, COIN_DEC[id]) : gap()}
               </span>
             )}
