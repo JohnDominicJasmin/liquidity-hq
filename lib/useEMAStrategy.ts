@@ -710,7 +710,7 @@ export function useEMAStrategy(
             pass:  oiOK,
             detail: oiPct == null
               ? 'Open interest data unavailable'
-              : `Open interest ${oiPct >= 0 ? '+' : ''}${oiPct.toFixed(2)}% in 1h - ${oiOK ? 'stable or rising (healthy)' : 'sharp drop (abort - position covering cascade)'}`,
+              : `Open interest ${oiPct >= 0 ? '+' : ''}${oiPct.toFixed(2)}% in 1h - ${oiOK ? 'stable or rising' : 'sharp drop'}`,
             ...oiDetailRef(oiPct, oiOK),
           },
           {
