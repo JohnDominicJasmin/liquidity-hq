@@ -750,28 +750,25 @@ Tracked on #1651.
   deploy), and even then never when he is resting.
 - If a tool blocks the suggestion, do everything else, and do not ask him to click anything.
 
-## 24. ONE BACKGROUND TASK AT A TIME IN DEV AND QA (SET 2026-11-19, LATE)
+## 24. AT MOST TWO BACKGROUND TASKS EACH IN DEV AND QA (SET 2026-11-19, FINAL FOR NOW)
 
-**Owner, 2026-11-19, first-hand to PM:** *"sorry i think 2 background task each is too consuming, change it to 1 background task each"*.
+**Owner, 2026-11-19, first-hand to PM:** *"I think 2 background tasks maximum each. So 2 for dev, 2 for QA. That's maximum."*
 
-This is the current rule. The same day went through three settings, and the history is kept because each
-change was about cost:
+This is the current rule, and it is a maximum, not a target: use the helpers when there is real parallel
+work. The same day went through several settings, all about cost:
 
-- **2026-11-18:** parallel lanes, no cap. Background agents re-read the code at 100-300k tokens each and the
-  sessions hit their usage limits within hours.
-- **2026-11-19 morning:** one item at a time, no background agents (*"It is much faster to run the normal one by
-  one and not hit the limit than to work multiple tasks but hit the limit too often and fast."*).
-- **2026-11-19 evening:** two background tasks each (*"run 2 background task at a time in both dev and qa now"*).
-- **2026-11-19 late:** one background task each, because two used too much.
+- **2026-11-18:** parallel lanes, no cap. Agents re-read the code at 100-300k tokens each; limits hit within hours.
+- **2026-11-19 morning:** one item at a time, no background agents.
+- **2026-11-19 evening:** two each, then one each (*"too consuming"*), then two each as the maximum.
 
 How to apply it:
 
-- **Dev and QA each run their own session plus at most ONE background task.** Never two helpers.
-- **PM gives each session two lanes that touch different files**: one in the session, one in the helper.
-- **The helper gets a narrow brief** (files to read, what to change, what to prove), so it does not re-read
-  the codebase.
-- **Heavy browser runs still go to GitHub Actions**, which do not use the session's tokens.
-- If the sessions start hitting their usage limits again, PM drops to no helpers and tells the owner in one line.
+- **Dev and QA each run their own session plus at most TWO background tasks.**
+- **PM gives each helper a lane that touches different files** from the session and the other helper.
+- **Each helper gets a narrow brief** (only its section of the tracker, the files to read, what to prove), so it
+  does not re-read the codebase.
+- **Heavy browser runs go to GitHub Actions**, which do not use the session's tokens.
+- If the sessions start hitting their usage limits, PM cuts to one helper and tells the owner in one line.
 
 ## 25. NO WORDY TEXT. THE APP IS NOT AN ESSAY OR A DIARY.
 
@@ -837,3 +834,25 @@ first review already paid for the cost.**
 **PM/DevOps owns it.** When the owner gives a new instruction, it goes in here **in the same session he gives it**, in his words, with the date. When an instruction is superseded, the old text stays with a note saying what replaced it and when — a rules file that hides its own history teaches nothing.
 
 **If he has to repeat himself, this file failed.**
+
+## 27. WORLDWIDE. NOTHING DEFAULTS TO MANILA OR THE PHILIPPINES. THE TEAM'S CLOCK IS UTC.
+
+**Owner, 2026-11-19, first-hand to PM, after seeing new jobs scheduled in `Asia/Manila`:**
+
+> *"You always assume that this is only for Manila, Philippines... It should be worldwide... It should not
+> lock in one country."*
+
+Section 14 already says the product is worldwide and keeps his location off every customer surface. This
+rule closes the gap that kept reopening it: **our own defaults**. Every time a session picked a time zone
+for itself it picked Manila, because that is where the owner is. That is the habit he is objecting to.
+
+- **The team's default clock is UTC.** Scheduled jobs (cron-job.org, n8n, GitHub schedules), times in
+  issues, PRs, docs, logs and notes are UTC. Write "04:00 UTC", never "12:00 PM PHT".
+- **A customer always sees their own clock**, from their browser or their saved time zone. Never a fixed
+  zone, never his. The one fixed zone allowed in product code is a market's own session (US stocks on New
+  York time), because that is a property of the market, not of us.
+- **No new `Asia/Manila`, `PHT`, `GMT+8` or `en-PH` anywhere**: code, config, schedules or docs. The
+  survivors listed in section 14 stay; old migration history stays (it records what ran).
+- **Before shipping anything with a time in it, ask: does this read the same in New York, London, Lagos
+  and Seoul?** If it only reads right in Manila, it is wrong.
+
