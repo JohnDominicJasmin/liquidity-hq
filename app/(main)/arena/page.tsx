@@ -11,7 +11,7 @@ import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, co
 import { GrokContext, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
-import { getSessionName } from '@/lib/session';
+import { getSessionName, plainSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
 import { getAuthToken } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
@@ -1290,7 +1290,7 @@ function ArenaContent() {
 
   const gatherContext = (emaLoading: boolean): GrokContext => {
     const coin = store.coins[selectedCoin];
-    const session = getSessionName(new Date());
+    const session = plainSessionName(getSessionName(new Date()));
 
     /* 15m technicals */
     /* THE THIRTEEN FIELDS THE SERVER ALSO SOURCES, formatted by the shared function so the two
