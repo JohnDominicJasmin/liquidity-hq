@@ -149,6 +149,9 @@ export interface ChangelogEntry {
 
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
+  /* NEXT RELEASE (after v2026.11.19, tagged on e2ac7234): NO ENTRY YET. The newest entry must have at least one line (changelogRules test), so an empty entry is not
+     added: the first user-visible PR that merges to dev after the release adds the entry here, with tag and date set when it is tagged (the date is the tagged
+     commit's %cs). Plain words, 12 words or fewer per line (rule 22); a PR with nothing user-visible adds none, and PM records that it was left out on purpose. */
   {
     /* DRAFT, the release after v2026.11.18.2 (PM 2026-11-18). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs.
        Plain words, 12 words or fewer per line (rule 22); only user-visible changes. Tied to: #2565 (Arena header), #2569 (your language), #2567 (bot commands,
