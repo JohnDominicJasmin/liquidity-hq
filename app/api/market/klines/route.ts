@@ -436,7 +436,8 @@ export async function GET(req: NextRequest) {
        same rule the OKX note below applies to its 200-status errors. A real, empty list (`retCode: 0`) is still an answer. */
     if (source === 'bybit') {
       const b = body as { retCode?: unknown; result?: { list?: unknown } } | null;
-      if (!b || (b.retCode !== undefined && b.retCode !== 0) || !Array.isArray(b.result?.list)) {
+      /* An EMPTY list is refused too, but only for a latest-N read (no start/end): a listed coin always has candles there, and a cached empty is the same "has 0" for the whole candle. A range read keeps an empty answer, because a backfill walking back past the listing date reads empty to learn where history ends. */
+      if (!b || (b.retCode !== undefined && b.retCode !== 0) || !Array.isArray(b.result?.list) || (!isRange && b.result.list.length === 0)) {
         const err = new Error(`bybit klines retCode ${String(b?.retCode)}`);
         (err as Error & { status?: number }).status = 502;
         throw err;
