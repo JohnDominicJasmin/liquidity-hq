@@ -17,9 +17,9 @@ test('B1. the title and bands say crowding, not risk; the tooltip names the thre
   assert.match(tip, /Fear & Greed/); assert.match(tip, /daily RSI/); assert.match(tip, /funding/); assert.match(tip, /positive funding/); /* #2545 cut the tooltip to rule 22: it still names the three inputs (Fear & Greed, daily RSI, positive funding) */ assert.match(tip, /not a forecast/i);
   assert.doesNotMatch(tip, /dump|downside|pullback is more likely/i, 'the tooltip still claims something about a drop');
 });
-test('B2. "n of 3 inputs" appears only when fewer than three inputs built the score', () => {
-  assert.equal(en.BTC_RISK_LEVEL_INPUTS_COUNT, '{n} of 3 inputs');
-  assert.ok(comp.includes('{score != null && signals.length < 3 && ('), 'the count is not tied to a score built from fewer than three inputs');
+test('B2. "n of 4 inputs" appears only when fewer than four inputs built the score (#2613: the long-accounts ratio is the fourth)', () => {
+  assert.equal(en.BTC_RISK_LEVEL_INPUTS_COUNT, '{n} of 4 inputs');
+  assert.ok(comp.includes('{score != null && signals.length < 4 && ('), 'the count is not tied to a score built from fewer than four inputs');
   assert.ok(comp.includes("t('BTC_RISK_LEVEL_INPUTS_COUNT', { n: signals.length })"), 'the count is not the real number of inputs');
   assert.ok(comp.includes('data-testid="btc-crowding-inputs"'), 'the test id is gone');
 });
