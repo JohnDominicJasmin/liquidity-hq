@@ -2024,6 +2024,9 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
   overflow: hidden; background: var(--bg2); flex-shrink: 0;
 }
 .ncard-grid-hero .ncard-grid-img-wrap { height: 300px; }
+/* THE HERO IS A TEXT CARD ABOVE 540 PX (PM decision 2026-11-19 on #1185: no full-width stock photo above the headlines; the text hero is honest and fast). The first story's image block is not drawn there, so the headlines start higher; phones keep
+   the 88 px thumbnail row of the compact list (the rules at max-width 540 px), and every other card keeps its image. */
+@media (min-width: 541px) { .ncard-grid-hero .ncard-grid-img-wrap { display: none; } }
 .ncard-grid-img  { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .ncard-grid-body     { flex: 1; padding: 12px 14px 12px; display: flex; flex-direction: column; }
@@ -4444,6 +4447,8 @@ html[data-sess="1"] .usage-meter-host { min-height: 55px; }
    device's newer value. Sharing --error's colour would read as a failure the
    user should retry, which is the exact wrong message for this case. */
 .st-save-toast.conflict { background: var(--amber-bg); border-color: var(--amber-bdr); color: var(--amber); }
+/* The offline notice stays up, so it needs an opaque base under the translucent amber (the page showed through the text), (its placement over the Arena chart toolbar is PM's visual call: the owner rejected a bottom/right corner for toasts). */
+.offline-notice-region .st-save-toast { background: linear-gradient(var(--amber-bg), var(--amber-bg)), var(--bg2); }
 /* Error: red token, an icon as well as the colour, and real buttons - so it
    takes pointer events, unlike the passive states. */
 .st-save-toast.error    { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.45); color: var(--red); pointer-events: auto; }
