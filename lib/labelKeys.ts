@@ -1610,6 +1610,7 @@ export const LABEL_KEYS = [
   'STRAT_NA_TOO_FEW',
   'TG_DS_MORE_PRE', 'TG_DS_MORE_POST',
   'BTC_RISK_LEVEL_RATIO_LABEL',
+  'DRY_POWDER_FROM_DATE',
 ] as const;
 
 export type LabelKey = (typeof LABEL_KEYS)[number];

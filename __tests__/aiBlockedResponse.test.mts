@@ -3,7 +3,7 @@
  *   B1  isOurFaultBlock: error / not_enabled / disabled are ours; user, global, pool and the four dollar-cap reasons are real caps
  *   B2  blockedResponse: the status and code, the message kept, extra fields (a route's usage object) merged, and code never overridden by extra
  *   B3  the REAL grok-chat, shadow-account and behavioral-bias routes: the reservation RPC FAILING -> 503 UNAVAILABLE with no 'Resets' text; a real cap (RPC answers null) -> 429 RATE_LIMIT
- *   B4  all 13 routes the PR names answer a block through blockedResponse (none builds its own 429), and the four RateLimitError routes carry the reason
+ *   B4  all 12 routes the PR names (13 until #2628 took dry-powder off the per-visitor path: it reads a stored text now and reserves nothing) answer a block through blockedResponse (none builds its own 429), and the four RateLimitError routes carry the reason
  * WHAT IT CANNOT PROVE: the client text ("Resets at"); that is lib/grok.ts reading the code, pinned in the browser run. */
 import test, { after, afterEach, beforeEach } from 'node:test';
 import { register } from 'node:module';
@@ -138,15 +138,15 @@ for (const [name, run] of [
 }
 
 const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-const ROUTES = ['behavioral-bias', 'briefing', 'dry-powder', 'grok-chat', 'hypotheses/[id]/analyze', 'macro-context', 'onchain', 'pine-script', 'shadow-account', 'smc-snapshot', 'strategy-research', 'thesis-check', 'token-unlock'];
-test('B4. all 13 routes answer a blocked reservation through blockedResponse, none builds its own 429 / RATE_LIMIT, and the cached-loader routes carry the reason in their RateLimitError', () => {
+const ROUTES = ['behavioral-bias', 'briefing', 'grok-chat', 'hypotheses/[id]/analyze', 'macro-context', 'onchain', 'pine-script', 'shadow-account', 'smc-snapshot', 'strategy-research', 'thesis-check', 'token-unlock'];
+test('B4. all 12 routes answer a blocked reservation through blockedResponse, none builds its own 429 / RATE_LIMIT, and the cached-loader routes carry the reason in their RateLimitError', () => {
   for (const r of ROUTES) {
     const s = code(readFileSync(new URL(`../app/api/${r}/route.ts`, import.meta.url), 'utf8').replace(/\r\n/g, '\n'));
     assert.ok(s.includes('blockedResponse('), `${r}: does not use blockedResponse`);
     assert.equal(/code:\s*'RATE_LIMIT'/.test(s), false, `${r}: builds its own RATE_LIMIT answer again (a database blip would read as a used-up allowance)`);
     assert.equal(/status:\s*429/.test(s), false, `${r}: builds its own 429`);
   }
-  for (const r of ['dry-powder', 'macro-context', 'onchain', 'smc-snapshot', 'token-unlock']) {
+  for (const r of ['macro-context', 'onchain', 'smc-snapshot', 'token-unlock']) {
     const s = code(readFileSync(new URL(`../app/api/${r}/route.ts`, import.meta.url), 'utf8').replace(/\r\n/g, '\n'));
     assert.ok(/new RateLimitError\([^)]*usageResult\.reason/.test(s), `${r}: its RateLimitError no longer carries the block reason, so the handler cannot tell ours from a cap`);
   }
