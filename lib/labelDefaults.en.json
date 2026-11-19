@@ -1193,6 +1193,7 @@
   "ARENA_LAYERS_GATE_FEATURE_LABEL": "S/R and liquidity layers",
   "ARENA_GATE_FEATURE_ON_COIN": "{feature} on {coin}",
   "STRATEGY_PANEL_LAYER_UNAVAILABLE": "Not drawn on this coin's chart",
+  "STRATEGY_PANEL_LIQ_MIXED_UNITS": "Liquidation levels for this coin come in mixed units; not shown.",
   "STRATEGY_BLURB_SMA": "Simple moving average",
   "STRATEGY_BLURB_SAR": "Dots that flip with the trend",
   "STRATEGY_BLURB_MACD": "Momentum crossovers",
