@@ -2740,7 +2740,8 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    700, which is what was actually wanted. */
 .liq-section-sub { font-size: var(--fs-caption); font-weight: 500; text-transform: none; letter-spacing: 0; }
 /* #1626 finding 9: says the ladder below is modelled, in the band's own colour so it reads as part of the heading rather than a warning. */
-.liq-section-est { font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.75; border: 0.5px solid currentColor; border-radius: 4px; padding: 1px 5px; flex-shrink: 0; }
+/* No `opacity` (#1185, axe color-contrast on this label, both themes): at 0.75 the inherited green or red fell under 4.5:1 on the tinted header, as .liq-section-hdr's own note says. */
+.liq-section-est { font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; border: 0.5px solid currentColor; border-radius: 4px; padding: 1px 5px; flex-shrink: 0; }
 
 /* Derived from --accent-2, was rgba(26,122,255,...) (#652). Those literals
    are the current design's dark --accent-2, and the [data-theme="light"]
@@ -9104,7 +9105,7 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .strat-head {
   height: 28px; display: flex; align-items: center; justify-content: space-between;
   padding: 0 9px; border-bottom: 1px solid var(--bdr);
-  font-family: var(--font-mono), monospace; font-size: 10px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt);
 }
 /* #1271. The PRO / FREE tag was --txt4: 1.72:1 dark, 1.91:1 light on --bg1 (measured, not
@@ -9113,20 +9114,20 @@ main.app-content[data-chrome="none"] {
    5.62:1 dark / 5.56:1 light on --bg1. The same fix, and the same reason, applies to the other
    text in this block below, including the dimmed chip states (owner, 2026-09-19): nothing in the
    Strategy panel is --txt4 any more. */
-[data-design="terminal"] .strat-aux { color: var(--txt2); font-size: 9px; letter-spacing: .1em; }
+[data-design="terminal"] .strat-aux { color: var(--txt2); font-size: var(--fs-micro); letter-spacing: .1em; } /* was 9px: the 11px floor (#1185) */
 
 [data-design="terminal"] .strat-sect { padding: 10px 9px; border-bottom: 1px solid var(--bdr3); }
 [data-design="terminal"] .strat-sect:last-child { border-bottom: 0; }
 
 [data-design="terminal"] .strat-lbl {
-  font-family: var(--font-mono), monospace; font-size: 9px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
   display: flex; justify-content: space-between; margin-bottom: 6px;
 }
 /* The plan + used/limit chip beside "Indicators" (owner, 2026-10-07: the 0 of 1 caption was easy to miss). --txt2 on --bg1
    is 5.62 dark / 5.56 light. At the cap it takes the accent border so it reads as "full", with the words saying so as well. */
 [data-design="terminal"] .strat-count {
-  font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
   color: var(--txt2); border: 1px solid var(--bdr3); padding: 2px 6px; white-space: nowrap;
 }
 [data-design="terminal"] .strat-count.full { color: var(--txt); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); } /* #1271: 4.71 dark / 5.07 light on --bg1 (was 1.72 / 1.91) */
@@ -9230,14 +9231,14 @@ main.app-content[data-chrome="none"] {
 }
 [data-design="terminal"] .strat-params-h {
   display: flex; align-items: center; height: 28px; margin-bottom: 1px;
-  font-family: var(--font-mono), monospace; font-size: 8.5px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
 }
 /* Whose parameters, when several indicators are on: a small segmented row of the ON names. */
 [data-design="terminal"] .strat-seg { display: flex; gap: 0; max-width: 100%; overflow: hidden; }
 [data-design="terminal"] .strat-seg-b {
   height: 28px; padding: 0 9px; border: 1px solid var(--bdr3); margin-left: -1px; background: transparent; color: var(--txt2);
-  font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: 0; text-transform: none; cursor: pointer; white-space: nowrap;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro); letter-spacing: 0; text-transform: none; cursor: pointer; white-space: nowrap;
   transition: background-color 120ms ease-out, border-color 120ms ease-out;
 }
 [data-design="terminal"] .strat-seg-b:first-child { margin-left: 0; }
@@ -9246,19 +9247,21 @@ main.app-content[data-chrome="none"] {
 @media (prefers-reduced-motion: reduce) { [data-design="terminal"] .strat-seg-b { transition: none; } }
 [data-design="terminal"] .strat-prow {
   display: grid; grid-template-columns: 1fr 54px; gap: 5px; align-items: center;
-  font-family: var(--font-mono), monospace; font-size: 10px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   color: var(--txt2); height: 24px;
 }
 [data-design="terminal"] .strat-pv {
   border: 1px solid var(--border-input); border-radius: 0;
   background: var(--bg1); color: var(--txt);
   text-align: right; padding: 0 4px;
-  font-family: var(--font-mono), monospace; font-size: 10px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   font-variant-numeric: tabular-nums; width: 100%;
 }
+/* The on/off parameter is a 24 px target, not the browser's ~13 px box (#1185, WCAG 2.5.8). */
+[data-design="terminal"] .strat-pv[type="checkbox"] { width: 24px; height: 24px; justify-self: end; padding: 0; }
 [data-design="terminal"] .strat-pv:disabled { color: var(--txt3); }
 [data-design="terminal"] .strat-ro {
-  margin-top: 5px; font-family: var(--font-mono), monospace; font-size: 8.5px;
+  margin-top: 5px; font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   letter-spacing: .08em; text-transform: uppercase; color: var(--txt3); /* #1271: 4.77 dark / 4.70 light on --bg2 (was 1.74 / 1.77) */
 }
 
@@ -9266,7 +9269,7 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .strat-btn {
   flex: 1; height: 26px; border: 1px solid var(--bdr); border-radius: 0;
   background: var(--bg2); color: var(--txt2); cursor: pointer;
-  font-family: var(--font-mono), monospace; font-size: 9.5px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   letter-spacing: .1em; text-transform: uppercase;
 }
 [data-design="terminal"] .strat-btn.pri {
