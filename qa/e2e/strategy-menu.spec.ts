@@ -201,6 +201,8 @@ test.describe('one strategy menu (#2358)', () => {
   });
 
   test('M3u. a failed candle read is the UNAVAILABLE state for every strategy, never WAIT; supply / demand is unavailable when only BTC fails', async ({ browser }) => {
+    /* THREE separate arenas (12 s wait each) and one pick per strategy (up to 6 s each) add up to 160 to 170 s: the describe's 170 s budget was exactly the test's length on a loaded GitHub runner (release #2671 desktop: timed out twice at 2.8 min; mobile passed at 2.x min). The assertions never failed. */
+    test.setTimeout(330_000);
     const a = await openArena(browser, { saved: null, chips: [], failKlines: 'all' });
     try {
       await expect(menu(a.page)).toBeVisible({ timeout: 30_000 });
