@@ -141,10 +141,10 @@ function RsiRow({ tf, rsi, bias, last, locked }: { tf: string; rsi: number | nul
         fontFamily: 'var(--font-mono), monospace',
         ...(locked ? { filter: 'blur(5px)', userSelect: 'none' as const } : {}),
       }}>
-        {formatRsi(rsi)}
+        {locked ? '' : formatRsi(rsi)}
       </span>
       <div aria-hidden={locked || undefined} style={{ display: 'flex', justifyContent: 'flex-end', ...(locked ? { filter: 'blur(5px)', userSelect: 'none' as const } : {}) }}>
-        <BiasBadge bias={bias} />
+        {!locked && <BiasBadge bias={bias} />}
       </div>
     </div>
   );
