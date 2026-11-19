@@ -1156,6 +1156,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       const chart = kc.init(containerRef.current);
       if (!chart) return;
       chartRef.current = chart;
+      /* klinecharts gives its inner element `tabindex="1"`. A positive tabindex jumps ahead of the page's own tab order (axe `tabindex`, PM audit 2026-11-17, #1185), so it is set to 0: the chart stays reachable, in its place. */
+      for (const el of [containerRef.current, ...Array.from(containerRef.current.querySelectorAll<HTMLElement>('[tabindex]'))]) {
+        if (Number(el.getAttribute('tabindex')) > 0) el.setAttribute('tabindex', '0');
+      }
 
       // Apply current theme via setStyles (avoids DeepPartial type gymnastics)
       const dark = document.documentElement.getAttribute('data-theme') !== 'light';
