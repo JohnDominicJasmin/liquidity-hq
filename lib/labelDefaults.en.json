@@ -3661,6 +3661,7 @@
   "EMA_ROW_MACD_BEAR_YES": "MACD DIF {dif} / DEA {dea} - DIF below DEA, agrees with the bearish ribbon",
   "EMA_ROW_MACD_BEAR_NO": "MACD DIF {dif} / DEA {dea} - DIF at or above DEA, disagrees with the bearish ribbon; setup downgraded",
   "EMA_ROW_MACD_NOALIGN": "MACD DIF {dif} / DEA {dea} - ribbon not aligned either way",
+  "OFFLINE_NOTICE": "You are offline. Figures may be out of date.",
   "A11Y_DISMISS_ANNOUNCEMENT": "Dismiss announcement",
   "A11Y_REMOVE_ENTRY": "Remove entry",
   "A11Y_DISMISS_ALERT": "Dismiss alert",

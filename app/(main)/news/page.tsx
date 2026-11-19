@@ -312,7 +312,7 @@ function HeroCard({ a }: { a: AlertItem }) {
       <div className="ncard-grid-img-wrap">
         {a.image && isSafeHttpUrl(a.image) && (
           /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={a.image} alt="" className="ncard-grid-img"
+          <img src={a.image} alt="" loading="lazy" className="ncard-grid-img"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
         )}
       </div>

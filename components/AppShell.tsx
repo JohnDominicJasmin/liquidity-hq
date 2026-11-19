@@ -39,6 +39,7 @@ import TimezoneSync from './TimezoneSync';
 import PostHogProvider from './PostHogProvider';
 import SettingsProvider from './SettingsProvider';
 import SettingsSaveToast from './SettingsSaveToast';
+import OfflineNotice from './OfflineNotice';
 import OnboardingProvider from './OnboardingProvider';
 import OnboardingGate from './OnboardingGate';
 import SetupChecklist from './SetupChecklist';
@@ -199,6 +200,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     <PWAInstallPrompt />
                     <CookieConsent />
                     <SettingsSaveToast />
+                    <OfflineNotice />
                   </GrokUsageProvider>
                 </OnboardingProvider>
               </NewsProvider>
