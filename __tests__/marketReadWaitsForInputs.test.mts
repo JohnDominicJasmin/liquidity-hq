@@ -39,7 +39,8 @@ function anchorOnce(src: string, needle: string, label: string): number {
 const WED_NOON_UTC = Date.UTC(2026, 8, 30, 12, 0, 0);
 const pinClock = (t: TestContext) => t.mock.timers.enable({ apis: ['Date'], now: WED_NOON_UTC });
 
-const BANDED_VERDICTS = ['Good time to trade', 'Decent conditions - be selective', 'Weak setup - better to wait'];
+/* #2665 (#1185): the card DESCRIBES what the data shows, it never advises. The three banded verdicts were "Good time to trade" / "Decent conditions - be selective" / "Weak setup - better to wait". */
+const BANDED_VERDICTS = ['Most signals agree', 'Signals are mixed', 'Few signals agree'];
 
 function coin(overrides: Partial<CoinData> = {}): CoinData {
   return {
@@ -138,7 +139,7 @@ test('M4. both loaded (F&G 62, funding +0.03%, no walls): the read resolves with
   assert.deepEqual(r.missing, []);
   assert.equal(r.score, 68);
   assert.equal(r.band, 'mid');
-  assert.equal(r.verdict, 'Decent conditions - be selective');
+  assert.equal(r.verdict, 'Signals are mixed');
   assert.equal(factor(r, 'fund').value, 'Long-heavy');
 });
 
@@ -166,7 +167,7 @@ test('M7. CONTROL: a REAL neutral market (F&G 50, funding exactly 0) still score
   assert.deepEqual(r.missing, []);
   assert.equal(r.score, 40);
   assert.equal(r.band, 'weak');
-  assert.equal(r.verdict, 'Weak setup - better to wait');
+  assert.equal(r.verdict, 'Few signals agree');
 });
 
 test('M8. boundary: a Fear & Greed of 0 is a real reading (Extreme fear), not a missing one - the check is "== null", not falsy', (t) => {
