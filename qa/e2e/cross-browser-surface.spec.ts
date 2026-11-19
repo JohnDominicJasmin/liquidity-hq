@@ -164,6 +164,8 @@ async function measure(page: Page, path: string): Promise<Surface> {
     const zeroHeightPanels = Array.from(document.querySelectorAll('main, section, .card, .tpanel, [data-testid]'))
       .filter(el => {
         const r = el.getBoundingClientRect();
+        /* The offline notice's live region is EMPTY and zero-height on purpose (#2651, WCAG 4.1.3): a status node created together with its text is not announced, so the region exists first and the message is rendered inside it later. An empty role=status region is not a collapsed panel. */
+        if (el.matches('.offline-notice-region') && !el.textContent?.trim()) return false;
         return r.width > 100 && r.height === 0 && getComputedStyle(el).display !== 'none';
       }).slice(0, 8).map(name);
 
