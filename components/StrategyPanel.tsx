@@ -360,7 +360,7 @@ export default function StrategyPanel({ planChecking = false, layersLocked = fal
               <div className="strat-params">
                 <div className="strat-params-h">
                   {paramEntries.length > 1 ? (
-                    <div className="strat-seg" role="group" aria-label="Edit parameters for">
+                    <div className="strat-seg" role="group" aria-label={t('A11Y_EDIT_PARAMS_FOR')}>
                       {paramEntries.map(e => (
                         <button key={e.id} type="button" className={`strat-seg-b${e.id === boxEntry.id ? ' on' : ''}`} aria-pressed={e.id === boxEntry.id} onClick={() => setFocused(e.id)}>{e.label}</button>
                       ))}
