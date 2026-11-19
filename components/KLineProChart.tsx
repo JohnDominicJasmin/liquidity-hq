@@ -1868,7 +1868,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const paneH = bounding?.height ?? 300;
             const wholeAbove = pts.every(q => q.y < 0), wholeBelow = pts.every(q => q.y > paneH);
             if (wholeAbove || wholeBelow) {
-              return [{ type: 'text', attrs: { x: (bounding?.width ?? 9999) - 6, y: wholeAbove ? 12 + (slot ?? 0) * 17 : paneH - 12 - (slot ?? 0) * 17, text: `${text} ${wholeAbove ? '↑' : '↓'}`, align: 'right', baseline: wholeAbove ? 'top' : 'bottom' }, styles: labelStyles(ink) }];
+              return [{ type: 'text', attrs: { x: (bounding?.width ?? 9999) - 6, y: wholeAbove ? 12 + (slot ?? 0) * 17 : paneH - 12 - (slot ?? 0) * 17, text: `${text} ${wholeAbove ? '↑' : '↓'}`, align: 'right', baseline: wholeAbove ? 'top' : 'bottom' }, styles: labelStyles(roleInk(role)) }];
             }
             const end = pts[pts.length - 1];
             // ONE point is a text tag only (the existing ribbon line it labels is already drawn by the chart)
