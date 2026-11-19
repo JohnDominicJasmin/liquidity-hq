@@ -1,7 +1,9 @@
 'use client';
 import { useMarket } from '@/lib/marketStore';
-import { usePerpSpot, useAbsorption } from '@/lib/usePerpSpot';
+import { usePerpSpot, useAbsorption, perpSpotFetchedAt } from '@/lib/usePerpSpot';
 import { useLabels } from '@/lib/labels';
+import { useNow } from '@/lib/useNow';
+import { ageLabel } from '@/lib/ageLabel';
 
 /* Perps vs spot (#328) - "is there a real buyer, or is the pump just futures?"
  *
@@ -40,8 +42,13 @@ export default function PerpSpotCard() {
   // reading, so the card and the AI cannot disagree on screen.
   const reading = usePerpSpot(coin);
   const absorption = useAbsorption(coin);
+  const now = useNow(60_000);
 
+  /* A read that failed shows nothing until its retry lands, or the LAST GOOD reading with its age - never failure text (#1185 D22, owner: last good or hide). */
   if (!reading) return null;
+  const fetchedAt = perpSpotFetchedAt(coin);
+  const ageMs = fetchedAt != null ? now - fetchedAt : 0;
+  const stale = reading.lean !== 'unknown' && ageMs > 90 * 60_000;
 
   const unknown = reading.lean === 'unknown';
   // --txt2, not --txt-dim (#546 C9): --txt-dim isn't in terminal's
@@ -68,12 +75,14 @@ export default function PerpSpotCard() {
   const absorptionText = sp - pp >= 20 ? t('PERP_SPOT_ABSORB_SPOT', { sp, pp }) : sp - pp <= -20 ? t('PERP_SPOT_ABSORB_PERP', { sp, pp }) : t('PERP_SPOT_ABSORB_NORMAL', { sp, pp });
 
   return (
+    <div className="macro-rail-card">
     <div data-testid="perp-spot-card">
       <div style={{
         fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase',
         letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 4,
       }}>
         {t('PERP_SPOT_TITLE', { coin: coin.toUpperCase() })}
+        {stale && <span data-testid="perp-spot-age" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>{' · '}{ageLabel(ageMs, t)}</span>}
       </div>
 
       {/* The verdict pill and the number share one row (#656 item 4), and that
@@ -184,6 +193,7 @@ export default function PerpSpotCard() {
           </div>
         </>
       )}
+    </div>
     </div>
   );
 }
