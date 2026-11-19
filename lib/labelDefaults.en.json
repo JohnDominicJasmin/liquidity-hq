@@ -3587,6 +3587,8 @@
   "STRAT_OV_BAND_BOTTOM": "Band bottom",
   "STRAT_NO_SETUP": "No setup right now",
   "STRAT_SQUEEZE_WAIT_FUNDING": "Funding is not extreme for this coin.",
+  "STRAT_SQUEEZE_WAIT_FUNDING_PINNED": "Funding equals its usual top readings for this coin, so it cannot stand out.",
+  "STRAT_SQUEEZE_WAIT_FUNDING_STOCK": "Funding on a tokenized stock is often zero, so it rarely stands out.",
   "STRAT_SQUEEZE_WAIT_OI": "Open interest is not rising enough for this coin.",
   "STRAT_SQUEEZE_WAIT_TRIGGER": "Funding and open interest are extreme; waiting for a close through the last swing.",
   "STRAT_MKT_CLOSED": "US market closed: this strategy reads the cash session (09:30-16:00 New York).",
