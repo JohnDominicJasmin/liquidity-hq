@@ -28,5 +28,6 @@ test('C3. no layout shift (same 106 px height), the test ids exist, and both key
 });
 test('C4. a connected, quiet market keeps the existing "Watching" copy (the connect-failed line is only after the wait AND while not live)', () => {
   assert.ok(LIQ.includes("anyLive ? t('LIQ_FEED_SR_WATCHING'"), 'the Watching line was lost');
-  assert.ok(LIQ.indexOf("anyLive ? t('LIQ_FEED_SR_WATCHING'") < LIQ.indexOf("connectWaited ? t('LIQ_FEED_CONNECT_FAILED')"), 'a live feed can read as failed');
+  /* #2680 (audit A17): the connect-failed SENTENCE is gone from the Liquidations feed - the space is held empty and the socket keeps retrying - so a live feed can no longer read as failed. */
+  assert.equal(LIQ.includes("t('LIQ_FEED_CONNECT_FAILED')"), false, 'the connect-failed sentence is rendered again'); assert.equal(LIQ.includes("connectWaited ? t('LIQ_FEED_SR_"), false, 'the screen-reader line still switches to a failure when the wait is over');
 });
