@@ -1781,9 +1781,25 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           ...base, name: 'strategyLevelLine',
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
-            const { role, text, prices, rank } = overlay.extendData as { role: string; text: string; prices?: number[]; rank?: number };
+            const { role, text, prices, rank, slotBase } = overlay.extendData as { role: string; text: string; prices?: number[]; rank?: number; slotBase?: number };
             const c = coordinates[0];
-            if (!c || !isFinite(c.x) || !isFinite(c.y) || c.y < 0) return [];
+            if (!c || !isFinite(c.x) || !isFinite(c.y)) return [];
+            /* A LEVEL OFF THE VISIBLE PRICE WINDOW STILL SHOWS (QA drawings audit #1263, 390 px 4h: the EMA 50 / 200 levels sat above the visible prices and the strategy drew nothing in view): its label, with its price, goes to the pane edge it lies beyond, with an arrow, stacked with the other off-window labels on that edge. */
+            const paneH = bounding?.height ?? 300;
+            if (c.y < 0 || c.y > paneH) {
+              const above = c.y < 0;
+              let slot = slotBase ?? 0;
+              if (prices && rank != null && chartRef.current) {
+                for (let k = 0; k < prices.length; k++) {
+                  if (k === rank) continue;
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const o = (chartRef.current as any).convertToPixel?.({ value: prices[k] }, { paneId: 'candle_pane' });
+                  const oy = Array.isArray(o) ? o[0]?.y : o?.y;
+                  if (typeof oy === 'number' && isFinite(oy) && (above ? oy < 0 : oy > paneH) && (k < rank)) slot++;
+                }
+              }
+              return [{ type: 'text', attrs: { x: (bounding?.width ?? 9999) - 6, y: above ? 12 + slot * 17 : paneH - 12 - slot * 17, text: `${text} ${above ? '↑' : '↓'}`, align: 'right', baseline: above ? 'top' : 'bottom' }, styles: labelStyles(roleInk(role)) }];
+            }
             /* LABELS THAT COLLIDE STACK (PM ruling, #2372): this strategy's levels are listed by price (lowest first); a label lifts 15 px for every LOWER level that sits within 16 px of this line on screen, so two
                close levels (a sweep's swept and break levels on a low timeframe) read as two labels, not one smudge. */
             let lift = 0;
@@ -1814,8 +1830,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             if (!a || !b || ![a.x, a.y, b.x, b.y].every(isFinite)) return [];
             const x0 = Math.max(0, Math.min(a.x, b.x)), x1 = Math.min(bounding?.width ?? 9999, Math.max(a.x, b.x));
             const y0 = Math.min(a.y, b.y), h = Math.abs(a.y - b.y);
-            if (x1 <= x0) return [];
-            const ink = resolveCssColor(kind === 'demand' ? 'var(--green)' : 'var(--red)');
+            const inkZ = resolveCssColor(kind === 'demand' ? 'var(--green)' : 'var(--red)');
+            /* A ZONE THAT ENDS LEFT OF THE VISIBLE CANDLES STILL SHOWS (QA drawings audit #1263, fair value gap 390 px 4h: the latest gap is older than the bars in view): its label, with its price, sits at the left edge at the zone's height, with an arrow. */
+            if (x1 <= x0) {
+              const leftOf = Math.max(a.x, b.x) < 0;
+              const paneH0 = bounding?.height ?? 300;
+              if (!text || !leftOf) return [];
+              return [{ type: 'text', attrs: { x: 4, y: Math.min(paneH0 - 10, Math.max(10, y0 + h / 2)), text: `← ${text}${priceText ? ' ' + priceText : ''}`, align: 'left', baseline: 'middle' }, styles: { color: inkZ, size: 10, weight: '700' } }];
+            }
+            const ink = inkZ;
             /* A LABELLED ZONE OFF THE VISIBLE PRICE WINDOW STILL SHOWS (QA drawings audit #1263: at 390 px the supply zone sat above the visible prices, so the strategy drew nothing in view): its label goes to the pane edge it lies beyond, with its price and an arrow, the same idea as the Target / Stop labels. Unlabelled zones (the S/R bands) are left alone. */
             const paneH = bounding?.height ?? 300, yBottom = y0 + Math.max(h, 1);
             if (text && (yBottom < 0 || y0 > paneH)) {
@@ -1836,11 +1859,17 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         (kc as any).registerOverlay({
           ...base, name: 'strategyPolyline',
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
-            const { role, text } = overlay.extendData as { role: string; text: string };
+          createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
+            const { role, text, slot } = overlay.extendData as { role: string; text: string; slot?: number };
             const pts = coordinates.filter(c => c && isFinite(c.x) && isFinite(c.y));
             if (pts.length < 1) return [];
             const ink = roleInk(role);
+            /* A LINE WHOLLY OFF THE VISIBLE PRICE WINDOW STILL SHOWS (same rule as the level line above): its label goes to the pane edge it lies beyond, with an arrow. */
+            const paneH = bounding?.height ?? 300;
+            const wholeAbove = pts.every(q => q.y < 0), wholeBelow = pts.every(q => q.y > paneH);
+            if (wholeAbove || wholeBelow) {
+              return [{ type: 'text', attrs: { x: (bounding?.width ?? 9999) - 6, y: wholeAbove ? 12 + (slot ?? 0) * 17 : paneH - 12 - (slot ?? 0) * 17, text: `${text} ${wholeAbove ? '↑' : '↓'}`, align: 'right', baseline: wholeAbove ? 'top' : 'bottom' }, styles: labelStyles(ink) }];
+            }
             const end = pts[pts.length - 1];
             // ONE point is a text tag only (the existing ribbon line it labels is already drawn by the chart)
             return [
@@ -3006,10 +3035,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       if (typeof id === 'string') strategyOverlayIds.current.push(id);
     };
     ov.zones.forEach((z, zi) => add('strategyZone', [{ timestamp: z.fromTs, value: z.top * unit }, { timestamp: z.toTs, value: z.bottom * unit }], { kind: z.kind, text: tl(z.labelKey), priceText: `${px}${fmtPx(((z.top + z.bottom) / 2) * unit)}`, slot: zi }));
-    for (const l of ov.lines) add('strategyPolyline', l.points.map(p => ({ timestamp: p.ts, value: p.price * unit })), { role: l.role, text: tl(l.labelKey, l.labelParams) });
+    ov.lines.forEach((l, li) => add('strategyPolyline', l.points.map(p => ({ timestamp: p.ts, value: p.price * unit })), { role: l.role, text: tl(l.labelKey, l.labelParams), slot: li }));
     const byPrice = [...ov.levels].sort((a, b) => a.price - b.price);
     const prices = byPrice.map(l => l.price * unit);
-    ov.levels.forEach(l => add('strategyLevelLine', [{ timestamp: l.fromTs, value: l.price * unit }], { role: l.role, prices, rank: byPrice.indexOf(l), text: `${tl(l.labelKey, l.labelParams)} ${px}${fmtPx(l.price * unit)}` }));
+    ov.levels.forEach(l => add('strategyLevelLine', [{ timestamp: l.fromTs, value: l.price * unit }], { role: l.role, prices, rank: byPrice.indexOf(l), slotBase: ov.lines.length, text: `${tl(l.labelKey, l.labelParams)} ${px}${fmtPx(l.price * unit)}` }));
     if (ov.marker) {
       const bar = chart.getDataList().find(b => b.timestamp === ov.marker!.ts);
       if (bar) add('strategyMarker', [{ timestamp: bar.timestamp, value: ov.marker.dir === 'long' ? bar.low : bar.high }], { dir: ov.marker.dir });
