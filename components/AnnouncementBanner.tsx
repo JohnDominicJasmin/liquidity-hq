@@ -1,9 +1,11 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { useLabels } from '@/lib/labels';
 
 const STORAGE_KEY = 'lhq_dismissed_banner';
 
 export default function AnnouncementBanner({ banner }: { banner: { text: string; link: string | null } | null }) {
+  const { t } = useLabels();
   const [dismissed, setDismissed] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -54,7 +56,7 @@ export default function AnnouncementBanner({ banner }: { banner: { text: string;
       <span className="announcement-banner-text">
         {banner!.link ? <a href={banner!.link}>{banner!.text}</a> : banner!.text}
       </span>
-      <button className="announcement-banner-dismiss" onClick={dismiss} aria-label="Dismiss announcement">
+      <button className="announcement-banner-dismiss" onClick={dismiss} aria-label={t('A11Y_DISMISS_ANNOUNCEMENT')}>
         ×
       </button>
     </div>

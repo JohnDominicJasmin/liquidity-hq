@@ -417,7 +417,7 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
                    literal - matching it keeps the two designs announcing the
                    same thing, and the copy decision belongs with whoever owns
                    the label set. Raised on #929. */
-                aria-label="Account menu"
+                aria-label={t('A11Y_ACCOUNT_MENU')}
                 title={user?.email ?? undefined}
               >
                 {initials}
@@ -485,7 +485,7 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
         {session && (
           <span className="tnav-mstatus" suppressHydrationWarning>
             <span className="tnav-mdot" />
-            {session.name}
+            {trText(t, session.name)}
           </span>
         )}
         {/* Plan indicator (#1089/#1094). Same component as the desktop bar -

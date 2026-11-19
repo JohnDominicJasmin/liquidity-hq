@@ -322,7 +322,7 @@ export default function LiqTerminal() {
         <div style={{ position: 'relative', display: 'inline-block' }}>
           <select
             value={coin}
-            aria-label="Coin"
+            aria-label={t('PRICES_COL_COIN')}
             onChange={e => setCoin(e.target.value as CoinId)}
             style={{
               background: 'var(--bg2)',
