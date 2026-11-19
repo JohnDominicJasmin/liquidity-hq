@@ -69,6 +69,7 @@ export const FAIR_VALUE_GAP: StrategyDef = {
   reasonBuyKey: 'STRAT_FVG_BUY',
   reasonSellKey: 'STRAT_FVG_SELL',
   reasonWaitKey: 'STRAT_FVG_WAIT',
+  reasonKeyFor: r => (r.params.none ? 'STRAT_FVG_WAIT_NONE' : null),
   minCandles: MIN_CANDLES,
   chips: [],
   logTfs: ['1h', '4h'],
