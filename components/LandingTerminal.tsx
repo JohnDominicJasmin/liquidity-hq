@@ -287,7 +287,7 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
     }}>
 
       {/* ── NAV ── */}
-      <nav className="lt-nav" style={{
+      <nav className="lt-top-bar" style={{
         height: isDesktop ? 56 : 52, display: 'flex', alignItems: 'center',
         padding: isDesktop ? '0 40px' : '0 16px', gap: isDesktop ? 12 : 6,
         borderBottom: '1px solid var(--bdr)',
@@ -308,7 +308,7 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
         <Link href="/learn" className="lt-nav-learn">
           {dict.nav.learn}
         </Link>
-        <Link href="/login" className="lt-nav-signin" style={{
+        <Link href="/login" className="lt-signin-btn" style={{
           fontFamily: 'var(--font-mono), monospace', fontSize: 11.5, letterSpacing: '.12em',
           color: 'var(--txt2)', border: '1px solid var(--border-input)',
           padding: isDesktop ? '9px 16px' : '9px 10px',
@@ -316,7 +316,7 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
         }}>
           {isDesktop ? dict.nav.signIn : dict.nav.signIn}
         </Link>
-        <Link href="/login?signup=1" className="lt-nav-start" style={{
+        <Link href="/login?signup=1" className="lt-start-btn" style={{
           fontFamily: 'var(--font-mono), monospace', fontSize: 11.5, fontWeight: 700, letterSpacing: '.12em',
           color: 'var(--bg0)', background: 'var(--accent)',
           padding: isDesktop ? '10px 18px' : '10px 12px',
