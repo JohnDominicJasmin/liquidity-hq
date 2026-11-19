@@ -142,7 +142,7 @@ export function computeMacroRisk(
   if (jpyUsd != null) {
     if (jpyUsd >= 160) {
       level = 'danger';
-      reasons.push(`USD/JPY ${jpyUsd.toFixed(1)} - BOJ intervention risk, carry-trade unwind can trigger BTC liquidations`);
+      reasons.push(`USD/JPY ${jpyUsd.toFixed(1)} - at or above 160, the level the BOJ has stepped in at`);
     } else if (jpyUsd >= 158 && level !== 'danger') {
       level = 'caution';
       reasons.push(`USD/JPY ${jpyUsd.toFixed(1)} - approaching the 160 carry-trade danger zone`);
