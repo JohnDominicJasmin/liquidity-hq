@@ -482,6 +482,12 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
         </button>
       )}
 
+      {signal.staleSince != null && !signal.error && (() => {
+        /* the last refresh failed; the signal above is the previous one (audit A15): say when it was last confirmed */
+        const secs = Math.max(0, Math.floor((Date.now() - signal.staleSince) / 1000));
+        const freshness = secs < 60 ? t('ARENA_FRESHNESS_JUST_NOW') : secs < 3600 ? t('ARENA_FRESHNESS_MINUTES_AGO', { n: Math.floor(secs / 60) }) : t('ARENA_FRESHNESS_HOURS_AGO', { n: Math.floor(secs / 3600) });
+        return <div data-testid="ema-signal-stale" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 6 }}>{t('ARENA_UPDATED_FRESHNESS', { freshness })}</div>;
+      })()}
       {signal.error && (
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 6 }}>
           {/* #1024 - was the raw exception/message, unlike AbsorptionDetector/

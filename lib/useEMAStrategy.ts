@@ -48,6 +48,8 @@ export interface StrategyCondition {
 }
 
 export interface StrategySignal {
+  /** Set when the LAST refresh failed and the rest of this object is the previous good signal: the ms epoch it was last confirmed (audit A15; the card shows its age instead of replacing it with a failure line). */
+  staleSince?:       number;
   verdict:           StrategyVerdict;
   phase:             string;
   conditions:        StrategyCondition[];
@@ -347,6 +349,8 @@ export function useEMAStrategy(
   const { spreadMinPct, atrMult, persistBoost } = filterParams;
   const [sig, setSig] = useState<StrategySignal>(STRATEGY_LOADING);
   const mountedRef    = useRef(true);
+  const lastGoodAtRef = useRef(Date.now());
+  useEffect(() => { if (!sig.loading && !sig.error && sig.staleSince == null) lastGoodAtRef.current = Date.now(); }, [sig]);
 
   // Live inputs read at compute time. Funding/OI tick frequently and the anti-chop
   // toggle swaps filter params - none of those need new candles, so they must not be
@@ -1052,7 +1056,8 @@ export function useEMAStrategy(
         if (!mountedRef.current) return false;
         // #1058: same as the compute-path catch above - log before stringifying.
         console.error('[useEMAStrategy] kline fetch failed:', err);
-        setSig({ ...STRATEGY_LOADING, loading: false, error: String(err) });
+        /* A FAILED REFRESH KEEPS THE PREVIOUS SIGNAL (audit A15, owner's feature-freeze order): it used to replace verdict, levels and record with the loading object plus an error, and the Confluence score silently dropped its EMA factor. With a good signal on screen it stays, marked with the time it was last confirmed (the retry runs within a minute); the failure state only shows when there never was one. */
+        setSig(prev => (!prev.loading && !prev.error && prev.verdict !== 'LOADING' ? { ...prev, staleSince: prev.staleSince ?? lastGoodAtRef.current } : { ...STRATEGY_LOADING, loading: false, error: String(err) }));
         return false;
       }
     };
