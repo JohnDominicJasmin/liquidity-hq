@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback, useId } from
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { COIN_DEC, CoinId, useMarket, computeSqueezeScore, venueSymbols } from '@/lib/marketStore';
 import { liftClearOfLevels } from '@/lib/chartLabelOffsets';
-import { chartDisplaySymbol, currencyPrefix } from '@/lib/coins';
+import { chartDisplaySymbol, currencyPrefix, symbolDenominationFactor } from '@/lib/coins';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
@@ -2995,16 +2995,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     const ov = strategyOverlay;
     if (!ov) return;
     const px = currencyPrefix(coinRef.current);
+    /* THE CHART'S PRICE UNIT, NOT THE STRATEGY'S (QA drawings audit #1263, PEPE: 0 of ~190 cells had an overlay in view): a 1000x contract (1000PEPE, 1000BONK, 10000SATS...) is charted on the exchange's own scaled series on purpose (klinecharts' axis collapses at tiny values, see chartDisplaySymbol in lib/coins),
+       but the strategy reads candles through fetchOHLCV, which divides by the denomination, so its levels, zones and lines were at the per-token price (0.0000038) on a chart axis reading 0.0038 and fell off the screen. Every price handed to the chart is converted to the unit of the series the chart actually drew (the venue the history came from). 1 for every ordinary coin. */
+    const vs = venueSymbols(coinRef.current);
+    const chartSym = (histSourceRef.current === 'bybit' ? vs.bybit : vs.binance) ?? vs.bybit ?? vs.binance ?? '';
+    const unit = 1 / (symbolDenominationFactor(chartSym) || 1);
     const add = (name: string, points: Array<{ timestamp: number; value: number }>, extendData: Record<string, unknown>) => {
       if (!points.length || !points.every(p => Number.isFinite(p.timestamp) && Number.isFinite(p.value))) return;
       const id = chart.createOverlay({ name, groupId: 'strategy_overlay', lock: true, points, extendData } as OverlayCreate);
       if (typeof id === 'string') strategyOverlayIds.current.push(id);
     };
-    ov.zones.forEach((z, zi) => add('strategyZone', [{ timestamp: z.fromTs, value: z.top }, { timestamp: z.toTs, value: z.bottom }], { kind: z.kind, text: tl(z.labelKey), priceText: `${px}${fmtPx((z.top + z.bottom) / 2)}`, slot: zi }));
-    for (const l of ov.lines) add('strategyPolyline', l.points.map(p => ({ timestamp: p.ts, value: p.price })), { role: l.role, text: tl(l.labelKey, l.labelParams) });
+    ov.zones.forEach((z, zi) => add('strategyZone', [{ timestamp: z.fromTs, value: z.top * unit }, { timestamp: z.toTs, value: z.bottom * unit }], { kind: z.kind, text: tl(z.labelKey), priceText: `${px}${fmtPx(((z.top + z.bottom) / 2) * unit)}`, slot: zi }));
+    for (const l of ov.lines) add('strategyPolyline', l.points.map(p => ({ timestamp: p.ts, value: p.price * unit })), { role: l.role, text: tl(l.labelKey, l.labelParams) });
     const byPrice = [...ov.levels].sort((a, b) => a.price - b.price);
-    const prices = byPrice.map(l => l.price);
-    ov.levels.forEach(l => add('strategyLevelLine', [{ timestamp: l.fromTs, value: l.price }], { role: l.role, prices, rank: byPrice.indexOf(l), text: `${tl(l.labelKey, l.labelParams)} ${px}${fmtPx(l.price)}` }));
+    const prices = byPrice.map(l => l.price * unit);
+    ov.levels.forEach(l => add('strategyLevelLine', [{ timestamp: l.fromTs, value: l.price * unit }], { role: l.role, prices, rank: byPrice.indexOf(l), text: `${tl(l.labelKey, l.labelParams)} ${px}${fmtPx(l.price * unit)}` }));
     if (ov.marker) {
       const bar = chart.getDataList().find(b => b.timestamp === ov.marker!.ts);
       if (bar) add('strategyMarker', [{ timestamp: bar.timestamp, value: ov.marker.dir === 'long' ? bar.low : bar.high }], { dir: ov.marker.dir });
