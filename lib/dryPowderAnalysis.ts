@@ -7,7 +7,7 @@
  * before at its best (one call a day); the old per-visitor usage reservation is gone because no visitor triggers the call any more.
  *
  * COST STAYS IN THE OWNER'S LEDGER (PM audit): the call is logged to ai_call_log with user_id null and source 'system:dry-powder' (migration 20261121a). The per-user dollar cap reads `where user_id = p`,
- * so it never counts these rows; the site-wide sum counts them, as it should. THE VISITOR PATH NEVER CALLS xAI: only the scheduled ingest does, under a claim row so two ingest instances cannot both call. */
+ * so it never counts these rows; the site-wide sum counts them, as it should. THE VISITOR PATH NEVER CALLS xAI: only the scheduled ingest does, under a claim row that makes a second ingest instance skip (the row is read, then written: not an atomic insert, so two instances reading in the same instant could both call, one extra call a day at worst; the ingest has one scheduler caller). */
 import { readSnapshot, writeSnapshot } from './marketSnapshot.ts';
 import { getDryPowderNumbers } from './dryPowderSeries.ts';
 import { xaiFetch } from './xai.ts';
