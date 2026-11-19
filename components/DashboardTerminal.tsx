@@ -332,7 +332,7 @@ function TCascadeAlertBanner() {
       <button
         className="cascade-dismiss"
         onClick={() => setStore(s => ({ ...s, cascadeAlert: null }))}
-        aria-label="Dismiss alert"
+        aria-label={t('A11Y_DISMISS_ALERT')}
       >✕</button>
     </div>
   );
@@ -391,7 +391,7 @@ function TEdgeSignals() {
     : 'var(--txt2)';
 
   /* #1613: the trend text must come from the SAME hour as the % beside it, so it is derived from the 1h samples, not from the store's oiTrend (another window). */
-  const { txt: oi1hTxt, col: oi1hCol } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
+  const { key: oi1hKey, col: oi1hCol } = oi1hSignal(oi1h.pct, oiTrend1h(oi1h.pct, oi1h.pricePct));
   const oi1hPctStr = oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : null;
 
   const sq    = computeSqueezeScore(d);
@@ -495,7 +495,7 @@ function TEdgeSignals() {
               : oi1hPctStr ?? <span title={t('ARENA_SCANNER_UNAVAILABLE_NONE_TITLE')}>{t('ARENA_SCANNER_UNAVAILABLE')}</span>}
           </div>
           <div className="edge-card-signal" style={{ color: oi1hCol }}>
-            {oi1h.loading ? <SkeletonBar width={70} height={11} radius={4} /> : oi1hPctStr == null ? null : oi1hTxt}
+            {oi1h.loading ? <SkeletonBar width={70} height={11} radius={4} /> : oi1hPctStr == null || oi1hKey == null ? null : t(oi1hKey)}
           </div>
         </div>
       </div>
