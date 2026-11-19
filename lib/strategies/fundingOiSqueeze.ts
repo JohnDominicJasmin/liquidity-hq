@@ -1,5 +1,6 @@
 import type { OHLCV } from '../strategyCore.ts';
 import { nearestLevel, srPrices, swingPivots3, tradeCall } from './shared.ts';
+import { coinKind } from '../coins.ts';
 import { WAIT, type StrategyContext, type StrategyDef, type StrategyResult } from './types.ts';
 
 /* FUNDING + OI SQUEEZE (owner decision 2026-11-17, #1263; rules agreed with PM, QA oracle qa/fixtures/strategyFixtures2.ts). Closed candles plus LIVE values the caller supplies (ctx.fundingClass, ctx.oiChange6Pct, ctx.liqLevels).
@@ -28,7 +29,8 @@ export function detectFundingOiSqueeze(candles: readonly OHLCV[], ctx: StrategyC
   const n = candles.length;
   if (n < MIN_CANDLES) return WAIT;
   if (ctx.fundingClass == null || ctx.oiExtreme == null) return { ...WAIT, params: { noLive: true } };
-  if (ctx.fundingClass === 'none') return { ...WAIT, params: { why: WHY_FUNDING } };
+  /* SAYS WHY, not a bare "not extreme" (QA audit #1263): funding pinned at its usual top value, or a tokenized stock whose funding is mostly zero. */
+  if (ctx.fundingClass === 'none') return { ...WAIT, params: { why: WHY_FUNDING, ...(ctx.fundingPinned ? { pinned: true } : coinKind(ctx.coin) === 'stock' ? { stock: true } : {}) } };
   if (!ctx.oiExtreme) return { ...WAIT, params: { why: WHY_OI } };
   const crowdLong = ctx.fundingClass === 'longs_heavy';
   const clusters = ctx.liqLevels ?? [];
@@ -59,7 +61,7 @@ export const FUNDING_OI_SQUEEZE: StrategyDef = {
   reasonBuyKey: 'STRAT_SQUEEZE_BUY',
   reasonSellKey: 'STRAT_SQUEEZE_SELL',
   reasonWaitKey: 'STRAT_SQUEEZE_WAIT',
-  reasonKeyFor: r => (r.params.noLive ? 'STRAT_SQUEEZE_NO_LIVE' : r.params.why === WHY_FUNDING ? 'STRAT_SQUEEZE_WAIT_FUNDING' : r.params.why === WHY_OI ? 'STRAT_SQUEEZE_WAIT_OI' : r.params.why === WHY_TRIGGER ? 'STRAT_SQUEEZE_WAIT_TRIGGER' : null),
+  reasonKeyFor: r => (r.params.noLive ? 'STRAT_SQUEEZE_NO_LIVE' : r.params.why === WHY_FUNDING ? (r.params.pinned ? 'STRAT_SQUEEZE_WAIT_FUNDING_PINNED' : r.params.stock ? 'STRAT_SQUEEZE_WAIT_FUNDING_STOCK' : 'STRAT_SQUEEZE_WAIT_FUNDING') : r.params.why === WHY_OI ? 'STRAT_SQUEEZE_WAIT_OI' : r.params.why === WHY_TRIGGER ? 'STRAT_SQUEEZE_WAIT_TRIGGER' : null),
   needsLive: true,
   minCandles: MIN_CANDLES,
   chips: [],
