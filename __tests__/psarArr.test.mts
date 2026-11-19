@@ -2,7 +2,7 @@
  *   P0 empty / one bar: nothing, no throw
  *   P1 six bars worked BY HAND from the written rule (both reversal branches, the two-bar clamp, AF steps)
  *   P2 SYMMETRY: mirroring the market (price -> -price, highs and lows swapped) must mirror the SAR exactly. The old klinecharts port FAILED this (AF reset to 0 one way and to 0.02 the other); a textbook implementation cannot
- *   P3 an INDEPENDENT second implementation (written from the stated rule, next-bar indexing; the reversal-bar clamp convention is the one open point, P3b) on 6,000 random-walk bars: equal after the first reversal (the first bars depend on the seeding convention, which has no lasting effect: a reversal resets the SAR to the extreme point)
+ *   P3 an INDEPENDENT second implementation (written from the stated rule, next-bar indexing; the reversal-bar clamp is applied on every bar as TA-Lib / ta.sar do, P3c and P3b) on 6,000 random-walk bars: equal after the first reversal (the first bars depend on the seeding convention, which has no lasting effect: a reversal resets the SAR to the extreme point)
  *   P4 the invariants a SAR must keep on any series: below the low of the bar in an up trend, above the high in a down trend (except on the reversal bar), a dot never leaves the previous two bars' range on the wrong side, and the acceleration never exceeds its maximum
  *   P5 parameters are TRUE units (0.02 / 0.02 / 0.2) and the maximum is honoured
  * NOT proven here: that the numbers equal TradingView's on a live chart (a human spot-check of one last-bar value); the pixels (the indicator cells re-run after deploy). */
@@ -48,8 +48,8 @@ test('P2. symmetry: the mirrored market gives the exactly mirrored SAR, for ever
   }
 });
 
-/* The second implementation, written from the rule in the PR (Wilder: on a REVERSAL bar the SAR is the old extreme point and nothing else adjusts it; on every other bar it may not enter the previous two bars' range). Bar 1 is stepped like every other bar. `clampOnReversal` is the one convention that differs between published versions (see P3b). */
-function pineSar(c: OHLCV[], start = 0.02, inc = 0.02, max = 0.2, clampOnReversal = false): number[] {
+/* The second implementation, written from the rule: on a reversal bar the SAR is the old extreme point (clamped to the bar), the AF does NOT step on that bar, and on EVERY bar (the reversal bar included, as TA-Lib and TradingView's ta.sar do) the SAR may not enter the previous two bars' range. Bar 1 is stepped like every other bar. `clampOnReversal` false is the other published convention (see P3b). */
+function pineSar(c: OHLCV[], start = 0.02, inc = 0.02, max = 0.2, clampOnReversal = true): number[] {
   const out = new Array<number>(c.length).fill(NaN); let result = NaN, maxMin = NaN, acc = NaN, isBelow = false;
   for (let i = 1; i < c.length; i++) {
     let first = false;
@@ -63,11 +63,13 @@ function pineSar(c: OHLCV[], start = 0.02, inc = 0.02, max = 0.2, clampOnReversa
   }
   return out;
 }
+/** the first index from which the two series agree on every later bar (the seeding prefix is everything before it) */
+const agreeFrom = (a: number[], b: number[]): number => { let last = 1; for (let i = 2; i < a.length; i++) if (!close(a[i], b[i], 1e-9)) last = i; return last + 1; };
 test('P3. an independent second implementation, written from the stated rule, agrees on random walks once the seeding prefix is over', () => {
   let compared = 0, prefixMax = 0;
   for (const seed of [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]) {
     const c = walk(700, seed), a = psarArr(c), b = pineSar(c);
-    let from = 2; while (from < c.length && !close(a[from], b[from], 1e-9)) from++;   /* the seeding prefix: the first bar where they agree */
+    const from = agreeFrom(a, b);   /* the seeding prefix: they agree on EVERY bar from here on */
     for (let i = from; i < c.length; i++) { assert.ok(close(a[i], b[i], 1e-9), `seed ${seed} bar ${i}: app ${a[i]} vs oracle ${b[i]}`); compared++; }
     prefixMax = Math.max(prefixMax, from);
   }
@@ -90,11 +92,14 @@ test('P4. invariants on any series: the SAR is on the right side of price, never
 test('P5. true units and the maximum: AF never exceeds the maximum, and a smaller maximum chases price slower', () => {
   const c = walk(400, 77), fast = psarArr(c, 0.02, 0.02, 0.2), slow = psarArr(c, 0.02, 0.02, 0.04), same = pineSar(c, 0.02, 0.02, 0.04);
   let differs = 0; for (let i = 5; i < c.length; i++) if (!close(fast[i], slow[i], 1e-9)) differs++;
-  assert.ok(differs > 20, 'a lower maximum AF must change the dots'); let from = 2; while (from < c.length && !close(slow[from], same[from], 1e-9)) from++; for (let i = from; i < c.length; i++) assert.ok(close(slow[i], same[i], 1e-9), `max 0.04 bar ${i}`);
+  assert.ok(differs > 20, 'a lower maximum AF must change the dots'); const from = agreeFrom(slow, same); for (let i = from; i < c.length; i++) assert.ok(close(slow[i], same[i], 1e-9), `max 0.04 bar ${i}`);
 });
 
-/* P3b DIAGNOSTIC, NOT ASSERTED: some published TradingView-style reference code ALSO applies the two-bar clamp on the reversal bar itself. They differ only when a bar from BEFORE the old trend started had a higher high (or lower low) than the old extreme point: a handful of reversals per thousand bars, after which the dots differ by a fraction of a percent until the next reversal. The PM asked for TradingView's values: a human must compare one last-bar value on a live TradingView chart (BTC 1h, default 0.02/0.02/0.2) with the app's to settle which convention TradingView uses. The printed share says how often it could matter. */
+/* P3b DIAGNOSTIC, NOT ASSERTED: some published TradingView-style reference code ALSO applies the two-bar clamp on the reversal bar itself. They differ only when a bar from BEFORE the old trend started had a higher high (or lower low) than the old extreme point: a handful of reversals per thousand bars, after which the dots differ by a fraction of a percent until the next reversal. The PM asked for TradingView's values: Dev follows TA-Lib / ta.sar (clamp on every bar); a human should still compare one last-bar value on a live TradingView chart (BTC 1h, default 0.02/0.02/0.2) with the app's to confirm. The printed share says how often it could matter. */
+test('P3c. the reversal-bar clamp: a reversal whose old extreme point is LOWER than a bar from before the trend started is clamped to that bar (the case that separates the two conventions)', () => {
+  const c = walk(700, 1), a = psarArr(c); assert.ok(close(a[572], c[570].high), `bar 572 is ${a[572]}, the clamp to the high two bars back is ${c[570].high}`); assert.ok(a[572] > c[571].high, 'the clamped SAR is above the old extreme point of that bar');
+});
 test('P3b. DIAGNOSTIC: how often the reversal-bar clamp convention changes the dots', () => {
-  let diff = 0, total = 0; for (const seed of [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]) { const c = walk(700, seed), a = pineSar(c, 0.02, 0.02, 0.2, false), b = pineSar(c, 0.02, 0.02, 0.2, true); for (let i = 60; i < c.length; i++) { total++; if (!close(a[i], b[i], 1e-9)) diff++; } }
+  let diff = 0, total = 0; for (const seed of [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]) { const c = walk(700, seed), a = pineSar(c, 0.02, 0.02, 0.2, true), b = pineSar(c, 0.02, 0.02, 0.2, false); for (let i = 60; i < c.length; i++) { total++; if (!close(a[i], b[i], 1e-9)) diff++; } }
   console.log(`[SAR] reversal-bar clamp convention changes ${diff} of ${total} dots on random walks (${((100 * diff) / total).toFixed(2)}%): a human TradingView spot-check settles it`);
 });
