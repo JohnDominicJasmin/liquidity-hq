@@ -81,10 +81,10 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
             setState(prev => (prev.result === first ? { ...prev, result: { ...first, overlay: { levels: [], zones: [], lines: [], marker: null, ...(first.overlay ?? {}), history: past } } } : prev));
           }, 0);
         }
+      /* A FAILED REFRESH KEEPS THE PREVIOUS CALL (audit A10, owner's feature-freeze order: last good value with its age, not a failure line). Only when there never was a call does the unavailable state show. */
       } catch {
-        /* A FAILED REFRESH KEEPS THE PREVIOUS CALL (audit A10, owner's feature-freeze order: last good value with its age, not a failure line). Only when there never was a call does the unavailable state show. */
+        if (!cancelled) setState(prev => (!prev.result ? { result: null, loading: false, error: true } : { ...prev, loading: false, error: false, staleSince: prev.staleSince ?? lastOkAt }));
         failed = true;
-        if (!cancelled) setState(prev => (prev.result ? { ...prev, loading: false, error: false, staleSince: prev.staleSince ?? lastOkAt } : { result: null, loading: false, error: true }));
       }
       /* a failed read tries again within a minute; waiting for the next candle close meant 15 min to 24 h of nothing */
       if (!cancelled) timer = setTimeout(run, failed ? 45_000 : Math.max(5_000, msUntilNextClose(tfMs, Date.now()) + 2_000));
