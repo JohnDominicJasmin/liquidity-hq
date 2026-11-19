@@ -4444,6 +4444,8 @@ html[data-sess="1"] .usage-meter-host { min-height: 55px; }
    device's newer value. Sharing --error's colour would read as a failure the
    user should retry, which is the exact wrong message for this case. */
 .st-save-toast.conflict { background: var(--amber-bg); border-color: var(--amber-bdr); color: var(--amber); }
+/* The offline notice stays up, so it needs an opaque base under the translucent amber (the page showed through the text), (its placement over the Arena chart toolbar is PM's visual call: the owner rejected a bottom/right corner for toasts). */
+.offline-notice-region .st-save-toast { background: linear-gradient(var(--amber-bg), var(--amber-bg)), var(--bg2); }
 /* Error: red token, an icon as well as the colour, and real buttons - so it
    takes pointer events, unlike the passive states. */
 .st-save-toast.error    { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.45); color: var(--red); pointer-events: auto; }
