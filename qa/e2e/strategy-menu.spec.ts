@@ -155,7 +155,7 @@ test.describe('one strategy menu (#2358)', () => {
     const { ctx, page, writes } = await openArena(browser, { saved: null, chips: [] });
     try {
       await expect(menu(page)).toBeVisible({ timeout: 30_000 });
-      const off: string[] = []; for (const id of IDS) { const o = await optionState(page, id); expect(o, `${id}: option missing`).not.toBeNull(); if (o!.disabled) { off.push(id); expect(o!.title, `${id}: a disabled option must say why`).toMatch(/Works on d+s?w+ or (lower|higher)/); } }
+      const off: string[] = []; for (const id of IDS) { const o = await optionState(page, id); expect(o, `${id}: option missing`).not.toBeNull(); if (o!.disabled) { off.push(id); expect(o!.title, `${id}: a disabled option must say why`).toMatch(/Works on \d+\s?\w+ or (lower|higher)/); } }
       expect(off, 'the strategies disabled on 1h').toEqual(NA_ON_1H);
       expect((await optionState(page, 'ny_open_breakout'))!.title).toBe('Works on 30m or lower.');
       expect(writes.filter(w => 'arena_strategy' in w || 'strategy_selection' in w), 'something was written').toEqual([]);
@@ -194,7 +194,7 @@ test.describe('one strategy menu (#2358)', () => {
       await expect(menu(page)).toBeVisible({ timeout: 30_000 });
       expect((await optionState(page, 'ny_open_breakout'))!.disabled, 'NY open is disabled on 15m').toBe(false);
       await pick(page, 'ny_open_breakout'); await expect(box(page), 'no call box for NY open on 15m').toBeVisible({ timeout: 20_000 });
-      const text = (await box(page).innerText()).replace(/s+/g, ' '); console.log(`[M3n] ny_open_breakout 15m: ${text.slice(0, 120)}`);
+      const text = (await box(page).innerText()).replace(/\s+/g, ' '); console.log(`[M3n] ny_open_breakout 15m: ${text.slice(0, 120)}`);
       expect(text, 'a raw label key shows').not.toMatch(/STRAT_[A-Z_]+/);
       await expect(page.getByTestId('strategy-call-verdict').or(page.getByTestId('strategy-call-unavailable')).or(page.getByTestId('strategy-call-cant-run')), 'NY open on 15m shows no settled state').toBeVisible({ timeout: 20_000 });
     } finally { await ctx.close(); }
