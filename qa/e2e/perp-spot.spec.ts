@@ -166,7 +166,7 @@ test.describe('Perps vs Spot reads the last CLOSED hour', () => {
     } finally { await ctx.close(); }
   });
 
-  test('a coin with no spot market says CANNOT MEASURE, not a number', async ({ browser }) => {
+  test('a coin with no spot market leaves the card out: no CANNOT MEASURE, no number, no failure text', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
@@ -185,14 +185,15 @@ test.describe('Perps vs Spot reads the last CLOSED hour', () => {
         return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"no such symbol"}' });
       });
 
-      const text = await cardText(page);
-      expect(text,
-        `the spot side is unavailable and the card rendered a verdict anyway. The perp side ` +
-        `alone cannot answer "is this real buying" - a number here reads as measured when ` +
-        `nothing was measured. Card: ${text}`)
-        .toMatch(/CANNOT MEASURE/i);
-      expect(text, 'a number was shown for a reading that could not be taken')
-        .not.toMatch(/\d+\.\d+x/);
+      /* #2693 (owner's zero-failure-text rule, 2026-11-20): a coin with no spot reading LEAVES THE CARD OUT. It used to say CANNOT MEASURE with a dash and "Spot data unavailable for this
+         coin": true, but failure text. The old guarantee (no number for an unmeasured reading) now holds by absence: there is nothing on the page to misread. */
+      await gotoSignedIn(page, '/dashboard');
+      /* POSITIVE CONTROL: the dashboard itself rendered (an absence proves nothing on a page that never loaded). */
+      await expect(page.getByText(/fear\s*(&|and)\s*greed|market read|liquidity/i).first(), 'the dashboard did not render - the absence below would prove nothing').toBeVisible({ timeout: 30_000 });
+      await page.waitForTimeout(8000);                 // the spot read fails after mount: give it time to land, and the card time to (wrongly) appear
+      expect(await page.locator(CARD).count(), 'the Perps vs Spot card is on the page for a coin with no spot reading').toBe(0);
+      const body = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
+      expect(body, 'failure text for the unmeasured reading is on the page').not.toMatch(/CANNOT MEASURE|Spot data unavailable for this coin/i);
     } finally { await ctx.close(); }
   });
 });
