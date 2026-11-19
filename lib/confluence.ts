@@ -132,17 +132,17 @@ export function computeMacroRisk(
     const when = mins <= 0 ? 'releasing now' : mins < 60 ? `in ${mins}m` : `in ${(mins / 60).toFixed(1)}h`;
     if (ms <= EVENT_DANGER_MS) {
       level = 'danger';
-      reasons.push(`${e.name} ${when} - expect a volatility spike`);
+      reasons.push(`${e.name} ${when} - high-impact event within 30 min`);
     } else {
       level = 'caution';
-      reasons.push(`${e.name} ${when} - reduce size or wait`);
+      reasons.push(`${e.name} ${when}`);
     }
   }
 
   if (jpyUsd != null) {
     if (jpyUsd >= 160) {
       level = 'danger';
-      reasons.push(`USD/JPY ${jpyUsd.toFixed(1)} - at or above 160, the level the BOJ has stepped in at`);
+      reasons.push(`USD/JPY ${jpyUsd.toFixed(1)} - at or above 160`);
     } else if (jpyUsd >= 158 && level !== 'danger') {
       level = 'caution';
       reasons.push(`USD/JPY ${jpyUsd.toFixed(1)} - between 158 and 160`);
