@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { COINS, CoinId } from '@/lib/marketStore';
 import { getLocalNow, getSessionName } from '@/lib/session';
+import { trText } from '@/lib/marketReadText';
 import { getSupabase, getAuthToken } from '@/lib/supabase';
 import AuthGate from './AuthGate';
 import { useAuth } from './AuthProvider';
@@ -1254,7 +1255,7 @@ function Inner() {
 
               <div className="tj-trade-meta">
                 {trade.created_at && <span>{fmtDate(trade.created_at)}</span>}
-                {trade.session && <span> · {trade.session}</span>}
+                {trade.session && <span> · {trText(t, trade.session)}</span>}
               </div>
 
               {/* Close trade */}
