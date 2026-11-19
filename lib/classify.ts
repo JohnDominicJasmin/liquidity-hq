@@ -115,7 +115,7 @@ export const GEO_KEYWORDS = [
     note: 'Fed official speaking. First market reaction is almost always fake. Watch for reversal after initial spike.',
   },
   {
-    kw: ['trump','white house','executive order','presidential','tariff','trade war','trade deal','trade policy'],
+    kw: ['trump','white house','executive order','tariff','trade war','trade deal','trade policy'],
     tag: 'TRUMP/TARIFF', style: 'geopolitical',
     note: 'Trump/White House announcement. Tariff news causes instant crypto volatility - first move usually exaggerated.',
   },
