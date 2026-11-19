@@ -3028,7 +3028,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
        but the strategy reads candles through fetchOHLCV, which divides by the denomination, so its levels, zones and lines were at the per-token price (0.0000038) on a chart axis reading 0.0038 and fell off the screen. Every price handed to the chart is converted to the unit of the series the chart actually drew (the venue the history came from). 1 for every ordinary coin. */
     const vs = venueSymbols(coinRef.current);
     const chartSym = (histSourceRef.current === 'bybit' ? vs.bybit : vs.binance) ?? vs.bybit ?? vs.binance ?? '';
-    const unit = 1 / (symbolDenominationFactor(chartSym) || 1);
+    const unit = (symbolDenominationFactor(vs.bybit ?? vs.binance ?? '') || 1) / (symbolDenominationFactor(chartSym) || 1);   /* the strategy's prices are in the unit of the PRIMARY venue's series (arenaPriceUnit): 1 when the chart drew that same series */
     const add = (name: string, points: Array<{ timestamp: number; value: number }>, extendData: Record<string, unknown>) => {
       if (!points.length || !points.every(p => Number.isFinite(p.timestamp) && Number.isFinite(p.value))) return;
       const id = chart.createOverlay({ name, groupId: 'strategy_overlay', lock: true, points, extendData } as OverlayCreate);

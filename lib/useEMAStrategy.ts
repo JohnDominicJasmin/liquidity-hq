@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { CoinId, venueSymbols } from './marketStore.ts';
 import { OKX_SYMS } from './coins.ts';
 import { okxBarForBinanceInterval } from './okx.ts';
-import { symbolDenominationFactor, currencyPrefix } from './coins.ts';
+import { symbolDenominationFactor, currencyPrefix, arenaPriceUnit } from './coins.ts';
 import { fundingDetail } from './fundingDetail.ts';
 import {
   emaArr, smaArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
@@ -218,7 +218,7 @@ async function fetchBybitKlines(sym: string, interval: string, limit: number): P
   }));
 }
 
-export async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval: string, limit: number): Promise<OHLCV[]> {
+async function fetchOHLCVPerToken(coin: CoinId, bnInterval: string, bybitInterval: string, limit: number): Promise<OHLCV[]> {
   /* venueSymbols, not the editorial maps: the Arena scanner scores the whole universe (#1263). */
   const { binance: bnSym, bybit: bySym } = venueSymbols(coin);
   /* #1059: Bybit primary, Binance fallback - reversed from Binance-primary.
@@ -266,6 +266,14 @@ export async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval
     console.warn(`[useEMAStrategy] ${failed} klines failed for ${coin}, falling back to ${next}:`,
       err instanceof Error ? err.message : String(err));
   });
+}
+
+/** The candles the Arena strategies and the EMA card read, in the unit the Arena SHOWS prices in (PM, 2026-11-20): per-token for every ordinary coin, the exchange's 1000x contract unit for 1000PEPE and its kin, the same series the chart draws, so the call box, the Watching list, the
+ *  EMA card's entry / stop / target, the chart's markers and the AI read quote one scale. Volume is left alone. See arenaPriceUnit in lib/coins.ts. */
+export async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval: string, limit: number): Promise<OHLCV[]> {
+  const list = await fetchOHLCVPerToken(coin, bnInterval, bybitInterval, limit);
+  const u = arenaPriceUnit(coin);
+  return u === 1 ? list : list.map(k => ({ ...k, open: k.open * u, high: k.high * u, low: k.low * u, close: k.close * u }));
 }
 
 /* ── Initial / loading state ─────────────────────────────────────────────── */
