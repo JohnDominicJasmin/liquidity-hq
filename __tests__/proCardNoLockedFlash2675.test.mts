@@ -40,12 +40,14 @@ test('L3. MultiTFAlignment: a gated timeframe is locked only for a confirmed not
 });
 test('L4. Settings default timeframe: not locked, disabled without a lock, and a Pro-only saved value not shown selected, while the plan resolves', () => {
   const s = src('app/(main)/settings/page.tsx'); const def = must(s, /const planResolving = (.+?);\n/, 'settings planResolving');
+  assert.match(s, /const entitlementStatus: typeof authEntitlement \| 'loading' = planResolving \? 'loading' : authEntitlement;/, 'the page no longer maps the auth status to "loading" while the plan resolves (the shownTf expression depends on it)');
   const locked = must(s, /const locked = (.+?);\n/, 'settings locked'); const disabled = must(s, /disabled=\{(locked \|\| \(planResolving && isGatedTf\(tf\)\))\}/, 'settings disabled'); const shown = must(s, /const shownTf = (.+?) return TFS\.map/, 'settings shownTf');
   for (const i of TABLE) for (const gated of [true, false]) {
     const planResolving = evalExpr(def, i) as boolean; assert.equal(planResolving, planOf(i)); const isGatedTf = () => gated;
-    const lk = evalExpr(locked, { ...i, planResolving, isGatedTf, tf: '5m' }) as boolean; assert.equal(lk, lockedWritten(i) && gated, `locked: ${JSON.stringify(i)} gated=${gated}`);
+    /* the page reads the auth status as `entitlementStatus = planResolving ? 'loading' : authEntitlement` (so the existing shownTf expression, pinned by arenaSoundPrefs F2, is unchanged): evaluate the expressions the way the source does */
+    const eff = planResolving ? 'loading' : i.entitlementStatus; const lk = evalExpr(locked, { ...i, entitlementStatus: eff, planResolving, isGatedTf, tf: '5m' }) as boolean; assert.equal(lk, lockedWritten(i) && gated, `locked: ${JSON.stringify(i)} gated=${gated}`);
     const dis = evalExpr(disabled, { locked: lk, planResolving, isGatedTf, tf: '5m' }) as boolean; assert.equal(dis, lk || (planResolving && gated), 'disabled'); if (planResolving && gated) { assert.equal(lk, false, 'not drawn locked while resolving'); assert.equal(dis, true, 'but not selectable either'); }
-    const shownV = evalExpr(shown.replace(/;\s*$/, ''), { ...i, planResolving, isGatedTf, settings: { default_tf: '5m' }, FREE_FALLBACK_TF: '1h' }) as string | null;
+    const shownV = evalExpr(shown.replace(/;\s*$/, ''), { ...i, entitlementStatus: eff, planResolving, isGatedTf, settings: { default_tf: '5m' }, FREE_FALLBACK_TF: '1h' }) as string | null;
     if (gated && planResolving) assert.equal(shownV, null, `a Pro-only saved value must not show selected while resolving: ${JSON.stringify(i)}`); if (gated && !planResolving && i.entitlementStatus === 'not_entitled') assert.equal(shownV, '1h', 'a confirmed Free account sees the fallback'); if (gated && !planResolving && i.entitlementStatus === 'entitled') assert.equal(shownV, '5m', 'a Pro account sees its saved value'); if (!gated) assert.equal(shownV, '5m');
   }
 });
