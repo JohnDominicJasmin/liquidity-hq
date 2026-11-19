@@ -61,6 +61,8 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // blind" - see app/api/settings/route.ts's own accept-rule comment. A ref,
   // not state: purely an outgoing-request input, never rendered.
   const fieldUpdatedAtRef = useRef<Record<string, string>>({});
+  /* The last row the SERVER confirmed for this account (set when it is read at sign-in): a save the server refuses puts these values back instead of leaving the refused ones on screen and in this device's cache. */
+  const serverSettingsRef = useRef<UserSettings | null>(null);
 
   // ── Debounced Supabase upsert ─────────────────────────────────────────────
   // Declared before the effects, not after them. The sign-in effect below calls
@@ -139,6 +141,17 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       const stuck = loadUnconfirmed(user.id);
       for (const key of Object.keys(partial)) delete stuck[key];
       saveUnconfirmed(user.id, stuck);
+      /* THE REFUSED VALUE GOES BACK TO THE SERVER'S (#1185, "Settings, after a refused save (400) and a reload: the field shows the refused value for about 1 s"): this device's cache still held what the server refused, and the next
+         load painted it until the sign-in read replaced it. The refused keys are put back to the last server-confirmed values, on screen and in the cache. */
+      const confirmed = serverSettingsRef.current as Record<string, unknown> | null;
+      if (confirmed) {
+        setSettings(prev => {
+          const next = { ...prev } as Record<string, unknown>;
+          for (const key of Object.keys(partial)) if (key in confirmed) next[key] = confirmed[key];
+          saveLocalSettings(next as unknown as UserSettings, true);
+          return next as unknown as UserSettings;
+        });
+      }
       lastFailedRef.current = null;
       setSaveStatus('error');
       settleToIdle(3000);
@@ -260,6 +273,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // Storing the value alongside the marker (lib/settings.ts) removes that
   // shared-cache dependency entirely.
   const applyDbSettings = useCallback((userId: string, dbSettings: UserSettings) => {
+    serverSettingsRef.current = dbSettings;
     const unconfirmed = loadUnconfirmed(userId);
     const keys = Object.keys(unconfirmed);
     if (keys.length === 0) {
