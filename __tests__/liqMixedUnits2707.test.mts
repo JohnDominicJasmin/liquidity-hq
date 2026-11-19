@@ -105,10 +105,10 @@ test('L7. a raid the model writes for a mixed coin is dropped like one written w
   const ANSWER = ['SIGNAL: FLAT', 'CONFIDENCE: 50', 'SIDES: EMA9 ABOVE | SMA200 ABOVE | VWAP BELOW', 'REASONING: r', 'RAID_SETUP: SHORT SQUEEZE', 'RAID_TARGET: $4.30', 'RAID_TRIGGER: A break and hold above $4.25 on the 15m.'].join('\n');
   const answer = (liqLevels: string, coin: string) => { const prompt = buildCombinedPrompt(ctx({ coin, liqLevels }), CHART); const parsed = parseCombinedRead(ANSWER, '1h', 'NY')!; return applyResultChecks(parsed, prompt); };
   const kept = answer(formatClustersForPrompt([bucket('pepe', 3.8)], 'pepe'), 'PEPE/USDT');
-  assert.equal(kept.raidSetup, 'SHORT SQUEEZE', 'control: with clusters the raid must be kept'); assert.ok(!kept.checks.includes('raid dropped: no liquidation cluster data'));
-  const empty = answer(formatClustersForPrompt([], 'btc'), 'BTC/USDT'); assert.equal(empty.raidSetup, null, 'control: an empty feed drops the raid'); assert.ok(empty.checks.includes('raid dropped: no liquidation cluster data'));
+  assert.equal(kept.raidSetup, 'SHORT SQUEEZE', 'control: with clusters the raid must be kept'); assert.ok(!kept.checks!.includes('raid dropped: no liquidation cluster data'));
+  const empty = answer(formatClustersForPrompt([], 'btc'), 'BTC/USDT'); assert.equal(empty.raidSetup, null, 'control: an empty feed drops the raid'); assert.ok(empty.checks!.includes('raid dropped: no liquidation cluster data'));
   for (const c of MIXED) {
     const r = answer(formatClustersForPrompt([bucket(c, 4.2)], c), `${c.toUpperCase()}/USDT`);
-    assert.equal(r.raidSetup, null, `${c}: a raid survived on a mixed-unit feed`); assert.equal(r.raidTarget, null); assert.equal(r.raidTrigger, null); assert.ok(r.checks.includes('raid dropped: no liquidation cluster data'), `${c}: ${JSON.stringify(r.checks)}`);
+    assert.equal(r.raidSetup, null, `${c}: a raid survived on a mixed-unit feed`); assert.equal(r.raidTarget, null); assert.equal(r.raidTrigger, null); assert.ok(r.checks!.includes('raid dropped: no liquidation cluster data'), `${c}: ${JSON.stringify(r.checks)}`);
   }
 });
