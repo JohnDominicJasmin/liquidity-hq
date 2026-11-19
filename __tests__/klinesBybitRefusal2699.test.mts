@@ -50,10 +50,16 @@ test('R4. a real retCode 0 answer with candles is still an answer, 200, served f
 test('R5. an HTTP refusal (500) is unchanged: 502 and held', async () => {
   tick(61_000); net.bybit = 0; net.mode = 500; const a = await call(Q('SOLUSDT', 'W')); assert.equal(a.status, 502); const b = await call(Q('SOLUSDT', 'W')); assert.equal(b.status, 502); assert.equal(net.bybit, 1);
 });
-/* R6 pins what the PR keeps ON PURPOSE ("a real, empty list (retCode 0) is still an answer"): it is served 200 and cached for the candle. That is the same hazard class as the bug (an empty answer pinned for a day); QA flagged it to Dev on #2699. If the rule changes, this test changes with it, deliberately. */
-test('R6. a retCode 0 answer with an EMPTY list is served 200 (the rule the PR keeps) and stays cached for the candle even when Bybit is healthy 61 s later', async () => {
-  tick(61_000); net.bybit = 0; net.mode = 'empty0'; const first = await call(Q('ETHUSDT', 'W')); tick(61_000); net.mode = 'ok'; const second = await call(Q('ETHUSDT', 'W'));
-  assert.equal(first.status, 200); assert.equal(rows(first.body).length, 0); assert.equal(second.status, 200); assert.equal(rows(second.body).length, 0, 'the empty answer is no longer cached (a deliberate change: update this pin and the note)'); assert.equal(net.bybit, 1);
+/* R6 (Dev's answer on #2699): an EMPTY list is legitimate ONLY for a RANGE read (start/end): a backfill walking back past the listing date reads empty to learn where history ends. For a LATEST-N read (no start/end) a listed coin always has candles, so an empty list there is a refusal: 502, held 30 s, never cached for the candle. */
+test('R6a. a latest-N read (no start/end) with retCode 0 and an EMPTY list is a FAILURE: 502, held, and a healthy Bybit afterwards is served and cached (never "the coin has 0" for the candle)', async () => {
+  tick(61_000); net.bybit = 0; net.mode = 'empty0'; const first = await call(Q('ETHUSDT', 'W'));
+  assert.equal(first.status, 502, 'an empty latest-N list was served as an answer'); const held = await call(Q('ETHUSDT', 'W')); assert.equal(held.status, 502); assert.equal(net.bybit, 1, 'the refusal is not held');
+  tick(31_000); net.mode = 'ok'; const good = await call(Q('ETHUSDT', 'W')); assert.equal(good.status, 200, 'the empty answer was cached for the candle'); assert.equal(rows(good.body).length, LIST.length);
+  const calls = net.bybit; assert.equal((await call(Q('ETHUSDT', 'W'))).status, 200); assert.equal(net.bybit, calls, 'the healthy answer must be cached');
+});
+test('R6b. a RANGE read (start/end) with retCode 0 and an empty list is still an answer: 200 (a backfill past the listing date reads empty to find where history ends)', async () => {
+  tick(61_000); net.bybit = 0; net.mode = 'empty0'; const start = 1_600_000_000_000, end = 1_600_086_400_000;
+  const a = await call(`source=bybit&symbol=ETHUSDT&interval=D&limit=200&start=${start}&end=${end}`); assert.equal(a.status, 200, 'a range read that comes back empty must stay an answer: refusing it would stop every backfill at the listing date'); assert.equal(rows(a.body).length, 0);
 });
 test('R7. a NON-ZERO retCode is a refusal even when a (empty) result.list is present: the retCode alone decides', async () => {
   tick(61_000); net.bybit = 0; net.mode = 'refuse200list'; const a = await call(Q('SOLUSDT', 'M')); assert.equal(a.status, 502, 'a non-zero retCode with an empty list was served as an answer'); tick(31_000); net.mode = 'ok'; assert.equal((await call(Q('SOLUSDT', 'M'))).status, 200, 'and nothing was cached for the candle');
