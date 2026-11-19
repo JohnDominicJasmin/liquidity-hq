@@ -129,6 +129,8 @@
   "STRAT_OV_NY_OPEN": "NY open",
   "STRAT_OV_RANGE_HIGH": "Range high",
   "STRAT_OV_RANGE_LOW": "Range low",
+  "STRAT_OV_LAST30_HIGH": "30-candle high",
+  "STRAT_OV_LAST30_LOW": "30-candle low",
   "STRAT_OV_VWAP": "VWAP",
   "STRAT_OV_SUPPLY": "Supply",
   "STRAT_OV_DEMAND": "Demand",
