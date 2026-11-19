@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuthToken } from '@/lib/supabase';
 import { useAuth } from './AuthProvider';
@@ -77,6 +77,7 @@ export default function DryPowder() {
   const { user, entitlementStatus, entitlementsLoading, retryEntitlements, loading: authLoading } = useAuth();
   /* THE PLAN IS NOT KNOWN YET, SO NO LOCKED CARD (#1651, QA: a Pro account saw the "With Pro" upsell for 0.3-0.8 s on the first visit). `entitlementStatus` reads 'not_entitled' while the subscription row is still loading, so the locked card is only for a CONFIRMED not-entitled (the same pattern as HypothesisTracker / TradeJournal / Alerts). */
   const planResolving = authLoading || (!!user && entitlementsLoading);
+  const startedRef = useRef(false);
   const [state, setState]    = useState<LoadState>('loading');
   /* Set while the figures on screen are the saved ones from an earlier read, because this read failed: when they were read. */
   const [savedTs, setSavedTs] = useState<number | null>(null);
@@ -163,7 +164,11 @@ export default function DryPowder() {
     // anyway just burns a round trip to show the locked-card branch below.
     // 'unknown' skips too (#1119): we can't confirm access, and the round
     // trip would 403 anyway if it turns out they really aren't entitled.
-    if (authLoading || entitlementStatus !== 'entitled') return;
+    /* SENT AS SOON AS AUTH IS KNOWN, NOT AFTER THE PLAN (QA L103, #1651: the request left 2.1-4.9 s after navigation because it waited for the entitlement): the server answers 403 PRO_REQUIRED to a non-Pro account (handled below as the locked state), so a Pro visit starts its read at once. A CONFIRMED non-Pro or unknown plan still does not fetch. Once per mount. */
+    if (authLoading) return;
+    if (!entitlementsLoading && entitlementStatus !== 'entitled') return;
+    if (startedRef.current) return;
+    startedRef.current = true;
     try {
       const raw = localStorage.getItem(CACHE_KEY);
       if (raw) {
@@ -172,7 +177,7 @@ export default function DryPowder() {
       }
     } catch { /* ignore */ }
     fetchData();
-  }, [authLoading, entitlementStatus, fetchData]);
+  }, [authLoading, entitlementStatus, entitlementsLoading, fetchData]);
 
   const signalKey = typeof state === 'object' && state !== null
     ? (state.signal.match(/^(EXPANDING|CONTRACTING|NEUTRAL)/)?.[1] ?? 'NEUTRAL')
