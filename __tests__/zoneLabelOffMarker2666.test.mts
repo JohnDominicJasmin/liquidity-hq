@@ -10,7 +10,8 @@ import { readFileSync } from 'node:fs';
  *   Z4 CONTROL: the OLD placement (demand above the top edge) does overlap the marker in this model, so the test can fail
  *   Z5 DIAGNOSTIC: a supply zone whose top edge is within 13 px of the pane top puts its label above the pane (printed, not asserted: needs a browser cell) */
 const src = readFileSync(new URL('../components/KLineProChart.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-const start = src.indexOf("const { kind, text } = overlay.extendData as { kind: 'supply' | 'demand'; text: string };"); assert.ok(start > 0, 'CONTROL: the zone figure code was not found');
+/* #2688: the zone figure now also reads priceText / slot and draws an OFF-WINDOW label at the pane edge (pinned in zoneInViewLabel2688); this test still pins the in-window placement, so it cuts from the new first line. */
+const start = src.indexOf("const { kind, text, priceText, slot } = overlay.extendData as { kind: 'supply' | 'demand'; text: string; priceText?: string; slot?: number };"); assert.ok(start > 0, 'CONTROL: the zone figure code was not found');
 const end = src.indexOf('];\n', src.indexOf("{ type: 'text', attrs: { x: x1 - 4, y: demand", start)); assert.ok(end > start, 'CONTROL: the end of the figure list was not found');
 const body = src.slice(start, end + 2).replace(/ as \{[^}]*\}/g, '');   // the one TypeScript assertion in the slice
 const figures = new Function('overlay', 'coordinates', 'bounding', 'resolveCssColor', 'withAlpha', 'isFinite', `${body}`) as (o: unknown, c: unknown, b: unknown, r: (s: string) => string, w: (c: string, a: number) => string, f: (n: number) => boolean) => Array<{ type: string; attrs: Record<string, number | string>; styles?: unknown }>;
