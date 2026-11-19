@@ -185,7 +185,8 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
        'Unavailable' note is reachable only if that feed fails or the coin is outside it. */
     { label: lr.rows.vwap,    value: vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[LIVE_READ_COIN]) : null, note: vwap == null ? (snapshotLoading ? '' : dict.ticker.unavailable) : vwapAbove == null ? '' : vwapAbove ? lr.notes.above : lr.notes.below, col: vwapCol },
     { label: lr.rows.oiTrend, value: oiRow ? oiRow.txt : null, note: '', col: oiRow ? oiRow.col : 'var(--txt2)', state: oiRow ? undefined : (feedPending ? 'loading' : 'unavailable') },
-    { label: lr.rows.funding, value: fr != null ? (fr * 100 >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : null, note: frInfo ? lr.funding[frInfo.band] : '', col: frCol },
+    /* A funding rate that never arrived leaves the row out, like the other rows, instead of printing a dash (#1185, failure-text audit C21). */
+    { label: lr.rows.funding, value: fr != null ? (fr * 100 >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : null, note: frInfo ? lr.funding[frInfo.band] : '', col: frCol, state: fr != null ? undefined : (feedPending ? 'loading' : 'unavailable') },
     { label: lr.rows.cbPrem, value: cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : null, note: '', col: cbCol, state: cbPct != null ? undefined : (store.cbPremiumStatus === 'pending' ? 'loading' : 'unavailable') },
     { label: lr.rows.oi1h,   value: oi1h.loading ? null : (oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : null), note: oi1h.loading || oi1h.pct == null ? '' : oi1hTxt, col: oi1hCol, state: oi1h.loading ? 'loading' : (oi1h.pct == null ? 'unavailable' : undefined) },
     /* `null` WHEN THERE IS NO COIN DATA, not the score (#1185). `computeSqueezeScore` returns
@@ -204,7 +205,9 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
        names which signals are in. */
     { label: lr.rows.setup,
       value: (d && sq.signalsPresent >= 1) ? String(sq.score) : null,
-      note: setupComplete ? (sq.dir === 'SHORT_SQ' ? lr.setup.squeeze : sq.dir === 'LONG_LIQ' ? lr.setup.flush : lr.setup.balanced) : (d ? lr.notes.nOf3.replace('{n}', String(sq.signalsPresent)) : (snapshotLoading ? '' : lr.setup.noData)),
+      note: setupComplete ? (sq.dir === 'SHORT_SQ' ? lr.setup.squeeze : sq.dir === 'LONG_LIQ' ? lr.setup.flush : lr.setup.balanced) : (d ? lr.notes.nOf3.replace('{n}', String(sq.signalsPresent)) : ''),
+      /* No signal at all once the read is done: the row is left out, not printed as "No data" (failure-text audit C21). */
+      state: (d && sq.signalsPresent >= 1) ? undefined : (feedPending ? 'loading' : 'unavailable'),
       col: setupComplete ? (sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt)') : 'var(--txt)',
       title: sq.present.length ? `Signals in: ${sq.present.join(', ')}` : undefined },
   ];
@@ -224,8 +227,9 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
       </div>
 
       <div style={{ padding: mobile ? 18 : 20 }}>
-        <div style={{ fontSize: mobile ? 26 : 32, fontFamily: 'var(--font-mono), monospace', fontWeight: 700, lineHeight: 1, color: verdictCol }} suppressHydrationWarning>
-          {verdictText}
+        {/* The verdict line shows only once all three inputs are in. Before that it is left empty (height kept, so nothing shifts) instead of "NO SETUP YET" over a feed that may never answer (failure-text audit C21). */}
+        <div style={{ fontSize: mobile ? 26 : 32, minHeight: mobile ? 26 : 32, fontFamily: 'var(--font-mono), monospace', fontWeight: 700, lineHeight: 1, color: verdictCol }} suppressHydrationWarning>
+          {setupComplete ? verdictText : ''}
         </div>
 
         {hasConfidence && (

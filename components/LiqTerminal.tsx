@@ -10,13 +10,10 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { useGraceElapsed } from '@/lib/useGrace';
-import ReadingGap from '@/components/ReadingGap';
 import { computeBands, type Band } from '@/lib/liqBands';
 import { parseRatioPair } from '@/lib/ratioPair';
 
 type TimeRange = '12h' | '24h' | '48h' | '3d' | '1w';
-
-const LIQ_DELTA_COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'near', 'sui'];
 
 const RANGE_TO_PERIOD: Record<TimeRange, string> = {
   '12h': '1h',
@@ -120,23 +117,8 @@ function BandRow({ b }: { b: Band }) {
    reaches a visitor. */
 export function RealClusters({ clusters, currentPrice, histOnly = null }: { clusters: Bucket[]; currentPrice: number; histOnly?: 'BN' | 'BB' | null }) {
   const { t } = useLabels();
-  if (clusters.length === 0) {
-    return (
-      <div style={{
-        padding: '12px 14px', borderRadius: 0, marginBottom: 12,
-        background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.07)',
-        display: 'flex', alignItems: 'center', gap: 10,
-      }}>
-        <span style={{
-          width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-          background: '#fbbf24', boxShadow: '0 0 6px #fbbf2466',
-        }} />
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-          {t('LIQ_CLUSTERS_BUILDING')}
-        </span>
-      </div>
-    );
-  }
+  /* NO CLUSTERS YET: the card is left out, not a "building, takes a few minutes" notice that stays for ever when the sockets never connect (failure-text audit A16). */
+  if (clusters.length === 0) return null;
 
   const maxTotal = Math.max(...clusters.map(c => c.total));
   const above = clusters.filter(c => c.price > currentPrice).sort((a, b) => a.price - b.price);
@@ -371,15 +353,17 @@ export default function LiqTerminal() {
         )}
       </div>
 
-      {!cd?.price && (
+      {/* NO PRICE, OR NO OPEN INTEREST, IS NEVER A FAILURE SENTENCE (failure-text audit A12, A13): the skeleton while the read is still coming, and once it is not the panel is left out. It returns by itself when the data lands. */}
+      {!cd?.price && !graceOver && (
         <TPanel style={{ textAlign: 'center', padding: '2rem' }}>
           <span className="sr-only">{t('LIQ_LOADING_SR', { coin: coin.toUpperCase() })}</span>
-          {graceOver ? <ReadingGap loading={false} /> : <SkeletonBar width={140} height={14} radius={4} style={{ margin: '0 auto' }} />}
+          <SkeletonBar width={140} height={14} radius={4} style={{ margin: '0 auto' }} />
         </TPanel>
       )}
-      {cd?.price && !cd?.oi && (
-        <TPanel style={{ textAlign: 'center', color: 'var(--txt-dim)', padding: '2rem' }}>
-          {t('LIQ_NO_OI_DATA', { coin: coin.toUpperCase() })}
+      {cd?.price && !cd?.oi && store.snapshotStatus === 'loading' && (
+        <TPanel style={{ textAlign: 'center', padding: '2rem' }}>
+          <span className="sr-only">{t('LIQ_LOADING_SR', { coin: coin.toUpperCase() })}</span>
+          <SkeletonBar width={140} height={14} radius={4} style={{ margin: '0 auto' }} />
         </TPanel>
       )}
 
@@ -395,16 +379,18 @@ export default function LiqTerminal() {
           <RealClusters clusters={realClusters.filter(c => c.coin.toLowerCase() === coin).slice(0, 8)} currentPrice={cd.price} histOnly={histOnly} />
 
           <div className="liq-stats-row">
-            <div className="liq-stat-item">
+            {/* A SIDE WITH NO ACCOUNT SPLIT AT ALL IS HIDDEN, not drawn as a dash (failure-text audit A14). The block keeps its space so the three columns do not shift. */}
+            <div className="liq-stat-item" style={(bybitPos?.longRatio ?? cd.longRatio) == null && (retailPos?.longRatio ?? cd.bnLongRatio) == null ? { visibility: 'hidden' } : undefined}>
               <div className="liq-stat-label">{t('LIQ_STAT_LONG_ACCOUNTS')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 }}>
+                {(bybitPos?.longRatio ?? cd.longRatio) != null && (
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--red)', fontVariantNumeric: 'tabular-nums' }}>
-                    {/* #1651: "-" rather than 50%, which was an invented number wearing a measurement's clothes. */}
-                    {(bybitPos?.longRatio ?? cd.longRatio) == null ? '-' : `${((bybitPos?.longRatio ?? cd.longRatio)! * 100).toFixed(0)}%`}
+                    {`${((bybitPos?.longRatio ?? cd.longRatio)! * 100).toFixed(0)}%`}
                   </span>
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BYBIT_PERIOD', { period: bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h' })}</span>
                 </div>
+                )}
                 {(retailPos?.longRatio ?? cd.bnLongRatio) != null && (
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                     <span style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--red)', fontVariantNumeric: 'tabular-nums' }}>
@@ -428,15 +414,17 @@ export default function LiqTerminal() {
 
             <div className="liq-stat-sep" />
 
-            <div className="liq-stat-item" style={{ textAlign: 'right' }}>
+            <div className="liq-stat-item" style={{ textAlign: 'right', visibility: (bybitPos?.shortRatio ?? cd.shortRatio) == null && (retailPos?.shortRatio ?? cd.bnShortRatio) == null ? 'hidden' : undefined }}>
               <div className="liq-stat-label">{t('LIQ_STAT_SHORT_ACCOUNTS')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', marginTop: 2 }}>
+                {(bybitPos?.shortRatio ?? cd.shortRatio) != null && (
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BYBIT_PERIOD', { period: bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h' })}</span>
                   <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--green-2)', fontVariantNumeric: 'tabular-nums' }}>
-                    {(bybitPos?.shortRatio ?? cd.shortRatio) == null ? '-' : `${((bybitPos?.shortRatio ?? cd.shortRatio)! * 100).toFixed(0)}%`}
+                    {`${((bybitPos?.shortRatio ?? cd.shortRatio)! * 100).toFixed(0)}%`}
                   </span>
                 </div>
+                )}
                 {(retailPos?.shortRatio ?? cd.bnShortRatio) != null && (
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                     <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BINANCE_PERIOD', { period: retailPos ? RANGE_TO_PERIOD[range] : '1h' })}</span>
@@ -466,13 +454,7 @@ export default function LiqTerminal() {
                 </span>
               </div>
             );
-          })() : (
-            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 2px 0' }}>
-              {LIQ_DELTA_COINS.includes(coin)
-                ? t('LIQ_DELTA_WARMING_UP')
-                : t('LIQ_DELTA_UNAVAILABLE', { coin: coin.toUpperCase(), coins: LIQ_DELTA_COINS.map(c => c.toUpperCase()).join(', ') })}
-            </div>
-          )}
+          })() : null /* no liquidation delta yet, or a coin outside the tracked list: the line is left out, not "warming up" or "unavailable" (failure-text audit A15) */}
 
           {(whalePos != null || (cd.bnWhaleLongRatio != null && cd.bnWhaleShortRatio != null)) && (() => {
             const whaleLong  = whalePos?.longRatio  ?? cd.bnWhaleLongRatio!;

@@ -68,6 +68,9 @@ export default function SignalAccuracy() {
       .catch(e => setErr(String(e)));
   }, []);
 
+  /* A failed read leaves the card out instead of printing the error (failure-text audit A11); the card is behind SHOW_PERFORMANCE_STATS, off by default. */
+  if (err && !data) return null;
+
   return (
     <div style={{
       background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
@@ -98,9 +101,6 @@ export default function SignalAccuracy() {
             <SkeletonBar key={i} height={36} radius={6} style={{ opacity: Math.max(0.25, 1 - i * 0.09) }} />
           ))}
         </div>
-      )}
-      {err && (
-        <div style={{ padding: '16px 14px', fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>{t('SIGNAL_ACCURACY_LOAD_ERROR')} {err}</div>
       )}
 
       {/* Column headers */}

@@ -133,6 +133,9 @@ export default function AccumulationTracker() {
      one did not, and nothing failed. */
   const scoreCol = (s: number) => s >= 75 ? 'var(--green)' : s >= 60 ? 'var(--score-mid)' : 'var(--amber)';
 
+  /* NO PRICE FROM ANY SOURCE AND THE READ FAILED: the whole card is left out instead of printing a failure sentence (failure-text audit A7). It returns when a price lands. */
+  if (rows.length === 0 && store.pricesFailed && !COINS.some(id => store.coins[id]?.price != null)) return null;
+
   return (
     <div style={{
       background: 'linear-gradient(180deg, var(--bg2) 0%, var(--bg1) 100%)',
@@ -156,14 +159,7 @@ export default function AccumulationTracker() {
           the store now carries `pricesFailed` (#1263), so all three cases are distinguishable: this separates "no data yet"
           from "data arrived and found nothing", which is the reachable half. */}
       {rows.length === 0 && !COINS.some(id => store.coins[id]?.price != null) ? (
-        store.pricesFailed ? (
-          /* FAILED, not slow. Same absence of prices either way, so the flag is the only thing
-             that can tell them apart - without it this branch showed a loading skeleton for as
-             long as the feed stayed down. */
-          <div className="empty-state"><div className="empty-state-sub">{t('MARKET_FEED_FAILED')}</div></div>
-        ) : (
-          <div className="empty-state"><SkeletonBar width={180} height={13} style={{ margin: '0 auto' }} /></div>
-        )
+        <div className="empty-state"><SkeletonBar width={180} height={13} style={{ margin: '0 auto' }} /></div>
       ) : rows.length === 0 ? (
         /* minHeight holds the space the rows will occupy.
 

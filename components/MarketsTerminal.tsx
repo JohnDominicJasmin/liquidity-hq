@@ -40,6 +40,8 @@ function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): {
   if (d.oiTrend === 'strong_down') return { key: 'MARKETS_SIGNAL_NEW_SELLERS', col: 'var(--red)' };
   if (d.oiTrend === 'weak_up')     return { key: 'MARKETS_SIGNAL_SHORT_COVERING', col: 'var(--amber)' };
   if (d.oiTrend === 'weak_down')   return { key: 'MARKETS_SIGNAL_LONGS_EXITING', col: 'var(--txt-dim)' };
+  /* NO DERIVATIVES READ AT ALL FOR THIS COIN is not "no signal": the cell stays empty (failure-text audit A3/A4). "No signal" is only said for a coin whose inputs arrived and are quiet. */
+  if (d.fundingRate == null && d.oi == null && d.oiTrend == null && d.cvdDivergence == null) return { key: null, col: 'var(--txt-dim)' };
   return { key: 'MARKETS_SIGNAL_NONE', col: 'var(--txt-dim)' };
 }
 
@@ -111,6 +113,8 @@ export default function MarketsTerminal() {
   const bullCount = COINS.filter(id => topSignal(store.coins[id]).col === 'var(--green-2)').length;
   const bearCount = COINS.filter(id => topSignal(store.coins[id]).col === 'var(--red)').length;
   /* NOTHING QUALIFIES (#1185, PM 2026-11-17): when prices are in but no coin has a derivatives signal, the Signal column is a wall of "No signal". Say it once in a banner, and on a phone drop the column (and its second row) instead of repeating it forty times. */
+  /* EVERY PRICE SOURCE FAILED AND NOTHING EVER ARRIVED: the table, its legend and the counts are left out instead of printing a failure sentence (failure-text audit A1, owner order 2026-11-19). It comes back by itself the moment any price lands. */
+  const feedDown = wsReady && !anyPrice && store.pricesFailed;
   const noSignals = liveCount > 0 && COINS.every(id => topSignal(store.coins[id]).key === 'MARKETS_SIGNAL_NONE');
 
   function handleSort(key: SortKey) {
@@ -183,15 +187,19 @@ export default function MarketsTerminal() {
             <div style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '.04em', textTransform: 'uppercase' }}>
               {t('MARKETS_PAGE_TITLE')}
             </div>
-            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 1, letterSpacing: '.02em' }}>
-              {t('MARKETS_COINS_LIVE_SUFFIX', { count: liveCount })}
+            {!feedDown && (
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 1, letterSpacing: '.02em' }}>
+                {t('MARKETS_COINS_LIVE_SUFFIX', { count: liveCount })}
+              </div>
+            )}
+          </div>
+          {!feedDown && (
+            <div className="mkt-mono mkt-counts" style={{ marginLeft: 'auto', display: 'flex', gap: 14, fontSize: 'var(--fs-caption)' }}>
+              <span style={{ color: 'var(--green-2)' }}>{t('MARKETS_BULLISH_COUNT', { count: bullCount })}</span>
+              <span style={{ color: 'var(--red)' }}>{t('MARKETS_BEARISH_COUNT', { count: bearCount })}</span>
+              <span style={{ color: 'var(--txt3)' }}>{t('MARKETS_NEUTRAL_COUNT', { count: Math.max(0, liveCount - bullCount - bearCount) })}</span>
             </div>
-          </div>
-          <div className="mkt-mono mkt-counts" style={{ marginLeft: 'auto', display: 'flex', gap: 14, fontSize: 'var(--fs-caption)' }}>
-            <span style={{ color: 'var(--green-2)' }}>{t('MARKETS_BULLISH_COUNT', { count: bullCount })}</span>
-            <span style={{ color: 'var(--red)' }}>{t('MARKETS_BEARISH_COUNT', { count: bearCount })}</span>
-            <span style={{ color: 'var(--txt3)' }}>{t('MARKETS_NEUTRAL_COUNT', { count: Math.max(0, liveCount - bullCount - bearCount) })}</span>
-          </div>
+          )}
         </div>
 
         {/* Search + Sort */}
@@ -227,13 +235,15 @@ export default function MarketsTerminal() {
         </div>
 
         {/* THE LETTERS HAVE WORDS HERE TOO (#1185, PM 2026-11-17): the same one-line legend /dashboard carries, so the Grade column is readable without the tooltip. */}
-        <div className="csb2-grade-legend" data-testid="mkt-grade-legend">
-          {(['A', 'B', 'C', 'D', 'F'] as const).map((g, i) => <span key={g}>{i > 0 ? ' · ' : ''}<strong style={{ color: 'var(--txt2)' }}>{g}</strong> {t(`COIN_HEALTH_GRADE_${g}` as const)}</span>)}
-        </div>
+        {!feedDown && (
+          <div className="csb2-grade-legend" data-testid="mkt-grade-legend">
+            {(['A', 'B', 'C', 'D', 'F'] as const).map((g, i) => <span key={g}>{i > 0 ? ' · ' : ''}<strong style={{ color: 'var(--txt2)' }}>{g}</strong> {t(`COIN_HEALTH_GRADE_${g}` as const)}</span>)}
+          </div>
+        )}
 
         {/* Column headers */}
         {noSignals && <div role="status" className="mkt-no-signals" data-testid="mkt-no-signals">{t('MARKETS_NO_SIGNALS_BANNER')}</div>}
-        <div className={`mkt-mono mkt-hdr-row${noSignals ? ' mkt-nosig' : ''}`} style={{
+        {!feedDown && <div className={`mkt-mono mkt-hdr-row${noSignals ? ' mkt-nosig' : ''}`} style={{
           display: 'grid',
           gridTemplateColumns: ROW_COLS,
           padding: '0 10px 6px',
@@ -254,7 +264,7 @@ export default function MarketsTerminal() {
           <div style={{ paddingLeft: 12 }}>
             <Tip width={250} text={t('MARKETS_SIGNAL_TIP')}>{t('MARKETS_SIGNAL_COL_LABEL')}</Tip>
           </div>
-        </div>
+        </div>}
 
         {/* Rows */}
         {!wsReady ? (
@@ -264,9 +274,7 @@ export default function MarketsTerminal() {
               <SkeletonBar key={i} height={40} radius={0} style={{ opacity: 1 - i * 0.06 }} />
             ))}
           </div>
-        ) : (!anyPrice && store.pricesFailed) ? (
-          <div className="empty-state"><div className="empty-state-sub">{t('MARKET_FEED_FAILED')}</div></div>
-        ) : pageRows.map(id => {
+        ) : feedDown ? null : pageRows.map(id => {
           const d      = store.coins[id];
           const dec    = COIN_DEC[id] ?? 2;
           /* AN UNKNOWN CHANGE IS NOT ZERO (#1651): `?? 0` drew a coin with no quote as a real +0.00%. Null stays null and the cell stays empty. */
@@ -298,15 +306,18 @@ export default function MarketsTerminal() {
               }}
             >
               {/* Grade */}
-              <div {...healthGradeA11y(health.grade, health.labelKey, t)} style={{
-                width: 22, height: 22, borderRadius: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 'var(--fs-caption)', fontWeight: 800,
-                ...healthChipStyle(health.color, health.invert),
-                fontFamily: 'var(--font-mono), monospace',
-              }}>
-                {health.grade}
-              </div>
+              {/* A COIN WITH NO PRICE HAS NO GRADE: the chip is left out instead of drawing the worst letter, F, for "not measured" (failure-text audit A2). */}
+              {d?.price ? (
+                <div {...healthGradeA11y(health.grade, health.labelKey, t)} style={{
+                  width: 22, height: 22, borderRadius: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 'var(--fs-caption)', fontWeight: 800,
+                  ...healthChipStyle(health.color, health.invert),
+                  fontFamily: 'var(--font-mono), monospace',
+                }}>
+                  {health.grade}
+                </div>
+              ) : <div />}
 
               {/* Coin badge + name */}
               <div className="mkt-coin-cell" style={{ paddingLeft: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
@@ -371,7 +382,7 @@ export default function MarketsTerminal() {
                     <span className="mkt-sig-full">{t(sig.key, { pct: sig.pct ?? '' })}</span>
                     <span className="mkt-sig-short">{t(SIGNAL_SHORT[sig.key] ?? sig.key, { pct: sig.pct ?? '' })}</span>
                   </>
-                ) : '-'}
+                ) : null}
               </div>
 
               {/* Bottom accent line = buy pressure */}
@@ -384,14 +395,14 @@ export default function MarketsTerminal() {
           );
         })}
 
-        {rows.length === 0 && (
+        {rows.length === 0 && !feedDown && (
           <div style={{ padding: '32px 10px', textAlign: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
             {t('MARKETS_NO_MATCH', { query })}
           </div>
         )}
 
         {/* Pagination */}
-        {rows.length > 0 && (
+        {rows.length > 0 && !feedDown && (
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             gap: 10, flexWrap: 'wrap', padding: '14px 10px 0', marginTop: 4,
