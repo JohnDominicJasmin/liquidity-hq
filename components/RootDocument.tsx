@@ -96,6 +96,20 @@ export default function RootDocument({ lang, children }: { lang: string; childre
     <html lang={lang} data-theme="dark" data-design="terminal" className={`${figtree.variable} ${plexSans.variable} ${plexMono.variable}`} suppressHydrationWarning>
       {/* EARLY ERRORS (#2505, QA early-error fail): the error tracker is imported after the load event, so something has to listen from the very first byte. A next/script with beforeInteractive is emitted as a payload that runs AFTER the app bootstraps, which is too late; this is a raw inline script as the first child of <head>. It keeps the first ten errors and rejections in window.__lhqEarly; instrumentation-client.ts hands them to the tracker once it loads, then sets __lhqEarlyDone so the listener stops. */}
       <head>
+        {/* THE LANDING PAGE IS FULL-BLEED FROM THE FIRST PAINT (QA CLS gate on staging, landing at 390: ONE shift of 0.128 at about 1.5 s: `div.lpt-root` [16,70,358,774] -> [0,0,390,844], the page drawn inside the shell's padded frame and the
+            frame dropped when hydration ran the effect that adds `body.landing`). The marker is set HERE, before paint, from the address: `/` and the one-segment locale paths (`/ko`, `/zh`, ...: the only locale-prefixed route is the
+            landing page, see AppShell). It is a PLAIN inline <script> in the <head>, like the early-error listener above, and NOT a next/script: in the App Router a `beforeInteractive` next/script is queued and runs at hydration start, AFTER the
+            first paint (QA's first cell on #2606: data-landing was still unset at DOMContentLoaded). globals.css hides the shell and removes the frame for `html[data-landing]` exactly as it does for `body.landing`.
+            The same script marks `html[data-lang="ru"]` from the stored language (lhq_lang_v1) so a phone-width chart toolbar can reserve the three rows the long Russian labels need from the first paint (QA, #2602: ru at 360 px is a
+            3-row toolbar once the labels land, +0.24 on the first-ever Russian load when the page is still English at first paint). */}
+        {/* THEME AND SESSION HINT, BEFORE FIRST PAINT (QA read on #2606: at DOMContentLoaded AND at the first animation frame `data-theme` was still `dark` for a stored light theme (a dark flash on every load of every light-theme user) and
+            `data-sess` / `data-strat` / `data-strat-none` were unset for a signed-in visitor with cached settings: they appeared about 3 s later). Both were `beforeInteractive` next/script blocks, which the App Router queues and runs at hydration start,
+            AFTER the first paint, so every pre-paint hint of #2584 (the usage-meter and strategy call box reserves) and the theme were applied late. They are plain inline <script> tags in the <head> now, like the landing marker below.
+            theme-init mirrors lib/theme.ts's getStoredTheme(): an explicit localStorage choice wins, otherwise the device's prefers-color-scheme. session-hint: see the notes at its original place in this file's history (#1263, #2584):
+            it marks <html data-sess="1"> when a Supabase auth-token key holds a value, `data-strat="1"` when the cached settings hold a strategy, `data-strat-none="1"` when they say none. It decides nothing about access. */}
+        <script id="theme-init" dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();` }} />
+        <script id="session-hint" dangerouslySetInnerHTML={{ __html: `(function(){try{var ls=window.localStorage,h=document.documentElement,s=0;for(var i=0;i<ls.length;i++){var k=ls.key(i);if(k&&k.indexOf('sb-')===0&&k.indexOf('-auth-token')>0&&ls.getItem(k)){s=1;break;}}if(!s)return;h.setAttribute('data-sess','1');try{var j=JSON.parse(ls.getItem('lhq_settings_v1')||'null');if(j&&typeof j.arena_strategy==='string'&&j.arena_strategy)h.setAttribute('data-strat','1');else if(j&&typeof j==='object'&&'arena_strategy' in j)h.setAttribute('data-strat-none','1');}catch(e){}}catch(e){}})();` }} />
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var p=location.pathname.split('/').filter(Boolean);if(p.length===0||(p.length===1&&${JSON.stringify(SUPPORTED_LOCALES)}.indexOf(p[0])>=0))document.documentElement.setAttribute('data-landing','1');}catch(e){}try{if(localStorage.getItem('lhq_lang_v1')==='ru')document.documentElement.setAttribute('data-lang','ru');}catch(e){}})();` }} />
         <script dangerouslySetInnerHTML={{ __html: `(function(){var q=window.__lhqEarly=[];function k(x){if(!window.__lhqEarlyDone&&q.length<10)q.push(x);}window.addEventListener('error',function(e){k(e&&(e.error||e.message));});window.addEventListener('unhandledrejection',function(e){k(e&&e.reason);});})();` }} />
       </head>
       {/* No manual apple-touch-icon <link> here - app/apple-icon.png's file convention already
@@ -189,12 +203,8 @@ export default function RootDocument({ lang, children }: { lang: string; childre
             strategy, so the strategy call box's height is reserved from the first paint as well (`.strat-call-host`). It decides nothing about access: it only sets a layout hint, and a dead stored session collapses the reserve once, which is the rare case.
             When the cached settings say NO strategy is saved (`arena_strategy` present and empty), `data-strat-none="1"` is set before paint instead, so the signed-in reserve (globals.css, the data-sess rule) is never
             drawn and then removed when the settings load (#1263: signed in, no saved strategy, 360 RU, CLS 0.221). StrategyPanel removes it again if the loaded settings do hold a strategy. */}
-        <Script id="session-hint" strategy="beforeInteractive">
-          {`(function(){try{var ls=window.localStorage,h=document.documentElement,s=0;for(var i=0;i<ls.length;i++){var k=ls.key(i);if(k&&k.indexOf('sb-')===0&&k.indexOf('-auth-token')>0&&ls.getItem(k)){s=1;break;}}if(!s)return;h.setAttribute('data-sess','1');try{var j=JSON.parse(ls.getItem('lhq_settings_v1')||'null');if(j&&typeof j.arena_strategy==='string'&&j.arena_strategy)h.setAttribute('data-strat','1');else if(j&&typeof j==='object'&&'arena_strategy' in j)h.setAttribute('data-strat-none','1');}catch(e){}}catch(e){}})();`}
-        </Script>
-        <Script id="theme-init" strategy="beforeInteractive">
-          {`(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`}
-        </Script>
+        {/* session-hint: moved to the <head> as a plain script (see the block at the top of <head>). */}
+        {/* theme-init: moved to the <head> as a plain script (see the block at the top of <head>). */}
         <AppShell>{children}</AppShell>
       </body>
     </html>
