@@ -368,7 +368,11 @@ function TEdgeSignals() {
    * so keeping it would say the same number twice. The relation to price stays below. */
   const vwapStr = vwap != null ? '$' + fmtPrice(vwap, COIN_DEC[coin]) : null;
 
-  const oiMeta = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
+  /* ONE HOUR FOR BOTH OI CARDS (#1185, PM audit 2026-11-17: "New buyers opening" beside "-1.23%, short covering"). When the 1h samples answered (OI change AND price change), this card's
+     words come from them, the same samples as the "OI 1h" card below; the store's own trend is only the fallback while they have not (or on a coin with no price in them). */
+  const oi1hAnswered = oi1h.pct != null && oi1h.pricePct != null;
+  const oiTrendKey = oi1hAnswered ? oiTrend1h(oi1h.pct, oi1h.pricePct) : d?.oiTrend ?? null;
+  const oiMeta = oiTrendKey ? OI_TREND_META[oiTrendKey] : null;
 
   const fr     = d?.fundingRate;
   const frPct  = fr != null ? fr * 100 : null;
@@ -422,7 +426,7 @@ function TEdgeSignals() {
             </>
           ) : (
             <div className="edge-card-signal" style={{ color: 'var(--txt3)', marginTop: 4 }}>
-              {d?.oi != null ? t('DASH_EDGE_OI_FLAT') : (oiGraceOver ? <ReadingGap loading={false} /> : <SkeletonBar width={90} height={11} radius={4} />)}
+              {(d?.oi != null || oi1hAnswered) ? t('DASH_EDGE_OI_FLAT') : (oiGraceOver ? <ReadingGap loading={false} /> : <SkeletonBar width={90} height={11} radius={4} />)}
             </div>
           )}
         </div>
