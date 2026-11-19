@@ -1086,6 +1086,7 @@ jobs:
           # skip the build entirely. See the input's own comment for why a remote
           # run is NOT the same measurement as the gate run.
           E2E_BASE_URL: ${{ inputs.base_url }}
+          E2E_ALLOW_BILLED_CALLS: '1'   # QA 2026-11-19: ONE billed Quick pair on the deployed qa build, approved by PM; this test ref only
 
           # ── RELEASE-GATE EXCHANGE STUB (#1259) ──────────────────────────────
           #
