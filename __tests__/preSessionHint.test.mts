@@ -13,15 +13,19 @@ import vm from 'node:vm';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 
-function scriptText(): string {
+/** The text of a pre-paint head script: a PLAIN <script id="..." dangerouslySetInnerHTML={{ __html: \`...\` }} /> inside <head> (a next/script <Script strategy="beforeInteractive"> runs only at hydration start, after the first paint: QA's DOMContentLoaded read, 2026-11-19). */
+function headScriptText(id: string): string {
   const src = read('components/RootDocument.tsx');
-  const open = src.indexOf('<Script id="session-hint" strategy="beforeInteractive">');
-  assert.ok(open > 0, 'the session-hint <Script> is gone from RootDocument.tsx');
-  const tick = src.indexOf('{`', open);
-  const end = src.indexOf('`}', tick);
-  assert.ok(tick > open && end > tick, 'could not take the inline script text out of the session-hint <Script>');
-  return src.slice(tick + 2, end);
+  const head = src.slice(src.indexOf('<head'), src.indexOf('</head>'));
+  assert.ok(head.length > 0, 'CONTROL: no <head> in RootDocument.tsx');
+  const marker = `<script id="${id}" dangerouslySetInnerHTML={{ __html: \``;
+  const open = head.indexOf(marker);
+  assert.ok(open > 0, `the ${id} script is not a plain inline <script> in the <head> of RootDocument.tsx (a <Script strategy="beforeInteractive"> runs after the first paint)`);
+  const start = open + marker.length, end = head.indexOf('\` }} />', start);
+  assert.ok(end > start, `could not take the inline text out of the ${id} script`);
+  return head.slice(start, end);
 }
+function scriptText(): string { return headScriptText('session-hint'); }
 
 type Store = Record<string, string>;
 type Mode = 'ok' | 'blocked' | 'throwing-getItem';
@@ -106,4 +110,12 @@ test('H9. StrategyPanel still ends the guess: it sets data-strat-none once setti
   assert.ok(/if \(pickedStrategy\) \{ h\.removeAttribute\('data-strat-none'\); return; \}/.test(s), 'a loaded strategy no longer removes a wrong data-strat-none guess');
   assert.ok(/h\.removeAttribute\('data-strat'\);\s*h\.setAttribute\('data-strat-none', '1'\);/.test(s), 'no strategy after load no longer sets data-strat-none');
   assert.ok(/if \(!loaded\) return;/.test(s), 'the correction runs before the settings have loaded');
+});
+
+test('H10. the first-paint scripts (theme-init, session-hint, landing-init) are plain inline <script> tags in the <head>, never next/script beforeInteractive', () => {
+  const src = read('components/RootDocument.tsx');
+  for (const id of ['theme-init', 'session-hint']) { headScriptText(id); assert.ok(!new RegExp(`<Script id="${id}"`).test(src), `${id} is a next/script again`); }
+  const head = src.slice(src.indexOf('<head'), src.indexOf('</head>'));
+  assert.ok(/<script dangerouslySetInnerHTML=\{\{ __html: `\(function\(\)\{try\{var p=location\.pathname\.split/.test(head), 'the landing-init script (data-landing / data-lang) is not a plain inline <script> in the <head>');
+  assert.ok(!/<Script[^>]*id="(theme-init|session-hint|landing-init)"/.test(src), 'a first-paint script is a next/script');
 });

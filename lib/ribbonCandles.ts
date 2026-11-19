@@ -11,7 +11,7 @@ import { deadlineSignal } from './deadlineSignal.ts';
 // Binance-first with a Bybit fallback for Bybit-only coins (e.g. HYPE), which
 // matches how the Arena chart itself sources candles (lib/useEMAStrategy.ts) -
 // a gap the old Binance-only checkEMASetup silently had.
-import { BINANCE_SYMS, BYBIT_SYMS, symbolDenominationFactor } from '@/lib/coins';
+import { BINANCE_SYMS, BYBIT_SYMS, coinRow, symbolDenominationFactor } from '@/lib/coins';
 import type { OHLCV } from '@/lib/strategyCore';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { exchangeFetch } from './exchangeGuard.ts';
@@ -163,7 +163,9 @@ export function clearCandleCache(): void {
 }
 
 async function fetchRibbonCandlesUncached(coin: string, tf: EMASignalTF, limit = 300): Promise<OHLCV[]> {
-  const bnSym = BINANCE_SYMS[coin];
+  /* A COIN OUTSIDE THE 50 CURATED ONES (a tokenized stock, an ETF, a commodity: the Arena's TradFi tabs) has no entry in the editorial maps; its symbols come from its universe row (lib/coins.ts coinRow), the same rows the chart reads. */
+  const universe = BINANCE_SYMS[coin] || BYBIT_SYMS[coin] ? undefined : coinRow(coin);
+  const bnSym = BINANCE_SYMS[coin] ?? universe?.binance ?? undefined;
   if (bnSym) {
     try {
       const res = await exchangeFetch(
@@ -193,11 +195,11 @@ async function fetchRibbonCandlesUncached(coin: string, tf: EMASignalTF, limit =
     // own doc comment warns about, but only if this coin actually has a
     // Bybit symbol; otherwise there is nothing to fail over to, and this
     // returns [] exactly as it always has for a Binance failure.
-    const bySymFallback = BYBIT_SYMS[coin];
+    const bySymFallback = BYBIT_SYMS[coin] ?? universe?.bybit ?? undefined;
     if (bySymFallback) return fetchFromBybit(bySymFallback, tf, 'bybit:klines-fallback', limit);
     return [];
   }
-  const bySym = BYBIT_KLINE_SYMS[coin];
+  const bySym = BYBIT_KLINE_SYMS[coin] ?? universe?.bybit ?? undefined;
   if (!bySym) return [];
   return fetchFromBybit(bySym, tf, 'bybit:klines', limit);
 }

@@ -29,7 +29,7 @@
 import type { GrokContext, ChartData } from './grok.ts';
 import { findIndicator } from './strategyRegistry.ts';
 import { STRATEGY_IDS } from './strategies/index.ts';
-import { COINS } from './coins.ts';
+import { COINS, coinRow } from './coins.ts';
 import { isArenaTf } from './limits.ts';
 
 /** Per-field ceiling. Every GrokContext field is a short pre-formatted display string - the longest in
@@ -152,6 +152,12 @@ export type ArenaParseResult<T> = { ok: true; value: T } | ArenaParseFailure;
  * instrument both venues trade (#1263), and most of those have no AI read - so without a code
  * the page shows the server's untranslated "Invalid request." for a coin WE put in front of
  * them, which reads as the user having done something wrong. */
+/** A coin the read may be about: one of the 50 curated coins, or any other row of the coin universe (a tokenized stock, an ETF, a commodity: the Arena's TradFi tabs, owner order 2026-11-19). The plan ladder is unchanged
+ *  and decides who may run it (lib/signalCoinGate.ts aiCoinAllowed: Free and trial only BTC / ETH / SOL, paid Pro every coin). The id is looked up, never trusted: the only coin text in the prompt is rebuilt from it. */
+export function isTrackedCoin(id: string): boolean {
+  return (COINS as readonly string[]).includes(id) || coinRow(id) !== undefined;
+}
+
 export const COIN_NOT_TRACKED = 'context.coin is not a tracked coin pair';
 
 /**
@@ -193,7 +199,7 @@ export function parseArenaContext(raw: unknown): ArenaParseResult<GrokContext> {
    * travelling as identifiers. */
   const m = /^([A-Za-z0-9]{1,15})\/USDT$/.exec(out.coin.trim());
   const id = m ? m[1].toLowerCase() : null;
-  if (!id || !(COINS as readonly string[]).includes(id)) {
+  if (!id || !isTrackedCoin(id)) {
     return { ok: false, reason: COIN_NOT_TRACKED };
   }
   out.coin = `${id.toUpperCase()}/USDT`;
@@ -219,7 +225,7 @@ export function parseArenaContext(raw: unknown): ArenaParseResult<GrokContext> {
  */
 export function arenaContextCoinId(ctx: GrokContext): string | null {
   const head = ctx.coin.split('/')[0].toLowerCase();
-  return (COINS as readonly string[]).includes(head) ? head : null;
+  return isTrackedCoin(head) ? head : null;
 }
 
 /** A finite number, or null where the type allows one. Rejects NaN and Infinity rather than letting them
