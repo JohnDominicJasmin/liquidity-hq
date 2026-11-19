@@ -1,6 +1,6 @@
 /* #2419: the Stablecoin card shows its numbers first and the AI text after, with an honest failure for the text.
  *   N1-N4  lib/dryPowderSeries (REAL code, DeFi Llama stood in): the figures (current, 30 d, 90 d, the 30-day series), a too-short series throws, the series is cached a day, a failure is held a minute (not hammered, not for ever), warm never throws
- *   R1-R4  app/api/dry-powder/route.ts, source anchors (the route cannot be imported by the unit runner: its RateLimitError uses a TypeScript parameter property, which node's strip-only mode rejects; the same limit
+ *   (R1-R4 pinned the old per-visitor route; replaced by dryPowderAnalysis2628.test.mts D7a after #2628; the comment that followed this line described them)
  *          applies on dev). Pinned: the numbers part returns before the reservation and after the Pro gate, the AI step has its 25 s bound, the reservation is refunded unless billed, billed is set only after a 2xx
  * WHAT IT CANNOT PROVE: the route's behaviour end to end and the card's order of rendering (skeleton, figures, summary, unavailable line): the browser cell in the group run. */
 import test, { after, type TestContext } from 'node:test';
@@ -50,27 +50,4 @@ test('N4. a DeFi Llama failure is held for about a minute (not refetched on ever
   assert.doesNotThrow(() => warmDryPowderSeries());
   await new Promise((r) => setImmediate(r));
 });
-
-const route = readFileSync(new URL('../app/api/dry-powder/route.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-const at = (needle: string) => { const i = route.indexOf(needle); assert.ok(i > 0, `CONTROL: "${needle.slice(0, 60)}" not found in the route`); return i; };
-test('R1. the numbers part returns BEFORE any reservation and AFTER the Pro gate and the auth checks, with no AI call in it', () => {
-  const part = at("searchParams.get('part') === 'numbers'");
-  assert.ok(at("PRO_REQUIRED") < part, 'the numbers part is reachable by a Free caller (the Pro gate is after it)');
-  assert.ok(at("getUserCompatForBilledCall(token)") < part, 'the numbers part is ahead of the auth check');
-  assert.ok(part < at("incrementToolUsage(authData.user.id, 'dryPowder'"), 'the numbers part spends a use');
-  const branch = route.slice(part, route.indexOf('return NextResponse.json(await getDryPowderNumbers());', part) + 70);
-  assert.equal(/xaiFetch|incrementToolUsage/.test(branch), false, 'the numbers branch calls xAI or reserves');
-});
-test('R2. the AI step has its own 25 s bound, and the figures come from the shared series (no second DeFi Llama read in the route)', () => {
-  assert.ok(route.includes('const ANALYSIS_TIMEOUT_MS = 25_000;') && route.includes('signal: AbortSignal.timeout(ANALYSIS_TIMEOUT_MS),'), 'the AI step lost its bound');
-  assert.equal(route.includes('stablecoins.llama.fi'), false, 'the route reads DeFi Llama itself again (the one-hour cache chain)');
-});
-test('R3. a reservation that was never billed goes back; billed is set only after the 2xx check', () => {
-  assert.ok(route.includes("if (r && !billed) await refundToolUsage(authData.user.id, 'dryPowder', r.on);"), 'the refund path changed');
-  assert.ok(at('billed = true;') > at('if (!aiRes.ok) {'), 'billed is set before the non-2xx check (a failed call would not be refunded)');
-  assert.ok(at('reserved = { on };') > at("incrementToolUsage(authData.user.id, 'dryPowder'") && at('reserved = { on };') < at('await getDryPowderNumbers();'), 'the refund date is not captured at the reservation, before the series read');
-});
-test('R4. the AI text is cached an hour and only the cache-miss path reserves (a hit is free)', () => {
-  assert.ok(route.includes('const CACHE_TTL = 60 * 60_000;'));
-  assert.ok(at("cachedOwn(authData.user.id, 'dry-powder', CACHE_TTL") < at("incrementToolUsage(authData.user.id, 'dryPowder'"), 'the reservation is outside the cache miss: a cache hit would spend a use');
-});
+/* R1-R4 pinned the old per-visitor route (reservation, refund, one-hour cache). #2628 removed all of it: the route only reads the day's stored text, and that is pinned in dryPowderAnalysis2628.test.mts (D7a). */

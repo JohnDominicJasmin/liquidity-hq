@@ -333,8 +333,8 @@ export default function MarketsTerminal() {
 
               {/* Price */}
               <div className={`mkt-mono mkt-price${d?.price && ('$' + fmtPrice(d.price, dec)).length > 9 ? ' mkt-price-long' : ''}${d?.price ? '' : ' mkt-price-gap'}`} style={{ textAlign: 'right', fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt2)' }}>
-                {/* A MISSING QUOTE SAYS WHICH KIND OF MISSING (#1651, PM): an ellipsis while the first read is still coming, the scanner's own word once it is not - not a bare dash. */}
-                {d?.price ? '$' + fmtPrice(d.price, dec) : store.scannerFeed.universe === 'pending' ? '…' : t('ARENA_SCANNER_UNAVAILABLE_NARROW')}
+                {/* A MISSING QUOTE (#1651, PM, owner's "no failing data" order 2026-11-19): an ellipsis while the first read is still coming; once it is not coming the cell is EMPTY (a blank, not "No data"). Prod: bonk, pepe and xau carry no taker-buy ratio in the market snapshot, so the pressure cell said "No data" on those rows. */}
+                {d?.price ? '$' + fmtPrice(d.price, dec) : store.scannerFeed.universe === 'pending' ? '…' : ' '}
               </div>
 
               {/* Change */}
@@ -351,7 +351,7 @@ export default function MarketsTerminal() {
                   <div style={{ height: '100%', width: (tbp ?? 0) + '%', background: barCol, borderRadius: 0, transition: 'width 0.5s' }} />
                 </div>
                 <div className="mkt-mono" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>
-                  {tbp == null ? (store.scannerFeed.universe === 'pending' ? '…' : t('ARENA_SCANNER_UNAVAILABLE_NARROW')) : t('MARKETS_BUY_PCT_SUFFIX', { pct: tbp })}
+                  {tbp == null ? (store.scannerFeed.universe === 'pending' ? '…' : ' ') : t('MARKETS_BUY_PCT_SUFFIX', { pct: tbp })}
                 </div>
               </div>
 

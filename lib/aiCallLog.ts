@@ -26,7 +26,9 @@ const HEALTH_SOURCE = 'ai:call-log-write';
 export interface AiCallRecord {
   /** Verified server-side from the caller's token - every call site already has it
    *  in hand for the daily-cap increment, because the increment comes first. */
-  userId: string;
+  userId: string | null;
+  /** Set when no user made the call (a scheduled job): 'system:dry-powder'. Null for a user's call. */
+  source?: string;
   callType: AiCallType;
   /** The model the RESPONSE names (xAI echoes it back), falling back to the one
    *  the request asked for. */
@@ -41,6 +43,7 @@ export async function recordAiCall(rec: AiCallRecord): Promise<void> {
   try {
     const { error } = await getSupabaseAdmin().from(T.ai_call_log).insert({
       user_id:           rec.userId,
+      source:            rec.source ?? null,
       call_type:         rec.callType,
       model:             rec.model,
       prompt_tokens:     cost.promptTokens,

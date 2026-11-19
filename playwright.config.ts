@@ -205,6 +205,10 @@ export default defineConfig({
 
   use: {
     baseURL: BASE_URL ?? `http://localhost:${PORT}`,
+    // THE TEAM-ONLY GATE (#2636): the dev, qa and staging sites answer 401 to a browser without the password. When SITE_GATE_PASSWORD is set (a GitHub secret in CI; empty or absent = no gate = unchanged behaviour) every
+    // browser context and request the suite makes presents it. NEVER sent to production (the gate is not set there and the team password must not leave the team's own sites), and only to the ORIGIN under test,
+    // so a request to any other host (an exchange, a CDN) never carries it. The user name is ignored by the gate.
+    ...(BASE_URL && !TARGETS_PRODUCTION && process.env.SITE_GATE_PASSWORD ? { httpCredentials: { username: 'team', password: process.env.SITE_GATE_PASSWORD, origin: new URL(BASE_URL).origin, send: 'always' as const } } : {}),
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'off',

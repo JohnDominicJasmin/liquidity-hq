@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation';
 import {
   useMarket, CoinId, COINS, computeSqueezeScore, classifyFunding, BINANCE_SYMS, BYBIT_SYMS,
 } from '@/lib/marketStore';
-import { getSessionName } from '@/lib/session';
+import { getSessionName, plainSessionName } from '@/lib/session';
 import { useLabels } from '@/lib/labels';
 import { useNews, GeoEvent } from '@/components/NewsProvider';
 import { useAuth } from '@/components/AuthProvider';
@@ -154,10 +154,11 @@ function buildChatContext(
     stablecoinSupply: store.stablecoinSupply || undefined,
     stablecoinChg30d: store.stablecoinChg30d ?? undefined,
     etfNetFlow: store.etfNetFlow ?? undefined, ethEtfNetFlow: store.ethEtfNetFlow ?? undefined,
+    etfFlowDate: store.etfFlowDays?.[0]?.date, ethEtfFlowDate: store.ethEtfFlowDays?.[0]?.date,
     btcExchangeNetFlow: store.btcExchangeNetFlow ?? undefined,
     sectorRotation: computeSectorRotation(store, coin).line,
     structure: structureLine,
-    session: getSessionName(new Date()),
+    session: plainSessionName(getSessionName(new Date())),
     headlines: latestHeadlines.slice(0, 8),
     geo: geoEvents.slice(0, 5).map(g => `[${g.tag}] ${g.headline} (${g.timeStr})`),
     selection: selection || undefined,

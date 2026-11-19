@@ -127,10 +127,12 @@ test('C2. the conversation keeps user and assistant turns only, the last 8, each
 });
 
 test('C3. the system prompt is for the coin sent, keeps BTC\'s options for BTC only, keeps minus signs, and names search only in Live mode', () => {
-  const xrp = buildChatSystemPrompt(parseChatContext({ ...CTX, btcPcRatio: 0.81, btcMaxPain: 98000 })!, { search: false, minimal: false });
+  const xrp = buildChatSystemPrompt(parseChatContext({ ...CTX, etfFlowDate: '2026-11-18', btcPcRatio: 0.81, btcMaxPain: 98000 })!, { search: false, minimal: false });
   assert.match(xrp, /^=== LIVE DATA - XRP\/USDT ===$/m);
   assert.match(xrp, /^Price: \$2\.3456$/m);
-  assert.match(xrp, /^BTC ETF flow: -\$26M$/m, 'an ETF outflow lost its minus');
+  assert.match(xrp, /^BTC ETF flow: -\$26M \(settled session 2026-11-18\)$/m, 'an ETF outflow lost its minus or its settled-session day');
+  const undated = buildChatSystemPrompt(parseChatContext({ ...CTX })!, { search: false, minimal: false });   // CTX has the figure and NO day (#2630: a figure without its day is not sent)
+  assert.match(undated, /^BTC ETF flow: -$/m, 'a figure without its day must read - (never the undated figure)'); assert.doesNotMatch(undated, /26M/, 'the undated figure reached the prompt');
   assert.doesNotMatch(xrp, /put\/call|max pain/i, 'BTC option data reached an XRP chat');
   assert.ok(xrp.includes(NO_TOOLS)); assert.doesNotMatch(xrp, /SEARCH INSTRUCTIONS|web_search|x_search/);
   // the trader's indicators arrive as data and the server writes the sentence (the browser half: qa/e2e/grokchat-selection-without-arena-visit)
