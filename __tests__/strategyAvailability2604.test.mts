@@ -42,6 +42,6 @@ test('AV3. an available cell is never labelled unavailable (the read goes on to 
 test('AV4. the set of unavailable (strategy, timeframe) pairs for a futures coin is exactly the written rule', () => {
   const pairs = new Set<string>();
   for (const id of ids) for (const [tf, ms] of Object.entries(TF_MS)) if (appText(id, 'btc', ms)) pairs.add(`${id}@${tf}`);
-  assert.deepEqual([...pairs].sort(), ['funding_oi_squeeze@1m', 'ny_open_breakout@1d', 'ny_open_breakout@1h', 'ny_open_breakout@2h', 'ny_open_breakout@4h', 'session_sweep@1d', 'session_sweep@2h', 'session_sweep@4h', 'vwap_reclaim@1d', 'vwap_reclaim@2h', 'vwap_reclaim@4h']);
+  assert.deepEqual([...pairs].sort(), ['funding_oi_squeeze@1m', 'ny_open_breakout@1d', 'ny_open_breakout@1h', 'ny_open_breakout@1m', 'ny_open_breakout@2h', 'ny_open_breakout@4h', 'session_sweep@1d', 'session_sweep@1m', 'session_sweep@2h', 'session_sweep@4h', 'vwap_reclaim@1d', 'vwap_reclaim@2h', 'vwap_reclaim@4h']);
   assert.equal(HAS_FUTURES.has('anthropic'), false, 'the oracle must keep the coin Binance does not trade as having no futures');
 });
