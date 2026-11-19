@@ -169,16 +169,16 @@ export function computeMarketRead(store: MarketStore, manualFund: FundingSide | 
 
   const band: Band | null = score == null ? null : score >= 70 ? 'good' : score >= 45 ? 'mid' : 'weak';
   const verdict = band == null ? 'Reading the market…'
-    : band === 'good' ? 'Good time to trade'
-    : band === 'mid' ? 'Decent conditions - be selective'
-    : 'Weak setup - better to wait';
+    : band === 'good' ? 'Most signals agree'
+    : band === 'mid' ? 'Signals are mixed'
+    : 'Few signals agree';
   const sub = band == null
     ? `Waiting for ${missing.map(m => (m === 'fng' ? 'Fear & Greed' : 'funding')).join(' and ')} data before giving a read.`
     : band === 'good'
-    ? 'Several signals line up in your favor. A cleaner, higher-confidence window - still mind your risk.'
+    ? 'Several signals line up right now.'
     : band === 'mid'
-    ? 'Conditions are mixed but tradeable. Be picky with entries and keep your size modest.'
-    : 'Signals are thin and momentum is unclear. No real edge right now - waiting is a position too.';
+    ? 'Signals point different ways right now.'
+    : 'Few signals line up and momentum is unclear.';
 
   const sm = computeSmartMoney(store);
 
