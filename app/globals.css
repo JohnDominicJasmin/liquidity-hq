@@ -2016,6 +2016,9 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
   overflow: hidden; background: var(--bg2); flex-shrink: 0;
 }
 .ncard-grid-hero .ncard-grid-img-wrap { height: 300px; }
+/* THE HERO IS A TEXT CARD ABOVE 540 PX (PM decision 2026-11-19 on #1185: no full-width stock photo above the headlines; the text hero is honest and fast). The first story's image block is not drawn there, so the headlines start higher; phones keep
+   the 88 px thumbnail row of the compact list (the rules at max-width 540 px), and every other card keeps its image. */
+@media (min-width: 541px) { .ncard-grid-hero .ncard-grid-img-wrap { display: none; } }
 .ncard-grid-img  { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .ncard-grid-body     { flex: 1; padding: 12px 14px 12px; display: flex; flex-direction: column; }
