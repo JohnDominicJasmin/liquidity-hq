@@ -61,6 +61,8 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // blind" - see app/api/settings/route.ts's own accept-rule comment. A ref,
   // not state: purely an outgoing-request input, never rendered.
   const fieldUpdatedAtRef = useRef<Record<string, string>>({});
+  /* The last row the SERVER confirmed for this account (set when it is read at sign-in): a save the server refuses puts these values back instead of leaving the refused ones on screen and in this device's cache. */
+  const serverSettingsRef = useRef<UserSettings | null>(null);
 
   // ── Debounced Supabase upsert ─────────────────────────────────────────────
   // Declared before the effects, not after them. The sign-in effect below calls
@@ -139,6 +141,19 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       const stuck = loadUnconfirmed(user.id);
       for (const key of Object.keys(partial)) delete stuck[key];
       saveUnconfirmed(user.id, stuck);
+      /* THE REFUSED VALUE GOES BACK TO THE SERVER'S (#1185, "Settings, after a refused save (400) and a reload: the field shows the refused value for about 1 s"): this device's cache still held what the server refused, and the next
+         load painted it until the sign-in read replaced it. The refused keys are put back to the last server-confirmed values, on screen and in the cache. */
+      const confirmed = serverSettingsRef.current as Record<string, unknown> | null;
+      /* a newer edit of the same key made while this save was in flight is left alone (the same "still equals what THIS attempt sent" check the success branch makes) */
+      const sentSame = (obj: Record<string, unknown>, key: string) => JSON.stringify(obj[key]) === JSON.stringify((partial as Record<string, unknown>)[key]);
+      if (confirmed) {
+        setSettings(prev => {
+          const next = { ...prev } as Record<string, unknown>;
+          for (const key of Object.keys(partial)) if (key in confirmed && sentSame(next, key)) next[key] = confirmed[key];   // a newer edit made while this save was in flight is left alone
+          saveLocalSettings(next as unknown as UserSettings, true);
+          return next as unknown as UserSettings;
+        });
+      }
       lastFailedRef.current = null;
       setSaveStatus('error');
       settleToIdle(3000);
@@ -155,6 +170,12 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       }
 
       const unconfirmed = loadUnconfirmed(user.id);
+      /* THE LAST SERVER-CONFIRMED VALUES MOVE WITH EVERY ACCEPTED SAVE (QA, pin S5): a later refusal puts a key back to what the server holds NOW (timezone A accepted, then a bad timezone refused: back to A, not to the sign-in value). */
+      if (serverSettingsRef.current) {
+        const base = { ...serverSettingsRef.current } as Record<string, unknown>;
+        for (const key of result.accepted) if (key in (partial as Record<string, unknown>)) base[key] = (partial as Record<string, unknown>)[key];
+        serverSettingsRef.current = base as unknown as UserSettings;
+      }
       for (const key of result.accepted) {
         // #1188 part 3 + PM/DevOps's #1202 catch: only clear the marker if
         // the stored value still equals what THIS attempt actually sent.
@@ -260,6 +281,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   // Storing the value alongside the marker (lib/settings.ts) removes that
   // shared-cache dependency entirely.
   const applyDbSettings = useCallback((userId: string, dbSettings: UserSettings) => {
+    serverSettingsRef.current = dbSettings;
     const unconfirmed = loadUnconfirmed(userId);
     const keys = Object.keys(unconfirmed);
     if (keys.length === 0) {
