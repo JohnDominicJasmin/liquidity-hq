@@ -1789,13 +1789,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           ...base, name: 'strategyZone',
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
-            const { kind, text } = overlay.extendData as { kind: 'supply' | 'demand'; text: string };
+            const { kind, text, priceText, slot } = overlay.extendData as { kind: 'supply' | 'demand'; text: string; priceText?: string; slot?: number };
             const a = coordinates[0], b = coordinates[1];
             if (!a || !b || ![a.x, a.y, b.x, b.y].every(isFinite)) return [];
             const x0 = Math.max(0, Math.min(a.x, b.x)), x1 = Math.min(bounding?.width ?? 9999, Math.max(a.x, b.x));
             const y0 = Math.min(a.y, b.y), h = Math.abs(a.y - b.y);
             if (x1 <= x0) return [];
             const ink = resolveCssColor(kind === 'demand' ? 'var(--green)' : 'var(--red)');
+            /* A LABELLED ZONE OFF THE VISIBLE PRICE WINDOW STILL SHOWS (QA drawings audit #1263: at 390 px the supply zone sat above the visible prices, so the strategy drew nothing in view): its label goes to the pane edge it lies beyond, with its price and an arrow, the same idea as the Target / Stop labels. Unlabelled zones (the S/R bands) are left alone. */
+            const paneH = bounding?.height ?? 300, yBottom = y0 + Math.max(h, 1);
+            if (text && (yBottom < 0 || y0 > paneH)) {
+              const above = yBottom < 0, off = 10 + (slot ?? 0) * 12;
+              return [{ type: 'text', attrs: { x: x1 - 4, y: above ? Math.min(paneH - 10, off) : Math.max(10, paneH - off), text: `${text}${priceText ? ' ' + priceText : ''} ${above ? '↑' : '↓'}`, align: 'right', baseline: above ? 'top' : 'bottom' }, styles: { color: ink, size: 10, weight: '700' } }];
+            }
             /* THE LABEL SITS AT THE ZONE'S FAR EDGE, RIGHT END (#1263 box 9, then box 91). The Buy / Sell triangle of the signal candle sits on the PRICE side of the zone (a long's marker is below the candle's low, which is
                just above a demand zone's top), so a label above a demand zone's top covered it (box 91, "Demand" on top of the Buy marker). Demand: under the BOTTOM edge, right-aligned. Supply mirrors it: above the TOP
                edge, right-aligned. Neither covers the marker, which is on the other side. */
@@ -2974,7 +2980,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       const id = chart.createOverlay({ name, groupId: 'strategy_overlay', lock: true, points, extendData } as OverlayCreate);
       if (typeof id === 'string') strategyOverlayIds.current.push(id);
     };
-    for (const z of ov.zones) add('strategyZone', [{ timestamp: z.fromTs, value: z.top }, { timestamp: z.toTs, value: z.bottom }], { kind: z.kind, text: tl(z.labelKey) });
+    ov.zones.forEach((z, zi) => add('strategyZone', [{ timestamp: z.fromTs, value: z.top }, { timestamp: z.toTs, value: z.bottom }], { kind: z.kind, text: tl(z.labelKey), priceText: `${px}${fmtPx((z.top + z.bottom) / 2)}`, slot: zi }));
     for (const l of ov.lines) add('strategyPolyline', l.points.map(p => ({ timestamp: p.ts, value: p.price })), { role: l.role, text: tl(l.labelKey, l.labelParams) });
     const byPrice = [...ov.levels].sort((a, b) => a.price - b.price);
     const prices = byPrice.map(l => l.price);
