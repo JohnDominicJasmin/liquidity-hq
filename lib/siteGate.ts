@@ -12,7 +12,7 @@
  *   - the payment and bot webhooks (each verifies its own signature or secret token): /api/lemonsqueezy/webhook, /api/boomfi/webhook, /api/whop/webhook, /api/telegram/webhook.
  *
  * No password is written in the repo: it comes from the environment of each gated service and from a GitHub secret for the browser tests. PURE: no request or environment object here, so it is unit-testable. */
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 export const SITE_GATE_REALM = 'Team only';
 export const SITE_GATE_EXEMPT_PATHS: readonly string[] = [
@@ -22,6 +22,29 @@ export const SITE_GATE_EXEMPT_PATHS: readonly string[] = [
   '/api/whop/webhook',
   '/api/telegram/webhook',
 ];
+/** THE GATE COOKIE (PM + QA, 2026-11-19): a browser sends its cached Basic credentials only on a request that has NO Authorization header of its own, and the app's own /api calls carry `Authorization: Bearer <session>`, so behind the gate every one of them
+ *  answered 401. After one successful Basic, the response sets this cookie, and a request is also let through when it carries it: fetches send cookies on their own whatever else they send. Its value is HMAC-SHA256 keyed by the gate password over a fixed label, so no
+ *  second secret exists, the password is not in the cookie, and changing the password logs everyone out. HttpOnly, Secure, SameSite=Lax, Path=/, 30 days. Production never sets the password, so none of this is reached there. */
+export const SITE_GATE_COOKIE = 'lhq_gate';
+export const SITE_GATE_COOKIE_MAX_AGE_S = 30 * 24 * 60 * 60;
+export function siteGateCookieValue(password: string): string {
+  return createHmac('sha256', password).update('lhq-gate-v1', 'utf8').digest('hex');
+}
+/** The gate cookie's value out of a `Cookie` header, or null. */
+export function gateCookie(cookieHeader: string | null | undefined): string | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const i = part.indexOf('=');
+    if (i < 0) continue;
+    if (part.slice(0, i).trim() === SITE_GATE_COOKIE) return part.slice(i + 1).trim();
+  }
+  return null;
+}
+/** True when the request proves the password the HTTP Basic way (the only moment the cookie is handed out). */
+export function siteGateBasicOk(authorization: string | null | undefined, password: string): boolean {
+  const given = basicPassword(authorization);
+  return given != null && safeEqual(given, password);
+}
 export const SITE_GATE_ROBOTS_TXT = 'User-agent: *\nDisallow: /\n';
 export const SITE_GATE_ROBOTS_TAG = 'noindex, nofollow';
 
@@ -46,12 +69,14 @@ export function basicPassword(authorization: string | null | undefined): string 
 
 /** What the gate does with one request. `password` is SITE_GATE_PASSWORD (non-empty: the caller only asks when the gate is on); `cronSecret` is CRON_SECRET (may be empty: then no request is exempt by secret). */
 export function siteGateDecision(
-  req: { pathname: string; authorization?: string | null; cronSecretHeader?: string | null },
+  req: { pathname: string; authorization?: string | null; cronSecretHeader?: string | null; cookie?: string | null },
   env: { password: string; cronSecret?: string | null },
 ): SiteGateDecision {
   if (req.pathname === '/robots.txt') return 'robots';
   if (SITE_GATE_EXEMPT_PATHS.includes(req.pathname)) return 'allow';
   if (env.cronSecret && req.cronSecretHeader && safeEqual(req.cronSecretHeader, env.cronSecret)) return 'allow';
   const given = basicPassword(req.authorization);
-  return given != null && safeEqual(given, env.password) ? 'allow' : 'deny';
+  if (given != null && safeEqual(given, env.password)) return 'allow';
+  const c = gateCookie(req.cookie);
+  return c != null && safeEqual(c, siteGateCookieValue(env.password)) ? 'allow' : 'deny';
 }

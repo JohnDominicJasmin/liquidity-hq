@@ -136,7 +136,7 @@ function buildBriefingContext(
     timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   });
   const jpyStatus = jpyUsd == null ? 'N/A'
-    : jpyUsd >= 160 ? `${jpyUsd.toFixed(2)} - at or above 160. If the yen rises quickly from this level, yen carry trades can be unwound, which has coincided with crypto selloffs before.`
+    : jpyUsd >= 160 ? `${jpyUsd.toFixed(2)} - at or above 160`
     : jpyUsd >= 158 ? `${jpyUsd.toFixed(2)} - between 158 and 160`
     : `${jpyUsd.toFixed(2)} - below 158`;
   const lines = [
@@ -792,7 +792,8 @@ export default function BriefingTerminal() {
             <div key={i} className="mb-event-row">
               <div className="mb-event-tag" style={{
                 borderRadius: 0,
-                background: isPast ? 'rgba(100,100,100,0.15)' : lh < 2 ? 'rgba(248,113,113,0.15)' : 'rgba(251,191,36,0.1)',
+                /* Tints kept light enough for 4.5:1 (#1185): red at 15% measured 4.23:1 and the grey past tag 4.16:1 in dark. */
+                background: isPast ? 'rgba(100,100,100,0.04)' : lh < 2 ? 'rgba(248,113,113,0.08)' : 'rgba(251,191,36,0.1)',
                 color: isPast ? 'var(--txt3)' : lh < 2 ? 'var(--red-soft)' : 'var(--amber)',
               }}>
                 {isPast ? '✓ ' : ''}{e.type}
@@ -829,7 +830,7 @@ export default function BriefingTerminal() {
           <div key={i} className="mb-event-row">
             <div className="mb-event-tag" style={{
               borderRadius: 0,
-              background: w.side === 'BUY' ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)',
+              background: w.side === 'BUY' ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.08)',
               color: w.side === 'BUY' ? 'var(--green-2)' : 'var(--red)',
             }}>
               {t('BRIEFING_WHALE_PREFIX', { side: w.side })}

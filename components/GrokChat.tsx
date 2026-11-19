@@ -653,6 +653,8 @@ export default function GrokChat() {
         onClick={() => { setOpen(v => !v); if (open) { setExpanded(false); setShowLoginModal(false); } }}
         title={t('GROK_FAB_LABEL')}
         aria-label={t('CHAT_OPEN_AI_CHAT')}
+        aria-expanded={open}
+        aria-controls="gchat-panel"
       >
         <span style={{ lineHeight: 0 }}>
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -674,7 +676,10 @@ export default function GrokChat() {
       <div
         ref={panelRef}
         className={`gchat-panel${open ? ' gchat-open' : ''}${expanded ? ' gchat-expanded' : ''}`}
+        id="gchat-panel"
         data-testid="grok-panel"
+        role="region"
+        aria-label={t('GROK_FAB_LABEL')}
         inert={!open}
         aria-hidden={!open}
       >

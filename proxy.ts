@@ -30,7 +30,7 @@
  */
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { SITE_GATE_REALM, SITE_GATE_ROBOTS_TAG, SITE_GATE_ROBOTS_TXT, siteGateDecision } from '@/lib/siteGate';
+import { SITE_GATE_COOKIE, SITE_GATE_COOKIE_MAX_AGE_S, SITE_GATE_REALM, SITE_GATE_ROBOTS_TAG, SITE_GATE_ROBOTS_TXT, siteGateBasicOk, siteGateCookieValue, siteGateDecision } from '@/lib/siteGate';
 
 /** Exact paths only. A future /backtest/results should be a deliberate decision,
  *  not something that silently inherits this one — same reasoning as
@@ -43,7 +43,7 @@ export function proxy(request: NextRequest) {
   const gatePassword = process.env.SITE_GATE_PASSWORD;
   if (gatePassword) {
     const decision = siteGateDecision(
-      { pathname: request.nextUrl.pathname, authorization: request.headers.get('authorization'), cronSecretHeader: request.headers.get('x-cron-secret') },
+      { pathname: request.nextUrl.pathname, authorization: request.headers.get('authorization'), cronSecretHeader: request.headers.get('x-cron-secret'), cookie: request.headers.get('cookie') },
       { password: gatePassword, cronSecret: process.env.CRON_SECRET },
     );
     if (decision === 'robots') {
@@ -57,6 +57,10 @@ export function proxy(request: NextRequest) {
     }
     const res = routeBlocked(request) ?? NextResponse.next();
     res.headers.set('X-Robots-Tag', SITE_GATE_ROBOTS_TAG);
+    /* The cookie is handed out ONLY after a correct HTTP Basic password (never on a cookie-only, cron or exempt pass), so the app's Bearer-carrying fetches get through behind the gate (lib/siteGate.ts). */
+    if (siteGateBasicOk(request.headers.get('authorization'), gatePassword)) {
+      res.cookies.set(SITE_GATE_COOKIE, siteGateCookieValue(gatePassword), { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: SITE_GATE_COOKIE_MAX_AGE_S });
+    }
     return res;
   }
   return routeBlocked(request) ?? NextResponse.next();

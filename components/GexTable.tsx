@@ -116,37 +116,6 @@ export default function GexTable() {
         )}
       </div>
 
-      {/* Plain English interpretation */}
-      {gexLoaded && (
-        <div className="gex-insight">
-          <span style={{ color: 'var(--txt3)', marginRight: 6 }}>→</span>
-          {(() => {
-            const largest = btcGexLevels.length > 0
-              ? btcGexLevels.reduce((a, b) => Math.abs(a.gex) > Math.abs(b.gex) ? a : b)
-              : null;
-            const lK = largest
-              ? (largest.strike >= 1000 ? `$${(largest.strike / 1000).toFixed(0)}K` : `$${largest.strike.toLocaleString()}`)
-              : null;
-            const fK = btcGexFlip != null
-              ? (btcGexFlip >= 1000 ? `$${(btcGexFlip / 1000).toFixed(0)}K` : `$${btcGexFlip.toLocaleString()}`)
-              : null;
-            if (fK && spotPrice > 0) {
-              const above = spotPrice > btcGexFlip!;
-              if (above && isLongGamma)
-                return `BTC is above the ${fK} flip line, so the big options players are cushioning price - expect it to chop and stay boxed in${lK ? ` near ${lK}` : ''} instead of trending. Good for buying dips / selling rips inside the range; risky to chase a breakout.`;
-              if (!above && !isLongGamma)
-                return `BTC dropped below the ${fK} flip line, so those same players now push moves harder instead of cushioning them - expect bigger, faster swings${lK ? `. ${lK} is the level price is drawn to` : ''}. Momentum trades work better here than fading.`;
-              if (above && !isLongGamma)
-                return `Options positioning is amplifying moves right now, so swings can run - trade with the trend, not against it.${lK ? ` ${lK} is the level to watch as a magnet.` : ''}`;
-              return `Options players are still cushioning price, so expect choppy, contained moves${lK ? ` around ${lK}` : ''} rather than a clean trend.`;
-            }
-            return isLongGamma
-              ? `Big options players are steadying the price right now, so expect range-bound chop${lK ? `. ${lK} is the level it keeps getting pulled toward this week` : ''}.`
-              : `Options positioning is amplifying moves right now, so expect bigger swings${lK ? `. ${lK} is the level to watch as a magnet` : ''}.`;
-          })()}
-        </div>
-      )}
-
       {/* Strike chart */}
       {gexLoaded && btcGexLevels.length > 0 && (
         <>

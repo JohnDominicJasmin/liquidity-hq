@@ -112,62 +112,62 @@ export const GEO_KEYWORDS = [
   {
     kw: ['powell','fed chair','federal reserve chair','fed speak','yellen','waller','kashkari','daly','fed governor','fed president','fomc member'],
     tag: 'FED SPEECH', style: 'speech',
-    note: 'Fed official speaking. First market reaction is almost always fake. Watch for reversal after initial spike.',
+    note: 'A Fed official is speaking.',
   },
   {
-    kw: ['trump','white house','executive order','presidential','tariff','trade war','trade deal','trade policy'],
+    kw: ['trump','white house','executive order','tariff','trade war','trade deal','trade policy'],
     tag: 'TRUMP/TARIFF', style: 'geopolitical',
-    note: 'Trump/White House announcement. Tariff news causes instant crypto volatility - first move usually exaggerated.',
+    note: 'White House announcement or tariff news.',
   },
   {
     kw: ['war','ceasefire','invasion','military','missile','attack','nato','ukraine','russia','iran','north korea','middle east','israel','gaza','sanctions','nuclear','houthi','hamas','hezbollah'],
     tag: 'GEOPOLITICAL', style: 'geopolitical',
-    note: 'Geopolitical event. Uncertainty = risk-off = BTC can dump fast then violently recover. Watch cluster below.',
+    note: 'Geopolitical event in the news.',
   },
   {
     kw: ['strait','hormuz','bab el-mandeb','suez','blockade','shipping lane','tanker','seized vessel','naval blockade','oil tanker','cargo ship'],
     tag: 'SHIPPING/BLOCKADE', style: 'geopolitical',
-    note: 'Shipping disruption = oil supply shock = USD strength + global risk-off. BTC typically dumps first then recovers.',
+    note: 'Shipping disruption that can affect oil supply.',
   },
   {
     kw: ['pipeline','energy infrastructure','oil infrastructure','gas pipeline','power grid','cyberattack','cyber attack'],
     tag: 'ENERGY/CYBER', style: 'geopolitical',
-    note: 'Infrastructure attack = energy supply shock = immediate risk-off across all markets including crypto.',
+    note: 'Attack on energy infrastructure.',
   },
   {
     kw: ['opec','oil production','crude oil cut','energy policy','oil price'],
     tag: 'OPEC', style: 'geopolitical',
-    note: 'OPEC decision impacts USD and risk sentiment. Oil spike = USD strength = crypto pressure.',
+    note: 'OPEC or oil-price decision.',
   },
   {
     kw: ['sec crypto','bitcoin etf','crypto regulation','crypto bill','binance','coinbase sec','crypto ban','crypto law'],
     tag: 'CRYPTO REG', style: 'speech',
-    note: 'Regulatory news hits crypto directly. Bad news = instant dump. Good news = delayed pump.',
+    note: 'Regulatory news about crypto.',
   },
   {
     kw: ['g7','g20','imf','world bank','davos','global summit','debt ceiling'],
     tag: 'MACRO SUMMIT', style: 'geopolitical',
-    note: 'Global leaders meeting. Major policy decisions often leak here before markets react.',
+    note: 'Global leaders or institutions meeting.',
   },
   {
     kw: ['taiwan','china military','pla navy','pla army','south china sea','china invasion','china blockade'],
     tag: 'TAIWAN/CHINA', style: 'geopolitical',
-    note: 'Taiwan/China tension = extreme risk-off. Crypto dumps hard. Watch for extreme volatility.',
+    note: 'Taiwan or China military tension in the news.',
   },
 ];
 
 // ── Econ event notes - drives Events tab ────────────────────────────────────
 export const ECON_NOTES: Record<string, string> = {
-  FOMC:    'Rate decision day. Highest volatility of the month. First reaction is always the fake - wait 15-30min for the real direction.',
-  CPI:     'Inflation data. Hot CPI = rate hike fears = crypto dumps. Cool CPI = relief pump. Watch the 5min candle after release.',
-  PPI:     'Producer prices - leading indicator for CPI. Market moves, but smaller than CPI reaction.',
-  NFP:     'Jobs data. Strong jobs = Fed stays hawkish = risk-off = crypto pressure.',
-  PCE:     'Fed\'s preferred inflation gauge. Treated like CPI but slightly less volatile market reaction.',
-  GDP:     'GDP print. Weak GDP = recession fears = risk-off dump. Strong GDP = mixed (good economy but keeps Fed hawkish).',
-  FED:     'Fed speak. Every word is parsed. Market overreacts to ambiguous language then reverses.',
-  OPTIONS: 'BTC options expiry. Price gets pinned to max pain before expiry, then explosive move after.',
-  RETAIL:  'Consumer spending data. Weaker than expected = recession worry = slight crypto pressure.',
-  MACRO:   'High-impact macro event. Expect elevated volatility and fake moves in both directions.',
+  FOMC:    'Fed rate decision day.',
+  CPI:     'Consumer inflation data.',
+  PPI:     'Producer price data, a leading indicator for CPI.',
+  NFP:     'US jobs data.',
+  PCE:     'The Fed\'s preferred inflation gauge.',
+  GDP:     'GDP growth data.',
+  FED:     'A Fed official is speaking.',
+  OPTIONS: 'BTC options expiry day.',
+  RETAIL:  'Consumer spending data.',
+  MACRO:   'High-impact macro event.',
 };
 
 // ── Coin mention detection ────────────────────────────────────────────────────

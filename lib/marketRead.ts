@@ -96,8 +96,8 @@ export function computeContrarian(store: MarketStore): Contrarian | null {
     count,
     label: isBear ? 'Longs overcrowded' : 'Shorts overcrowded',
     desc: isBear
-      ? (count >= 3 ? 'All 3 crowd signals lean bearish - high flush risk. Tighten stops or wait.' : 'Crowd is leaning long - elevated flush risk. Avoid chasing longs.')
-      : (count >= 3 ? 'All 3 crowd signals lean bullish - high squeeze potential. Watch for a sharp reversal.' : 'Crowd is leaning short - squeeze risk building. Watch for a reversal, not a buy yet.'),
+      ? (count >= 3 ? 'All 3 crowd signals show heavy long positioning.' : '2 of 3 crowd signals show heavy long positioning.')
+      : (count >= 3 ? 'All 3 crowd signals show heavy short positioning.' : '2 of 3 crowd signals show heavy short positioning.'),
   };
 }
 
@@ -169,25 +169,27 @@ export function computeMarketRead(store: MarketStore, manualFund: FundingSide | 
 
   const band: Band | null = score == null ? null : score >= 70 ? 'good' : score >= 45 ? 'mid' : 'weak';
   const verdict = band == null ? 'Reading the market…'
-    : band === 'good' ? 'Good time to trade'
-    : band === 'mid' ? 'Decent conditions - be selective'
-    : 'Weak setup - better to wait';
+    : band === 'good' ? 'Most signals agree'
+    : band === 'mid' ? 'Signals are mixed'
+    : 'Few signals agree';
   const sub = band == null
     ? `Waiting for ${missing.map(m => (m === 'fng' ? 'Fear & Greed' : 'funding')).join(' and ')} data before giving a read.`
     : band === 'good'
-    ? 'Several signals line up in your favor. A cleaner, higher-confidence window - still mind your risk.'
+    ? 'Several signals line up right now.'
     : band === 'mid'
-    ? 'Conditions are mixed but tradeable. Be picky with entries and keep your size modest.'
-    : 'Signals are thin and momentum is unclear. No real edge right now - waiting is a position too.';
+    ? 'Signals point different ways right now.'
+    : 'Few signals line up and momentum is unclear.';
 
   const sm = computeSmartMoney(store);
 
   const factors: Factor[] = [];
   if (wall.has) factors.push({ key: 'wall', label: 'Order wall', value: wall.pct != null && wall.pct <= 1 ? 'Tight' : wall.label ? 'Nearby' : 'Far', sub: wall.label || undefined });
   factors.push({ key: 'fng', label: 'Fear & Greed', value: fngLabel, sub: fng == null ? undefined : String(fng) });
-  factors.push({ key: 'day', label: 'Day', value: dayLabel });
+  /* The sub says how much the weekday adds to the score (out of 15), so the tile states why it is there (#1185). */
+  factors.push({ key: 'day', label: 'Day', value: dayLabel, sub: `${dayScore}/15` });
   factors.push({ key: 'fund', label: 'Funding', value: fundLabel });
-  factors.push({ key: 'sm', label: 'Smart money', value: sm.label, sub: `${sm.total > 0 ? '+' : ''}${sm.total}/${sm.max}` });
+  /* A WORD ONLY, no "+1/10" (#1185, PM audit 2026-11-17): the denominator changed from one read to the next and nothing said what was counted. */
+  factors.push({ key: 'sm', label: 'Smart money', value: sm.label });
 
   return { pending, missing, score, band, verdict, sub, factors, fundingSide, autoFundingSide, contrarian: computeContrarian(store) };
 }

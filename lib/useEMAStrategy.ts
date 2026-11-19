@@ -22,6 +22,7 @@ import { fetchBybitKlinesRetry } from './bybitKlines.ts';
 import { firstVenueThatAnswers } from './venueFallback.ts';
 import { priceText } from './numberFormat.ts';
 import type { LabelKey } from './labelKeys.ts';
+import { sma200Ref, ribbonRef, crossRef, closeRef, zoneRef, fundingRef, oiDetailRef, volumeRef, indicatorRef } from './emaRowTitles.ts';
 
 export type { SignalFilterParams } from './strategyCore.ts';
 export { DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from './strategyCore.ts';
@@ -40,8 +41,10 @@ export interface StrategyCondition {
   pass: boolean | null; // null = not yet relevant / n/a
   detail: string;
   warn?: boolean;       // an amber caution row (e.g. counter-trend); never counted as passing or failing
-  /** The row's `detail` as a label key, for the card to show in the reader's language. `detail` stays English: it is what the AI prompt is built from. Set only where the card shows the detail (the amber counter-trend row). */
+  /** The row's `detail` as a label key, for the card to show in the reader's language (the amber counter-trend row's text and every row's hover title when it cannot be explained, #1185). `detail` stays English: it is what the AI prompt is built from. */
   detailKey?: LabelKey;
+  /** The numbers inside `detailKey`'s sentence ({placeholder} -> value). */
+  detailVars?: Record<string, string | number>;
 }
 
 export interface StrategySignal {
@@ -638,6 +641,7 @@ export function useEMAStrategy(
               : above200D
                 ? `Price ${cur}${fmt(priceD)} above Daily 200 SMA ${cur}${sma200 !== null ? fmt(sma200) : '-'} - ${counterTrend ? 'against a short' : 'favours longs'}`
                 : `Price ${cur}${fmt(priceD)} below Daily 200 SMA ${cur}${sma200 !== null ? fmt(sma200) : '-'} - ${counterTrend ? 'against a long' : 'favours shorts'}`,
+            ...sma200Ref({ have200D, above200D, counterTrend, cur, priceD, sma200, fmt }),
           },
           ...(counterTrend ? [{
             label: 'Counter-trend',
@@ -654,35 +658,39 @@ export function useEMAStrategy(
               : ribbonBear
                 ? `Bearish: EMA50 ${fmt(ema50)} > EMA20 ${fmt(ema20)} > EMA9 ${fmt(ema9)}`
                 : `Not aligned - ribbon tangled`,
+            ...ribbonRef({ ribbonBull, ribbonBear, ema9, ema20, ema50, fmt }),
           },
           {
             label: 'Trend Signal (fast/slow cross)',
             pass:  judgeLong ? ema9 > ema20 : ema9 < ema20,
             detail: judgeLong
               ? (ema9 > ema20
-                ? `EMA9 ${fmt(ema9)} crossed above EMA20 ${fmt(ema20)} - bullish cross confirmed`
-                : `EMA9 ${fmt(ema9)} still below EMA20 ${fmt(ema20)} - waiting for bullish cross`)
+                ? `EMA9 ${fmt(ema9)} crossed above EMA20 ${fmt(ema20)} - bullish cross`
+                : `EMA9 ${fmt(ema9)} still below EMA20 ${fmt(ema20)} - no bullish cross yet`)
               : (ema9 < ema20
-                ? `EMA9 ${fmt(ema9)} crossed below EMA20 ${fmt(ema20)} - bearish cross confirmed`
-                : `EMA9 ${fmt(ema9)} still above EMA20 ${fmt(ema20)} - waiting for bearish cross`),
+                ? `EMA9 ${fmt(ema9)} crossed below EMA20 ${fmt(ema20)} - bearish cross`
+                : `EMA9 ${fmt(ema9)} still above EMA20 ${fmt(ema20)} - no bearish cross yet`),
+            ...crossRef({ judgeLong, ema9, ema20, fmt }),
           },
           {
             label: 'Close vs EMA 50',
             pass:  judgeLong ? price > ema50 : price < ema50,
             detail: judgeLong
               ? (price > ema50
-                ? `Close ${cur}${fmt(price)} above EMA50 ${cur}${fmt(ema50)} - long entry confirmed`
-                : `Close ${cur}${fmt(price)} below EMA50 ${cur}${fmt(ema50)} - wait for candle close above EMA 50`)
+                ? `Close ${cur}${fmt(price)} above EMA50 ${cur}${fmt(ema50)}`
+                : `Close ${cur}${fmt(price)} below EMA50 ${cur}${fmt(ema50)}`)
               : (price < ema50
-                ? `Close ${cur}${fmt(price)} below EMA50 ${cur}${fmt(ema50)} - short entry confirmed`
-                : `Close ${cur}${fmt(price)} above EMA50 ${cur}${fmt(ema50)} - wait for candle close below EMA 50`),
+                ? `Close ${cur}${fmt(price)} below EMA50 ${cur}${fmt(ema50)}`
+                : `Close ${cur}${fmt(price)} above EMA50 ${cur}${fmt(ema50)}`),
+            ...closeRef({ judgeLong, price, ema50, cur, fmt }),
           },
           {
             label: 'Price in Value Zone',
             pass:  (verdict === 'LONG_SETUP' || verdict === 'SHORT_SETUP') ? inValueZone : null,
             detail: inValueZone
-              ? `Price in EMA9–EMA20 zone - entry eligible`
-              : `Not in value zone yet - wait for pullback to 20 EMA`,
+              ? `Price in EMA9–EMA20 zone`
+              : `Price not in EMA9–EMA20 zone`,
+            ...zoneRef(inValueZone),
           },
           {
             label: 'Funding Rate',
@@ -695,13 +703,15 @@ export function useEMAStrategy(
                is empty until candles are cached, so a test that renders the hook
                without stubbing the fetch would assert on nothing. */
             detail: fundingDetail(coin, fundingRate, fundingOK, feedGraceOver),
+            ...fundingRef(coin, fundingRate, fundingOK, feedGraceOver),
           },
           {
             label: 'Open Interest Confirming',
             pass:  oiOK,
             detail: oiPct == null
               ? 'Open interest data unavailable'
-              : `Open interest ${oiPct >= 0 ? '+' : ''}${oiPct.toFixed(2)}% in 1h - ${oiOK ? 'stable or rising (healthy)' : 'sharp drop (abort - position covering cascade)'}`,
+              : `Open interest ${oiPct >= 0 ? '+' : ''}${oiPct.toFixed(2)}% in 1h - ${oiOK ? 'stable or rising' : 'sharp drop'}`,
+            ...oiDetailRef(oiPct, oiOK),
           },
           {
             label: 'Volume Above MA',
@@ -709,11 +719,13 @@ export function useEMAStrategy(
             detail: volma20 > 0
               ? `Candle vol ${(lastVol / 1e6).toFixed(2)}M vs MA ${(volma20 / 1e6).toFixed(2)}M (${(lastVol / volma20 * 100).toFixed(0)}%)`
               : 'Volume data unavailable',
+            ...volumeRef(volma20, lastVol),
           },
           {
             label: 'WaveTrend Confirming',
             pass:  wtConfirm.pass,
             detail: wtConfirm.detail,
+            ...(wtConfirm.detailKey ? { detailKey: wtConfirm.detailKey, detailVars: wtConfirm.detailVars } : {}),
           },
           // #985 gap 1: only present when the trader has RSI selected -
           // absence from this list, not a null/failing row, is how "not
@@ -729,6 +741,11 @@ export function useEMAStrategy(
                   : ribbonBear
                     ? (rsiLast < 50 ? 'below 50, agrees with the bearish ribbon' : 'above 50, disagrees with the bearish ribbon')
                     : 'ribbon not aligned either way'}`,
+            ...indicatorRef('RSI', {
+              valid: !(rsiLast == null || !isFinite(rsiLast)), ribbonBull, ribbonBear,
+              bullAgrees: rsiLast != null && rsiLast > 50, bearAgrees: rsiLast != null && rsiLast < 50,
+              vars: { value: rsiLast != null && isFinite(rsiLast) ? rsiLast.toFixed(1) : '' },
+            }),
           }] : []),
           // #985 gap 1: SMA is gating (see the verdict block above) as well
           // as advisory - this row is what lets a trader see WHY a setup
@@ -745,6 +762,11 @@ export function useEMAStrategy(
                   : ribbonBear
                     ? (price < smaLast! ? 'price below, agrees with the bearish ribbon' : 'price at or above, disagrees with the bearish ribbon - setup downgraded if it was one')
                     : 'ribbon not aligned either way'}`,
+            ...indicatorRef('SMA', {
+              valid: smaValid, ribbonBull, ribbonBear,
+              bullAgrees: smaValid && price > smaLast!, bearAgrees: smaValid && price < smaLast!,
+              vars: { value: smaValid ? smaLast!.toFixed(4) : '' },
+            }),
           }] : []),
           ...(bollSelected ? [{
             label: 'Bollinger Confirming',
@@ -757,6 +779,11 @@ export function useEMAStrategy(
                   : ribbonBear
                     ? (price < bollLast!.mid ? 'price below, agrees with the bearish ribbon' : 'price at or above, disagrees with the bearish ribbon - setup downgraded if it was one')
                     : 'ribbon not aligned either way'}`,
+            ...indicatorRef('BOLL', {
+              valid: bollValid, ribbonBull, ribbonBear,
+              bullAgrees: bollValid && price > bollLast!.mid, bearAgrees: bollValid && price < bollLast!.mid,
+              vars: { value: bollValid ? bollLast!.mid.toFixed(4) : '' },
+            }),
           }] : []),
           ...(psarSelected ? [{
             label: 'PSAR Confirming',
@@ -769,6 +796,11 @@ export function useEMAStrategy(
                   : ribbonBear
                     ? (price < psarLast! ? 'dot above price, agrees with the bearish ribbon' : 'dot at or below price, disagrees with the bearish ribbon - setup downgraded if it was one')
                     : 'ribbon not aligned either way'}`,
+            ...indicatorRef('PSAR', {
+              valid: psarValid, ribbonBull, ribbonBear,
+              bullAgrees: psarValid && price > psarLast!, bearAgrees: psarValid && price < psarLast!,
+              vars: { value: psarValid ? psarLast!.toFixed(4) : '' },
+            }),
           }] : []),
           ...(macdSelected ? [{
             label: 'MACD Confirming',
@@ -781,6 +813,11 @@ export function useEMAStrategy(
                   : ribbonBear
                     ? (macdLast!.dif < macdLast!.dea ? 'DIF below DEA, agrees with the bearish ribbon' : 'DIF at or above DEA, disagrees with the bearish ribbon - setup downgraded if it was one')
                     : 'ribbon not aligned either way'}`,
+            ...indicatorRef('MACD', {
+              valid: macdValid, ribbonBull, ribbonBear,
+              bullAgrees: macdValid && macdLast!.dif > macdLast!.dea, bearAgrees: macdValid && macdLast!.dif < macdLast!.dea,
+              vars: { dif: macdValid ? macdLast!.dif.toFixed(4) : '', dea: macdValid ? macdLast!.dea.toFixed(4) : '' },
+            }),
           }] : []),
         ];
 

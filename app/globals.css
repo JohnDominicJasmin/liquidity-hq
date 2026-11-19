@@ -893,7 +893,7 @@ body::after {
 .nav-section-label {
   padding: 10px 16px 6px;
   font-size: var(--fs-caption); font-weight: 700; letter-spacing: .09em;
-  color: var(--txt3); text-transform: uppercase; opacity: 0.5;
+  color: var(--txt3); text-transform: uppercase;
   pointer-events: none; user-select: none;
 }
 .nav-grid {
@@ -1193,6 +1193,10 @@ body[data-rpm-level="high"]::before {
   background: radial-gradient(ellipse 80% 25% at 50% 0%, rgba(251,191,36,0.035) 0%, transparent 70%);
   animation: rpm-glow-pulse 6s ease-in-out infinite;
 }
+/* With reduced motion asked for, the glow stays but stops pulsing (#1185, QA run 44076050799: it kept running on /dashboard). */
+@media (prefers-reduced-motion: reduce) {
+  body[data-rpm-level="extreme"]::before, body[data-rpm-level="high"]::before { animation: none; }
+}
 
 /* ── SESSION PILL (navbar) ── */
 .session-pill-wrap { flex-shrink: 0; }
@@ -1397,10 +1401,11 @@ body[data-rpm-level="high"]::before {
 }
 
 @media (max-width: 760px) {
-  .news-ticker { height: 19px; }
+  /* 24px, not 19 (#1185, WCAG 2.5.8): the two buttons were 32x19 and 26x19 here. The page's top padding already reserves 32px for the bar, so the 5px costs no layout. */
+  .news-ticker { height: 24px; }
   .ticker-badge { font-size: 0.625rem; padding: 1px 5px; line-height: 12px; }
-  .ticker-content span { font-size: var(--fs-micro); line-height: 19px; }
-  .ticker-close { height: 19px; width: 26px; }
+  .ticker-content span { font-size: var(--fs-micro); line-height: 24px; }
+  .ticker-close { height: 24px; width: 32px; }
 }
 
 @keyframes ticker-scroll {
@@ -1535,6 +1540,9 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .sotd-num-inline { font-size: var(--fs-data); font-weight: 600; color: var(--txt3); letter-spacing: .05em; }
 .sotd-name { font-size: var(--fs-card-title); font-weight: 600; color: var(--txt); margin-bottom: 8px; line-height: 1.3; }
 .sotd-text { font-size: var(--fs-label); color: var(--txt2); line-height: 1.65; }
+/* The play's text is two lines until "More details" is pressed (#1185, rule 25). */
+.sotd-text-clamped { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sotd-more { display: inline-flex; align-items: center; min-height: 24px; margin-top: 4px; padding: 0; background: none; border: none; cursor: pointer; font: inherit; font-size: var(--fs-caption); color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .sotd-footer { font-size: var(--fs-caption); color: var(--txt3); margin-top: 10px; }
 
 /* ── NEWS BANNER ── */
@@ -2016,6 +2024,9 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
   overflow: hidden; background: var(--bg2); flex-shrink: 0;
 }
 .ncard-grid-hero .ncard-grid-img-wrap { height: 300px; }
+/* THE HERO IS A TEXT CARD ABOVE 540 PX (PM decision 2026-11-19 on #1185: no full-width stock photo above the headlines; the text hero is honest and fast). The first story's image block is not drawn there, so the headlines start higher; phones keep
+   the 88 px thumbnail row of the compact list (the rules at max-width 540 px), and every other card keeps its image. */
+@media (min-width: 541px) { .ncard-grid-hero .ncard-grid-img-wrap { display: none; } }
 .ncard-grid-img  { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .ncard-grid-body     { flex: 1; padding: 12px 14px 12px; display: flex; flex-direction: column; }
@@ -2503,6 +2514,9 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; border-bottom: 0.5px solid var(--bdr); flex-shrink: 0; }
 .gchat-icon-btn { font-size: 0.8125rem; color: var(--txt3); cursor: pointer; background: none; border: none; padding: 0; width: 36px; height: 36px; border-radius: 6px; transition: color 0.15s; display: inline-flex; align-items: center; justify-content: center; }
 .gchat-icon-btn:hover { color: var(--txt2); }
+/* the header icons (back, clear, history, close) read --txt2 on the light panel, not the dimmer --txt3 (QA light-theme measurement: the glyph must be visible, 4.5:1 or more) */
+[data-theme="light"] .gchat-icon-btn { color: var(--txt2); }
+[data-theme="light"] .gchat-icon-btn:hover { color: var(--txt); }
 /* Fast / Live mode segment (#383).
    A pill with a 16px radius, a tinted fill for the active option and a 44px
    target. That was described as "borrows the .gchat-coin affordance" until
@@ -2737,7 +2751,8 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
    700, which is what was actually wanted. */
 .liq-section-sub { font-size: var(--fs-caption); font-weight: 500; text-transform: none; letter-spacing: 0; }
 /* #1626 finding 9: says the ladder below is modelled, in the band's own colour so it reads as part of the heading rather than a warning. */
-.liq-section-est { font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.75; border: 0.5px solid currentColor; border-radius: 4px; padding: 1px 5px; flex-shrink: 0; }
+/* No `opacity` (#1185, axe color-contrast on this label, both themes): at 0.75 the inherited green or red fell under 4.5:1 on the tinted header, as .liq-section-hdr's own note says. */
+.liq-section-est { font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; border: 0.5px solid currentColor; border-radius: 4px; padding: 1px 5px; flex-shrink: 0; }
 
 /* Derived from --accent-2, was rgba(26,122,255,...) (#652). Those literals
    are the current design's dark --accent-2, and the [data-theme="light"]
@@ -3203,7 +3218,8 @@ html[data-theme="light"] { background: var(--bg0); }
 
 /* Grok chat */
 [data-theme="light"] .gchat-panel {
-  background: linear-gradient(180deg, #F5F2EB 0%, #F0EDE4 100%);
+  background-color: #F5F2EB;   /* a solid base under the gradient: a contrast check reads the colour, not the gradient (QA: icon buttons measured 1:1) */
+  background-image: linear-gradient(180deg, #F5F2EB 0%, #F0EDE4 100%);
   border-color: rgba(0,0,0,0.12);
   box-shadow: 0 8px 48px rgba(0,0,0,0.18);
 }
@@ -4435,6 +4451,8 @@ html[data-sess="1"] .usage-meter-host { min-height: 55px; }
    device's newer value. Sharing --error's colour would read as a failure the
    user should retry, which is the exact wrong message for this case. */
 .st-save-toast.conflict { background: var(--amber-bg); border-color: var(--amber-bdr); color: var(--amber); }
+/* The offline notice stays up, so it needs an opaque base under the translucent amber (the page showed through the text), (its placement over the Arena chart toolbar is PM's visual call: the owner rejected a bottom/right corner for toasts). */
+.offline-notice-region .st-save-toast { background: linear-gradient(var(--amber-bg), var(--amber-bg)), var(--bg2); }
 /* Error: red token, an icon as well as the colour, and real buttons - so it
    takes pointer events, unlike the passive states. */
 .st-save-toast.error    { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.45); color: var(--red); pointer-events: auto; }
@@ -9101,7 +9119,7 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .strat-head {
   height: 28px; display: flex; align-items: center; justify-content: space-between;
   padding: 0 9px; border-bottom: 1px solid var(--bdr);
-  font-family: var(--font-mono), monospace; font-size: 10px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt);
 }
 /* #1271. The PRO / FREE tag was --txt4: 1.72:1 dark, 1.91:1 light on --bg1 (measured, not
@@ -9110,20 +9128,20 @@ main.app-content[data-chrome="none"] {
    5.62:1 dark / 5.56:1 light on --bg1. The same fix, and the same reason, applies to the other
    text in this block below, including the dimmed chip states (owner, 2026-09-19): nothing in the
    Strategy panel is --txt4 any more. */
-[data-design="terminal"] .strat-aux { color: var(--txt2); font-size: 9px; letter-spacing: .1em; }
+[data-design="terminal"] .strat-aux { color: var(--txt2); font-size: var(--fs-micro); letter-spacing: .1em; } /* was 9px: the 11px floor (#1185) */
 
 [data-design="terminal"] .strat-sect { padding: 10px 9px; border-bottom: 1px solid var(--bdr3); }
 [data-design="terminal"] .strat-sect:last-child { border-bottom: 0; }
 
 [data-design="terminal"] .strat-lbl {
-  font-family: var(--font-mono), monospace; font-size: 9px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
   display: flex; justify-content: space-between; margin-bottom: 6px;
 }
 /* The plan + used/limit chip beside "Indicators" (owner, 2026-10-07: the 0 of 1 caption was easy to miss). --txt2 on --bg1
    is 5.62 dark / 5.56 light. At the cap it takes the accent border so it reads as "full", with the words saying so as well. */
 [data-design="terminal"] .strat-count {
-  font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
   color: var(--txt2); border: 1px solid var(--bdr3); padding: 2px 6px; white-space: nowrap;
 }
 [data-design="terminal"] .strat-count.full { color: var(--txt); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); } /* #1271: 4.71 dark / 5.07 light on --bg1 (was 1.72 / 1.91) */
@@ -9227,14 +9245,14 @@ main.app-content[data-chrome="none"] {
 }
 [data-design="terminal"] .strat-params-h {
   display: flex; align-items: center; height: 28px; margin-bottom: 1px;
-  font-family: var(--font-mono), monospace; font-size: 8.5px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
 }
 /* Whose parameters, when several indicators are on: a small segmented row of the ON names. */
 [data-design="terminal"] .strat-seg { display: flex; gap: 0; max-width: 100%; overflow: hidden; }
 [data-design="terminal"] .strat-seg-b {
   height: 28px; padding: 0 9px; border: 1px solid var(--bdr3); margin-left: -1px; background: transparent; color: var(--txt2);
-  font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: 0; text-transform: none; cursor: pointer; white-space: nowrap;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro); letter-spacing: 0; text-transform: none; cursor: pointer; white-space: nowrap;
   transition: background-color 120ms ease-out, border-color 120ms ease-out;
 }
 [data-design="terminal"] .strat-seg-b:first-child { margin-left: 0; }
@@ -9243,19 +9261,21 @@ main.app-content[data-chrome="none"] {
 @media (prefers-reduced-motion: reduce) { [data-design="terminal"] .strat-seg-b { transition: none; } }
 [data-design="terminal"] .strat-prow {
   display: grid; grid-template-columns: 1fr 54px; gap: 5px; align-items: center;
-  font-family: var(--font-mono), monospace; font-size: 10px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   color: var(--txt2); height: 24px;
 }
 [data-design="terminal"] .strat-pv {
   border: 1px solid var(--border-input); border-radius: 0;
   background: var(--bg1); color: var(--txt);
   text-align: right; padding: 0 4px;
-  font-family: var(--font-mono), monospace; font-size: 10px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   font-variant-numeric: tabular-nums; width: 100%;
 }
+/* The on/off parameter is a 24 px target, not the browser's ~13 px box (#1185, WCAG 2.5.8). */
+[data-design="terminal"] .strat-pv[type="checkbox"] { width: 24px; height: 24px; justify-self: end; padding: 0; }
 [data-design="terminal"] .strat-pv:disabled { color: var(--txt3); }
 [data-design="terminal"] .strat-ro {
-  margin-top: 5px; font-family: var(--font-mono), monospace; font-size: 8.5px;
+  margin-top: 5px; font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   letter-spacing: .08em; text-transform: uppercase; color: var(--txt3); /* #1271: 4.77 dark / 4.70 light on --bg2 (was 1.74 / 1.77) */
 }
 
@@ -9263,7 +9283,7 @@ main.app-content[data-chrome="none"] {
 [data-design="terminal"] .strat-btn {
   flex: 1; height: 26px; border: 1px solid var(--bdr); border-radius: 0;
   background: var(--bg2); color: var(--txt2); cursor: pointer;
-  font-family: var(--font-mono), monospace; font-size: 9.5px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   letter-spacing: .1em; text-transform: uppercase;
 }
 [data-design="terminal"] .strat-btn.pri {
