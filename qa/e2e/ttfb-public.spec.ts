@@ -2,10 +2,10 @@
 import { test } from '@playwright/test';
 
 const ROUTES = [
-  '/api/version',
-  '/api/market/klines?source=bybit&symbol=BTCUSDT&interval=1h&limit=168&closed=1',
-  '/api/market/klines?source=binance-futures&symbol=BTCUSDT&interval=1h&limit=168&closed=1',
-  '/api/market/klines?source=binance&symbol=BTCUSDT&interval=1h&limit=168&closed=1',
+  '/api/market/rsi',
+  '/api/market/snapshot',
+  '/api/market/account-ratio?period=1h',
+  '/api/econ-calendar',
 ];
 for (const route of ROUTES) {
   test(`TTFB and status ${route}`, async ({ request }) => {
