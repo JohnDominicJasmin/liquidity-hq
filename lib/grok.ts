@@ -1650,6 +1650,20 @@ export function withMarketClosedNote(prompt: string, closed: boolean, coin: stri
 MARKET STATUS: ${coin.toUpperCase()} is a tokenized US stock and the US cash market is closed right now. Last close: ${price}. The price and the 24h change above are the last session's, not a live reaction: say the market is closed and read the last close as it is.`;
 }
 
+/** The prompt with the server's fixed watch levels appended (lib/readLevels.ts; PM, 2026-11-19: two reads minutes apart on one coin set different confirm and cancel levels because each read invented its own). Fixed numbers, formatted here;
+ *  nothing from the request reaches this block. Unchanged when no levels could be computed. Applied before withReadLanguage, which must stay last. */
+export function withReadLevels(prompt: string, levels: { close: number; above: number | null; below: number | null } | null, takerPct: number): string {
+  if (!levels) return prompt;
+  const lines = [
+    'FIXED WATCH LEVELS (computed by the server from the closed candles of this timeframe; every read of this coin and timeframe gets the same numbers until a candle closes). Quote these exact numbers wherever you name a price to watch, a confirmation or a cancellation, and do not choose other levels or other thresholds:',
+    `- Last close: ${priceText(levels.close)}`,
+    levels.above != null ? `- Nearest resistance above: ${priceText(levels.above)} (a close above it cancels a bearish lean and is the level to clear for a bullish break)` : '- Nearest resistance above: none on the chart (say so; do not invent one)',
+    levels.below != null ? `- Nearest support below: ${priceText(levels.below)} (a close below it confirms a bearish break and cancels a bullish lean)` : '- Nearest support below: none on the chart (say so; do not invent one)',
+    `- Taker-ratio threshold to confirm a lean: ${takerPct}% of taker volume on that side.`,
+  ];
+  return `${prompt}\n${lines.join('\n')}`;
+}
+
 /** The Arena prompt with the language instruction appended, last, so it is the final thing the model reads. English is returned unchanged. */
 export function withReadLanguage(prompt: string, locale: ReadLocale): string {
   const lang = readLanguageInstruction(locale);
