@@ -78,6 +78,8 @@ broken most often, in short — the full text and the rest are in that file:
 - **Before starting ANY issue: reread `CLAUDE.md`, `docs/OWNER-RULES.md` and the
   parts of `CONTRIBUTING.md` the work touches.** Owner, 2026-11-10: *"Before we
   start any type of issue, make sure to reread, review your documentation."* §18.
+- **WORLDWIDE. Nothing defaults to Manila or the Philippines.** The team clock is UTC (jobs, notes,
+  issues); customers always see their own clock. No new `Asia/Manila`, `PHT`, `GMT+8`, `en-PH`. OWNER-RULES 27.
 - **The product UI never names the AI vendor or model.** It says "AI". Only the
   FOUR legal strings name the processor (privacy law, and the trademark non-affiliation
   notice) - OWNER-RULES §5 lists them.
