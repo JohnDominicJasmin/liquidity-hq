@@ -153,7 +153,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     /* DRAFT, the release after v2026.11.18.2 (PM 2026-11-18). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs.
        Plain words, 12 words or fewer per line (rule 22); only user-visible changes. Tied to: #2565 (Arena header), #2569 (your language), #2567 (bot commands,
        quiet hours, snooze, plan-lapse message), #2574 (inline mute), #2572 (daily summary, test alert), #2576 (multi-timeframe rows), #2578 + #2583 (speed),
-       #2584 (S/R flip), #2587 (chart key, password reset), #2586 (AI use given back), #2590 (Telegram language), #2597 (reads use the picked strategy), #2598 (funding squeeze), #2599 (chart drawings), #2603 (rules on real data), #2604 (why a strategy cannot run), #2609 (stock hours), #2612 (summary cap), #2613 (BTC crowding). A line whose PR misses the tag is removed. */
+       #2584 (S/R flip), #2587 (chart key, password reset), #2586 (AI use given back), #2590 (Telegram language), #2597 (reads use the picked strategy), #2598 (funding squeeze), #2599 (chart drawings), #2603 (rules on real data), #2604 (why a strategy cannot run), #2609 (stock hours), #2612 (summary cap), #2613 (BTC crowding), #2607 (EMA stack), #2608 (session sweep), #2610 (needs-candles reason), #2611 (reads on every coin), #2614 (fixed read levels), #2618 (no-setup chip). A line whose PR misses the tag is removed. */
     date: '2026-11-19',
     tag: 'v2026.11.19',
     items: [
@@ -180,6 +180,12 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Quick and Deep reads use the strategy you picked.",
       "BTC crowding now includes the share of accounts long.",
       "Telegram daily summary shows the top 10 setups.",
+      "EMA stack signals when the stack forms, not on pullbacks.",
+      "Session sweep signals once per session and direction.",
+      "A strategy with too few candles says how many it needs.",
+      "Quick and Deep reads cover every listed coin, stocks included.",
+      "Quick and Deep quote the same support, resistance and taker levels.",
+      "A waiting strategy with nothing to draw says so on the chart.",
     ],
   },
   {
