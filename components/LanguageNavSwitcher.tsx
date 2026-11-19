@@ -70,6 +70,7 @@ export default function LanguageNavSwitcher() {
               key={l}
               type="button"
               className={`lang-nav-item${locale === l ? ' on' : ''}`}
+              aria-current={locale === l ? 'true' : undefined}
               onClick={() => choose(l)}
             >
               {LOCALE_LABELS[l]}
