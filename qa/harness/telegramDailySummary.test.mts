@@ -125,7 +125,7 @@ test('H4a. the three coins with the largest ABSOLUTE 24 h move, in that order: +
 });
 
 const SQ = { fr: { eth: 0.0005, sol: -0.0004, xrp: 0.0003 }, ls: { eth: 0.66, xrp: 0.6 } };   // eth 40+40=80 LONG_LIQ, xrp 22+22=44 LONG_LIQ, sol 40 SHORT_SQ
-test('H4b. squeeze lines only at or above THAT user\'s threshold: 70 -> ETH; 40 -> ETH, XRP, SOL (strongest first); 90 -> none, and the heading names the user\'s own number', async () => {
+test('H4b. squeeze lines only at or above THAT user\'s threshold: 70 -> ETH; 40 -> ETH, XRP, SOL (strongest first); a stored 90 is CLAMPED to 80, the highest score there is (Settings range 40-80, lib/alertThresholdRanges SQUEEZE_SCORE_MAX), and the heading names the number in force', async () => {
   const { w, run } = await scenario([ON('a', '1001', { hour: 9, threshold: 70 }), ON('b', '1002', { hour: 9, threshold: 40 }), ON('c', '1003', { hour: 9, threshold: 90 })], { ...SQ });
   try {
     await run(); const L = coins.COIN_LABELS as Record<string, string>;
@@ -134,7 +134,8 @@ test('H4b. squeeze lines only at or above THAT user\'s threshold: 70 -> ETH; 40 
     assert.match(a, /score 70\+/); assert.ok(a.includes(`<b>${L.eth}</b> long-heavy positioning, score 80/100`), a); assert.ok(!a.includes(`<b>${L.xrp}</b>`) && !a.includes(`<b>${L.sol}</b>`), `threshold 70 let a weaker setup through: ${a}`);
     assert.match(b, /score 40\+/); assert.ok(idx(b, `<b>${L.eth}</b>`) >= 0 && idx(b, `<b>${L.xrp}</b>`) > idx(b, `<b>${L.eth}</b>`) && idx(b, `<b>${L.sol}</b>`) > idx(b, `<b>${L.xrp}</b>`), `threshold 40: ETH 80, XRP 44, SOL 40 in that order: ${b}`);
     assert.ok(b.includes('short-heavy positioning, score 40/100'), b);
-    assert.match(c, /score 90\+/); assert.ok(c.includes('None at or above your threshold (90).'), c);
+    /* a legacy stored 90 can never fire (40 funding + 40 long/short = 80 at most): the route reads it as 80 and says so in the heading; ETH (80) therefore shows, the weaker ones do not */
+    assert.match(c, /score 80\+/); assert.ok(c.includes(`<b>${L.eth}</b> long-heavy positioning, score 80/100`), c); assert.ok(!c.includes(`<b>${L.xrp}</b>`) && !c.includes(`<b>${L.sol}</b>`), `a stored 90 (read as 80) let a weaker setup through: ${c}`);
   } finally { done(); }
 });
 
