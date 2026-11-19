@@ -77,10 +77,13 @@ test('D3. nothing has a reading: no rows, Loading while pending, No data once fa
   assert.deepEqual(rows(pending), []);
   assert.deepEqual(verdict(pending), ['EMA_PHASE_LOADING']);
   noDash(pending);
+  /* #2693 (owner's zero-failure-text rule): once the read has failed (or the 20 s wait is over) the card is LEFT OUT - no "No data" over rows of dashes, no "RSI readings unavailable right now". */
   const failed = render(none, { pricesFailed: true });
-  assert.deepEqual(rows(failed), []);
-  assert.deepEqual(verdict(failed), ['MULTI_TF_ALIGNMENT_VERDICT_NO_DATA', 'MULTI_TF_ALIGNMENT_FOOTER_NO_DATA']);
+  assert.equal(failed.trim(), '', 'a failed read must leave the card out entirely');
   noDash(failed);
+  const src = readFileSync(path.join(TREE, 'components/MultiTFAlignment.tsx'), 'utf8').replace(/\r\n/g, '\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(src, /const noDataShown = noData && \(graceOver \|\| store\.pricesFailed\);/, 'the wait/failed rule changed'); assert.match(src, /setTimeout\(\(\) => setGraceOver\(true\), 20_000\)/, 'the 20 s wait changed');
+  const ret = src.indexOf('if (noDataShown) return null;'); assert.ok(ret > 0, 'the card is no longer left out after the wait'); assert.equal(/\buse(State|Effect|Memo|Callback|Ref|Market|Labels|Entitlement|Auth|Grace|Now)[A-Za-z]*\(/.test(src.slice(ret)), false, 'a hook is called AFTER the early return (rules of hooks: the card would crash when the wait ends)');
   const empty = render({});
   assert.deepEqual(rows(empty), []);
   assert.deepEqual(verdict(empty), ['EMA_PHASE_LOADING']);
@@ -107,4 +110,16 @@ test('D6. a non-finite value is not a reading for the verdict (NaN must not coun
   const h = render({ rsi5m: null, rsi14: null, rsi1h: NaN, rsi4h: NaN, rsiDaily: null, rsiWeekly: null, rsiMonthly: null });
   assert.deepEqual(rows(h), []);
   assert.ok(!verdict(h).includes('MULTI_TF_ALIGNMENT_VERDICT_MIXED'), 'a card with zero rows says Mixed Signals: ' + verdict(h).join(','));
+});
+
+test('D4b. (#2694) Free: the blurred Pro rows show the sharp timeframe and a blurred bar only: no dash, no "No reading", no value, no bias badge', () => {
+  const h = render({ ...ALL }, { entitled: false });
+  const seg = (tf: string, next: string) => h.split(`font-weight:700;color:var(--txt2)">${tf}</span>`)[1].split(`font-weight:700;color:var(--txt2)">${next}</span>`)[0];
+  for (const [tf, next] of [['5m', '15m'], ['15m', '1h']] as const) {
+    const part = seg(tf, next); assert.ok(/filter:blur\(5px\)/.test(part) && /aria-hidden="true"/.test(part), `${tf}: still blurred and aria-hidden`);
+    const text = part.replace(/^[^<]*>/, '').replace(/<[^>]*$/, '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();   /* the split points cut a tag in half at both ends */ assert.equal(text, '', `${tf}: the blurred row carries text "${text}" (a dash, a value or "No reading")`);
+    assert.equal(/BIAS|BULL|BEAR|NEUTRAL|NO_READING/i.test(part), false, `${tf}: a bias badge or a no-reading label is rendered`);
+  }
+  const readable = h.split('font-weight:700;color:var(--txt2)">1h</span>')[1]; assert.ok(/\d/.test(readable.replace(/<[^>]*>/g, ' ')), 'CONTROL: the readable rows still carry their values');
+  const pro = render({ ...ALL }, { entitled: true }); const proSeg = pro.split('font-weight:700;color:var(--txt2)">5m</span>')[1].split('font-weight:700;color:var(--txt2)">15m</span>')[0]; assert.ok(/\d/.test(proSeg.replace(/<[^>]*>/g, ' ')), 'a Pro account still sees the 5m value');
 });

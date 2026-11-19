@@ -18,11 +18,11 @@ const bools = [false, true];
 test('P1. the calendar note shows only for a LOADED, STALE calendar with nothing urgent to list; the "no events" claim is never made while it is unavailable', () => {
   const note = must(code, /const showCalendarNote = (.+?);\n/, 'showCalendarNote'); const noEvents = must(code, /const noEvents = (.+?);\n/, 'noEvents'); const unavailable = must(code, /const calendarUnavailable = (.+?);\n/, 'calendarUnavailable');
   for (const eventsLoaded of bools) for (const econStale of bools) for (const n of [0, 1, 3]) {
-    const v = { eventsLoaded, econStale, urgentEcon: new Array(n) }; assert.equal(ev(note, v), eventsLoaded && econStale && n === 0, `note: ${JSON.stringify({ eventsLoaded, econStale, n })}`);
+    const v = { eventsLoaded, econStale, urgentEcon: new Array(n) }; assert.equal(ev(note, v), false, `#2693: the page note is never shown: ${JSON.stringify({ eventsLoaded, econStale, n })}`);
     const un = ev(unavailable, v) as boolean; assert.equal(un, econStale || !eventsLoaded, 'the AI-context rule must stay');
     assert.equal(ev(noEvents, { ...v, calendarUnavailable: un, futureEcon: [], recentGeo: [], whaleAlerts: [] }), !un, 'no-events is claimed only when the calendar is available');
   }
-  assert.equal(ev(note, { eventsLoaded: false, econStale: true, urgentEcon: [] }), false, 'before the calendar has loaded nothing is said (it flashed on every visit)'); assert.equal(ev(note, { eventsLoaded: true, econStale: true, urgentEcon: [{}] }), false, 'a stale calendar that still has events lists them instead of apologising');
+  assert.equal(ev(note, { eventsLoaded: true, econStale: true, urgentEcon: [] }), false, '#2693: even a loaded, stale calendar with nothing to list says nothing on the page (the AI context keeps the flag)');
   assert.match(code, /\{\(showCalendarNote \|\| noEvents\) && \(/); assert.match(code, /\{showCalendarNote \? t\('BRIEFING_CALENDAR_UNAVAILABLE'\) : t\('BRIEFING_NO_EVENTS'\)\}/);
 });
 test('P2. one priced coin is enough: the threshold is 1 (it was 8), zero prices is not', () => {

@@ -141,10 +141,10 @@ function RsiRow({ tf, rsi, bias, last, locked }: { tf: string; rsi: number | nul
         fontFamily: 'var(--font-mono), monospace',
         ...(locked ? { filter: 'blur(5px)', userSelect: 'none' as const } : {}),
       }}>
-        {formatRsi(rsi)}
+        {locked ? '' : formatRsi(rsi)}
       </span>
       <div aria-hidden={locked || undefined} style={{ display: 'flex', justifyContent: 'flex-end', ...(locked ? { filter: 'blur(5px)', userSelect: 'none' as const } : {}) }}>
-        <BiasBadge bias={bias} />
+        {!locked && <BiasBadge bias={bias} />}
       </div>
     </div>
   );
@@ -230,6 +230,9 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
   const verdictColor = noData ? 'var(--txt3)' : verdict === 'bullish' ? 'var(--green-2)' : verdict === 'bearish' ? 'var(--red)' : verdict === 'conflicting' ? 'var(--amber)' : 'var(--txt3)';
   const verdictBorder = noData ? 'var(--bdr)' : verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 40%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 40%, transparent)' : verdict === 'conflicting' ? 'color-mix(in srgb, var(--amber) 40%, transparent)' : 'var(--border-input)';
   const verdictBg = noData ? 'transparent' : verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 10%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 10%, transparent)' : verdict === 'conflicting' ? 'color-mix(in srgb, var(--amber) 10%, transparent)' : 'transparent';
+
+  /* NOTHING TO SHOW AFTER THE WAIT: THE CARD IS LEFT OUT (QA signed-out matrix 2020-11-20, owner's zero-failure-text rule): it said "No data" over rows of dashes and "RSI readings unavailable right now". Every hook above has run, so returning here is safe. */
+  if (noDataShown) return null;
 
   const footerText = loadingState
     ? ''
