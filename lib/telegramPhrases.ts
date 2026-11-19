@@ -120,6 +120,8 @@ export const TG_PHRASES: ReadonlyArray<readonly [string, TgPhraseKind]> = [
   ['TG_DS_UP', 'end'],
   ['TG_DS_DOWN', 'end'],
   ['TG_DS_FLAT', 'end'],
+  ['TG_DS_MORE_PRE', 'start'],
+  ['TG_DS_MORE_POST', 'end'],
   ['TG_TEST_TITLE', 'phrase'],
   ['TG_TEST_BODY', 'phrase'],
   ['TG_MUTE_HOURS', 'key'],
