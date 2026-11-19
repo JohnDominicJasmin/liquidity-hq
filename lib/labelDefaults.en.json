@@ -1340,7 +1340,7 @@
   "LIQ_LEGEND_MAGNET_BOLD": "Densest cluster",
   "LIQ_LEGEND_MAGNET_TEXT": "the largest estimated cluster in the selected window.",
   "LIQ_DISCLAIMER": "Model only - price levels approximate 1/leverage and do not account for maintenance margin, funding, or fees; bar widths and USD amounts show relative density across tiers modeled from open interest.",
-  "FUNDING_PAGE_TITLE": "Funding Rate History",
+  "FUNDING_PAGE_TITLE": "Funding",
   "FUNDING_PAGE_SUBTITLE": "Red: longs paying. Green: shorts paying.",
   "FUNDING_REGIME_OVERVIEW_TIP": "Each coin's funding regime: crowded shorts, crowded longs, or extreme funding rates.",
   "FUNDING_REGIME_OVERVIEW_LABEL": "Regime Overview",
