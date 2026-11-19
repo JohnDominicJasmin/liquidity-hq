@@ -285,19 +285,19 @@ export default function CoinHeatmap() {
                   price arrived and three lines after, so the whole grid grew
                   in steps as coins reported in - and each step pushed the two
                   cards below the heatmap down the page. A dash holds the
-                  slot; the tile is the same height from first paint. */}
+                  slot; the tile is the same height from first paint. A missing figure is a blank (non-breaking space), never a dash (failure-text audit A5). */}
               {/* withAlpha(text, 'aa') = 67%, which knocked this price down to
                   as little as 2.43:1 on the redder tiles. It is a live price,
                   not decoration. The caption size already sets it apart from
                   the percentage above it, so it takes the tile colour flat. */}
               <span style={{ fontSize: 'var(--fs-caption)', color: `var(--heat-fg, ${text})`, fontVariantNumeric: 'tabular-nums' }}>
-                {coin?.price != null ? `$${fmtPrice(coin.price)}` : '-'}
+                {coin?.price != null ? `$${fmtPrice(coin.price)}` : '\u00A0'}
               </span>
               <span style={{
                 fontSize: 'var(--fs-label)', fontWeight: 700, color: `var(--heat-fg, ${text})`,
                 fontVariantNumeric: 'tabular-nums', lineHeight: 1,
               }}>
-                {chg != null ? `${sign}${chg.toFixed(1)}%` : '-'}
+                {chg != null ? `${sign}${chg.toFixed(1)}%` : '\u00A0'}
               </span>
             </div>
           );

@@ -17,7 +17,7 @@ const fund = readFileSync(new URL('../components/FundingTerminal.tsx', import.me
 const { COINS, BINANCE_SYMS, BYBIT_SYMS } = await import('../lib/marketStore.ts') as { COINS: string[]; BINANCE_SYMS: Record<string, string>; BYBIT_SYMS: Record<string, string> };
 
 const startAt = fund.lastIndexOf('let cancelled = false;', fund.indexOf('THE TABLE PAINTS FROM THE MARKET SNAPSHOT'));
-const endMark = 'return () => { cancelled = true; };';
+const endMark = 'return () => { cancelled = true; if (retryTimer) clearTimeout(retryTimer); };';
 const endAt = fund.indexOf(endMark, startAt);
 assert.ok(startAt > 0 && endAt > startAt, 'CONTROL: the funding history effect was not found');
 const HEAD = 'function effect() {', TAIL = '\n}';
@@ -25,8 +25,14 @@ const stripped = stripTypeScriptTypes(HEAD + fund.slice(startAt, endAt + endMark
 const body = stripped.slice(stripped.indexOf(HEAD) + HEAD.length, stripped.lastIndexOf('}'));
 type Pt = { rate: number; ts: number };
 type Setters = { setHistory: (u: unknown) => void; setBybitCoins: (u: unknown) => void; setLoading: (v: boolean) => void };
-const make = new Function('COINS', 'BINANCE_SYMS', 'BYBIT_SYMS', 'fetchBybitFR', 'fetchAllBinanceFR', 'setHistory', 'setBybitCoins', 'setLoading', body) as unknown as
+/* #2680: the effect now retries while no coin has history; its timers are stand-ins here (the retry schedule is pinned in marketsFailureText2680), so nothing is left pending */
+const FR_RETRY_MS = [5_000, 15_000, 45_000, 120_000];
+const timers: Array<{ ms: number; fn: () => void }> = [];
+const fakeSetTimeout = (fn: () => void, ms: number) => { timers.push({ ms, fn }); return timers.length; };
+const fakeClearTimeout = () => undefined;
+const make0 = new Function('COINS', 'BINANCE_SYMS', 'BYBIT_SYMS', 'fetchBybitFR', 'fetchAllBinanceFR', 'setHistory', 'setBybitCoins', 'setLoading', 'FR_RETRY_MS', 'setTimeout', 'clearTimeout', body) as unknown as
   (...a: unknown[]) => () => void;
+const make = (...a: unknown[]) => make0(...a, FR_RETRY_MS, fakeSetTimeout, fakeClearTimeout);
 
 const ALL_BINANCE: Record<string, { rate: number; ts: number }[]> = Object.fromEntries(Object.values(BINANCE_SYMS).map(sym => [sym, [{ rate: 0.0001, ts: 1 }, { rate: 0.0002, ts: 2 }]]));
 const BYBIT_ONLY = COINS.filter(id => !BINANCE_SYMS[id] && BYBIT_SYMS[id]);

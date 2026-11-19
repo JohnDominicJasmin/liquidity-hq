@@ -332,6 +332,9 @@ function TPanel({ children, style }: { children: React.ReactNode; style?: React.
   );
 }
 
+/* Waits before each retry of the funding history while nothing has loaded, in ms. */
+const FR_RETRY_MS = [5_000, 15_000, 45_000, 120_000];
+
 /* ── component ── */
 export default function FundingTerminal() {
   const { t }                 = useLabels();
@@ -353,7 +356,9 @@ export default function FundingTerminal() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    /* Loads the history once; resolves with how many coins ended up with any. Zero means every source failed, which the retry below handles. */
+    const load = async (): Promise<number> => {
       /* THE TABLE PAINTS FROM THE MARKET SNAPSHOT, NOT FROM THIS FETCH. The rows' current rates come from the shared store; this history only feeds the sparklines and the averages. It used to hold the whole page
          (the table was gated on it) until every coin's history, including one-by-one Bybit fallbacks, had come back: a 3.5 s first paint on a cold desktop load. Now the Binance batch lands first and is shown
          at once, then each fallback coin is added as it arrives. */
@@ -364,7 +369,7 @@ export default function FundingTerminal() {
         .filter(id => !(BINANCE_SYMS as Record<string, string>)[id] && (BYBIT_SYMS as Record<string, string>)[id])
         .map(id => [id, fetchBybitFR((BYBIT_SYMS as Record<string, string>)[id])] as const));
       const { out: binanceAll, via } = await fetchAllBinanceFR();
-      if (cancelled) return;
+      if (cancelled) return 0;
       const first: FRHistory = {};
       const needBybit: CoinId[] = [];
       const fromBybit = new Set<CoinId>();
@@ -374,15 +379,25 @@ export default function FundingTerminal() {
         if (pts.length) { first[id] = pts; if (binSym && via.includes(binSym)) fromBybit.add(id); }
         else if ((BYBIT_SYMS as Record<string, string>)[id]) needBybit.push(id);
       }
-      setHistory(first);
-      setBybitCoins([...fromBybit]);
+      /* Merged over what an earlier attempt already delivered, so a retry never blanks a coin that had history. */
+      setHistory(prev => ({ ...prev, ...first }));
+      setBybitCoins(prev => [...prev, ...[...fromBybit].filter(id => !prev.includes(id))]);
       setLoading(false);
-      needBybit.forEach(async id => {
+      const fallbackCounts = await Promise.all(needBybit.map(async id => {
         const pts = await (early.get(id) ?? fetchBybitFR((BYBIT_SYMS as Record<string, string>)[id]));
-        if (!cancelled && pts.length) { setHistory(prev => ({ ...prev, [id]: pts })); setBybitCoins(prev => (prev.includes(id) ? prev : [...prev, id])); }
-      });
-    })();
-    return () => { cancelled = true; };
+        if (!cancelled && pts.length) { setHistory(prev => ({ ...prev, [id]: pts })); setBybitCoins(prev => (prev.includes(id) ? prev : [...prev, id])); return 1; }
+        return 0;
+      }));
+      return Object.keys(first).length + fallbackCounts.reduce<number>((a, b) => a + b, 0);
+    };
+    /* ONE FAILED READ IS NOT THE END (failure-text audit A19, A20): the history was fetched once per visit, so a single failure left the detail chart and every Avg cell empty until a reload. It now retries with a growing wait while no coin has any history. */
+    const run = async (attempt: number) => {
+      const got = await load();
+      if (cancelled || got > 0 || attempt >= FR_RETRY_MS.length) return;
+      retryTimer = setTimeout(() => { void run(attempt + 1); }, FR_RETRY_MS[attempt]);
+    };
+    void run(0);
+    return () => { cancelled = true; if (retryTimer) clearTimeout(retryTimer); };
   }, []);
 
   useEffect(() => {
@@ -664,7 +679,8 @@ export default function FundingTerminal() {
                               : gap}
                           </td>
                           <td style={{ color: stats ? frColor(stats.avg) : 'var(--txt3)' }}>
-                            {stats ? frFmt(stats.avg) : current == null ? null : gap}
+                            {/* No history yet: the cell stays empty, not "No data" (failure-text audit A20). */}
+                            {stats ? frFmt(stats.avg) : null}
                           </td>
                           <td>
                             {current != null
@@ -741,9 +757,12 @@ export default function FundingTerminal() {
 
                 {(history[selected] ?? []).length >= 2
                   ? <canvas ref={fullChartRef} style={{ display: 'block', width: '100%', height: '190px' }} />
-                  : <div style={{ height: 190, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>
-                      {hasPerp(selected) ? t('STATE_UNAVAILABLE') : t('FUNDING_NO_PERP_DATA', { coin: COIN_LABELS[selected] })}
-                    </div>
+                  : !hasPerp(selected)
+                    ? <div style={{ height: 190, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>
+                        {t('FUNDING_NO_PERP_DATA', { coin: COIN_LABELS[selected] })}
+                      </div>
+                    /* A coin with a perp whose history has not arrived: the space is held while it loads and the chart block is left out once it has not come (failure-text audit A19), never the word "Unavailable". */
+                    : loading ? <div style={{ height: 190 }} /> : null
                 }
                 <div className="frh-legend">
                   <span style={{ color: 'var(--red)' }}>{t('FUNDING_LEGEND_POSITIVE_LABEL')}</span> = {t('FUNDING_LEGEND_POSITIVE_DESC')} &nbsp;·&nbsp;

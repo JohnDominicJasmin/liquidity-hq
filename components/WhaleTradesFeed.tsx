@@ -372,7 +372,8 @@ export default function WhaleTradesFeed() {
       {/* Feed states */}
       {feed.length === 0 && status !== 'live' && connectWaited && (
         <div style={{ padding: '10px 14px' }} role="status" aria-live="polite">
-          <div data-testid="whale-feed-connect-failed" style={{ minHeight: 106, color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>{t('WHALE_TRADES_FEED_CONNECT_FAILED')}</div>
+          {/* The socket keeps retrying by itself: the space is held and says nothing, instead of a "could not connect" sentence (failure-text audit A17). */}
+          <div data-testid="whale-feed-connect-failed" style={{ minHeight: 106 }} />
         </div>
       )}
       {feed.length === 0 && status === 'connecting' && !connectWaited && (

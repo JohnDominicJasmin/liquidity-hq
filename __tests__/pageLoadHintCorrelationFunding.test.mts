@@ -56,7 +56,8 @@ test('H3. /correlation withDeadline: rejection -> fallback at once, slow -> fall
 });
 test('H4. /funding paints from the snapshot: no table-wide gate; batch shown first; Bybit fallbacks merge in; the batch deadline falls back to {}', () => {
   assert.equal(/\{!loading && \(\(\) =>/.test(fund), false, 'the table is gated on the history fetch again'); assert.ok(fund.includes('{(() => {'), 'CONTROL: the ungated table IIFE was not found');
-  assert.ok(fund.indexOf('setHistory(first);') > 0 && fund.indexOf('setHistory(first);') < fund.indexOf('setLoading(false);'), 'the batch is not shown before loading clears');
+  /* #2680: the batch is MERGED over what an earlier attempt delivered (a retry never blanks a coin that had history) and still shown before loading clears */
+  const showAt = fund.indexOf('setHistory(prev => ({ ...prev, ...first }));'); assert.ok(showAt > 0 && showAt < fund.indexOf('setLoading(false);'), 'the batch is not shown before loading clears');
   assert.ok(fund.includes('setHistory(prev => ({ ...prev, [id]: pts }));'), 'a Bybit fallback replaces the history instead of merging into it'); assert.ok(fund.includes('if (!cancelled && pts.length)'), 'a late fallback writes after unmount or with no data');
   assert.ok(fund.includes("fetch('/api/market/funding-rate?limit=42', { signal: deadlineSignal(10_000) })"), 'the batch has no 10 s deadline');
 });

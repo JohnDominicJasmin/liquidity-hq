@@ -559,13 +559,14 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
       {displayed.length === 0 && (
         <div style={{ padding: '10px 14px' }} role="status" aria-live="polite">
           <span className="sr-only">
-            {anyLive ? t('LIQ_FEED_SR_WATCHING', { coin: coinFilter === 'ALL' ? t('LIQ_FEED_ALL_MARKETS') : coinFilter }) : connectWaited ? t('LIQ_FEED_CONNECT_FAILED') : t('LIQ_FEED_SR_CONNECTING')}
+            {anyLive ? t('LIQ_FEED_SR_WATCHING', { coin: coinFilter === 'ALL' ? t('LIQ_FEED_ALL_MARKETS') : coinFilter }) : t('LIQ_FEED_SR_CONNECTING')}
           </span>
           {anyLive ? (
             /* A connected feed with nothing yet is a quiet market, not a loading one; same height as the skeleton so nothing below moves. */
             <div style={{ minHeight: 106, color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>{t('LIQ_FEED_SR_WATCHING', { coin: coinFilter === 'ALL' ? t('LIQ_FEED_ALL_MARKETS') : coinFilter })}</div>
           ) : connectWaited ? (
-            <div data-testid="liq-feed-connect-failed" style={{ minHeight: 106, color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>{t('LIQ_FEED_CONNECT_FAILED')}</div>
+            /* NOT CONNECTED YET, AND THE SOCKET KEEPS RETRYING BY ITSELF: the space is held and says nothing, instead of a "could not connect" sentence (failure-text audit A17). Rows appear the moment the feed delivers. */
+            <div data-testid="liq-feed-connect-failed" style={{ minHeight: 106 }} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[0, 1, 2].map(i => (

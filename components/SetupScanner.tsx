@@ -318,10 +318,8 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
           "no setups match". The failed-vs-cold half reads `store.pricesFailed` (#1263). */}
       {searchDisplayed.length === 0 && !COINS.some(id => store.coins[id]?.price != null) && (
         store.pricesFailed ? (
-          /* FAILED, not slow. Same absence of prices either way, so the flag is the only thing
-             that can tell them apart - without it this branch showed a loading skeleton for as
-             long as the feed stayed down. */
-          <div className="empty-state"><div className="empty-state-sub">{t('MARKET_FEED_FAILED')}</div></div>
+          /* FAILED, not slow: nothing is drawn. The "couldn't load prices" sentence is gone (failure-text audit A7); the cards reappear when a price lands. */
+          null
         ) : (
           <div className="empty-state"><SkeletonBar width={180} height={13} style={{ margin: '0 auto' }} /></div>
         )
