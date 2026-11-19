@@ -344,7 +344,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
                  focus, or the keyboard tab order fills with dead stops. */
               <div
                 key={i}
-                title={canExplain ? t('EMA_SIGNAL_COND_EXPLAIN_TITLE', { label: condLabel(c.label) }) : c.detail}
+                title={canExplain ? t('EMA_SIGNAL_COND_EXPLAIN_TITLE', { label: condLabel(c.label) }) : (c.detailKey ? t(c.detailKey, c.detailVars) : c.detail)}
                 {...(canExplain
                   ? activatable(() => fireExplain(buildConditionPrompt(c.label, c.pass, c.detail, coin!, tf), coin!))
                   : {})}
