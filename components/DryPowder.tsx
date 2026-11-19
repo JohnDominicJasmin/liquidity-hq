@@ -71,7 +71,9 @@ function Sparkline({ series }: { series: number[] }) {
 export default function DryPowder() {
   const { t } = useLabels();
   const router = useRouter();
-  const { entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
+  const { user, entitlementStatus, entitlementsLoading, retryEntitlements, loading: authLoading } = useAuth();
+  /* THE PLAN IS NOT KNOWN YET, SO NO LOCKED CARD (#1651, QA: a Pro account saw the "With Pro" upsell for 0.3-0.8 s on the first visit). `entitlementStatus` reads 'not_entitled' while the subscription row is still loading, so the locked card is only for a CONFIRMED not-entitled (the same pattern as HypothesisTracker / TradeJournal / Alerts). */
+  const planResolving = authLoading || (!!user && entitlementsLoading);
   const [state, setState]    = useState<LoadState>('loading');
   const [errMsg, setErrMsg]  = useState('');
 
@@ -169,7 +171,7 @@ export default function DryPowder() {
 
       {!authLoading && entitlementStatus === 'unknown' ? (
         <EntitlementUnknownCard title={t('DRY_POWDER_TITLE')} onRetry={retryEntitlements} />
-      ) : (!authLoading && entitlementStatus !== 'entitled') || state === 'locked' ? (
+      ) : (!planResolving && entitlementStatus !== 'entitled') || state === 'locked' ? (
         <LockedFeatureCard
           title={t('DRY_POWDER_TITLE')}
           description={t('DRY_POWDER_LOCKED_DESC')}

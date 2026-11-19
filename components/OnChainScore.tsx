@@ -81,7 +81,9 @@ function MetricPill({ label, value, source }: { label: string; value: number | n
 export default function OnChainScore() {
   const { t } = useLabels();
   const router = useRouter();
-  const { user, entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
+  const { user, entitlementStatus, entitlementsLoading, retryEntitlements, loading: authLoading } = useAuth();
+  /* THE PLAN IS NOT KNOWN YET, SO NO LOCKED CARD (#1651, QA: a Pro account saw the "With Pro" upsell for 0.3-0.8 s on the first visit). `entitlementStatus` reads 'not_entitled' while the subscription row is still loading, so the locked card is only for a CONFIRMED not-entitled (the same pattern as HypothesisTracker / TradeJournal / Alerts). */
+  const planResolving = authLoading || (!!user && entitlementsLoading);
   const { store } = useMarket();
   const btcPrice = store.coins['btc']?.price ?? 0;
 
@@ -138,7 +140,9 @@ export default function OnChainScore() {
         <div style={{ padding: '10px 14px' }}>
           <EntitlementUnknownCard title={t('ON_CHAIN_SCORE_TITLE')} onRetry={retryEntitlements} />
         </div>
-      ) : !authLoading && entitlementStatus !== 'entitled' ? (
+      ) : planResolving ? (
+        <div style={{ padding: '10px 14px' }} role="status" aria-live="polite"><SkeletonBar width={160} height={14} /></div>
+      ) : entitlementStatus !== 'entitled' ? (
         <div style={{ padding: '10px 14px' }}>
           <LockedFeatureCard
             title={t('ON_CHAIN_SCORE_TITLE')}
