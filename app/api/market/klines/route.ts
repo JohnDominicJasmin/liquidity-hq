@@ -431,6 +431,18 @@ export async function GET(req: NextRequest) {
       throw err;
     }
     const body = await r.json();
+    /* A BYBIT REFUSAL ON HTTP 200 IS NOT AN ANSWER (QA drawings audit #1263, 2026-11-20: "BTC 1d ema_cross: Needs 601 1d candles; BTC has 0" while ETH and SOL read fine). Bybit reports a rate limit or a bad request as `{ retCode: <non-zero>, result: {} }` WITH a 200 status, so the
+       `r.ok` check above passed it and `cached()` kept it for the whole candle: a closed=1 daily read is keyed by the candle, so one refusal at the wrong moment was served as "no candles" for up to a day. Throwing here makes `cached()` store nothing (the refusal is held 30 s, then retried), the
+       same rule the OKX note below applies to its 200-status errors. A real, empty list (`retCode: 0`) is still an answer. */
+    if (source === 'bybit') {
+      const b = body as { retCode?: unknown; result?: { list?: unknown } } | null;
+      /* An EMPTY list is refused too, but only for a latest-N read (no start/end): a listed coin always has candles there, and a cached empty is the same "has 0" for the whole candle. A range read keeps an empty answer, because a backfill walking back past the listing date reads empty to learn where history ends. */
+      if (!b || (b.retCode !== undefined && b.retCode !== 0) || !Array.isArray(b.result?.list) || (!isRange && b.result.list.length === 0)) {
+        const err = new Error(`bybit klines retCode ${String(b?.retCode)}`);
+        (err as Error & { status?: number }).status = 502;
+        throw err;
+      }
+    }
     /* OKX IS NORMALISED BEFORE THE CACHE SEES IT, and the ordering is the whole reason this sits
        inside fetchUpstream rather than beside sliceToLimit below.
 
