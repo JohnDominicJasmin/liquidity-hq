@@ -334,6 +334,13 @@ export function getUpcomingWindows(now: Date, count: number): { win: Window; cou
   return results;
 }
 
+/** The plain English name of a window for TEXT that is not rendered through the label table (the AI prompts, Telegram): God Tier is the Sunday window, Prime the US session, Dead Zone the quiet hours (PM 2026-11-19,
+ *  #1113: one name everywhere). The internal names (getCurrentWindow().name, what the journal stores) are unchanged, so stored trades and equality checks keep working; anything shown to a reader goes through
+ *  trText (lib/marketReadText.ts) or this. Any other name is returned as it is. */
+export function plainSessionName(name: string): string {
+  return name === 'God Tier' ? 'Sunday window' : name === 'Prime' ? 'US session' : name === 'Dead Zone' ? 'Quiet hours' : name;
+}
+
 export function getSessionName(d: Date): string {
   const win = getCurrentWindow(d);
   if (win) return win.name;

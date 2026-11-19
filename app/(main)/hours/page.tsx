@@ -342,7 +342,7 @@ export default function BestHours() {
         {/* Current position label */}
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>
           {t('HOURS_NOW_PREFIX')}<span suppressHydrationWarning style={{ color: 'var(--txt2)', fontWeight: 600 }}>{mounted ? <>{locale === 'en' ? <>{pad(h12)}:{pad(m)} {ampm}</> : <>{pad(h)}:{pad(m)}</>} {localZoneAbbr()}</> : '--:--'}</span>
-          {mounted && win && <span className="hours-now-win" style={{ marginLeft: 8, color: win.color, fontWeight: 600 }}>{t('HOURS_DOT_SEPARATOR')} {win.name}</span>}
+          {mounted && win && <span className="hours-now-win" style={{ marginLeft: 8, color: win.color, fontWeight: 600 }}>{t('HOURS_DOT_SEPARATOR')} {trText(t, win.name)}</span>}
           {mounted && dead && <span style={{ marginLeft: 8, color: 'var(--red)', fontWeight: 600 }}>{t('HOURS_DOT_DEAD_ZONE')}</span>}
         </div>
       </div>
