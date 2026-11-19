@@ -1,0 +1,24 @@
+name: QA harness (Telegram cron cells)
+
+# QA 2026-11-19, ONE-OFF, on a test ref only (never merged): runs qa/harness/*.test.mts (the real alert cron against a fake network; not part of `npm test`, README of qa/harness)
+# on a GitHub runner instead of the owner's laptop (PM: do not run it locally, low memory). Triggered only by a push to a ref named test/harness-run-*; public repo, so the minutes are free.
+on:
+  push:
+    branches: ['test/harness-run-*']
+
+permissions:
+  contents: read
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Run the harness, each cell runs the whole route (10-30 s)
+        run: node --import ./qa/alias-register.mjs --test --test-force-exit --test-timeout=120000 --test-concurrency=2 qa/harness/*.test.mts
