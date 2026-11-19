@@ -9566,11 +9566,11 @@ html[data-sess="1"]:not([data-strat]):not([data-strat-none]) .strat-call-host { 
    already the phone one and hydration changes nothing. 768 px and up: nothing here applies. */
 .lt-lbl-narrow { display: none; }
 @media (max-width: 767px) {
-  .lt-nav { height: 52px !important; padding: 0 16px !important; gap: 6px !important; }
+  .lt-top-bar { height: 52px !important; padding: 0 16px !important; gap: 6px !important; }
   .lt-brand-mark { width: 22px !important; height: 22px !important; }
   .lt-brand-text { font-size: 11.5px !important; }
-  .lt-nav-signin { padding: 9px 10px !important; }
-  .lt-nav-start { padding: 10px 12px !important; }
+  .lt-signin-btn { padding: 9px 10px !important; }
+  .lt-start-btn { padding: 10px 12px !important; }
   .lt-lbl-wide { display: none; }
   .lt-lbl-narrow { display: inline; }
   .lpt-ticker { height: 30px !important; -webkit-mask-image: linear-gradient(90deg, #000 86%, transparent); mask-image: linear-gradient(90deg, #000 86%, transparent); }
