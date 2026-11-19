@@ -158,6 +158,8 @@ jobs:
           CANARY_FIXTURE_EMAIL:      ${{ secrets.CANARY_FIXTURE_EMAIL || (vars.CANARY_FIXTURE == 'B' && secrets.E2E_USER_B_EMAIL || secrets.E2E_USER_A_EMAIL) }}
           CANARY_FIXTURE_PASSWORD:   ${{ secrets.CANARY_FIXTURE_PASSWORD || (vars.CANARY_FIXTURE == 'B' && secrets.E2E_USER_B_PASSWORD || secrets.E2E_USER_A_PASSWORD) }}
           CANARY_FIXTURE_USER_ID:    ${{ vars.CANARY_FIXTURE_USER_ID || (vars.CANARY_FIXTURE == 'B' && secrets.E2E_USER_B_ID || secrets.E2E_USER_A_ID) }}
+          # The staging site is behind the team password (#2636/#2672): the canary sends the gate cookie derived from it (scripts/deep-canary.mjs gateCookieHeader; never to production).
+          SITE_GATE_PASSWORD:        ${{ secrets.SITE_GATE_PASSWORD }}
           CANARY_LOG_FILE:           /tmp/canary.log
         # `|| true`: FAIL exits non-zero so a human running this locally sees a red exit, but the issue
         # step below must still run - it is what reports the failure. The state is read from the output,

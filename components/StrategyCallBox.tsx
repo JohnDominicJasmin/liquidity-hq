@@ -66,6 +66,12 @@ export default function StrategyCallBox({ def, state }: Props) {
         <>
           <div data-testid="strategy-call-verdict" data-verdict={r.verdict} style={{ fontSize: 'var(--fs-label)', fontWeight: 700, letterSpacing: '0.04em', color: colour }}>
             {t(r.verdict === 'buy' ? 'STRAT_VERDICT_BUY' : r.verdict === 'sell' ? 'STRAT_VERDICT_SELL' : 'STRAT_VERDICT_WAIT')}
+            {/* A FAILED REFRESH KEEPS THE PREVIOUS CALL WITH ITS AGE (audit A10): the call was last confirmed this long ago; the hook retries within a minute. Same line as the verdict: no height added. */}
+            {state.staleSince != null && (() => {
+              const secs = Math.max(0, Math.floor((Date.now() - state.staleSince) / 1000));
+              const age = secs < 60 ? t('ARENA_FRESHNESS_JUST_NOW') : secs < 3600 ? t('ARENA_FRESHNESS_MINUTES_AGO', { n: Math.floor(secs / 60) }) : t('ARENA_FRESHNESS_HOURS_AGO', { n: Math.floor(secs / 3600) });
+              return <span data-testid="strategy-call-stale" style={{ marginLeft: 8, fontWeight: 400, letterSpacing: 0, color: 'var(--txt3)' }}>{age}</span>;
+            })()}
           </div>
           <p data-testid="strategy-call-reason" title={reason} className={open ? undefined : 'strat-call-reason-clamp'} style={{ margin: 0, fontSize: 'var(--fs-label)', color: 'var(--txt)', lineHeight: 1.4 }}>{reason}</p>
           {/* THE LEVELS ARE ALWAYS VISIBLE (PM): "wrong if" and the levels watched are what a trader acts on, so they are ONE line under the reason, never behind the chevron. Closed, the reason is clamped to two lines and this line ends in an

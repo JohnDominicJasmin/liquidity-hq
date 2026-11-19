@@ -20,6 +20,8 @@ export interface StrategySignalState {
   marketClosed?: { lastClose: number };
   /** The picked strategy cannot run on this coin or timeframe BY DESIGN (lib/strategies/availability.ts): the call box says why in one line; nothing is fetched. Not an error and not a quiet WAIT. */
   unavailable?: Unavailable;
+  /** Set when the LAST refresh failed and the call above is the previous one: the ms epoch it was last confirmed. The call box keeps showing it with its age (audit A10) and the hook retries within a minute. */
+  staleSince?: number;
   /** Runs the read again now (the Retry button of the unavailable state). */
   retry?: () => void;
 }
@@ -43,7 +45,9 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
     if (na) { setState({ result: null, loading: false, error: false, unavailable: na }); return; }
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let lastOkAt = Date.now();
     const run = async () => {
+      let failed = false;
       try {
         const wantsBtc = !!def.needsBtc && coin !== 'btc';
         const [raw, btcRaw] = await Promise.all([
@@ -68,6 +72,7 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
           /* THE CALL FIRST, THE PICTURE AFTER (owner, 2026-11-19: show it on the chart): the verdict and what a WAIT is watching are drawn at once; the arrows of the strategy's past signals come from replaying the
              same detector over the earlier candles, which can take a moment, so they are added in a second step and never delay the call. */
           const first = withWatchedDrawing(def, def.detect(closed, ctx), closed, ctx);
+          lastOkAt = Date.now();
           setState({ result: first, loading: false, error: false, ...(shut ? { marketClosed: { lastClose: closed[closed.length - 1].close } } : {}) });
           setTimeout(() => {
             if (cancelled) return;
@@ -76,10 +81,13 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
             setState(prev => (prev.result === first ? { ...prev, result: { ...first, overlay: { levels: [], zones: [], lines: [], marker: null, ...(first.overlay ?? {}), history: past } } } : prev));
           }, 0);
         }
+      /* A FAILED REFRESH KEEPS THE PREVIOUS CALL (audit A10, owner's feature-freeze order: last good value with its age, not a failure line). Only when there never was a call does the unavailable state show. */
       } catch {
-        if (!cancelled) setState({ result: null, loading: false, error: true });
+        if (!cancelled) setState(prev => (!prev.result ? { result: null, loading: false, error: true } : { ...prev, loading: false, error: false, staleSince: prev.staleSince ?? lastOkAt }));
+        failed = true;
       }
-      if (!cancelled) timer = setTimeout(run, Math.max(5_000, msUntilNextClose(tfMs, Date.now()) + 2_000));
+      /* a failed read tries again within a minute; waiting for the next candle close meant 15 min to 24 h of nothing */
+      if (!cancelled) timer = setTimeout(run, failed ? 45_000 : Math.max(5_000, msUntilNextClose(tfMs, Date.now()) + 2_000));
     };
     setState({ result: null, loading: true, error: false });
     run();

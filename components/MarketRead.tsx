@@ -1,11 +1,13 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useMarket } from '@/lib/marketStore';
-import { computeMarketRead, type FundingSide } from '@/lib/marketRead';
+import { computeMarketRead, type FundingSide, type MarketRead as MarketReadResult } from '@/lib/marketRead';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
 import { trText } from '@/lib/marketReadText';
 import { useGraceElapsed } from '@/lib/useGrace';
+import { useNow } from '@/lib/useNow';
+import { ageLabel } from '@/lib/ageLabel';
 
 // The dashboard's answer-first hero. Replaces the RaidMeter + Smart Money Score
 // + Sentiment Extremes stack with one plain-language verdict (see lib/marketRead
@@ -16,7 +18,9 @@ export default function MarketRead() {
   const [manualFund, setManualFund] = useState<FundingSide | null>(null);
   const [showOverride, setShowOverride] = useState(false);
   const [, setTick] = useState(0);
-  const graceOver = useGraceElapsed();
+  /* The wait for an input restarts on every coin switch (#1185 D1): a switch after the first 15 s used to show the failure at once. */
+  const graceOver = useGraceElapsed(15_000, store.selectedCoin);
+  const now = useNow(60_000);
   // The dashboard is prerendered, so the Day factor in the server HTML is the
   // BUILD day, and suppressHydrationWarning keeps that text on screen rather
   // than correcting it - it read "Saturday" on other days. Shown after mount
@@ -36,12 +40,23 @@ export default function MarketRead() {
   // now expressed as a plain reference.
   const selectedCoinData = store.coins[store.selectedCoin];
 
-  const read = useMemo(
-    () => computeMarketRead(store, manualFund),
+  /* Once the wait is over, a coin that has no funding rate (no perpetual) is scored without it instead of reading "unavailable" for ever (#1185 D1). */
+  const liveRead = useMemo(
+    () => computeMarketRead(store, manualFund, { partial: graceOver }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [store.fng, store.selectedCoin, store.cbPremiumPct, store.btcExchangeNetFlow,
-     selectedCoinData, manualFund],
+     selectedCoinData, manualFund, graceOver],
   );
+
+  /* The last read that had everything it needs, kept with its time: if Fear & Greed never arrives, this stays on screen with its age instead of failure text. */
+  const [last, setLast] = useState<{ read: MarketReadResult; at: number } | null>(null);
+  useEffect(() => {
+    if (!liveRead.pending && liveRead.score != null) setLast({ read: liveRead, at: Date.now() });
+  }, [liveRead]);
+
+  /* An input that never arrives ends in the last good read with its age, or no card at all - never a read that says Reading for ever (OWNER-RULES 21). */
+  const gaveUp = liveRead.pending && graceOver;
+  const read = gaveUp && last ? last.read : liveRead;
 
   // Ambient urgency glow, preserved from RaidMeter (body[data-rpm-level] drives
   // a global CSS accent when conditions are strong).
@@ -58,8 +73,8 @@ export default function MarketRead() {
     const bull = rsis.filter(r => (r as number) > 57).length, bear = rsis.filter(r => (r as number) < 43).length;
     return bull === 3 ? 'MARKET_READ_DIR_BULL' : bear === 3 ? 'MARKET_READ_DIR_BEAR' : bull > bear ? 'MARKET_READ_DIR_MIXED_BULL' : bear > bull ? 'MARKET_READ_DIR_MIXED_BEAR' : 'MARKET_READ_DIR_MIXED';
   })();
-  /* An input that never arrives ends in a plain "not available", never a read that says Reading for ever (OWNER-RULES 21). */
-  const gaveUp = read.pending && graceOver;
+  const showingLast = gaveUp && last != null;
+  if (gaveUp && !last) return null;
 
   return (
     <section className="mr" data-band={read.band ?? 'pending'} aria-busy={read.pending || undefined}>
@@ -72,8 +87,8 @@ export default function MarketRead() {
 
       <div className="mr-top">
         <div className="mr-lead">
-          <div suppressHydrationWarning className="mr-verdict">{gaveUp ? t('MARKET_READ_UNAVAILABLE') : trText(t, read.verdict)}</div>
-          <p suppressHydrationWarning className="mr-sub">{gaveUp ? t('MARKET_READ_UNAVAILABLE_SUB') : trText(t, read.sub)}</p>
+          <div suppressHydrationWarning className="mr-verdict">{trText(t, read.verdict)}</div>
+          <p suppressHydrationWarning className="mr-sub">{trText(t, read.sub)}{showingLast && last && <span data-testid="mr-age">{' · '}{ageLabel(now - last.at, t)}</span>}</p>
         </div>
         <div className="mr-score-block">
           <div className="mr-score-label">{t('MARKET_READ_CONDITIONS_LABEL')}</div>

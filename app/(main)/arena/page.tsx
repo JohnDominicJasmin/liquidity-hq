@@ -1753,27 +1753,26 @@ function ArenaContent() {
       // Step 1 - fetch candles (Binance preferred; fall back to Bybit for HYPE etc.)
       setReadStep(t('ARENA_STEP_READING_CHART'));
       let raw: (string|number)[][];
-      if (binanceSym) {
-        const r = await fetch(`/api/market/klines?source=${binanceKlineSource(selectedCoin)}&symbol=${binanceSym}&interval=${readTf}&limit=300`, { signal: deadlineSignal(20_000) });
-        if (!r.ok) throw new Error(t('ARENA_ERROR_BINANCE_API'));
-        raw = await r.json();
-      } else {
-        // Bybit klines: interval uses numbers (1, 5, 15, 30, 60, 240) or 'D'; response is newest-first
+      /* Bybit klines: interval uses numbers (1, 5, 15, 30, 60, 240) or 'D'; response is newest-first. #1080: the retry is shared with every other Bybit-klines caller (lib/bybitKlines.ts); exhaustion throws into this function's catch. */
+      const fromBybit = async (): Promise<(string|number)[][]> => {
         const bybitInterval = readTf === '1m' ? '1' : readTf === '5m' ? '5' : readTf === '30m' ? '30' : readTf === '15m' ? '15' : readTf === '1h' ? '60' : readTf === '2h' ? '120' : readTf === '4h' ? '240' : 'D';
-        // #1080: retry shared with every other Bybit-klines caller (see
-        // lib/bybitKlines.ts). Exhaustion throws into this function's
-        // existing catch, same as the old !r.ok check did.
-        // The guard above this handler (`if (!binanceSym && !bybitSym) return`)
-        // already ensures bybitSym is set whenever this branch runs, but it's
-        // a cross-variable guarantee TS can't carry into this `else` - the
-        // template-literal fetch this replaces tolerated `undefined` silently,
-        // a typed argument doesn't. Narrowing here (rather than asserting
-        // `bybitSym!`) so a future edit to that guard fails loudly at this
-        // call instead of silently reaching `undefined` inside a URL again.
         if (!bybitSym) throw new Error(t('ARENA_ERROR_NO_DATA_SOURCE', { coin: selectedCoin.toUpperCase() }));
         const d = await fetchBybitKlinesRetry(bybitSym, bybitInterval, 300, { attemptTimeoutMs: 15_000 });
         if (d === null) throw new Error(t('ARENA_ERROR_BYBIT_API'));
-        raw = [...(d.result?.list ?? [])].reverse(); // oldest-first to match Binance
+        return [...(d.result?.list ?? [])].reverse(); // oldest-first to match Binance
+      };
+      if (binanceSym) {
+        /* A BAD BINANCE ANSWER TRIES BYBIT BEFORE GIVING UP (audit A4, owner's feature-freeze order): the chart and the EMA card already fall back across venues; the read used to throw "Binance data unavailable" with a working Bybit symbol on hand. */
+        try {
+          const r = await fetch(`/api/market/klines?source=${binanceKlineSource(selectedCoin)}&symbol=${binanceSym}&interval=${readTf}&limit=300`, { signal: deadlineSignal(20_000) });
+          if (!r.ok) throw new Error(t('ARENA_ERROR_BINANCE_API'));
+          raw = await r.json();
+        } catch (e) {
+          if (!bybitSym) throw e;
+          raw = await fromBybit();
+        }
+      } else {
+        raw = await fromBybit();
       }
       // k[0]=time k[1]=open k[2]=high k[3]=low k[4]=close k[5]=vol - same index for both
       const candles = raw.map(k => ({ t: Number(k[0]), o: Number(k[1]), h: Number(k[2]), l: Number(k[3]), c: Number(k[4]), v: Number(k[5]) }));

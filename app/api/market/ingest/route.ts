@@ -4,6 +4,7 @@ import { recordApiHealth } from '@/lib/apiHealth';
 import { MARKET_FEEDS, checkSampling } from '@/lib/marketFeeds';
 import { writeSnapshot, readSnapshot, mergeCoverage } from '@/lib/marketSnapshot';
 import { ensureDryPowderAnalysis } from '@/lib/dryPowderAnalysis';
+import { ensureDryPowderNumbers } from '@/lib/dryPowderSeries';
 
 /* The only thing in this app that calls an exchange for the snapshot feeds (#1404).
  *
@@ -136,6 +137,8 @@ export async function POST(req: Request) {
 
   /* THE DAILY DRY-POWDER TEXT (#1651 L103, lib/dryPowderAnalysis.ts): a cheap stored-row read on most runs; once a UTC day, after 02:00, one AI call writes it so /research never pays for it. It runs after the
      exchange feeds and never changes this job's answer: it reports its own outcome to api_health. */
+  /* THE STABLECOIN NUMBERS (lib/dryPowderSeries.ts): refreshed here hourly so /research reads them from the store instead of fetching them live (#1651 L103). */
+  void ensureDryPowderNumbers();   // not awaited: a read of the source takes 5-10 s once an hour and must not lengthen this job's answer (it never throws)
   const dryPowder = await ensureDryPowderAnalysis();
 
   const written = outcomes.filter(o => o.written).length;

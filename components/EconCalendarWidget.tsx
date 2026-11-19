@@ -10,6 +10,8 @@ import { econImpactKey, econImpactWordKey, type EconImpact } from '@/lib/classif
 import { localZoneAbbr } from '@/lib/resetTime';
 import { withAlpha } from '@/lib/color';
 import { calendarFromResponse } from '@/lib/econCalendarFeed';
+import { useNews } from '@/components/NewsProvider';
+import { ageLabel } from '@/lib/ageLabel';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -30,6 +32,12 @@ const IMPACT_COLOR: Record<EconImpact, string> = {
 };
 
 const MAX_ROWS = 5;
+/* A failed read is tried again, never left as the answer (#1185 D16): 1 min, then doubling to 10 min. A good read is refreshed every 15 min. The events already on screen stay while a refresh fails. */
+const RETRY_MIN_MS = 60_000;
+const RETRY_MAX_MS = 10 * 60_000;
+const REFRESH_MS = 15 * 60_000;
+/* The age is only said once a refresh has been failing for a while; a read a few minutes old needs no label. */
+const SHOW_AGE_AFTER_MS = 30 * 60_000;
 
 /* The time is shown in the viewer's own zone and now says which (PM audit A11); hour12:false could print midnight as "24:30" in some engines, so the
    24-hour cycle is requested explicitly. */
@@ -50,7 +58,10 @@ function fmtDateHeader(iso: string, t: TFn, now: number): string {
 export default function EconCalendarWidget() {
   const { t } = useLabels();
   const [events, setEvents]   = useState<CalEvent[] | null>(null);
+  const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [error, setError]     = useState(false);
+  /* The shared calendar NewsProvider already holds (Briefing and Confluence read it): shown while this widget's own read has not landed or keeps failing. */
+  const { econRaw, econStale, econAgeMs } = useNews();
 
   // "Now" is state, not a Date.now() call in the render body. Calling the clock
   // during render makes render impure - two renders with identical props can
@@ -67,18 +78,40 @@ export default function EconCalendarWidget() {
 
   useEffect(() => {
     let cancelled = false;
-    getAuthToken().then(token => fetch('/api/econ-calendar', {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      signal: deadlineSignal(20_000),
-    }))
-      .then(async r => calendarFromResponse<CalEvent>(r.ok, await r.json().catch(() => null)))
-      // #1637: a 429, a 500 or a body without events is a failed load, like source 'none' - never "no upcoming events".
-      .then(cal => { if (cancelled) return; if (!cal) setError(true); else setEvents(cal.events); })
-      .catch(() => { if (!cancelled) setError(true); });
-    return () => { cancelled = true; };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let failures = 0;
+    const load = () => {
+      getAuthToken().then(token => fetch('/api/econ-calendar', {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        signal: deadlineSignal(20_000),
+      }))
+        .then(async r => calendarFromResponse<CalEvent>(r.ok, await r.json().catch(() => null)))
+        // #1637: a 429, a 500 or a body without events is a failed load, like source 'none' - never "no upcoming events".
+        .then(cal => {
+          if (cancelled) return;
+          if (!cal) throw new Error('no calendar');
+          failures = 0;
+          setEvents(cal.events); setLoadedAt(Date.now()); setError(false);
+          timer = setTimeout(load, REFRESH_MS);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          failures += 1;
+          setError(true);
+          timer = setTimeout(load, Math.min(RETRY_MIN_MS * 2 ** (failures - 1), RETRY_MAX_MS));
+        });
+    };
+    load();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, []);
 
-  const upcoming = (events ?? [])
+  /* Own read first; the shared calendar when this one has nothing yet. */
+  const fromShared = events === null && econRaw.length > 0;
+  const shown: CalEvent[] | null = events ?? (fromShared ? econRaw : null);
+  const ageMs = loadedAt != null ? now - loadedAt : fromShared && econStale && econAgeMs != null ? econAgeMs : null;
+  const showAge = error && ageMs != null && ageMs > SHOW_AGE_AFTER_MS;
+
+  const upcoming = (shown ?? [])
     .filter(e => new Date(e.isoDate).getTime() > now - 3_600_000)
     .sort((a, b) => new Date(a.isoDate).getTime() - new Date(b.isoDate).getTime())
     .slice(0, MAX_ROWS);
@@ -93,19 +126,21 @@ export default function EconCalendarWidget() {
     .map(e => ({ e, dateKey: fmtDateHeader(e.isoDate, t, now) }))
     .map((row, i, all) => ({ ...row, showDateHeader: i === 0 || row.dateKey !== all[i - 1].dateKey }));
 
+  /* Nothing to show and nothing on the way: the card is hidden, not a failure line (OWNER-RULES 21: last good value or hide). It comes back by itself when a retry lands.
+     A shared calendar that is all in the past and older than a day says nothing about what is coming, so it hides the card too instead of claiming "no events". */
+  if ((shown === null && error) || (fromShared && econStale && upcoming.length === 0)) return null;
+
   return (
     <div className="av-rail-panel">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <div className="av-rail-panel-h" style={{ marginBottom: 0 }}>{t('ECON_CALENDAR_WIDGET_TITLE')}</div>
         <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, letterSpacing: '.04em' }}>
           {t('ECON_CALENDAR_WIDGET_UPCOMING')}
+          {showAge && ageMs != null && <span data-testid="econ-widget-age">{' · '}{ageLabel(ageMs, t)}</span>}
         </span>
       </div>
 
-      {error && (
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '6px 0' }}>{t('ECON_CALENDAR_WIDGET_LOAD_ERROR')}</div>
-      )}
-      {!error && events === null && (
+      {shown === null && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '4px 0' }} role="status" aria-live="polite">
           <span className="sr-only">{t('ECON_CALENDAR_WIDGET_LOADING')}</span>
           {[0, 1, 2, 3].map(i => (
@@ -113,7 +148,7 @@ export default function EconCalendarWidget() {
           ))}
         </div>
       )}
-      {!error && events !== null && upcoming.length === 0 && (
+      {shown !== null && upcoming.length === 0 && (
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '6px 0' }}>{t('ECON_CALENDAR_WIDGET_NO_EVENTS')}</div>
       )}
 
@@ -148,12 +183,15 @@ export default function EconCalendarWidget() {
               <span title={e.name} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt)', fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {e.name}
               </span>
-              <span className="ecw-impact-chip" style={{
-                fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.03em', padding: '2px 6px',
-                color: col, background: withAlpha(col, '22'), flexShrink: 0,
-              }}>
-                {econImpactWordKey(e.impact) ? t(econImpactWordKey(e.impact)!) : '-'}
-              </span>
+              {/* No chip for an impact the classifier does not know, rather than a dash (#1185 D17). */}
+              {econImpactWordKey(e.impact) && (
+                <span className="ecw-impact-chip" style={{
+                  fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.03em', padding: '2px 6px',
+                  color: col, background: withAlpha(col, '22'), flexShrink: 0,
+                }}>
+                  {t(econImpactWordKey(e.impact)!)}
+                </span>
+              )}
             </div>
           </div>
         );
