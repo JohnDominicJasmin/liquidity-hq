@@ -14,9 +14,11 @@ const files = readdirSync(dir).filter((f) => /^202611(1[7-9]|[23]\d)[a-z]\d?_lab
 const defaults = JSON.parse(readFileSync(new URL('../lib/labelDefaults.en.json', import.meta.url), 'utf8')) as Record<string, string>;
 const keys = new Set<string>(LABEL_KEYS as readonly string[]);
 const ph = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
-const rowRe = /\(\s*'((?:[^']|'')*)'\s*,\s*'(en|ko|zh|ru|ar|[a-z-]+)'\s*,\s*'((?:[^']|'')*)'\s*\)/g;
+/* a locale is two letters or language-REGION (pt-BR), and a value may be an E'' escape string (TG_BOT_HELP has line breaks): the old pattern read neither, so those rows were never checked (#2638). */
+const KNOWN_LOCALES = ['en', 'ko', 'zh', 'ru', 'ar', 'vi', 'pt-BR', 'tr', 'es', 'id'];
+const rowRe = /\(\s*'((?:[^']|'')*)'\s*,\s*'([a-z]{2}(?:-[A-Z]{2})?)'\s*,\s*(E?)'((?:[^']|'')*)'\s*\)/g;
 const blocks = (sql: string) => { const dev = sql.search(/insert into lhq_dev_labels/i); const prod = sql.search(/insert into lhq_labels/i); assert.ok(dev > 0 && prod >= 0, 'a block is missing'); return { prod: sql.slice(prod, dev), dev: sql.slice(dev) }; };
-const rows = (sql: string) => [...sql.matchAll(rowRe)].map((m) => ({ key: m[1].replace(/''/g, "'"), loc: m[2], val: m[3].replace(/''/g, "'") }));
+const rows = (sql: string) => [...sql.matchAll(rowRe)].map((m) => ({ key: m[1].replace(/''/g, "'"), loc: m[2], val: m[4].replace(/''/g, "'").replace(m[3] === 'E' ? /\\(.)/g : /$^/g, (_w, c: string) => (c === 'n' ? '\n' : c)) }));   // an E'' string decodes its backslash escapes (\n is a line break)
 
 test('the migrations are found (a rename must not silently empty this test)', () => { assert.ok(files.length >= 0); });
 for (const f of files) {
@@ -26,7 +28,7 @@ for (const f of files) {
     assert.deepEqual(fmt(p), fmt(d));
   });
   test(`${f}: Y2 real keys, known locales, nothing empty`, () => {
-    for (const r of p) { assert.ok(keys.has(r.key), `${r.key} is not a label key`); assert.ok(['en', 'ko', 'zh', 'ru', 'ar'].includes(r.loc), `${r.key}: locale ${r.loc}`); assert.ok(r.val.trim().length > 0, `${r.key}/${r.loc} is empty`); }
+    for (const r of p) { assert.ok(keys.has(r.key), `${r.key} is not a label key`); assert.ok(KNOWN_LOCALES.includes(r.loc), `${r.key}: locale ${r.loc}`); assert.ok(r.val.trim().length > 0, `${r.key}/${r.loc} is empty`); }
   });
   test(`${f}: Y4 upsert on (key, locale)`, () => { assert.equal((sql.match(/on conflict \(key, locale\) do update/gi) ?? []).length, 2, 'each of the two blocks must upsert'); });
 }
