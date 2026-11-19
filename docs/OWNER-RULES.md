@@ -750,21 +750,28 @@ Tracked on #1651.
   deploy), and even then never when he is resting.
 - If a tool blocks the suggestion, do everything else, and do not ask him to click anything.
 
-## 24. ONE ITEM AT A TIME. NO BACKGROUND AGENTS. (REVERSED 2026-11-19)
+## 24. TWO BACKGROUND TASKS AT A TIME IN DEV AND QA (SET 2026-11-19, LATER THE SAME DAY)
 
-**Owner, 2026-11-19, first-hand:**
+**Owner, 2026-11-19, first-hand to PM:** *"run 2 background task at a time in both dev and qa now"*.
 
-> *"It is much faster to run the normal one by one and not hit the limit than to work multiple tasks
-> but hit the limit too often and fast."*
+This is the current rule. It replaces the one-at-a-time rule he set earlier the same day, which replaced
+the open-ended parallel lanes of 2026-11-18. The history matters because the cost is real:
 
-On 2026-11-18 he asked for parallel lanes (*"multi-threading"*). Each background agent re-read the
-code and burned 100-300k tokens, the sessions hit their usage limits within hours, and the stops cost
-more time than the parallelism saved. He reversed it the next day.
+- **2026-11-18:** parallel lanes, no cap. Background agents re-read the code at 100-300k tokens each and the
+  sessions hit their usage limits within hours.
+- **2026-11-19 morning:** reversed to one item at a time, no background agents (*"It is much faster to run the
+  normal one by one and not hit the limit than to work multiple tasks but hit the limit too often and fast."*).
+- **2026-11-19 evening:** two at a time, in both Dev and QA.
 
-- **Every session works one item at a time, in its own session.** No background agents.
+How to apply it:
+
+- **Dev and QA each run at most 2 tasks at once** (the session itself plus one background task, or two
+  background tasks): never more.
+- **PM gives each session two lanes that touch different files**, so the lanes never conflict.
+- **Each background task gets a narrow brief** (files to read, what to change, what to prove), so it does not
+  re-read the codebase.
 - **Heavy browser runs still go to GitHub Actions**, which do not use the session's tokens.
-- PM may use one subagent for a large mechanical job (for example applying a several-hundred-row
-  label migration) when doing it inline would cost more.
+- If the sessions start hitting their usage limits again, PM drops back to one lane and tells the owner in one line.
 
 ## 25. NO WORDY TEXT. THE APP IS NOT AN ESSAY OR A DIARY.
 
