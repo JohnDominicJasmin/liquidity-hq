@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { GROK_SERVER_DEEP_MS, GROK_SERVER_QUICK_MS } from '@/lib/grokDeadlines';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, readOutputCap, resolveReadLocale, VERDICT_RESTATED_CHECK, withReadLanguage, withStrategyRead, ENGLISH_READ_NOTES, type ChartData, type ReadLocale, type ReadNotes, type GrokContext } from '@/lib/grok';
+import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, readOutputCap, resolveReadLocale, withReadLevels, VERDICT_RESTATED_CHECK, withReadLanguage, withStrategyRead, ENGLISH_READ_NOTES, type ChartData, type ReadLocale, type ReadNotes, type GrokContext } from '@/lib/grok';
 import { arenaContextCoinId, COIN_NOT_TRACKED, parseArenaChart, parseArenaContext, parseArenaStrategy, parseSelection } from '@/lib/arenaContext';
 import { serverStrategyRead } from '@/lib/arenaStrategyServer';
 import { arenaServerNumbers } from '@/lib/arenaServerNumbers';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { chartFromCandles } from '@/lib/arenaChartServer';
+import { READ_TAKER_CONFIRM_PCT, readLevels } from '@/lib/readLevels';
+import { TF_MS } from '@/lib/candles';
 import { EMA_SIGNAL_TFS, fetchRibbonCandles, type EMASignalTF } from '@/lib/ribbonCandles';
 import { T } from '@/lib/tables';
 import { getPlanSnapshot, getUsageTierStatus } from '@/lib/entitlements';
@@ -412,7 +414,13 @@ export async function POST(req: NextRequest) {
     // Server-computed ids and fixed words only: nothing from the request body reaches this line.
     console.log(`[grok] strategy-read mode=${strategyRead.mode} ${strategyRead.mode === 'picked' ? strategyRead.readings.map(s => `id=${s.id} ${s.status === 'ok' ? `verdict=${s.verdict}` : 'no-reading'}`).join(' ') : `with-reading=${strategyRead.readings.filter(s => s.status === 'ok').length}/${strategyRead.readings.length}`}`);
   }
-  const prompt = withReadLanguage(withStrategyRead(buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, planSelection), strategyRead), locale);
+  /* THE LEVELS THE READ QUOTES ARE THE SERVER'S (lib/readLevels.ts): the nearest support and resistance of the closed candles and one taker threshold, identical for Quick and Deep and for every read until a candle closes. A failed fetch or too little
+     history leaves the prompt as it was. */
+  let levels: ReturnType<typeof readLevels> = null;
+  if (coin && (EMA_SIGNAL_TFS as readonly string[]).includes(tf) && TF_MS[tf]) {
+    try { levels = readLevels(await fetchRibbonCandles(coin, tf as EMASignalTF, Date.now(), 400), TF_MS[tf], Date.now()); } catch { levels = null; }
+  }
+  const prompt = withReadLanguage(withReadLevels(withStrategyRead(buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, planSelection), strategyRead), levels, READ_TAKER_CONFIRM_PCT), locale);
 
   /* The second bound. The server's fields are short formatted strings, so this cannot realistically
      fire once the first bound passed - which is why it is worth having: if it ever does, the gather

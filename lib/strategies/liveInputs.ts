@@ -1,4 +1,4 @@
-import { BINANCE_SYMS, BYBIT_SYMS } from '../coins.ts';
+import { binanceFuturesSymbol, coinRow } from '../coins.ts';
 import type { StrategyContext } from './types.ts';
 
 /* THE LIVE INPUTS THE PHASE-2 STRATEGIES NEED (client side), read the way the rest of the app reads them. A value that cannot be read comes back undefined / null, which the strategies treat as NOT KNOWN (their own "needs live data" / "needs taker data" wait), never as zero. */
@@ -89,8 +89,8 @@ async function pageBybitFunding(sym: string, start: number, end: number, signal?
 export async function fetchFundingHistory(coin: string, signal?: AbortSignal, nowMs: number = Date.now()): Promise<FundingPoint[] | null> {
   const hit = fundingCache.get(coin);
   if (hit && nowMs - hit.at < FUNDING_CACHE_MS) return hit.pts;
-  const bn = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
-  const by = (BYBIT_SYMS as Record<string, string | undefined>)[coin];
+  const bn = binanceFuturesSymbol(coin);
+  const by = coinRow(coin)?.bybit ?? undefined;
   const start = nowMs - FUNDING_WINDOW_DAYS * 86_400_000;
   const tries: Array<() => Promise<FundingPoint[]>> = [];
   if (bn) tries.push(() => pageBinanceFunding(bn, start, nowMs, signal));
@@ -142,7 +142,7 @@ export function oiRelative(rows: ReadonlyArray<{ sumOpenInterest?: string | numb
 }
 
 export async function fetchOiRelative(coin: string, tf: string, tfMs: number, signal?: AbortSignal): Promise<{ oiChange6Pct: number; oiExtreme: boolean } | null> {
-  const sym = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
+  const sym = binanceFuturesSymbol(coin);
   if (!sym) return null;
   const r = await fetch(`/api/proxy?type=oi-hist&symbol=${sym}&period=${tf}&limit=${OI_ROWS}`, { signal });
   if (!r.ok) return null;
@@ -150,7 +150,7 @@ export async function fetchOiRelative(coin: string, tf: string, tfMs: number, si
 }
 
 export async function fetchOiChange6(coin: string, tf: string, tfMs: number, signal?: AbortSignal): Promise<number | null> {
-  const sym = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
+  const sym = binanceFuturesSymbol(coin);
   if (!sym) return null;
   const r = await fetch(`/api/proxy?type=oi-hist&symbol=${sym}&period=${tf}&limit=7`, { signal });
   if (!r.ok) return null;
@@ -159,7 +159,7 @@ export async function fetchOiChange6(coin: string, tf: string, tfMs: number, sig
 
 /** Taker buy / sell volume by candle open time, from Binance futures klines (index 9 is the taker buy base volume). Undefined for a coin Binance does not list. */
 export async function fetchTakerMap(coin: string, bnInterval: string, limit: number, signal?: AbortSignal): Promise<StrategyContext['taker']> {
-  const sym = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
+  const sym = binanceFuturesSymbol(coin);
   if (!sym) return undefined;
   const r = await fetch(`/api/market/klines?source=binance-futures&symbol=${sym}&interval=${bnInterval}&limit=${limit}&closed=1`, { signal });
   if (!r.ok) return undefined;

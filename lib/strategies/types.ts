@@ -39,6 +39,8 @@ export interface StrategyOverlay {
   lines: OverlayLine[];
   /** The arrow on the signal candle, BUY / SELL only. */
   marker: { ts: number; dir: 'long' | 'short' } | null;
+  /** Arrows on the strategy's last few PAST signals (lib/strategies/chartDrawings.ts recentSignals), newest first; the current call keeps its own `marker`. Added after the first paint, so a slow replay never delays the call. */
+  history?: Array<{ ts: number; dir: 'long' | 'short' }>;
 }
 export const EMPTY_OVERLAY: StrategyOverlay = { levels: [], zones: [], lines: [], marker: null };
 
@@ -51,6 +53,8 @@ export interface StrategyResult {
   params: Record<string, number | boolean>;
   /** What to draw on the main price chart for this state (see StrategyOverlay). Absent when the strategy cannot say anything yet (too few candles, an unsupported timeframe). */
   overlay?: StrategyOverlay;
+  /** The last closed candle's close, set by the caller (not the detector): the price the "Watching" line is read against. */
+  lastClose?: number;
 }
 
 export interface StrategyDef {

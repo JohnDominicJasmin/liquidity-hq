@@ -15,12 +15,13 @@ import { SESSION_SWEEP } from './sessionSweep.ts';
 import { FUNDING_OI_SQUEEZE } from './fundingOiSqueeze.ts';
 import { CVD_ABSORPTION } from './cvdAbsorption.ts';
 import type { LabelKey } from '../labelKeys.ts';
+import { withMarketGate } from './marketGate.ts';
 import type { StrategyDef } from './types.ts';
 
 export type { StrategyDef, StrategyContext, StrategyResult, Verdict } from './types.ts';
 
 /* THE ARENA'S STRATEGIES, in the order the panel lists them. Add one here and it is selectable, shown, pinged on and logged, nowhere else. */
-export const STRATEGIES: readonly StrategyDef[] = [LIQUIDITY_SWEEP_MSS, NY_OPEN_BREAKOUT, EMA_STACK, SUPPLY_DEMAND, BOLLINGER_SQUEEZE, VWAP_RECLAIM, RSI_DIVERGENCE, CHANNEL_BREAKOUT, EMA_CROSS, SR_FLIP, RANGE_BOUNCE, FAIR_VALUE_GAP, SESSION_SWEEP, FUNDING_OI_SQUEEZE, CVD_ABSORPTION, BOS_FVG];
+export const STRATEGIES: readonly StrategyDef[] = ([LIQUIDITY_SWEEP_MSS, NY_OPEN_BREAKOUT, EMA_STACK, SUPPLY_DEMAND, BOLLINGER_SQUEEZE, VWAP_RECLAIM, RSI_DIVERGENCE, CHANNEL_BREAKOUT, EMA_CROSS, SR_FLIP, RANGE_BOUNCE, FAIR_VALUE_GAP, SESSION_SWEEP, FUNDING_OI_SQUEEZE, CVD_ABSORPTION, BOS_FVG] as StrategyDef[]).map(withMarketGate);
 export const STRATEGY_IDS: ReadonlySet<string> = new Set(STRATEGIES.map(s => s.id));
 export function findStrategy(id: string | null | undefined): StrategyDef | undefined {
   return id ? STRATEGIES.find(s => s.id === id) : undefined;

@@ -1,6 +1,6 @@
 import labelDefaults from './labelDefaults.en.json';
 import type { LabelKey } from './labelKeys.ts';
-import { BINANCE_SYMS, BYBIT_SYMS } from './coins.ts';
+import { binanceFuturesSymbol, coinRow } from './coins.ts';
 import { deadlineSignal } from './deadlineSignal.ts';
 import { exchangeFetch } from './exchangeGuard.ts';
 import { closedCandles, EMA_SIGNAL_TFS, fetchRibbonCandles, type EMASignalTF } from './ribbonCandles.ts';
@@ -39,7 +39,7 @@ async function closedFor(coin: string, tf: EMASignalTF, limit = 300): Promise<St
 
 /** Per-candle taker buy / sell volume from Binance futures klines (index 9 = taker buy base volume), the fire log's source. Undefined when unreadable. */
 async function takerFor(coin: string, tf: EMASignalTF): Promise<StrategyInputs['taker']> {
-  const sym = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
+  const sym = binanceFuturesSymbol(coin);
   if (!sym) return undefined;
   try {
     const res = await exchangeFetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${tf}&limit=300`, { cache: 'no-store', signal: deadlineSignal(9_000) });
@@ -66,8 +66,8 @@ async function fundingHistoryFor(coin: string): Promise<FundingPoint[] | null> {
   const now = Date.now();
   if (hit && now - hit.at < FUNDING_CACHE_MS) return hit.pts;
   const start = now - FUNDING_WINDOW_DAYS * 86_400_000;
-  const bn = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
-  const by = (BYBIT_SYMS as Record<string, string | undefined>)[coin];
+  const bn = binanceFuturesSymbol(coin);
+  const by = coinRow(coin)?.bybit ?? undefined;
   const get = async (url: string): Promise<unknown> => {
     const r = await exchangeFetch(url, { cache: 'no-store', signal: deadlineSignal(6_000) });
     return r.ok ? r.json() : null;
@@ -105,7 +105,7 @@ async function fundingHistoryFor(coin: string): Promise<FundingPoint[] | null> {
 
 /** The inputs the page hands the squeeze strategy (lib/useStrategySignal.ts), judged the same way: funding against the coin's own 90 days, open interest against its own recent changes. Either missing is left absent. */
 async function liveFor(coin: string, tf: EMASignalTF): Promise<Pick<StrategyInputs, 'fundingClass' | 'fundingPct' | 'oiChange6Pct' | 'oiExtreme'>> {
-  const sym = (BINANCE_SYMS as Record<string, string | undefined>)[coin];
+  const sym = binanceFuturesSymbol(coin);
   if (!sym) return {};
   const [rate, history, oi] = await Promise.all([
     exchangeFetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${sym}`, { cache: 'no-store', signal: deadlineSignal(6_000) })
