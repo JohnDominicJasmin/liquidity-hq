@@ -258,9 +258,7 @@ export default function CorrelationTerminal() {
           <TPanel>
             <div className="lbl tip-row" style={{ marginBottom: 10, columnGap: 8 }}>
               <Tip width={260} text={t('CORRELATION_MATRIX_TIP')}>{t('CORRELATION_MATRIX_LABEL')}</Tip>
-              <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--txt3)' }}>
-                {t('CORRELATION_MATRIX_SCALE_HINT')}
-              </span>
+              {/* ONE short line (#1185, rule 25): the scale line that sat here repeated the legend under the grid; the tip above still gives the +1 / -1 scale. */}
             </div>
             <div className="corr-grid-outer">
             <div className="corr-grid-wrap" role="region" tabIndex={0} aria-label={t('CORRELATION_MATRIX_LABEL')}>

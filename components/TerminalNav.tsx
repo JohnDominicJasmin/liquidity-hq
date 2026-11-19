@@ -485,7 +485,7 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
         {session && (
           <span className="tnav-mstatus" suppressHydrationWarning>
             <span className="tnav-mdot" />
-            {session.name}
+            {trText(t, session.name)}
           </span>
         )}
         {/* Plan indicator (#1089/#1094). Same component as the desktop bar -

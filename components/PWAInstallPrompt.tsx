@@ -87,8 +87,8 @@ export default function PWAInstallPrompt() {
         <Download size={17} style={{ verticalAlign: 'baseline' }} />
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Add to Home Screen</div>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.4 }}>Install LiquidityHQ for instant access</div>
+        <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('PWA_INSTALL_TITLE')}</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.4 }}>{t('PWA_INSTALL_DESC')}</div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
         <button
@@ -104,7 +104,7 @@ export default function PWAInstallPrompt() {
             cursor: 'pointer',
             whiteSpace: 'nowrap',
           }}
-        >Install</button>
+        >{t('PWA_INSTALL_BUTTON')}</button>
         <button
           onClick={dismiss}
           style={{
@@ -117,7 +117,7 @@ export default function PWAInstallPrompt() {
             padding: '0 2px',
             opacity: 0.75,
           }}
-          aria-label={t('SETTINGS_SAVE_DISMISS_ARIA')}
+          aria-label={t('PWA_INSTALL_DISMISS')}
         >×</button>
       </div>
     </div>
