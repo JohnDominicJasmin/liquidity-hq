@@ -187,7 +187,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function SettingsPage() {
   const { t } = useLabels();
-  const { user, loading: authLoading, signOut, entitlementStatus } = useAuth();
+  const { user, loading: authLoading, signOut, entitlementStatus, entitlementsLoading } = useAuth();
+  /* the plan is not known yet (#1651): the default-timeframe chips are not drawn locked, and a Pro-only saved value is not shown selected, until it is */
+  const planResolving = authLoading || (!!user && entitlementsLoading);
   const { settings, update } = useSettings();
   // Held WITH the account it was read for (QA, #1499): when the signed-in user changes, the
   // previous account's answer used to stay on screen until the new read landed. Anyone
@@ -732,7 +734,7 @@ export default function SettingsPage() {
             {/* A Free account holding a saved Pro-only timeframe (a lapsed Pro) sees the nearest Free one selected, the one the Arena opens on,
                 never a disabled chip selected (PM 2026-11-18). */}
             {(() => { /* While the plan is still being read, a saved Pro-only timeframe is not shown selected on a disabled chip (QA review of #2561): no chip is selected until the plan is known. */
-              const shownTf = isGatedTf(settings.default_tf) && entitlementStatus !== 'entitled' ? (entitlementStatus === 'not_entitled' ? FREE_FALLBACK_TF : null) : settings.default_tf; return TFS.map(tf => {
+              const shownTf = isGatedTf(settings.default_tf) && (planResolving || entitlementStatus !== 'entitled') ? (!planResolving && entitlementStatus === 'not_entitled' ? FREE_FALLBACK_TF : null) : settings.default_tf; return TFS.map(tf => {
               // Fast timeframes are Pro-only. Previously every chip was
               // selectable for everyone, so a free user could save 5m here and
               // Arena would silently clamp it back to 1h on load.
@@ -742,14 +744,14 @@ export default function SettingsPage() {
               // on), so treating it the same as a confirmed non-entitled
               // account isn't a guess, it's just not yet granting something
               // unconfirmed.
-              const locked = entitlementStatus !== 'entitled' && isGatedTf(tf);
+              const locked = !planResolving && entitlementStatus !== 'entitled' && isGatedTf(tf);
               return (
                 <button
                   key={tf}
                   className={`st-chip${shownTf === tf ? ' on' : ''}`}
                   aria-pressed={shownTf === tf}
                   onClick={() => { if (!locked) update({ default_tf: tf }); }}
-                  disabled={locked}
+                  disabled={locked || (planResolving && isGatedTf(tf))}   /* a Pro-only chip cannot be saved while the plan is unknown, and is not drawn locked either */
                   title={locked ? t('SETTINGS_TF_PRO_ONLY') : undefined}
                   style={locked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
                 >
