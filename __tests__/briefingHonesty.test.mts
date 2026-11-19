@@ -38,7 +38,9 @@ test('Z1. the time is in the viewer\'s zone with its abbreviation and a 24-hour 
 test('C1. a calendar not loaded or stale is "unavailable": the page says so instead of "Clean macro backdrop", and the AI context says so instead of dropping the macro block', () => {
   assert.ok(BTc.includes('const calendarUnavailable = econStale || !eventsLoaded;'), 'the unavailable rule changed');
   assert.ok(BTc.includes('const noEvents = !calendarUnavailable && futureEcon.length === 0'), '"no events" can be claimed while the calendar is unavailable');
-  assert.ok(BTc.includes("{calendarUnavailable ? t('BRIEFING_CALENDAR_UNAVAILABLE') : t('BRIEFING_NO_EVENTS')}") && BTc.includes('{(calendarUnavailable || noEvents) && ('), 'the page does not show the unavailable line');
+  /* #2682 (audit B1): the PAGE says it only for a LOADED, STALE calendar with nothing urgent to list (showCalendarNote); it no longer flashes before the calendar loads. The AI context below still says "unavailable" whenever the calendar is stale or not loaded. */
+  assert.ok(BTc.includes('const showCalendarNote = eventsLoaded && econStale && urgentEcon.length === 0;'), 'the page note rule changed');
+  assert.ok(BTc.includes("{showCalendarNote ? t('BRIEFING_CALENDAR_UNAVAILABLE') : t('BRIEFING_NO_EVENTS')}") && BTc.includes('{(showCalendarNote || noEvents) && ('), 'the page does not show the unavailable line');
   assert.ok(BTc.includes('econStale || !eventsLoaded);') && BTc.includes('if (calendarUnavailable) {'), 'the AI context is not told the calendar is unavailable');
   assert.ok(BT.includes('the economic calendar is unavailable right now, so no events are listed (this does not mean none are scheduled).'), 'the AI context wording changed');
 });
