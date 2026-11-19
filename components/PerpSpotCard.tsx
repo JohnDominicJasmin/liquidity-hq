@@ -46,11 +46,13 @@ export default function PerpSpotCard() {
 
   /* A read that failed shows nothing until its retry lands, or the LAST GOOD reading with its age - never failure text (#1185 D22, owner: last good or hide). */
   if (!reading) return null;
+  /* NO SPOT READING FOR THIS COIN: THE CARD IS LEFT OUT (QA signed-out matrix, owner's zero-failure-text rule): it showed CANNOT MEASURE, a dash and "Spot data unavailable for this coin". */
+  if (reading.lean === 'unknown') return null;
   const fetchedAt = perpSpotFetchedAt(coin);
   const ageMs = fetchedAt != null ? now - fetchedAt : 0;
-  const stale = reading.lean !== 'unknown' && ageMs > 90 * 60_000;
+  const stale = ageMs > 90 * 60_000;
 
-  const unknown = reading.lean === 'unknown';
+  const unknown = false;   // a coin with no spot reading returned above
   // --txt2, not --txt-dim (#546 C9): --txt-dim isn't in terminal's
   // 16-token palette.
   const tone =

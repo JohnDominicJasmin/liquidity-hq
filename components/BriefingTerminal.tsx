@@ -377,7 +377,8 @@ export default function BriefingTerminal() {
   const calendarUnavailable = econStale || !eventsLoaded;
   const futureEcon = urgentEcon.filter(e => e.dt.getTime() > nowMs);
   /* THE SENTENCE ONLY WHEN THERE IS NOTHING TO LIST (audit B1): before the calendar has loaded nothing is said (it flashed on every visit), and a stale calendar that still has events lists them instead of contradicting itself. */
-  const showCalendarNote = eventsLoaded && econStale && urgentEcon.length === 0;
+  /* A STALE CALENDAR WITH NOTHING TO LIST SAYS NOTHING ON THE PAGE (QA signed-out matrix, owner's zero-failure-text rule: "Economic calendar unavailable right now" was true but is still failure text); the AI context above keeps the truthful flag. */
+  const showCalendarNote = false;
   const noEvents = !calendarUnavailable && futureEcon.length === 0 && recentGeo.length === 0 && (!whaleAlerts || whaleAlerts.length === 0);
 
   const jpyStatus = jpyUsd == null ? null
