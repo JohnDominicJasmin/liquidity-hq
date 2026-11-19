@@ -77,10 +77,13 @@ test('D3. nothing has a reading: no rows, Loading while pending, No data once fa
   assert.deepEqual(rows(pending), []);
   assert.deepEqual(verdict(pending), ['EMA_PHASE_LOADING']);
   noDash(pending);
+  /* #2693 (owner's zero-failure-text rule): once the read has failed (or the 20 s wait is over) the card is LEFT OUT - no "No data" over rows of dashes, no "RSI readings unavailable right now". */
   const failed = render(none, { pricesFailed: true });
-  assert.deepEqual(rows(failed), []);
-  assert.deepEqual(verdict(failed), ['MULTI_TF_ALIGNMENT_VERDICT_NO_DATA', 'MULTI_TF_ALIGNMENT_FOOTER_NO_DATA']);
+  assert.equal(failed.trim(), '', 'a failed read must leave the card out entirely');
   noDash(failed);
+  const src = readFileSync(path.join(TREE, 'components/MultiTFAlignment.tsx'), 'utf8').replace(/\r\n/g, '\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(src, /const noDataShown = noData && \(graceOver \|\| store\.pricesFailed\);/, 'the wait/failed rule changed'); assert.match(src, /setTimeout\(\(\) => setGraceOver\(true\), 20_000\)/, 'the 20 s wait changed');
+  const ret = src.indexOf('if (noDataShown) return null;'); assert.ok(ret > 0, 'the card is no longer left out after the wait'); assert.equal(/\buse(State|Effect|Memo|Callback|Ref|Market|Labels|Entitlement|Auth|Grace|Now)[A-Za-z]*\(/.test(src.slice(ret)), false, 'a hook is called AFTER the early return (rules of hooks: the card would crash when the wait ends)');
   const empty = render({});
   assert.deepEqual(rows(empty), []);
   assert.deepEqual(verdict(empty), ['EMA_PHASE_LOADING']);
