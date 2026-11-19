@@ -3,6 +3,7 @@ import { checkCronAuth } from '@/lib/cronAuth';
 import { recordApiHealth } from '@/lib/apiHealth';
 import { MARKET_FEEDS, checkSampling } from '@/lib/marketFeeds';
 import { writeSnapshot, readSnapshot, mergeCoverage } from '@/lib/marketSnapshot';
+import { ensureDryPowderAnalysis } from '@/lib/dryPowderAnalysis';
 
 /* The only thing in this app that calls an exchange for the snapshot feeds (#1404).
  *
@@ -133,10 +134,14 @@ export async function POST(req: Request) {
 
   await recordApiHealth(health);
 
+  /* THE DAILY DRY-POWDER TEXT (#1651 L103, lib/dryPowderAnalysis.ts): a cheap stored-row read on most runs; once a UTC day, after 02:00, one AI call writes it so /research never pays for it. It runs after the
+     exchange feeds and never changes this job's answer: it reports its own outcome to api_health. */
+  const dryPowder = await ensureDryPowderAnalysis();
+
   const written = outcomes.filter(o => o.written).length;
   /* 200 even when nothing was written: the job ran, and the scheduler's own
      success/failure should reflect whether the JOB is alive, not whether an
      exchange was answering. The per-feed detail is in the body and in
      api_health, which is where a failing upstream belongs. */
-  return NextResponse.json({ ok: true, written, feeds: outcomes });
+  return NextResponse.json({ ok: true, written, feeds: outcomes, dryPowder });
 }

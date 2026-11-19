@@ -82,7 +82,8 @@ export default function DryPowder() {
 
       const headers = { Authorization: `Bearer ${token}` };
       /* TWO REQUESTS, STARTED TOGETHER: the supply figures (about a second, no AI) and the AI text (up to 25 s on the server). The card shows the figures as soon as they arrive and fills the text in after. */
-      const aiReq = fetch('/api/dry-powder', { headers }).then(r => r.json().then(j => ({ ok: r.ok, status: r.status, json: j as { analysis?: string; error?: string } }))).catch(() => null);
+      const askAi = () => fetch('/api/dry-powder', { headers }).then(r => r.json().then(j => ({ ok: r.ok, status: r.status, json: j as { analysis?: string; error?: string; pending?: boolean } }))).catch(() => null);
+      const aiReq = askAi();
       const res  = await fetch('/api/dry-powder?part=numbers', { headers });
       const json = await res.json() as {
         current?: number; prev30?: number; prev90?: number;
@@ -105,7 +106,9 @@ export default function DryPowder() {
       };
       setState(nums);
 
-      const ai = await aiReq;
+      let ai = await aiReq;
+      /* The text is written once a day by the server (lib/dryPowderAnalysis.ts). Before the first one exists the answer is "pending"; the card keeps its loading state, asks once more after a pause, and only then says it is unavailable. */
+      if (ai?.json.pending) { await new Promise(r => setTimeout(r, 20_000)); ai = await askAi(); }
       if (!ai || !ai.ok || !ai.json.analysis) {
         setState(prev => (typeof prev === 'object' && prev !== null ? { ...prev, analysis: 'unavailable' } : prev));
         return;
