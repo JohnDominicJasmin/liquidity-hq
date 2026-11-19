@@ -79,7 +79,9 @@ function fmtPrice(p: number): string {
   if (p >= 1000)  return p.toLocaleString('en-US', { maximumFractionDigits: 0 });
   if (p >= 1)     return p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (p >= 0.01)  return p.toFixed(4);
-  return p.toFixed(6);
+  /* THREE SIGNIFICANT DIGITS below a cent, like /markets (#1185, PM audit 2026-11-17: BONK read $0.000002 and PEPE $0.000004 here while /markets showed $0.00000388). */
+  if (!(p > 0)) return '0';
+  return p.toFixed(Math.min(10, -Math.floor(Math.log10(p)) + 2));
 }
 
 export default function CoinHeatmap() {
