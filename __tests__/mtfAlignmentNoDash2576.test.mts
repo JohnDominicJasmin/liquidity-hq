@@ -111,3 +111,15 @@ test('D6. a non-finite value is not a reading for the verdict (NaN must not coun
   assert.deepEqual(rows(h), []);
   assert.ok(!verdict(h).includes('MULTI_TF_ALIGNMENT_VERDICT_MIXED'), 'a card with zero rows says Mixed Signals: ' + verdict(h).join(','));
 });
+
+test('D4b. (#2694) Free: the blurred Pro rows show the sharp timeframe and a blurred bar only: no dash, no "No reading", no value, no bias badge', () => {
+  const h = render({ ...ALL }, { entitled: false });
+  const seg = (tf: string, next: string) => h.split(`font-weight:700;color:var(--txt2)">${tf}</span>`)[1].split(`font-weight:700;color:var(--txt2)">${next}</span>`)[0];
+  for (const [tf, next] of [['5m', '15m'], ['15m', '1h']] as const) {
+    const part = seg(tf, next); assert.ok(/filter:blur\(5px\)/.test(part) && /aria-hidden="true"/.test(part), `${tf}: still blurred and aria-hidden`);
+    const text = part.replace(/^[^<]*>/, '').replace(/<[^>]*$/, '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();   /* the split points cut a tag in half at both ends */ assert.equal(text, '', `${tf}: the blurred row carries text "${text}" (a dash, a value or "No reading")`);
+    assert.equal(/BIAS|BULL|BEAR|NEUTRAL|NO_READING/i.test(part), false, `${tf}: a bias badge or a no-reading label is rendered`);
+  }
+  const readable = h.split('font-weight:700;color:var(--txt2)">1h</span>')[1]; assert.ok(/\d/.test(readable.replace(/<[^>]*>/g, ' ')), 'CONTROL: the readable rows still carry their values');
+  const pro = render({ ...ALL }, { entitled: true }); const proSeg = pro.split('font-weight:700;color:var(--txt2)">5m</span>')[1].split('font-weight:700;color:var(--txt2)">15m</span>')[0]; assert.ok(/\d/.test(proSeg.replace(/<[^>]*>/g, ' ')), 'a Pro account still sees the 5m value');
+});
