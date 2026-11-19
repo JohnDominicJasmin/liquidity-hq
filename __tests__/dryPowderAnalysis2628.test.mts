@@ -40,7 +40,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   throw new Error('stray request ' + u.href);
 }) as typeof fetch;
 const lib = await import('../lib/dryPowderAnalysis.ts');
-const { dryPowderRefreshDue, readDryPowderAnalysis, ensureDryPowderAnalysis, buildDryPowderPrompt, DRY_POWDER_MAX_AGE_MS, DRY_POWDER_REFRESH_HOUR_UTC, DRY_POWDER_LOCK_MS } = lib;
+const { dryPowderRefreshDue, readDryPowderAnalysis, readLatestDryPowderAnalysis, ensureDryPowderAnalysis, buildDryPowderPrompt, DRY_POWDER_MAX_AGE_MS, DRY_POWDER_REFRESH_HOUR_UTC, DRY_POWDER_LOCK_MS } = lib;
 
 const at = (d: number, h: number, mi = 0) => Date.UTC(2026, 10, d, h, mi);
 const stored = (day: string, generatedAt: number, analysis = 'SIGNAL: x') => ({ day, analysis, current: 2e11, prev30: 1.9e11, prev90: 1.8e11, generatedAt });
@@ -126,6 +126,37 @@ test('D7b. the scheduled ingest calls ensureDryPowderAnalysis AFTER the exchange
 test('D7c. the card: on a pending answer it keeps its loading state, waits 20 s and asks ONCE more, then says unavailable', () => {
   const card = strip(read('components/DryPowder.tsx')); assert.ok(/ai\?\.json\.pending/.test(card), 'the card does not look at pending'); assert.ok(card.includes('setTimeout(r, 20_000)'), 'no 20 s wait before the second ask');
   assert.equal((card.match(/askAi\(\)/g) ?? []).length, 2, 'the card must ask exactly twice (the first, and one more after a pending answer)');
+});
+test('D7d. readLatestDryPowderAnalysis: the most recent stored text of ANY age (a 5-day-old one too), null only when nothing was ever stored or the row is malformed', async () => {
+  reset(); assert.equal(await readLatestDryPowderAnalysis(), null, 'nothing stored');
+  put('dry-powder-analysis', stored('2026-11-15', at(15, 3))); const r = await readLatestDryPowderAnalysis(); assert.equal(r?.day, '2026-11-15'); assert.equal(r?.analysis, 'SIGNAL: x');
+  assert.equal(await readDryPowderAnalysis(at(20, 10)), null, 'CONTROL: the 36 h read refuses the same row (so the route needs the latest reader to show it)');
+  put('dry-powder-analysis', stored('2026-11-15', at(15, 3), '  ')); assert.equal(await readLatestDryPowderAnalysis(), null, 'an empty analysis is not a text');
+  put('dry-powder-analysis', { day: '2026-11-15' }); assert.equal(await readLatestDryPowderAnalysis(), null, 'a malformed row');
+});
+/* The route's decision block, sliced out of the source and RUN against the real readers on the stand-in database: today stored = no "from"; stored yesterday or 5 days ago = the text with from = its day; never stored = 202 pending. */
+test('D7e. the route: today\'s text has no "from"; yesterday\'s or a 5-day-old text is served WITH from = its day; nothing ever stored is 202 pending (no xAI, no numbers read)', async (t) => {
+  const route = strip(read('app/api/dry-powder/route.ts')); const a = route.indexOf('const stored = await readDryPowderAnalysis();'); assert.ok(a > 0, 'CONTROL: the read is not in the route');
+  const endMark = 'analysis: latest.analysis'; const e = route.indexOf(endMark, a); assert.ok(e > a, 'CONTROL: the answer is not in the route'); const stop = route.indexOf(');', e) + 2;
+  const block = route.slice(a, stop);
+  class Res { body: unknown; status: number; constructor(body: unknown, status: number) { this.body = body; this.status = status; } } const NextResponse = { json: (body: unknown, init?: { status?: number }) => new Res(body, init?.status ?? 200) };
+  let numbersReads = 0; const getDryPowderNumbers = async () => { numbersReads++; return { current: 200e9, prev30: 190e9, prev90: 180e9, series: [1, 2, 3] }; };
+  const fn = new Function('readDryPowderAnalysis', 'readLatestDryPowderAnalysis', 'getDryPowderNumbers', 'NextResponse', `return (async () => { ${block} })();`) as (...a: unknown[]) => Promise<Res>;
+  const call = () => fn(readDryPowderAnalysis, readLatestDryPowderAnalysis, getDryPowderNumbers, NextResponse);
+  t.mock.timers.enable({ apis: ['Date'], now: at(20, 10) });
+  reset(); numbersReads = 0; let r = await call(); assert.equal(r.status, 202); assert.deepEqual(r.body, { pending: true }); assert.equal(numbersReads, 0, 'pending must not read the numbers'); assert.equal(xaiCalls, 0, 'the route called xAI');
+  put('dry-powder-analysis', stored('2026-11-20', at(20, 3))); r = await call(); assert.equal(r.status, 200); const b1 = r.body as Record<string, unknown>; assert.equal(b1.analysis, 'SIGNAL: x'); assert.equal('from' in b1, false, 'today\'s text must carry no "from"');
+  put('dry-powder-analysis', stored('2026-11-19', at(19, 3))); r = await call(); const b2 = r.body as Record<string, unknown>; assert.equal(b2.analysis, 'SIGNAL: x'); assert.equal(b2.from, '2026-11-19', 'yesterday\'s text must say which day it is from');
+  put('dry-powder-analysis', stored('2026-11-15', at(15, 3))); r = await call(); const b3 = r.body as Record<string, unknown>; assert.equal(r.status, 200, 'a 5-day-old text (beyond 36 h) must still be served'); assert.equal(b3.from, '2026-11-15');
+  assert.deepEqual(Object.keys(b3).sort(), ['analysis', 'current', 'from', 'prev30', 'prev90', 'series'], 'the answer shape');
+  assert.equal(xaiCalls, 0, 'the route never calls xAI');
+});
+test('D7f. the card: the "From <date>" line shows only when from is set, and a SECOND pending keeps the loading state (no "unavailable"); the label exists', () => {
+  const card = strip(read('components/DryPowder.tsx')); const en = JSON.parse(read('lib/labelDefaults.en.json')) as Record<string, string>;
+  assert.ok(/d\.analysis === 'ready' && d\.from && \(/.test(card), 'the from line is not conditional on from being set'); assert.ok(card.includes("data-testid=\"dry-powder-from\"") && card.includes("t('DRY_POWDER_FROM_DATE'"), 'the from line or its label is missing');
+  assert.ok(/\.\.\.\(ai\.json\.from \? \{ from: ai\.json\.from \} : \{\}\)/.test(card), 'the card does not carry from into its state');
+  const second = card.indexOf('ai = await askAi();'); assert.ok(second > 0); const ret = card.indexOf('if (ai?.json.pending) return;', second); assert.ok(ret > second && ret - second < 200, 'after the second ask a pending answer must return (keep the loading state), not fall through to unavailable');
+  assert.equal(en.DRY_POWDER_FROM_DATE, 'From {date}'); assert.ok(read('lib/labelKeys.ts').includes("'DRY_POWDER_FROM_DATE'"), 'the label key is not registered');
 });
 test('D8. the ledger accepts a call with no user: AiCallRecord.userId is nullable and carries a source; the migration drops NOT NULL and adds the column on both environments', () => {
   const log = strip(read('lib/aiCallLog.ts')); assert.ok(/userId:\s*string \| null/.test(log) && /source\?:\s*string/.test(log) && /source:\s*rec\.source \?\? null/.test(log));
