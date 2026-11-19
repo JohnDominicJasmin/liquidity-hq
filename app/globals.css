@@ -1397,10 +1397,11 @@ body[data-rpm-level="high"]::before {
 }
 
 @media (max-width: 760px) {
-  .news-ticker { height: 19px; }
+  /* 24px, not 19 (#1185, WCAG 2.5.8): the two buttons were 32x19 and 26x19 here. The page's top padding already reserves 32px for the bar, so the 5px costs no layout. */
+  .news-ticker { height: 24px; }
   .ticker-badge { font-size: 0.625rem; padding: 1px 5px; line-height: 12px; }
-  .ticker-content span { font-size: var(--fs-micro); line-height: 19px; }
-  .ticker-close { height: 19px; width: 26px; }
+  .ticker-content span { font-size: var(--fs-micro); line-height: 24px; }
+  .ticker-close { height: 24px; width: 32px; }
 }
 
 @keyframes ticker-scroll {
