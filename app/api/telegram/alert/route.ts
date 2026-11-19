@@ -40,7 +40,7 @@ import { loadTypeMutesByUser } from '@/lib/telegramTypeMute';
 import { localizeTelegram, localizeKeyboard, tgLocaleOf, tgDateLocale, tgKeep, type TgLocale } from '@/lib/telegramI18n';
 import { tgLabelsForAll } from '@/lib/telegramLabels';
 import { SQUEEZE_SCORE_MAX } from '@/lib/alertThresholdRanges';
-import { isDailySummaryOn, summaryHour, summaryDueNow, DEFAULT_DAILY_SUMMARY_HOUR, fetchMovers24h, topMovers, squeezeSetups, buildDailySummaryText, type SqueezeRead } from '@/lib/dailySummary';
+import { isDailySummaryOn, summaryHour, summaryDueNow, DEFAULT_DAILY_SUMMARY_HOUR, fetchMovers24h, topMovers, squeezeSetups, buildDailySummaryMessages, type SqueezeRead } from '@/lib/dailySummary';
 
 export const dynamic = 'force-dynamic';
 
@@ -338,7 +338,7 @@ async function runBatched<T>(tasks: Array<() => Promise<T>>, batchSize = 5): Pro
  * instants that are the same for every reader on earth. Shifting UTC by 8 is just how the thresholds
  * below were written down; `sessionHour >= 15 && < 21.5` is UTC 07:00-13:30 either way.
  *
- * So the offset stays and the names go. They were `phtHour` and `pht`, which read as the operator's
+ * So the offset stays and the names go. They were named for one fixed zone, which read as the operator's
  * clock and made a correct computation look like a parochial one. **The arithmetic is deliberately
  * untouched**: rewriting the thresholds in UTC means re-deriving five comparisons across a modulo
  * boundary, and a renamed variable cannot move a session edge while a rewritten threshold can. */
@@ -1642,13 +1642,15 @@ async function checkDailySummary(
     }
     const excluded = (coin: string) => isMutedFor(mutedByUser, r.userId, `coin:${coin}`);
     const threshold = (thresholdsByUser.get(r.userId) ?? DEFAULT_THRESHOLDS).squeezeThreshold;
-    const text = buildDailySummaryText({
+    const messages = buildDailySummaryMessages({
       dateStr, stamp, threshold,
       movers: topMovers(movers, excluded),
       setups: squeezeSetups(squeezeReads, threshold, excluded),
     });
-    const res = await tg(token, r.chatId, text);
+    /* One message, or two in order when the text would pass Telegram's length limit (lib/dailySummary.ts). The day counts as sent once the first one landed: a failed second part must not resend the first on the next run. */
+    const res = await tg(token, r.chatId, messages[0]);
     if (res.sent > 0) markSent(`daily_summary_${r.chatId}`);
+    if (res.sent > 0) for (const part of messages.slice(1)) await tg(token, r.chatId, part);
     return res.sent > 0;
   }));
 
@@ -2655,7 +2657,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
 
   // TIME_TOKEN, not a rendered time: tg() replaces it per recipient with that
   // subscriber's own local clock (falling back to UTC when we don't know their
-  // timezone). Was a single Manila time for everyone, then a single UTC time -
+  // timezone). Was a single fixed-zone time for everyone, then a single UTC time -
   // correct but still nobody's actual wall clock. The session name beside it is
   // already timezone-independent.
   const stamp = `⏰ ${TIME_TOKEN} · ${getSession()}`;

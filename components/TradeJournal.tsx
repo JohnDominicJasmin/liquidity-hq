@@ -162,8 +162,8 @@ function tradeR(tr: Trade): number | null {
 function fmtDate(s: string) {
   const d = new Date(s);
   // undefined locale = follow the viewer's own formatting conventions. The
-  // instant was always right here (no timeZone override), but 'en-PH' forced
-  // one fixed locale's date/time formatting on every user.
+  // instant was always right here (no timeZone override), but a hard-coded
+  // locale forced one fixed date/time format on every user.
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
     + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
@@ -465,8 +465,8 @@ function Inner() {
   };
 
   /* Live violations for the current form state */
-  const pht     = typeof window !== 'undefined' ? getLocalNow() : new Date();
-  const session = getSessionName(pht) ?? '';
+  const localNow     = typeof window !== 'undefined' ? getLocalNow() : new Date();
+  const session = getSessionName(localNow) ?? '';
 
   const activeViolations = useMemo(() => {
     const liveFields = { coin, direction, setup_type: setup, leverage, session };
@@ -687,8 +687,8 @@ function Inner() {
     const stopNum  = parseFloat(stopLoss);
     if (!entryNum || !stopNum) return;
 
-    const pht     = getLocalNow();
-    const session = getSessionName(pht);
+    const localNow     = getLocalNow();
+    const session = getSessionName(localNow);
 
     setSaving(true);
     const payload = {

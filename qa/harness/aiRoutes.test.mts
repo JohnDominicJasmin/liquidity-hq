@@ -23,7 +23,7 @@ const ROUTES = [
     bad: [['a 4001-character thesis', { symbol: 'BTC', direction: 'long', thesisText: big(4001), assumptions: ['one'] }], ['21 assumptions', { symbol: 'BTC', direction: 'long', thesisText: 't', assumptions: Array.from({ length: 21 }, () => 'a') }], ['a 501-character assumption', { symbol: 'BTC', direction: 'long', thesisText: 't', assumptions: [big(501)] }], ['a number as the symbol', { symbol: 5, direction: 'long', thesisText: 't', assumptions: ['one'] }], ['a body that is not JSON', 'not json at all']] },
   { name: 'strategy-research', path: 'app/api/strategy-research/route.ts', ok: { description: 'buy dips on btc' },
     bad: [['a 4001-character description', { description: big(4001) }], ['a non-string description', { description: 42 }], ['a body that is not JSON', 'not json at all']] },
-  { name: 'pine-script', path: 'app/api/pine-script/route.ts', ok: { description: 'ema cross', analysisText: 'analysis' },
+  { name: 'pine-script', path: 'app/api/pine-script/route.ts', ok: { description: 'ema cross on btc 1h', analysisText: 'analysis' },
     bad: [['a 4001-character description', { description: big(4001), analysisText: 'x' }], ['a 20001-character analysis', { description: 'd', analysisText: big(20001) }], ['a non-string analysis', { description: 'd', analysisText: 7 }], ['a body that is not JSON', 'not json at all']] },
 ] as const;
 

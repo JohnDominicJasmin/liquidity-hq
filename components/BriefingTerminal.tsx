@@ -145,7 +145,7 @@ function buildBriefingContext(
     `BTC Dominance: ${store.btcDom?.toFixed(1) ?? '?'}%`,
     `DXY: ${store.dxy?.toFixed(2) ?? '?'} (${store.dxyChg != null ? (store.dxyChg >= 0 ? '+' : '') + store.dxyChg.toFixed(2) : '?'}% 24h)`,
     `USD/JPY (Yen Watch): ${jpyStatus}`,
-    `BTC ETF Flow (latest settled US session${store.etfFlowDays?.[0]?.date ? ' ' + store.etfFlowDays[0].date : ''}): ${store.etfNetFlow != null ? signedUsd(store.etfNetFlow, 'M', 0) : 'N/A'}`,
+    `BTC ETF Flow (latest settled US session${store.etfFlowDays?.[0]?.date ? ' ' + store.etfFlowDays[0].date : ''}): ${store.etfNetFlow != null && store.etfFlowDays?.[0]?.date ? signedUsd(store.etfNetFlow, 'M', 0) : 'N/A'}`,
     '',
     'COINS (24h change | FR | RSI 15m | CVD divergence | OI trend):',
   ];
@@ -605,7 +605,8 @@ export default function BriefingTerminal() {
             {dxyStampDate && store.dxy != null && <div className="mb-macro-sub" data-testid="macro-stamp" style={{ color: 'var(--txt3)' }}>{t('MACRO_STRIP_CLOSE_STAMP', { day: dxyStampDate.toLocaleDateString(undefined, { weekday: 'short' }) })}</div>}
           </div>
           )}
-          {etfFlow != null && (
+          {/* NEVER AN UNDATED FIGURE (PM 2026-11-19, #1651 L117): the ETF flow is shown only with the day it belongs to ("Latest: Nov 13" when the source lags), and goes to the AI read the same way. A figure whose date is unknown is left out, not shown as if it were today's. */}
+          {etfFlow != null && etfDate != null && (
             <div className="mb-macro-item">
               <div className="mb-macro-label"><Tip width={260} text={t('BRIEFING_ETF_TIP')}>{t('BRIEFING_ETF_LABEL')}</Tip>{etfDate ? ` · ${t('BRIEFING_ETF_LATEST', { date: fmtEtfDate(etfDate) })}` : ''}</div>
               <div className="mb-macro-val" style={{ color: etfColor }}>

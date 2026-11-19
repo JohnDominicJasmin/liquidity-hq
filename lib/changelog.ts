@@ -150,10 +150,20 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* DRAFT, the release after v2026.11.19 (PM 2026-11-19). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs. Plain words, 12 words or fewer per line
+       (rule 22); only user-visible changes. Tied to: #2628 (Research AI summary written once a day), #2627 (Markets blank cells). A line whose PR misses the tag is removed. */
+    date: '2026-11-20',
+    tag: 'v2026.11.20',
+    items: [
+      "Research: the AI summary now loads instantly.",
+      "Markets: blank cells replace 'No data' when buy pressure is missing.",
+    ],
+  },
+  {
     /* DRAFT, the release after v2026.11.18.2 (PM 2026-11-18). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs.
        Plain words, 12 words or fewer per line (rule 22); only user-visible changes. Tied to: #2565 (Arena header), #2569 (your language), #2567 (bot commands,
        quiet hours, snooze, plan-lapse message), #2574 (inline mute), #2572 (daily summary, test alert), #2576 (multi-timeframe rows), #2578 + #2583 (speed),
-       #2584 (S/R flip), #2587 (chart key, password reset), #2586 (AI use given back), #2590 (Telegram language). A line whose PR misses the tag is removed. */
+       #2584 (S/R flip), #2587 (chart key, password reset), #2586 (AI use given back), #2590 (Telegram language), #2597 (reads use the picked strategy), #2598 (funding squeeze), #2599 (chart drawings), #2603 (rules on real data), #2604 (why a strategy cannot run), #2609 (stock hours), #2612 (summary cap), #2613 (BTC crowding), #2607 (EMA stack), #2608 (session sweep), #2610 (needs-candles reason), #2611 (reads on every coin), #2614 (fixed read levels), #2618 (no-setup chip). A line whose PR misses the tag is removed. */
     date: '2026-11-19',
     tag: 'v2026.11.19',
     items: [
@@ -172,6 +182,20 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Tap ? on the Arena chart to see what each label means.",
       "Resetting your password signs out your other devices.",
       "AI tools that fail to answer give your use back.",
+      "Strategies draw what they are watching on the chart.",
+      "Strategy rules were re-checked against real market data.",
+      "A strategy that cannot run on a timeframe now says why.",
+      "Tokenized stocks: session strategies read US market hours only.",
+      "Funding squeeze compares funding and open interest with each coin's own history.",
+      "Quick and Deep reads use the strategy you picked.",
+      "BTC crowding now includes the share of accounts long.",
+      "Telegram daily summary shows the top 10 setups.",
+      "EMA stack signals when the stack forms, not on pullbacks.",
+      "Session sweep signals once per session and direction.",
+      "A strategy with too few candles says how many it needs.",
+      "Quick and Deep reads cover every listed coin, stocks included.",
+      "Quick and Deep quote the same support, resistance and taker levels.",
+      "A waiting strategy with nothing to draw says so on the chart.",
     ],
   },
   {
@@ -266,7 +290,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    /* v2026.11.16b, a one-fix patch on v2026.11.16 (tagged 2026-11-17 PHT, a70a1976). Binance moved its futures streams to a new address and the old one still connected but sent nothing, so the Binance side of the liquidation feed, the liquidation map history and the whale feed had gone quiet. Wording from PM. */
+    /* v2026.11.16b, a one-fix patch on v2026.11.16 (tagged 2026-11-17 by the tagger's local date, a70a1976). Binance moved its futures streams to a new address and the old one still connected but sent nothing, so the Binance side of the liquidation feed, the liquidation map history and the whale feed had gone quiet. Wording from PM. */
     date: '2026-11-17',
     tag: 'v2026.11.16b',
     items: [
@@ -274,7 +298,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    /* v2026.11.16 (was written as v2026.11.15; the release slipped past PHT midnight). Written before the tag is cut, so whoever tags checks the date against `git tag --points-at main` (PHT, the same rule as v2026.11.14's entry). C1 permits exactly one untagged entry in
+    /* v2026.11.16 (was written as v2026.11.15; the release slipped past the tagger's local midnight). Written before the tag is cut, so whoever tags checks the date against `git tag --points-at main` (the tagger's local date, the same rule as v2026.11.14's entry). C1 permits exactly one untagged entry in
        flight, and this is it.
 
        EVERY ITEM IS A SURFACE A READER LOOKS AT, tied to its pull requests: #2358 (one Strategy set menu), #2366 + #2369 (the smaller call box, its Expand arrow, the loading and unavailable states),
@@ -682,7 +706,7 @@ export const CHANGELOG: ChangelogEntry[] = [
 
        IT MOVED TWICE AND BOTH MOVES ARE THE SAME LESSON. It was 2026-11-05 when written, then
        2026-11-06 on PM/DevOps's call because the release was expected to ship on the 6th in both
-       UTC and PHT - and it shipped on the 7th. A date set from the plan is wrong whenever the plan
+       UTC and the tagger's local date - and it shipped on the 7th. A date set from the plan is wrong whenever the plan
        slips, which is most of the time. **The date follows the tag, and the tag follows the
        deploy.** Whoever tags next should check this string against `git tag --points-at main`
        rather than against the day they are working.

@@ -104,7 +104,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
 
   /* THE CLOCK IS THE CLIENT'S, AND IT TICKS (#1651).
 
-     It is the visitor's own wall clock, set only after mount: `new Date()` in the markup ran on the SERVER during the first render, so a visitor in Manila briefly saw a London time.
+     It is the visitor's own wall clock, set only after mount: `new Date()` in the markup ran on the SERVER during the first render, so a visitor in another timezone briefly saw the server's time.
 
      IT USED TO BE READ ONLY WHEN THIS COMPONENT RE-RENDERED, which is whenever the market store updates. A quiet or throttled store (a background or idle tab, a slow feed) meant no re-render, so the line could sit an hour
      behind real time on the front page (QA: 16:50 at about 17:55Z). It now has its own state, refreshed every 30 seconds and the moment the tab becomes visible again, so what it shows is never more than about
@@ -274,6 +274,8 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
     document.documentElement.dir  = dir;
     return () => {
       document.body.classList.remove('landing');
+      /* data-landing is set before paint by RootDocument's landing-init for the first load; a client-side visit to the app must get its shell back. */
+      document.documentElement.removeAttribute('data-landing');
       document.documentElement.lang = prevLang;
       document.documentElement.dir  = prevDir;
     };
@@ -285,14 +287,14 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
     }}>
 
       {/* ── NAV ── */}
-      <nav style={{
+      <nav className="lt-top-bar" style={{
         height: isDesktop ? 56 : 52, display: 'flex', alignItems: 'center',
         padding: isDesktop ? '0 40px' : '0 16px', gap: isDesktop ? 12 : 6,
         borderBottom: '1px solid var(--bdr)',
       }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <BrandMark size={isDesktop ? 26 : 22} tone="dark" radiusPct={0} />
-          <span style={{
+          <BrandMark size={isDesktop ? 26 : 22} tone="dark" radiusPct={0} className="lt-brand-mark" />
+          <span className="lt-brand-text" style={{
             fontFamily: 'var(--font-mono), monospace', fontWeight: 700, letterSpacing: '.16em',
             fontSize: isDesktop ? 14 : 11.5, color: 'var(--txt)', whiteSpace: 'nowrap',
             overflow: 'hidden', textOverflow: 'ellipsis',
@@ -306,7 +308,7 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
         <Link href="/learn" className="lt-nav-learn">
           {dict.nav.learn}
         </Link>
-        <Link href="/login" style={{
+        <Link href="/login" className="lt-signin-btn" style={{
           fontFamily: 'var(--font-mono), monospace', fontSize: 11.5, letterSpacing: '.12em',
           color: 'var(--txt2)', border: '1px solid var(--border-input)',
           padding: isDesktop ? '9px 16px' : '9px 10px',
@@ -314,13 +316,14 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
         }}>
           {isDesktop ? dict.nav.signIn : dict.nav.signIn}
         </Link>
-        <Link href="/login?signup=1" style={{
+        <Link href="/login?signup=1" className="lt-start-btn" style={{
           fontFamily: 'var(--font-mono), monospace', fontSize: 11.5, fontWeight: 700, letterSpacing: '.12em',
           color: 'var(--bg0)', background: 'var(--accent)',
           padding: isDesktop ? '10px 18px' : '10px 12px',
           textDecoration: 'none', textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0,
         }}>
-          {isDesktop ? dict.nav.getStarted : dict.liveRead.start}
+          {/* Both words are in the markup and CSS picks one at the same 768 px line as isDesktop, so the button is the right width on the first paint instead of changing it when the page hydrates (QA: Get started 166 px wide, then START 66 px, +0.125 CLS at 390). */}
+          <span className="lt-lbl-wide">{dict.nav.getStarted}</span><span className="lt-lbl-narrow">{dict.liveRead.start}</span>
         </Link>
       </nav>
 

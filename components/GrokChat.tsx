@@ -154,6 +154,7 @@ function buildChatContext(
     stablecoinSupply: store.stablecoinSupply || undefined,
     stablecoinChg30d: store.stablecoinChg30d ?? undefined,
     etfNetFlow: store.etfNetFlow ?? undefined, ethEtfNetFlow: store.ethEtfNetFlow ?? undefined,
+    etfFlowDate: store.etfFlowDays?.[0]?.date, ethEtfFlowDate: store.ethEtfFlowDays?.[0]?.date,
     btcExchangeNetFlow: store.btcExchangeNetFlow ?? undefined,
     sectorRotation: computeSectorRotation(store, coin).line,
     structure: structureLine,

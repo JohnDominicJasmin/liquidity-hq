@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const en = JSON.parse(readFileSync(new URL('../lib/labelDefaults.en.json', import.meta.url), 'utf8')) as Record<string, string>;
-const route = readFileSync(new URL('../app/api/dry-powder/route.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+import { buildDryPowderPrompt } from '../lib/dryPowderAnalysis.ts';   // the prompt moved here from the route (#2628)
 const OUTLOOK = /\b(bullish|bearish|likely|expect(ed|s)?|will\b|should|outlook|forecast|predict(s|ed|ion)?|fresh capital|build positions|reduce exposure|hedge|position sizing)\b/i;
 
 test('C1. the volatility-regime hints are statements, not instructions or predictions', () => {
@@ -25,8 +25,7 @@ test('C2. the Stablecoin tooltip and label are factual, and the tooltip says the
   assert.doesNotMatch(en.DRY_POWDER_WATCH_LABEL, /watch/i);
 });
 test('C3. the prompt forbids outlook and asks only for the supply change', () => {
-  const a = route.indexOf('function buildPrompt('); assert.ok(a > 0, 'CONTROL: buildPrompt not found');
-  const prompt = route.slice(a, route.indexOf("].join('\n');", a));
+  const prompt = buildDryPowderPrompt(200e9, 190e9, 180e9); assert.ok(prompt.length > 200, 'CONTROL: the prompt builder returned nothing');
   assert.match(prompt, /write a short factual summary/);
   assert.match(prompt, /No price predictions, no advice, no words like bullish or bearish, no "dry powder" framing, no things to watch\./);
   assert.match(prompt, /stating the 30-day change/); assert.match(prompt, /how total stablecoin supply changed over the last 30 and 90 days/); assert.match(prompt, /dollar figures only/);

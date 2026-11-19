@@ -19,7 +19,7 @@ const IDS = ['ema_stack', 'ema_cross', 'range_bounce', 'liq_sweep_mss', 'supply_
 const NAMES_EN = ['EMA 20/50/100/200 stack', 'Golden / death cross (EMA 50/200)', 'Range bounce', 'Liquidity sweep + structure shift', 'Supply / demand zone retest', 'Support / resistance flip', 'Fair value gap', 'Break of structure + FVG', 'Channel breakout', 'RSI divergence', 'Bollinger squeeze breakout', 'New York open breakout', 'Asia / London session sweep', 'VWAP reclaim', 'Funding + OI squeeze', 'CVD absorption'];
 const OLD = ['Liquidity Sweep', 'Trend Follow', 'Mean Reversion'];
 
-type Open = { width?: number; theme?: 'dark' | 'light'; loc?: string; saved?: string | null; chips?: string[] | null; failKlines?: 'all' | 'btc' | null; coin?: string };
+type Open = { width?: number; theme?: 'dark' | 'light'; loc?: string; saved?: string | null; chips?: string[] | null; failKlines?: 'all' | 'btc' | null; coin?: string; tf?: string };
 async function openArena(browser: Browser, o: Open = {}) {
   const ctx = await signedInContext(browser, 'a');
   await ctx.addInitScript(([l, t]) => { try { localStorage.setItem('lhq_lang_v1', l); localStorage.setItem('theme', t); localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private */ } }, [o.loc ?? 'en', o.theme ?? 'dark']);
@@ -45,12 +45,15 @@ async function openArena(browser: Browser, o: Open = {}) {
     if (o.failKlines === 'btc' && !/symbol=BTC/i.test(route.request().url())) return route.fallback();
     return route.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"stub"}' });
   });
-  await gotoSignedIn(page, `/arena?coin=${o.coin ?? 'eth'}&tf=1h`); await page.waitForTimeout(12_000);
+  await gotoSignedIn(page, `/arena?coin=${o.coin ?? 'eth'}&tf=${o.tf ?? '1h'}`); await page.waitForTimeout(12_000);
   return { ctx, page, writes };
 }
 const menu = (p: Page) => p.getByTestId('strategy-set-select');
 const box = (p: Page) => p.getByTestId('strategy-call-box');
 async function pick(p: Page, v: string) { await menu(p).selectOption(v); await p.waitForTimeout(6_000); }
+/* #2604 (release 2026-11-19): a strategy that cannot run on the timeframe is a DISABLED option whose title says why ("Works on 30m or lower."). A disabled option can never be selected, so a loop that picks every id would wait on it until the test timeout (release #2622, mobile: M2 / M3 / M3u hit 170 s at the NEW YORK OPEN option on 1h). NY open runs on 30m or lower: it is disabled on the 1h cells and exercised on 15m. */
+const NA_ON_1H = ['ny_open_breakout'];
+const optionState = (p: Page, id: string) => p.evaluate(v => { const o = Array.from(document.querySelectorAll('[data-testid="strategy-set-select"] option')).find(x => (x as HTMLOptionElement).value === v) as HTMLOptionElement | undefined; return o ? { disabled: o.disabled, title: o.title } : null; }, id);
 const options = (p: Page) => p.evaluate(() => Array.from(document.querySelectorAll('[data-testid="strategy-set-select"] option')).map(o => ({ value: (o as HTMLOptionElement).value, label: (o.textContent || '').trim() })));
 const chipOn = (p: Page, id: string) => p.getByTestId(`strategy-indicator-${id}`).getAttribute('aria-pressed');
 
@@ -86,9 +89,10 @@ test.describe('one strategy menu (#2358)', () => {
    * strategy_selection in ONE request. (2) toggling a chip keeps the strategy and writes strategy_selection only. (3) Let the read choose / Custom write arena_strategy: null only, chips untouched, the call box goes. */
   const strat = (writes: Array<Record<string, unknown>>, from: number) => writes.slice(from).filter(w => 'arena_strategy' in w || 'strategy_selection' in w);
   for (const id of IDS) test(`M2. picking ${id} with SMA already on: ${id === 'bb_squeeze' ? 'ONE request carries arena_strategy and the chips with BOLL added' : 'ONE request carries arena_strategy only'}; SMA stays on`, async ({ browser }) => {
-    const { ctx, page, writes } = await openArena(browser, { saved: null, chips: ['SMA'] });
+    const { ctx, page, writes } = await openArena(browser, { saved: null, chips: ['SMA'], tf: NA_ON_1H.includes(id) ? '15m' : '1h' });
     try {
       await expect(menu(page)).toBeVisible({ timeout: 30_000 }); const before = writes.length;
+      expect(await optionState(page, id), `${id}: the option is disabled on the timeframe this cell opens`).toMatchObject({ disabled: false });
       await pick(page, id);
       const mine = strat(writes, before); console.log(`[M2] ${id} writes ${JSON.stringify(mine)}`);
       expect(mine.length, 'the pick was not saved in ONE request').toBe(1);
@@ -147,12 +151,24 @@ test.describe('one strategy menu (#2358)', () => {
     try { await expect(menu(e.page)).toBeVisible({ timeout: 30_000 }); expect(await menu(e.page).inputValue(), 'nothing saved must read Let the read choose').toBe('auto'); } finally { await e.ctx.close(); }
   });
 
+  test('M2n. NY open on 1h is a DISABLED option with its reason as the title; nothing is written; the only strategy disabled on 1h is NY open', async ({ browser }) => {
+    const { ctx, page, writes } = await openArena(browser, { saved: null, chips: [] });
+    try {
+      await expect(menu(page)).toBeVisible({ timeout: 30_000 });
+      const off: string[] = []; for (const id of IDS) { const o = await optionState(page, id); expect(o, `${id}: option missing`).not.toBeNull(); if (o!.disabled) { off.push(id); expect(o!.title, `${id}: a disabled option must say why`).toMatch(/Works on \d+\s?\w+ or (lower|higher)/); } }
+      expect(off, 'the strategies disabled on 1h').toEqual(NA_ON_1H);
+      expect((await optionState(page, 'ny_open_breakout'))!.title).toBe('Works on 30m or lower.');
+      expect(writes.filter(w => 'arena_strategy' in w || 'strategy_selection' in w), 'something was written').toEqual([]);
+    } finally { await ctx.close(); }
+  });
+
   test('M3. the call box sits directly under the menu in the same panel with every part; Let the read choose and Custom show none', async ({ browser }) => {
     const { ctx, page } = await openArena(browser, { saved: null, chips: [] });
     try {
       await expect(menu(page)).toBeVisible({ timeout: 30_000 });
       await expect(box(page), 'a call box shows with no strategy picked').toHaveCount(0);
       for (const id of IDS) {
+        if (NA_ON_1H.includes(id)) { expect((await optionState(page, id))!.disabled, `${id}: expected disabled on 1h (#2604)`).toBe(true); continue; }
         await pick(page, id); await expect(box(page), `${id}: no call box`).toBeVisible({ timeout: 20_000 });
         const g = await page.evaluate(() => {
           const s = document.querySelector('[data-testid="strategy-set-select"]') as HTMLElement; const b = document.querySelector('[data-testid="strategy-call-box"]') as HTMLElement;
@@ -172,12 +188,29 @@ test.describe('one strategy menu (#2358)', () => {
     } finally { await ctx.close(); }
   });
 
+  test('M3n. NY open on 15m: selectable; the call box shows with a verdict, the loading or the unavailable state and no raw key', async ({ browser }) => {
+    const { ctx, page } = await openArena(browser, { saved: null, chips: [], tf: '15m' });
+    try {
+      await expect(menu(page)).toBeVisible({ timeout: 30_000 });
+      expect((await optionState(page, 'ny_open_breakout'))!.disabled, 'NY open is disabled on 15m').toBe(false);
+      await pick(page, 'ny_open_breakout'); await expect(box(page), 'no call box for NY open on 15m').toBeVisible({ timeout: 20_000 });
+      const text = (await box(page).innerText()).replace(/\s+/g, ' '); console.log(`[M3n] ny_open_breakout 15m: ${text.slice(0, 120)}`);
+      expect(text, 'a raw label key shows').not.toMatch(/STRAT_[A-Z_]+/);
+      await expect(page.getByTestId('strategy-call-verdict').or(page.getByTestId('strategy-call-unavailable')).or(page.getByTestId('strategy-call-cant-run')), 'NY open on 15m shows no settled state').toBeVisible({ timeout: 20_000 });
+    } finally { await ctx.close(); }
+  });
+
   test('M3u. a failed candle read is the UNAVAILABLE state for every strategy, never WAIT; supply / demand is unavailable when only BTC fails', async ({ browser }) => {
     const a = await openArena(browser, { saved: null, chips: [], failKlines: 'all' });
     try {
       await expect(menu(a.page)).toBeVisible({ timeout: 30_000 });
-      for (const id of IDS) { await pick(a.page, id); await expect(a.page.getByTestId('strategy-call-unavailable'), `${id}: no unavailable state on a failed read`).toBeVisible({ timeout: 20_000 }); await expect(a.page.getByTestId('strategy-call-verdict')).toHaveCount(0); }
+      for (const id of IDS) { if (NA_ON_1H.includes(id)) { expect((await optionState(a.page, id))!.disabled, `${id}: expected disabled on 1h (#2604)`).toBe(true); continue; } await pick(a.page, id); await expect(a.page.getByTestId('strategy-call-unavailable'), `${id}: no unavailable state on a failed read`).toBeVisible({ timeout: 20_000 }); await expect(a.page.getByTestId('strategy-call-verdict')).toHaveCount(0); }
     } finally { await a.ctx.close(); }
+    const n = await openArena(browser, { saved: null, chips: [], failKlines: 'all', tf: '15m' });
+    try {
+      await expect(menu(n.page)).toBeVisible({ timeout: 30_000 });
+      await pick(n.page, 'ny_open_breakout'); await expect(n.page.getByTestId('strategy-call-unavailable'), 'ny_open_breakout on 15m: no unavailable state on a failed read').toBeVisible({ timeout: 20_000 }); await expect(n.page.getByTestId('strategy-call-verdict')).toHaveCount(0);
+    } finally { await n.ctx.close(); }
     const b = await openArena(browser, { saved: null, chips: [], failKlines: 'btc', coin: 'eth' });
     try {
       await expect(menu(b.page)).toBeVisible({ timeout: 30_000 });

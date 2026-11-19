@@ -9,6 +9,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as nodeModule from 'node:module';
+import { watchedItems } from '../lib/strategies/chartDrawings.ts';
+import { priceText } from '../lib/numberFormat.ts';
 
 const stripTypeScriptTypes = (nodeModule as unknown as { stripTypeScriptTypes: (source: string) => string }).stripTypeScriptTypes;
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
@@ -35,16 +37,24 @@ test('B2. the label is a stroke_fill box with a 1 px same-ink border, and the st
 test('B3. role colours: accent for watch/confirm, amber for wrong-if, neutral for reference', () => {
   assert.ok(chart.includes("resolveCssColor(role === 'invalid' ? 'var(--amber)' : role === 'ref' ? 'var(--txt2)' : 'var(--accent)')"), 'the role-to-colour mapping changed');
 });
-test('B4. the WAIT Watching list: wait only, watch+confirm only, lowest first, at most four, none -> empty', () => {
-  const at = box.indexOf('const watched = '); assert.ok(at > 0, 'CONTROL: watched not found'); const src = box.slice(at, box.indexOf(';\n', at) + 1);
-  const watched = new Function('r', `${stripTypeScriptTypes(src)}\nreturn watched;`) as (r: unknown) => { price: number; role: string }[];
-  const lv = (price: number, role: string) => ({ price, role, labelKey: 'K' });
+test('B4. the WAIT Watching list is watchedItems(result): wait only; the watch and confirm levels, the zone edges and where each line ends now; nearest to the last close first; at most four; none -> empty', () => {
+  const lv = (price: number, role: string) => ({ price, role, labelKey: 'K', labelParams: undefined });
+  const zone = (bottom: number, top: number) => ({ bottom, top, labelKey: 'Z' });
+  const line = (end: number) => ({ points: [{ time: 1, price: 0 }, { time: 2, price: end }], labelKey: 'L', labelParams: undefined });
+  const res = (verdict: string, o: { levels?: unknown[]; zones?: unknown[]; lines?: unknown[] } | undefined, lastClose?: number) => ({ verdict, lastClose, overlay: o ? { levels: [], zones: [], lines: [], ...o } : undefined }) as unknown as Parameters<typeof watchedItems>[0];
   const lvls = [lv(5, 'watch'), lv(1, 'confirm'), lv(9, 'invalid'), lv(3, 'ref'), lv(2, 'watch'), lv(4, 'confirm'), lv(8, 'watch'), lv(0.5, 'invalid')];
-  assert.deepEqual(watched({ verdict: 'wait', overlay: { levels: lvls } }).map((l) => l.price), [1, 2, 4, 5], 'not (watch+confirm, lowest first, max 4)');
-  for (const v of ['buy', 'sell']) assert.deepEqual(watched({ verdict: v, overlay: { levels: lvls } }), [], `a ${v} call lists watched levels`);
-  assert.deepEqual(watched({ verdict: 'wait', overlay: { levels: [lv(9, 'invalid'), lv(3, 'ref')] } }), [], 'only wrong-if / reference levels must give no line');
-  assert.deepEqual(watched({ verdict: 'wait', overlay: undefined }), []); assert.deepEqual(watched(null), []);
-  assert.ok(box.includes('{watched.length > 0 && (') && box.includes("data-testid=\"strategy-call-watching\"") && box.includes("{t('STRAT_WATCHING')}: "), 'the line is not gated on having levels or lost its label');
+  // only watch + confirm levels (never wrong-if or reference), nearest to the last close (4.2) first, at most four
+  assert.deepEqual(watchedItems(res('wait', { levels: lvls }, 4.2)).map(i => i.price), [4, 5, 2, 1].map(priceText), 'not (watch+confirm, nearest the close first, max 4)');
+  // without a last close the order is lowest first
+  assert.deepEqual(watchedItems(res('wait', { levels: lvls })).map(i => i.price), [1, 2, 4, 5].map(priceText));
+  // a zone contributes its two edges as one item "bottom - top", ranked by its middle; a line contributes where it ends now
+  const mixed = watchedItems(res('wait', { levels: [lv(100, 'watch')], zones: [zone(10, 20)], lines: [line(50)] }, 52));
+  assert.deepEqual(mixed.map(i => i.price), [priceText(50), `${priceText(10)} - ${priceText(20)}`, priceText(100)], 'from a last close of 52: the line end (distance 2), then the zone 10 - 20 (middle 15, distance 37), then the level 100 (distance 48)');
+  for (const v of ['buy', 'sell']) assert.deepEqual(watchedItems(res(v, { levels: lvls }, 4.2)), [], `a ${v} call lists watched items`);
+  assert.deepEqual(watchedItems(res('wait', { levels: [lv(9, 'invalid'), lv(3, 'ref')] }, 4)), [], 'only wrong-if / reference levels must give no line');
+  assert.deepEqual(watchedItems(res('wait', undefined)), []); assert.deepEqual(watchedItems(null), []);
+  assert.deepEqual(watchedItems(res('wait', { lines: [{ points: [], labelKey: 'L' }, line(NaN)] }, 4)), [], 'an empty or NaN line end must not be named');
+  assert.ok(box.includes('const watched = watchedItems(r);') && box.includes('{watched.length > 0 && (') && box.includes('data-testid="strategy-call-watching"') && box.includes("{t('STRAT_WATCHING')}: "), 'the call box does not show watchedItems under its label, or gates it on something else');
 });
 test('B5. the Market Read says how many signals agree; no default still promises a best setup or asks about trading; the Watching key is registered', () => {
   assert.equal(en.MARKET_READ_EYEBROW_Q, ' · how many signals agree'); assert.equal(en.MARKET_READ_SCALE_GOOD, '≥ 70 most agree'); assert.equal(en.MARKET_READ_GOOD_TICK_TITLE, 'Signals agree ≥70');

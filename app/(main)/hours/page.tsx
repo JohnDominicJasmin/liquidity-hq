@@ -14,7 +14,7 @@ import PageHint from '@/components/PageHint';
 /* Typical-weekday session blocks, as UTC hour ranges - the same windows
    lib/session.ts enforces. These used to be wall-clock hours on a single fixed axis
    while the needle below was positioned from the VIEWER'S local clock, so
-   for anyone outside UTC+8 the blocks and the "you are here" marker
+   for anyone in another timezone the blocks and the "you are here" marker
    disagreed: a London trader saw the needle sitting in "DEAD" during their
    own London open. Anchored to UTC here and shifted to the viewer's offset
    at render time, so both agree for everyone.
@@ -147,12 +147,12 @@ export default function BestHours() {
   }, [mounted, t]);
 
   const now = new Date();
-  const pht = getLocalNow();
-  const win = getCurrentWindow(pht);
-  const dead = isDead(pht);
+  const localNow = getLocalNow();
+  const win = getCurrentWindow(localNow);
+  const dead = isDead(localNow);
   const days = [t('HOURS_DAY_SUN'), t('HOURS_DAY_MON'), t('HOURS_DAY_TUE'), t('HOURS_DAY_WED'), t('HOURS_DAY_THU'), t('HOURS_DAY_FRI'), t('HOURS_DAY_SAT')];
   const months = [t('HOURS_MONTH_JAN'), t('HOURS_MONTH_FEB'), t('HOURS_MONTH_MAR'), t('HOURS_MONTH_APR'), t('HOURS_MONTH_MAY'), t('HOURS_MONTH_JUN'), t('HOURS_MONTH_JUL'), t('HOURS_MONTH_AUG'), t('HOURS_MONTH_SEP'), t('HOURS_MONTH_OCT'), t('HOURS_MONTH_NOV'), t('HOURS_MONTH_DEC')];
-  const h = pht.getHours(), m = pht.getMinutes(), s = pht.getSeconds();
+  const h = localNow.getHours(), m = localNow.getMinutes(), s = localNow.getSeconds();
   const ampm = h >= 12 ? t('HOURS_PM') : t('HOURS_AM');
   const h12 = h % 12 || 12;
 
@@ -183,7 +183,7 @@ export default function BestHours() {
           {mounted && <span suppressHydrationWarning style={{ fontSize: 'var(--fs-body)', color: 'var(--txt3)', marginLeft: 8 }}>{locale === 'en' ? ampm + ' ' : ''}{localZoneAbbr()}</span>}
         </div>
         <div suppressHydrationWarning style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', marginTop: 4 }}>
-          {mounted ? <>{days[pht.getDay()]}, {months[pht.getMonth()]} {pht.getDate()} {pht.getFullYear()}</> : ' '}
+          {mounted ? <>{days[localNow.getDay()]}, {months[localNow.getMonth()]} {localNow.getDate()} {localNow.getFullYear()}</> : ' '}
         </div>
 
         <div style={{ marginTop: 12 }}>

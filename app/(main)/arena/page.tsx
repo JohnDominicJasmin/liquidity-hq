@@ -149,13 +149,12 @@ function ReasoningText({ text }: { text: string }) {
  *                 Drives the `n/a` in the Status and Score columns - a squeeze score of 0 built
  *                 from no funding is indistinguishable from a real neutral on screen.
  *
- * READABLE_COINS - "will /api/grok accept an AI read for this coin?" `parseArenaContext` checks
- *                 membership of `COINS`, so an untracked coin is refused before any plan read,
- *                 for every tier including Pro. Drives the selector's note and the error line.
+ * READABLE_COINS - "will /api/grok accept an AI read for this coin?" Every row of the coin universe since 2026-11-19 (`parseArenaContext` accepts the 50 curated coins and any universe row,
+ *                 lib/arenaContext.ts isTrackedCoin); the plan ladder still decides who may run it (Free and trial only BTC, ETH, SOL). Drives the selector's note and the error line.
  *
  * If these ever diverge, the comment above each is what says which badge was wrong. */
 const SIGNAL_COINS = new Set<string>(COINS);
-const READABLE_COINS = new Set<string>(COINS);
+const READABLE_COINS = new Set<string>(UNIVERSE_COINS);
 
 /* TRADFI NAMES AND NOTES. The label key per kind, shown on the scanner row and beside the chart. A kind with
    no entry cannot render: this is a Record over every CoinKind, so a new kind fails tsc here. */
@@ -3062,7 +3061,7 @@ function ArenaContent() {
         <div role="status" aria-live="polite" data-testid="arena-plan-checking" style={{ margin: '0 0 8px', fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('ARENA_PLAN_CHECKING')}</div>
       )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} liqHistOnly={liqHistOnly} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} strategyOverlay={arenaStrategy ? strategyState.result?.overlay ?? null : null} showSR={showSRDrawn} onShowSRChange={v => (layersLocked ? openLayersGate() : setShowSR(v))} showLiq={showLiqDrawn} onShowLiqChange={v => (layersLocked ? openLayersGate() : setShowLiq(v))} showEma={showEma} showRsi={showRsi} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
+      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} liqHistOnly={liqHistOnly} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} strategyOverlay={arenaStrategy ? strategyState.result?.overlay ?? null : null} strategyNoSetup={!!arenaStrategy && strategyState.result?.verdict === 'wait' && !(strategyState.result.overlay && (strategyState.result.overlay.levels.length || strategyState.result.overlay.zones.length || strategyState.result.overlay.lines.length))} showSR={showSRDrawn} onShowSRChange={v => (layersLocked ? openLayersGate() : setShowSR(v))} showLiq={showLiqDrawn} onShowLiqChange={v => (layersLocked ? openLayersGate() : setShowLiq(v))} showEma={showEma} showRsi={showRsi} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
       {/* ── Auth / upgrade notice ── BELOW THE CHART (arena layout shift, #1263). It exists only for a signed-out visitor and appears when auth resolves, about half a
           second after first paint. Above the chart it pushed the whole chart workspace down 54 px (QA's element measurement: CLS 0.041 on a CI build, 0.196 on the real network). Down here it can
           only push what is under the chart. */}

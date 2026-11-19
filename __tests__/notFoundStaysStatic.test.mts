@@ -172,16 +172,19 @@ test('N3. every root layout, plus loading and global-error - all rendered with e
   assert.equal(REQUEST_TIME.test('const { locale } = await params;'), false, 'REQUEST_TIME now matches `await params`, which is not a dynamic API');
 });
 
-test('N4. proxy.ts runs only for the two blocked paths and rewrites no request header', () => {
+test('N4. proxy.ts rewrites no request header and reads no headers(); with the gate off it sets no header; its matcher is the pinned wide one (#2636) and the blocked pages are the same two', () => {
+  /* THE INVARIANT THAT MATTERS (#1434): the proxy must not TAG the request (x-lhq-pathname, read back through headers() by not-found.tsx) - that read is what broke the 404s. #2636 widened the matcher on purpose (the team-only gate has to see every request) and made the
+     function a no-op for the old case; behaviour with the gate off is pinned in siteGate2636.test.mts G2 (no header, no 401, /backtest still 307). */
   const src = code('proxy.ts');
   const matcher = src.match(/matcher:\s*\[([^\]]*)\]/);
-  assert.ok(matcher, 'proxy.ts has no matcher - without one it runs on every request');
-  assert.deepEqual([...matcher[1].matchAll(/'([^']+)'/g)].map((m) => m[1]), ['/backtest', '/live-tracking'], 'the proxy matcher widened - it ran on every page from #1251 to #1434 only to feed the header not-found.tsx read');
+  assert.ok(matcher, 'proxy.ts has no matcher');
+  assert.deepEqual([...matcher[1].matchAll(/'([^']+)'/g)].map((m) => m[1]), ['/((?!_next/static|_next/image|favicon.ico).*)'], 'the proxy matcher changed: it must see every page and API request for the gate and skip only Next\'s static assets');
   const blocked = src.match(/new Set\(\[([^\]]*)\]\)/);
   assert.ok(blocked);
-  assert.deepEqual([...blocked[1].matchAll(/'([^']+)'/g)].map((m) => m[1]), ['/backtest', '/live-tracking'], 'the blocked list and the matcher disagree');
-  assert.equal(/new Headers\(|headers\.set\(|request:\s*\{\s*headers|x-lhq-pathname/.test(src), false, 'proxy.ts tags or rewrites request headers again');
+  assert.deepEqual([...blocked[1].matchAll(/'([^']+)'/g)].map((m) => m[1]), ['/backtest', '/live-tracking'], 'the blocked list changed');
+  assert.equal(/next\/headers|\bheaders\(\)|new Headers\(|request:\s*\{\s*headers|x-lhq-pathname/.test(src), false, 'proxy.ts reads headers() or tags/rewrites the REQUEST headers again (#1434: that read broke the 404s)');
   assert.match(src, /return NextResponse\.redirect\(new URL\('\/dashboard', request\.url\)\);/, 'the two hidden pages no longer redirect to /dashboard');
+  assert.match(src, /process\.env\.SITE_GATE_PASSWORD/, 'the gate no longer reads its switch'); assert.ok(src.indexOf('process.env.SITE_GATE_PASSWORD') < src.indexOf('siteGateDecision('), 'the gate code runs before its switch is read');
 });
 
 test('N5. SWEEP: outside /api, exactly one file reads the request - a new one is a decision, not an accident', () => {

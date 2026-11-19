@@ -32,13 +32,13 @@ import { BILLED_CALLS_READY } from './_auth';
  * spec's own name in the message. Call it in `afterEach` (or at the end of a spec) - an unasserted fence is a fence with a gate.
  *
  * PAID PATHS COME FROM THE ROUTES THAT CALL xAI, enumerated from `app/api/**-/route.ts` for `xaiFetch`/`api.x.ai` on 2026-10-23:
- * grok, grok-chat, briefing, macro-context, dry-powder, onchain, smc-snapshot, strategy-research, thesis-check, token-unlock,
- * pine-script, shadow-account, behavioral-bias, hypotheses/[id]/analyze. Three of those spend on a GET, which is why the fence does
- * not filter by method. */
+ * grok, grok-chat, briefing, macro-context, onchain, smc-snapshot, strategy-research, thesis-check, token-unlock,
+ * pine-script, shadow-account, behavioral-bias, hypotheses/[id]/analyze (dry-powder was on this list until #2628: its route now only READS a stored text, the scheduled market ingest
+ * calls xAI, so a visitor's GET spends nothing). Two of those spend on a GET, which is why the fence does not filter by method. */
 
 /** Every path segment under `/api/` whose route calls xAI. Dev owns this list; QA owns the mechanism. */
 export const PAID_AI_SEGMENTS = [
-  'grok', 'grok-chat', 'briefing', 'macro-context', 'dry-powder', 'onchain',
+  'grok', 'grok-chat', 'briefing', 'macro-context', 'onchain',
   'smc-snapshot', 'strategy-research', 'thesis-check', 'token-unlock',
   'pine-script', 'shadow-account', 'behavioral-bias', 'hypotheses',
   /* AHEAD OF THE ROUTE, DELIBERATELY. `app/api/draw-structure/route.ts` is on #1881 and not yet on
@@ -64,7 +64,7 @@ const PAID = new RegExp(
 /* FREE READS ON A PAID PATH, and this is the fence's one exception.
  *
  * Dev counted five paid routes exporting `GET` where I had said three spend on one. Both were right and the difference is the point:
- * `macro-context`, `dry-powder` and `onchain` call xAI inside their GET handler, so a GET to those three costs money. `grok` and
+ * `macro-context` and `onchain` call xAI inside their GET handler, so a GET to those two costs money (`dry-powder` did too until #2628: it reads a stored text now). `grok` and
  * `grok-chat` also export GET, but theirs returns the USAGE COUNTERS - `getUsageRow`, the limits, no xAI call anywhere in the
  * handler. `UsageRings` and `GrokUsageProvider` poll it on any page that shows the rings.
  *
