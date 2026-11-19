@@ -1611,6 +1611,7 @@ export const LABEL_KEYS = [
   'TG_DS_MORE_PRE', 'TG_DS_MORE_POST',
   'BTC_RISK_LEVEL_RATIO_LABEL',
   'DRY_POWDER_FROM_DATE',
+  'OFFLINE_NOTICE',
 ] as const;
 
 export type LabelKey = (typeof LABEL_KEYS)[number];

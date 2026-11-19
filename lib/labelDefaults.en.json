@@ -3599,5 +3599,6 @@
   "TG_DS_MORE_PRE": "… and",
   "TG_DS_MORE_POST": "more",
   "BTC_RISK_LEVEL_RATIO_LABEL": "Long accounts ({venue})",
-  "DRY_POWDER_FROM_DATE": "From {date}"
+  "DRY_POWDER_FROM_DATE": "From {date}",
+  "OFFLINE_NOTICE": "You are offline. Figures may be out of date."
 }
