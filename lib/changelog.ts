@@ -156,18 +156,14 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-11-20',
     tag: 'v2026.11.21',
     items: [
-      "Correlation: weak correlations no longer show a colour tint.",
-      "Both Open Interest cards on the Dashboard now use the same hour.",
       "Markets: very small coin prices keep their digits.",
       "A notice shows when your connection drops.",
       "Arena: Pro-only timeframes show a lock.",
       "Arena: Supply and Demand labels no longer cover the signal marker.",
       "The Best Hours page is now called Trading Sessions.",
       "Alerts, the risk card and Market Read state facts without advice.",
-      "Hover text on the EMA rows follows your language.",
       "News: the first story is text only on desktop.",
       "Accessibility: clearer labels, keyboard focus and reduced-motion support.",
-      "Russian: the trial banner is shorter.",
     ],
   },
   {
