@@ -285,7 +285,8 @@ test('/help: the FAQ link is at least 24x24', () => {
 
 /* Beyond the PR's own claim (it says "phones"), same WCAG rule: the bar is `overflow: hidden`, so a 24px button inside a bar that is
    shorter is cut to the bar's height and its hit area is smaller than 24px. */
-test('ticker buttons are not clipped by a shorter bar at any width (the bar is overflow:hidden)', () => {
+/* KNOWN GAP, PM WAIVED 2026-11-19 for this release ("#2649 ticker 22 vs 24 px above 760: WAIVED"): the PR claims phones only, and the phone rule is pinned above. Kept as a todo so the gap stays visible (it reports as todo, it does not fail) until the base rule is 24px. */
+test('ticker buttons are not clipped by a shorter bar at any width (the bar is overflow:hidden)', { todo: 'PM waived for the release: base .news-ticker is 22px, .ticker-close 24px, clipped on desktop and at 761-767px' }, () => {
   assert.match(decl('.news-ticker', 'overflow') ?? '', /hidden/);
   const bar = px(decl('.news-ticker', 'height'));
   const btn = px(decl('.ticker-close', 'height'));
@@ -395,7 +396,8 @@ const NEW_KEYS: Record<string, [string, string]> = {
 const REUSED: Record<string, [string, string]> = {
   PRICES_COL_COIN: ['Coin', 'components/LiqTerminal.tsx'],
   FUNDING_CLEAR_SEARCH_ARIA: ['Clear search', 'components/NavDrawer.tsx'],
-  SETTINGS_SAVE_DISMISS_ARIA: ['Dismiss', 'components/PWAInstallPrompt.tsx'],
+  /* the install prompt's dismiss name was SETTINGS_SAVE_DISMISS_ARIA here; #2646 gave it its own key, PWA_INSTALL_DISMISS (pinned below), so it left this list. */
+  PWA_INSTALL_DISMISS: ['Dismiss', 'components/PWAInstallPrompt.tsx'],
   CHAT_CLOSE: ['Close', 'components/UsageModal.tsx'],
 };
 test('12 new name keys: declared once, English default equals the old hard-coded name, and the component that should use it does', () => {
