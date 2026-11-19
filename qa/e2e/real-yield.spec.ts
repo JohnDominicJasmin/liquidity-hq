@@ -64,7 +64,7 @@ function realYield(signal: Signal) {
   if (signal === 'unknown') {
     return {
       value: null, changeBp: null, asOf: null, stale: true, signal,
-      note: '10Y real yield unavailable - cannot check the rates backdrop',
+      note: 'Macro risk excludes the 10Y real yield.',   // #2695: says what was used, no failure wording
     };
   }
   const changeBp = signal === 'tightening' ? 15 : signal === 'easing' ? -15 : 3;

@@ -91,7 +91,8 @@ test.describe('an unmeasurable perps reading is disclosed, not absorbed', () => 
         `exactly like one that was checked and found normal, and the user cannot tell them ` +
         `apart. lib/perpSpot.ts says "the CALLER must say the input is missing"; this is the ` +
         `check for that sentence.`)
-        .toMatch(/cannot measure|could not be measured|not measurable|unavailable/i);
+        /* #2695 (PM, 2026-11-20): the disclosure SAYS WHAT WAS USED instead of what failed: "Score uses N inputs for this coin, without perps vs spot." The matcher is now specific to that sentence. */
+        .toMatch(/Score uses \d+ inputs for this coin, without perps vs spot\./i);
     } finally { await ctx.close(); }
   });
   test('CONTROL: a MEASURABLE coin does not show that wording', async ({ browser }) => {
@@ -141,7 +142,7 @@ test.describe('an unmeasurable perps reading is disclosed, not absorbed', () => 
       expect(body, 'the Pro surfaces did not render - this control measured nothing')
         .not.toMatch(/part of Pro|Unlock with Pro/i);
 
-      const hit = /cannot measure|could not be measured|not measurable/i.exec(body);
+      const hit = /without perps vs spot|could not be measured|cannot measure|not measurable/i.exec(body);   // the new sentence AND the old wording must both be absent for a measurable coin
       expect(hit,
         `the unmeasurable wording is on the page even though perps IS measurable here ` +
         `(matched: "${hit?.[0]}"). The test above is matching something other than the perps ` +

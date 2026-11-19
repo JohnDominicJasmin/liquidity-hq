@@ -2335,6 +2335,7 @@
   "CONFLUENCE_SCORE_SUBTITLE": "{coin} · technical signals combined",
   "CONFLUENCE_SCORE_FACTOR_EMA_RIBBON": "EMA Ribbon Strategy",
   "CONFLUENCE_SCORE_FACTOR_PERP_LED": "Futures-Led Move",
+  "CONFLUENCE_PERP_SPOT_NOT_USED": "Score uses {n} inputs for this coin, without perps vs spot.",
   "CONFLUENCE_SCORE_FACTOR_CHOPPINESS": "Choppiness Index",
   "CONFLUENCE_SCORE_FACTOR_RSI_DIVERGENCE": "RSI Divergence Warning",
   "CONFLUENCE_SCORE_PENALTY_ACTIVE": "−{weight} confidence",

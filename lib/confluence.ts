@@ -184,7 +184,7 @@ export function computeMacroRisk(
      is untouched by it, and `unknown` (the quiet-band flag) still needs the level to be 'none'. */
   const calendarUnknown = stale && upcoming.length === 0;
   if (calendarUnknown) {
-    reasons.push('Economic calendar is out of date - upcoming releases cannot be checked');
+    reasons.push('Macro risk excludes the event calendar, which is out of date.');   // says what was used, no failure wording (PM 2026-11-20)
   }
 
   // Two independent things can be unmeasurable at once, and the band shows both
