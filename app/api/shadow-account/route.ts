@@ -6,8 +6,16 @@ import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, blocke
 import { requireProPlan, hasProFeatures } from '@/lib/entitlements';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { apiError } from '@/lib/apiError';
+import { answerWasCutOff } from '@/lib/xaiAnswer';
+import { SHADOW_NO_PICK_TEXT } from '@/lib/shadowStrategy';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
+
+/* The "shadow strategy" keeps only the best trade types of the SAME trades it is scored on: in-sample, picked with hindsight (#1631, audit
+   2026-11-16). At the old floor a type of 1-2 trades could be "best" by luck, so a type now needs this many closed trades to be kept, and the
+   section says it describes past trades. */
+const SHADOW_MIN_TRADES_PER_TYPE = 10;
 
 function sb(token: string) {
   return userClient(token);
@@ -58,7 +66,7 @@ function buildShadowPrompt(trades: Record<string, unknown>[]): string {
     '   - Leverage vs outcome correlation',
     '   - Any patterns visible in the notes field',
     '',
-    '3. SHADOW_STRATEGY - If this trader had ONLY taken their statistically best-performing trade types (as identified above), estimate their shadow stats. Format: "Shadow Win Rate: X% (actual: Y%) | Shadow Avg R: X (actual: Y) | Trades kept: N of N closed".',
+    `3. SHADOW_STRATEGY - Recompute the stats over ONLY the trade types that did best above, keeping a trade type only if it has at least ${SHADOW_MIN_TRADES_PER_TYPE} closed trades. Format: "Shadow Win Rate: X% (actual: Y%) | Shadow Avg R: X (actual: Y) | Trades kept: N of N closed". The trade types were picked from these same trades after the fact, so this describes past trades; it is not a forecast and not a tested strategy. Say that in one plain sentence. If no trade type has ${SHADOW_MIN_TRADES_PER_TYPE} closed trades, write "${SHADOW_NO_PICK_TEXT}" and nothing else.`,
     '',
     '4. RULE_VIOLATIONS - Name 3-5 specific trades (by date + coin) that broke the trader\'s own implied best rules. Explain what rule was broken.',
     '',
@@ -119,7 +127,7 @@ export async function POST(req: NextRequest) {
      slot of the shared tool pool, repeatably up to the cap. A reserved use is given back when nothing reached the user (a failed or unusable xAI answer, a thrown call, an empty answer), exactly as /api/grok does; nothing is given back once xAI answered 2xx (the tokens are billed). */
   const role = plan.tier;
   const reservedOn = todayUtc();
-  const usageResult = await incrementToolUsage(authData.user.id, 'shadowAccount', role);
+  const usageResult = await incrementToolUsage(authData.user.id, 'shadowAccount', role, reservedOn);
   if (usageResult.blocked) {
     return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'Shadow Account reports'));
   }
@@ -134,17 +142,29 @@ export async function POST(req: NextRequest) {
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 1500,
     }),
-  });
+    /* A network throw used to escape as a bare 500 with the use kept (#1631). It is given back, and answered like a non-2xx. */
+  }).catch((e: unknown) => e instanceof Error ? e : new Error(String(e)));
 
+  if (res instanceof Error) {
+    await refundToolUsage(authData.user.id, 'shadowAccount', reservedOn);
+    return apiError('shadow-account', res, 502, 'AI service error');
+  }
   if (!res.ok) {
     await refundToolUsage(authData.user.id, 'shadowAccount', reservedOn);
-    const err = await res.json().catch(() => ({}));
-    return NextResponse.json({ error: (err as { error?: string }).error ?? 'AI error' }, { status: 502 });
+    const err = await res.json().catch(() => ({})) as { error?: string };
+    /* The provider's own error text is logged, never shown (#1631), as on the other AI tool routes. */
+    return apiError('shadow-account', err.error ?? 'upstream AI error', 502, 'AI service error');
   }
 
   const data = await res.json();
   await recordAiCall({ userId: authData.user.id, callType: 'shadow_account', model: data.model ?? 'grok-4.3', usage: data.usage });
   const text: string = data.choices?.[0]?.message?.content ?? '';
+  /* An empty or cut-off answer is not a report (#1631), as on thesis-check, strategy-research and pine-script: the use is given back. */
+  if (!text.trim() || answerWasCutOff(data)) {
+    /* "Nothing was charged" only when the refund landed (it allows 3 a day, U9). */
+    const refunded = (await refundToolUsage(authData.user.id, 'shadowAccount', reservedOn)) !== null;
+    return NextResponse.json({ error: refunded ? 'The AI answer was incomplete. Nothing was charged. Try again.' : 'The AI answer was incomplete. Try again.', code: 'AI_INCOMPLETE', refunded }, { status: 502 });
+  }
 
   return NextResponse.json({ analysis: text, tradeCount: closed.length });
 }

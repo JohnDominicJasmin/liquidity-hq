@@ -325,7 +325,7 @@ export default function TerminalNav({ onOpenDrawer }: TerminalNavProps) {
               in a nav reads as "nothing here", while a shimmering bar reads as
               a value that is about to appear. */}
           {session && (
-            <span className="tnav-session" suppressHydrationWarning>
+            <span className="tnav-session" title={t('TNAV_SESSION_TIP')} suppressHydrationWarning>
               <span className="tnav-session-dot" />
               {session.left != null
                 ? `${trText(t, session.name)} · ${formatRemaining(t, session.left)}`

@@ -7,6 +7,7 @@ import { WAIT, type OverlayLine, type StrategyContext, type StrategyDef, type St
 /* CHANNEL BREAKOUT (owner-requested, 2026-11-17, #1263). Deterministic rules, CLOSED candles only, the existing channel detector (lib/chartStructureDetect.ts) at its current fit thresholds
  * (at least three pivots per rail).
  *
+ *  THE BROKEN RAIL needs at least 3 pivots of its own (the upper rail for a BUY, the lower for a SELL); the OPPOSITE rail may be the one the detector derived parallel to it (real-data audit: 28 of 97 signals broke a derived rail with fewer than 3).
  *  A CHANNEL is the detector's own: two near-parallel rails, both falling or both rising, measured on the candles BEFORE the breakout candle.
  *  BUY:  the candle CLOSES above the upper rail of a FALLING channel and the candle before it did not (the first close outside).
  *  SELL: the candle CLOSES below the lower rail of a RISING channel and the candle before it did not.
@@ -21,6 +22,7 @@ import { WAIT, type OverlayLine, type StrategyContext, type StrategyDef, type St
 export const FRESH_BARS = 2;
 export const MIN_CANDLES = 60;
 export const PIVOT_STRENGTH = 3;
+export const MIN_RAIL_PIVOTS = 3;
 /** Half-width of the support / resistance band drawn around a level, as a fraction of its price (the chart clusters swings within 0.3%, so a band of 0.3% in total). */
 export const SR_BAND_PCT = 0.0015;
 
@@ -91,6 +93,8 @@ export function detectChannel(candles: readonly OHLCV[], ctx: StrategyContext): 
     const buy = fit.dir === 'falling' && candles[k].close > upK && !(candles[k - 1].close > upP);
     const sell = fit.dir === 'rising' && candles[k].close < loK && !(candles[k - 1].close < loP);
     if (!buy && !sell) continue;
+    // THE BROKEN RAIL MUST BE A REAL ONE (PM, 2026-11-19): at least MIN_RAIL_PIVOTS pivots on the rail the close went through (the upper rail for a BUY, the lower for a SELL). The detector may derive the opposite rail from the first one.
+    if ((buy ? fit.upper : fit.lower).pivots.length < MIN_RAIL_PIVOTS) continue;
     const dir = buy ? 'long' : 'short';
     const lv = breakoutLevels(candles, k, dir, fit);
     const params: Record<string, number | boolean> = { rail: buy ? upK : loK, entry: lv.entry, stop: lv.stop, inv: lv.stop };

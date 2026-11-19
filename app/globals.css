@@ -2338,6 +2338,13 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
      margin each side, so it is as wide as the chart container and no wider. Long rows (the lower-timeframe note)
      wrap instead of forcing the width. Phone widths only; the manual Draw menu is untouched. */
   .klc-toolbar { position: relative; }
+  /* THE TOOLBAR'S ROW COUNT NEVER MOVES THE CHART ON A PHONE (QA CLS gate on staging, /arena at 360 in Russian: 0.56, the toolbar flipping between one row and two every 1.5-2 s, +0.166 each flip). At this
+     width the toolbar sits on the edge of fitting in one row (ten timeframes, Draw structure, the "?" and fullscreen in 326 px), and any small width change (a label arriving, the feed dot, the plan control) tips it
+     over or back. Two rows of height are reserved from the first paint (6 + 26 + 4 + 26 + 6 px of padding and buttons, plus the border), so one row or two occupy the same space and nothing below moves. */
+  .klc-toolbar { min-height: 100px; align-content: flex-start; }
+  /* RUSSIAN NEEDS THREE ROWS (QA probe on this change, ru at 360 px, signed out: the toolbar is two rows with the English labels and THREE once the Russian labels land, +30 px, CLS 0.244 on a first-ever Russian load; a returning
+     Russian user, whose lhq_lang cookie makes /arena render the Russian labels on the server, measured 0.05). `html[data-lang="ru"]` is set before paint from the stored language by the head script in components/RootDocument.tsx, so
+     the three rows (6 + 26 + 4 + 26 + 4 + 26 + 6 px plus the border) are reserved from the first paint even when the page is still English. Other languages keep two rows until measured. */
   .klc-ds-wrap { position: static; }
   .klc-ds-wrap .klc-draw-menu { left: 8px; right: 8px; top: auto; margin-top: 4px; min-width: 0; }
   .klc-ds-wrap .klc-draw-item { white-space: normal; }
@@ -5456,6 +5463,24 @@ body.landing .app-content {
 body.landing {
   overflow-x: hidden;
 }
+/* THE SAME RULES FROM THE FIRST PAINT: `html[data-landing]` is set before paint by the landing-init script in components/RootDocument.tsx (the address is `/` or a one-segment locale path), while `body.landing`
+   above is added by an effect after hydration, so the landing page was drawn once inside the shell's padded frame and jumped full-bleed when the effect ran (CLS 0.128 at 390 on staging, QA run on #2602).
+   Hiding the shell chrome and dropping the frame here makes the server HTML's first paint the final layout. Kept in step with the block above. */
+html[data-landing] .app-bar,
+html[data-landing] .nav-drawer,
+html[data-landing] .mobile-tab-bar,
+html[data-landing] .news-ticker,
+html[data-landing] .price-ticker-strip,
+html[data-landing] .gchat-fab,
+html[data-landing] .gchat-panel,
+html[data-landing] .ob-checklist { display: none !important; }
+html[data-landing] .app-content {
+  max-width: 100% !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: var(--banner-h) 0 0 !important;
+}
+html[data-landing] body { overflow-x: hidden; }
 
 /* Scoped to the CURRENT design only - LandingTerminal (data-design="terminal")
    also sets body.landing (it needs the shell-hiding rules further down this
@@ -9501,7 +9526,7 @@ html[data-theme="light"] { color-scheme: light; }
 /* Third pass (PM review of QA run 44085095349, 1280x800 Pro: the run row ended 36 px below the fold): the verdict sentence is ONE line (full text in its title), the call block reserves verdict + one line + the levels line, sections are 6 px, and a chip name has an 18 px line box so glyphs are not cut. */
 [data-design="terminal"] .strat-sect { padding: 6px 9px; }
 [data-design="terminal"] .strat-ind-name { line-height: 18px; padding: 0; }
-/* A SIGNED-IN VISITOR WITH NO LOCALLY CACHED STRATEGY (a new device, cleared storage) still gets the call box when the saved settings arrive from the server, which pushed the workspace 141 px down at settings load (QA run 44085095349, 360 RU: CLS 0.105). The same closed-box reserve applies for any stored session (<html data-sess="1">) until the settings say there is no strategy (data-strat-none, set by StrategyPanel). */
+/* A SIGNED-IN VISITOR WITH NO LOCALLY CACHED STRATEGY (a new device, cleared storage) still gets the call box when the saved settings arrive from the server, which pushed the workspace 141 px down at settings load (QA run 44085095349, 360 RU: CLS 0.105). The same closed-box reserve applies for any stored session (<html data-sess="1">) until the settings say there is no strategy (data-strat-none: set before paint by RootDocument when the cached settings hold none, else by StrategyPanel once the settings load). */
 html[data-sess="1"]:not([data-strat]):not([data-strat-none]) .strat-call-host { min-height: calc(8px + var(--strat-call-dyn) + 4px + var(--fs-caption) * 1.2); }
 /* ── UI batch (PM audit 2026-11-17) ── */
 /* Markets: the short form of the Signal text shows on a phone, the full text elsewhere. */
@@ -9534,6 +9559,25 @@ html[data-sess="1"]:not([data-strat]):not([data-strat-none]) .strat-call-host { 
   .lp-hero-stats-wide { display: grid !important; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--bdr); border-top: 0 !important; padding-top: 0 !important; margin-top: 40px !important; }
   .lp-hero-stat { padding: 13px 14px !important; margin: 0 !important; border-right: 0 !important; background: var(--bg0); min-width: 0; }
   .lp-read-panel { width: 100% !important; max-width: 100%; }
+}
+
+/* LANDING NAV AND TICKER ON A PHONE BEFORE THE PAGE HYDRATES (QA run 44417587423, "/" at 390 px: +0.125 CLS at ~300 ms, every locale). The server HTML is the desktop tree, and the nav bar, its buttons and the ticker took their phone sizes only when
+   the page's JavaScript ran: the bar 56 to 52 px, "Get started" (166 px) to "START" (66 px), the ticker 34 to 30 px with its price column dropped. These give the same values the component sets after hydration (isDesktop is false below 768 px), so the first paint is
+   already the phone one and hydration changes nothing. 768 px and up: nothing here applies. */
+.lt-lbl-narrow { display: none; }
+@media (max-width: 767px) {
+  .lt-top-bar { height: 52px !important; padding: 0 16px !important; gap: 6px !important; }
+  .lt-brand-mark { width: 22px !important; height: 22px !important; }
+  .lt-brand-text { font-size: 11.5px !important; }
+  .lt-signin-btn { padding: 9px 10px !important; }
+  .lt-start-btn { padding: 10px 12px !important; }
+  .lt-lbl-wide { display: none; }
+  .lt-lbl-narrow { display: inline; }
+  .lpt-ticker { height: 30px !important; -webkit-mask-image: linear-gradient(90deg, #000 86%, transparent); mask-image: linear-gradient(90deg, #000 86%, transparent); }
+  .lpt-ticker[dir="rtl"], [dir="rtl"] .lpt-ticker { -webkit-mask-image: linear-gradient(270deg, #000 86%, transparent); mask-image: linear-gradient(270deg, #000 86%, transparent); }
+  .lpt-tk-cell { gap: 6px !important; padding: 0 12px !important; }
+  .lpt-tk-cell > span:first-child, .lpt-tk-cell > span:last-child { font-size: 10px !important; }
+  .lpt-tk-price { display: none !important; }
 }
 
 /* MARKETS, NOTHING QUALIFIES (#1185): with no derivatives signal anywhere the Signal column is dropped on a phone (its cell, its head and the fifth grid column), and the banner above the table says it once. */
@@ -9571,8 +9615,6 @@ html[data-sess="1"]:not([data-strat]):not([data-strat-none]) .strat-call-host { 
 .arena-more-details[open] > summary::after { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .arena-more-details > summary::after { transition: none; } }
 
-/* THE ARENA SUBTITLE IS TWO LINES ON A PHONE IN EVERY LANGUAGE (QA run 44212858022, /ru 360: at about 0.4 s the workspace below the header dropped 18 px, one caption line, when the translated text arrived with a different line count). The box is always two lines tall and a longer text is cut with an ellipsis. */
-@media (max-width: 639px) { .arena-subtitle { line-height: 1.3; min-height: 2.6em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; } }
 /* THE RUN ROW KEEPS ONE HEIGHT IN EVERY LANGUAGE ON A PHONE (#2500, QA run 44129793911, Russian at 360 px: the row was 80 px in English and the Russian labels arrived at ~440 ms and wrapped it to 165 px, pushing the chart down 103 px = CLS 0.136 / 0.271). Two columns, each button one clipped line, so the labels' language does not change the row's height. */
 @media (max-width: 639px) {
   .arena-run-row { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); }

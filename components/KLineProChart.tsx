@@ -1,6 +1,6 @@
 'use client';
 import { deadlineSignal } from '@/lib/deadlineSignal';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useId } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { COIN_DEC, CoinId, useMarket, computeSqueezeScore, venueSymbols } from '@/lib/marketStore';
 import { liftClearOfLevels } from '@/lib/chartLabelOffsets';
@@ -444,6 +444,8 @@ interface Props {
   /** What the PICKED Arena strategy draws on the main price chart (lib/strategies overlay: its key levels, zone or line, and the arrow on a signal candle). Null when no strategy is picked or the read has not
    *  arrived; the latest state only, cleared and redrawn whenever it changes (a new strategy, coin or timeframe). Canvas overlays only: nothing here takes layout space. */
   strategyOverlay?: StrategyOverlay | null;
+  /** The picked strategy says WAIT and has nothing at all to draw (no levels, no zone, no line, no past signal): the chart says so with a short chip instead of staying silent (owner, 2026-11-19). */
+  strategyNoSetup?: boolean;
 }
 
 const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d','1w','1M'];
@@ -648,7 +650,7 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, showEma = true, showRsi = true, onUnlock, strategyOverlay }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, showEma = true, showRsi = true, onUnlock, strategyOverlay, strategyNoSetup }: Props) {
   const showEmaRef = useRef(showEma);
   showEmaRef.current = showEma;
   /* THE ADJUSTABLE LAYER SETTINGS (owner, 2026-11-17): the four EMA ribbon lengths and the RSI length + overbought / oversold lines. Chart only: the strategy signals keep the standard lengths. Clamped here as well as in the panel, so a stale saved value cannot break the chart. */
@@ -732,6 +734,40 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     document.addEventListener('pointerdown', onDown);
     return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onDown); };
   }, [drawMenuOpen]);
+  /* THE "?" LEGEND (#1113, PM 2026-11-19): one line per label the chart and the scanner bar print in shorthand (R/S, MAX PAIN, γ FLIP, REALIZED, T/E/S, ↑n, ↓n, the A-F grade).
+     Same close rules as the Draw menu: Escape (focus back to the button) or a press outside. */
+  const [legendOpen, setLegendOpen] = useState(false);
+  const legendWrapRef = useRef<HTMLDivElement>(null);
+  const legendPanelId = useId();
+  useEffect(() => {
+    if (!legendOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setLegendOpen(false);
+      legendWrapRef.current?.querySelector<HTMLElement>('button')?.focus();
+    };
+    const onDown = (e: PointerEvent) => { if (!legendWrapRef.current?.contains(e.target as Node)) setLegendOpen(false); };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onDown);
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onDown); };
+  }, [legendOpen]);
+  /* THE PANEL ALWAYS FITS THE VIEWPORT (QA review of #2587): it opens leftward from the "?", so when the toolbar wraps and the "?" starts a row (421-1199 px) its left edge
+     fell off the screen. Measured before paint and shifted back inside with an 8 px margin; the width cap already makes it narrower than the viewport, so a shift is always enough. */
+  const legendPanelRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = legendPanelRef.current;
+    if (!legendOpen || !el) return;
+    const fit = () => {
+      el.style.transform = '';
+      const r = el.getBoundingClientRect();
+      const vw = document.documentElement.clientWidth;
+      const dx = r.left < 8 ? 8 - r.left : r.right > vw - 8 ? vw - 8 - r.right : 0;
+      if (dx) el.style.transform = `translateX(${Math.round(dx)}px)`;
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [legendOpen]);
   const [wsStatus,     setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
   /* Set only when getBars EXHAUSTS its retries with nothing usable - not for
      an upstream that answered OK with a genuinely empty coin. #1073's real
@@ -1755,9 +1791,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const y0 = Math.min(a.y, b.y), h = Math.abs(a.y - b.y);
             if (x1 <= x0) return [];
             const ink = resolveCssColor(kind === 'demand' ? 'var(--green)' : 'var(--red)');
+            /* THE LABEL SITS AT THE ZONE'S RIGHT END (QA visual, tracker 1263 box 9): at the left corner above the top it sat on the EMA Buy triangle of the impulse candle that leaves the zone. Demand: above
+               the top edge, right-aligned. Supply mirrors it: under the bottom edge, right-aligned. */
+            const demand = kind === 'demand';
             return [
               { type: 'rect', attrs: { x: x0, y: y0, width: x1 - x0, height: Math.max(h, 1) }, styles: { style: 'stroke_fill', color: withAlpha(ink, 0.14), borderColor: ink, borderSize: 1 } },
-              { type: 'text', attrs: { x: x0 + 4, y: y0 - 3, text, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } },
+              { type: 'text', attrs: { x: x1 - 4, y: demand ? y0 - 3 : y0 + Math.max(h, 1) + 3, text, align: 'right', baseline: demand ? 'bottom' : 'top' }, styles: { color: ink, size: 10, weight: '700' } },
             ];
           },
         });
@@ -1823,14 +1862,17 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           ...base, name: 'strategyMarker',
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
-            const { dir } = overlay.extendData as { dir: 'long' | 'short' };
+            const { dir, past } = overlay.extendData as { dir: 'long' | 'short'; past?: boolean };
             const c = coordinates[0];
             if (!c || !isFinite(c.x) || !isFinite(c.y) || c.y < 0) return [];
-            const ink = resolveCssColor(dir === 'long' ? 'var(--green)' : 'var(--red)');
+            const solid = resolveCssColor(dir === 'long' ? 'var(--green)' : 'var(--red)');
+            // a PAST signal's arrow is smaller and lighter than the live call's, so the one that is current still reads first (owner, 2026-11-19: a trader sees the strategy working on the candles)
+            const ink = past ? withAlpha(solid, 0.6) : solid;
+            const half = past ? 4.5 : 6, tip = past ? 5 : 6, depth = past ? 13 : 18;
             // a triangle pointing at the candle: below a long's low, above a short's high
-            const tipY = dir === 'long' ? c.y + 6 : c.y - 6;
-            const baseY = dir === 'long' ? c.y + 18 : c.y - 18;
-            return [{ type: 'polygon', attrs: { coordinates: [{ x: c.x, y: tipY }, { x: c.x - 6, y: baseY }, { x: c.x + 6, y: baseY }] }, styles: { style: 'stroke_fill', color: ink, borderColor: ink, borderSize: 1 } }];
+            const tipY = dir === 'long' ? c.y + tip : c.y - tip;
+            const baseY = dir === 'long' ? c.y + depth : c.y - depth;
+            return [{ type: 'polygon', attrs: { coordinates: [{ x: c.x, y: tipY }, { x: c.x - half, y: baseY }, { x: c.x + half, y: baseY }] }, styles: { style: 'stroke_fill', color: ink, borderColor: ink, borderSize: 1 } }];
           },
         });
       }
@@ -2931,6 +2973,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       const bar = chart.getDataList().find(b => b.timestamp === ov.marker!.ts);
       if (bar) add('strategyMarker', [{ timestamp: bar.timestamp, value: ov.marker.dir === 'long' ? bar.low : bar.high }], { dir: ov.marker.dir });
     }
+    // the strategy's last few PAST signals on the candles in view (lib/strategies/chartDrawings.ts recentSignals): the same detector run on the earlier candles
+    if (ov.history?.length) {
+      const bars = chart.getDataList();
+      const byTs = new Map(bars.map(b => [b.timestamp, b]));
+      for (const h of ov.history) {
+        const bar = byTs.get(h.ts);
+        if (bar) add('strategyMarker', [{ timestamp: bar.timestamp, value: h.dir === 'long' ? bar.low : bar.high }], { dir: h.dir, past: true });
+      }
+    }
   }, [strategyOverlay, chartReady, themeInk, ovLabelProbe, barsTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Publish the newest structure break upward. Separate from the drawing effect
@@ -3791,6 +3842,46 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         {/* THE FEED DOT TAKES NO ROOM IN THE TOOLBAR ROW (arena layout shift, #1263). It was a 6 px flex item after the button, so on a phone it was the item that wrapped onto its OWN row when something
             else in the row changed width, adding a row and pushing the whole chart canvas down 13 px (CLS 0.104 on every signed-in 390 px load, QA run 43647909628). It now hangs just outside the button's
             right edge, in the toolbar's own padding, so it sits where it did and can never make a row. */}
+        {/* The legend reuses existing classes only (globals.css is landing-gated): `klc-clear` is the class the phone rule lets through, so the "?" stays visible at 390 where the manual tools hide;
+            `klc-ds-wrap` makes the toolbar the menu's anchor on a phone, so the panel spans the chart instead of spilling off the right edge. */}
+        <div className="klc-draw-wrap klc-ds-wrap" ref={legendWrapRef}>
+          <button
+            className={`klc-tool-btn klc-clear${legendOpen ? ' on' : ''}`}
+            onClick={() => setLegendOpen(v => !v)}
+            aria-expanded={legendOpen}
+            aria-controls={legendPanelId}
+            aria-label={tl('CHART_LEGEND_ARIA')}
+            title={tl('CHART_LEGEND_ARIA')}
+          >
+            ?
+          </button>
+          {legendOpen && (
+            <div
+              id={legendPanelId}
+              ref={legendPanelRef}
+              className="klc-draw-menu"
+              role="region"
+              aria-label={tl('CHART_LEGEND_TITLE')}
+              style={{ left: 'auto', right: 0, width: 'min(320px, calc(100vw - 32px))', cursor: 'default' }}
+            >
+              <div className="klc-draw-item" style={{ whiteSpace: 'normal', cursor: 'default', color: 'var(--txt)' }}>{tl('CHART_LEGEND_TITLE')}</div>
+              {([
+                ['R / S', 'CHART_LEGEND_SR'],
+                ['MAX PAIN', 'CHART_LEGEND_MAX_PAIN'],
+                ['γ FLIP', 'CHART_LEGEND_GEX_FLIP'],
+                ['REALIZED', 'CHART_LEGEND_REALIZED'],
+                ['T · E · S', 'CHART_LEGEND_POSITION'],
+                ['↑ n', 'CHART_LEGEND_SQZ_UP'],
+                ['↓ n', 'CHART_LEGEND_SQZ_DOWN'],
+                ['A–F', 'CHART_LEGEND_GRADE'],
+              ] as const).map(([chip, key]) => (
+                <div key={key} className="klc-draw-item" style={{ whiteSpace: 'normal', cursor: 'default', fontWeight: 400 }}>
+                  <strong style={{ fontFamily: 'var(--font-mono), monospace', color: 'var(--txt)' }}>{chip}</strong> {tl(key)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <span className="klc-fs-wrap">
           <button
             className="klc-tool-btn klc-fullscreen-btn"
@@ -3890,6 +3981,20 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             timeframe loads so it never stacks with the loading label; top-left, clear of the
             centre loading label and the price-anchored countdown. Reads the flag the EMA hook
             sets, so it can never disagree with whether the markers were actually filtered. */}
+        {strategyNoSetup && !loadingTf && (
+          <div
+            role="status"
+            data-testid="chart-strategy-no-setup"
+            style={{
+              position: 'absolute', top: emaSignal?.markersFilteredBySelection ? 38 : 10, left: 10,
+              padding: '3px 10px', borderRadius: 4, pointerEvents: 'none', whiteSpace: 'nowrap',
+              fontSize: 'var(--fs-caption)', fontWeight: 600, letterSpacing: '.02em',
+              color: 'var(--txt2)', background: 'var(--bg1)', border: '1px solid var(--bdr3)',
+            }}
+          >
+            {tl('STRAT_NO_SETUP')}
+          </div>
+        )}
         {emaSignal?.markersFilteredBySelection && !loadingTf && (
           <div
             role="status"

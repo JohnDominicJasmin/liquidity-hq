@@ -14,7 +14,7 @@ import { formatRsi } from '@/lib/rsi';
 type Bias = 'bullish' | 'bearish' | 'neutral' | 'unknown';
 
 function getBias(rsi: number | null): Bias {
-  if (rsi == null) return 'unknown';
+  if (rsi == null || !Number.isFinite(rsi)) return 'unknown';   // NaN/Infinity is no reading, the same rule as RsiRow's guard (QA review of #2576)
   if (rsi > 57) return 'bullish';
   if (rsi < 43) return 'bearish';
   return 'neutral';
@@ -98,6 +98,8 @@ function BiasBadge({ bias }: { bias: Bias }) {
  * Same shape as #273, where backtesting was gated and still advertised: the
  * feature was blocked and the information was not. */
 function RsiRow({ tf, rsi, bias, last, locked }: { tf: string; rsi: number | null; bias: Bias; last?: boolean; locked?: boolean }) {
+  /* A timeframe with no reading is left out, never a bare dash (owner sweep 2026-11-18; QA staging sweep). A LOCKED row still shows, blurred. */
+  if (!locked && (rsi == null || !Number.isFinite(rsi))) return null;
   if (locked) { rsi = null; bias = 'unknown'; }   // no reading, same as an absent RSI (#1185)
   const pct = rsi != null ? Math.min(100, Math.max(0, rsi)) : 0;
   return (
@@ -199,9 +201,9 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
   ];
   const bullCount = biases.filter(b => b === 'bullish').length;
   const bearCount = biases.filter(b => b === 'bearish').length;
-  // Majority of however many timeframes are wired in - scales automatically
-  // rather than a count hardcoded to a 3-timeframe assumption.
-  const majority = Math.floor(biases.length / 2) + 1;
+  // Majority of the timeframes that HAVE a reading. A hidden row (no RSI) is not a vote: counting it made three Bullish rows out of three read
+  // "Mixed signals" when the other timeframes had no data (QA review of #2576).
+  const majority = Math.floor(biases.filter(b => b !== 'unknown').length / 2) + 1;
 
   /* NO READINGS IS NOT "MIXED" (PM audit 2026-11-17, high): with fewer than two timeframes carrying an RSI value the card said "Mixed signals / no clear bias" over rows of dashes, which reads as an analysis. It says
      "No data" and "RSI readings unavailable right now" instead. */

@@ -149,13 +149,12 @@ function ReasoningText({ text }: { text: string }) {
  *                 Drives the `n/a` in the Status and Score columns - a squeeze score of 0 built
  *                 from no funding is indistinguishable from a real neutral on screen.
  *
- * READABLE_COINS - "will /api/grok accept an AI read for this coin?" `parseArenaContext` checks
- *                 membership of `COINS`, so an untracked coin is refused before any plan read,
- *                 for every tier including Pro. Drives the selector's note and the error line.
+ * READABLE_COINS - "will /api/grok accept an AI read for this coin?" Every row of the coin universe since 2026-11-19 (`parseArenaContext` accepts the 50 curated coins and any universe row,
+ *                 lib/arenaContext.ts isTrackedCoin); the plan ladder still decides who may run it (Free and trial only BTC, ETH, SOL). Drives the selector's note and the error line.
  *
  * If these ever diverge, the comment above each is what says which badge was wrong. */
 const SIGNAL_COINS = new Set<string>(COINS);
-const READABLE_COINS = new Set<string>(COINS);
+const READABLE_COINS = new Set<string>(UNIVERSE_COINS);
 
 /* TRADFI NAMES AND NOTES. The label key per kind, shown on the scanner row and beside the chart. A kind with
    no entry cannot render: this is a Record over every CoinKind, so a new kind fails tsc here. */
@@ -202,7 +201,13 @@ const SCANNER_CAT_KEY = 'lhq_arena_scanner_cat';
 // #985 gap 3: selectionAtAnalysis is optional because entries persisted to
 // localStorage before this shipped won't have it. #1347 item 9: such an entry is
 // "unknown", NOT "computed with no selection" - it never claims the trader changed it.
-interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep'; selectionAtAnalysis?: readonly string[]; paramsAtAnalysis?: string }
+/* `locale` is the language the read was WRITTEN in (the AI writes in the user's language). Part of the cache key: an entry in another
+   language is not this user's read and is treated as absent, so an English read is never served to a Russian reader. An entry from
+   before this field was written in English, so a missing value reads as 'en'. */
+/* `strategyAtAnalysis`: the picked strategy the read was made with (owner order 2026-11-19, the read names it). Absent on an older entry, which
+   reads as "unknown", never as a change. */
+interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep'; selectionAtAnalysis?: readonly string[]; paramsAtAnalysis?: string; locale?: string; strategyAtAnalysis?: string | null }
+const entryLocale = (e: CacheEntry | undefined | null): string => e?.locale ?? 'en';
 const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
 const ARENA_RESULTS_KEY = 'arena-results-v2';
 const CACHE_MAX_AGE_MS  = 4 * 60 * 60 * 1000; // 4 hours - older results are discarded
@@ -260,7 +265,7 @@ const TF_FEATURE_LABEL_KEYS: Record<string, LabelKey> = {
 };
 
 function ArenaContent() {
-  const { t } = useLabels();
+  const { t, locale } = useLabels();
   // Clock for the analysis-freshness display and the cache-age gate below.
   // Both used to call Date.now() mid-render, which meant the "just now" label
   // and the expiry check only moved when something else re-rendered the page -
@@ -896,7 +901,9 @@ function ArenaContent() {
   }, []);
 
   // Derived - current coin's cached result (persists across coin switches)
-  const cacheEntry = resultsCache[selectedCoin] ?? null;
+  /* Keyed by coin AND language: a read written in another language is not shown (see CacheEntry). */
+  const cachedForCoin = resultsCache[selectedCoin];
+  const cacheEntry = cachedForCoin && entryLocale(cachedForCoin) === locale ? cachedForCoin : null;
   const result     = cacheEntry?.result ?? null;
   /* #985 gap 3 / #1347 item 4: lifted here from inside the signal card's own
      render (it used to be computed twice - once there, once nowhere - for
@@ -911,6 +918,8 @@ function ArenaContent() {
      same indicators in a different click order is not a change. */
   /* The Strategy panel's settings that shape a read (the EMA ribbon and RSI lengths, the stricter-signals switch): recorded with each read and compared here, so changing one marks the read stale like changing the indicator selection does. */
   const settingsSig = JSON.stringify([strategyParams, antiChopEnabled]);
+  /* The picked strategy as the read request sends it: a saved id the registry no longer knows is none, as everywhere else on the page. */
+  const pickedStrategyId = findStrategy(arenaStrategy)?.id ?? null;
   const selectionChanged = (() => {
     /* #1347 item 9: two "we cannot tell" cases must read as NOT changed, not as changed. (1) the selection
        has not been seeded yet (cold load), (2) the entry predates `selectionAtAnalysis` - it was NOT computed
@@ -919,6 +928,8 @@ function ArenaContent() {
     const before = [...cacheEntry.selectionAtAnalysis].sort().join(' ');
     const now = [...strategySelection].sort().join(' ');
     if (before !== now) return true;
+    /* A different picked strategy is a different read too: the read names the strategy it was given. */
+    if (cacheEntry.strategyAtAnalysis !== undefined && cacheEntry.strategyAtAnalysis !== pickedStrategyId) return true;
     return cacheEntry.paramsAtAnalysis !== undefined && cacheEntry.paramsAtAnalysis !== settingsSig;
   })();
   const notifCooldown = useRef<Set<string>>(new Set());
@@ -1667,7 +1678,7 @@ function ArenaContent() {
   // false would make a future caller that forgets it indistinguishable from
   // one that checked and found EMA resolved - the same "dropped argument
   // reads as a deliberate empty one" shape as #1347 item 11.
-  const readMarket = useCallback(async (selection: readonly string[], mode: 'quick' | 'deep', force: boolean, emaLoading: boolean) => {
+  const readMarket = useCallback(async (selection: readonly string[], mode: 'quick' | 'deep', force: boolean, emaLoading: boolean, strategy: string | null) => {
     // #1309 item 24: the toolbar's own Quick/Deep buttons are `disabled`
     // while a read is running, but StrategyPanel's copies of the same three
     // buttons (wired through runStrategy below) were not - a click there
@@ -1722,7 +1733,8 @@ function ArenaContent() {
     if (!force) {
       const currentPrice = store.coins[selectedCoin]?.price ?? 0;
       const entry = resultsCache[selectedCoin];
-      if (entry && entry.mode === mode) {
+      /* A read made with another picked strategy is not served for this one (the read names the strategy it was given). */
+      if (entry && entry.mode === mode && entryLocale(entry) === locale && (entry.strategyAtAnalysis ?? null) === strategy) {
         const ageSecs  = (Date.now() - entry.result.analyzedAt) / 1000;
         const pricePct = currentPrice > 0
           ? Math.abs(currentPrice - entry.priceAtAnalysis) / currentPrice * 100
@@ -1847,13 +1859,14 @@ function ArenaContent() {
          it, so the coin and timeframe its gates check are read out of the same objects the prompt is built
          from. The indicator selection goes as identifiers; the sentences that tell the model to weigh them
          are instructions and live on the server with the rest of the prompt. */
-      const { result: res, usage } = await callGrokViaProxy(ctx, chartData, mode, selection);
+      /* The picked strategy goes as its id only; the server computes its call from its own candles (owner order 2026-11-19). */
+      const { result: res, usage } = await callGrokViaProxy(ctx, chartData, mode, selection, locale, strategy);
       if (usage) setGrokUsage(usage);
       track.arenaAnalysis(mode, selectedCoin);
 
       // Cache result per coin (with price snapshot for stale-check)
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
-      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: selection, paramsAtAnalysis: settingsSig } }));
+      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: selection, paramsAtAnalysis: settingsSig, locale, strategyAtAnalysis: strategy } }));
       // Track Quick signals separately so Deep can show an override notice when they disagree
       if (mode === 'quick') setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal }));
       setDetailIdx(null);
@@ -1974,7 +1987,7 @@ function ArenaContent() {
        #814 exists to fix, reproduced silently and indistinguishable from a
        browser that has genuinely watched no liquidations. It changes at most
        once per LIQ_CLUSTER_REFRESH_MS, so the identity churn is bounded. */
-  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, resultsCache, liqClusters]);
+  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, resultsCache, liqClusters, locale]);
 
   /* #996: the one place QUICK/DEEP/ASK AI run from, so the toolbar buttons
      below and StrategyPanel's own copies of the same three buttons cannot
@@ -2034,8 +2047,8 @@ function ArenaContent() {
     if (!user) { window.location.href = '/login'; return; }
     if (coinLocked) return; // #1596: Quick and Deep do not run on a locked coin (the server refuses it too)
     const entry = resultsCache[selectedCoin];
-    const force = !!(entry && entry.mode === kind && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
-    readMarket(selection, kind, force, emaSignal.loading);
+    const force = !!(entry && entryLocale(entry) === locale && entry.mode === kind && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
+    readMarket(selection, kind, force, emaSignal.loading, pickedStrategyId);
     window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
   };
 
@@ -2161,17 +2174,17 @@ function ArenaContent() {
     <div className="arena-term-wrap">
 
       {/* ── PAGE HEADER ── */}
-      <div style={{ padding: '1rem 0 0.75rem' }}>
+      {/* ONE ROW (owner, PM spec 2026-11-18): the title and the help link only. The "LIVE · web + X" badge (jargon, and true only for Deep reads) and the subtitle
+          (it repeated what the four buttons say) are gone; the hint box below still explains Quick vs Deep. Measured 37 px at 390, 40 px at 768 and 1280, en and ru (was ~75 at 1280). */}
+      <div style={{ padding: '0.375rem 0 0.25rem' }}>
         {/* ONE ROW, NEVER TWO, SO THE FREE UPGRADE PILL ARRIVING MOVES NOTHING (CLS gate, QA run 43686322083: +0.316 at 1280 and +0.041 at 390, Free accounts only). The pill used to be 44 px tall in a row of about
             30 px, and on a phone it wrapped onto a row of its own when the plan resolved. Now the row does not wrap, the pill is 28 px (its 44 px touch target is the link around it, UpgradePillLink `tap`), and the live badge
             gives way (ellipsis) instead of the row growing. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'nowrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
           <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px', whiteSpace: 'nowrap', flexShrink: 0 }}>{t('ARENA_PAGE_TITLE')}</div>
-          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 0, background: 'var(--accent-bg)', color: 'var(--accent-2)', border: '0.5px solid var(--accent-bdr)', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
           {/* The "How this page works" link sits at the right of the header. The Upgrade pill that used to share this row is gone (#2514: one "With Pro" line per page instead of repeated upgrade prompts). */}
           <span style={{ marginLeft: 'auto', display: 'inline-flex' }}><PageHintLink pageKey="arena" open={arenaHintOpen} onClick={() => setArenaHintOpen(v => !v)} /></span>
         </div>
-        <div className="arena-subtitle" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
 
       {arenaHintOpen && <PageHintBox title={t('ARENA_HINT_TITLE')} body={t('ARENA_HINT_BODY')} onClose={() => setArenaHintOpen(false)} />}
@@ -2857,11 +2870,13 @@ function ArenaContent() {
           /* 'stale' prints its own words. Falling through to 'neutral' here was the bug in the first
              cut of this change: the state existed in the type and died at the render, so a dropped
              old vote looked exactly like a coin with no signal at all. */
-          { k: 'Ribbon',    v: ribbonRel === 'agrees' ? 'agrees' : ribbonRel === 'opposes' ? 'opposes' : ribbonRel === 'stale' ? 'no recent signal' : 'neutral', c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '✓' : ribbonRel === 'opposes' ? '✗' : '•' /* agreement with the READ, not a market direction: a green up arrow on a BEARISH read was wrong (PM audit 2026-11-17) */ },
-          { k: 'Squeeze',   v: sqzCount > 0 ? 'building' : flushCount > 0 ? 'flush risk' : 'quiet', c: sqzCount > 0 ? GC : flushCount > 0 ? RC : NC, a: sqzCount > 0 ? '↑' : flushCount > 0 ? '↓' : '•' },
-          { k: 'Funding',   v: frPct == null ? (feedGraceOver ? 'unavailable' : 'loading…') : frPct >= 0.03 ? 'long-heavy' : frPct <= -0.02 ? 'short-heavy' : 'neutral', c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' },
-          { k: 'Multi-TF',  v: tfBull >= 2 ? `${tfBull}/3 up` : tfBear >= 2 ? `${tfBear}/3 down` : (tfBull > 0 && tfBear > 0) ? 'conflicting' : 'mixed', c: tfBull >= 2 ? GC : tfBear >= 2 ? RC : NC, a: tfBull >= 2 ? '↑' : tfBear >= 2 ? '↓' : '•' },
-          { k: 'Whale CVD', v: coinD?.cvdDivergence === 'bullish' ? 'bullish' : coinD?.cvdDivergence === 'bearish' ? 'bearish' : 'flat', c: coinD?.cvdDivergence === 'bullish' ? GC : coinD?.cvdDivergence === 'bearish' ? RC : NC, a: coinD?.cvdDivergence === 'bullish' ? '↑' : coinD?.cvdDivergence === 'bearish' ? '↓' : '•' },
+          /* Chip names and value words are labels (PM ru sign-off 2026-11-18: these were English in every locale). `id` is the React key, so it does not change with the language. */
+          { id: 'ribbon',  k: t('ARENA_FCHIP_RIBBON'),    v: ribbonRel === 'agrees' ? t('ARENA_FCHIP_V_AGREES') : ribbonRel === 'opposes' ? t('ARENA_FCHIP_V_OPPOSES') : ribbonRel === 'stale' ? t('ARENA_FCHIP_V_NO_RECENT') : t('ARENA_FCHIP_V_NEUTRAL'), c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '✓' : ribbonRel === 'opposes' ? '✗' : '•' /* agreement with the READ, not a market direction: a green up arrow on a BEARISH read was wrong (PM audit 2026-11-17) */ },
+          { id: 'squeeze', k: t('ARENA_FCHIP_SQUEEZE'),   v: sqzCount > 0 ? t('ARENA_FCHIP_V_BUILDING') : flushCount > 0 ? t('ARENA_FCHIP_V_FLUSH_RISK') : t('ARENA_FCHIP_V_QUIET'), c: sqzCount > 0 ? GC : flushCount > 0 ? RC : NC, a: sqzCount > 0 ? '↑' : flushCount > 0 ? '↓' : '•' },
+          /* No funding reading once the grace period is over: the chip is not drawn at all (owner's no-"unavailable" order, PM 2026-11-18). */
+          ...(frPct == null && feedGraceOver ? [] : [{ id: 'funding', k: t('ARENA_FCHIP_FUNDING'),   v: frPct == null ? t('ARENA_FCHIP_V_LOADING') : frPct >= 0.03 ? t('ARENA_FCHIP_V_LONG_HEAVY') : frPct <= -0.02 ? t('ARENA_FCHIP_V_SHORT_HEAVY') : t('ARENA_FCHIP_V_NEUTRAL'), c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' }]),
+          { id: 'multitf', k: t('ARENA_FCHIP_MULTI_TF'),  v: tfBull >= 2 ? t('ARENA_FCHIP_V_TF_UP', { n: tfBull }) : tfBear >= 2 ? t('ARENA_FCHIP_V_TF_DOWN', { n: tfBear }) : (tfBull > 0 && tfBear > 0) ? t('ARENA_FCHIP_V_CONFLICTING') : t('ARENA_FCHIP_V_MIXED'), c: tfBull >= 2 ? GC : tfBear >= 2 ? RC : NC, a: tfBull >= 2 ? '↑' : tfBear >= 2 ? '↓' : '•' },
+          { id: 'cvd',     k: t('ARENA_FCHIP_WHALE_CVD'), v: coinD?.cvdDivergence === 'bullish' ? t('ARENA_FCHIP_V_BULLISH') : coinD?.cvdDivergence === 'bearish' ? t('ARENA_FCHIP_V_BEARISH') : t('ARENA_FCHIP_V_FLAT'), c: coinD?.cvdDivergence === 'bullish' ? GC : coinD?.cvdDivergence === 'bearish' ? RC : NC, a: coinD?.cvdDivergence === 'bullish' ? '↑' : coinD?.cvdDivergence === 'bearish' ? '↓' : '•' },
         ];
         const prevQuickSignal = quickSignals[selectedCoin];
         const showOverride = !!(
@@ -2931,12 +2946,12 @@ function ArenaContent() {
               <div className="arena-override-notice">{t('ARENA_STALE_SETTINGS_NOTICE')}</div>
             )}
 
-            {/* THROUGH ReasoningText, not a bare {whyLine} (#1263). whyLine is the first sentences of
-                `result.reasoning`, which the model writes in markdown - so a bare render showed
-                `[label](url)` as literal text here while the lower card (:2779) rendered the same
-                prose with real, scheme-checked links. Same renderer now: bold and links resolve, and
-                an unsafe URL still falls back to plain label text (isSafeHttpUrl), so this cannot
-                become a clickable `javascript:` link either. */}
+            {/* THE WHY LINES GO THROUGH ReasoningText, never a bare string (#1263): both the WHY bullets (`result.why`) and their
+                fallback `whyLine` (the first sentences of `result.reasoning`), rendered further down this block. The model writes
+                markdown, so a bare render showed `[label](url)` as literal text while the reasoning card under the chart
+                (`arena-reasoning-text`) rendered the same prose with real, scheme-checked links. Same renderer: bold and links resolve,
+                and an unsafe URL still falls back to plain label text (isSafeHttpUrl), so this cannot become a clickable
+                `javascript:` link either. */}
             {/* THE READ AT A GLANCE (owner rule 22): ONE plain summary line, then at most three short reasons (Deep: five). The chart read, the patterns and the long reasoning are behind "More details" under the chart. A read with no WHY lines (an older one, or the model gave none) falls back to the first sentences of its reasoning. */}
             {(() => {
               const ps = plainSummary(result.signal, result.levels);
@@ -2953,7 +2968,7 @@ function ArenaContent() {
             {/* Factor chips - live signals behind the read */}
             <div className="av-factors">
               {factors.map(f => (
-                <span key={f.k} className="av-fchip"><span style={{ color: f.c }}>{f.a}</span> {f.k} <b>{f.v}</b></span>
+                <span key={f.id} className="av-fchip"><span style={{ color: f.c }}>{f.a}</span> {f.k} <b>{f.v}</b></span>
               ))}
             </div>
 
@@ -3046,7 +3061,7 @@ function ArenaContent() {
         <div role="status" aria-live="polite" data-testid="arena-plan-checking" style={{ margin: '0 0 8px', fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('ARENA_PLAN_CHECKING')}</div>
       )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} liqHistOnly={liqHistOnly} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} strategyOverlay={arenaStrategy ? strategyState.result?.overlay ?? null : null} showSR={showSRDrawn} onShowSRChange={v => (layersLocked ? openLayersGate() : setShowSR(v))} showLiq={showLiqDrawn} onShowLiqChange={v => (layersLocked ? openLayersGate() : setShowLiq(v))} showEma={showEma} showRsi={showRsi} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
+      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} liqHistOnly={liqHistOnly} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} strategyOverlay={arenaStrategy ? strategyState.result?.overlay ?? null : null} strategyNoSetup={!!arenaStrategy && strategyState.result?.verdict === 'wait' && !(strategyState.result.overlay && (strategyState.result.overlay.levels.length || strategyState.result.overlay.zones.length || strategyState.result.overlay.lines.length))} showSR={showSRDrawn} onShowSRChange={v => (layersLocked ? openLayersGate() : setShowSR(v))} showLiq={showLiqDrawn} onShowLiqChange={v => (layersLocked ? openLayersGate() : setShowLiq(v))} showEma={showEma} showRsi={showRsi} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
       {/* ── Auth / upgrade notice ── BELOW THE CHART (arena layout shift, #1263). It exists only for a signed-out visitor and appears when auth resolves, about half a
           second after first paint. Above the chart it pushed the whole chart workspace down 54 px (QA's element measurement: CLS 0.041 on a CI build, 0.196 on the real network). Down here it can
           only push what is under the chart. */}
@@ -3111,8 +3126,14 @@ function ArenaContent() {
               <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>{t('ARENA_REASONING_PATTERNS_TITLE')}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {result.patterns.map((p, i) => {
-                  const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
-                  const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
+                  /* COLOUR FROM THE PARSED ENUM, never from the name (QA review of #2569): the name is in the reader's language, so matching
+                     English words in it coloured every ko/zh/ru/ar pill wrong. The model tags each pattern BULLISH / BEARISH / NEUTRAL and the
+                     parser reads that. Only an untagged pattern in an ENGLISH read (one from before the tag) falls back to the old word match;
+                     an untagged pattern in any other language is neutral blue. */
+                  const tag = result.patternBias?.[i] ?? null;
+                  const englishRead = entryLocale(cacheEntry) === 'en';
+                  const isBull = tag ? tag === 'BULLISH' : englishRead && /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
+                  const isBear = tag ? tag === 'BEARISH' : englishRead && /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
                   const col = isBull ? 'var(--green-2)' : isBear ? 'var(--red)' : '#1a7aff';
                   const bg  = isBull ? 'color-mix(in srgb, var(--green-2) 8%, transparent)' : isBear ? 'color-mix(in srgb, var(--red) 8%, transparent)' : 'rgba(26,122,255,0.08)';
                   const bdr = isBull ? 'color-mix(in srgb, var(--green-2) 25%, transparent)' : isBear ? 'color-mix(in srgb, var(--red) 25%, transparent)' : 'rgba(26,122,255,0.25)';
@@ -3170,7 +3191,7 @@ function ArenaContent() {
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
       <div className="arena-ws-strat">
-      <StrategyPanel overlays={overlayStates({ showSR: showSRDrawn, showLiq: showLiqDrawn, showEma, showRsi, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} layersLocked={layersLocked} onOverlayToggle={id => ((id === 'SR' || id === 'LIQ_CLUSTERS') && layersLocked ? openLayersGate() : id === 'SR' ? setShowSR(!showSR) : id === 'EMA_RIBBON' ? setShowEma(!showEma) : id === 'RSI' ? setShowRsi(!showRsi) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} runGate={runGate} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} strategyState={strategyState} planChecking={planUnsettled} />
+      <StrategyPanel overlays={overlayStates({ showSR: showSRDrawn, showLiq: showLiqDrawn, showEma, showRsi, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} layersLocked={layersLocked} onOverlayToggle={id => ((id === 'SR' || id === 'LIQ_CLUSTERS') && layersLocked ? openLayersGate() : id === 'SR' ? setShowSR(!showSR) : id === 'EMA_RIBBON' ? setShowEma(!showEma) : id === 'RSI' ? setShowRsi(!showRsi) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} runGate={runGate} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} coin={selectedCoin} tf={readTf} strategyState={strategyState} planChecking={planUnsettled} />
       </div>
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">

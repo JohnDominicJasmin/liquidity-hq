@@ -4,7 +4,7 @@ import { useAuth } from './AuthProvider';
 import { getSupabase, getAuthToken } from '@/lib/supabase';
 import {
   UserSettings, SettingsContext, SettingsLoadStatus,
-  DEFAULT_SETTINGS, loadLocalSettings, saveLocalSettings, rowToSettings,
+  DEFAULT_SETTINGS, loadLocalSettings, saveLocalSettings, forgetCachedArenaStrategy, rowToSettings,
   loadUnconfirmed, saveUnconfirmed, dropLegacyUnconfirmedKey,
 } from '@/lib/settings';
 import { T } from '@/lib/tables';
@@ -317,6 +317,8 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       // #1246: a confirmed sign-out IS an authoritative answer - there is no
       // row to wait for, so DEFAULT_SETTINGS is correct as-is and a consumer
       // gating on settingsLoadStatus should not stay blocked forever here.
+      // #1263 box 33: the cached Arena strategy belonged to the account that left; it must not tell the pre-paint hint "none" for the next one.
+      forgetCachedArenaStrategy();
       setSettingsLoadStatus('ready');
       return;
     }
@@ -455,7 +457,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     // 1. Update local state immediately
     setSettings(prev => {
       const next = { ...prev, ...partial };
-      saveLocalSettings(next);
+      saveLocalSettings(next, !!user?.id);
       return next;
     });
 
@@ -493,7 +495,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   const saveNow = useCallback(async (partial: Partial<UserSettings>): Promise<boolean> => {
     setSettings(prev => {
       const next = { ...prev, ...partial };
-      saveLocalSettings(next);
+      saveLocalSettings(next, !!user?.id);
       return next;
     });
     const unconfirmedUserId = user?.id ?? 'anon';

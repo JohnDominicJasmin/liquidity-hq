@@ -1,9 +1,10 @@
 import { deadlineSignal } from './deadlineSignal.ts';
-import { extractReadInputs, dropContradictingClauses } from './readSanity.ts';
+import { extractReadInputs, dropContradictingClauses, dropStructuredContradictions, levelContradictsClose, misreadSides } from './readSanity.ts';
 import { getAuthToken } from './supabase.ts';
 import { nextResetLocalTime } from './resetTime.ts';
 import { wilderRsiSeries } from './rsi.ts';
 import { priceText } from './numberFormat.ts';
+import type { ArenaStrategyRead, StrategyReading } from './arenaStrategyRead.ts';
 
 export interface GrokUsageInfo {
   deep_used:     number; deep_limit:     number;
@@ -47,6 +48,10 @@ export async function callGrokViaProxy(
   chart: ChartData,
   type: 'quick' | 'deep',
   selection: readonly string[] = [],
+  /** The reader's language. The server validates it (resolveReadLocale) and asks for the free text in it. */
+  locale: string = 'en',
+  /** The picked Arena strategy's id, or null. Only the id is sent: the server computes the strategy's call itself from its own candles. */
+  strategy: string | null = null,
 ): Promise<{ result: CombinedResult; usage: GrokUsageInfo | null }> {
   const token = await getAuthToken();
 
@@ -60,7 +65,7 @@ export async function callGrokViaProxy(
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ context: ctx, chart, type, selection }),
+      body: JSON.stringify({ context: ctx, chart, type, selection, locale, strategy }),
       signal: deadlineSignal(type === 'deep' ? GROK_DEEP_TIMEOUT_MS : GROK_QUICK_TIMEOUT_MS),
     });
   } catch (e) {
@@ -157,7 +162,7 @@ const stripMarkdown = (line: string) => line.replace(/[*_`]/g, '');
  *  shown as a confident-looking "Wait". The route asks once more when this is null, then refuses. Same normalisation and patterns as
  *  parseCombinedResponse, so every answer that parsed before still parses. */
 export function parseVerdict(text: string): { signal: CombinedResult['signal']; confidence: number } | null {
-  const clean = text.split('\n').map(stripMarkdown).join('\n');
+  const clean = normalizeHeaders(text).split('\n').map(stripMarkdown).join('\n');
   const signal = clean.match(SIGNAL_LINE)?.[1]?.toUpperCase();
   const conf = clean.match(CONFIDENCE_LINE)?.[1];
   if (!signal || conf == null) return null;
@@ -212,11 +217,15 @@ export function normalizeCombinedResult(raw: unknown, tf: string, session: strin
     ? { bullish: c.bullish as number, bearish: c.bearish as number } : null;
   /* #1631 A+D: carried only when the answer has them. A result from before them (a cache, a stub) has none, and "absent" is the true
      reading - an invented empty list would claim the server checked something it never saw. */
-  const extra: Pick<CombinedResult, 'citations' | 'counted' | 'checks' | 'why'> = {};
+  const extra: Pick<CombinedResult, 'citations' | 'counted' | 'checks' | 'why' | 'patternBias'> = {};
   if ('citations' in r) extra.citations = strings(r.citations).filter((u) => /^https?:\/\//.test(u)).slice(0, 10);
   if ('counted' in r) extra.counted = counted;
   if ('checks' in r) extra.checks = strings(r.checks);
   if ('why' in r) extra.why = strings(r.why).slice(0, WHY_MAX);
+  // Index-aligned with `patterns`, so it is kept only when it still lines up with them; anything that is not one of the three enums is null (neutral colour).
+  if (Array.isArray(r.patternBias) && Array.isArray(r.patterns) && r.patternBias.length === strings(r.patterns).length) {
+    extra.patternBias = (r.patternBias as unknown[]).map((b) => (b === 'BULLISH' || b === 'BEARISH' || b === 'NEUTRAL' ? b : null));
+  }
   return {
     signal: r.signal as CombinedResult['signal'],
     confidence: Math.max(0, Math.min(100, r.confidence)),
@@ -367,13 +376,27 @@ export interface GrokResult {
   reasoning: string;
 }
 
+/* THE TRADER'S RSI LINES (#1651, owner sweep 2026-11-18). The rule text said "< 30" / "> 70" whatever the trader's chart drew. useEMAStrategy puts
+   the trader's lines on the ribbon line when they differ from 70 / 30 ("overbought line 75, oversold line 25"); the rules use them, else 70 / 30. */
+export function traderRsiLines(emaStrategy: string | undefined): { ob: number; os: number } {
+  const m = emaStrategy?.match(/overbought line (\d+), oversold line (\d+)/);
+  const ob = m ? Number(m[1]) : NaN, os = m ? Number(m[2]) : NaN;
+  if (!(Number.isFinite(ob) && Number.isFinite(os) && os < ob)) return { ob: 70, os: 30 };
+  // Clamped like the chart and the settings clamp them (overbought 50-95, oversold 5-50): the line arrives from the browser (QA R1b).
+  return { ob: Math.min(95, Math.max(50, ob)), os: Math.min(50, Math.max(5, os)) };
+}
+
 export function buildPrompt(ctx: GrokContext): string {
+  const { ob: rsiOb, os: rsiOs } = traderRsiLines(ctx.emaStrategy);
+  const traderEma = /EMA ribbon at the trader's lengths/.test(ctx.emaStrategy ?? '');
   /* #1631 B: BTC's option market (Deribit P/C, max pain, GEX) and the Coinbase BTC premium are BTC's own data. They were handed to every
      coin - with "WEIGHT GEX HEAVILY" - and a Pro XRP Deep read rested its "bearish regime" on BTC's premium. Only a BTC read gets them now. */
   const isBtc = /^BTC\b/i.test(ctx.coin);
   const btcOnly = (lines: string[]): string[] => (isBtc ? lines : []);
   return [
     `You are LiquidityAI - a crypto derivatives and macro analyst. Your job is to combine ALL available data and describe what it shows for ${ctx.coin}: which way it leans now and why. Describe; never advise a trade.`,
+    // ONE MISSING-VALUE RULE (#1651): every field below falls back to one of these when it has no reading.
+    'A value of "-", "N/A", "Not available" or "unavailable" means there is no reading: say it is missing, never estimate it.',
     '',
     '=== PRICE ACTION ===',
     `Coin: ${ctx.coin}  |  Price: ${ctx.price}  |  24h Change: ${ctx.change24h}`,
@@ -395,7 +418,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '  • SHORT_SETUP → one bearish signal (+20 to the bearish case) AND a BEARISH trigger. With 2+ other bearish signals → BEARISH.',
     '  • TRENDING_LONG → one bullish signal (+10), NOT a trigger - price is not at the entry zone, so on its own it cannot make BULLISH.',
     '  • TRENDING_SHORT → one bearish signal (+10), NOT a trigger - on its own it cannot make BEARISH.',
-    '  • FREEZE → subtract 15 from confidence. Ribbon is in consolidation. Prefer FLAT unless one side counts 4+ signals.',
+    '  • FREEZE → ribbon is in consolidation. Prefer FLAT unless one side counts 4+ signals.',
     `EMA50 Slope (last 5 bars): ${ctx.ema50Slope}`,
     `ATR(14) buffer: ${ctx.emaATR}`,
     '(Anti-chop filters - ALL THREE must pass before treating any EMA signal as valid:',
@@ -403,7 +426,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '  2. ATR buffer: price must close beyond EMA50 by ≥ 35% of ATR(14). A 1-tick graze of EMA50 is noise. If the buffer is not cleared, the confirmation is rejected - do NOT call BULLISH/BEARISH on marginal EMA50 touches.',
     '  3. Ribbon spread: EMA9 and EMA20 must be ≥ 0.3% of price apart at signal confirmation. Tangled EMAs (tight spread) = chop = no signal. If the ribbon is visually overlapping, the cross is noise - do NOT call BULLISH/BEARISH, call FREEZE.)',
     `WaveTrend (Cipher B momentum): ${ctx.waveTrend}`,
-    '(WaveTrend is a confirming layer, NOT a 4th mandatory anti-chop filter - it checks for a bullish/bearish divergence or a cross-from-oversold/overbought agreeing with the EMA signal direction. If it confirms, add +5 confidence. If it does not confirm, do not downgrade automatically - just note the momentum oscillator has not caught up yet.)',
+    '(WaveTrend is a confirming layer, NOT a 4th mandatory anti-chop filter - it checks for a bullish/bearish divergence or a cross-from-oversold/overbought agreeing with the EMA signal direction. If it confirms, say so. If it does not confirm, do not downgrade - just note the momentum oscillator has not caught up yet.)',
     `Market Structure (4H): ${ctx.marketStructure}`,
     `Latest structure break (price action only): ${ctx.structureBreak}`,
     '(BOS = price took out the prior swing in the direction it was already going: continuation. CHoCH = it took one out AGAINST the prevailing swing structure: the first hint the trend may be turning. This is derived from swing highs and lows alone - it is INDEPENDENT of the EMA ribbon signal above, so when the two disagree, say so rather than resolving it silently. A break on above-average volume carries more weight than one that drifted through on light volume.)',
@@ -571,7 +594,7 @@ export function buildPrompt(ctx: GrokContext): string {
     `  • Price below VWAP → ${ctx.vwap}`,
     '',
     'IF IN BEARISH MOMENTUM REGIME:',
-    '  • RSI oversold (< 30) = STRONG DOWNSIDE MOMENTUM - NOT a buy signal alone. Combine with exhaustion checklist.',
+    `  • RSI oversold (< ${rsiOs}) = STRONG DOWNSIDE MOMENTUM - NOT a buy signal alone. Combine with exhaustion checklist.`,
     '  • CVD bullish divergence during selloff = absorption signal. Still require reversal candle confirmation before calling BULLISH.',
     '  • Fibonacci support + 3+ exhaustion signals = a BULLISH case even in a bearish regime, once the reversal-candle trigger prints (SIGNAL DECISION GUIDE).',
     '  • Long/Short ratio > 1.8:1 during selloff = overleveraged longs at FLUSH RISK = one bearish signal, not a bullish one.',
@@ -586,10 +609,12 @@ export function buildPrompt(ctx: GrokContext): string {
     `  • Taker buy > 55% → ${ctx.takerRatio}`,
     '',
     'IF IN BULLISH MOMENTUM REGIME:',
-    '  • RSI overbought (> 70) = STRONG UPSIDE MOMENTUM - not automatically a sell signal in a trending move.',
+    `  • RSI overbought (> ${rsiOb}) = STRONG UPSIDE MOMENTUM - not automatically a sell signal in a trending move.`,
     '  • Long/Short ratio < 0.5:1 (shorts outnumber longs 2:1) = crowded shorts, squeeze risk = one bullish signal.',
     '',
     'NEUTRAL REGIME: No clear momentum. Apply all signals equally.',
+    ...(rsiOb !== 70 || rsiOs !== 30 ? [`(Overbought / oversold use the trader's own RSI lines, ${rsiOb} / ${rsiOs}. The RSI values given are RSI(14).)`] : []),
+    ...(traderEma ? ["(EMA9 / SMA200 in these rules are the chart lines given in the chart section. The trader's own ribbon lengths and values are in the selected indicator readings on the EMA Ribbon line.)"] : []),
     '',
     '=== PULLBACK EXHAUSTION vs FALLING KNIFE CHECKLIST (Required in BEARISH REGIME) ===',
     'You MUST determine whether selling is EXHAUSTING or CONTINUING before choosing BULLISH/BEARISH/FLAT.',
@@ -684,7 +709,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '  1. The momentum regime (the filter above).',
     '  2. The signal count and the tier table above.',
     '  3. Caps: TRENDING_LONG / TRENDING_SHORT are not triggers; FREEZE prefers FLAT unless one side has 4+; for BTC, the GEX regime decides whether a breakout counts.',
-    '  4. Confidence only, never the tier or the direction: perps vs spot, session, WaveTrend, FREEZE -15.',
+    '  4. Never the tier or the direction: perps vs spot, session, WaveTrend, FREEZE. The app adjusts CONFIDENCE for these itself after your answer.',
     'If your count meets a tier and you output a lower one, say which rule above held it back.',
     '',
     /* #1631, owner's screenshot 2026-11-10: the read came back saying "clear bearish technical
@@ -706,14 +731,13 @@ export function buildPrompt(ctx: GrokContext): string {
        futures-led means the evidence behind the read is weaker, NOT that the
        trade is the other way - the same reason the Confluence side uses a
        penalty rather than a directional vote. */
-    'PERPS VS SPOT WEIGHTING - adjusts confidence only, NEVER the direction:',
-    '  - Futures-led (perp activity elevated vs its own normal): subtract 20 from confidence. The move is driven by leverage rather than by people buying the coin, so it unwinds faster. Do NOT flip the signal direction for this.',
-    '  - Spot-led (perp activity unusually quiet): add 10 to confidence. More of the move is real buying.',
-    '  - Could not be measured: do NOT adjust confidence, and SAY in your reasoning that the perps-vs-spot check was unavailable for this coin. A number quietly left unchanged reads as though the check passed.',
-    'SESSION WEIGHTING - session timing adjusts confidence only, NOT the signal tier:',
-    '  • NY / London: standard confidence, all tiers available.',
-    '  • Pre-NY / Asia: subtract 10 from confidence. LEAN BEARISH and LEAN BULLISH are fully valid.',
-    '  "Pre-NY session" is NEVER a standalone reason for FLAT - reduce confidence, not tier.',
+    /* CONFIDENCE ARITHMETIC IS DONE IN CODE (#1651, owner sweep 2026-11-18): the model was told to subtract 20 / 10 / 15 and add 10 / 5, and
+       models do arithmetic unreliably. adjustConfidence() below applies the same numbers to the model's CONFIDENCE after parsing. */
+    'PERPS VS SPOT and SESSION - never change the direction or the tier. Give CONFIDENCE from the signal count and the bands only: the app applies the perps-vs-spot, session, WaveTrend and FREEZE adjustments to it after your answer, so do not apply them yourself.',
+    '  - Futures-led (perp activity elevated vs its own normal): the move is driven by leverage rather than by people buying the coin. Do NOT flip the signal direction for this.',
+    '  - Spot-led (perp activity unusually quiet): more of the move is real buying.',
+    '  - Could not be measured: SAY in your reasoning that the perps-vs-spot check was unavailable for this coin.',
+    '  • Pre-NY / Asia: LEAN BEARISH and LEAN BULLISH are fully valid. "Pre-NY session" is NEVER a standalone reason for FLAT.',
     '',
     /* #1631 item 1: the third line used to read "NEVER output FLAT just because you are uncertain - own the direction when signals
        support it." It was written when FLAT was being used as a dodge, and the anti-dodge half is kept. The absolute is dropped,
@@ -799,13 +823,21 @@ export interface CombinedResult {
   checks?: string[];
   /** THE READ'S WHY, 1-3 plain-word reasons (Deep up to 5), each 12 words or fewer, stating what the data shows now (owner rule 22). Absent on a read from before it or when the model gave none: the card then falls back to the first sentences of `reasoning`. */
   why?: string[];
+  /** The direction the model tagged each pattern with ("- Rising wedge | BEARISH"), index-aligned with `patterns`; null where it gave none. The pill is coloured from this enum, never from the
+   *  (possibly translated) name. Absent when no pattern carried a tag (a read from before it, or a model that ignored it). */
+  patternBias?: (PatternBias | null)[];
+  /** The side of EMA9 / SMA200 / VWAP the model says price is on (its SIDES line, asked for in non-English reads). Checked against the prompt's own numbers by applyResultChecks. */
+  sides?: Partial<Record<'ema9' | 'sma200' | 'vwap', 'above' | 'below'>>;
   analyzedAt: number;
   tf: string;
   session: string;
 }
 
+export type PatternBias = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+
 export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string {
   const base = buildPrompt(ctx);
+  const rsiLines = traderRsiLines(ctx.emaStrategy);
   // Inject chart section + replace output format
   const splitAt = base.indexOf('Output in EXACTLY this format');
   const body = splitAt > -1 ? base.slice(0, splitAt) : base;
@@ -817,7 +849,7 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     `Range (visible 80 candles): High ${priceText(chart.hi)} / Low ${priceText(chart.lo)}`,
     `EMA 9:   ${chart.ema9   != null ? priceText(chart.ema9)   : '-'}`,
     `SMA 200: ${chart.sma200 != null ? priceText(chart.sma200) : '-'}`,
-    `RSI(14): ${chart.rsi    != null ? chart.rsi.toFixed(1) + (chart.rsi >= 70 ? ' (Overbought)' : chart.rsi <= 30 ? ' (Oversold)' : ' (Neutral)') : '-'}`,
+    `RSI(14): ${chart.rsi    != null ? chart.rsi.toFixed(1) + (chart.rsi >= rsiLines.ob ? ' (Overbought)' : chart.rsi <= rsiLines.os ? ' (Oversold)' : ' (Neutral)') : '-'}`,
     `EMA/SMA cross: ${chart.ema9 != null && chart.sma200 != null ? (chart.ema9 > chart.sma200 ? 'EMA 9 ABOVE SMA 200 - bullish structure (one bullish signal)' : 'EMA 9 BELOW SMA 200 - bearish structure (one bearish signal); a bullish tier still needs the reversal-candle trigger') : '-'}`,
     `Price vs SMA200: ${chart.sma200 != null ? (chart.lastClose > chart.sma200 ? `ABOVE SMA200 (${priceText(chart.sma200)}) - bullish` : `BELOW SMA200 (${priceText(chart.sma200)}) - bearish, do not call BULLISH without the reversal-candle trigger (SIGNAL DECISION GUIDE)`) : '-'}`,
     // #1631 C: says what is sent. Arena slices the last 15 (the field is still called recent20); the label claimed 20.
@@ -876,7 +908,7 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     '- [third catalyst, same format, if any]',
     'CHART_ANALYSIS: [1-2 sentences on candles and indicators only - no mention of macro here]',
     'PATTERNS:',
-    '- [identify chart patterns from the candle data: e.g. "Bear flag", "Bull flag", "Head and shoulders", "Double top", "Double bottom", "Ascending triangle", "Descending triangle", "Rising wedge", "Falling wedge", "Bullish engulfing", "Bearish engulfing", "Doji reversal", "Higher highs / higher lows", "Lower highs / lower lows" - be specific with price context. Write "None detected" if no clear pattern]',
+    '- [identify chart patterns from the candle data: e.g. "Bear flag", "Bull flag", "Head and shoulders", "Double top", "Double bottom", "Ascending triangle", "Descending triangle", "Rising wedge", "Falling wedge", "Bullish engulfing", "Bearish engulfing", "Doji reversal", "Higher highs / higher lows", "Lower highs / lower lows" - be specific with price context. End each pattern line with " | BULLISH", " | BEARISH" or " | NEUTRAL" for the direction the pattern points. Write "None detected" if no clear pattern]',
     'WAIT_FOR: [REQUIRED when SIGNAL is FLAT, LEAN BULLISH, or LEAN BEARISH. Write exactly: (1) which signals you counted and which direction they lean, (2) the specific price level to watch, (3) what candle/volume pattern would upgrade to BEARISH or BULLISH, (4) what derivative condition (funding, L/S ratio, taker ratio) would confirm the signal. Example (LEAN BEARISH): "2 continuation signals: rising OI + taker sell 63%. Watch $64,200 for a breakdown candle with volume spike. Taker sell above 65% + L/S above 1.5 → BEARISH. Bounce above $65,500 with CVD flip cancels bearish bias." Write N/A if SIGNAL is BULLISH or BEARISH.]',
     'REASONING: [3-4 sentences combining chart + derivatives + macro + news into one directional thesis. If FLAT, state whether selling is EXHAUSTING or CONTINUING and why.]',
   ].join('\n');
@@ -917,6 +949,66 @@ function trimPlaceholders(text: string): string {
     .replace(/\n{3,}/g, '\n\n');
 }
 
+/* ── READS WRITTEN IN ANOTHER LANGUAGE (QA review of #2569, PM 2026-11-18) ───────────────────────────────────────────────────────── */
+
+/** "Nothing here", in any of the five read languages: the English tokens the prompt asks for (NONE, None detected, None in input, N/A) and the
+ *  words a model writes when it translates them anyway. Matched against the WHOLE value (trailing punctuation ignored), so "None of the
+ *  three" or "нет подтверждения" is text, not a marker. A marker becomes an empty field - never a pill, a bullet or a line. */
+const NONE_MARKER = /^(?:none(?:\s+(?:detected|found|in\s+input))?|n\/?a|nil|-+|—|нет(?:\s+данных)?|не\s+обнаружено|отсутству[а-яё]*|없음|해당\s*없음|없습니다|无|没有|暂无|無|لا\s+يوجد|لا\s+توجد|لا\s+شيء)$/iu;
+export function isNoneMarker(s: string | null | undefined): boolean {
+  if (s == null) return false;
+  const v = stripMd(s).replace(/^[\s"'«»“”]+|[\s"'«»“”.。．!！]+$/gu, '');
+  return v.length === 0 || NONE_MARKER.test(v);
+}
+
+/** Header names a model has written instead of the English ones, mapped back to them. The prompt says never to translate a key; this is
+ *  the fallback for when one is translated anyway, which otherwise leaves only a bare verdict (or nothing) readable. */
+const TRANSLATED_HEADERS: Record<string, string> = Object.fromEntries(([
+  ['SIGNAL', ['СИГНАЛ', '신호', '信号', '信號', 'الإشارة', 'الاشارة', 'إشارة']],
+  ['BIAS_LEAN', ['УКЛОН', 'НАКЛОН', 'СМЕЩЕНИЕ', '편향', '바이어스', '偏向', '倾向', 'الميل', 'الانحياز']],
+  ['CONFIDENCE', ['УВЕРЕННОСТЬ', '신뢰도', '확신도', '置信度', '信心', 'الثقة']],
+  ['COUNTED', ['ПОДСЧЁТ', 'ПОДСЧЕТ', 'ПОСЧИТАНО', 'УЧТЕНО', '집계', '카운트', '计数', '统计', 'العدد', 'المحسوب']],
+  ['WHY', ['ПОЧЕМУ', 'ПРИЧИНЫ', '이유', '왜', '原因', '为什么', 'لماذا', 'الأسباب']],
+  ['RAID_SETUP', ['НАСТРОЙКА_РЕЙДА', 'НАСТРОЙКА РЕЙДА', 'СЕТАП_РЕЙДА', 'СЕТАП РЕЙДА', '레이드_설정', '레이드 설정', '突袭设置', '猎杀设置', 'إعداد_الغارة', 'إعداد الغارة']],
+  ['RAID_TARGET', ['ЦЕЛЬ_РЕЙДА', 'ЦЕЛЬ РЕЙДА', '레이드_목표', '레이드 목표', '突袭目标', '猎杀目标', 'هدف_الغارة', 'هدف الغارة']],
+  ['RAID_TRIGGER', ['ТРИГГЕР_РЕЙДА', 'ТРИГГЕР РЕЙДА', '레이드_트리거', '레이드 트리거', '突袭触发', '猎杀触发', 'محفز_الغارة', 'محفز الغارة']],
+  ['LEVELS', ['УРОВНИ', '레벨', '수준', '가격대', '价位', '水平', '关键位', 'المستويات']],
+  ['CATALYSTS', ['КАТАЛИЗАТОРЫ', '촉매', '촉매제', '催化剂', 'المحفزات']],
+  ['CHART_ANALYSIS', ['АНАЛИЗ_ГРАФИКА', 'АНАЛИЗ ГРАФИКА', '차트_분석', '차트 분석', '图表分析', 'تحليل_الرسم', 'تحليل الرسم البياني', 'تحليل الرسم']],
+  ['PATTERNS', ['ПАТТЕРНЫ', 'ФИГУРЫ', 'МОДЕЛИ', '패턴', '形态', '模式', 'الأنماط']],
+  ['WAIT_FOR', ['ЖДАТЬ', 'ОЖИДАТЬ', 'ЧЕГО_ЖДАТЬ', 'ЧЕГО ЖДАТЬ', 'ЖДАТЬ_ЧЕГО', '대기', '기다릴_것', '기다릴 것', '等待', 'انتظر', 'انتظار']],
+  ['REASONING', ['ОБОСНОВАНИЕ', 'РАССУЖДЕНИЕ', 'АРГУМЕНТАЦИЯ', '추론', '근거', '推理', '理由', 'الاستدلال', 'التعليل']],
+  ['SIDES', ['СТОРОНЫ', 'ПОЛОЖЕНИЕ', '위치', '位置', 'المواقع']],
+] as const).flatMap(([en, names]) => names.map((n) => [n.toUpperCase(), en])));
+const ENGLISH_HEADERS = ['SIGNAL', 'BIAS_LEAN', 'CONFIDENCE', 'COUNTED', 'WHY', 'RAID_SETUP', 'RAID_TARGET', 'RAID_TRIGGER', 'LEVELS', 'CATALYSTS', 'CHART_ANALYSIS', 'PATTERNS', 'WAIT_FOR', 'REASONING', 'SIDES'];
+const HEADER_LINE = new RegExp(
+  `^(\\s*[*_]*)(${[...Object.keys(TRANSLATED_HEADERS), ...ENGLISH_HEADERS].sort((a, b) => b.length - a.length).map((h) => h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})([*_]*)\\s*([:：])`,
+  'gimu',
+);
+
+/** Translated header names (and a full-width colon) at the start of a line become the English header the parser reads. An English header
+ *  with an ASCII colon is left exactly as written, so an English answer is returned unchanged. */
+export function normalizeHeaders(text: string): string {
+  return text.replace(HEADER_LINE, (whole, pre: string, name: string, post: string, colon: string) => {
+    const upper = name.toUpperCase();
+    const en = TRANSLATED_HEADERS[upper];
+    if (!en && colon === ':') return whole;
+    return `${pre}${en ?? upper}${post}:`;
+  });
+}
+
+/** The SIDES line ("SIDES: EMA9 ABOVE | SMA200 BELOW | VWAP ABOVE"), or undefined when there is none or it names nothing readable. */
+function parseSides(clean: string): CombinedResult['sides'] {
+  const line = clean.split('\n').map((l) => l.replace(/\*+/g, '').trim()).find((l) => /^SIDES\s*:/i.test(l));
+  if (!line) return undefined;
+  const out: NonNullable<CombinedResult['sides']> = {};
+  for (const m of line.matchAll(/(EMA\s?9|SMA\s?200|VWAP)\s*[:=]?\s*(ABOVE|BELOW)/gi)) {
+    const t = /VWAP/i.test(m[1]) ? 'vwap' : /SMA/i.test(m[1]) ? 'sma200' : 'ema9';
+    out[t] = m[2].toLowerCase() as 'above' | 'below';
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 // Match a field label that Grok may wrap in **bold**
 function fieldRx(name: string): RegExp {
   return new RegExp('\\*{0,2}' + name + '\\*{0,2}:\\s*', 'i');
@@ -929,9 +1021,14 @@ function fieldRx(name: string): RegExp {
    pins that it returns null rather than defaulting. Un-exporting is what makes the safe path the
    only reachable one; a comment asking callers to prefer it is not a mechanism.
    Nothing outside this file imported it - checked before removing the keyword. */
-function parseCombinedResponse(text: string, tf: string, session: string, nowMs: number = Date.now()): CombinedResult {
+function parseCombinedResponse(rawText: string, tf: string, session: string, nowMs: number = Date.now()): CombinedResult {
+  // Translated header names become the English ones first (a no-op for an English answer).
+  const text = normalizeHeaders(rawText);
   // Normalise: strip leading ** from every line so field detection works
-  const clean = text.split('\n').map(l => l.replace(/^\*{1,2}/, '').replace(/\*{1,2}$/, '')).join('\n');
+  const edged = text.split('\n').map(l => l.replace(/^\*{1,2}/, '').replace(/\*{1,2}$/, '')).join('\n');
+  // The SIDES line is read here and then removed, so it can never end up inside a prose field that runs to the next header (or to the end).
+  const sides = parseSides(edged);
+  const clean = sides === undefined ? edged : edged.split('\n').filter((l) => !/^\s*SIDES\s*:/i.test(l)).join('\n');
 
   const pn = (s?: string): number | null => { const v = parseFloat((s ?? '').replace(/[,$]/g, '')); return isNaN(v) || v <= 0 ? null : v; };
 
@@ -982,17 +1079,19 @@ function parseCombinedResponse(text: string, tf: string, session: string, nowMs:
     const m = line.match(/^\s*[-•]\s*(.+)/);
     if (!m) continue;
     const b = stripMd(m[1]);
-    if (!b || /^(none|n\/a|\[reason)/i.test(b) || b.split(/\s+/).length > WHY_MAX_WORDS) continue;
+    if (!b || /^(none|n\/a|\[reason)/i.test(b) || isNoneMarker(b) || b.split(/\s+/).length > WHY_MAX_WORDS) continue;
     if (why.length < WHY_MAX) why.push(b);
   }
 
   // CHART_ANALYSIS - stop at PATTERNS or WAIT_FOR or REASONING
-  const chartAnalysis = stripMd(
+  const chartAnalysisRaw = stripMd(
     clean.match(/CHART_ANALYSIS:\s*([\s\S]*?)(?=\n\*{0,2}PATTERNS\*{0,2}:|\n\*{0,2}WAIT_FOR\*{0,2}:|\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
   );
+  const chartAnalysis = isNoneMarker(chartAnalysisRaw) ? '' : chartAnalysisRaw;
 
-  // PATTERNS - list of detected chart patterns
+  // PATTERNS - list of detected chart patterns, each with the direction tag the prompt asks for (" | BEARISH"), read as an enum
   const patterns: string[] = [];
+  const patternBias: (PatternBias | null)[] = [];
   const patSect = clean.match(/PATTERNS:\s*\n([\s\S]*?)(?=\n\*{0,2}WAIT_FOR\*{0,2}:|\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? '';
   for (const line of patSect.split('\n')) {
     const m = line.match(/^-\s*(.+)/);
@@ -1002,8 +1101,13 @@ function parseCombinedResponse(text: string, tf: string, session: string, nowMs:
          Split on the semicolon and apply the "none" check to each part. Commas are left alone: they appear INSIDE
          one pattern's own description ("Bear flag, 4h"). */
       for (const part of stripMd(m[1]).split(/\s*;\s*/)) {
-        const p = part.trim();
-        if (p && p.toLowerCase() !== 'none detected' && p.toLowerCase() !== 'none') patterns.push(p);
+        const tag = /\s*\|\s*(BULLISH|BEARISH|NEUTRAL)\s*$/i.exec(part);
+        const p = (tag ? part.slice(0, tag.index) : part).trim();
+        // A "none" marker in any of the five languages is no pattern at all, never a pill.
+        if (p && p.toLowerCase() !== 'none detected' && p.toLowerCase() !== 'none' && !isNoneMarker(p)) {
+          patterns.push(p);
+          patternBias.push(tag ? (tag[1].toUpperCase() as PatternBias) : null);
+        }
       }
     }
   }
@@ -1012,7 +1116,7 @@ function parseCombinedResponse(text: string, tf: string, session: string, nowMs:
   const waitForRaw = stripMd(
     clean.match(/\*{0,2}WAIT_FOR\*{0,2}:\s*([\s\S]*?)(?=\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
   );
-  const waitFor = (waitForRaw && waitForRaw.toLowerCase() !== 'n/a' && waitForRaw.trim().length > 5)
+  const waitFor = (waitForRaw && waitForRaw.toLowerCase() !== 'n/a' && !isNoneMarker(waitForRaw) && waitForRaw.trim().length > 5)
     ? waitForRaw.trim()
     : null;
 
@@ -1020,23 +1124,28 @@ function parseCombinedResponse(text: string, tf: string, session: string, nowMs:
   const waitForRaw2 = stripMd(
     clean.match(/\*{0,2}WAIT_FOR\*{0,2}:\s*([\s\S]*?)(?=\n\*{0,2}RAID_SETUP\*{0,2}:|\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
   );
-  const waitForFinal = (waitForRaw2 && waitForRaw2.toLowerCase() !== 'n/a' && waitForRaw2.trim().length > 5)
+  const waitForFinal = (waitForRaw2 && waitForRaw2.toLowerCase() !== 'n/a' && !isNoneMarker(waitForRaw2) && waitForRaw2.trim().length > 5)
     ? waitForRaw2.trim() : waitFor;
 
   // RAID fields
   const raidRaw    = clean.match(/RAID_SETUP:\s*(SHORT SQUEEZE|LONG FLUSH|NONE)/i)?.[1]?.toUpperCase();
   const raidSetup  = raidRaw === 'SHORT SQUEEZE' ? 'SHORT SQUEEZE' : raidRaw === 'LONG FLUSH' ? 'LONG FLUSH' : null;
   const raidTargetRaw  = stripMd(clean.match(/RAID_TARGET:\s*([^\n]+)/i)?.[1] ?? '');
-  const raidTarget = (raidTargetRaw && !/^n\/a$/i.test(raidTargetRaw.trim())) ? raidTargetRaw.trim() : null;
+  const raidTarget = (raidTargetRaw && !/^n\/a$/i.test(raidTargetRaw.trim()) && !isNoneMarker(raidTargetRaw)) ? raidTargetRaw.trim() : null;
   const raidTriggerRaw = stripMd(clean.match(/RAID_TRIGGER:\s*([^\n]+)/i)?.[1] ?? '');
-  const raidTrigger = (raidTriggerRaw && !/^n\/a$/i.test(raidTriggerRaw.trim())) ? raidTriggerRaw.trim() : null;
+  const raidTrigger = (raidTriggerRaw && !/^n\/a$/i.test(raidTriggerRaw.trim()) && !isNoneMarker(raidTriggerRaw)) ? raidTriggerRaw.trim() : null;
 
   // REASONING - handle **REASONING:** pattern
-  const reasoning = stripMd(
+  const reasoningRaw = stripMd(
     clean.match(/\*{0,2}REASONING\*{0,2}:\s*([\s\S]+)/i)?.[1] ?? ''
   );
+  const reasoning = isNoneMarker(reasoningRaw) ? '' : reasoningRaw;
 
-  return { signal, confidence, bias, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, why, citations: [], counted, checks: [], analyzedAt: Date.now(), tf, session };
+  /* The two optional fields are added only when present, so an answer without them parses to exactly the object it always did. */
+  const optional: Pick<CombinedResult, 'patternBias' | 'sides'> = {};
+  if (patternBias.some((b) => b !== null)) optional.patternBias = patternBias;
+  if (sides) optional.sides = sides;
+  return { signal, confidence, bias, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, why, citations: [], counted, checks: [], ...optional, analyzedAt: Date.now(), tf, session };
 }
 
 /** THE READ, REFUSED RATHER THAN DEFAULTED. Use this. `parseCombinedResponse` above still answers FLAT at 0% for an answer that
@@ -1115,7 +1224,7 @@ function ageText(ms: number): string {
  * carries NO age - an age we cannot derive is one we cannot stand behind. A stamp in the future is the model's error, so it gets no age
  * either, and the stamp stays visible so a reader can see what was claimed. */
 function formatCatalyst(raw: string, nowMs: number): string | null {
-  if (!raw || /^none\b/i.test(raw)) return null;
+  if (!raw || /^none\b/i.test(raw) || isNoneMarker(raw)) return null;
   const parts = raw.split('|').map((p) => p.trim()).filter(Boolean);
   if (parts.length < 3) return null;
   const when = parts[parts.length - 1];
@@ -1132,6 +1241,21 @@ function formatCatalyst(raw: string, nowMs: number): string | null {
 
 /** The perps-vs-spot reading's "could not be measured" sentence (lib/perpSpot.ts), as it reaches the prompt. */
 const SPOT_UNAVAILABLE = 'Spot data unavailable for this coin';
+
+/** The sentences the server adds to a read's reasoning, as label templates (ARENA_READ_NOTE_*), so a ko/zh/ru/ar read gets them in its own
+ *  language. `verdict` names the tiers in that language ({shown} / {said}); without it the enum is printed, as the English note always did.
+ *  ENGLISH_READ_NOTES equal the label defaults in lib/labelDefaults.en.json byte for byte. */
+export interface ReadNotes {
+  tierUnchecked: string;
+  tierCounted: string;
+  spotMissing: string;
+  verdict?: Partial<Record<CombinedResult['signal'], string>>;
+}
+export const ENGLISH_READ_NOTES: ReadNotes = {
+  tierUnchecked: '(Shown as {shown}: no signal count to confirm {said}.)',
+  tierCounted: "(Shown as {shown}: {bullish} bullish vs {bearish} bearish signals don't support {said}.)",
+  spotMissing: 'No spot data for this coin, so confidence skips the spot check.',
+};
 
 type Tier = CombinedResult['signal'];
 
@@ -1151,6 +1275,33 @@ function tierFromCounts(c: { bullish: number; bearish: number }): Tier {
   return c.bullish > c.bearish ? 'LEAN BULLISH' : 'LEAN BEARISH';
 }
 
+/** CONFIDENCE ADJUSTMENTS, COMPUTED IN CODE FROM THE PROMPT'S OWN LINES (#1651, owner sweep 2026-11-18). The prompt used to ask the model to do
+ *  this arithmetic. Same numbers as before (#340 Option B for perps vs spot): futures-led -20, spot-led +10, Pre-NY / Asia session -10, ribbon
+ *  FREEZE -15, WaveTrend confirming +5. A line that is missing or says it could not be measured adds nothing. */
+export function adjustConfidence(prompt: string): { delta: number; reasons: string[] } {
+  const line = (prefix: string) => {
+    const i = prompt.indexOf(prefix);
+    if (i < 0) return '';
+    const end = prompt.indexOf('\n', i);
+    return prompt.slice(i + prefix.length, end < 0 ? undefined : end).trim();
+  };
+  let delta = 0;
+  const reasons: string[] = [];
+  const add = (n: number, why: string) => { delta += n; reasons.push(`${n > 0 ? '+' : ''}${n} ${why}`); };
+  const perp = line('Perp vs spot ACTIVITY - trading volume, not price:');
+  if (/Futures trading is [\d.]+x its usual share against spot/.test(perp)) add(-20, 'futures-led');
+  else if (/Futures trading is unusually quiet/.test(perp)) add(10, 'spot-led');
+  if (/^(Pre-NY|Asia Session)\b/.test(line('Current session:'))) add(-10, 'Pre-NY / Asia session');
+  /* While the ribbon is still loading, the Arena sends the PREVIOUS selection's ribbon line behind a "[Still loading ...]" caveat, and the WaveTrend line
+     comes from the same frozen reading (app/(main)/arena/page.tsx). Neither adjusts this coin's confidence then. FREEZE counts only as the verdict right
+     after the ribbon's own "[... ribbon ...]" tag. */
+  const ribbon = line('EMA Ribbon Strategy:');
+  const ribbonCurrent = !/^\[Still loading/i.test(ribbon);
+  if (ribbonCurrent && /^\[[^\]]*ribbon[^\]]*\]\s*FREEZE\b/.test(ribbon)) add(-15, 'ribbon FREEZE');
+  if (ribbonCurrent && /^CONFIRMING\b/.test(line('WaveTrend (Cipher B momentum):'))) add(5, 'WaveTrend confirming');
+  return { delta, reasons };
+}
+
 /** #1631 D: the rules the prompt states that the answer can be checked against, applied after parsing, on the server (it has the prompt).
  *  - The tier must be one the SIGNAL DECISION GUIDE allows for the model's own COUNTED line. One it does not allow is replaced by the tier
  *    the count gives (PM's audit of #1668: it used to fall back to the same side's LEAN, so BULLISH on 0 vs 5 became LEAN BULLISH 75),
@@ -1159,7 +1310,7 @@ function tierFromCounts(c: { bullish: number; bearish: number }): Tier {
  *  - With no liquidation cluster data a raid cannot be judged (#1631 B): any raid the model wrote anyway is dropped.
  *  - A perps-vs-spot check that could not be measured must be SAID (the prompt requires it); when the reasoning does not, it is added.
  *  Everything changed is listed in `checks`. */
-export function applyResultChecks(result: CombinedResult, prompt: string): CombinedResult {
+export function applyResultChecks(result: CombinedResult, prompt: string, notes: ReadNotes = ENGLISH_READ_NOTES): CombinedResult {
   const r: CombinedResult & { checks: string[] } = { ...result, checks: [...(result.checks ?? [])] };
 
   /* PROSE MUST NOT CONTRADICT THE INPUTS (PM audit 2026-11-17: "price below EMA9 / below VWAP" while price was above both). A claim that states the wrong side of EMA9, SMA200 or VWAP is fixed or dropped, never shown,
@@ -1195,9 +1346,51 @@ export function applyResultChecks(result: CombinedResult, prompt: string): Combi
       }
       r.catalysts = nextCat;
     }
+
+    /* THE SAME RULE IN ANY LANGUAGE (QA review of #2569). The pass above reads English direction words, so a ko/zh/ru/ar read went through
+       it unchecked. This pass compares structured things only: the SIDES the model declared against the prompt's numbers (a sentence naming
+       a misread indicator is dropped), a price written next to EMA9 / SMA200 against the input, and each level's type against the close.
+       Same fallback as above: reasoning and chartAnalysis are never emptied by it. */
+    const misread = misreadSides(r.sides, inputs);
+    if (misread.length) r.checks.push(`declared side wrong for ${misread.join(', ')}`);
+    for (const field of ['reasoning', 'chartAnalysis', 'waitFor', 'raidTrigger'] as const) {
+      const cur = r[field];
+      if (typeof cur !== 'string' || !cur) continue;
+      const { text, dropped } = dropStructuredContradictions(cur, inputs, misread);
+      if (dropped.length) {
+        (r as unknown as Record<string, string | null>)[field] = text.trim() ? text : (field === 'reasoning' || field === 'chartAnalysis' ? cur : null);
+        note2(field, dropped);
+      }
+    }
+    for (const list of ['why', 'catalysts'] as const) {
+      const items = r[list];
+      if (!Array.isArray(items)) continue;
+      const next: string[] = [];
+      for (const it of items) {
+        const { text, dropped } = dropStructuredContradictions(it, inputs, misread);
+        if (dropped.length) note2(list, dropped);
+        if (text.trim()) next.push(text);
+      }
+      r[list] = next;
+    }
+    const keptLevels = r.levels.filter((l) => !levelContradictsClose(l, inputs));
+    if (keptLevels.length !== r.levels.length) {
+      r.checks.push(`level dropped: type contradicts the close (${r.levels.filter((l) => levelContradictsClose(l, inputs)).map((l) => `${l.type} ${l.price}`).join(', ')})`);
+      r.levels = keptLevels;
+    }
+  }
+
+  // Confidence adjustments in code, before the tier check below (whose cap at 75 then still holds).
+  const adj = adjustConfidence(prompt);
+  const adjusted = adj.delta !== 0;
+  if (adjusted) {
+    r.confidence = Math.max(0, Math.min(100, Math.round(r.confidence + adj.delta)));
+    r.checks.push(`confidence adjusted in code: ${adj.reasons.join(', ')}`);
   }
 
   const said = r.signal;
+  const fill = (template: string, vars: Record<string, string | number>) => template.replace(/\{(\w+)\}/g, (whole, k: string) => (k in vars ? String(vars[k]) : whole));
+  const tierName = (t: Tier) => notes.verdict?.[t] ?? t;
   const note = (s: string) => { r.reasoning = `${r.reasoning}${r.reasoning ? ' ' : ''}${s}`; };
   const show = (tier: Tier) => {
     r.signal = tier;
@@ -1209,7 +1402,7 @@ export function applyResultChecks(result: CombinedResult, prompt: string): Combi
     if (said === 'BULLISH' || said === 'BEARISH') {
       const lean: Tier = said === 'BULLISH' ? 'LEAN BULLISH' : 'LEAN BEARISH';
       r.checks.push(`${said} shown as ${lean}: no readable COUNTED line, so the tier could not be checked`);
-      note(`(Shown as ${lean}: the answer did not state its signal count, so ${said} could not be checked.)`);
+      note(fill(notes.tierUnchecked, { shown: tierName(lean), said: tierName(said) }));
       show(lean);
     } else if (said !== 'FLAT') {
       r.checks.push(`${said} not checked: no readable COUNTED line`);
@@ -1217,8 +1410,16 @@ export function applyResultChecks(result: CombinedResult, prompt: string): Combi
   } else if (!tierAllowed(said, r.counted)) {
     const tier = tierFromCounts(r.counted);
     r.checks.push(`${said} shown as ${tier}: ${r.counted.bullish} bullish vs ${r.counted.bearish} bearish counted`);
-    note(`(Shown as ${tier}: ${r.counted.bullish} bullish against ${r.counted.bearish} bearish signals were counted, which does not support ${said}.)`);
+    note(fill(notes.tierCounted, { shown: tierName(tier), said: tierName(said), bullish: r.counted.bullish, bearish: r.counted.bearish }));
     show(tier);
+  }
+
+  /* A LEAN NEVER EXCEEDS 75 AFTER THE ADJUSTMENT (QA K9 on #2585). The prompt's band for a LEAN is 55-75; the code adjustment above could push one to
+     85. After an adjustment, and after any tier correction, a LEAN is capped at 75. Nothing else is clamped (PM): no floor, FLAT and BULLISH / BEARISH
+     keep the adjusted number. A model number with no adjustment is left as the model gave it. */
+  if (adjusted && (r.signal === 'LEAN BULLISH' || r.signal === 'LEAN BEARISH') && r.confidence > 75) {
+    r.checks.push(`confidence ${r.confidence} capped at 75 (${r.signal})`);
+    r.confidence = 75;
   }
 
   if (/=== REALIZED LIQUIDATION CLUSTERS[^\n]*===\s*\n\s*Not available/.test(prompt) && (r.raidSetup || r.raidTarget || r.raidTrigger)) {
@@ -1229,7 +1430,7 @@ export function applyResultChecks(result: CombinedResult, prompt: string): Combi
   // PM's audit of #1668: any "spot" ("BTC spot ETF inflows") used to count as the disclosure. It must name the perps-vs-spot check.
   if (prompt.includes(SPOT_UNAVAILABLE) && !/perps?[\s-]*(vs\.?|versus|against)[\s-]*spot|spot[\s-]*(data|volume|activity|led|reading)|futures[\s-]*led/i.test(r.reasoning)) {
     r.checks.push('perps-vs-spot disclosure added');
-    r.reasoning = `${r.reasoning}${r.reasoning ? ' ' : ''}The perps-vs-spot check was unavailable for this coin, so confidence was not adjusted for it.`;
+    r.reasoning = `${r.reasoning}${r.reasoning ? ' ' : ''}${notes.spotMissing}`;
   }
 
   /* INTERNAL NAMES MUST NOT REACH A READER (#1631, owner's screenshot 2026-11-10: "clear bearish
@@ -1390,6 +1591,137 @@ export function buildArenaPrompt(
     'appear there, give them more weight, and say plainly if they disagree with the rest of the data.',
     'Do not weigh, or name as weighted, any indicator that has no reading line above.',
   ].join('\n');
+}
+
+/* ── THE TRADER'S STRATEGY IN THE READ (owner order 2026-11-19: "ALL INDICATORS ... MUST BE CONNECTED TO QUICK AND DEEP RESEARCH") ──
+ *
+ * The selected indicators already reach both reads (buildArenaPrompt above). The picked Arena strategy's call did not: the request carried no
+ * strategy at all. Now the route computes the call from its own closed candles (lib/arenaStrategyServer.ts) and this appends it, the same
+ * block for Quick and Deep, before the language line. INSTRUCTIONS LIVE HERE, DATA ARRIVES TYPED: the readings are numbers, a fixed verdict
+ * word and the label sentence the Arena shows, never text from the request.
+ *
+ * Picked: the one strategy, and the read must name it and say whether its call agrees or disagrees with the read's SIGNAL.
+ * Let the read choose (no strategy, no indicators): every strategy's reading, and the read must name the one it chose.
+ * No reading (no candles, too few, unsupported timeframe, a live input missing): said in words, never shown as a WAIT. */
+export function strategyReadBlock(read: ArenaStrategyRead): string {
+  if (!read || read.readings.length === 0) return '';
+  const line = (s: StrategyReading): string => {
+    if (s.status === 'none') return `${s.name}: NO READING (${s.why}). Do not guess its call.`;
+    const lv = [s.entry != null ? `entry ${priceText(s.entry)}` : '', s.stop != null ? `stop ${priceText(s.stop)}` : '', s.target != null ? `target ${priceText(s.target)}` : ''].filter(Boolean);
+    const age = s.barsAgo == null ? '' : s.barsAgo === 0 ? ' Signal on the latest closed candle.' : ` Signal ${s.barsAgo} closed candle${s.barsAgo === 1 ? '' : 's'} ago.`;
+    return `${s.name}: ${s.verdict}. Reason: ${s.reason}${lv.length ? ` Levels: ${lv.join(', ')}.` : ''}${age}`;
+  };
+  const rules = 'These are rule-based signals computed by the app from closed candles on this timeframe: signals, not predictions, and not advice.';
+  if (read.mode === 'picked') {
+    const s = read.readings[0];
+    return [
+      '',
+      "=== THE TRADER'S STRATEGY ===",
+      rules,
+      line(s),
+      s.status === 'ok'
+        ? `Weigh this call with the rest of the data above; it is one input and does not override the SIGNAL DECISION GUIDE. In REASONING, the first sentence must name "${s.name}", give its call (${s.verdict}) and say whether it agrees or disagrees with your SIGNAL, and why in a few words.`
+        : `In REASONING, the first sentence must name "${s.name}" and say it has no reading right now.`,
+    ].join('\n');
+  }
+  const usable = read.readings.some(s => s.status === 'ok');
+  return [
+    '',
+    '=== STRATEGY CHECK (the trader let the read choose) ===',
+    rules,
+    ...read.readings.map(s => `- ${line(s)}`),
+    usable
+      ? 'Choose the ONE strategy above, among those with a reading, that best fits this chart, and weigh its call with the rest of the data above; it does not override the SIGNAL DECISION GUIDE. In REASONING, the first sentence must name the strategy you chose, give its call (BUY, SELL or WAIT) and say whether it agrees or disagrees with your SIGNAL, and why in a few words.'
+      : 'No strategy has a reading right now. In REASONING, the first sentence must say that no strategy had a reading.',
+  ].join('\n');
+}
+
+/** The Arena prompt with the strategy block appended (unchanged when there is none). Applied before withReadLanguage, which must stay last. */
+export function withStrategyRead(prompt: string, read: ArenaStrategyRead): string {
+  const block = strategyReadBlock(read);
+  return block ? `${prompt}\n${block}` : prompt;
+}
+
+/** A tokenized stock read while the US cash session is closed (lib/marketHours.ts; PM, 2026-11-19): the prompt says so and names the last close, so the model does not read an overnight perpetual price as a live reaction. Fixed words and the server-formatted price only: nothing
+ *  from the request reaches this line. Unchanged when the market is open or the coin is not a stock. Applied before withReadLanguage, which must stay last. */
+export function withMarketClosedNote(prompt: string, closed: boolean, coin: string, price: string): string {
+  if (!closed) return prompt;
+  return `${prompt}
+MARKET STATUS: ${coin.toUpperCase()} is a tokenized US stock and the US cash market is closed right now. Last close: ${price}. The price and the 24h change above are the last session's, not a live reaction: say the market is closed and read the last close as it is.`;
+}
+
+/** The prompt with the server's fixed watch levels appended (lib/readLevels.ts; PM, 2026-11-19: two reads minutes apart on one coin set different confirm and cancel levels because each read invented its own). Fixed numbers, formatted here;
+ *  nothing from the request reaches this block. Unchanged when no levels could be computed. Applied before withReadLanguage, which must stay last. */
+export function withReadLevels(prompt: string, levels: { close: number; above: number | null; below: number | null } | null, takerPct: number): string {
+  if (!levels) return prompt;
+  const lines = [
+    'FIXED WATCH LEVELS (computed by the server from the closed candles of this timeframe; every read of this coin and timeframe gets the same numbers until a candle closes). Quote these exact numbers wherever you name a price to watch, a confirmation or a cancellation, and do not choose other levels or other thresholds:',
+    `- Last close: ${priceText(levels.close)}`,
+    levels.above != null ? `- Nearest resistance above: ${priceText(levels.above)} (a close above it cancels a bearish lean and is the level to clear for a bullish break)` : '- Nearest resistance above: none on the chart (say so; do not invent one)',
+    levels.below != null ? `- Nearest support below: ${priceText(levels.below)} (a close below it confirms a bearish break and cancels a bullish lean)` : '- Nearest support below: none on the chart (say so; do not invent one)',
+    `- Taker-ratio threshold to confirm a lean: ${takerPct}% of taker volume on that side.`,
+  ];
+  return `${prompt}\n${lines.join('\n')}`;
+}
+
+/** The Arena prompt with the language instruction appended, last, so it is the final thing the model reads. English is returned unchanged. */
+export function withReadLanguage(prompt: string, locale: ReadLocale): string {
+  const lang = readLanguageInstruction(locale);
+  return lang ? `${prompt}\n\n${lang}` : prompt;
+}
+
+/* ── The language of the read (PM ru sign-off 2026-11-18: the read was English in every locale) ──
+ *
+ * The languages the app has labels for. Anything else, missing or malformed, is English: the value comes from the request body,
+ * and it is used only to pick one of these fixed sentences, so nothing the client sends reaches the prompt as text. */
+export const READ_LOCALES = ['en', 'ko', 'zh', 'ru', 'ar'] as const;
+export type ReadLocale = (typeof READ_LOCALES)[number];
+
+export function resolveReadLocale(v: unknown): ReadLocale {
+  return typeof v === 'string' && (READ_LOCALES as readonly string[]).includes(v) ? (v as ReadLocale) : 'en';
+}
+
+const READ_LANGUAGE_NAMES: Record<Exclude<ReadLocale, 'en'>, string> = {
+  ko: 'Korean',
+  zh: 'Simplified Chinese',
+  ru: 'Russian',
+  ar: 'Arabic',
+};
+
+/** The one instruction that sets the language of the free text, or '' for English (the English prompt is unchanged).
+ *  Everything the parser reads stays in English: the field names, the verdict, bias and raid words, the COUNTED line, the level type,
+ *  the "none" markers and the catalyst timestamp. parseCombinedResponse matches those literally, so only the text between them moves. */
+export function readLanguageInstruction(locale: ReadLocale): string {
+  if (locale === 'en') return '';
+  const name = READ_LANGUAGE_NAMES[locale];
+  return [
+    `=== LANGUAGE: ${name.toUpperCase()} (${locale}) ===`,
+    `Translate VALUES only, never keys. Write every free-text value in ${name}: the WHY reasons, the level labels, the RAID_TRIGGER sentence, the catalyst claims, CHART_ANALYSIS, the PATTERNS names, WAIT_FOR and REASONING.`,
+    'Keep these exactly as specified, in English, because the answer is read by a program:',
+    '- every header exactly in English, with its colon, never translated: SIGNAL:, BIAS_LEAN:, CONFIDENCE:, COUNTED:, SIDES:, WHY:, RAID_SETUP:, RAID_TARGET:, RAID_TRIGGER:, LEVELS:, CATALYSTS:, CHART_ANALYSIS:, PATTERNS:, WAIT_FOR:, REASONING:',
+    '- the values of SIGNAL, BIAS_LEAN and RAID_SETUP: BULLISH, LEAN BULLISH, FLAT, LEAN BEARISH, BEARISH, NEUTRAL, SHORT SQUEEZE, LONG FLUSH, NONE',
+    '- the whole COUNTED line, the words support and resistance in LEVELS, the direction tag at the end of each PATTERNS line (| BULLISH, | BEARISH, | NEUTRAL)',
+    '- for an empty field or an empty list write the English token NONE, never a translated word for "none"',
+    '- the catalyst time in the format YYYY-MM-DD HH:MM UTC, indicator names (EMA 9, SMA 200, VWAP), coin tickers, prices and numbers.',
+    'Directly after the COUNTED line, add one line in exactly this form, stating where the last close sits against each indicator in the data above:',
+    'SIDES: EMA9 [ABOVE or BELOW] | SMA200 [ABOVE or BELOW] | VWAP [ABOVE or BELOW]',
+  ].join('\n');
+}
+
+/* ── THE OUTPUT CAP PER READ (QA review of #2569, item 5) ──────────────────────────────────────────────────────────────────────────────
+ * A Russian read measured about 1.9x the bytes of the English one, so the English caps would cut a translated read off. English keeps its caps
+ * exactly. For the other languages: max(current cap, ceil(en p95 x 2.2)), rounded up to the next 50. The en p95 is from the dev usage log
+ * (completion_tokens, last 60 days, measured by QA 2026-11-18): Quick 1,191 (n=4, max 1,201) and Deep 2,251 (n=24, max 2,345). Small
+ * samples, Quick especially - revisit once the log holds more non-English reads. */
+export const READ_OUTPUT_CAPS = {
+  en: { quickGrok: 800, quickClaude: 1600, deep: 2000 },
+  translated: { quick: 2650, deep: 5000 },
+} as const;
+
+export function readOutputCap(type: 'quick' | 'deep', engine: 'grok' | 'claude', locale: ReadLocale): number {
+  const en = type === 'deep' ? READ_OUTPUT_CAPS.en.deep : engine === 'grok' ? READ_OUTPUT_CAPS.en.quickGrok : READ_OUTPUT_CAPS.en.quickClaude;
+  if (locale === 'en') return en;
+  return Math.max(en, type === 'deep' ? READ_OUTPUT_CAPS.translated.deep : READ_OUTPUT_CAPS.translated.quick);
 }
 
 /* callGrokQuick / callGrokCombined / callGrok and their parseResponse helper

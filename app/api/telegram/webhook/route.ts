@@ -1,8 +1,15 @@
 import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { isTypeMuteCallback, parseTypeMuteCallback, typeMuteConfirmation } from '@/lib/alertTypeMute';
+import { localizeTelegram, tgText, typeMuteConfirmationIn, type TgLocale } from '@/lib/telegramI18n';
+import { chatLocale, userLocale, tgLabelsFor } from '@/lib/telegramLabels';
+import { applyTypeMuteTap } from '@/lib/telegramTypeMute';
 import { rateLimit } from '@/lib/rateLimit';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { isQuietHour } from '@/lib/alertQuiet';
+import { planKindOfRow } from '@/lib/paidPeriod';
+import { BOT_HELP, BOT_NOT_LINKED, BOT_PAUSED, BOT_RESUMED, BOT_RESUMED_NO_PLAN, BOT_SAVE_FAILED, BOT_READ_FAILED, botStatusText } from '@/lib/telegramBotText';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,7 +54,9 @@ export async function POST(req: NextRequest) {
      Telegram redelivered, and the second pass told a successfully linked user the link had "expired". Every send below is guarded and the
      route always answers 200. */
   try {
-    if (update.callback_query) await handleConfirm(token, update.callback_query);
+    /* "Mute 1 h" / "Mute 4 h" on an alert (lib/alertTypeMute.ts) go to their own handler and never reach the link flow below. */
+    if (update.callback_query && isTypeMuteCallback(update.callback_query.data)) await handleTypeMute(token, update.callback_query);
+    else if (update.callback_query) await handleConfirm(token, update.callback_query);
     else if (update.message?.chat) await handleMessage(token, update.message);
   } catch (e) {
     console.error('[telegram/webhook] handler failed', e instanceof Error ? e.message : 'unknown');
@@ -78,11 +87,19 @@ function maskEmail(email: string | null | undefined): string {
   return `${local.slice(0, 2)}***@${domain}`;
 }
 
+/** A reply in the language of the account linked to the chat (#1651): read BEFORE anything below can unlink it. English when the chat is not linked. */
+async function speaker(lang: TgLocale) {
+  const labels = await tgLabelsFor(lang);
+  return { labels, tr: (s: string) => localizeTelegram(s, lang, labels) };
+}
+
 async function handleMessage(token: string, message: NonNullable<TgUpdate['message']>) {
   const chat = message.chat;
   const text = (message.text ?? '').trim();
+  let lang = await chatLocale(chat.id);
+  let L = await speaker(lang);
   const say = (reply: string, extra: Record<string, unknown> = {}) =>
-    tgCall(token, 'sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: reply, ...extra });
+    tgCall(token, 'sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: L.tr(reply), ...extra });
 
   /* /stop UNLINKS THIS CHAT FROM WHATEVER ACCOUNT HOLDS IT (PM audit C3). A chat that was linked to someone else's account by a forwarded link
      had no way out except to ask that account's owner. Only the chat itself can say /stop, and it only ever clears its own id. */
@@ -94,7 +111,14 @@ async function handleMessage(token: string, message: NonNullable<TgUpdate['messa
     return;
   }
 
-  if (!/^\/start(@\w+)?(\s|$)/i.test(text)) return;
+  /* /status, /pause, /resume, /help (owner sweep 2026-11-18). Anything else in a private chat gets the /help list instead of silence; in a group
+     only a command is answered, so the bot never replies to ordinary conversation. Each acts only on the account linked to THIS chat. */
+  const cmd = /^\/([a-z]+)(@\w+)?(\s|$)/i.exec(text)?.[1]?.toLowerCase() ?? null;
+  if (cmd === 'status' || cmd === 'pause' || cmd === 'resume') { await say(await chatControl(cmd, String(chat.id))); return; }
+  if (cmd !== 'start') {
+    if (cmd || chat.type === 'private' || !chat.type) await say(BOT_HELP);
+    return;
+  }
 
   // `/start CODE` is the account-linking path. This is the ONLY way a telegram_chat_id gets written: the value comes from Telegram's own
   // update for a chat the sender demonstrably controls, never from a client that could name someone else's. See migration 20260807j.
@@ -131,19 +155,73 @@ async function handleMessage(token: string, message: NonNullable<TgUpdate['messa
   }
   let email: string | null = null;
   try { email = (await admin.auth.admin.getUserById(row.user_id)).data.user?.email ?? null; } catch { /* name it generically */ }
+  // The chat is not linked yet: the question is in the language of the account the code belongs to.
+  if (lang === 'en') { lang = await userLocale(row.user_id); if (lang !== 'en') L = await speaker(lang); }
   await say(
     `Connect this chat to <b>${esc(maskEmail(email))}</b>?\n\n` +
     `Only confirm if that is your LiquidityHQ account. If someone else sent you this link, ignore it. ` +
     `You can send /stop at any time to disconnect.`,
-    { reply_markup: { inline_keyboard: [[{ text: 'Confirm', callback_data: `link:${code}` }]] } },
+    { reply_markup: { inline_keyboard: [[{ text: tgText('TG_WH_CONFIRM', L.labels), callback_data: `link:${code}` }]] } },
   );
+}
+
+/** The reply to /status, /pause or /resume for the account linked to `chatId`. The bot is English-only for now (lib/telegramBotText.ts). */
+async function chatControl(cmd: 'status' | 'pause' | 'resume', chatId: string): Promise<string> {
+  const admin = getSupabaseAdmin();
+  if (cmd === 'pause' || cmd === 'resume') {
+    const patch = cmd === 'pause' ? { alert_paused: true } : { alert_paused: false, alert_snooze_until: null };
+    const { data, error } = await admin.from(T.user_settings)
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('telegram_chat_id', chatId)
+      .select('user_id');
+    if (error) return BOT_SAVE_FAILED;
+    if (!data?.length) return BOT_NOT_LINKED;
+    if (cmd === 'pause') return BOT_PAUSED;
+    /* A Free (lapsed) account is not told "on": the cron sends it nothing. A failed plan read falls back to the plain reply. */
+    const { data: sub, error: subErr } = await admin.from(T.user_subscriptions)
+      .select('role, trial_ends_at, current_period_end')
+      .eq('user_id', data[0].user_id)
+      .maybeSingle();
+    return !subErr && planKindOfRow(sub, Date.now()) === 'free' ? BOT_RESUMED_NO_PLAN : BOT_RESUMED;
+  }
+
+  const { data: s, error } = await admin.from(T.user_settings)
+    .select('user_id, timezone, alert_paused, alert_snooze_until, alert_quiet_start, alert_quiet_end')
+    .eq('telegram_chat_id', chatId)
+    .limit(1)
+    .maybeSingle();
+  if (error) return BOT_READ_FAILED;
+  if (!s?.user_id) return BOT_NOT_LINKED;
+  const { data: sub, error: subErr } = await admin.from(T.user_subscriptions)
+    .select('role, trial_ends_at, current_period_end')
+    .eq('user_id', s.user_id)
+    .maybeSingle();
+  if (subErr) return BOT_READ_FAILED;
+
+  const zone = typeof s.timezone === 'string' && s.timezone ? s.timezone : 'UTC';
+  const now = Date.now();
+  const until = s.alert_snooze_until ? Date.parse(String(s.alert_snooze_until)) : NaN;
+  const snoozed = Number.isFinite(until) && now < until;
+  let snoozeUntil: string | null = null;
+  if (snoozed) {
+    try { snoozeUntil = `${new Date(until).toLocaleString('en-GB', { timeZone: zone, weekday: 'short', hour: '2-digit', minute: '2-digit' })} (${zone})`; }
+    catch { snoozeUntil = `${new Date(until).toISOString().slice(0, 16).replace('T', ' ')} UTC`; }
+  }
+  const start = s.alert_quiet_start, end = s.alert_quiet_end;
+  return botStatusText({
+    plan: planKindOfRow(sub, now),
+    alerts: s.alert_paused === true ? 'paused' : snoozed ? 'snoozed' : 'on',
+    snoozeUntil: snoozeUntil && esc(snoozeUntil),
+    quiet: isQuietHour(start) && isQuietHour(end) && start !== end ? { start, end, timeZone: esc(zone) } : null,
+  });
 }
 
 async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_query']>) {
   const chat = cb.message?.chat;
+  let L = await speaker(await chatLocale(chat?.id));
   const answer = (text?: string) => tgCall(token, 'answerCallbackQuery', { callback_query_id: cb.id, ...(text ? { text } : {}) });
   const finish = (reply: string) => chat
-    ? tgCall(token, 'sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: reply })
+    ? tgCall(token, 'sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: L.tr(reply) })
     : Promise.resolve(undefined);
   if (!chat || !cb.data?.startsWith('link:')) { await answer(); return; }
 
@@ -170,6 +248,7 @@ async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_q
     return;
   }
 
+  L = await speaker(await userLocale(claimed.user_id)); // the claiming account's language from here on (#1651)
   /* The chat this account was linked to BEFORE, so it can be told it was replaced (C8). A failed read just means nobody is told; it never blocks the link. */
   const { data: before } = await admin.from(T.user_settings).select('telegram_chat_id').eq('user_id', claimed.user_id).maybeSingle();
   const previousChat = typeof before?.telegram_chat_id === 'string' ? before.telegram_chat_id.trim() : '';
@@ -180,7 +259,7 @@ async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_q
   if (error) {
     // Do not leave the user with a burned code and no link: put the code back so Confirm can be pressed again.
     await admin.from(T.telegram_link_codes).update({ used_at: null }).eq('code', code);
-    await answer('Could not finish connecting. Try again.');
+    await answer(L.tr('Could not finish connecting. Try again.'));
     await finish('⚠️ Could not finish connecting. Press Confirm again, or start again from the app.');
     return;
   }
@@ -194,10 +273,26 @@ async function handleConfirm(token: string, cb: NonNullable<TgUpdate['callback_q
     if (othersErr) throw new Error(othersErr.message);
     displaced = others?.length ?? 0;
   } catch (e) { console.error('[telegram/webhook] could not clear another account from this chat', e instanceof Error ? e.message : 'unknown'); }
-  await answer('Connected');
+  await answer(tgText('TG_WH_CONNECTED_SHORT', L.labels));
   await finish('✅ Connected. Alerts for your LiquidityHQ account will arrive here. Send /stop to disconnect.' + (displaced > 0 ? '\n\nThis chat was linked to another LiquidityHQ account, which no longer receives alerts here.' : ''));
   /* A RE-LINK FROM A NEW CHAT USED TO REPLACE THE OLD ONE SILENTLY: the old chat just stopped receiving alerts with no word. Now it is told. Guarded like every other send here (a failure never turns a finished link into an error). */
   if (previousChat && previousChat !== String(chat.id)) {
-    try { await tgCall(token, 'sendMessage', { chat_id: previousChat, text: 'This chat was disconnected: your LiquidityHQ account is now linked to a different chat, so alerts will no longer arrive here.' }); } catch { /* the old chat may be gone */ }
+    try { await tgCall(token, 'sendMessage', { chat_id: previousChat, text: L.tr('This chat was disconnected: your LiquidityHQ account is now linked to a different chat, so alerts will no longer arrive here.') }); } catch { /* the old chat may be gone */ }
   }
+}
+
+/** A tap on "Mute 1 h" / "Mute 4 h" under an alert. Only the chat the button sits in is ever affected (lib/telegramTypeMute.ts); data outside the allowlist,
+ *  or a chat linked to no account, writes nothing. The callback is always answered so the button stops spinning; the answer carries text only when a mute was saved (or failed to save). */
+async function handleTypeMute(token: string, cb: NonNullable<TgUpdate['callback_query']>) {
+  const chatId = cb.message?.chat?.id;
+  let reply: string | null = null;
+  try { reply = await applyTypeMuteTap(chatId == null ? null : String(chatId), cb.data); }
+  catch (e) { console.error('[telegram/webhook] type mute failed', e instanceof Error ? e.message : 'unknown'); }
+  /* In the chat's language (#1651): the confirmation is rebuilt from the button's own data, anything else goes through the phrase table. */
+  if (reply) {
+    const L = await speaker(await chatLocale(chatId));
+    const want = parseTypeMuteCallback(cb.data);
+    reply = want && reply === typeMuteConfirmation(want.ruleKey, want.hours) ? typeMuteConfirmationIn(want.ruleKey, want.hours, L.labels) : L.tr(reply);
+  }
+  await tgCall(token, 'answerCallbackQuery', { callback_query_id: cb.id, ...(reply ? { text: reply } : {}) });
 }

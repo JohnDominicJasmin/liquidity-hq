@@ -28,7 +28,7 @@ export async function GET(req: Request) {
       if (!tfMs) continue;
       for (const coin of TRACKED_COINS) {
         try {
-          const all = await fetchRibbonCandles(coin, tf as EMASignalTF);
+          const all = await fetchRibbonCandles(coin, tf as EMASignalTF, undefined, def.candleLimit);
           const closed = closedCandles(all, tf as EMASignalTF);
           /* TOO FEW CANDLES IS UNKNOWN, NOT 'NO SIGNAL': counted as a failure of the pass, so the health row cannot read healthy on a silent venue. */
           if (closed.length < def.minCandles) { errors.push(`${def.id}/${coin}/${tf}: only ${closed.length} candles`); continue; }

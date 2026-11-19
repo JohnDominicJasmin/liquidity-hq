@@ -2,21 +2,22 @@ import { emaArr, type OHLCV } from '../strategyCore.ts';
 import type { LabelKey } from '../labelKeys.ts';
 import { WAIT, type StrategyContext, type StrategyDef, type StrategyOverlay, type StrategyResult } from './types.ts';
 
-/* EMA 20 / 50 / 100 / 200 STACK, TRADED ON THE PULLBACK (owner-requested, 2026-11-14: trade WITH the stack, wait for price to pull back to the 20 or 50 and show a
- * confirmation, enter in the trend direction). Deterministic rules, closed candles only.
+/* EMA 20 / 50 / 100 / 200 STACK, SIGNALLED ON ITS FORMATION (owner-requested 2026-11-14 as a pullback strategy; PM, 2026-11-19: the pullback signal and a stack that re-armed on every wobble fired on 15-20% of candles at 1h / 2h / 4h in a
+ * real-data audit, too noisy to trade). Deterministic rules, closed candles only.
  *
  *  A BULLISH STACK is EMA20 > EMA50 > EMA100 > EMA200 in that order; a BEARISH STACK is the reverse.
- *
- *  PULLBACK (the main signal), in an established stack:
- *    BUY:  a candle's low reaches the 20 (or the 50) and it CLOSES back above the 20. Price dipped into the zone and was bought back.
- *    SELL: the mirror: the high reaches the 20 (or the 50) and the candle closes back below the 20.
- *  FRESH FORMATION (secondary): the closed candle where the full stack first formed, with the close on the right side of the 20.
- *  Either is current only while its candle is one of the last FRESH_BARS closed candles and the stack still holds. params.pullback tells which one fired
- *  (true = pullback, false = formation); params.tag says whether a pullback reached the 20 or the 50. Needs enough history for a settled EMA200.
+ *  FORMATION (the only signal): the closed candle where the full stack forms, with the close on the right side of the 20 (above it for a bullish stack, below it for a bearish one), and only if the stack had been OUT of that order for
+ *    at least MIN_UNSTACKED = 10 candles before it. A stack that breaks for a candle or two and re-forms is the same stack and is not a new signal. BUY for a bullish stack, SELL for a bearish one.
+ *  The signal is stamped on the formation candle and stays current for FRESH_BARS candles after it while the stack still holds. Needs enough history for a settled EMA200 (MIN_CANDLES).
+ *  DETAILS THE RULE HIDES: the four EMAs are SMA-SEEDED (each starts at the plain average of its first `period` closes, lib/strategyCore.ts emaArr), unlike the cross strategy's first-close seed. "Formation" means the FIRST candle of the
+ *    current unbroken run of 'stack in order with the close on the trend side of the 20'.
+ *  Measured on 30 days of BTC / ETH / SOL (the audit script): signals per cell 15m 302/377/380 -> 33/35/29 (before the change this also signalled the pullbacks), 1h 108/104/109 -> 7/5/3, 4h 14/19/18 -> 1/1/0. The 10-candle gap is what
+ *    cuts it: with no gap the same formation rule gave 137/169/175 at 15m; gaps of 1, 3 and 10 candles give about the same counts, so the stack re-arming is the order breaking and re-forming, not a long absence.
  *  Signals, not predictions: this says how price sits against the averages, not where it goes next. */
 
 export const FRESH_BARS = 3;
 export const MIN_CANDLES = 230;
+export const MIN_UNSTACKED = 10;   // candles the stack must have been out of order before its formation candle
 const EMA_BARS = 120; // how many of the latest bars each drawn EMA line covers
 
 type Side = 'long' | 'short';
@@ -50,24 +51,19 @@ export function detectEmaStack(candles: readonly OHLCV[], _ctx: StrategyContext)
     overlay: { levels: [{ price: inv, role: 'invalid', fromTs: candles[i].time, labelKey: 'STRAT_OV_INVALID' }], zones: [], lines, marker: { ts: candles[i].time, dir: now } },
   });
 
-  // PULLBACK: the latest candle (within FRESH_BARS) that reached the 20 and closed back on the trend side of it, with the stack in order on that candle.
-  for (let i = n - 1; i >= n - FRESH_BARS; i--) {
-    if (order(i) !== now) break;
-    const c = candles[i];
-    const touched = up ? c.low <= e20[i] && c.close > e20[i] : c.high >= e20[i] && c.close < e20[i];
-    if (!touched) continue;
-    const reached50 = up ? c.low <= e50[i] : c.high >= e50[i];
-    // A candle that went through the 100 has not pulled back into the zone, it has broken it.
-    if (up ? c.low < e100[i] : c.high > e100[i]) continue;
-    return result(i, true, reached50 ? 50 : 20, up ? c.low : c.high);
-  }
-
   // FRESH FORMATION: the first candle of the current unbroken stack-with-close-on-the-right-side run.
   const holds = (i: number) => order(i) === now && (up ? closes[i] > e20[i] : closes[i] < e20[i]);
   if (holds(n - 1)) {
     let first = n - 1;
     while (first - 1 >= 0 && holds(first - 1)) first--;
-    if (first >= n - FRESH_BARS) return result(first, false, 0, e50[n - 1]);
+    /* A ONE-CANDLE WOBBLE DOES NOT RE-ARM IT (PM, 2026-11-19; a real-data audit found 15-20% of candles signalling at 1h / 2h / 4h): the stack must have been OUT of this order for at least MIN_UNSTACKED candles before
+       the formation candle. A stack that breaks for a candle or two and re-forms is the same stack. */
+    const quietFrom = first - MIN_UNSTACKED;
+    if (quietFrom >= 0) {
+      let quiet = true;
+      for (let q = quietFrom; q < first; q++) if (order(q) === now) { quiet = false; break; }
+      if (quiet && first >= n - FRESH_BARS) return result(first, false, 0, e50[n - 1]);
+    }
   }
   return { ...WAIT, overlay: { levels: [], zones: [], lines, marker: null } };
 }
@@ -79,7 +75,6 @@ export const EMA_STACK: StrategyDef = {
   reasonBuyKey: 'STRAT_EMASTACK_BUY',
   reasonSellKey: 'STRAT_EMASTACK_SELL',
   reasonWaitKey: 'STRAT_EMASTACK_WAIT',
-  reasonKeyFor: (r): LabelKey | null => (r.params.pullback === true ? (r.verdict === 'buy' ? 'STRAT_EMASTACK_BUY_PULLBACK' : 'STRAT_EMASTACK_SELL_PULLBACK') : null),
   minCandles: MIN_CANDLES,
   chips: [],
   logTfs: ['15m', '1h', '4h'],

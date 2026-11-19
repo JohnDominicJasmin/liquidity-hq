@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xaiFetch } from '@/lib/xai';
 import { GROK_SERVER_DEEP_MS, GROK_SERVER_QUICK_MS } from '@/lib/grokDeadlines';
 import { recordAiCall } from '@/lib/aiCallLog';
-import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, VERDICT_RESTATED_CHECK, type ChartData, type GrokContext } from '@/lib/grok';
-import { arenaContextCoinId, COIN_NOT_TRACKED, parseArenaChart, parseArenaContext, parseSelection } from '@/lib/arenaContext';
+import { applyResultChecks, buildArenaPrompt, buildVerdictRepairPrompt, GROK_EMPTY_ANSWER_MESSAGE, GROK_UNREADABLE_ANSWER_MESSAGE, parseCombinedRead, parseVerdict, readOutputCap, resolveReadLocale, withMarketClosedNote, withReadLevels, VERDICT_RESTATED_CHECK, withReadLanguage, withStrategyRead, ENGLISH_READ_NOTES, type ChartData, type ReadLocale, type ReadNotes, type GrokContext } from '@/lib/grok';
+import { arenaContextCoinId, COIN_NOT_TRACKED, parseArenaChart, parseArenaContext, parseArenaStrategy, parseSelection } from '@/lib/arenaContext';
+import { serverStrategyRead } from '@/lib/arenaStrategyServer';
 import { arenaServerNumbers } from '@/lib/arenaServerNumbers';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
 import { chartFromCandles } from '@/lib/arenaChartServer';
+import { coinKind } from '@/lib/coins';
+import { usCashOpen } from '@/lib/marketHours';
+import { READ_TAKER_CONFIRM_PCT, readLevels } from '@/lib/readLevels';
+import { TF_MS } from '@/lib/candles';
 import { EMA_SIGNAL_TFS, fetchRibbonCandles, type EMASignalTF } from '@/lib/ribbonCandles';
 import { T } from '@/lib/tables';
 import { getPlanSnapshot, getUsageTierStatus } from '@/lib/entitlements';
@@ -22,6 +27,7 @@ import { logDeep502 } from '@/lib/deep502Log';
 import { engineFor, type Engine } from '@/lib/aiEngine';
 import { callClaude, claudeConfigured } from '@/lib/aiProvider';
 import { extractReadInputs } from '@/lib/readSanity';
+import { getLabels } from '@/lib/labelsServer';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -65,6 +71,28 @@ async function restateVerdict(answer: string, userId: string, engine: Engine = '
   } catch (e) {
     console.error('[grok] restate threw:', e instanceof Error ? e.message : e);
     return null;
+  }
+}
+
+/** The server-added notes (ARENA_READ_NOTE_*) and the verdict words (ARENA_VERDICT_*) in the reader's language, from the label table.
+ *  English uses the code's own copy (equal to the label defaults), so an English read makes no label read at all. Any key missing, or a
+ *  failed read, falls back to English per key: a note is never dropped for want of a translation. Never throws. */
+async function readNotesFor(locale: ReadLocale): Promise<ReadNotes> {
+  if (locale === 'en') return ENGLISH_READ_NOTES;
+  try {
+    const { data } = await getLabels(locale);
+    const pick = (k: string, en: string) => (typeof data[k] === 'string' && data[k] ? data[k] : en);
+    const verdict: NonNullable<ReadNotes['verdict']> = {};
+    const names = { BULLISH: 'ARENA_VERDICT_LONG', 'LEAN BULLISH': 'ARENA_VERDICT_LEAN_LONG', FLAT: 'ARENA_VERDICT_WAIT', 'LEAN BEARISH': 'ARENA_VERDICT_LEAN_SHORT', BEARISH: 'ARENA_VERDICT_SHORT' } as const;
+    for (const [tier, key] of Object.entries(names) as [keyof typeof names, string][]) if (data[key]) verdict[tier] = data[key];
+    return {
+      tierUnchecked: pick('ARENA_READ_NOTE_TIER_UNCHECKED', ENGLISH_READ_NOTES.tierUnchecked),
+      tierCounted: pick('ARENA_READ_NOTE_TIER_COUNTED', ENGLISH_READ_NOTES.tierCounted),
+      spotMissing: pick('ARENA_READ_NOTE_SPOT_MISSING', ENGLISH_READ_NOTES.spotMissing),
+      verdict,
+    };
+  } catch {
+    return ENGLISH_READ_NOTES;
   }
 }
 
@@ -163,16 +191,22 @@ export async function POST(req: NextRequest) {
   }
 
   const type: 'quick' | 'deep' = body.type === 'deep' ? 'deep' : 'quick';
-  const parsedCtx       = parseArenaContext(body.context);
+  /* The reader's language for the free text of the read. One of the five label languages, else English - never refused, since an
+     older tab sends none. Only selects a fixed sentence in lib/grok.ts; the client's string never reaches the prompt. */
+  const locale = resolveReadLocale(body.locale);
+  const parsedCtx      = parseArenaContext(body.context);
   const parsedChart     = parseArenaChart(body.chart);
   const parsedSelection = parseSelection(body.selection);
+  /* The picked strategy, as an id only. Any other field the body carries about a strategy (a verdict, levels, a reason) is never read: the
+     call is computed below from the server's own candles. */
+  const parsedStrategy  = parseArenaStrategy(body.strategy);
 
   /* The reason names a field, which is exactly what a 400 must not hand to someone probing the shape, so
      it is logged and the caller gets one flat message - with ONE exception, documented on
      COIN_NOT_TRACKED: a coin the user chose is not a shape detail, the tracked list already ships in
      the client bundle, and without a name the page shows this untranslated to someone who picked a
      coin out of our own selector. */
-  for (const p of [parsedCtx, parsedChart, parsedSelection]) {
+  for (const p of [parsedCtx, parsedChart, parsedSelection, parsedStrategy]) {
     if (!p.ok) {
       console.warn(`[grok] refused request body: ${p.reason}`);
       return p.reason === COIN_NOT_TRACKED
@@ -183,6 +217,7 @@ export async function POST(req: NextRequest) {
   const ctx       = (parsedCtx as { ok: true; value: GrokContext }).value;
   const chart     = (parsedChart as { ok: true; value: ChartData }).value;
   const selection = (parsedSelection as { ok: true; value: string[] }).value;
+  const strategyId = (parsedStrategy as { ok: true; value: string | null }).value;
 
   /* ONE SOURCE FOR EACH OF THESE. They are read out of the validated objects the prompt is built from,
      never from separate top-level fields, because a second place to say "which coin" is the whole defect.
@@ -208,7 +243,7 @@ export async function POST(req: NextRequest) {
      measures about 26,000 characters, so this is roughly 2.4x headroom; anything larger is not the app
      talking. Kept as a check rather than dropped because the per-field caps bound each of 61 fields, and
      61 fields at their individual ceilings still add up. */
-  const clientPrompt = buildArenaPrompt(ctx, chart, type, selection);
+  const clientPrompt = withReadLanguage(buildArenaPrompt(ctx, chart, type, selection), locale);
   if (clientPrompt.length > 64_000) {
     console.warn(`[grok] refused request body: assembled prompt ${clientPrompt.length} chars`);
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
@@ -321,6 +356,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Reload the page and try again.', code: 'COIN_REQUIRED' }, { status: 400 });
   }
 
+  /* The indicators come from the request body, so the server applies the plan's limit itself: its own plan read says NOT ENTITLED -> only the first indicator (Free is one at a time). Unknown/failed read: as sent (#1119). */
+  const planSelection = selectionForPlan(selection, plan.status === 'not_entitled') as string[];
+  /* THE PICKED STRATEGY'S CALL, COMPUTED HERE (owner order 2026-11-19). Started after every gate (a refused request reads no candles) and alongside
+     the market numbers, so it adds no wait of its own on a warm cache. Closed candles of the declared coin and timeframe, the Arena's own detector;
+     it never throws, a failed read is a "no reading" line in the prompt. "Let the read choose" (no strategy, no indicators) reads every strategy. */
+  const strategyReadP = serverStrategyRead(coin, tf, strategyId, planSelection);
+
   const gathered = await numbersP!;
   if (!gathered.ok) {
     console.warn(`[grok] market data unavailable for ${logTag(coin)}: ${String(gathered.reason).slice(0, 200)}`);
@@ -369,9 +411,20 @@ export async function POST(req: NextRequest) {
       console.warn(`[grok] server chart: candle fetch failed for ${logTag(coin)}/${tf}, keeping the browser's`);
     }
   }
-  /* The indicators come from the request body, so the server applies the plan's limit itself: its own plan read says NOT ENTITLED -> only the first indicator (Free is one at a time). Unknown/failed read: as sent (#1119). */
-  const planSelection = selectionForPlan(selection, plan.status === 'not_entitled') as string[];
-  const prompt = buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, planSelection);
+  const strategyRead = await strategyReadP;
+  if (strategyRead) {
+    // Server-computed ids and fixed words only: nothing from the request body reaches this line.
+    console.log(`[grok] strategy-read mode=${strategyRead.mode} ${strategyRead.mode === 'picked' ? strategyRead.readings.map(s => `id=${s.id} ${s.status === 'ok' ? `verdict=${s.verdict}` : 'no-reading'}`).join(' ') : `with-reading=${strategyRead.readings.filter(s => s.status === 'ok').length}/${strategyRead.readings.length}`}`);
+  }
+  /* A tokenized stock outside the US cash session (lib/marketHours.ts) is told to the model with its last close, so it does not read an overnight perpetual price as a live move. */
+  const stockClosed = coinKind(coin) === 'stock' && !usCashOpen(Date.now());
+  /* THE LEVELS THE READ QUOTES ARE THE SERVER'S (lib/readLevels.ts): the nearest support and resistance of the closed candles and one taker threshold, identical for Quick and Deep and for every read until a candle closes. A failed fetch or too little
+     history leaves the prompt as it was. */
+  let levels: ReturnType<typeof readLevels> = null;
+  if (coin && (EMA_SIGNAL_TFS as readonly string[]).includes(tf) && TF_MS[tf]) {
+    try { levels = readLevels(await fetchRibbonCandles(coin, tf as EMASignalTF, Date.now(), 400), TF_MS[tf], Date.now()); } catch { levels = null; }
+  }
+    const prompt = withReadLanguage(withMarketClosedNote(withReadLevels(withStrategyRead(buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, planSelection), strategyRead), levels, READ_TAKER_CONFIRM_PCT), stockClosed, coin, String(({ ...ctx, ...gathered.fields }).price)), locale);
 
   /* The second bound. The server's fields are short formatted strings, so this cannot realistically
      fire once the first bound passed - which is why it is worth having: if it ever does, the gather
@@ -415,7 +468,7 @@ export async function POST(req: NextRequest) {
      VALUE ("SIGNAL: **BULLISH**"), a shape these regexes reject while accepting every other markdown variant. This line settles that
      on the next failure at no cost. Newlines become a marker so a crafted answer cannot forge a second log line. */
   const logHead = (v: string) => v.replace(/\s*[\r\n]+\s*/g, ' | ').replace(/[^\x20-\x7E]/g, '').slice(0, 160);
-  const usageResult = await incrementUsageColumn(userId, role, column, limit, null, plan.failed);
+  const usageResult = await incrementUsageColumn(userId, role, column, limit, null, plan.failed, reservedOn);
   if (usageResult.blocked) {
     const label = type === 'deep' ? 'deep analyses' : 'quick analyses';
     /* A BLOCK THAT IS OUR STATE IS NOT A RATE LIMIT, AND 429 TOLD THE USER A LIE.
@@ -445,6 +498,9 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ ...blockedBody, code: 'RATE_LIMIT' }, { status: 429 });
   }
+
+  /* The notes the server may add to the reasoning, in the reader's language. Started here so the (cached) label read overlaps the AI call. */
+  const notesP = readNotesFor(locale);
 
   // ── Call xAI ──────────────────────────────────────────────────────────────
   let text: string;
@@ -477,7 +533,7 @@ export async function POST(req: NextRequest) {
              branch and /api/onchain had none either, and a reader checking whether a path was covered would
              have taken this sentence as saying they were. Both are capped now (#1631 item 4), and the claim
              is removed rather than re-scoped - counting the other call sites is what rotted. */
-          max_output_tokens: 2000,
+          max_output_tokens: readOutputCap('deep', 'grok', locale),
         }),
       });
       if (!r.ok) {
@@ -501,7 +557,7 @@ export async function POST(req: NextRequest) {
         if (engine !== 'grok') {
           try {
             /* 1,600, not the 800 Grok is given: Claude writes longer, and at 800 Haiku and Sonnet were cut off 46 of 50 and 49 of 49 times; at 1,600 Haiku was cut off 1 of 30 (bake-off follow-up, run 43411132215). */
-            const c = await callClaude({ model: engine, user: prompt, maxTokens: 1600 });
+            const c = await callClaude({ model: engine, user: prompt, maxTokens: readOutputCap('quick', 'claude', locale) });
             spent.current = true; // 2xx: the tokens are billed from here
             await recordAiCall({ userId, callType: 'quick', model: c.model, usage: c.usage });
             claudeText = c.text;
@@ -523,7 +579,7 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({
           model: 'grok-4.3',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 800,
+          max_tokens: readOutputCap('quick', 'grok', locale),
         }),
       });
       if (!r.ok) {
@@ -628,7 +684,7 @@ export async function POST(req: NextRequest) {
     const refunded = await refundUsageColumn(userId, column, reservedOn);
     return NextResponse.json({ error: GROK_UNREADABLE_ANSWER_MESSAGE, code: 'BAD_ANSWER', refunded: refunded !== null, usage: usageAfterRefund(refunded) }, { status: 502 });
   }
-  const result = applyResultChecks({ ...parsed, citations }, prompt);
+  const result = applyResultChecks({ ...parsed, citations }, prompt, await notesP);
   /* THE INPUTS THIS READ WAS GIVEN, one line each (PM audit: a read contradicted its own EMA9/VWAP and there was no way to tell what it had been handed). Numbers only: no user, no prompt text. */
   {
     const inp = extractReadInputs(prompt);

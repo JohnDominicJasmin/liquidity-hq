@@ -16,11 +16,13 @@ export interface StrategyContext {
   /** Closed BTC candles on the same timeframe, supplied only to a strategy with needsBtc and only for a coin other than BTC. */
   btcCandles?: readonly OHLCV[];
   /* LIVE DERIVATIVES INPUTS (phase-2 strategies, owner decision 2026-11-17). They are live values, not part of the candles, so the CALLER supplies them and a strategy that needs them says so with `needsLive` / `needsTaker`. Absent means NOT KNOWN, never 'no signal'.
-     fundingClass: the Funding page's "paying heavily" class (longs_heavy at +0.05% or more, shorts_heavy at -0.03% or less); fundingPct: the rate in percent; oiChange6Pct: open interest change over the last 6 candles of this timeframe, in percent;
+     fundingClass: "paying heavily" judged against THE COIN'S OWN last 90 days (liveInputs.ts fundingClassRelative: longs_heavy = a positive rate above 95% of its settlements, shorts_heavy = a negative rate below 95% of them), absent when that history is not available; fundingPct: the rate in percent; oiChange6Pct: open interest change over the last 6 candles of this timeframe, in percent;
      taker: per-candle taker buy / sell volume by candle open time, Binance klines only (absent for a coin without the split). */
   fundingClass?: 'longs_heavy' | 'shorts_heavy' | 'none';
   fundingPct?: number;
   oiChange6Pct?: number | null;
+  /** Open interest's change over the last 6 candles is in the TOP 20% of that coin's own changes on this timeframe (liveInputs.ts oiRelative): true / false, null = no reading (too little history). */
+  oiExtreme?: boolean | null;
   taker?: ReadonlyMap<number, { buy: number; sell: number }>;
 }
 
@@ -37,6 +39,8 @@ export interface StrategyOverlay {
   lines: OverlayLine[];
   /** The arrow on the signal candle, BUY / SELL only. */
   marker: { ts: number; dir: 'long' | 'short' } | null;
+  /** Arrows on the strategy's last few PAST signals (lib/strategies/chartDrawings.ts recentSignals), newest first; the current call keeps its own `marker`. Added after the first paint, so a slow replay never delays the call. */
+  history?: Array<{ ts: number; dir: 'long' | 'short' }>;
 }
 export const EMPTY_OVERLAY: StrategyOverlay = { levels: [], zones: [], lines: [], marker: null };
 
@@ -49,6 +53,8 @@ export interface StrategyResult {
   params: Record<string, number | boolean>;
   /** What to draw on the main price chart for this state (see StrategyOverlay). Absent when the strategy cannot say anything yet (too few candles, an unsupported timeframe). */
   overlay?: StrategyOverlay;
+  /** The last closed candle's close, set by the caller (not the detector): the price the "Watching" line is read against. */
+  lastClose?: number;
 }
 
 export interface StrategyDef {
@@ -68,6 +74,8 @@ export interface StrategyDef {
   reasonKeyFor?: (r: StrategyResult) => LabelKey | null;
   /** Closed candles the detector needs before it will say anything but wait. */
   minCandles: number;
+  /** How many candles the caller fetches (default 300). A strategy that reads long averages needs more: the EMA 200 of a 300-candle view still carries about 5% of its first close (QA's real-data audit: 44.6% of bars changed answer between a 299 and a 300 window). */
+  candleLimit?: number;
   /** The indicator chips the strategy menu switches on when this strategy is picked. ONLY chips that actually draw (SELECTABLE_INDICATOR_IDS: SMA, SAR, MACD, BOLL): the EMA ribbon, RSI,
    *  S/R and liquidity clusters are always-on chart layers, not chips, and VWAP / Divergence have no chart calculation yet, so a strategy that reads only those maps to none. */
   chips: readonly string[];

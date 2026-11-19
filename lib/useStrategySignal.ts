@@ -4,7 +4,11 @@ import type { CoinId } from './marketStore.ts';
 import { fetchOHLCV, TF_BN, TF_BY } from './useEMAStrategy.ts';
 import { TF_MS, dropForming, msUntilNextClose } from './candles.ts';
 import { findStrategy, type StrategyResult } from './strategies/index.ts';
-import { fetchOiChange6, fetchTakerMap, fundingClassOf } from './strategies/liveInputs.ts';
+import { coinKind } from './coins.ts';
+import { usCashOpen } from './marketHours.ts';
+import { strategyUnavailable, type Unavailable } from './strategies/availability.ts';
+import { fetchFundingHistory, fetchOiRelative, fetchTakerMap, fundingClassRelative } from './strategies/liveInputs.ts';
+import { recentSignals, withWatchedDrawing } from './strategies/chartDrawings.ts';
 
 export interface StrategySignalState {
   result: StrategyResult | null;
@@ -12,6 +16,10 @@ export interface StrategySignalState {
   error: boolean;
   /** The picked strategy cannot run on this timeframe (it reads closed candles of 1m to 1d only). An honest end state, not a loading one. */
   unsupportedTf?: boolean;
+  /** A tokenized stock read while the US cash session is closed (lib/marketHours.ts): the call box adds one line with the last close. Absent for every other coin and while the market is open. */
+  marketClosed?: { lastClose: number };
+  /** The picked strategy cannot run on this coin or timeframe BY DESIGN (lib/strategies/availability.ts): the call box says why in one line; nothing is fetched. Not an error and not a quiet WAIT. */
+  unavailable?: Unavailable;
   /** Runs the read again now (the Retry button of the unavailable state). */
   retry?: () => void;
 }
@@ -31,26 +39,42 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
     const def = findStrategy(strategyId);
     const tfMs = TF_MS[tf];
     if (!def || !tfMs || !TF_BN[tf]) { setState({ result: null, loading: false, error: false, unsupportedTf: !!def }); return; }
+    const na = strategyUnavailable(def.id, coin, tfMs);
+    if (na) { setState({ result: null, loading: false, error: false, unavailable: na }); return; }
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const run = async () => {
       try {
         const wantsBtc = !!def.needsBtc && coin !== 'btc';
         const [raw, btcRaw] = await Promise.all([
-          fetchOHLCV(coin, TF_BN[tf], TF_BY[tf], 300),
+          fetchOHLCV(coin, TF_BN[tf], TF_BY[tf], def.candleLimit ?? 300),
           wantsBtc ? fetchOHLCV('btc', TF_BN[tf], TF_BY[tf], 300) : Promise.resolve(undefined),
         ]);
         if (cancelled) return;
         const btcCandles = btcRaw ? dropForming(btcRaw, tfMs, Date.now()) : undefined;
         const closed = dropForming(raw, tfMs, Date.now());
-        if (closed.length < def.minCandles) { setState({ result: null, loading: false, error: true }); }
+        /* TOO LITTLE HISTORY SAYS SO (PM, 2026-11-19): a coin with fewer closed candles than the strategy needs (the EMA cross wants 601, so a recent listing or a coarse timeframe has too few) used to land in the generic error with a Retry
+           button that could never help. It is an honest end state: the call box says how many the strategy needs and how many this coin has. */
+        if (closed.length < def.minCandles) { setState({ result: null, loading: false, error: false, unavailable: { reasonKey: 'STRAT_NA_TOO_FEW', vars: { need: String(def.minCandles), tf, coin: coin.toUpperCase(), have: String(closed.length) } } }); }
         else {
           /* THE LIVE INPUTS OF THE DERIVATIVES STRATEGIES (phase 2): funding from the page's own feed, open interest history and taker volume read now. A failed read is simply absent, which the strategy answers as "needs live data" / "needs taker data", never as no signal. */
-          const fc = def.needsLive ? fundingClassOf(fundingRef.current) : null;
-          const oi = def.needsLive ? await fetchOiChange6(coin, tf, tfMs).catch(() => null) : null;
+          const [history, oi] = def.needsLive ? await Promise.all([fetchFundingHistory(coin).catch(() => null), fetchOiRelative(coin, tf, tfMs).catch(() => null)]) : [null, null];
+          /* "Paying heavily" is judged against the coin's own last 90 days (lib/strategies/liveInputs.ts fundingClassRelative); no history is no reading (absent), never a guess. */
+          const fc = def.needsLive ? fundingClassRelative(fundingRef.current, history, Date.now()) : null;
           const taker = def.needsTaker ? await fetchTakerMap(coin, TF_BN[tf], 300).catch(() => undefined) : undefined;
           if (cancelled) return;
-          setState({ result: def.detect(closed, { coin, tf, tfMs, liqLevels: liqRef.current, btcCandles, ...(fc ?? {}), oiChange6Pct: oi, taker }), loading: false, error: false });
+          const shut = coinKind(coin) === 'stock' && !usCashOpen(Date.now());
+          const ctx = { coin, tf, tfMs, liqLevels: liqRef.current, btcCandles, ...(fc ?? {}), oiChange6Pct: oi?.oiChange6Pct ?? null, oiExtreme: oi?.oiExtreme ?? null, taker };
+          /* THE CALL FIRST, THE PICTURE AFTER (owner, 2026-11-19: show it on the chart): the verdict and what a WAIT is watching are drawn at once; the arrows of the strategy's past signals come from replaying the
+             same detector over the earlier candles, which can take a moment, so they are added in a second step and never delay the call. */
+          const first = withWatchedDrawing(def, def.detect(closed, ctx), closed, ctx);
+          setState({ result: first, loading: false, error: false, ...(shut ? { marketClosed: { lastClose: closed[closed.length - 1].close } } : {}) });
+          setTimeout(() => {
+            if (cancelled) return;
+            const past = recentSignals(def, closed, ctx);
+            if (cancelled || !past.length) return;
+            setState(prev => (prev.result === first ? { ...prev, result: { ...first, overlay: { levels: [], zones: [], lines: [], marker: null, ...(first.overlay ?? {}), history: past } } } : prev));
+          }, 0);
         }
       } catch {
         if (!cancelled) setState({ result: null, loading: false, error: true });

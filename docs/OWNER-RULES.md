@@ -750,21 +750,21 @@ Tracked on #1651.
   deploy), and even then never when he is resting.
 - If a tool blocks the suggestion, do everything else, and do not ask him to click anything.
 
-## 24. PARALLEL DEV AND PARALLEL QA. NOT ONE ITEM AT A TIME.
+## 24. ONE ITEM AT A TIME. NO BACKGROUND AGENTS. (REVERSED 2026-11-19)
 
-**Owner, 2026-11-18, first-hand, twice:**
+**Owner, 2026-11-19, first-hand:**
 
-> *"Let's do parallel development and parallel QA. Multiple items at a time. I know there are tasks
-> that must be done in order, one step at a time. That's the exception."*
+> *"It is much faster to run the normal one by one and not hit the limit than to work multiple tasks
+> but hit the limit too often and fast."*
 
-- **Dev and QA each run up to 3 lanes at once** with background subagents, one PR per lane, each
-  with a full brief and a narrow scope. The session still reviews and merges what a lane returns;
-  QA still gives every merge word itself.
-- **Cloud first** (isolation "remote"): the laptop is low on memory. A local worktree only for a job
-  that needs no install or build. Heavy browser runs go to GitHub workflow_dispatch.
-- **The exceptions stay in order:** a migration before the deploy that needs it, the branch chain
-  `dev` → `qa` → `staging` → `main`, a fix after the failure it fixes, the release steps.
-- **PM keeps the lanes full.** When one returns, the next queued item starts.
+On 2026-11-18 he asked for parallel lanes (*"multi-threading"*). Each background agent re-read the
+code and burned 100-300k tokens, the sessions hit their usage limits within hours, and the stops cost
+more time than the parallelism saved. He reversed it the next day.
+
+- **Every session works one item at a time, in its own session.** No background agents.
+- **Heavy browser runs still go to GitHub Actions**, which do not use the session's tokens.
+- PM may use one subagent for a large mechanical job (for example applying a several-hundred-row
+  label migration) when doing it inline would cost more.
 
 ## 25. NO WORDY TEXT. THE APP IS NOT AN ESSAY OR A DIARY.
 
@@ -787,6 +787,26 @@ Word budgets for every screen. Count the words before shipping, the way QA count
 A new screen or a new string is checked against these budgets before it ships. The PM audits screenshots for it.
 
 Tracked on #1185.
+
+## 26. EVERY SIGNAL IS PROVEN ON REAL MARKET DATA BEFORE IT SHIPS
+
+**Owner, 2026-11-19, first-hand, about the Arena strategy menu:**
+
+> *"Make sure these indicators are properly working, where did you test it before putting it here?"*
+> *"Then do a proper fucking testing."*
+
+The S/R flip strategy shipped and never fired once in the app. Its tests used made-up candles
+written to match its own rule, so they could not fail.
+
+- **Any feature that computes a signal or a number from market data** (strategies, alert triggers,
+  scores, grades, levels, sound triggers, funding/OI/long-short readings) ships only with:
+  1. its signal count on **real candles** (at least BTC/ETH/SOL × 15m/1h/4h over 30 days);
+  2. an **independent oracle**, written by QA from the written rule and not from the app code,
+     that finds the same signals;
+  3. a **screenshot on a deployed URL** showing it where a trader sees it;
+  4. for readings, the value **checked against the exchange's own number**.
+- **Zero signals in 30 days, or a wildly high count, is a finding**, not a pass.
+- Synthetic-candle unit tests stay, but they are not proof that a feature works.
 
 ## Keeping this file true
 

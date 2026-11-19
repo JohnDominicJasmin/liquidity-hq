@@ -27,6 +27,8 @@ import { formatRsi } from '@/lib/rsi';
 import { signedUsd } from '@/lib/numberFormat';
 import AiDisclaimer from '@/components/AiDisclaimer';
 import { onPageResume } from '@/lib/socketResume';
+import { useSettings } from '@/lib/settings';
+import { describeIndicatorSettings, INDICATOR_SETTINGS_RULE } from '@/lib/indicatorSettingsText';
 
 /* ── helpers (identical to briefing/page.tsx) ── */
 
@@ -126,7 +128,8 @@ function buildBriefingContext(
   urgentEcon: Array<{ type: string; name: string; h: number; impact: string; dt: Date }>,
   recentGeo:  Array<{ tag: string; headline: string }>,
   nowMs: number,
-  jpyUsd?: number | null,
+  jpyUsd: number | null | undefined,
+  indicatorSettings: string | undefined,
   calendarUnavailable = false,
 ): string {
   const nowUtc = new Date().toLocaleString('en-GB', {
@@ -155,6 +158,8 @@ function buildBriefingContext(
     const oi  = c.oiTrend ?? '-';
     lines.push(`${id.toUpperCase()}: ${chg} | FR ${fr} | RSI ${rsi} | CVD ${cvd} | OI trend (60 min) ${oi}`);
   }
+  // The trader's own RSI / EMA settings (#1651), the same line the chat gets; absent when all are the defaults.
+  if (indicatorSettings) lines.push('', `Trader's chart settings: ${indicatorSettings}.`, INDICATOR_SETTINGS_RULE);
   if (calendarUnavailable) {
     lines.push('', 'MACRO EVENTS: the economic calendar is unavailable right now, so no events are listed (this does not mean none are scheduled).');
   } else if (urgentEcon.length) {
@@ -197,6 +202,7 @@ export default function BriefingTerminal() {
   const { store }                              = useMarket();
   const { econEvents, geoEvents, whaleAlerts, econStale, eventsLoaded } = useNews();
   const { user }                               = useAuth();
+  const { settings }                           = useSettings();
   const { usage, setUsage }                    = useGrokUsage();
   const { t }                                  = useLabels();
   const graceOver                              = useGraceElapsed();
@@ -280,7 +286,7 @@ export default function BriefingTerminal() {
       // indefinitely.
       const token = await getAuthToken();
       if (!token) { setBriefErr(t('BRIEFING_SESSION_EXPIRED')); setGen(false); return; }
-      const ctx = buildBriefingContext(store, coinRows, urgentEcon, recentGeo, nowMs, jpyUsd, econStale || !eventsLoaded);
+      const ctx = buildBriefingContext(store, coinRows, urgentEcon, recentGeo, nowMs, jpyUsd, describeIndicatorSettings(settings.strategy_params), econStale || !eventsLoaded);
       const res = await fetch('/api/briefing', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

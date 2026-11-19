@@ -6,6 +6,8 @@ import { shouldAcceptFieldWrite } from '@/lib/settingsFieldConcurrency';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { STRATEGY_IDS } from '@/lib/strategies';
+import { clampThreshold, isThresholdField } from '@/lib/alertThresholdRanges';
+import { isValidSummaryHour } from '@/lib/dailySummaryPrefs';
 import { isValidSoundPrefs } from '@/lib/arenaSoundPrefs';
 
 function sb(token: string) {
@@ -27,6 +29,21 @@ function isValidTimeZone(tz: string): boolean {
   } catch {
     return false;
   }
+}
+
+/* A snooze end: an ISO time with a zone, a REAL calendar time (2026-02-30 is refused, not rolled to 2 March by Date.parse; the timestamptz column
+   would refuse it with a 500), and no more than SNOOZE_MAX_MS ahead. A past time is accepted and simply means not snoozed. */
+const SNOOZE_MAX_MS = 7 * 24 * 60 * 60 * 1000;
+function isSnoozeTime(v: unknown, nowMs: number): boolean {
+  if (typeof v !== 'string') return false;
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|([+-])(\d{2}):(\d{2}))$/.exec(v);
+  if (!m) return false;
+  const [y, mo, d, h, mi, sec] = [m[1], m[2], m[3], m[4], m[5], m[6] ?? '0'].map(Number);
+  const local = new Date(Date.UTC(y, mo - 1, d, h, mi, sec));
+  if (local.getUTCFullYear() !== y || local.getUTCMonth() !== mo - 1 || local.getUTCDate() !== d || local.getUTCHours() !== h || local.getUTCMinutes() !== mi || local.getUTCSeconds() !== sec) return false;
+  if (m[7] !== 'Z' && (Number(m[9]) > 14 || Number(m[10]) > 59)) return false;
+  const t = Date.parse(v);
+  return Number.isFinite(t) && t <= nowMs + SNOOZE_MAX_MS;
 }
 
 // GET - return current settings row (or null if not yet saved)
@@ -71,6 +88,8 @@ export async function PATCH(req: NextRequest) {
     'timezone',
     'strategy_selection', 'strategy_params', 'arena_strategy',
     'arena_sound',
+    'alert_quiet_start', 'alert_quiet_end', 'alert_snooze_until', 'alert_paused',
+    'daily_summary_hour',
     'arena_sound_prefs',
   ];
   const payload: Record<string, unknown> = {};
@@ -111,6 +130,32 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid arena_sound_prefs' }, { status: 400 });
   }
 
+  // Telegram alert controls: hours are whole numbers 0-23 or null, snooze is an ISO time or null, paused is a boolean or null. Anything else is refused,
+  // because the alert cron reads these to decide whether to send (lib/alertQuiet.ts).
+  for (const k of ['alert_quiet_start', 'alert_quiet_end'] as const) {
+    const v = payload[k];
+    if (k in payload && v !== null && !(typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 23)) {
+      return NextResponse.json({ error: `Invalid ${k}` }, { status: 400 });
+    }
+  }
+  // Quiet hours are a pair: both set or both off, in the same request. One alone would be stored as a window the cron ignores.
+  if ('alert_quiet_start' in payload || 'alert_quiet_end' in payload) {
+    if (!('alert_quiet_start' in payload) || !('alert_quiet_end' in payload) || (payload.alert_quiet_start === null) !== (payload.alert_quiet_end === null)) {
+      return NextResponse.json({ error: 'Invalid alert_quiet_start/alert_quiet_end: set both or neither' }, { status: 400 });
+    }
+  }
+  if ('alert_snooze_until' in payload) {
+    const v = payload.alert_snooze_until;
+    if (v !== null && !isSnoozeTime(v, Date.now())) return NextResponse.json({ error: 'Invalid alert_snooze_until' }, { status: 400 });
+  }
+  if ('alert_paused' in payload && payload.alert_paused !== null && typeof payload.alert_paused !== 'boolean') {
+    return NextResponse.json({ error: 'Invalid alert_paused' }, { status: 400 });
+  }
+  // daily_summary_hour: a whole hour 0-23, or null for the default (07:00). Anything else is refused.
+  if ('daily_summary_hour' in payload && !isValidSummaryHour(payload.daily_summary_hour)) {
+    return NextResponse.json({ error: 'Invalid daily_summary_hour' }, { status: 400 });
+  }
+
   // strategy_selection/strategy_params are jsonb - reject anything that isn't
   // the shape app/arena/page.tsx actually produces, rather than storing
   // garbage that would later crash StrategyPanel/useEMAStrategy on read.
@@ -134,6 +179,16 @@ export async function PATCH(req: NextRequest) {
     if (!valid) {
       return NextResponse.json({ error: 'Invalid strategy_params' }, { status: 400 });
     }
+  }
+
+  /* Notification thresholds: brought inside the range the Settings field offers (lib/alertThresholdRanges.ts), so a stored value is always one
+     the alert checks can reach; a squeeze threshold above 80 never fired. Clamped rather than refused: the page saves while the user types, and a
+     refusal would keep a half-typed value unsaved and retried. Anything that is not a number is refused. */
+  for (const key of Object.keys(payload)) {
+    if (!isThresholdField(key)) continue;
+    const v = clampThreshold(key, payload[key]);
+    if (v === null) return NextResponse.json({ error: `Invalid ${key}` }, { status: 400 });
+    payload[key] = v;
   }
 
   const client = sb(token);

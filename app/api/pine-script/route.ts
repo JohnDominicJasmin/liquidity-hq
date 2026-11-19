@@ -9,6 +9,7 @@ import { apiError } from '@/lib/apiError';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { answerWasCutOff } from '@/lib/xaiAnswer';
+import { stripCodeFence } from '@/lib/codeFence';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
   const role = plan.tier;
   /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
   const reservedOn = todayUtc();
-  const usageResult = await incrementToolUsage(authData.user.id, 'pineScript', role);
+  const usageResult = await incrementToolUsage(authData.user.id, 'pineScript', role, reservedOn);
   if (usageResult.blocked) {
     return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, usageResult.limit, 'Pine Script generations'));
   }
@@ -108,12 +109,16 @@ export async function POST(req: NextRequest) {
 
   const data = await res.json();
   await recordAiCall({ userId: authData.user.id, callType: 'pine_script', model: data.model ?? 'grok-4.3', usage: data.usage });
-  const code: string = data.choices?.[0]?.message?.content ?? '';
+  /* The model may wrap the script in a ``` fence despite "code ONLY", and the Copy button copied the fence too, which does not compile in
+     TradingView (#1631). The fence is removed; the script inside is returned unchanged. */
+  const code: string = stripCodeFence(data.choices?.[0]?.message?.content ?? '');
   /* AN EMPTY OR CUT-OFF ANSWER IS NOT AN ANSWER (owner sweep 2026-11-18): it used to return 200 with a blank or half text and the use
      was spent. Now the use is given back and the page is told the answer was incomplete. */
   if (!code.trim() || answerWasCutOff(data)) {
-    await refundToolUsage(authData.user.id, 'pineScript', reservedOn);
-    return NextResponse.json({ error: 'The AI answer was incomplete. Nothing was charged. Try again.', code: 'AI_INCOMPLETE' }, { status: 502 });
+    /* "Nothing was charged" only when the refund landed: it allows 3 a day and answers null after that (QA review of #2586, U9). */
+    const refunded = (await refundToolUsage(authData.user.id, 'pineScript', reservedOn)) !== null;
+    if (!refunded) return NextResponse.json({ error: 'The AI answer was incomplete. Try again.', code: 'AI_INCOMPLETE', refunded }, { status: 502 });
+    return NextResponse.json({ error: 'The AI answer was incomplete. Nothing was charged. Try again.', code: 'AI_INCOMPLETE', refunded }, { status: 502 });
   }
 
   return NextResponse.json({ code });

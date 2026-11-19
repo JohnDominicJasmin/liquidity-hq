@@ -14,8 +14,9 @@ import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { readFng, type FNGData } from '@/lib/fng';
 import { selectAllRows } from '@/lib/selectAllRows';
+import { loadHeldUserIds, sendPlanLapseNotices } from '@/lib/telegramAlertHolds';
 import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
-import { onCooldown, markSent, exportCooldownState, importCooldownState, beginStagedMarks, commitStagedMarks, discardStagedMarks } from '@/lib/alertCooldown';
+import { onCooldown, markSent, lastSentAt, exportCooldownState, importCooldownState, beginStagedMarks, commitStagedMarks, discardStagedMarks } from '@/lib/alertCooldown';
 import { apiError } from '@/lib/apiError';
 import { evaluatePriceAlert, type Candle1m } from '@/lib/priceAlertEval';
 import {
@@ -34,6 +35,12 @@ import { exchangeFetch } from '@/lib/exchangeGuard';
 import { validPushEndpoint } from '@/lib/pushEndpoint';
 import { afterSend, dueForRetry, holdExpired, type PendingDelivery, type SendResult } from '@/lib/priceAlertDelivery';
 import { TF_MS } from '@/lib/candles';
+import { activeTypeMuteKeys, isTypeMuteRuleKey, typeMuteKeyboard } from '@/lib/alertTypeMute';
+import { loadTypeMutesByUser } from '@/lib/telegramTypeMute';
+import { localizeTelegram, localizeKeyboard, tgLocaleOf, tgDateLocale, tgKeep, type TgLocale } from '@/lib/telegramI18n';
+import { tgLabelsForAll } from '@/lib/telegramLabels';
+import { SQUEEZE_SCORE_MAX } from '@/lib/alertThresholdRanges';
+import { isDailySummaryOn, summaryHour, summaryDueNow, DEFAULT_DAILY_SUMMARY_HOUR, fetchMovers24h, topMovers, squeezeSetups, buildDailySummaryMessages, type SqueezeRead } from '@/lib/dailySummary';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,8 +120,10 @@ function bybitSpotOrLinear(coin: string): { category: 'spot' | 'linear'; symbol:
 // before insertion into a message body, or it can inject its own tags
 // (e.g. a label containing `<a href="...">`) into a message sent through
 // the app's trusted bot identity.
+// tgKeep (#1651): text that needed escaping is someone else's (a headline, its source, a user's note), so it is also never translated;
+// the invisible markers are removed before the send on every path.
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return tgKeep(s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'));
 }
 
 /* ── Signal queue - for confluence batching ── */
@@ -238,7 +247,8 @@ async function fetchThresholdsByUser(): Promise<Map<string, UserThresholds> | nu
         map.set(String(row.user_id), {
           rsiOb: typeof row.rsi_ob === 'number' ? row.rsi_ob : DEFAULT_THRESHOLDS.rsiOb,
           rsiOs: typeof row.rsi_os === 'number' ? row.rsi_os : DEFAULT_THRESHOLDS.rsiOs,
-          squeezeThreshold: typeof row.squeeze_threshold === 'number' ? row.squeeze_threshold : DEFAULT_THRESHOLDS.squeezeThreshold,
+          /* Capped at the highest score calcSqueezeScore can produce (lib/alertThresholdRanges.ts): a row saved above it when the field allowed 95 would otherwise never fire. */
+          squeezeThreshold: typeof row.squeeze_threshold === 'number' ? Math.min(row.squeeze_threshold, SQUEEZE_SCORE_MAX) : DEFAULT_THRESHOLDS.squeezeThreshold,
           antiChopEnabled: typeof row.anti_chop_enabled === 'boolean' ? row.anti_chop_enabled : DEFAULT_THRESHOLDS.antiChopEnabled,
         });
       }
@@ -305,7 +315,6 @@ const CD: Record<string, number> = {
   oi:         2 * 3600_000,
   cvd:       60 * 60_000,
   fng:       23 * 3600_000,   // Fear & Greed extreme (once per day)
-  daily:     23 * 3600_000,   // Daily 7am summary
   sentiment:  4 * 3600_000,   // Sentiment Extremes - all 3 indicators aligned
   squeeze:      4 * 3600_000,   // Squeeze/Flush threshold alert per coin per direction
   distribution:  4 * 3600_000,   // Distribution - big players taking profit into strength
@@ -358,6 +367,12 @@ function getSession(): string {
    overwrite it with equivalent data. */
 const TIME_TOKEN = '__ALERT_TIME__';
 const CHAT_TZ = new Map<string, string | null>();
+/* Each chat's language (user_settings.language) and the label tables for the languages present, rebuilt every run like CHAT_TZ (#1651). tg() renders each
+   message in its reader's language (lib/telegramI18n.ts). A chat not in the map, or a failed label read, gets English. */
+const CHAT_LANG = new Map<string, TgLocale>();
+let TG_LABELS = new Map<TgLocale, Record<string, string> | null>();
+/* Paused, snoozed or in quiet hours (lib/alertQuiet.ts): no Telegram alert of any kind (price alerts included) and no Web Push signal. Rebuilt every run like CHAT_TZ. */
+let HELD_USERS = new Set<string>();
 
 function alertTimeIn(timeZone: string | null): string {
   // Unknown timezone (never opened the web app, or an older row) -> UTC, and
@@ -375,7 +390,8 @@ function alertTimeIn(timeZone: string | null): string {
   }
 }
 
-/* checkDailySummary's per-recipient morning-window check.
+/* checkDailySummary's per-recipient window check. The clock reading itself moved to lib/dailySummaryPrefs.ts (localDateTime /
+ * summaryDueNow, QA F1) with the same UTC fallback; the reasoning for that fallback stays here, beside CHAT_TZ.
  *
  * AN UNKNOWN TIMEZONE FALLS BACK TO UTC, AND THAT IS A DELIBERATE BEHAVIOUR CHANGE.
  *
@@ -390,7 +406,11 @@ function alertTimeIn(timeZone: string | null): string {
  *
  * WHY UTC RATHER THAN ANOTHER GUESS: it is the only neutral answer. Any real zone is a guess about
  * where someone lives, and picking one because it is where WE are is the thing being removed. A
- * recipient who sets their timezone is unaffected - this is only the default. */
+ * recipient who sets their timezone is unaffected - this is only the default. A zone Intl rejects
+ * also falls back to UTC, for the same reason.
+ *
+ * Kept, though checkDailySummary now reads the clock through summaryDueNow: __tests__/briefingDominanceFngH23 B4 pins its h23 form. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function localHourMinute(timeZone: string | null, d: Date): { hour: number; min: number } {
   const read = (zone: string) => {
     const parts = new Intl.DateTimeFormat('en-GB', {
@@ -404,8 +424,6 @@ function localHourMinute(timeZone: string | null, d: Date): { hour: number; min:
   try {
     return read(timeZone || 'UTC');
   } catch {
-    /* A bad zone string reaches here - Intl throws on an unknown identifier. UTC rather than a
-       re-guess, same reasoning as above. */
     return read('UTC');
   }
 }
@@ -448,7 +466,19 @@ export function tgRetryDelayMs(attempt: number, status: number | null, retryAfte
   if (status === null || status >= 500) return 1_000 * 2 ** (attempt - 1);
   return null;
 }
-async function sendWithRetry(token: string, chatId: string, body: string): Promise<Response> {
+/* ONLY A SEND THAT NEVER LEFT IS RETRIED (PM, review of #2567). Telegram's sendMessage has no idempotency key, so a request that timed out AFTER Telegram
+   accepted it would be delivered twice by a retry. A thrown error is retried only when it failed before the request went out: DNS, refused or unreachable
+   connection, or a bare "fetch failed" with no socket code. An AbortSignal timeout, an abort, or a socket reset mid-request is final and counts as failed
+   (delivery unknown). The cost: a timeout that in fact never reached Telegram is lost instead of retried. */
+const PRE_SEND_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH', 'UND_ERR_CONNECT_TIMEOUT']);
+function failedBeforeSend(e: unknown): boolean {
+  if (!(e instanceof Error) || e.name === 'TimeoutError' || e.name === 'AbortError') return false;
+  const code = (e.cause as { code?: unknown } | undefined)?.code;
+  if (typeof code === 'string') return PRE_SEND_CODES.has(code);
+  return e instanceof TypeError && /fetch failed/i.test(e.message);
+}
+
+async function sendWithRetry(token: string, chatId: string, body: string, replyMarkup?: TgReplyMarkup): Promise<Response> {
   for (let attempt = 1; ; attempt++) {
     let res: Response | null = null;
     let err: unknown = null;
@@ -456,11 +486,12 @@ async function sendWithRetry(token: string, chatId: string, body: string): Promi
       res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: body, parse_mode: 'HTML' }),
+        body: JSON.stringify({ chat_id: chatId, text: body, parse_mode: 'HTML', ...(replyMarkup ? { reply_markup: replyMarkup } : {}) }),
         signal: AbortSignal.timeout(10_000),
       });
     } catch (e) { err = e; }
     if (res?.ok) return res;
+    if (err && !failedBeforeSend(err)) throw err; // a timeout may have been delivered: never resend it (see failedBeforeSend)
     let retryAfter: number | null = null;
     if (res?.status === 429) {
       retryAfter = await res.clone().json().then((d: { parameters?: { retry_after?: number } }) => Number(d?.parameters?.retry_after) || null, () => null);
@@ -471,19 +502,24 @@ async function sendWithRetry(token: string, chatId: string, body: string): Promi
   }
 }
 
-async function tg(token: string, chatId: string | string[], text: string): Promise<SendResult> {
+/** Buttons under a message (lib/alertTypeMute.ts typeMuteKeyboard): only the OI / CVD / rapid-move alerts carry any. */
+type TgReplyMarkup = { inline_keyboard: { text: string; callback_data: string }[][] };
+
+async function tg(token: string, chatId: string | string[], text: string, replyMarkup?: TgReplyMarkup | null): Promise<SendResult> {
   // Send-only kill switch (/ops/config) - detection/tracking above this call
   // keeps running either way, only the actual outbound message stops.
   if (!(await isFeatureEnabled('telegram'))) { sendTally.paused = true; return { sent: 0, failed: 0, paused: true }; }
   const result: SendResult = { sent: 0, failed: 0, paused: false };
 
   const ids = Array.isArray(chatId) ? chatId : [chatId];
-  // One rendered body per distinct timezone among these recipients.
-  const byZone = new Map<string | null, string[]>();
+  // One rendered body per distinct timezone and language among these recipients.
+  const byZone = new Map<string, { tz: string | null; lang: TgLocale; ids: string[] }>();
   for (const id of ids) {
     const tz = CHAT_TZ.get(id) ?? null;
-    const bucket = byZone.get(tz);
-    if (bucket) bucket.push(id); else byZone.set(tz, [id]);
+    const lang = CHAT_LANG.get(id) ?? 'en';
+    const k = `${tz ?? ''}|${lang}`;
+    const bucket = byZone.get(k);
+    if (bucket) bucket.ids.push(id); else byZone.set(k, { tz, lang, ids: [id] });
   }
   // Still fire-and-forget for the CALLER - a failed send must never abort the
   // rest of a run. But it is no longer silent. This used to be a bare
@@ -501,11 +537,15 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
     return result;
   }
   const deadChats = new Set<string>();
-  await Promise.all([...byZone.entries()].flatMap(([tz, zoneIds]) => {
-    const body = text.includes(TIME_TOKEN) ? text.replaceAll(TIME_TOKEN, alertTimeIn(tz)) : text;
+  await Promise.all([...byZone.values()].flatMap(({ tz, lang, ids: zoneIds }) => {
+    const timed = text.includes(TIME_TOKEN) ? text.replaceAll(TIME_TOKEN, alertTimeIn(tz)) : text;
+    // In the reader's language (#1651): fixed English fragments only; numbers, coins and HTML are untouched, and English is unchanged.
+    const labels = TG_LABELS.get(lang) ?? null;
+    const body = localizeTelegram(timed, lang, labels);
+    const markup = localizeKeyboard(replyMarkup ?? undefined, lang, labels) ?? undefined;
     return zoneIds.map(async id => {
       try {
-        const res = await sendWithRetry(token, id, body);
+        const res = await sendWithRetry(token, id, body, markup);
         if (res.ok) { sendTally.ok++; result.sent++; return; }
         sendTally.failed++; result.failed++;
         // description is Telegram's own reason ("chat not found", "bot was
@@ -594,7 +634,7 @@ async function flushSignals(
     await Promise.all([...groups.values()].map(async ({ entries: elig, chatIds, userIds }) => {
       if (elig.length === 1) {
         // Single signal - send as-is
-        const r = await tg(token, chatIds, elig[0].body);
+        const r = await tg(token, chatIds, elig[0].body, typeMuteKeyboard([elig[0].ruleKey]));
         if (r.sent > 0) { elig[0].onSent?.(); startCooldowns(elig, userIds); }
         return;
       }
@@ -607,7 +647,8 @@ async function flushSignals(
       const r = await tg(token, chatIds,
         `🔀 <b>${label} - ${head}</b>\n\n` +
         `${bullets}\n\n` +
-        `<i>${stamp}</i>`
+        `<i>${stamp}</i>`,
+        typeMuteKeyboard(elig.map(e => e.ruleKey)),
       );
       if (r.sent > 0) { for (const e of elig) e.onSent?.(); startCooldowns(elig, userIds); }
     }));
@@ -988,7 +1029,8 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[], skipCounts: S
           const emoji    = pct > 0 ? '🚀' : '🔻';
 
           queue.push({
-            coin, ruleKey: 'rapid_move', name: `${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
+            // The move's own direction, so the "Long / Short signals" mutes on /alerts apply to it (a dump is a short signal).
+            coin, dir: pct > 0 ? 'long' : 'short', ruleKey: 'rapid_move', name: `${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
             title: `Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
             body: `${emoji} <b>${label} Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})</b>\n\n` +
               `Price: <b>$${fmtAlertPrice(currClose)}</b>\n` +
@@ -1176,6 +1218,19 @@ async function checkNews(
    ════════════════════════════════════════ */
 interface OIHistItem { sumOpenInterest: string; timestamp: number }
 
+/* THE DIRECTION AN OI ALERT CARRIES (#2560 open list): the price's own direction over the same hour as the OI move, from twelve 5-minute
+   candles. Open interest alone points nowhere; rising OI into a falling price is new shorts, falling OI into a falling price is longs closing,
+   and both read as a short signal, so the "Short signals" mute on /alerts stops them (and "Long signals" the rising-price ones). Asked only
+   when an OI alert actually fires (rare), and not counted as a skip: when the price cannot be read the alert goes out with no direction,
+   exactly as before, and only the direction mutes cannot apply to it. */
+async function oiWindowPriceDir(symbol: string, category: 'linear' | 'spot'): Promise<'long' | 'short' | undefined> {
+  const candles = await fetchBybitCandles(symbol, '5', 13, undefined, category);
+  if (candles.length < 2) return undefined;
+  const first = candles[0].o, last = candles[candles.length - 1].c;
+  if (!(first > 0) || !(last > 0) || last === first) return undefined;
+  return last > first ? 'long' : 'short';
+}
+
 async function checkOISpike(stamp: string, prices: Record<string, number>, queue: SignalEntry[], skipCounts: SkipCounts): Promise<string[]> {
   const fired: string[] = [];
   await runBatched([
@@ -1204,8 +1259,9 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
           const dir = pct > 0 ? 'spike' : 'drop';
           const key = `oi_${dir}_${coin}`;
           if (onCooldown(key, CD.oi)) return;
+          const priceDir = await oiWindowPriceDir(sym, 'linear');
           queue.push({
-            coin, ruleKey: 'oi_spike', name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
+            coin, dir: priceDir, ruleKey: 'oi_spike', name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
             title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
             body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} - ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
               `Open interest: ${(oldest / 1000).toFixed(1)}K → ${(newest / 1000).toFixed(1)}K contracts\n` +
@@ -1237,8 +1293,10 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
           const dir = pct > 0 ? 'spike' : 'drop';
           const key = `oi_${dir}_${coin}`;
           if (onCooldown(key, CD.oi)) return;
+          const fetMarket = bybitSpotOrLinear(coin); // FET has a Bybit spot listing (no Bybit perp), see bybitSpotOrLinear
+          const priceDir = fetMarket ? await oiWindowPriceDir(fetMarket.symbol, fetMarket.category) : undefined;
           queue.push({
-            coin, ruleKey: 'oi_spike', name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
+            coin, dir: priceDir, ruleKey: 'oi_spike', name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
             title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
             body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} - ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
               `Open interest changed from ${(oldest / 1000).toFixed(1)}K to ${(newest / 1000).toFixed(1)}K contracts\n` +
@@ -1315,7 +1373,7 @@ async function checkCVD(stamp: string, queue: SignalEntry[], skipCounts: SkipCou
 
       if (priceChangePct > THRESH && netCVD < 0 && !onCooldown(`cvd_bear_${coin}`, CD.cvd)) {
         queue.push({
-          coin, ruleKey: 'cvd', name: `${label} bearish CVD divergence`,
+          coin, dir: 'short', ruleKey: 'cvd', name: `${label} bearish CVD divergence`,
           title: `Bearish CVD Divergence`,
           body: `⚠️ <b>${label} Bearish CVD Divergence</b>\n\nPrice: <b>+${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Negative</b> - sellers dominating volume\nPrice rose while net taker volume was selling.\n\n<i>${stamp}</i>`,
         });
@@ -1323,7 +1381,7 @@ async function checkCVD(stamp: string, queue: SignalEntry[], skipCounts: SkipCou
       }
       if (priceChangePct < -THRESH && netCVD > 0 && !onCooldown(`cvd_bull_${coin}`, CD.cvd)) {
         queue.push({
-          coin, ruleKey: 'cvd', name: `${label} bullish CVD divergence`,
+          coin, dir: 'long', ruleKey: 'cvd', name: `${label} bullish CVD divergence`,
           title: `Bullish CVD Divergence`,
           body: `⚡ <b>${label} Bullish CVD Divergence</b>\n\nPrice: <b>${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Positive</b> - buyers absorbing the dip\nPrice fell while net taker volume was buying.\n\n<i>${stamp}</i>`,
         });
@@ -1375,7 +1433,7 @@ async function checkPriceAlerts(
     const chatIdByUser = new Map<string, string>();
     for (const row of settingsRes.data ?? []) {
       const userId = row.user_id as string;
-      if (!proUserIds.has(userId)) continue;
+      if (!proUserIds.has(userId) || HELD_USERS.has(userId)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
       if (id) chatIdByUser.set(userId, id);
     }
@@ -1530,109 +1588,74 @@ async function checkFearGreed(
 }
 
 /* ════════════════════════════════════════
-   10. DAILY 7AM SUMMARY, IN EACH RECIPIENT'S OWN TIMEZONE
+   10. DAILY SUMMARY - OPT-IN, AT EACH RECIPIENT'S CHOSEN HOUR IN THEIR OWN TIMEZONE
+   Who, when and what: lib/dailySummary.ts.
    ════════════════════════════════════════ */
 async function checkDailySummary(
   token: string, recipients: Recipient[], mutedByUser: Map<string, Set<string>>, stamp: string,
-  frMap: Record<string, number | null>
+  frMap: Record<string, number | null>, lsMap: Record<string, number | null>, thresholdsByUser: Map<string, UserThresholds>,
 ): Promise<string[]> {
   const d = new Date();
-  // Each recipient's OWN local 7:00-7:30am window, not one fixed instant that
-  // only actually meant "morning" for subscribers in one particular zone. This used to
-  // gate the entire function on a single `(getUTCHours()+8)%24 === 7` check -
-  // correct for that zone, but a "7am summary" that always lands at 7pm the
-  // previous evening for a US Eastern subscriber isn't a morning briefing for
-  // them at all. Cron ticks every few minutes (see the 10-minute slop below)
-  // and checks every recipient's zone each time, so each one gets exactly one
-  // send, at their own morning, on whichever tick happens to land in it - the
-  // per-chatId cooldown is what prevents a second send on the next tick.
-  const eligible: { r: Recipient; zone: string }[] = [];
-  for (const r of recipients) {
-    if (isMutedFor(mutedByUser, r.userId, 'daily_summary')) continue;
-    /* UTC when we do not know the recipient's zone (owner, 2026-10-31) - see localHourMinute. */
-    const zone = CHAT_TZ.get(r.chatId) || 'UTC';
-    const { hour, min } = localHourMinute(zone, d);
-    /* The first 30 minutes of the local 7 o'clock (was 10): the cron ticks every 5 minutes and two missed or slow ticks in a row used to skip the whole day's briefing. One send per day is still guaranteed by the per-chat cooldown. */
-    if (hour !== 7 || min > 30) continue;
-    const cdKey = `daily_summary_${r.chatId}`;
-    if (onCooldown(cdKey, CD.daily)) continue;
-    markSent(cdKey);
-    eligible.push({ r, zone });
-  }
-  if (eligible.length === 0) return [];
+  const optedIn = recipients.filter(r => isDailySummaryOn(mutedByUser.get(r.userId)));
+  if (optedIn.length === 0) return [];
 
-  // Fear & Greed
-  let fngLine    = '';
+  /* Chosen hours. Only non-default hours are stored, so a missing row means 7. A failed read sends nothing this tick (and marks
+     nothing), rather than sending everyone at the default hour: the next tick in the window tries again. */
+  const hourByUser = new Map<string, number>();
   try {
-    const fngRes = await fetch('https://api.alternative.me/fng/', { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
-    if (fngRes.ok) {
-      const fngJson = await fngRes.json() as { data: FNGData[] };
-      /* Already correct before readFng existed - it omitted the line rather than inventing one, which is
-         why the helper is shaped the way it is. Routed through it so there is one reader, not three.
-         One tightening: a non-numeric value used to be printed verbatim; it is now dropped like a
-         missing one. */
-      const read = readFng(fngJson);
-      if (read) { fngLine = `\n😨 F&amp;G: <b>${read.value}</b>` + (read.label ? ` (${read.label})` : ''); }
-    }
-  } catch { /* skip */ }
-
-  // Funding rates - two rows of 4
-  const frParts = COINS.map(coin => {
-    const fr = frMap[coin];
-    if (fr == null) return null;
-    const sign = fr >= 0 ? '+' : '';
-    return `${LABELS[coin]} ${sign}${(fr * 100).toFixed(4)}%`;
-  }).filter(Boolean) as string[];
-  const frBlock    = [frParts.slice(0, 4).join(' · '), frParts.slice(4).join(' · ')].filter(Boolean).join('\n');
-
-  // Active price alerts - grouped by owner so each recipient's summary only
-  // ever shows THEIR OWN alerts. This used to be one shared query with no
-  // user_id filter, pooling every user's alerts (labels included) into the
-  // single broadcast every daily_summary subscriber received - a cross-user
-  // privacy leak, not just an injection risk.
-  const alertsByUser = new Map<string, PriceAlert[]>();
-  try {
-    // Paged (#1397) - past 1000 rows, owners' alerts dropped out of their summary.
     const admin = getSupabaseAdmin();
-    const { data } = await selectAllRows('alert:daily_summary_alerts', 'id', () =>
-      admin.from(T.price_alerts).select('*').eq('active', true));
-    for (const a of (data ?? []) as PriceAlert[]) {
-      if (!a.user_id) continue; // legacy ownerless rows - never shown in anyone's personalized summary
-      const list = alertsByUser.get(a.user_id) ?? [];
-      list.push(a);
-      alertsByUser.set(a.user_id, list);
-    }
-  } catch { /* skip */ }
+    const { data, error } = await selectAllRows('alert:daily_summary_hours', 'user_id', () =>
+      admin.from(T.user_settings).select('user_id, daily_summary_hour').not('daily_summary_hour', 'is', null));
+    if (error) return [];
+    for (const row of data ?? []) hourByUser.set(String(row.user_id), summaryHour(row.daily_summary_hour));
+  } catch { return []; }
 
-  await Promise.all(eligible.map(({ r, zone }) => {
-    // "Today" in the header means the recipient's own calendar date at their
-    // 7am, not UTC's - someone far enough east or west of UTC can be on a
-    // different UTC calendar day than their own local morning.
-    // #1632 item 1: a stored zone that Intl rejects (written directly to the table before the column grants) used to throw here and reject the
-    // whole Promise.all - nobody got the Morning Briefing. Fall back to the historical anchor for that one recipient.
+  const due: { r: Recipient; zone: string }[] = [];
+  for (const r of optedIn) {
+    /* UTC when we do not know the recipient's zone (owner, 2026-10-31) - see the note above CHAT_TZ's readers. "Already sent" is the user's local DATE,
+       not a 23 h cooldown (QA F1): moving the hour earlier no longer skips a day. Marker unchanged: the ledger's epoch ms under daily_summary_<chatId>. */
+    const zone = CHAT_TZ.get(r.chatId) || 'UTC';
+    const chosen = hourByUser.get(r.userId) ?? DEFAULT_DAILY_SUMMARY_HOUR;
+    if (!summaryDueNow(lastSentAt(`daily_summary_${r.chatId}`), chosen, zone, d.getTime())) continue;
+    due.push({ r, zone });
+  }
+  if (due.length === 0) return [];
+
+  /* No market data: nothing is sent and nothing is marked, so the next tick inside the window tries again. */
+  const movers = await fetchMovers24h();
+  if (movers.length === 0) return [];
+
+  const squeezeReads: SqueezeRead[] = COINS.map(coin => {
+    const fr = frMap[coin]; const ls = lsMap[coin];
+    const { score, dir } = calcSqueezeScore(fr, ls);
+    return { coin, label: LABELS[coin] ?? coin.toUpperCase(), score, dir, fundingPct: fr != null ? fr * 100 : null, longPct: ls != null ? ls * 100 : null };
+  });
+
+  const sent = await Promise.all(due.map(async ({ r, zone }) => {
+    // #1632 item 1: a stored zone that Intl rejects must not reject the whole Promise.all - date-stamp that one recipient in UTC.
     let dateStr: string;
+    const dateLocale = tgDateLocale(CHAT_LANG.get(r.chatId) ?? 'en'); // the date in the reader's language (#1651)
     try {
-      dateStr = d.toLocaleString('en-GB', { timeZone: zone, weekday: 'short', month: 'short', day: 'numeric' });
+      dateStr = d.toLocaleString(dateLocale, { timeZone: zone, weekday: 'short', month: 'short', day: 'numeric' });
     } catch {
-      /* The recipient's own zone threw, so date-stamp in UTC rather than in ours. */
-      dateStr = d.toLocaleString('en-GB', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' });
+      dateStr = d.toLocaleString(dateLocale, { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' });
     }
-    const bodyBase =
-      `☀️ <b>Morning Briefing - ${dateStr}</b>` +
-      `${fngLine}\n\n` +
-      `📊 <b>Funding Rates:</b>\n${frBlock}`;
-    const own = alertsByUser.get(r.userId) ?? [];
-    const alertsBlock = own.length
-      ? `\n\n🎯 <b>Active Price Alerts:</b>\n${own.map(a => {
-          const lbl = LABELS[a.coin] ?? a.coin.toUpperCase();
-          const dir = a.direction === 'above' ? '↑' : '↓';
-          return `• ${lbl} ${dir} $${fmtAlertPrice(parseFloat(String(a.target_price)))}${a.label ? ` (${escapeHtml(a.label)})` : ''}`;
-        }).join('\n')}`
-      : '';
-    return tg(token, r.chatId, `${bodyBase}${alertsBlock}\n\n<i>${stamp}</i>`);
+    const excluded = (coin: string) => isMutedFor(mutedByUser, r.userId, `coin:${coin}`);
+    const threshold = (thresholdsByUser.get(r.userId) ?? DEFAULT_THRESHOLDS).squeezeThreshold;
+    const messages = buildDailySummaryMessages({
+      dateStr, stamp, threshold,
+      movers: topMovers(movers, excluded),
+      setups: squeezeSetups(squeezeReads, threshold, excluded),
+    });
+    /* One message, or two in order when the text would pass Telegram's length limit (lib/dailySummary.ts). The day counts as sent once the first one landed: a failed second part must not resend the first on the next run. */
+    const res = await tg(token, r.chatId, messages[0]);
+    if (res.sent > 0) markSent(`daily_summary_${r.chatId}`);
+    if (res.sent > 0) for (const part of messages.slice(1)) await tg(token, r.chatId, part);
+    return res.sent > 0;
   }));
 
-  return ['Daily 7am summary'];
+  const n = sent.filter(Boolean).length;
+  return n > 0 ? [`Daily summary (${n})`] : [];
 }
 
 /* ════════════════════════════════════════
@@ -1660,7 +1683,6 @@ async function checkSentimentExtremes(
 
     // fngR (alternative.me) is not Binance - only lsR's failure counts here.
     if (fngR.status !== 'fulfilled' || !fngR.value.ok) return [];
-    if (lsR.status  !== 'fulfilled' || !lsR.value.ok)  { noteSkip(skipCounts, 'binance'); return []; }
 
     const fngJson = await fngR.value.json() as { data: FNGData[] };
     const fngRead = readFng(fngJson);
@@ -1669,12 +1691,30 @@ async function checkSentimentExtremes(
     // Already parenthesised, or empty - so a missing classification leaves no "( )" behind.
     const fngCls  = fngRead.label ? ` (${fngRead.label})` : '';
 
-    const lsData  = await lsR.value.json() as LSItem[];
-    if (!lsData?.length) return [];
     /* #1651 (QA finding C): an unguarded parseFloat here made both sentiment gates false, so the alert simply did not fire - "no
        extreme" and "we could not read positioning" looked identical. Return early instead: nothing is sent either way, but the
        reason is now in the code rather than in the arithmetic. */
-    const longFrac = parseFloat(lsData[0].longAccount);
+    let longFrac = NaN;
+    let ratioFromBybit = false; // the message says so when Bybit supplied the ratio (QA B7b)
+    if (lsR.status === 'fulfilled' && lsR.value.ok) {
+      const lsData = await lsR.value.json() as LSItem[];
+      longFrac = lsData?.length ? parseFloat(lsData[0].longAccount) : NaN;
+    } else {
+      noteSkip(skipCounts, 'binance');
+    }
+    /* BYBIT USES THE SAME THRESHOLDS (PM decision 2026-11-18, #1651 / OWNER-BLOCKERS row 13): when Binance's BTC ratio cannot be read,
+       Bybit's BTC account ratio (buyRatio = long share) is read instead and judged by the same 60 % lines, as the squeeze check already does. */
+    if (!Number.isFinite(longFrac)) {
+      try {
+        const res = await exchangeFetch('https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=BTCUSDT&period=5min&limit=1', { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
+        if (res.ok) {
+          const d = await res.json() as { result?: { list?: Array<{ buyRatio: string }> } };
+          const item = d.result?.list?.[0];
+          longFrac = item ? parseFloat(item.buyRatio) : NaN;
+          ratioFromBybit = true;
+        }
+      } catch { /* both venues failed: nothing is sent */ }
+    }
     if (!Number.isFinite(longFrac) || longFrac < 0 || longFrac > 1) return [];
     const longPct  = longFrac * 100;   // e.g. 60.87
     const shortPct = 100 - longPct;
@@ -1687,7 +1727,7 @@ async function checkSentimentExtremes(
         `🚨 <b>Sentiment Extremes - All 3 Bearish</b>\n\n` +
         `😱 F&amp;G: <b>${fng}</b>${fngCls}\n` +
         `💸 BTC funding: <b>+${frPct.toFixed(4)}%</b> - longs paying shorts\n` +
-        `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
+        `📊 L/S Ratio${ratioFromBybit ? ' (Bybit)' : ''}: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
         `Signal: All 3 sentiment gauges at extremes - <b>long-heavy positioning</b>` +
         `\n\n<i>${stamp}</i>`
       );
@@ -1702,7 +1742,7 @@ async function checkSentimentExtremes(
         `🟢 <b>Sentiment Extremes - Contrarian BULLISH Setup</b>\n\n` +
         `😨 F&amp;G: <b>${fng}</b>${fngCls}\n` +
         `💸 BTC FR: <b>${frPct.toFixed(4)}%</b> - Shorts paying\n` +
-        `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
+        `📊 L/S Ratio${ratioFromBybit ? ' (Bybit)' : ''}: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
         `Signal: All 3 sentiment gauges at fear extremes - <b>short-heavy positioning</b>` +
         `\n\n<i>${stamp}</i>`
       );
@@ -1759,6 +1799,8 @@ async function fetchAllLSR(skipCounts: SkipCounts): Promise<Record<string, numbe
   return result;
 }
 
+/* Highest possible score: 40 (funding) + 40 (long/short ratio) = 80. SQUEEZE_SCORE_MAX in lib/alertThresholdRanges.ts caps the Settings field at
+   that number; change both together. */
 function calcSqueezeScore(fr: number | null, longRatio: number | null): { score: number; dir: 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL' } {
   let longRisk = 0, shortRisk = 0;
   if (fr != null) {
@@ -2152,7 +2194,7 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
   // push path used to fan out to EVERY stored subscription - so a free user
   // who enabled browser notifications received the full Pro alert stream.
   const subs = (allSubs as Array<{ endpoint: string; p256dh: string; auth: string; user_id: string }>)
-    .filter(s => proUserIds.has(s.user_id));
+    .filter(s => proUserIds.has(s.user_id) && !HELD_USERS.has(s.user_id)); // paused / snoozed / quiet hours hold push too ("pause all alerts")
   if (!subs.length) return;
 
   webpush.setVapidDetails(email, pubKey, privKey);
@@ -2565,7 +2607,9 @@ async function runAlerts(token: string): Promise<NextResponse> {
       if (kind !== 'free') proUserIds.add(row.user_id as string);
       if (kind === 'trial') trialUserIds.add(row.user_id as string);
     }
+    void sendPlanLapseNotices(token, data ?? [], now); // one "plan ended" message per lapse (lib/planLapse.ts); never throws
   } catch { /* admin key not configured - allChatIds falls back to the env var below */ }
+  HELD_USERS = await loadHeldUserIds(Date.now());
 
   // Collect Pro users who have connected their Telegram
   const allChatIds: string[] = [];
@@ -2575,18 +2619,20 @@ async function runAlerts(token: string): Promise<NextResponse> {
     // Paged (#1397) - a plain read stops at 1000 connected chats.
     const { data } = await selectAllRows('alert:recipients', 'user_id', () => admin
       .from(T.user_settings)
-      .select('user_id, telegram_chat_id, timezone')
+      .select('user_id, telegram_chat_id, timezone, language')
       .not('telegram_chat_id', 'is', null)
       .neq('telegram_chat_id', ''));
     // Rebuilt every run - see the note on CHAT_TZ above.
     CHAT_TZ.clear();
+    CHAT_LANG.clear();
     for (const row of data ?? []) {
       const userId = row.user_id as string;
-      if (!proUserIds.has(userId)) continue;
+      if (!proUserIds.has(userId) || HELD_USERS.has(userId)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
       if (id && !allChatIds.includes(id)) {
         allChatIds.push(id);
         CHAT_TZ.set(id, (row.timezone as string | null) || null);
+        CHAT_LANG.set(id, tgLocaleOf(row.language as string | null | undefined));
         recipients.push({ userId, chatId: id });
       }
     }
@@ -2598,8 +2644,10 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // (checkPriceAlerts' legacy branch), not the per-recipient ones below.
   const envChatId = process.env.TELEGRAM_CHAT_ID;
   if (envChatId && !allChatIds.includes(envChatId)) allChatIds.push(envChatId);
+  // The label tables for the languages present this run (one read each; English needs none). A failed read leaves that language in English.
+  TG_LABELS = await tgLabelsForAll(CHAT_LANG.values());
 
-  if (allChatIds.length === 0)
+  if (allChatIds.length === 0 && HELD_USERS.size === 0) // everyone held is not "no recipients": the run goes on and sends nothing
     return NextResponse.json({ error: 'No Telegram recipients configured' }, { status: 503 });
 
   // Session-based cooldowns - tighter during pre-NY + NY (12:00-20:00 UTC)
@@ -2681,6 +2729,18 @@ async function runAlerts(token: string): Promise<NextResponse> {
     mutedByUser.set(uid, set);
   }
 
+  /* "Mute 1 h" / "Mute 4 h" tapped under an OI / CVD / rapid-move alert (lib/alertTypeMute.ts): while it lasts, that rule key counts as muted
+     for that user, on Telegram and Web Push alike (both decide through isEligibleFor). Same shape as the trial ladder above: added for this
+     run only, never written to the mute table, so the /alerts switches are untouched and the mute ends by itself. */
+  const nowForTypeMutes = Date.now();
+  for (const [uid, mutes] of await loadTypeMutesByUser()) {
+    const keys = activeTypeMuteKeys(mutes, nowForTypeMutes);
+    if (keys.length === 0) continue;
+    const set = new Set(mutedByUser.get(uid) ?? []);
+    for (const k of keys) set.add(k);
+    mutedByUser.set(uid, set);
+  }
+
   // Coins muted by every single recipient - the only case it's safe to skip
   // fetching entirely (checkDistribution's cost-control pre-filter).
   // Anything less than 100% agreement still has to be fetched; per-recipient
@@ -2721,7 +2781,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     checkWhales(stamp, signalQueue, skipCounts),
     checkNews(token, recipients, mutedByUser, stamp),                     // global - sends directly
     checkFearGreed(token, recipients, mutedByUser, stamp),                // global - sends directly
-    checkDailySummary(token, recipients, mutedByUser, stamp, frMap),      // global - sends directly
+    checkDailySummary(token, recipients, mutedByUser, stamp, frMap, lsMap, thresholdsByUser), // per recipient - sends directly
     checkOISpike(stamp, prices, signalQueue, skipCounts),
     checkCVD(stamp, signalQueue, skipCounts),
     checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds, mutedByUser),       // already per-user (own table)
@@ -2789,7 +2849,9 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // VWAP, none of which the cron holds. See migration 20260801a.
   const agreementByCoin = new Map<string, { rules: Set<string>; net: number }>();
   for (const e of signalQueue) {
-    if (!e.dir) continue;
+    /* OI / CVD / rapid-move entries carry a direction only so the Long / Short mutes reach them (#2560 open list). They are left out of
+       this snapshot so the series recorded so far keeps meaning the same thing; counting them is a separate decision. */
+    if (!e.dir || isTypeMuteRuleKey(e.ruleKey)) continue;
     const a = agreementByCoin.get(e.coin) ?? { rules: new Set<string>(), net: 0 };
     if (!a.rules.has(e.ruleKey)) {
       a.rules.add(e.ruleKey);

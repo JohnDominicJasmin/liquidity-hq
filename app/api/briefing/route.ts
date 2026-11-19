@@ -26,6 +26,7 @@ Rules:
 - Do not name a best setup, do not say what to buy, sell or avoid, and do not predict direction or price targets
 - The data has no results for data releases that just came out; do not state or guess them
 - If a reading is missing (shown as ? or N/A), say it is missing
+- A reading shown as - is missing too; never estimate a missing reading
 - No bullet points, no headers
 - Max 60 words per paragraph`;
 
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
   /* A reserved use is given back when no answer reached the user (xAI refused, the call threw, the answer was unusable), as /api/grok does; not after a billed 2xx with a usable answer. (U4) */
   const reservedOn = todayUtc();
   let billed = false;
-  const usageResult = await incrementUsageColumn(userId, role, 'briefing_count', briefingLimit, null, plan.failed);
+  const usageResult = await incrementUsageColumn(userId, role, 'briefing_count', briefingLimit, null, plan.failed, reservedOn);
   if (usageResult.blocked) {
     return blockedResponse(usageResult.reason, rateLimitMessage(usageResult.reason, briefingLimit, 'briefings'), {
       usage: { briefing_used: briefingUsed, briefing_limit: briefingLimit },
