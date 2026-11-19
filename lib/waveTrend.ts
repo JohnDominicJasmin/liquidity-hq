@@ -4,6 +4,7 @@
 // formula, originally popularized by LazyBear's WaveTrend script.
 
 import { OHLCV, emaArr, smaArr } from './strategyCore.ts';
+import type { LabelKey } from './labelKeys.ts';
 
 const CHANNEL_LEN = 10;
 const AVG_LEN     = 21;
@@ -114,6 +115,9 @@ export interface DivergenceResult {
   bearish:        boolean;
   detailBullish:  string;
   detailBearish:  string;
+  /** The two prices inside detailBullish / detailBearish, for the label-key version of the same sentence (#1185). Set only when that side fired. */
+  varsBullish?:   { a: string; b: string };
+  varsBearish?:   { a: string; b: string };
 }
 
 // Regular divergence: price makes a lower low (bullish) or higher high (bearish)
@@ -135,12 +139,15 @@ export function detectWaveTrendDivergence(
   let bullish = false, bearish = false;
   let detailBullish = 'No recent bullish divergence';
   let detailBearish = 'No recent bearish divergence';
+  let varsBullish: { a: string; b: string } | undefined;
+  let varsBearish: { a: string; b: string } | undefined;
 
   if (priceLowPivots.length >= 2) {
     const [i1, i2] = priceLowPivots.slice(-2); // i1 older, i2 newer
     if (isFinite(wt1[i1]) && isFinite(wt1[i2]) && lows[i2] < lows[i1] && wt1[i2] > wt1[i1]) {
       bullish = true;
       detailBullish = `Price lower low (${lows[i2].toFixed(4)} < ${lows[i1].toFixed(4)}) but WaveTrend higher low - bullish divergence`;
+      varsBullish = { a: lows[i2].toFixed(4), b: lows[i1].toFixed(4) };
     }
   }
 
@@ -149,16 +156,20 @@ export function detectWaveTrendDivergence(
     if (isFinite(wt1[i1]) && isFinite(wt1[i2]) && highs[i2] > highs[i1] && wt1[i2] < wt1[i1]) {
       bearish = true;
       detailBearish = `Price higher high (${highs[i2].toFixed(4)} > ${highs[i1].toFixed(4)}) but WaveTrend lower high - bearish divergence`;
+      varsBearish = { a: highs[i2].toFixed(4), b: highs[i1].toFixed(4) };
     }
   }
 
-  return { bullish, bearish, detailBullish, detailBearish };
+  return { bullish, bearish, detailBullish, detailBearish, varsBullish, varsBearish };
 }
 
 /* ── Confirmation helper for the EMA ribbon checklist ─────────────────────── */
 export interface WaveTrendConfirmation {
   pass:    boolean | null;
   detail:  string;
+  /** `detail` as a label key plus its numbers, for the checklist's hover title in the reader's language (#1185). `detail` stays English: the AI prompt is built from it. */
+  detailKey?:  LabelKey;
+  detailVars?: Record<string, string | number>;
   wt1Last: number | null;
   wt2Last: number | null;
 }
@@ -188,7 +199,7 @@ export function getWaveTrendConfirmation(
   params: WaveTrendParams = DEFAULT_WT_PARAMS,
 ): WaveTrendConfirmation {
   if (candles.length < CHANNEL_LEN + AVG_LEN + SIGNAL_LEN) {
-    return { pass: null, detail: 'Not enough data for WaveTrend', wt1Last: null, wt2Last: null };
+    return { pass: null, detail: 'Not enough data for WaveTrend', detailKey: 'EMA_ROW_WT_NO_DATA', wt1Last: null, wt2Last: null };
   }
   const { wt1, wt2 } = computeWaveTrend(candles);
   const last = candles.length - 1;
@@ -196,13 +207,14 @@ export function getWaveTrendConfirmation(
   const wt2Last = isFinite(wt2[last]) ? wt2[last] : null;
 
   if (wt1Last == null || wt2Last == null || !dir) {
-    return { pass: null, detail: 'WaveTrend unavailable', wt1Last, wt2Last };
+    return { pass: null, detail: 'WaveTrend unavailable', detailKey: 'EMA_ROW_WT_UNAVAILABLE', wt1Last, wt2Last };
   }
 
   const div = detectWaveTrendDivergence(candles, wt1, params.divergenceLookback);
 
   let crossAgrees = false;
   let crossDetail = '';
+  let crossAgo = 0;
   if (params.requireCross) {
     const crosses = detectWaveTrendCrosses(candles, wt1, wt2, params.obLevel, params.osLevel);
     const windowStart = (params.useArmWindow && armIndex != null) ? armIndex : last - params.crossWindowBars;
@@ -211,17 +223,18 @@ export function getWaveTrendConfirmation(
     const matchingCross = [...crosses].reverse().find(c => c.dir === dir && c.index >= windowStart && c.index <= last);
     if (matchingCross) {
       crossAgrees = true;
+      crossAgo = last - matchingCross.index;
       crossDetail = `WaveTrend crossed ${dir === 'long' ? 'bullish from oversold' : 'bearish from overbought'} ${last - matchingCross.index} candle(s) ago - momentum confirms`;
     }
   }
 
   if (dir === 'long') {
-    if (div.bullish) return { pass: true, detail: div.detailBullish, wt1Last, wt2Last };
-    if (crossAgrees) return { pass: true, detail: crossDetail, wt1Last, wt2Last };
-    return { pass: false, detail: `WaveTrend at ${wt1Last.toFixed(1)} - no recent bullish cross or divergence to confirm`, wt1Last, wt2Last };
+    if (div.bullish) return { pass: true, detail: div.detailBullish, detailKey: 'EMA_ROW_WT_DIV_BULL', detailVars: div.varsBullish, wt1Last, wt2Last };
+    if (crossAgrees) return { pass: true, detail: crossDetail, detailKey: 'EMA_ROW_WT_CROSS_BULL', detailVars: { n: crossAgo }, wt1Last, wt2Last };
+    return { pass: false, detail: `WaveTrend at ${wt1Last.toFixed(1)} - no recent bullish cross or divergence to confirm`, detailKey: 'EMA_ROW_WT_NONE_BULL', detailVars: { value: wt1Last.toFixed(1) }, wt1Last, wt2Last };
   } else {
-    if (div.bearish) return { pass: true, detail: div.detailBearish, wt1Last, wt2Last };
-    if (crossAgrees) return { pass: true, detail: crossDetail, wt1Last, wt2Last };
-    return { pass: false, detail: `WaveTrend at ${wt1Last.toFixed(1)} - no recent bearish cross or divergence to confirm`, wt1Last, wt2Last };
+    if (div.bearish) return { pass: true, detail: div.detailBearish, detailKey: 'EMA_ROW_WT_DIV_BEAR', detailVars: div.varsBearish, wt1Last, wt2Last };
+    if (crossAgrees) return { pass: true, detail: crossDetail, detailKey: 'EMA_ROW_WT_CROSS_BEAR', detailVars: { n: crossAgo }, wt1Last, wt2Last };
+    return { pass: false, detail: `WaveTrend at ${wt1Last.toFixed(1)} - no recent bearish cross or divergence to confirm`, detailKey: 'EMA_ROW_WT_NONE_BEAR', detailVars: { value: wt1Last.toFixed(1) }, wt1Last, wt2Last };
   }
 }
