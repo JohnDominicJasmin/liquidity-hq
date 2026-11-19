@@ -97,6 +97,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'chart-resume-2553', needs: 'none', note: 'signed-out: aborts klines in the browser after load and goes offline for 60 s; nothing is written' },
   { spec: 'landing-time-to-data', needs: 'none', note: 'signed-out landing: time to the first live number at 390 and 1280 on 4G and a 4x CPU; GETs only' },
   { spec: 'cls-arena-out-prod', needs: 'none', note: 'signed-out /arena layout shift, six loads at 1280 and 390; GETs only' },
+  { spec: 'ttfb-under-load', needs: 'none', note: 'time to first byte of /api/version while a signed-out /dashboard loads; read-only, a measurement' },
   { spec: 'ttfb-public', needs: 'none', note: 'time to first byte of /api/version and one cached public market route, 10 GETs each, signed out; read-only, a measurement' },
   { spec: 'prod-release-1120', needs: 'none', note: 'signed-out prod checks of release v2026.11.20: Pro rows, markets table, hours names, gate absent, page sweep; GETs only, nothing written' },
   { spec: 'prod-check-1113', needs: 'none', note: 'signed-out /hours and /arena: session names, no live badge, the chart legend opens; GETs and one click, nothing written' },
