@@ -116,7 +116,7 @@ export const en: LandingDict = {
     oiTrend: { strong_up: 'Strong up', strong_down: 'Strong down', weak_up: 'Weak up', weak_down: 'Weak down' },
     funding: { heavyPos: 'Heavily positive', mildPos: 'Mildly positive', neutral: 'Neutral', mildNeg: 'Mildly negative', heavyNeg: 'Heavily negative' },
     setup: { noData: 'No data', balanced: 'Balanced', squeeze: 'Short-heavy', flush: 'Long-heavy' },
-    oi1h: { spikeUp: 'OI spike - rising', spikeDown: 'OI spike - unwinding', stable: 'Stable', rising: 'Rising', unwinding: 'Unwinding', newLongs: 'New longs - real trend ▲', newShorts: 'New shorts - real dump ▼', shortCover: 'Short covering - weak pump', longExits: 'Long exits - no panic' },
+    oi1h: { spikeUp: 'OI spike - rising', spikeDown: 'OI spike - unwinding', stable: 'Stable', rising: 'Rising', unwinding: 'Unwinding', newLongs: 'New longs opening ▲', newShorts: 'New shorts opening ▼', shortCover: 'Short covering', longExits: 'Long exits' },
   },
   nav: { signIn: 'Sign In', getStarted: 'Get Started Free', learn: 'Learn' },
   hero: {
@@ -229,7 +229,7 @@ export const ko: LandingDict = {
     oiTrend: { strong_up: '강한 상승', strong_down: '강한 하락', weak_up: '약한 상승', weak_down: '약한 하락' },
     funding: { heavyPos: '매우 높은 양(+)', mildPos: '약간 양(+)', neutral: '중립', mildNeg: '약간 음(-)', heavyNeg: '매우 낮은 음(-)' },
     setup: { noData: '데이터 없음', balanced: '균형', squeeze: '숏 우세', flush: '롱 우세' },
-    oi1h: { spikeUp: 'OI 급증 - 증가', spikeDown: 'OI 급증 - 감소', stable: '안정', rising: '증가', unwinding: '감소', newLongs: '신규 롱 - 실제 추세 ▲', newShorts: '신규 숏 - 실제 하락 ▼', shortCover: '숏 커버링 - 약한 상승', longExits: '롱 청산 - 패닉 아님' },
+    oi1h: { spikeUp: 'OI 급증 - 증가', spikeDown: 'OI 급증 - 감소', stable: '안정', rising: '증가', unwinding: '감소', newLongs: '신규 롱 진입 ▲', newShorts: '신규 숏 진입 ▼', shortCover: '숏 커버링', longExits: '롱 청산' },
   },
   nav: { signIn: '로그인', getStarted: '무료로 시작하기', learn: '배우기' },
   hero: {
@@ -332,7 +332,7 @@ export const zh: LandingDict = {
     oiTrend: { strong_up: '强势上升', strong_down: '强势下降', weak_up: '弱势上升', weak_down: '弱势下降' },
     funding: { heavyPos: '明显偏正', mildPos: '轻度偏正', neutral: '中性', mildNeg: '轻度偏负', heavyNeg: '明显偏负' },
     setup: { noData: '暂无数据', balanced: '均衡', squeeze: '空头偏重', flush: '多头偏重' },
-    oi1h: { spikeUp: '持仓激增 - 上升', spikeDown: '持仓激增 - 回落', stable: '稳定', rising: '上升', unwinding: '回落', newLongs: '新增多头 - 真实趋势 ▲', newShorts: '新增空头 - 真实下跌 ▼', shortCover: '空头回补 - 弱势上涨', longExits: '多头离场 - 无恐慌' },
+    oi1h: { spikeUp: '持仓激增 - 上升', spikeDown: '持仓激增 - 回落', stable: '稳定', rising: '上升', unwinding: '回落', newLongs: '新增多头 ▲', newShorts: '新增空头 ▼', shortCover: '空头回补', longExits: '多头离场' },
   },
   nav: { signIn: '登录', getStarted: '免费开始使用', learn: '学习' },
   hero: {
@@ -435,7 +435,7 @@ export const ar: LandingDict = {
     oiTrend: { strong_up: 'صعود قوي', strong_down: 'هبوط قوي', weak_up: 'صعود ضعيف', weak_down: 'هبوط ضعيف' },
     funding: { heavyPos: 'إيجابي بشدة', mildPos: 'إيجابي بدرجة طفيفة', neutral: 'محايد', mildNeg: 'سلبي بدرجة طفيفة', heavyNeg: 'سلبي بشدة' },
     setup: { noData: 'لا بيانات', balanced: 'متوازن', squeeze: 'غلبة مراكز البيع', flush: 'غلبة مراكز الشراء' },
-    oi1h: { spikeUp: 'قفزة في OI - ارتفاع', spikeDown: 'قفزة في OI - تراجع', stable: 'مستقر', rising: 'يرتفع', unwinding: 'يتراجع', newLongs: 'مراكز شراء جديدة - اتجاه حقيقي ▲', newShorts: 'مراكز بيع جديدة - هبوط حقيقي ▼', shortCover: 'تغطية مراكز بيع - صعود ضعيف', longExits: 'خروج من الشراء - بلا ذعر' },
+    oi1h: { spikeUp: 'قفزة في OI - ارتفاع', spikeDown: 'قفزة في OI - تراجع', stable: 'مستقر', rising: 'يرتفع', unwinding: 'يتراجع', newLongs: 'مراكز شراء جديدة ▲', newShorts: 'مراكز بيع جديدة ▼', shortCover: 'تغطية مراكز بيع', longExits: 'خروج من الشراء' },
   },
   nav: { signIn: 'تسجيل الدخول', getStarted: 'ابدأ مجانًا', learn: 'تعلّم' },
   hero: {
@@ -570,7 +570,7 @@ export const ru: LandingDict = {
     oiTrend: { strong_up: 'Сильный рост', strong_down: 'Сильное падение', weak_up: 'Слабый рост', weak_down: 'Слабое падение' },
     funding: { heavyPos: 'Сильно положительный', mildPos: 'Слабо положительный', neutral: 'Нейтральный', mildNeg: 'Слабо отрицательный', heavyNeg: 'Сильно отрицательный' },
     setup: { noData: 'Нет данных', balanced: 'Баланс', squeeze: 'Перекос в шорты', flush: 'Перекос в лонги ↓' },
-    oi1h: { spikeUp: 'Всплеск OI - рост', spikeDown: 'Всплеск OI - сокращение', stable: 'Стабильно', rising: 'Растёт', unwinding: 'Сокращается', newLongs: 'Новые лонги - реальный тренд ▲', newShorts: 'Новые шорты - реальное падение ▼', shortCover: 'Закрытие шортов - слабый рост', longExits: 'Выход из лонгов - без паники' },
+    oi1h: { spikeUp: 'Всплеск OI - рост', spikeDown: 'Всплеск OI - сокращение', stable: 'Стабильно', rising: 'Растёт', unwinding: 'Сокращается', newLongs: 'Новые лонги ▲', newShorts: 'Новые шорты ▼', shortCover: 'Закрытие шортов', longExits: 'Выход из лонгов' },
   },
   nav: { signIn: 'Войти', getStarted: 'Начать бесплатно', learn: 'Обучение' },
   hero: {
