@@ -341,9 +341,9 @@ export default function StrategyPanel({ planChecking = false, layersLocked = fal
 
         {/* The Free "Want more at once? See Pro" line is gone (owner, 2026-11-17: fewer upsell texts); the Free cap is already stated by the "1 at a time" count above. */}
 
-        {isAuto && (
-          <div className="strat-auto">{t('STRATEGY_PANEL_AUTO_NOTE')}</div>
-        )}
+        {/* THE NOTE KEEPS ITS HEIGHT WHETHER OR NOT IT SHOWS (QA c7007078021, #1263 L86: tapping a chip from 0 to 1 ON, or back, showed/hid "The read picks the indicators." and moved Chart layers, Run the read and Edit settings by
+            23-24 px, CLS 0.02 over six taps). It is always in the layout and hidden with `visibility`, not removed, so a tap moves nothing. */}
+        <div className="strat-auto" style={isAuto ? undefined : { visibility: 'hidden' }} aria-hidden={isAuto ? undefined : true}>{t('STRATEGY_PANEL_AUTO_NOTE')}</div>
 
         {loaded && focusedEntry && (
           <button type="button" className="strat-edit-link" aria-expanded={paramsOpen} onClick={() => setParamsOpen(!paramsOpen)}
