@@ -102,7 +102,10 @@ export function computeContrarian(store: MarketStore): Contrarian | null {
 }
 
 /* ── The full read ── */
-export function computeMarketRead(store: MarketStore, manualFund: FundingSide | null = null): MarketRead {
+/** `partial`: score WITHOUT a funding rate the selected coin does not have (a coin with no perpetual never gets one), the way order walls are already left out of
+ *  the maximum when missing. Off by default: the read then waits for funding (#1494). The dashboard turns it on once its wait is over (#1185 D1). A missing Fear & Greed
+ *  still has no read: it is global and recovers on its own. */
+export function computeMarketRead(store: MarketStore, manualFund: FundingSide | null = null, opts: { partial?: boolean } = {}): MarketRead {
   const coin = store.coins[store.selectedCoin];
   const price = coin?.price ?? 0;
 
@@ -162,9 +165,12 @@ export function computeMarketRead(store: MarketStore, manualFund: FundingSide | 
 
   const wall = wallProximity(price, coin?.orderBidWalls ?? null, coin?.orderAskWalls ?? null);
 
-  const pending = missing.length > 0;
-  const raw = timeScore + dayScore + fngScore + fundScore + wall.score;
-  const maxTotal = 30 + 15 + 25 + 30 + (wall.has ? 30 : 0);
+  const fundingLeftOut = opts.partial === true && missing.includes('funding');
+  /* What the read is still WAITING on: with funding left out it is only Fear & Greed. Equal to `missing` unless `partial` is on. */
+  const waiting = fundingLeftOut ? missing.filter(m => m !== 'funding') : missing;
+  const pending = waiting.length > 0;
+  const raw = timeScore + dayScore + fngScore + (fundingLeftOut ? 0 : fundScore) + wall.score;
+  const maxTotal = 30 + 15 + 25 + (fundingLeftOut ? 0 : 30) + (wall.has ? 30 : 0);
   const score = pending ? null : Math.min(100, Math.round((raw / maxTotal) * 100));
 
   const band: Band | null = score == null ? null : score >= 70 ? 'good' : score >= 45 ? 'mid' : 'weak';
@@ -173,7 +179,7 @@ export function computeMarketRead(store: MarketStore, manualFund: FundingSide | 
     : band === 'mid' ? 'Signals are mixed'
     : 'Few signals agree';
   const sub = band == null
-    ? `Waiting for ${missing.map(m => (m === 'fng' ? 'Fear & Greed' : 'funding')).join(' and ')} data before giving a read.`
+    ? `Waiting for ${waiting.map(m => (m === 'fng' ? 'Fear & Greed' : 'funding')).join(' and ')} data before giving a read.`
     : band === 'good'
     ? 'Several signals line up right now.'
     : band === 'mid'
@@ -187,9 +193,9 @@ export function computeMarketRead(store: MarketStore, manualFund: FundingSide | 
   factors.push({ key: 'fng', label: 'Fear & Greed', value: fngLabel, sub: fng == null ? undefined : String(fng) });
   /* The sub says how much the weekday adds to the score (out of 15), so the tile states why it is there (#1185). */
   factors.push({ key: 'day', label: 'Day', value: dayLabel, sub: `${dayScore}/15` });
-  factors.push({ key: 'fund', label: 'Funding', value: fundLabel });
+  if (!fundingLeftOut) factors.push({ key: 'fund', label: 'Funding', value: fundLabel });
   /* A WORD ONLY, no "+1/10" (#1185, PM audit 2026-11-17): the denominator changed from one read to the next and nothing said what was counted. */
   factors.push({ key: 'sm', label: 'Smart money', value: sm.label });
 
-  return { pending, missing, score, band, verdict, sub, factors, fundingSide, autoFundingSide, contrarian: computeContrarian(store) };
+  return { pending, missing: waiting, score, band, verdict, sub, factors, fundingSide, autoFundingSide, contrarian: computeContrarian(store) };
 }
