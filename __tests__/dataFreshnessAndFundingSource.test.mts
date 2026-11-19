@@ -44,8 +44,9 @@ test('V1. the page reads the route\'s viaFallback and returns it with the series
 test('V2. a coin is marked Bybit-sourced when the route fell back to Bybit for its Binance symbol AND when the page\'s own Bybit fallback supplied it; a coin with no data is not marked', () => {
   /* progressive paint (#2471): the Binance batch is marked in the loop, each Bybit fallback coin is marked as it arrives */
   assert.ok(FUND.includes('if (pts.length) { first[id] = pts; if (binSym && via.includes(binSym)) fromBybit.add(id); }'), 'the route-fallback case is not marked (or an empty result is)');
-  assert.ok(FUND.includes('if (!cancelled && pts.length) { setHistory(prev => ({ ...prev, [id]: pts })); setBybitCoins(prev => (prev.includes(id) ? prev : [...prev, id])); }'), 'the page-fallback case is not marked, marked twice, or an empty result is');
-  assert.ok(FUND.includes('setBybitCoins([...fromBybit]);'), 'the marked coins are not kept');
+  /* #2680: load() can run again (retry while no coin has history), so the marks are MERGED and never duplicated */
+  assert.ok(FUND.includes('if (!cancelled && pts.length) { setHistory(prev => ({ ...prev, [id]: pts })); setBybitCoins(prev => (prev.includes(id) ? prev : [...prev, id])); return 1; }'), 'the page-fallback case is not marked, marked twice, or an empty result is');
+  assert.ok(FUND.includes('setBybitCoins(prev => [...prev, ...[...fromBybit].filter(id => !prev.includes(id))]);'), 'the marked coins are not kept, or a retry marks a coin twice');
 });
 test('V3. (#2555, owner order) the sentence above the table is GONE; the venue is a one-word tag on the row of each Bybit-sourced coin, shown only for those coins', () => {
   assert.ok(!FUND.includes('data-testid="funding-via-bybit"'), 'the sentence note is back (funding-via-bybit)');

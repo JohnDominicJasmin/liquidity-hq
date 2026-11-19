@@ -2,6 +2,7 @@
 import { useMarket } from '@/lib/marketStore';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { useGraceElapsed } from '@/lib/useGrace';
 
 function fmtGex(v: number): string {
   const abs = Math.abs(v);
@@ -17,6 +18,9 @@ export default function GexTable() {
   const { btcNetGex, btcGexFlip, btcGexLevels, btcMaxPain } = store;
 
   const gexLoaded = btcNetGex !== null && btcGexLevels.length > 0;
+  /* NO OPTIONS READ AFTER 15 SECONDS: the panel is left out instead of shimmering for ever (failure-text audit A18). The options fetch fails silently in the provider, so this is the only place that can tell "still coming" from "not coming". It appears by itself if the data lands later. */
+  const graceOver = useGraceElapsed();
+  if (!gexLoaded && graceOver) return null;
   const isLongGamma = (btcNetGex ?? 0) >= 0;
 
   const gexCol     = isLongGamma ? 'var(--green-fg)' : 'var(--red)';
