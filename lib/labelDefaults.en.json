@@ -3600,7 +3600,7 @@
   "TG_DS_MORE_POST": "more",
   "BTC_RISK_LEVEL_RATIO_LABEL": "Long accounts ({venue})",
   "DRY_POWDER_FROM_DATE": "From {date}",
-  "OFFLINE_NOTICE": "You are offline. Figures may be out of date.",,
+  "OFFLINE_NOTICE": "You are offline. Figures may be out of date.",
   "A11Y_DISMISS_ANNOUNCEMENT": "Dismiss announcement",
   "A11Y_REMOVE_ENTRY": "Remove entry",
   "A11Y_DISMISS_ALERT": "Dismiss alert",
