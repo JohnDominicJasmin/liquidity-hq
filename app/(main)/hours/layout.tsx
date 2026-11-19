@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Best Hours to Trade Crypto',
+  title: 'Crypto Trading Sessions',
   description:
     'Which hours of the day and days of the week actually see volume and volatility in crypto, broken down by trading session.',
   /* #1740: a SELF-REFERENCING canonical. Deliberately not set on the root layout, where it would be

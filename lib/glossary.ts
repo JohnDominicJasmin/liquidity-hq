@@ -29,7 +29,7 @@ const ALL_GLOSSARY: GlossaryCategory[] = [
       {
         slug: 'rsi',
         term: 'RSI (Relative Strength Index)',
-        definition: 'A 0-100 momentum gauge built from recent gains vs. losses. Above roughly 70 is considered overbought (exhaustion, a reversal down becomes more likely); below 30 is oversold (a bounce becomes more likely). It measures how stretched a move is, not where price is headed next - a strong trend can stay overbought for a long time.',
+        definition: 'A 0-100 momentum gauge built from recent gains vs. losses. Traders often read above roughly 70 as overbought (stretched upward) and below 30 as oversold (stretched downward). It measures how stretched a move is, not where price is headed next - a strong trend can stay overbought for a long time.',
       },
       {
         slug: 'ema-ribbon',
@@ -44,7 +44,7 @@ const ALL_GLOSSARY: GlossaryCategory[] = [
       {
         slug: 'vwap',
         term: 'VWAP (Volume-Weighted Average Price)',
-        definition: 'The average price an asset has traded at today, weighted by how much volume traded at each price. Price above VWAP is a mild bullish tell (buyers are in control of the session average); below is bearish. Often used as a dynamic support/resistance line intraday.',
+        definition: 'The average price an asset has traded at today, weighted by how much volume traded at each price. Traders often read price above VWAP as buyers being in control of the session average, and below it as sellers. Often used as a dynamic support/resistance line intraday.',
       },
     ],
   },
@@ -126,7 +126,7 @@ const ALL_GLOSSARY: GlossaryCategory[] = [
       {
         slug: 'contrarian-signal',
         term: 'Contrarian Signal',
-        definition: 'A setup where the crowd is positioned so heavily one way (via funding, long/short ratio, or sentiment) that the more likely outcome is the opposite of what the crowd expects - because an overcrowded trade is exactly the fuel for a squeeze or flush against it.',
+        definition: 'A setup where the crowd is positioned so heavily one way (via funding, long/short ratio, or sentiment) that traders watch for the opposite move to what the crowd expects - because an overcrowded trade is exactly the fuel for a squeeze or flush against it.',
       },
       {
         slug: 'confluence',
