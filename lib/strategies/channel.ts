@@ -118,7 +118,8 @@ export function detectChannel(candles: readonly OHLCV[], ctx: StrategyContext): 
   }
   /* WAIT: what it is watching, the channel on the candles so far, when there is one. */
   const fit = findChannel(candles, ctx.tf);
-  if (!fit || fit.dir === 'flat') return WAIT;
+  /* NO CHANNEL SAYS SO (QA drawings audit #1263, 2026-11-20: "No close outside a channel yet." with no channel drawn): the call box reads "No channel found on the last candles." A FLAT channel is drawn too (its rails are the same detector's), it just cannot be broken the rule's way. */
+  if (!fit) return { ...WAIT, params: { none: true } };
   return {
     ...WAIT,
     overlay: {
@@ -138,6 +139,7 @@ export const CHANNEL_BREAKOUT: StrategyDef = {
   reasonBuyKey: 'STRAT_CHANNEL_BUY',
   reasonSellKey: 'STRAT_CHANNEL_SELL',
   reasonWaitKey: 'STRAT_CHANNEL_WAIT',
+  reasonKeyFor: r => (r.params.none ? 'STRAT_CHANNEL_WAIT_NONE' : null),
   minCandles: MIN_CANDLES,
   chips: [],
   logTfs: ['1h', '4h'],
