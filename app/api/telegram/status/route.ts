@@ -4,6 +4,7 @@ import { T } from '@/lib/tables';
 import { apiError } from '@/lib/apiError';
 import { userClient } from '@/lib/supabase-user';
 import { getPlanSnapshot } from '@/lib/entitlements';
+import { bearerToken } from '@/lib/bearerToken';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
   // now only ever an answer that was actually read; anything else is a non-2xx, which
   // /settings shows as "Couldn't check".
   try {
-    const userToken = authHeader.replace('Bearer ', '');
+    const userToken = bearerToken(req.headers) ?? '';
     const sb = userClient(userToken);
 
     const { data: { user }, error: authError } = await sb.auth.getUser();

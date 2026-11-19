@@ -5,11 +5,12 @@ import { T } from '@/lib/tables';
 import { validPushEndpoint } from '@/lib/pushEndpoint';
 import { hasProFeatures } from '@/lib/entitlements';
 import { fetchAuthUser } from '@/lib/authUser';
+import { bearerToken } from '@/lib/bearerToken';
 
 export const dynamic = 'force-dynamic';
 
 async function getUser(req: NextRequest) {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return null;
   try {
     // #1397 review: this route WRITES with the service role on the strength of the token alone, so it asks Auth (fetchAuthUser): a signed-out,
@@ -19,7 +20,7 @@ async function getUser(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

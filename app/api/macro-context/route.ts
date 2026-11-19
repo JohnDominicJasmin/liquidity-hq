@@ -8,6 +8,7 @@ import { incrementToolUsage, rateLimitMessage, refundToolUsage, todayUtc, type U
 import { pctChange, buildMacroPrompt } from '@/lib/macroContext';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { bearerToken } from '@/lib/bearerToken';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // DXY/VIX/gold/oil/10Y don't meaningfully shift within a few minutes - cache
@@ -132,7 +133,7 @@ async function fetchMacroInputs(): Promise<{ dxyData: YFResult; vixData: YFResul
 }
 
 export async function GET(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data: authData } = await getUserCompatForBilledCall(token);

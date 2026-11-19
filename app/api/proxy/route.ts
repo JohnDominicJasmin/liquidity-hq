@@ -20,6 +20,7 @@ import { exchangeFetch } from '@/lib/exchangeGuard';
 import { trimBybitTickers, trimDeribitBook, trimLlamaStables } from '@/lib/payloadTrim';
 import { COIN_UNIVERSE } from '@/lib/coinUniverse.generated';
 import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS } from '@/lib/coins';
+import { bearerToken } from '@/lib/bearerToken';
 
 // Google Trends' 7-day bitcoin score barely moves hour to hour, and the
 // unofficial endpoint blocks aggressively under repeated hits - cache long.
@@ -34,7 +35,7 @@ function sb(token: string) {
 // quota spike (coinglass-flow / coinglass-liq) is attributable to an account,
 // not just an IP.
 async function attributedUser(req: NextRequest): Promise<string> {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return 'anon';
   try {
     const { data } = await getUserCompat(token);

@@ -7,13 +7,14 @@ import { apiError } from '@/lib/apiError';
 import { T } from '@/lib/tables';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { bearerToken } from '@/lib/bearerToken';
 
 function sb(token: string) {
   return userClient(token);
 }
 
 function auth(req: NextRequest) {
-  return req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
+  return bearerToken(req.headers) ?? '';
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

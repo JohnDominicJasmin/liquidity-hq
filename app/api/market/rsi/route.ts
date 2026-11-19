@@ -8,6 +8,7 @@ import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { readRequestToken } from '@/lib/entitlements';
 import { mergeRsiGroups, rsiCachedAt, rsiGroups } from '@/lib/marketRsi';
+import { bearerToken } from '@/lib/bearerToken';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
        confirmed Pro gets the slow group only. Same rule as /api/grok's fast-timeframe gate
        (#1511): 'unknown' (the plan read failed) is SERVED, because a failed read is not evidence
        the user is free (#1119). */
-    const token = req.headers.get('Authorization')?.replace('Bearer ', '') || undefined;
+    const token = bearerToken(req.headers);
     /* BOTH STARTED BEFORE EITHER IS AWAITED. The entitlement read decides only which groups get
        MERGED, never which get fetched, so making it block the fetches would add its latency to
        every response for nothing. The handler did this before the fetching moved to lib/ and it

@@ -6,6 +6,7 @@ import { cached, cachedPeek } from '@/lib/apiCache';
 import { polledCacheControl } from '@/lib/cacheHeaders';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { bearerToken } from '@/lib/bearerToken';
 
 const CMC_KEY = process.env.CMC_API_KEY ?? '';
 const BASE    = 'https://pro-api.coinmarketcap.com';
@@ -45,7 +46,7 @@ function sb(token: string) {
 // happens to be signed in (see MarketProvider.tsx) so a quota spike is
 // attributable to an account, not just an IP, without requiring auth to use it.
 async function attributedUser(req: NextRequest): Promise<string> {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return 'anon';
   try {
     const { data } = await getUserCompat(token);

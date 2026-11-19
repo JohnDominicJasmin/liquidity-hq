@@ -4,6 +4,7 @@ import { T } from '@/lib/tables';
 import { apiError } from '@/lib/apiError';
 import { cancelSubscription, isLsApiConfigured } from '@/lib/lemonsqueezyApi';
 import { fetchAuthUser } from '@/lib/authUser';
+import { bearerToken } from '@/lib/bearerToken';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,7 @@ export const dynamic = 'force-dynamic';
  * client. DOCUMENTED-not-observed until QA runs the first real call on qa. */
 
 async function getAuthedUserId(req: NextRequest): Promise<string | null> {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return null;
   // #1397 review: this route WRITES with the service role on the strength of the token alone, so it asks Auth (fetchAuthUser): a signed-out,
   // banned or deleted account is refused at once, not when its token expires. A deliberate user action, so the round trip is cheap.

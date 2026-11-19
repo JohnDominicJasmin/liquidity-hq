@@ -7,6 +7,7 @@ import { ACTIVE_ALERT_CAP, PRICE_ALERT_PRUNE_AT, PRICE_ALERT_PRUNE_TO, TEXT_LIMI
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { COINS } from '@/lib/coins';
+import { bearerToken } from '@/lib/bearerToken';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
      or a shared row, and the inconsistency is exactly what makes that easy to
      miss. Found by QA's BOLA suite. Callers already handle 401 from the two
      sibling routes, and the client only requests this when signed in. */
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const user = await getUser(token);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const user = await getUser(token);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -133,7 +134,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const user = await getUser(token);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -190,7 +191,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const user = await getUser(token);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

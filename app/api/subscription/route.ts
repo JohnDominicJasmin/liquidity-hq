@@ -5,6 +5,7 @@ import { isLsApiConfigured } from '@/lib/lemonsqueezyApi';
 import { planKindOfRow } from '@/lib/paidPeriod';
 import { membershipStateForAccount } from '@/lib/whopGrant';
 import { getUserCompat } from '@/lib/authUser';
+import { bearerToken } from '@/lib/bearerToken';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,7 @@ export const dynamic = 'force-dynamic';
  * HERE (server-side) so the button's presence and the route's guard agree. */
 
 async function getAuthedUserId(req: NextRequest): Promise<string | null> {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return null;
   // #1397: verified locally (lib/authUser.ts), no Auth round trip per request.
   const { data } = await getUserCompat(token);

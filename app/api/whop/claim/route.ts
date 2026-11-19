@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { claimPendingForAccount, hasPendingClaim } from '@/lib/whopGrant';
 import { fetchAuthUser, getUserCompat } from '@/lib/authUser';
+import { bearerToken } from '@/lib/bearerToken';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ export const dynamic = 'force-dynamic';
  *
  * SAFE TO CALL ANY NUMBER OF TIMES: a claim is taken by deleting its pending row, which succeeds for one caller only. */
 export async function POST(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   /* No Whop webhook on this host means no pending claim can exist (only the webhook writes them), so there is nothing to read. Answered
