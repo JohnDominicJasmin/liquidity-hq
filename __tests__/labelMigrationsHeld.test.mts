@@ -16,10 +16,11 @@ const dir = new URL('supabase/migrations/', root);
 const held = readdirSync(dir).filter((f) => /_labels_.*\.sql$/.test(f)).filter((f) => /NOT YET APPLIED TO ANY DATABASE/.test(readFileSync(new URL(f, dir), 'utf8'))).sort();
 
 type Rows = Map<string, Map<string, string>>;   // key -> locale -> value
-const ROW = /\('([A-Za-z0-9_]+)','([a-z]{2})','((?:[^']|'')*)'\)/g;
+/* two letters or language-REGION (pt-BR), and an optional E prefix (an escape string: TG_BOT_HELP has line breaks): the old pattern read neither, so those rows were never checked (#2638) */
+const ROW = /\('([A-Za-z0-9_]+)','([a-z]{2}(?:-[A-Z]{2})?)',(E?)'((?:[^']|'')*)'\)/g;
 function parse(block: string): Rows {
   const out: Rows = new Map();
-  for (const m of block.matchAll(ROW)) { if (!out.has(m[1])) out.set(m[1], new Map()); out.get(m[1])!.set(m[2], m[3].replace(/''/g, "'")); }
+  for (const m of block.matchAll(ROW)) { if (!out.has(m[1])) out.set(m[1], new Map()); out.get(m[1])!.set(m[2], m[4].replace(/''/g, "'").replace(m[3] === 'E' ? /\\(.)/g : /$^/g, (_w, c: string) => (c === 'n' ? '\n' : c))); }
   return out;
 }
 function blocks(sql: string) {

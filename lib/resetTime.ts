@@ -31,7 +31,7 @@ export function localZoneAbbr(): string {
 /**
  * Renders a fixed UTC window (a market session from lib/session.ts) as a range in
  * the viewer's own timezone, e.g. London Open 07:00-10:00 UTC shows as
- * "3:00 PM - 6:00 PM GMT+8" in Manila and "8:00 AM - 11:00 AM BST" in London.
+ * "8:00 AM - 11:00 AM BST" in London, "3:00 AM - 6:00 AM EDT" in New York and "3:00 PM - 6:00 PM GMT+8" in Singapore.
  *
  * These used to be pre-baked strings in the labels table, written in one fixed zone,
  * which meant every trader elsewhere read someone else's clock - and the strings

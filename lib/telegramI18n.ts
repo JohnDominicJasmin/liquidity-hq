@@ -19,8 +19,10 @@ import { TG_PHRASES } from './telegramPhrases.ts';
 
 /* ARABIC IS ENGLISH HERE, AS IN THE APP (PM, 2026-11-18): `ar` is held until right-to-left layout ships (lib/locales.ts AVAILABLE_LOCALES), so an
    account that saved `ar` gets English messages. The ar label rows in migration 20261119z5 stay, unused, ready for when it returns. */
-export type TgLocale = 'en' | 'ko' | 'zh' | 'ru';
-export const TG_LOCALES: readonly TgLocale[] = ['en', 'ko', 'zh', 'ru'];
+/* vi, pt-BR, tr, es and id (owner order 2026-11-19, tracker #2601 lane B): the bot has rows for them (migration 20261121c) and speaks them for an account whose saved language is one of them. The APP's own pickers still offer
+   only lib/locales.ts AVAILABLE_LOCALES (those five have no app-wide label rows), so today an account reaches these only through a language saved as one of them; the message falls back to English wherever a row is missing. */
+export type TgLocale = 'en' | 'ko' | 'zh' | 'ru' | 'vi' | 'pt-BR' | 'tr' | 'es' | 'id';
+export const TG_LOCALES: readonly TgLocale[] = ['en', 'ko', 'zh', 'ru', 'vi', 'pt-BR', 'tr', 'es', 'id'];
 
 /** The saved app language as a Telegram locale; anything else (null, `ar`, a locale the bot has no copy for) is English. */
 export function tgLocaleOf(language: string | null | undefined): TgLocale {
@@ -110,5 +112,15 @@ export function typeMuteConfirmationIn(ruleKey: string, hours: number, labels: R
 
 /** The BCP 47 tag for dates in the reader's language (the daily summary's date line). */
 export function tgDateLocale(locale: TgLocale): string {
-  return locale === 'ko' ? 'ko-KR' : locale === 'zh' ? 'zh-CN' : locale === 'ru' ? 'ru-RU' : 'en-GB';
+  switch (locale) {
+    case 'ko': return 'ko-KR';
+    case 'zh': return 'zh-CN';
+    case 'ru': return 'ru-RU';
+    case 'vi': return 'vi-VN';
+    case 'pt-BR': return 'pt-BR';
+    case 'tr': return 'tr-TR';
+    case 'es': return 'es-ES';
+    case 'id': return 'id-ID';
+    default: return 'en-GB';
+  }
 }

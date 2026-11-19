@@ -104,7 +104,7 @@ function LiveReadPanel({ mobile, dict }: { mobile: boolean; dict: LandingDict })
 
   /* THE CLOCK IS THE CLIENT'S, AND IT TICKS (#1651).
 
-     It is the visitor's own wall clock, set only after mount: `new Date()` in the markup ran on the SERVER during the first render, so a visitor in Manila briefly saw a London time.
+     It is the visitor's own wall clock, set only after mount: `new Date()` in the markup ran on the SERVER during the first render, so a visitor in another timezone briefly saw the server's time.
 
      IT USED TO BE READ ONLY WHEN THIS COMPONENT RE-RENDERED, which is whenever the market store updates. A quiet or throttled store (a background or idle tab, a slow feed) meant no re-render, so the line could sit an hour
      behind real time on the front page (QA: 16:50 at about 17:55Z). It now has its own state, refreshed every 30 seconds and the moment the tab becomes visible again, so what it shows is never more than about
