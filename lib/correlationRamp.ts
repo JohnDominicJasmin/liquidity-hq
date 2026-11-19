@@ -30,6 +30,8 @@ export const RED_CAP_PCT   = 56;
  *  correlation is weak enough that a tint would imply a signal. */
 const GREEN_FLOOR_PCT = 4;
 const RED_FLOOR_PCT   = 6;
+/** Positive r at or below this stays untinted. */
+const POSITIVE_RAMP_START = 0.35;
 
 /**
  * Tint alpha in percent for a correlation value.
@@ -42,8 +44,11 @@ const RED_FLOOR_PCT   = 6;
  * @returns alpha percent, floor..cap for the matching colour
  */
 export function tintPct(r: number): number {
+  /* No tint at r = 0 and none in the weak positive band (0 < r <= 0.35): both used to carry a faint
+     red or green wash that implied a signal where the comment above says there is none. */
+  if (r === 0 || (r > 0 && r <= POSITIVE_RAMP_START)) return 0;
   if (r > 0) {
-    const t = Math.max(0, (r - 0.35) / 0.65);
+    const t = (r - POSITIVE_RAMP_START) / (1 - POSITIVE_RAMP_START);
     return GREEN_FLOOR_PCT + Math.pow(t, 2.2) * (GREEN_CAP_PCT - GREEN_FLOOR_PCT);
   }
   return RED_FLOOR_PCT + Math.pow(Math.abs(r), 1.5) * (RED_CAP_PCT - RED_FLOOR_PCT);

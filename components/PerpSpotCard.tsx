@@ -1,6 +1,7 @@
 'use client';
 import { useMarket } from '@/lib/marketStore';
 import { usePerpSpot, useAbsorption } from '@/lib/usePerpSpot';
+import { useLabels } from '@/lib/labels';
 
 /* Perps vs spot (#328) - "is there a real buyer, or is the pump just futures?"
  *
@@ -31,10 +32,9 @@ import { usePerpSpot, useAbsorption } from '@/lib/usePerpSpot';
  * have the score change underneath them, and QA was explicit on #328.
  */
 
-const LABEL = 'FUTURES ACTIVITY VS NORMAL';
-
 export default function PerpSpotCard() {
   const { store } = useMarket();
+  const { t } = useLabels();
   const coin = store.selectedCoin;
   // Shared with the Arena prompts and the chart signal (#340) - one fetch, one
   // reading, so the card and the AI cannot disagree on screen.
@@ -52,10 +52,20 @@ export default function PerpSpotCard() {
     unknown ? 'var(--txt3)' : 'var(--txt2)';
 
   const verdict =
-    reading.lean === 'perp' ? 'FUTURES LEADING' :
-    reading.lean === 'spot' ? 'SPOT LEADING' :
-    reading.lean === 'normal' ? 'NORMAL' :
-    'CANNOT MEASURE';
+    reading.lean === 'perp' ? t('PERP_SPOT_VERDICT_PERP') :
+    reading.lean === 'spot' ? t('PERP_SPOT_VERDICT_SPOT') :
+    reading.lean === 'normal' ? t('PERP_SPOT_VERDICT_NORMAL') :
+    t('PERP_SPOT_VERDICT_UNKNOWN');
+  /* THE SENTENCES ARE READ FROM LABELS HERE (#1185): lib/perpSpot.ts keeps its English because the Arena's AI prompt reads it verbatim, so this card rebuilds the same sentence, with the same numbers, in the visitor's language. */
+  const times = reading.relative != null ? `${reading.relative.toFixed(1)}x` : '';
+  const explanation =
+    reading.lean === 'perp' ? t('PERP_SPOT_EXPLAIN_PERP', { times }) :
+    reading.lean === 'spot' ? t('PERP_SPOT_EXPLAIN_SPOT', { times }) :
+    reading.lean === 'normal' ? t('PERP_SPOT_EXPLAIN_NORMAL') :
+    t('PERP_SPOT_EXPLAIN_UNKNOWN');
+  const sp = absorption?.available ? Math.round(absorption.spotTakerPct ?? 0) : 0;
+  const pp = absorption?.available ? Math.round(absorption.perpTakerPct ?? 0) : 0;
+  const absorptionText = sp - pp >= 20 ? t('PERP_SPOT_ABSORB_SPOT', { sp, pp }) : sp - pp <= -20 ? t('PERP_SPOT_ABSORB_PERP', { sp, pp }) : t('PERP_SPOT_ABSORB_NORMAL', { sp, pp });
 
   return (
     <div data-testid="perp-spot-card">
@@ -63,7 +73,7 @@ export default function PerpSpotCard() {
         fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase',
         letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 4,
       }}>
-        Perps vs Spot · {coin.toUpperCase()}
+        {t('PERP_SPOT_TITLE', { coin: coin.toUpperCase() })}
       </div>
 
       {/* The verdict pill and the number share one row (#656 item 4), and that
@@ -141,7 +151,7 @@ export default function PerpSpotCard() {
             fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase',
             letterSpacing: '0.05em', marginBottom: 1,
           }}>
-            {LABEL}
+            {t('PERP_SPOT_RATIO_LABEL')}
           </span>
           <span style={{
             fontSize: 'var(--fs-section)', fontWeight: 700, color: unknown ? 'var(--txt3)' : 'var(--txt)',
@@ -153,7 +163,7 @@ export default function PerpSpotCard() {
       </div>
 
       <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.55 }}>
-        {reading.explanation}
+        {explanation}
       </div>
 
       {absorption?.available && (
@@ -167,10 +177,10 @@ export default function PerpSpotCard() {
             fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase',
             letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 3,
           }}>
-            Spot Absorption
+            {t('PERP_SPOT_ABSORPTION_TITLE')}
           </div>
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.55 }}>
-            {absorption.observation}
+            {absorptionText}
           </div>
         </>
       )}

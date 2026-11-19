@@ -1216,7 +1216,7 @@ function Inner() {
                     }}>{t('TRADE_JOURNAL_HISTORY_RULE_BADGE')}</span>
                   )}
                   <button className="tj-edit-btn" data-testid="journal-edit" title={t('TRADE_JOURNAL_HISTORY_EDIT_TITLE')} aria-label={t('TRADE_JOURNAL_HISTORY_EDIT_TITLE')} onClick={() => editingId === trade.id ? setEditingId(null) : startEdit(trade)}>✎</button>
-                  <button className="tj-del-btn" aria-label="Delete trade" onClick={() => trade.id && deleteTrade(trade.id)}>✕</button>
+                  <button className="tj-del-btn" aria-label={t('A11Y_DELETE_TRADE')} onClick={() => trade.id && deleteTrade(trade.id)}>✕</button>
                 </div>
               </div>
 
@@ -1507,7 +1507,7 @@ function Inner() {
                     </div>
                     <button
                       onClick={() => deleteRule(r.id)}
-                      aria-label="Delete rule"
+                      aria-label={t('A11Y_DELETE_RULE')}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', fontSize: '0.875rem', padding: '2px 4px', lineHeight: 1 }}
                     >✕</button>
                   </div>
