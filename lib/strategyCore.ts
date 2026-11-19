@@ -106,9 +106,9 @@ export function bollingerBandsArr(
  * This is the standard recursion, the same one TradingView's ta.sar and Wilder's own definition use:
  *   INIT (bar 1): the trend is up when close[1] > close[0] (SAR starts at low[0], extreme point = high[1]), else down (SAR starts at high[0], extreme point = low[1]); AF = startAf. Bar 0 has no value.
  *   EACH BAR:     SAR = SAR(prev) + AF(prev) x (EP(prev) - SAR(prev)). If the trend was up and that SAR is above this bar's low (down: below its high) the trend REVERSES: SAR = the old extreme point
- *                 (clamped to this bar's high / low), the extreme point = this bar's low / high, AF = startAf, and no further clamping on that bar.
+ *                 (clamped to this bar's high / low), the extreme point = this bar's low / high, AF = startAf (AF does not step on that bar).
  *   NO REVERSAL:  a NEW extreme point (the bar's high in an up trend, low in a down trend) moves EP there and raises AF by `step` up to `maxAf`; then SAR may not enter the previous TWO bars' range
- *                 (up: not above the lower of low[-1], low[-2]; down: not below the higher of high[-1], high[-2]).
+ *                 (up: not above the lower of low[-1], low[-2]; down: not below the higher of high[-1], high[-2]). That last clamp applies on every bar, the reversal bar included.
  * `startAf`/`step`/`maxAf` are TRUE units (0.02 / 0.02 / 0.2). The chart's SAR indicator (components/KLineProChart.tsx, registered over klinecharts' own) calls this same function, so the dots, the EMA
  * card's PSAR row and the AI's PSAR reading all come from one calculation. Proof against a separately written reference on raw Binance candles: PR body of the change that introduced this. */
 export function psarArr(
@@ -131,14 +131,11 @@ export function psarArr(
       if (sar > c.low) { below = false; sar = Math.max(c.high, prevEp); ep = c.low; af = startAf; firstOfTrend = true; }
     } else if (sar < c.high) { below = true; sar = Math.min(c.low, prevEp); ep = c.high; af = startAf; firstOfTrend = true; }
     if (!firstOfTrend) {
-      if (below) {
-        if (c.high > ep) { ep = c.high; af = Math.min(af + step, maxAf); }
-        sar = Math.min(sar, candles[i - 1].low, candles[i - 2].low);
-      } else {
-        if (c.low < ep) { ep = c.low; af = Math.min(af + step, maxAf); }
-        sar = Math.max(sar, candles[i - 1].high, candles[i - 2].high);
-      }
+      if (below) { if (c.high > ep) { ep = c.high; af = Math.min(af + step, maxAf); } }
+      else if (c.low < ep) { ep = c.low; af = Math.min(af + step, maxAf); }
     }
+    /* The clamp applies on EVERY bar, the reversal bar included (TA-Lib and TradingView's Pine ta.sar both do: QA's independent second implementation caught that the first version here skipped it on a reversal bar). */
+    sar = below ? Math.min(sar, candles[i - 1].low, candles[i - 2].low) : Math.max(sar, candles[i - 1].high, candles[i - 2].high);
     out[i] = sar;
   }
   return out;
