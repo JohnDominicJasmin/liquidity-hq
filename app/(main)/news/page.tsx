@@ -139,7 +139,7 @@ function SentimentBadge({ headline }: { headline: string }) {
   const prefix = coins.length === 1 ? `${coins[0]}: ` : '';
   const cfg = s === 'bullish'
     ? { bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',   color: 'var(--green-2)', label: t('NEWS_SENTIMENT_BULLISH', { prefix }) }
-    : { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: 'var(--red-soft)', label: t('NEWS_SENTIMENT_BEARISH', { prefix }) };
+    : { bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.3)',  color: 'var(--red-soft)', label: t('NEWS_SENTIMENT_BEARISH', { prefix }) };
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',
@@ -580,7 +580,7 @@ export default function NewsPage() {
 
               <div style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>{t('NEWS_FORYOU_EMPTY_TITLE')}</div>
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('NEWS_FORYOU_EMPTY_BODY')}</div>
-              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 12, opacity: 0.7 }}>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 12 }}>
                 {t('NEWS_SOURCE_LIST')}
               </div>
             </div>
