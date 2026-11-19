@@ -1619,10 +1619,10 @@ function ArenaContent() {
       })(),
       yenWatch: jpyUsd == null ? '-'
         : jpyUsd >= 160
-          ? `${jpyUsd.toFixed(2)} - DANGER ZONE: BOJ intervention risk high, carry trade unwind can trigger BTC liquidations`
+          ? `${jpyUsd.toFixed(2)} - at or above 160. Yen carry-trade unwinds have coincided with past crypto selloffs.`
           : jpyUsd >= 158
-            ? `${jpyUsd.toFixed(2)} - WARNING: Approaching 160 danger zone, watch for BOJ signals`
-            : `${jpyUsd.toFixed(2)} - Safe: below 158, carry trade stable, low JPY liquidation risk`,
+            ? `${jpyUsd.toFixed(2)} - between 158 and 160`
+            : `${jpyUsd.toFixed(2)} - below 158`,
       /* The card's own sentence, verbatim. Rewording it for the prompt would
          give the model a second vocabulary for one fact, and a user reading the
          dashboard and the AI answer would see two claims instead of one. */
