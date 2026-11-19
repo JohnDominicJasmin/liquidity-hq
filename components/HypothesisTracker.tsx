@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
 import { LockedFeatureCard, EntitlementUnknownCard } from './UpgradeGateModal';
@@ -107,26 +107,46 @@ export default function HypothesisTracker() {
   const [evSource, setEvSource] = useState('');
   const [evSaving, setEvSaving] = useState(false);
 
+  /* A FAILED READ IS RETRIED QUIETLY, twice (3 s, then 10 s), with the loading state kept, before the error line and its Retry button show. One failed
+     read (a token not ready, a network blip) is the common case. */
+  const hypAttempt = useRef(0);
+  const hypTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const fetchHypRef = useRef<() => void>(() => {});
+  useEffect(() => () => { if (hypTimer.current) clearTimeout(hypTimer.current); }, []);
+
   const fetchHypotheses = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    let retrying = false;
+    /* True when a quiet retry was scheduled; false when the retries are used up and the error line is set. */
+    const failRead = (): boolean => {
+      if (hypAttempt.current < 2) {
+        hypTimer.current = setTimeout(() => fetchHypRef.current(), hypAttempt.current === 0 ? 3_000 : 10_000);
+        hypAttempt.current += 1;
+        return true;
+      }
+      setHypError(t('HYPOTHESIS_TRACKER_NETWORK_ERROR'));
+      return false;
+    };
     try {
       const res = await apiFetch('/api/hypotheses');
       if (!res.ok) {
         // A failed/timed-out read must not silently overwrite a real list
         // with an empty one - same defect shape as loadPriceAlerts, #1168.
-        setHypError(t('HYPOTHESIS_TRACKER_NETWORK_ERROR'));
+        retrying = failRead();
         return;
       }
       const json = await res.json() as { hypotheses?: Hypothesis[]; error?: string };
+      hypAttempt.current = 0;
       setHypError('');
       setHypotheses(json.hypotheses ?? []);
     } catch {
-      setHypError(t('HYPOTHESIS_TRACKER_NETWORK_ERROR'));
+      retrying = failRead();
     } finally {
-      setLoading(false);
+      if (!retrying) setLoading(false);
     }
   }, [user, t]);
+  useEffect(() => { fetchHypRef.current = fetchHypotheses; });
 
   useEffect(() => { fetchHypotheses(); }, [fetchHypotheses]);
 
@@ -376,7 +396,7 @@ export default function HypothesisTracker() {
       )}
 
       {/* List */}
-      {hypError && !loading && (
+      {hypError && !loading && hypotheses.length === 0 && (
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
           {hypError}
           <button
@@ -389,7 +409,7 @@ export default function HypothesisTracker() {
       )}
       {loading ? (
         <LoadingState message={t('HYPOTHESIS_TRACKER_LOADING')} />
-      ) : hypError ? null : hypotheses.length === 0 ? (
+      ) : hypError && hypotheses.length === 0 ? null : hypotheses.length === 0 ? (
         <EmptyState dashed title={t('HYPOTHESIS_TRACKER_EMPTY_STATE')} />
       ) : (
         hypotheses.map(h => {

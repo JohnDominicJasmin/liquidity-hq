@@ -122,8 +122,8 @@ test('N2. the unreachable reading is all-unknown and contains no operational sta
 
 test('N3. the health fetch installs that reading on failure, and refuses a cached answer', () => {
   assert.match(
-    SRC, /\.catch\(\s*\(\s*\)\s*=>\s*setReading\(\s*UNREACHABLE\s*\)\s*\)/,
-    'the /api/health chain has no `.catch(() => setReading(UNREACHABLE))`. Without it a rejected ' +
+    SRC, /\.catch\(\s*\(\s*\)\s*=>\s*setReading\(\s*prev\s*=>\s*\(\s*quiet\s*&&\s*prev\s*\?\s*prev\s*:\s*UNREACHABLE\s*\)\s*\)\s*\)/,
+    'the /api/health chain has no `.catch(() => setReading(prev => (quiet && prev ? prev : UNREACHABLE)))` (#2683: only an AUTOMATIC read keeps the reading, a first or manual failure shows Unknown). Without it a rejected ' +
     'fetch leaves the previous reading on screen, which on a status page means showing the last ' +
     'known-good state as if it were current.',
   );

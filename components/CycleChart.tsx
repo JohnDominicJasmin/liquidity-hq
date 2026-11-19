@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { deadlineSignal } from '@/lib/deadlineSignal';
+import { readLastGood, writeLastGood } from '@/lib/lastGoodAge';
 
 interface CyclePoint { day: number; ratio: number; }
 interface CycleData {
@@ -24,6 +26,11 @@ const CYCLE_LEGEND_KEY: Record<'2016' | '2020' | '2024', LabelKey> = {
   '2020': 'CYCLE_CHART_LEGEND_2020',
   '2024': 'CYCLE_CHART_LEGEND_2024',
 };
+
+/* The cycle curves move once a day, so the last good answer is kept (up to 30 days) and drawn when a read fails. */
+const LAST_GOOD_KEY = 'lhq_cycle_chart_last_good';
+const LAST_GOOD_MAX_AGE_MS = 30 * 86_400_000;
+const RETRY_MS = [3_000, 10_000, 30_000];
 
 const W = 560, H = 180, PAD = { t: 8, r: 12, b: 28, l: 44 };
 const CW = W - PAD.l - PAD.r;
@@ -62,19 +69,47 @@ const X_TICKS = [0, 200, 400, 600, 800, 1000];
 export default function CycleChart() {
   const { t } = useLabels();
   const [data, setData] = useState<CycleData | null>(null);
-  const [err, setErr]   = useState<string | null>(null);
+  /* True once every retry failed and there is nothing saved to draw: the card is hidden instead of printing a failure. */
+  const [gaveUp, setGaveUp] = useState(false);
 
   useEffect(() => {
-    fetch('/api/cycle')
-      .then(r => r.ok ? r.json() : Promise.reject(`${r.status}`))
-      .then((d: CycleData) => {
-        if (d.error) setErr(d.error);
-        else setData(d);
-      })
-      .catch(e => setErr(String(e)));
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0;
+
+    const saved = readLastGood<CycleData>(LAST_GOOD_KEY);
+    let haveSaved = false;
+    if (saved && Date.now() - saved.ts < LAST_GOOD_MAX_AGE_MS && saved.v['2024'] && saved.v['2016'] && saved.v['2020']) {
+      /* The day counter moves on without the curves: advance it by the whole days since the answer was saved. */
+      const daysSince = Math.floor((Date.now() - saved.ts) / 86_400_000);
+      setData({ ...saved.v, currentDay: saved.v.currentDay + daysSince });
+      haveSaved = true;
+    }
+
+    function failed() {
+      if (cancelled) return;
+      if (attempt < RETRY_MS.length) { timer = setTimeout(load, RETRY_MS[attempt]); attempt += 1; return; }
+      if (!haveSaved) setGaveUp(true);
+    }
+    function load() {
+      fetch('/api/cycle', { signal: deadlineSignal(15_000) })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`cycle ${r.status}`)))
+        .then((d: CycleData) => {
+          if (cancelled) return;
+          if (d.error || !d['2016'] || !d['2020'] || !d['2024']) { failed(); return; }
+          setData(d); setGaveUp(false);
+          writeLastGood(LAST_GOOD_KEY, d);
+        })
+        .catch(failed);
+    }
+    load();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, []);
 
   const currentDay = data?.currentDay ?? 0;
+
+  /* Nothing saved and every retry failed: hide the card. */
+  if (gaveUp && !data) return null;
 
   return (
     <div style={{
@@ -108,14 +143,11 @@ export default function CycleChart() {
       </div>
 
       {/* Loading / error */}
-      {!data && !err && (
+      {!data && (
         <div style={{ padding: '8px 14px 4px' }} role="status" aria-live="polite">
           <span className="sr-only">{t('CYCLE_CHART_LOADING_SR')}</span>
           <SkeletonBar width="100%" height={150} radius={8} />
         </div>
-      )}
-      {err && (
-        <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>{t('CYCLE_CHART_LOAD_ERROR', { err })}</div>
       )}
 
       {/* SVG chart */}

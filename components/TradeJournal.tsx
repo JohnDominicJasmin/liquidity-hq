@@ -151,6 +151,20 @@ function fmtUSD(v: number | null | undefined, showSign = true) {
 /** How many of a user's newest trades the journal loads. The stats cover these, and say so when the cap is reached. */
 const JOURNAL_TRADES_LIMIT = 200;
 
+/** One read of the user's trades, repeated up to twice (after 2 s, then 6 s) while it answers with an error. A single failed read (a token not
+ *  ready yet, a network blip) is the common case, and it used to put "Couldn't load your trades" on screen until the button was pressed. The
+ *  loading state shows meanwhile; only a read that fails all three times reaches the error and its Try again button. */
+async function readTradesWithRetry(db: NonNullable<ReturnType<typeof getSupabase>>) {
+  const read = () => db.from(T.trades).select('*').order('created_at', { ascending: false }).limit(JOURNAL_TRADES_LIMIT);
+  let res = await read();
+  for (const waitMs of [2_000, 6_000]) {
+    if (!res.error) break;
+    await new Promise(r => setTimeout(r, waitMs));
+    res = await read();
+  }
+  return res;
+}
+
 function tradeR(tr: Trade): number | null {
   if (tr.pnl_r != null) return tr.pnl_r;
   if (tr.exit_price == null) return null;
@@ -416,11 +430,7 @@ function Inner() {
     if (!db) { setNoDb(true); return; }
     setLoading(true);
     setTradesError(false);
-    const { data, error } = await db
-      .from(T.trades)
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(JOURNAL_TRADES_LIMIT);
+    const { data, error } = await readTradesWithRetry(db);
     // #1342: an error (a failed read, a 401 before the token is ready) must NOT
     // leave `trades` at [] and fall through to the "no trades yet" empty state -
     // that reads as "you have no trades" to someone who has trades. Flag it so
