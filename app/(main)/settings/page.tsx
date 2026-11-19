@@ -188,7 +188,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function SettingsPage() {
   const { t } = useLabels();
-  const { user, loading: authLoading, signOut, entitlementStatus } = useAuth();
+  const { user, loading: authLoading, signOut, entitlementStatus: authEntitlement, entitlementsLoading } = useAuth();
+  /* the plan is not known yet (#1651): the default-timeframe chips are not drawn locked, and a Pro-only saved value is not shown selected, until it is */
+  const planResolving = authLoading || (!!user && entitlementsLoading);
+  /* the status as this page reads it: 'loading' while the plan resolves, so the saved-timeframe expression below (pinned by arenaSoundPrefs F2) shows no chip selected until the plan is known */
+  const entitlementStatus: typeof authEntitlement | 'loading' = planResolving ? 'loading' : authEntitlement;
   const { settings, update } = useSettings();
   // Held WITH the account it was read for (QA, #1499): when the signed-in user changes, the
   // previous account's answer used to stay on screen until the new read landed. Anyone
@@ -756,14 +760,14 @@ export default function SettingsPage() {
               // on), so treating it the same as a confirmed non-entitled
               // account isn't a guess, it's just not yet granting something
               // unconfirmed.
-              const locked = entitlementStatus !== 'entitled' && isGatedTf(tf);
+              const locked = !planResolving && entitlementStatus !== 'entitled' && isGatedTf(tf);
               return (
                 <button
                   key={tf}
                   className={`st-chip${shownTf === tf ? ' on' : ''}`}
                   aria-pressed={shownTf === tf}
                   onClick={() => { if (!locked) update({ default_tf: tf }); }}
-                  disabled={locked}
+                  disabled={locked || (planResolving && isGatedTf(tf))}   /* a Pro-only chip cannot be saved while the plan is unknown, and is not drawn locked either */
                   title={locked ? t('SETTINGS_TF_PRO_ONLY') : undefined}
                   style={locked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
                 >

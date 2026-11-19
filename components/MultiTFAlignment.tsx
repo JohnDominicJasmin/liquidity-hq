@@ -156,7 +156,7 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
   /* Same `entitled` the rest of the app gates on - Pro OR active trial - so this
      card and the timeframe switcher in Arena can never disagree about who is a
      paying user (#310). */
-  const { entitlementStatus, loading: authLoading } = useAuth();
+  const { user, entitlementStatus, entitlementsLoading, loading: authLoading } = useAuth();
   /* Locked only once we KNOW the user is not entitled. While auth resolves,
      nothing is blurred: a Pro user briefly seeing their own paid signal smeared
      is a worse error than a free user seeing it a moment longer, and the row is
@@ -167,7 +167,8 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
      with a "Pro only" tooltip, true regardless), so treating unknown as
      locked isn't the false assertion the owner's ruling forbids, it's just
      not granting something unconfirmed. */
-  const locked = (tf: string) => !authLoading && entitlementStatus !== 'entitled' && isGatedTf(tf);
+  /* not while the plan is still resolving: a Pro account's Fast timeframes were drawn locked for the first 0.3-0.8 s (#1651) */
+  const locked = (tf: string) => !authLoading && !(!!user && entitlementsLoading) && entitlementStatus !== 'entitled' && isGatedTf(tf);
   const coin = (coinProp ?? store.selectedCoin) as ReturnType<typeof useMarket>['store']['selectedCoin'];
   const d = store.coins[coin];
 
