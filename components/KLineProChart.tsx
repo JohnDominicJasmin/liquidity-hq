@@ -9,6 +9,7 @@ import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
 import { Lock, Warn } from '@/components/icons';
+import { isGatedTf } from '@/lib/limits';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { useAuth } from '@/components/AuthProvider';
@@ -3607,15 +3608,25 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           </span>
         )}
         {/* TF selector */}
-        {TFS.map(t => (
-          <button
-            key={t}
-            className={`klc-tool-btn klc-tf-btn${tf === t ? ' on' : ''}`}
-            onClick={() => onTfChange?.(t)}
-          >
-            {t}
-          </button>
-        ))}
+        {TFS.map(t => {
+          /* THE FAST TIMEFRAMES SHOW THEIR LOCK TO A CONFIRMED FREE ACCOUNT (#1185, PM 2026-11-17): the click already opens the upgrade modal, but nothing said so before it. The lock is a badge over the button's corner, so no width changes when the plan read settles; the name says PRO for a screen reader. */
+          const locked = isGatedTf(t) && entitlementStatus === 'not_entitled' && !entitlementsLoading;
+          return (
+            <button
+              key={t}
+              className={`klc-tool-btn klc-tf-btn${tf === t ? ' on' : ''}`}
+              onClick={() => onTfChange?.(t)}
+              {...(locked ? { 'aria-label': `${t} ${tl('DRAW_STRUCTURE_PRO_TAG')}`, title: `${t} ${tl('DRAW_STRUCTURE_PRO_TAG')}`, style: { position: 'relative' as const } } : {})}
+            >
+              {t}
+              {locked && (
+                <span aria-hidden="true" style={{ position: 'absolute', top: -5, right: -4, display: 'inline-flex', background: 'var(--bg2)', borderRadius: '50%', padding: 1, color: 'var(--accent-2)' }}>
+                  <Lock size={9} />
+                </span>
+              )}
+            </button>
+          );
+        })}
         <div className="klc-sep" />
 
         {/* DRAW STRUCTURE. Offered on 4h and 1d only - from the owner's own answers on 28
