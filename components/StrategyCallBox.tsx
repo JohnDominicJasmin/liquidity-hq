@@ -4,6 +4,7 @@ import { useLabels } from '@/lib/labels';
 import type { StrategyDef } from '@/lib/strategies';
 import type { StrategySignalState } from '@/lib/useStrategySignal';
 import { priceText } from '@/lib/numberFormat';
+import { watchedItems } from '@/lib/strategies/chartDrawings';
 import { strategyReasonText } from '@/lib/strategies/reason';
 
 /* THE STRATEGY CALL BOX (owner decision 2026-11-14, option A: ONE strategy menu). The picked strategy's call sits DIRECTLY UNDER the "Strategy set" dropdown, inside the Strategy
@@ -27,7 +28,8 @@ export default function StrategyCallBox({ def, state }: Props) {
   const r = state.result;
   const colour = r?.verdict === 'buy' ? 'var(--green)' : r?.verdict === 'sell' ? 'var(--red)' : 'var(--txt2)';
   /* ON WAIT THE CALL BLOCK WOULD BE MOSTLY EMPTY (its height is reserved for the tallest call), so it lists the levels the strategy is watching, as text, from the same overlay data the chart draws: only 'watch' and 'confirm' levels (the wrong-if level is a BUY/SELL concern), lowest price first, at most four. Nothing is invented: no levels, no line. */
-  const watched = r && r.verdict === 'wait' ? (r.overlay?.levels ?? []).filter(l => l.role === 'watch' || l.role === 'confirm').sort((a, b) => a.price - b.price).slice(0, 4) : [];
+  /* THE SAME GEOMETRY THE CHART DRAWS, AS TEXT (owner, 2026-11-19: the chart shows it, the panel names it in one short line): the levels, the box edges of a zone and where each line ends now. */
+  const watched = watchedItems(r);
   /* The same sentence the AI read is handed for this strategy (lib/strategies/reason.ts). */
   const reason = r ? strategyReasonText(def, r, t) : '';
   /* FLAT, ANSWER FIRST (owner, 2026-11-15, PM distill pass): no card inside the panel's card and no name heading (the dropdown above already shows it). Order: the call (verdict, reason, invalidation) in the
@@ -35,7 +37,12 @@ export default function StrategyCallBox({ def, state }: Props) {
   return (
     <div data-testid="strategy-call-box" data-strategy={def.id} aria-live="polite" className="strat-call-box" style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
       <div className="strat-call-dyn" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {state.unsupportedTf ? (
+      {state.unavailable ? (
+        <>
+          <div data-testid="strategy-call-verdict" data-verdict="wait" style={{ fontSize: 'var(--fs-label)', fontWeight: 700, letterSpacing: '0.04em', color: 'var(--txt2)' }}>{t('STRAT_VERDICT_WAIT')}</div>
+          <p data-testid="strategy-call-cant-run" style={{ margin: 0, fontSize: 'var(--fs-label)', color: 'var(--txt)', lineHeight: 1.4 }}>{t(state.unavailable.reasonKey, state.unavailable.vars)}</p>
+        </>
+      ) : state.unsupportedTf ? (
         <div data-testid="strategy-call-tf-unavailable" style={{ color: 'var(--txt2)', fontSize: 'var(--fs-caption)' }}>{t('STRAT_TF_UNAVAILABLE')}</div>
       ) : state.error ? (
         <>
@@ -72,10 +79,13 @@ export default function StrategyCallBox({ def, state }: Props) {
               {watched.length > 0 && (
                 <span data-testid="strategy-call-watching">
                   <span style={{ fontWeight: 600 }}>{t('STRAT_WATCHING')}: </span>
-                  {watched.map(l => `${t(l.labelKey, l.labelParams)} ${priceText(l.price)}`).join(' · ')}
+                  {watched.map(l => `${t(l.labelKey, l.labelParams)} ${l.price}`).join(' · ')}
                 </span>
               )}
             </p>
+          )}
+          {state.marketClosed && (
+            <p data-testid="strategy-call-market-closed" style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.35 }}>{t('STRAT_MKT_CLOSED_NOTE', { price: priceText(state.marketClosed.lastClose) })}</p>
           )}
           {open && r.verdict !== 'wait' && r.params.liq === true && (
             <p style={{ margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('STRAT_LIQ_NOTE')}</p>

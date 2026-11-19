@@ -3,6 +3,7 @@ import { useMarket } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
+import { accountRatio } from '@/lib/accountRatioVenue';
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
@@ -17,32 +18,42 @@ export default function BtcRiskLevel() {
   const btcDom = store.btcDom;
   const btcRsi = store.coins['btc']?.rsiDaily ?? null;
   const btcFr  = store.coins['btc']?.fundingRate ?? null;
+  /* The share of accounts that are long, from the one venue every other one-number surface uses (lib/accountRatioVenue.ts: Binance, Bybit if it has none): the Dashboard shows the same figure. */
+  const ratio  = accountRatio(store.coins['btc']);
 
   let total = 0, maxPossible = 0;
   const signals: Signal[] = [];
 
   if (fng != null) {
-    const s = (fng / 100) * 33;
-    total += s; maxPossible += 33;
+    const s = (fng / 100) * 25;
+    total += s; maxPossible += 25;
     const c = fng > 70 ? 'var(--red)' : fng < 30 ? 'var(--green-2)' : 'var(--amber)';
-    signals.push({ id: 'fng', label: t('BTC_RISK_LEVEL_FNG_LABEL'), value: String(fng), score: s, max: 33, color: c });
+    signals.push({ id: 'fng', label: t('BTC_RISK_LEVEL_FNG_LABEL'), value: String(fng), score: s, max: 25, color: c });
   }
 
   if (btcRsi != null) {
-    const s = clamp((btcRsi - 30) / 50, 0, 1) * 33;
-    total += s; maxPossible += 33;
+    const s = clamp((btcRsi - 30) / 50, 0, 1) * 25;
+    total += s; maxPossible += 25;
     const c = btcRsi > 70 ? 'var(--red)' : btcRsi < 30 ? 'var(--green-2)' : 'var(--amber)';
-    signals.push({ id: 'rsi', label: t('BTC_RISK_LEVEL_RSI_LABEL'), value: btcRsi.toFixed(1), score: s, max: 33, color: c });
+    signals.push({ id: 'rsi', label: t('BTC_RISK_LEVEL_RSI_LABEL'), value: btcRsi.toFixed(1), score: s, max: 25, color: c });
   }
 
   if (btcFr != null) {
     const pct = btcFr * 100;
     // Positive funding = longs overcrowded = dump risk. Negative = shorts paying = not dump risk.
-    const s = pct > 0 ? clamp(btcFr / 0.001, 0, 1) * 34 : 0;
-    total += s; maxPossible += 34;
+    const s = pct > 0 ? clamp(btcFr / 0.001, 0, 1) * 25 : 0;
+    total += s; maxPossible += 25;
     const c = pct > 0.05 ? 'var(--red)' : pct < -0.02 ? 'var(--green-2)' : 'var(--amber)';
     const sign = pct >= 0 ? '+' : '';
-    signals.push({ id: 'funding', label: t('BTC_RISK_LEVEL_FUNDING_LABEL'), value: `${sign}${pct.toFixed(4)}%`, score: s, max: 34, color: c });
+    signals.push({ id: 'funding', label: t('BTC_RISK_LEVEL_FUNDING_LABEL'), value: `${sign}${pct.toFixed(4)}%`, score: s, max: 25, color: c });
+  }
+
+  if (ratio != null) {
+    /* 50% long is balanced and adds nothing; 75% or more adds the full weight. Below 50% is not long crowding. */
+    const s = clamp((ratio.long - 0.5) / 0.25, 0, 1) * 25;
+    total += s; maxPossible += 25;
+    const c = ratio.long > 0.65 ? 'var(--red)' : ratio.long < 0.45 ? 'var(--green-2)' : 'var(--amber)';
+    signals.push({ id: 'ratio', label: t('BTC_RISK_LEVEL_RATIO_LABEL', { venue: ratio.venue }), value: `${(ratio.long * 100).toFixed(1)}%`, score: s, max: 25, color: c });
   }
 
   const score = maxPossible > 0 ? Math.round((total / maxPossible) * 100) : null;
@@ -80,7 +91,7 @@ export default function BtcRiskLevel() {
         </span>
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('BTC_RISK_LEVEL_OUT_OF_100')}</span>
         {/* A score from fewer than the three inputs is rescaled over what exists, so it says how many it is built from. */}
-        {score != null && signals.length < 3 && (
+        {score != null && signals.length < 4 && (
           <span data-testid="btc-crowding-inputs" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('BTC_RISK_LEVEL_INPUTS_COUNT', { n: signals.length })}</span>
         )}
         {btcDom != null && (
