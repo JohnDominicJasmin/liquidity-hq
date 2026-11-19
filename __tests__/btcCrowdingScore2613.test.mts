@@ -14,17 +14,18 @@ const here = path.dirname(fileURLToPath(import.meta.url)); const TREE = path.res
 const req = createRequire(path.join(TREE, 'package.json')); const React = req('react'); const { renderToStaticMarkup } = req('react-dom/server');
 const transpile = (rel: string) => ts.transpileModule(readFileSync(path.join(TREE, rel), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
 type Coin = Record<string, number | null | undefined>;
-const world: { fng: number | null; btcDom: number | null; btc: Coin } = { fng: null, btcDom: null, btc: {} };
+const world: { fng: number | null; btcDom: number | null; btc: Coin; graceOver: boolean } = { fng: null, btcDom: null, btc: {}, graceOver: false };
 const ratioMod = (() => { const m = { exports: {} as never }; new Function('exports', 'module', 'require', transpile('lib/accountRatioVenue.ts'))(m.exports, m, req); return m.exports; })();
 const mocks: Record<string, unknown> = {
   '@/lib/marketStore': { useMarket: () => ({ store: { fng: world.fng, btcDom: world.btcDom, coins: { btc: world.btc } } }) },
   '@/components/Tip': { __esModule: true, default: (p: { children: unknown }) => p.children },
   '@/lib/labels': { useLabels: () => ({ t: (k: string, v?: Record<string, unknown>) => (v ? `${k}|${JSON.stringify(v)}` : k) }) },
   '@/lib/color': { withAlpha: (c: string) => c },
+  '@/lib/useGrace': { useGraceElapsed: () => world.graceOver },   /* #2683: the card hides after the wait when no input has arrived */
   '@/lib/accountRatioVenue': ratioMod,
 };
 const Component: () => unknown = (() => { const m = { exports: {} as { default?: unknown } }; new Function('exports', 'module', 'require', transpile('components/BtcRiskLevel.tsx'))(m.exports, m, (id: string) => (id in mocks ? mocks[id] : req(id))); return m.exports.default as never; })();
-const render = (w: Partial<typeof world>) => { world.fng = w.fng ?? null; world.btcDom = null; world.btc = w.btc ?? {}; return (renderToStaticMarkup(React.createElement(Component as never)) as string).replace(/&quot;/g, '"'); };
+const render = (w: Partial<typeof world>) => { world.fng = w.fng ?? null; world.btcDom = null; world.btc = w.btc ?? {}; world.graceOver = w.graceOver ?? false; return (renderToStaticMarkup(React.createElement(Component as never)) as string).replace(/&quot;/g, '"'); };
 const score = (html: string) => { const m = /font-size:2\.25rem[^>]*>(-|\d+)<\/span>/.exec(html); assert.ok(m, 'no score element'); return m![1] === '-' ? null : Number(m![1]); };
 const notice = (html: string) => /BTC_RISK_LEVEL_INPUTS_COUNT\|\{"n":(\d)\}/.exec(html)?.[1] ?? null;
 
@@ -52,3 +53,9 @@ test('C5. the row names the venue (Binance first, Bybit when Binance has none) a
   assert.ok(by.includes('BTC_RISK_LEVEL_RATIO_LABEL|{"venue":"Bybit"}') && by.includes('55.0%'), 'Bybit fallback expected');
 });
 test('C6. no input at all: no score, never a number', () => { assert.equal(score(render({})), null); });
+test('C7. (#2683) no input at all AFTER the wait: the card is left out (no "Waiting" for ever); before the wait, or with any input, it is drawn', () => {
+  assert.equal(render({ graceOver: true }), '', 'no input and the wait is over: nothing is rendered');
+  assert.notEqual(render({ graceOver: false }), '', 'before the wait the card (its waiting state) is still drawn');
+  assert.notEqual(render({ graceOver: true, fng: 50 }), '', 'one input is enough to keep the card');
+  assert.notEqual(render({ graceOver: true, btc: { rsiDaily: 50 } }), '');
+});
