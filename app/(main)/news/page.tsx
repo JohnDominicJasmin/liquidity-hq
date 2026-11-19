@@ -1,7 +1,11 @@
 'use client';
-import { useState } from 'react';
-import { useNews } from '@/components/NewsProvider';
-import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline, hasAnyKeyword } from '@/lib/classify';
+import { useState, useEffect, useMemo } from 'react';
+import { useNews, type CalEvent, type EconEvent } from '@/components/NewsProvider';
+import { useNow } from '@/lib/useNow';
+import { useGraceElapsed } from '@/lib/useGrace';
+import { calendarFromResponse } from '@/lib/econCalendarFeed';
+import { deadlineSignal } from '@/lib/deadlineSignal';
+import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline, hasAnyKeyword, econImpactKey } from '@/lib/classify';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
 import { withAlpha } from '@/lib/color';
 import LoadingState from '@/components/LoadingState';
@@ -410,12 +414,75 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
   );
 }
 
+/* THE EVENTS TAB'S SECOND SOURCE. The provider's snapshot read ignores a read error, so a failed read looked like an empty calendar and the tab said
+   "No upcoming events" (a false claim). While the provider has no usable events, the tab reads the calendar route itself (10 s deadline, retried
+   5 s / 15 s / 45 s, then every minute) and draws its high-impact US events in the same rows. `answered` is true once the route returned a real
+   calendar, so an empty list from it is a true "none". Off while the provider has events. */
+const RETRY_DELAYS_MS = [5_000, 15_000, 45_000];
+const RETRY_STEADY_MS = 60_000;
+
+function useEconRouteFallback(needed: boolean): { events: EconEvent[]; answered: boolean } {
+  const [raw, setRaw] = useState<CalEvent[] | null>(null);
+  const nowMs = useNow(60_000);
+
+  useEffect(() => {
+    if (!needed) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0;
+    function retryLater() {
+      timer = setTimeout(load, RETRY_DELAYS_MS[attempt] ?? RETRY_STEADY_MS);
+      attempt += 1;
+    }
+    function load() {
+      fetch('/api/econ-calendar', { signal: deadlineSignal(10_000) })
+        .then(async r => calendarFromResponse<CalEvent>(r.ok, await r.json().catch(() => null)))
+        .then(cal => {
+          if (cancelled) return;
+          if (!cal) { retryLater(); return; }
+          setRaw(cal.events);
+        })
+        .catch(() => { if (!cancelled) retryLater(); });
+    }
+    load();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [needed]);
+
+  const events = useMemo<EconEvent[]>(() => {
+    if (!raw) return [];
+    const seen = new Set<string>();
+    return raw
+      .flatMap<EconEvent>(e => {
+        if (econImpactKey(e.impact) !== 'HIGH') return [];
+        const key = `${e.name}|${e.isoDate}`;
+        if (seen.has(key)) return [];
+        const dt = new Date(e.isoDate);
+        if (isNaN(dt.getTime())) return [];
+        const h = (dt.getTime() - nowMs) / 3_600_000;
+        if (h < -24) return [];
+        seen.add(key);
+        return [{ name: e.name, type: e.type, impact: 'high', dt, h, dateStr: '', previous: e.previous, estimate: e.estimate, actual: e.actual, estimated: e.estimated }];
+      })
+      .sort((a, b) => a.dt.getTime() - b.dt.getTime());
+  }, [raw, nowMs]);
+
+  return { events, answered: raw !== null };
+}
+
 /* ────────────────────────────────────────────────
    PAGE
 ──────────────────────────────────────────────── */
 export default function NewsPage() {
   const { t } = useLabels();
-  const { alerts, geoEvents, econEvents, whaleAlerts, alertsLoaded, alertsFailed } = useNews();
+  const { alerts, geoEvents, econEvents: providerEconEvents, econStale, eventsLoaded, whaleAlerts, alertsLoaded, alertsFailed } = useNews();
+  /* The provider's calendar is trusted only when it holds events, or read cleanly from a fresh snapshot. A failed read leaves it empty AND stale
+     (unknown age counts as stale), which is not "no events". */
+  const providerTrusted = providerEconEvents.length > 0 || (eventsLoaded && !econStale);
+  /* Give the provider's own read a few seconds before the second source starts, so a normal visit makes no extra request. */
+  const providerGraceOver = useGraceElapsed(6_000);
+  const econFallback = useEconRouteFallback(!providerTrusted && (eventsLoaded || providerGraceOver));
+  const econEvents = providerEconEvents.length > 0 ? providerEconEvents : econFallback.events;
+  const econEmptyIsTrue = providerTrusted || econFallback.answered;
   const [tab, setTab] = useState<Tab>('foryou');
 
   /* ── Coin mention tally ── */
@@ -704,7 +771,7 @@ export default function NewsPage() {
       {/* ── Economic Calendar ── */}
       {tab === 'events' && (
         <div style={{ paddingBottom: 24 }}>
-          {econEvents.length === 0 && (
+          {econEvents.length === 0 && econEmptyIsTrue && (
             <div className="nfeed-empty">
               <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_EVENTS_EMPTY')}</div>
             </div>

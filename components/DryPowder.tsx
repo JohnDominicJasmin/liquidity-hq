@@ -7,6 +7,7 @@ import { LockedFeatureCard, EntitlementUnknownCard } from './UpgradeGateModal';
 import Tip from './Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { lastGoodAge, readLastGood, writeLastGood } from '@/lib/lastGoodAge';
 
 interface DPData {
   current:   number;
@@ -24,6 +25,8 @@ interface DPData {
 
 const CACHE_KEY = 'lhq_dry_powder';
 const CACHE_TTL = 4 * 60 * 60 * 1000;
+/* The supply figures of the last successful read, kept at any age so a failed read shows them (with their age) instead of an error. */
+const LAST_NUMBERS_KEY = 'lhq_dry_powder_last_numbers';
 
 type LoadState = DPData | null | 'loading' | 'error' | 'unauth' | 'locked';
 
@@ -73,10 +76,22 @@ export default function DryPowder() {
   const router = useRouter();
   const { entitlementStatus, retryEntitlements, loading: authLoading } = useAuth();
   const [state, setState]    = useState<LoadState>('loading');
-  const [errMsg, setErrMsg]  = useState('');
+  /* Set while the figures on screen are the saved ones from an earlier read, because this read failed: when they were read. */
+  const [savedTs, setSavedTs] = useState<number | null>(null);
 
   const fetchData = useCallback(async () => {
     setState('loading');
+    setSavedTs(null);
+    /* A failed read shows the last good figures with their age; only a visitor with none sees the error line. */
+    const showSavedOrError = () => {
+      const saved = readLastGood<DPData>(LAST_NUMBERS_KEY);
+      if (saved && typeof saved.v.current === 'number' && saved.v.current > 0) {
+        setState({ ...saved.v, signal: '', narrative: '', keyLevel: '', analysis: 'unavailable' });
+        setSavedTs(saved.ts);
+        return;
+      }
+      setState('error');
+    };
     try {
       // getAuthToken(), not a raw getSession() - #1168.
       const token = await getAuthToken();
@@ -97,22 +112,27 @@ export default function DryPowder() {
       // and fall back to the same locked card the render path below shows.
       if (res.status === 403 && json.error === 'PRO_REQUIRED') { setState('locked'); return; }
 
-      if (!res.ok) { setErrMsg(json.error ?? ''); setState('error'); return; }
+      /* The figures are not a reading unless the answer carries them: a missing field used to default to 0 and print "$0.0B" and a NaN change. */
+      if (!res.ok || typeof json.current !== 'number' || typeof json.prev30 !== 'number' || typeof json.prev90 !== 'number') { showSavedOrError(); return; }
 
       const nums: DPData = {
-        current:   json.current ?? 0,
-        prev30:    json.prev30  ?? 0,
-        prev90:    json.prev90  ?? 0,
+        current:   json.current,
+        prev30:    json.prev30,
+        prev90:    json.prev90,
         series:    json.series  ?? [],
         signal: '', narrative: '', keyLevel: '', analysis: 'loading',
       };
       setState(nums);
+      writeLastGood(LAST_NUMBERS_KEY, nums);
 
       let ai = await aiReq;
       /* The text is written once a day by the server (lib/dryPowderAnalysis.ts). Before the first one exists the answer is "pending"; the card keeps its loading state, asks once more after a pause, and only then says it is unavailable. */
       if (ai?.json.pending) { await new Promise(r => setTimeout(r, 20_000)); ai = await askAi(); }
-      /* Still pending after the pause: nothing was ever stored yet. The card keeps its short loading state (never "unavailable", owner's no-failing-data rule); the next visit finds the text. */
-      if (ai?.json.pending) return;
+      /* Still pending after the pause: nothing was ever stored yet. The summary is left out (the figures stay, no skeleton and no failure line); the next visit finds the text. */
+      if (ai?.json.pending) {
+        setState(prev => (typeof prev === 'object' && prev !== null ? { ...prev, analysis: 'unavailable' } : prev));
+        return;
+      }
       if (!ai || !ai.ok || !ai.json.analysis) {
         setState(prev => (typeof prev === 'object' && prev !== null ? { ...prev, analysis: 'unavailable' } : prev));
         return;
@@ -130,9 +150,8 @@ export default function DryPowder() {
       try {
         localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
       } catch { /* ignore */ }
-    } catch (e) {
-      setErrMsg(String(e));
-      setState('error');
+    } catch {
+      showSavedOrError();
     }
   }, []);
 
@@ -196,12 +215,9 @@ export default function DryPowder() {
 
       {state === 'error' && (
         <div style={{ padding: '8px 0' }}>
-          {/* Empty errMsg means the server gave no message of its own, so the
-              generic label stands in. Translating here rather than in the fetch
-              callback keeps `t` out of that callback's dependencies - it had to
-              be omitted there, which froze the message to first-render's
-              language and left it stale after a locale switch. */}
-          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 6 }}>{errMsg || t('DRY_POWDER_FETCH_FAILED')}</div>
+          {/* Always the translated line, never the server's or the runtime's own text ("TypeError: Failed to fetch"). Translating here rather than in the
+              fetch callback keeps `t` out of that callback's dependencies. */}
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 6 }}>{t('DRY_POWDER_FETCH_FAILED')}</div>
           <button
             onClick={fetchData}
             style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}
@@ -258,9 +274,7 @@ export default function DryPowder() {
                 <SkeletonBar width="70%" height={11} radius={4} />
               </div>
             )}
-            {d.analysis === 'unavailable' && (
-              <div data-testid="dry-powder-analysis-unavailable" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('DRY_POWDER_ANALYSIS_UNAVAILABLE')}</div>
-            )}
+            {/* 'unavailable' draws nothing: the figures above stand alone, no failure line. */}
 
             {d.analysis === 'ready' && d.from && (
               <div data-testid="dry-powder-from" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 4 }}>
@@ -284,6 +298,10 @@ export default function DryPowder() {
                 <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>{t('DRY_POWDER_WATCH_LABEL')}</span>
                 {d.keyLevel}
               </div>
+            )}
+
+            {savedTs != null && (
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 6 }}>{lastGoodAge(savedTs, t)}</div>
             )}
 
             {/* Refresh button */}

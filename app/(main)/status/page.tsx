@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLabels } from '@/lib/labels';
 import EmailLinked from '@/components/EmailLinked';
 import type { LabelKey } from '@/lib/labelKeys';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 
 /* #1810 item 2. Everything on this page comes from one read of /api/health,
    which is public and takes no credentials, so it works signed out.
@@ -112,19 +113,26 @@ export default function StatusPage() {
      inside the mount effect is the react-hooks/set-state-in-effect warning the
      rest of this repo is already carrying 200 of, and there is no reason to
      add the 201st for a value that is correct at its initial state. */
-  const run = useCallback(() => {
+  const run = useCallback((quiet = false) => {
     /* no-store: a cached answer on a status page is the one thing it must not
        serve. The route sends no-store too; this is the browser half. */
-    fetch('/api/health', { cache: 'no-store' })
+    /* A 10 s deadline: a request that never answers used to leave every row on "Checking" for ever. It now ends as Unknown, which is true. */
+    fetch('/api/health', { cache: 'no-store', signal: deadlineSignal(10_000) })
       /* .json() on a 503 is fine - the route returns a JSON body with the
          failure reason at that status, and that body is the whole point. */
       .then(r => r.json())
       .then((body: Health) => setReading(read(body)))
-      .catch(() => setReading(UNREACHABLE))
+      /* A quiet (automatic) read that fails keeps the reading already on screen; the button and the first read show Unknown. */
+      .catch(() => setReading(prev => (quiet && prev ? prev : UNREACHABLE)))
       .finally(() => setChecking(false));
   }, []);
 
-  useEffect(() => { run(); }, [run]);
+  /* Read again every minute while the tab is visible, quietly (no "Checking" flash), so an old reading does not sit on screen. */
+  useEffect(() => {
+    run();
+    const id = setInterval(() => { if (document.visibilityState === 'visible') run(true); }, 60_000);
+    return () => clearInterval(id);
+  }, [run]);
 
   /** The Check again button. A click is not an effect, so setting state here is fine. */
   const check = useCallback(() => { setChecking(true); run(); }, [run]);
