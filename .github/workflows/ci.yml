@@ -1089,7 +1089,10 @@ jobs:
 
           # THE TEAM-ONLY GATE (#2636): dev, qa and staging answer 401 without this password. Empty until the owner's secret exists, and then playwright.config.ts sends it (as HTTP Basic, to the origin under test only,
           # never to production). An empty secret changes nothing: the config adds no credentials.
-          SITE_GATE_PASSWORD: ${{ secrets.SITE_GATE_PASSWORD }}
+          # Passed ONLY when a deployed site is the target (base_url set). A run that BUILDS the ref itself (every PR / release run, and a dispatch without base_url) starts its own server from this
+          # environment: with the secret in it, THAT server would answer 401 to every browser and the whole suite fails (release PR 2658, run 44525069212), while Playwright sends no credentials to a local
+          # build. The gate belongs to the deployed dev / qa / staging sites; a local test build stays open.
+          SITE_GATE_PASSWORD: ${{ inputs.base_url != '' && secrets.SITE_GATE_PASSWORD || '' }}
 
           # ── RELEASE-GATE EXCHANGE STUB (#1259) ──────────────────────────────
           #
