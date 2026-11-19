@@ -1609,7 +1609,6 @@ export const LABEL_KEYS = [
   'STRAT_NA_TF_MAX', 'STRAT_NA_TF_MIN', 'STRAT_NA_NO_FUTURES', 'STRAT_NA_NO_TRADES',
   'TG_DS_MORE_PRE', 'TG_DS_MORE_POST',
   'BTC_RISK_LEVEL_RATIO_LABEL',
-  'ARENA_DEEP_REPLACED_QUICK',
 ] as const;
 
 export type LabelKey = (typeof LABEL_KEYS)[number];

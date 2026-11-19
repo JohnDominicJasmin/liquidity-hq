@@ -3597,6 +3597,5 @@
   "STRAT_NA_NO_TRADES": "Needs futures trade data, not available for {coin}.",
   "TG_DS_MORE_PRE": "… and",
   "TG_DS_MORE_POST": "more",
-  "BTC_RISK_LEVEL_RATIO_LABEL": "Long accounts ({venue})",
-  "ARENA_DEEP_REPLACED_QUICK": "Deep read ({deep}) replaced the Quick read from {quick}. Levels can differ between them."
+  "BTC_RISK_LEVEL_RATIO_LABEL": "Long accounts ({venue})"
 }
