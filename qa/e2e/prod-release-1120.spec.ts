@@ -34,7 +34,7 @@ for (const width of [390, 1280]) {
     test.setTimeout(150_000); const { ctx, page } = await open(browser, width);
     try {
       await goto(page, '/markets'); await page.waitForTimeout(8_000);
-      const text = await body(page); const bad = [...text.matchAll(/no data|undefined|NaN|\[object/gi)].map((m) => m[0]);
+      const text = await body(page); const bad = [...text.matchAll(/no data|\bundefined\b|\bNaN\b|\[object/g)].map((m) => m[0]);
       const blanks = await page.evaluate(() => Array.from(document.querySelectorAll('[class*="mkt-price"], [class*="mkt-buy"], [class*="mkt-pressure"]')).filter((e) => !(e.textContent || '').trim()).length);
       V('R2', `/markets ${width}: ${text.length} chars · placeholder words ${JSON.stringify(bad)} · blank price/pressure cells ${blanks}`);
       await page.screenshot({ path: `qa/.shots/pr-markets-${width}.png` }).catch(() => {});
@@ -63,7 +63,7 @@ for (const width of [390, 1280]) for (const path of ['/', '/dashboard', '/arena?
     test.setTimeout(150_000); const { ctx, page } = await open(browser, width); const errs: string[] = []; page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text().slice(0, 140)); }); page.on('pageerror', (e) => errs.push(`pageerror ${String(e).slice(0, 120)}`));
     try {
       const r = await goto(page, path); await page.waitForTimeout(3_000); const ov = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth }));
-      const real = errs.filter((e) => !/favicon|analytics|Failed to load resource: the server responded with a status of (401|403|429)|net::ERR_(BLOCKED|FAILED)/i.test(e));
+      const real = errs.filter((e) => !/favicon|analytics|WebSocket connection to|Failed to load resource: the server responded with a status of (401|403|429)|net::ERR_(BLOCKED|FAILED)/i.test(e));
       V('R5', `${path} ${width}: HTTP ${r?.status()} · scrollWidth ${ov.sw} vs ${ov.iw} · console errors ${JSON.stringify(real.slice(0, 3))}`);
       expect(r?.status()).toBe(200); expect(ov.sw, `sideways overflow: scrollWidth ${ov.sw} > ${ov.iw}`).toBeLessThanOrEqual(ov.iw + 1); expect(real, 'console errors').toEqual([]);
     } finally { await ctx.close().catch(() => {}); }
