@@ -1,8 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { Download } from '@/components/icons';
+import { useLabels } from '@/lib/labels';
 
 export default function PWAInstallPrompt() {
+  const { t } = useLabels();
   const [prompt, setPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [show, setShow] = useState(false);
 
@@ -115,7 +117,7 @@ export default function PWAInstallPrompt() {
             padding: '0 2px',
             opacity: 0.75,
           }}
-          aria-label="Dismiss"
+          aria-label={t('SETTINGS_SAVE_DISMISS_ARIA')}
         >×</button>
       </div>
     </div>

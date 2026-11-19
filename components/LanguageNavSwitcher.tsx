@@ -24,7 +24,7 @@ const LOCALE_LABELS: Record<Locale, string> = {
 // visitor - e.g. anyone on /login right after "Get Started Free" - had zero
 // way to change language until after they finished signing in.
 export default function LanguageNavSwitcher() {
-  const { locale, setLocale } = useLabels();
+  const { locale, setLocale, t } = useLabels();
   const { user } = useAuth();
   const { update } = useSettings();
   const [open, setOpen] = useState(false);
@@ -56,7 +56,7 @@ export default function LanguageNavSwitcher() {
         type="button"
         className="lang-nav-btn"
         onClick={() => setOpen(v => !v)}
-        aria-label="Change language"
+        aria-label={t('A11Y_CHANGE_LANGUAGE')}
         aria-expanded={open}
       >
         {LOCALE_SHORT[locale]}
