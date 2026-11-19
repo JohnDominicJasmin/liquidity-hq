@@ -7,6 +7,7 @@
  *   L3  THE AI PROMPT'S RAID GUARD (#1631 B: "no data, no raid"): for a mixed coin the Quick and Combined prompts carry the order "a raid cannot be judged: write RAID_SETUP: NONE", exactly as they do for an empty feed; clusters present for pepe does not
  *   L4  the Arena page: the chart's cluster list is empty for a mixed coin (and the strategies read their liquidation levels from it), the panel receives the flag
  *   L5  the panel: the Liq chip is unavailable for the flag, titled with the new label, and a one-line note under the chips carries the same label
+ *   L7  the second site of the same keying (applyResultChecks): a raid written anyway for a mixed coin is dropped, as for an empty feed; kept with clusters
  *   L6  the label: registered, the English default equals the migration's en rows, held migration: PROD block == DEV block (5 locales, once each, only the two label tables, an upsert), nothing newer writes the key, each locale in its own script, no vendor, no advice
  * WHAT THIS CANNOT PROVE: the chip and the note on screen, or the chart with no Liq layer for these coins (the browser run after promotion). */
 import test from 'node:test';
@@ -64,7 +65,7 @@ test('L4. the Arena page empties the cluster list for a mixed coin and hands the
   const page = read('app/(main)/arena/page.tsx');
   assert.match(page, /\(liqUnitsMixed\(selectedCoin\) \? \[\] : topClustersForCoin\(liqClusters, selectedCoin\)\)/);
   assert.match(page, /const strategyLiqLevels = useMemo\(\(\) => \(chartLiqClusters \?\? \[\]\)\.map\(c => c\.price\), \[chartLiqClusters\]\)/, 'the strategies must read their liquidation levels from the (emptied) chart list');
-  assert.match(page, /<StrategyPanel liqMixedUnits=\{liqUnitsMixed\(selectedCoin\)\}/);
+  assert.match(page, /<StrategyPanel overlays=\{overlayStates\([\s\S]{0,4000}?\bliqMixedUnits=\{liqUnitsMixed\(selectedCoin\)\}/, 'the StrategyPanel element does not receive liqMixedUnits={liqUnitsMixed(selectedCoin)} (prop order is free)');
   assert.match(page, /formatClustersForPrompt\(liqClusters, selectedCoin\)/, 'the AI context line goes through the formatter that refuses mixed coins');
 });
 test('L5. the panel: Liq chip unavailable with the label as its title, and the one-line note', () => {
@@ -96,4 +97,18 @@ test('L6. the label is registered, equals its migration, the migration is a held
   assert.doesNotMatch(defaults[KEY], /should|will|expect|likely|avoid|watch for/i, 'advice or forecast wording');
   const later = readdirSync(dir).filter((f) => f > FILE && f.endsWith('.sql') && read(`supabase/migrations/${f}`).includes(KEY));
   assert.deepEqual(later, [], `a later migration rewrites ${KEY}: ${later.join(', ')}`);
+});
+
+/* ── L7: the same keying at the SECOND site (lib/grok.ts applyResultChecks: a raid the model wrote anyway is dropped when the prompt carried no cluster data) ───── */
+test('L7. a raid the model writes for a mixed coin is dropped like one written with an empty feed; with real clusters it is kept', async () => {
+  const { parseCombinedRead, applyResultChecks } = await import('../lib/grok.ts');
+  const ANSWER = ['SIGNAL: FLAT', 'CONFIDENCE: 50', 'SIDES: EMA9 ABOVE | SMA200 ABOVE | VWAP BELOW', 'REASONING: r', 'RAID_SETUP: SHORT SQUEEZE', 'RAID_TARGET: $4.30', 'RAID_TRIGGER: A break and hold above $4.25 on the 15m.'].join('\n');
+  const answer = (liqLevels: string, coin: string) => { const prompt = buildCombinedPrompt(ctx({ coin, liqLevels }), CHART); const parsed = parseCombinedRead(ANSWER, '1h', 'NY')!; return applyResultChecks(parsed, prompt); };
+  const kept = answer(formatClustersForPrompt([bucket('pepe', 3.8)], 'pepe'), 'PEPE/USDT');
+  assert.equal(kept.raidSetup, 'SHORT SQUEEZE', 'control: with clusters the raid must be kept'); assert.ok(!kept.checks.includes('raid dropped: no liquidation cluster data'));
+  const empty = answer(formatClustersForPrompt([], 'btc'), 'BTC/USDT'); assert.equal(empty.raidSetup, null, 'control: an empty feed drops the raid'); assert.ok(empty.checks.includes('raid dropped: no liquidation cluster data'));
+  for (const c of MIXED) {
+    const r = answer(formatClustersForPrompt([bucket(c, 4.2)], c), `${c.toUpperCase()}/USDT`);
+    assert.equal(r.raidSetup, null, `${c}: a raid survived on a mixed-unit feed`); assert.equal(r.raidTarget, null); assert.equal(r.raidTrigger, null); assert.ok(r.checks.includes('raid dropped: no liquidation cluster data'), `${c}: ${JSON.stringify(r.checks)}`);
+  }
 });
