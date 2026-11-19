@@ -263,7 +263,7 @@ export default function CorrelationTerminal() {
               </span>
             </div>
             <div className="corr-grid-outer">
-            <div className="corr-grid-wrap">
+            <div className="corr-grid-wrap" role="region" tabIndex={0} aria-label={t('CORRELATION_MATRIX_LABEL')}>
               <div
                 className="corr-grid"
                 style={{ gridTemplateColumns: `40px repeat(${COINS.length}, 1fr)`, minWidth: 40 + COINS.length * 34 }}
