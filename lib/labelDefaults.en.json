@@ -2363,7 +2363,7 @@
   "STOP_LOSS_ZONE_ROLE_ENTRY": "Entry",
   "STOP_LOSS_ZONE_CURRENT": "current",
   "BTC_RISK_LEVEL_TITLE": "BTC crowding",
-  "BTC_RISK_LEVEL_TOOLTIP": "Blends four inputs into one 0-100 score of how crowded long positions look: the Fear & Greed index, BTC's daily RSI, BTC's funding rate (only positive funding adds to it) and the share of accounts that are long. It describes positioning, not a forecast of price.",
+  "BTC_RISK_LEVEL_TOOLTIP": "Fear & Greed, daily RSI, positive funding and long-account share, combined 0-100. Positioning, not a forecast.",
   "BTC_RISK_LEVEL_FNG_LABEL": "Fear & Greed",
   "BTC_RISK_LEVEL_RSI_LABEL": "BTC RSI (Daily)",
   "BTC_RISK_LEVEL_FUNDING_LABEL": "Funding Rate",
