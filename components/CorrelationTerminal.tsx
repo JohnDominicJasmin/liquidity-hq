@@ -261,7 +261,7 @@ export default function CorrelationTerminal() {
               {/* ONE short line (#1185, rule 25): the scale line that sat here repeated the legend under the grid; the tip above still gives the +1 / -1 scale. */}
             </div>
             <div className="corr-grid-outer">
-            <div className="corr-grid-wrap">
+            <div className="corr-grid-wrap" role="region" tabIndex={0} aria-label={t('CORRELATION_MATRIX_LABEL')}>
               <div
                 className="corr-grid"
                 style={{ gridTemplateColumns: `40px repeat(${COINS.length}, 1fr)`, minWidth: 40 + COINS.length * 34 }}

@@ -76,7 +76,7 @@ export interface LandingDict {
     pro: { badge: string; name: string; sub: string; features: Record<string, string>; cta: string };
   };
   /* The top price ticker's words for a missing quote (#1263). In the dictionary and NOT the label table, because the landing page does not read the label table (#1889). */
-  ticker: { loading: string; unavailable: string; failedNote: string; noneNote: string };
+  ticker: { loading: string; unavailable: string; failedNote: string; noneNote: string; region: string };
   /* The live-read card's words and the header START button (#1185, PM 2026-11-13: the non-English landings still showed English there). In the dictionary and NOT the label table, because the landing page does not read the label table (#1889). */
   liveRead: {
     start: string; title: string; conf: string;
@@ -106,7 +106,7 @@ export interface LandingDict {
 }
 
 export const en: LandingDict = {
-  ticker: { loading: 'Loading', unavailable: 'Unavailable', failedNote: 'The exchange did not answer. Retrying.', noneNote: 'No price for this instrument from our sources.' },
+  ticker: { loading: 'Loading', unavailable: 'Unavailable', failedNote: 'The exchange did not answer. Retrying.', noneNote: 'No price for this instrument from our sources.', region: 'Live prices' },
   liveRead: {
     start: 'START', title: 'Live read', conf: 'CONF',
     rows: { vwap: 'VWAP', oiTrend: 'OI trend', funding: 'Funding', cbPrem: 'CB prem', oi1h: 'OI 1h', setup: 'Setup' },
@@ -219,7 +219,7 @@ export const en: LandingDict = {
 };
 
 export const ko: LandingDict = {
-  ticker: { loading: '불러오는 중', unavailable: '이용 불가', failedNote: '거래소가 응답하지 않았습니다. 다시 시도하는 중입니다.', noneNote: '저희 데이터 소스에는 이 상품의 가격이 없습니다.' },
+  ticker: { loading: '불러오는 중', unavailable: '이용 불가', failedNote: '거래소가 응답하지 않았습니다. 다시 시도하는 중입니다.', noneNote: '저희 데이터 소스에는 이 상품의 가격이 없습니다.', region: '실시간 가격' },
   liveRead: {
     start: '시작', title: '실시간 분석', conf: '신뢰도',
     rows: { vwap: 'VWAP', oiTrend: 'OI 추세', funding: '펀딩', cbPrem: 'CB 프리미엄', oi1h: 'OI 1시간', setup: '셋업' },
@@ -322,7 +322,7 @@ export const ko: LandingDict = {
 };
 
 export const zh: LandingDict = {
-  ticker: { loading: '加载中', unavailable: '不可用', failedNote: '交易所未响应，正在重试。', noneNote: '我们的数据源没有该品种的价格。' },
+  ticker: { loading: '加载中', unavailable: '不可用', failedNote: '交易所未响应，正在重试。', noneNote: '我们的数据源没有该品种的价格。', region: '实时价格' },
   liveRead: {
     start: '开始', title: '实时解读', conf: '置信度',
     rows: { vwap: 'VWAP', oiTrend: '持仓趋势', funding: '资金费率', cbPrem: 'CB 溢价', oi1h: '1 小时持仓', setup: '形态' },
@@ -425,7 +425,7 @@ export const zh: LandingDict = {
 };
 
 export const ar: LandingDict = {
-  ticker: { loading: 'جارٍ التحميل', unavailable: 'غير متاح', failedNote: 'لم تستجب البورصة. نعيد المحاولة.', noneNote: 'لا يتوفر سعر لهذه الأداة من مصادرنا.' },
+  ticker: { loading: 'جارٍ التحميل', unavailable: 'غير متاح', failedNote: 'لم تستجب البورصة. نعيد المحاولة.', noneNote: 'لا يتوفر سعر لهذه الأداة من مصادرنا.', region: 'الأسعار المباشرة' },
   liveRead: {
     start: 'ابدأ', title: 'القراءة المباشرة', conf: 'الثقة',
     rows: { vwap: 'VWAP', oiTrend: 'اتجاه OI', funding: 'التمويل', cbPrem: 'علاوة CB', oi1h: 'OI لساعة', setup: 'الإعداد' },
@@ -560,7 +560,7 @@ export const ar: LandingDict = {
  * Latin left as-is where Russian traders use it that way and the Korean dictionary does the same:
  * LiquidityHQ, AI, Telegram, Binance, Bybit, BTC, DXY, S&P 500, ETF, GEX, CVD, RSI, EMA, FR, L/S. */
 export const ru: LandingDict = {
-  ticker: { loading: 'Загрузка', unavailable: 'Недоступно', failedNote: 'Биржа не ответила. Повторяем попытку.', noneNote: 'В наших источниках нет цены для этого инструмента.' },
+  ticker: { loading: 'Загрузка', unavailable: 'Недоступно', failedNote: 'Биржа не ответила. Повторяем попытку.', noneNote: 'В наших источниках нет цены для этого инструмента.', region: 'Цены в реальном времени' },
   liveRead: {
     start: 'СТАРТ', title: 'Живой обзор', conf: 'УВЕР.',
     rows: { vwap: 'VWAP', oiTrend: 'Тренд OI', funding: 'Фандинг', cbPrem: 'Премия CB', oi1h: 'OI 1ч', setup: 'Сетап' },

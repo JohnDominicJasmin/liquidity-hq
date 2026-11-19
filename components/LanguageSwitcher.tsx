@@ -21,12 +21,23 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
   const current = OPTIONS.find(o => o.code === locale) ?? OPTIONS[0];
 
   useEffect(() => {
+    if (!open) return;
     function onClickOutside(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
+    /* Escape closes the menu and puts focus back on the button that opened it (#1185). */
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      ref.current?.querySelector<HTMLElement>('.lp-lang-btn')?.focus();
+    }
     document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -55,6 +66,7 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
             <Link
               key={o.code}
               href={o.href}
+              aria-current={o.code === locale ? 'true' : undefined}
               onClick={() => setOpen(false)}
               style={{
                 display: 'block', padding: '9px 14px', fontSize: 'var(--fs-label)', textDecoration: 'none',

@@ -332,7 +332,7 @@ function TCascadeAlertBanner() {
       <button
         className="cascade-dismiss"
         onClick={() => setStore(s => ({ ...s, cascadeAlert: null }))}
-        aria-label="Dismiss alert"
+        aria-label={t('A11Y_DISMISS_ALERT')}
       >✕</button>
     </div>
   );
