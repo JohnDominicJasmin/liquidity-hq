@@ -893,7 +893,7 @@ body::after {
 .nav-section-label {
   padding: 10px 16px 6px;
   font-size: var(--fs-caption); font-weight: 700; letter-spacing: .09em;
-  color: var(--txt3); text-transform: uppercase; opacity: 0.5;
+  color: var(--txt3); text-transform: uppercase;
   pointer-events: none; user-select: none;
 }
 .nav-grid {
@@ -2514,6 +2514,9 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; border-bottom: 0.5px solid var(--bdr); flex-shrink: 0; }
 .gchat-icon-btn { font-size: 0.8125rem; color: var(--txt3); cursor: pointer; background: none; border: none; padding: 0; width: 36px; height: 36px; border-radius: 6px; transition: color 0.15s; display: inline-flex; align-items: center; justify-content: center; }
 .gchat-icon-btn:hover { color: var(--txt2); }
+/* the header icons (back, clear, history, close) read --txt2 on the light panel, not the dimmer --txt3 (QA light-theme measurement: the glyph must be visible, 4.5:1 or more) */
+[data-theme="light"] .gchat-icon-btn { color: var(--txt2); }
+[data-theme="light"] .gchat-icon-btn:hover { color: var(--txt); }
 /* Fast / Live mode segment (#383).
    A pill with a 16px radius, a tinted fill for the active option and a 44px
    target. That was described as "borrows the .gchat-coin affordance" until
@@ -3215,7 +3218,8 @@ html[data-theme="light"] { background: var(--bg0); }
 
 /* Grok chat */
 [data-theme="light"] .gchat-panel {
-  background: linear-gradient(180deg, #F5F2EB 0%, #F0EDE4 100%);
+  background-color: #F5F2EB;   /* a solid base under the gradient: a contrast check reads the colour, not the gradient (QA: icon buttons measured 1:1) */
+  background-image: linear-gradient(180deg, #F5F2EB 0%, #F0EDE4 100%);
   border-color: rgba(0,0,0,0.12);
   box-shadow: 0 8px 48px rgba(0,0,0,0.18);
 }
