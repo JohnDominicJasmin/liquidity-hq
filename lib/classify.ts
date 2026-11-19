@@ -115,7 +115,7 @@ export const GEO_KEYWORDS = [
     note: 'A Fed official is speaking.',
   },
   {
-    kw: ['trump','white house','executive order','presidential','tariff','trade war','trade deal','trade policy'],
+    kw: ['trump','white house','executive order','tariff','trade war','trade deal','trade policy'],
     tag: 'TRUMP/TARIFF', style: 'geopolitical',
     note: 'White House announcement or tariff news.',
   },

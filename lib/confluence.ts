@@ -145,7 +145,7 @@ export function computeMacroRisk(
       reasons.push(`USD/JPY ${jpyUsd.toFixed(1)} - at or above 160, the level the BOJ has stepped in at`);
     } else if (jpyUsd >= 158 && level !== 'danger') {
       level = 'caution';
-      reasons.push(`USD/JPY ${jpyUsd.toFixed(1)} - approaching the 160 carry-trade danger zone`);
+      reasons.push(`USD/JPY ${jpyUsd.toFixed(1)} - between 158 and 160`);
     }
   }
 

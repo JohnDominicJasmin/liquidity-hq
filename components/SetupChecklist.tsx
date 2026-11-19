@@ -3,18 +3,21 @@ import { useEffect, useState, type MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOnboarding } from './OnboardingProvider';
 import { useAuth } from './AuthProvider';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 const ITEMS = [
-  { key: 'telegram'   as const, label: 'Connect Telegram alerts', href: '/alerts' },
-  { key: 'priceAlert' as const, label: 'Set a price alert',       href: '/alerts' },
-  { key: 'grok'       as const, label: 'Get an AI market analysis', href: '/arena'  },
-  { key: 'coins'      as const, label: 'Explore the Arena',       href: '/arena'  },
+  { key: 'telegram'   as const, labelKey: 'SETUP_CL_TELEGRAM' as LabelKey,    href: '/alerts' },
+  { key: 'priceAlert' as const, labelKey: 'SETUP_CL_PRICE_ALERT' as LabelKey, href: '/alerts' },
+  { key: 'grok'       as const, labelKey: 'SETUP_CL_AI' as LabelKey,          href: '/arena'  },
+  { key: 'coins'      as const, labelKey: 'SETUP_CL_ARENA' as LabelKey,       href: '/arena'  },
 ];
 
 const DISMISS_KEY = 'lhq_setup_dismissed';
 
 export default function SetupChecklist() {
   const { user } = useAuth();
+  const { t } = useLabels();
   const { state, loaded, allDone } = useOnboarding();
   // AUTH-1 fix: this used to force-expand to the full panel on any screen
   // >=640px wide, which is how it ended up covering real content (chart
@@ -63,12 +66,12 @@ export default function SetupChecklist() {
             font: 'inherit', color: 'inherit', cursor: 'pointer',
           }}
         >
-          <span className="ob-cl-mini-text">Setup {doneCount}/4</span>
+          <span className="ob-cl-mini-text">{t('SETUP_CL_MINI', { done: doneCount })}</span>
           <span className="ob-cl-mini-track">
             <span className="ob-cl-mini-fill" style={{ display: 'block', width: `${(doneCount / 4) * 100}%` }} />
           </span>
         </button>
-        <button className="ob-cl-mini-close" onClick={dismissForGood} aria-label="Dismiss setup checklist">×</button>
+        <button className="ob-cl-mini-close" onClick={dismissForGood} aria-label={t('SETUP_CL_DISMISS')}>×</button>
       </div>
     );
   }
@@ -76,10 +79,10 @@ export default function SetupChecklist() {
   return (
     <div className="ob-checklist">
       <div className="ob-cl-head">
-        <span className="ob-cl-title">Quick Setup</span>
-        <span className="ob-cl-count">{doneCount}/4 done</span>
-        <button className="ob-cl-min" onClick={() => setCollapsed(true)} aria-label="Minimize">−</button>
-        <button className="ob-cl-min" onClick={dismissForGood} aria-label="Dismiss setup checklist">×</button>
+        <span className="ob-cl-title">{t('SETUP_CL_TITLE')}</span>
+        <span className="ob-cl-count">{t('SETUP_CL_COUNT', { done: doneCount })}</span>
+        <button className="ob-cl-min" onClick={() => setCollapsed(true)} aria-label={t('SETUP_CL_MINIMIZE')}>−</button>
+        <button className="ob-cl-min" onClick={dismissForGood} aria-label={t('SETUP_CL_DISMISS')}>×</button>
       </div>
 
       <div className="ob-cl-list">
@@ -95,7 +98,7 @@ export default function SetupChecklist() {
               onKeyDown={e => !done && e.key === 'Enter' && router.push(item.href)}
             >
               <span className="ob-cl-chk">{done ? '✓' : '○'}</span>
-              <span className="ob-cl-lbl">{item.label}</span>
+              <span className="ob-cl-lbl">{t(item.labelKey)}</span>
               {!done && <span className="ob-cl-arrow">→</span>}
             </div>
           );

@@ -100,7 +100,8 @@ function constantTypographyCount(file: string): number {
 /** Measured 2026-09-04. These only go DOWN. */
 const BASELINE: Record<string, number> = {
   'components/BriefingTerminal.tsx': 43,
-  'components/CorrelationTerminal.tsx': 9,
+  /* 9 -> 7 with #2653: the matrix scale-hint span (fontSize + fontWeight inline) was dropped for a one-line legend. */
+  'components/CorrelationTerminal.tsx': 7,
   /* 16 -> 15 with #2131: the VWAP card's value became the vwap itself, so the sub-line that
      printed the same number underneath went with it, and one inline typography value went
      with that. Lowered for the same reason as MarketsTerminal below - the ratchet only holds
