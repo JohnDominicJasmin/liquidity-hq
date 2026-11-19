@@ -834,3 +834,25 @@ first review already paid for the cost.**
 **PM/DevOps owns it.** When the owner gives a new instruction, it goes in here **in the same session he gives it**, in his words, with the date. When an instruction is superseded, the old text stays with a note saying what replaced it and when — a rules file that hides its own history teaches nothing.
 
 **If he has to repeat himself, this file failed.**
+
+## 27. WORLDWIDE. NOTHING DEFAULTS TO MANILA OR THE PHILIPPINES. THE TEAM'S CLOCK IS UTC.
+
+**Owner, 2026-11-19, first-hand to PM, after seeing new jobs scheduled in `Asia/Manila`:**
+
+> *"You always assume that this is only for Manila, Philippines... It should be worldwide... It should not
+> lock in one country."*
+
+Section 14 already says the product is worldwide and keeps his location off every customer surface. This
+rule closes the gap that kept reopening it: **our own defaults**. Every time a session picked a time zone
+for itself it picked Manila, because that is where the owner is. That is the habit he is objecting to.
+
+- **The team's default clock is UTC.** Scheduled jobs (cron-job.org, n8n, GitHub schedules), times in
+  issues, PRs, docs, logs and notes are UTC. Write "04:00 UTC", never "12:00 PM PHT".
+- **A customer always sees their own clock**, from their browser or their saved time zone. Never a fixed
+  zone, never his. The one fixed zone allowed in product code is a market's own session (US stocks on New
+  York time), because that is a property of the market, not of us.
+- **No new `Asia/Manila`, `PHT`, `GMT+8` or `en-PH` anywhere**: code, config, schedules or docs. The
+  survivors listed in section 14 stay; old migration history stays (it records what ran).
+- **Before shipping anything with a time in it, ask: does this read the same in New York, London, Lagos
+  and Seoul?** If it only reads right in Manila, it is wrong.
+

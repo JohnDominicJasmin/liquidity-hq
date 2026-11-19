@@ -290,7 +290,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    /* v2026.11.16b, a one-fix patch on v2026.11.16 (tagged 2026-11-17 PHT, a70a1976). Binance moved its futures streams to a new address and the old one still connected but sent nothing, so the Binance side of the liquidation feed, the liquidation map history and the whale feed had gone quiet. Wording from PM. */
+    /* v2026.11.16b, a one-fix patch on v2026.11.16 (tagged 2026-11-17 by the tagger's local date, a70a1976). Binance moved its futures streams to a new address and the old one still connected but sent nothing, so the Binance side of the liquidation feed, the liquidation map history and the whale feed had gone quiet. Wording from PM. */
     date: '2026-11-17',
     tag: 'v2026.11.16b',
     items: [
@@ -298,7 +298,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    /* v2026.11.16 (was written as v2026.11.15; the release slipped past PHT midnight). Written before the tag is cut, so whoever tags checks the date against `git tag --points-at main` (PHT, the same rule as v2026.11.14's entry). C1 permits exactly one untagged entry in
+    /* v2026.11.16 (was written as v2026.11.15; the release slipped past the tagger's local midnight). Written before the tag is cut, so whoever tags checks the date against `git tag --points-at main` (the tagger's local date, the same rule as v2026.11.14's entry). C1 permits exactly one untagged entry in
        flight, and this is it.
 
        EVERY ITEM IS A SURFACE A READER LOOKS AT, tied to its pull requests: #2358 (one Strategy set menu), #2366 + #2369 (the smaller call box, its Expand arrow, the loading and unavailable states),
@@ -706,7 +706,7 @@ export const CHANGELOG: ChangelogEntry[] = [
 
        IT MOVED TWICE AND BOTH MOVES ARE THE SAME LESSON. It was 2026-11-05 when written, then
        2026-11-06 on PM/DevOps's call because the release was expected to ship on the 6th in both
-       UTC and PHT - and it shipped on the 7th. A date set from the plan is wrong whenever the plan
+       UTC and the tagger's local date - and it shipped on the 7th. A date set from the plan is wrong whenever the plan
        slips, which is most of the time. **The date follows the tag, and the tag follows the
        deploy.** Whoever tags next should check this string against `git tag --points-at main`
        rather than against the day they are working.
