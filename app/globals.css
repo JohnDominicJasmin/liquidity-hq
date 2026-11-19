@@ -9111,7 +9111,7 @@ main.app-content[data-chrome="none"] {
    5.62:1 dark / 5.56:1 light on --bg1. The same fix, and the same reason, applies to the other
    text in this block below, including the dimmed chip states (owner, 2026-09-19): nothing in the
    Strategy panel is --txt4 any more. */
-[data-design="terminal"] .strat-aux { color: var(--txt2); font-size: 9px; letter-spacing: .1em; }
+[data-design="terminal"] .strat-aux { color: var(--txt2); font-size: var(--fs-micro); letter-spacing: .1em; } /* was 9px: the 11px floor (#1185) */
 
 [data-design="terminal"] .strat-sect { padding: 10px 9px; border-bottom: 1px solid var(--bdr3); }
 [data-design="terminal"] .strat-sect:last-child { border-bottom: 0; }
@@ -9244,19 +9244,21 @@ main.app-content[data-chrome="none"] {
 @media (prefers-reduced-motion: reduce) { [data-design="terminal"] .strat-seg-b { transition: none; } }
 [data-design="terminal"] .strat-prow {
   display: grid; grid-template-columns: 1fr 54px; gap: 5px; align-items: center;
-  font-family: var(--font-mono), monospace; font-size: 10px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   color: var(--txt2); height: 24px;
 }
 [data-design="terminal"] .strat-pv {
   border: 1px solid var(--border-input); border-radius: 0;
   background: var(--bg1); color: var(--txt);
   text-align: right; padding: 0 4px;
-  font-family: var(--font-mono), monospace; font-size: 10px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   font-variant-numeric: tabular-nums; width: 100%;
 }
+/* The on/off parameter is a 24 px target, not the browser's ~13 px box (#1185, WCAG 2.5.8). */
+[data-design="terminal"] .strat-pv[type="checkbox"] { width: 24px; height: 24px; justify-self: end; padding: 0; }
 [data-design="terminal"] .strat-pv:disabled { color: var(--txt3); }
 [data-design="terminal"] .strat-ro {
-  margin-top: 5px; font-family: var(--font-mono), monospace; font-size: 8.5px;
+  margin-top: 5px; font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   letter-spacing: .08em; text-transform: uppercase; color: var(--txt3); /* #1271: 4.77 dark / 4.70 light on --bg2 (was 1.74 / 1.77) */
 }
 
