@@ -1619,7 +1619,7 @@ function ArenaContent() {
       })(),
       yenWatch: jpyUsd == null ? '-'
         : jpyUsd >= 160
-          ? `${jpyUsd.toFixed(2)} - at or above 160`
+          ? `${jpyUsd.toFixed(2)} - at or above 160.`
           : jpyUsd >= 158
             ? `${jpyUsd.toFixed(2)} - between 158 and 160`
             : `${jpyUsd.toFixed(2)} - below 158`,
