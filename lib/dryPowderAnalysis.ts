@@ -6,13 +6,18 @@
  * updated (02:00 UTC), and /api/dry-powder only READS the stored row (lhq_market_snapshot, key `dry-powder-analysis`). A Pro visit spends nothing and waits for nothing. Same spend as
  * before at its best (one call a day); the old per-visitor usage reservation is gone because no visitor triggers the call any more.
  *
- * ai_call_log needs a user, and this call has none, so its cost is not logged there: the outcome goes to api_health (`xai:dry-powder`) instead. */
+ * COST STAYS IN THE OWNER'S LEDGER (PM audit): the call is logged to ai_call_log with user_id null and source 'system:dry-powder' (migration 20261121a). The per-user dollar cap reads `where user_id = p`,
+ * so it never counts these rows; the site-wide sum counts them, as it should. THE VISITOR PATH NEVER CALLS xAI: only the scheduled ingest does, under a claim row so two ingest instances cannot both call. */
 import { readSnapshot, writeSnapshot } from './marketSnapshot.ts';
 import { getDryPowderNumbers } from './dryPowderSeries.ts';
 import { xaiFetch } from './xai.ts';
 import { reportHealth } from './apiHealth.ts';
+import { recordAiCall } from './aiCallLog.ts';
 
 export const DRY_POWDER_ANALYSIS_KEY = 'dry-powder-analysis';
+/** The claim row: written before the AI call, so a second ingest instance that reads it fresh does not call too. */
+export const DRY_POWDER_LOCK_KEY = 'dry-powder-analysis-lock';
+export const DRY_POWDER_LOCK_MS = 10 * 60_000;
 /** The source (DeFi Llama) has posted the day's point well before this UTC hour; before it the previous day's text stands. */
 export const DRY_POWDER_REFRESH_HOUR_UTC = 2;
 /** A stored text older than this is not served as current (the day's refresh has been failing). */
@@ -78,6 +83,10 @@ export function ensureDryPowderAnalysis(nowMs = Date.now()): Promise<EnsureResul
       if (nowMs - lastFailAt < RETRY_AFTER_FAIL_MS) return 'skipped';
       const key = process.env.GROK_API_KEY ?? '';
       if (!key) return 'skipped';
+      const lock = await readSnapshot(DRY_POWDER_LOCK_KEY);
+      const lockAt = (lock?.payload as { at?: number } | null)?.at;
+      if (typeof lockAt === 'number' && nowMs - lockAt < DRY_POWDER_LOCK_MS) return 'skipped';
+      await writeSnapshot(DRY_POWDER_LOCK_KEY, { at: nowMs }, 'lock');
       const { current, prev30, prev90 } = await getDryPowderNumbers();
       const res = await xaiFetch('https://api.x.ai/v1/chat/completions', {
         signal: AbortSignal.timeout(ANALYSIS_TIMEOUT_MS),
@@ -86,7 +95,9 @@ export function ensureDryPowderAnalysis(nowMs = Date.now()): Promise<EnsureResul
         body: JSON.stringify({ model: 'grok-4.3', messages: [{ role: 'user', content: buildDryPowderPrompt(current, prev30, prev90) }], max_tokens: 350 }),
       });
       if (!res.ok) throw new Error(`xAI ${res.status}`);
-      const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+      const data = await res.json() as { choices?: Array<{ message?: { content?: string } }>; model?: string; usage?: unknown };
+      /* A 2xx is billed from here: the cost goes to the ledger whatever the text turns out to be. */
+      await recordAiCall({ userId: null, source: 'system:dry-powder', callType: 'dry_powder', model: data.model ?? 'grok-4.3', usage: data.usage });
       const analysis = (data.choices?.[0]?.message?.content ?? '').trim();
       if (!analysis) throw new Error('empty analysis');
       const row: StoredDryPowderAnalysis = { day: new Date(nowMs).toISOString().slice(0, 10), analysis, current, prev30, prev90, generatedAt: nowMs };

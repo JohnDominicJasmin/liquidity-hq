@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { getDryPowderNumbers } from '@/lib/dryPowderSeries';
-import { ensureDryPowderAnalysis, readDryPowderAnalysis } from '@/lib/dryPowderAnalysis';
+import { readDryPowderAnalysis } from '@/lib/dryPowderAnalysis';
 import { hasProFeatures } from '@/lib/entitlements';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 
 /* THE AI TEXT IS READ, NOT WRITTEN, HERE (PM, 2026-11-19, #1651 L103). The server writes it once a day (lib/dryPowderAnalysis.ts, from the scheduled market ingest), so a Pro visit reads a stored row
  * in about a second and spends nothing: the card used to say "Preparing the AI read" for about 21 s because the first visit of the hour paid for the AI call. The per-visitor usage reservation and refund
- * that went with that call are gone with it. When no text is stored yet (the first deploy, or the day's write has not happened) the answer is 202 `{ pending: true }` and a background write is started; the card
+ * that went with that call are gone with it. When no text is stored yet (the first deploy, or the day's write has not happened) the answer is 202 `{ pending: true }`: THIS ROUTE NEVER CALLS xAI, only the scheduled ingest does (PM audit); the card
  * keeps its short loading state and asks once more, and the figures (?part=numbers) never wait for it. */
 export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
@@ -28,7 +28,6 @@ export async function GET(req: NextRequest) {
     }
     const stored = await readDryPowderAnalysis();
     if (!stored) {
-      void ensureDryPowderAnalysis();
       return NextResponse.json({ pending: true }, { status: 202 });
     }
     const { current, prev30, prev90, series } = await getDryPowderNumbers();
