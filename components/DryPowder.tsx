@@ -18,6 +18,8 @@ interface DPData {
   keyLevel:  string;
   /** The AI text arrives separately from the numbers: 'loading' while it is being written, 'unavailable' when it timed out or failed. The numbers never wait for it. */
   analysis?: 'loading' | 'ready' | 'unavailable';
+  /** The day (YYYY-MM-DD) of the text when it is not today's: shown as "From Nov 18". */
+  from?: string;
 }
 
 const CACHE_KEY = 'lhq_dry_powder';
@@ -82,7 +84,7 @@ export default function DryPowder() {
 
       const headers = { Authorization: `Bearer ${token}` };
       /* TWO REQUESTS, STARTED TOGETHER: the supply figures (about a second, no AI) and the AI text (up to 25 s on the server). The card shows the figures as soon as they arrive and fills the text in after. */
-      const askAi = () => fetch('/api/dry-powder', { headers }).then(r => r.json().then(j => ({ ok: r.ok, status: r.status, json: j as { analysis?: string; error?: string; pending?: boolean } }))).catch(() => null);
+      const askAi = () => fetch('/api/dry-powder', { headers }).then(r => r.json().then(j => ({ ok: r.ok, status: r.status, json: j as { analysis?: string; error?: string; pending?: boolean; from?: string } }))).catch(() => null);
       const aiReq = askAi();
       const res  = await fetch('/api/dry-powder?part=numbers', { headers });
       const json = await res.json() as {
@@ -109,6 +111,8 @@ export default function DryPowder() {
       let ai = await aiReq;
       /* The text is written once a day by the server (lib/dryPowderAnalysis.ts). Before the first one exists the answer is "pending"; the card keeps its loading state, asks once more after a pause, and only then says it is unavailable. */
       if (ai?.json.pending) { await new Promise(r => setTimeout(r, 20_000)); ai = await askAi(); }
+      /* Still pending after the pause: nothing was ever stored yet. The card keeps its short loading state (never "unavailable", owner's no-failing-data rule); the next visit finds the text. */
+      if (ai?.json.pending) return;
       if (!ai || !ai.ok || !ai.json.analysis) {
         setState(prev => (typeof prev === 'object' && prev !== null ? { ...prev, analysis: 'unavailable' } : prev));
         return;
@@ -120,6 +124,7 @@ export default function DryPowder() {
         narrative: parseDPSection(text, 'NARRATIVE'),
         keyLevel:  parseDPSection(text, 'KEY_LEVEL'),
         analysis: 'ready',
+        ...(ai.json.from ? { from: ai.json.from } : {}),
       };
       setState(prev => (typeof prev === 'object' && prev !== null ? data : prev));
       try {
@@ -255,6 +260,12 @@ export default function DryPowder() {
             )}
             {d.analysis === 'unavailable' && (
               <div data-testid="dry-powder-analysis-unavailable" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('DRY_POWDER_ANALYSIS_UNAVAILABLE')}</div>
+            )}
+
+            {d.analysis === 'ready' && d.from && (
+              <div data-testid="dry-powder-from" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 4 }}>
+                {t('DRY_POWDER_FROM_DATE', { date: new Date(`${d.from}T00:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }) })}
+              </div>
             )}
 
             {/* Narrative */}

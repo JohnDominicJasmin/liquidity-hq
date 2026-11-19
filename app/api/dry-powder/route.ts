@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { getDryPowderNumbers } from '@/lib/dryPowderSeries';
-import { readDryPowderAnalysis } from '@/lib/dryPowderAnalysis';
+import { readDryPowderAnalysis, readLatestDryPowderAnalysis } from '@/lib/dryPowderAnalysis';
 import { hasProFeatures } from '@/lib/entitlements';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 
@@ -27,11 +27,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(await getDryPowderNumbers());
     }
     const stored = await readDryPowderAnalysis();
-    if (!stored) {
+    /* Today's text is not written yet (or the day's write is late): the most recent stored text, with the day it was written, so the card shows it dated instead of a gap. Only when nothing was ever stored is the answer "pending". */
+    const latest = stored ?? await readLatestDryPowderAnalysis();
+    if (!latest) {
       return NextResponse.json({ pending: true }, { status: 202 });
     }
     const { current, prev30, prev90, series } = await getDryPowderNumbers();
-    return NextResponse.json({ current, prev30, prev90, series, analysis: stored.analysis });
+    const today = new Date().toISOString().slice(0, 10);
+    return NextResponse.json({ current, prev30, prev90, series, analysis: latest.analysis, ...(latest.day !== today ? { from: latest.day } : {}) });
   } catch (e) {
     return apiError('dry-powder', e, 502, 'Request failed');
   }

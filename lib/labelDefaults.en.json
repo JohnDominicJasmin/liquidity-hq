@@ -3598,5 +3598,6 @@
   "STRAT_NA_TOO_FEW": "Needs {need} {tf} candles; {coin} has {have}.",
   "TG_DS_MORE_PRE": "… and",
   "TG_DS_MORE_POST": "more",
-  "BTC_RISK_LEVEL_RATIO_LABEL": "Long accounts ({venue})"
+  "BTC_RISK_LEVEL_RATIO_LABEL": "Long accounts ({venue})",
+  "DRY_POWDER_FROM_DATE": "From {date}"
 }

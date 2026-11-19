@@ -63,6 +63,12 @@ export async function readDryPowderAnalysis(nowMs = Date.now()): Promise<StoredD
   return nowMs - snap.payload.generatedAt <= DRY_POWDER_MAX_AGE_MS ? snap.payload : null;
 }
 
+/** The most recent stored text of ANY age, or null when none was ever stored (PM 2026-11-19: no failing data: when today's text is not written yet the card shows this one with its date). Never throws. */
+export async function readLatestDryPowderAnalysis(): Promise<StoredDryPowderAnalysis | null> {
+  const snap = await readSnapshot(DRY_POWDER_ANALYSIS_KEY);
+  return snap && isStored(snap.payload) ? snap.payload : null;
+}
+
 /** True when a new text should be written now: none stored, or today's not stored yet and the source has had time to post the day's point. */
 export function dryPowderRefreshDue(stored: StoredDryPowderAnalysis | null, nowMs: number): boolean {
   if (!stored) return true;
