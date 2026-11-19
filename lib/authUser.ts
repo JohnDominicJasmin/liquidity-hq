@@ -149,14 +149,6 @@ export async function userFromToken(token: string | null | undefined): Promise<T
   return user;
 }
 
-/** The token from an `Authorization: Bearer ...` header. */
-export function bearerToken(req: Request): string | null {
-  const h = req.headers.get('Authorization') ?? req.headers.get('authorization');
-  if (!h) return null;
-  const t = h.replace(/^Bearer\s+/i, '').trim();
-  return t || null;
-}
-
 /** Counts for lib/memWatch-style diagnostics and tests. */
 export function _authUserStats(): { cached: number; keys: number } {
   return { cached: state.verified.size, keys: state.jwks?.keys.size ?? 0 };
