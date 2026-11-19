@@ -53,7 +53,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
-import { binanceKlineSource, coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
+import { liqUnitsMixed, binanceKlineSource, coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF, CHART_TFS, ARENA_TFS } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
@@ -403,7 +403,7 @@ function ArenaContent() {
      re-runs when the clusters actually change rather than on every Arena
      re-render - and this page re-renders on every market tick. */
   const chartLiqClusters = useMemo(
-    () => topClustersForCoin(liqClusters, selectedCoin),
+    () => (liqUnitsMixed(selectedCoin) ? [] : topClustersForCoin(liqClusters, selectedCoin)),   // mixed-unit liquidation feed: nothing drawn, nothing quoted (lib/coins.ts liqUnitsMixed)
     [liqClusters, selectedCoin],
   );
   const absDataRef    = useRef<AbsorptionData | null>(null);
@@ -3190,7 +3190,7 @@ function ArenaContent() {
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
       <div className="arena-ws-strat">
-      <StrategyPanel overlays={overlayStates({ showSR: showSRDrawn, showLiq: showLiqDrawn, showEma, showRsi, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} layersLocked={layersLocked} onOverlayToggle={id => ((id === 'SR' || id === 'LIQ_CLUSTERS') && layersLocked ? openLayersGate() : id === 'SR' ? setShowSR(!showSR) : id === 'EMA_RIBBON' ? setShowEma(!showEma) : id === 'RSI' ? setShowRsi(!showRsi) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} runGate={runGate} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} coin={selectedCoin} tf={readTf} strategyState={strategyState} planChecking={planUnsettled} />
+      <StrategyPanel overlays={overlayStates({ showSR: showSRDrawn, showLiq: showLiqDrawn, showEma, showRsi, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} liqMixedUnits={liqUnitsMixed(selectedCoin)} layersLocked={layersLocked} onOverlayToggle={id => ((id === 'SR' || id === 'LIQ_CLUSTERS') && layersLocked ? openLayersGate() : id === 'SR' ? setShowSR(!showSR) : id === 'EMA_RIBBON' ? setShowEma(!showEma) : id === 'RSI' ? setShowRsi(!showRsi) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} runGate={runGate} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} coin={selectedCoin} tf={readTf} strategyState={strategyState} planChecking={planUnsettled} />
       </div>
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">

@@ -629,6 +629,13 @@ export function symbolDenominationFactor(symbol: string): number {
  * are a pixel conversion and a percentage distance to S/R, both scale-invariant. Revisit if
  * klinecharts fixes small-value axes - the fix is to delete this and re-apply
  * symbolDenominationFactor in the chart's fetches. */
+/* A COIN WHOSE LIQUIDATION FEED COMES IN MIXED UNITS (PM, 2026-11-20, data-integrity rule): the liquidation rows keep each event's price raw, in the contract unit of the venue that reported it, and the clusters mix both venues. Where Bybit and Binance list the coin with a DIFFERENT multiplier
+ * (sats: Bybit 10000x, Binance 1000x; tag, toshi, turbo: Bybit 1000x, Binance per-token) one cluster list holds two scales, so the Arena draws no liquidation layer and quotes no liquidation note for it. Converting at ingest is tracked on #1651 (post-freeze). */
+export function liqUnitsMixed(coin: string): boolean {
+  const v = venueSymbols(coin);
+  return !!v.bybit && !!v.binance && symbolDenominationFactor(v.bybit) !== symbolDenominationFactor(v.binance);
+}
+
 export function chartDisplaySymbol(coin: string): string {
   const prefix = BYBIT_SYMS[coin]?.startsWith('1000') ? '1000' : '';
   return `${prefix}${BY_ID.get(coin)?.ticker ?? coin.toUpperCase()}/USDT`;

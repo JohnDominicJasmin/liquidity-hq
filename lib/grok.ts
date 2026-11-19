@@ -890,7 +890,7 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     '- [reason 2]',
     '- [reason 3]',
     // #1631 B: with no cluster data both XRP runs still invented a "long flush" target. No data, no raid.
-    ...(/^\s*Not available/i.test(ctx.liqLevels ?? '') ? ['(No liquidation cluster data is available for this coin, so a raid cannot be judged: write RAID_SETUP: NONE, RAID_TARGET: N/A, RAID_TRIGGER: N/A.)'] : []),
+    ...(/^\s*Not (available|used)/i.test(ctx.liqLevels ?? '') ? ['(No liquidation cluster data is available for this coin, so a raid cannot be judged: write RAID_SETUP: NONE, RAID_TARGET: N/A, RAID_TRIGGER: N/A.)'] : []),
     'RAID_SETUP: [Analyze the liquidation clusters, long/short crowding, funding rate, and order walls to determine IF a liquidity raid is likely. Output one of: SHORT SQUEEZE (shorts overcrowded + upside liquidation cluster reachable) | LONG FLUSH (longs overcrowded + downside liquidation cluster reachable) | NONE. A raid is likely when: one side is heavily crowded AND there is a visible liquidation cluster within 2-5% of current price AND funding confirms the crowding direction.]',
     'RAID_TARGET: [The specific price level or range where the liquidation cluster sits. Format: "$X.XX" or "$X.XX – $X.XX". Write N/A if RAID_SETUP is NONE.]',
     'RAID_TRIGGER: [One sentence: the specific price action, volume, or candle pattern that would CONFIRM the raid is starting. E.g. "Break and hold above $2.05 on the 15m with volume spike triggers short liquidation cascade." Write N/A if RAID_SETUP is NONE.]',
@@ -1422,7 +1422,7 @@ export function applyResultChecks(result: CombinedResult, prompt: string, notes:
     r.confidence = 75;
   }
 
-  if (/=== REALIZED LIQUIDATION CLUSTERS[^\n]*===\s*\n\s*Not available/.test(prompt) && (r.raidSetup || r.raidTarget || r.raidTrigger)) {
+  if (/=== REALIZED LIQUIDATION CLUSTERS[^\n]*===\s*\n\s*Not (available|used)/.test(prompt) && (r.raidSetup || r.raidTarget || r.raidTrigger)) {
     r.checks.push('raid dropped: no liquidation cluster data');
     r.raidSetup = null; r.raidTarget = null; r.raidTrigger = null;
   }
