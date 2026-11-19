@@ -608,6 +608,8 @@ function ArenaContent() {
   const { usage: grokUsage, setUsage: setGrokUsage } = useGrokUsage();
   // Track last Quick signal per coin so Deep can compare and show an override notice
   const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
+  /* When each coin's Quick read was made, so a Deep read that replaces it can say so with both times (#1651: the levels of the two can differ and the card did not say which was newer). */
+  const [quickReadAt, setQuickReadAt] = useState<Partial<Record<CoinId, number>>>({});
   const [scannerOpen, setScannerOpen]   = useState(false);
   const [scannerSearch, setScannerSearch] = useState('');
   const scannerSearchRef = useRef<HTMLInputElement>(null);
@@ -1868,7 +1870,7 @@ function ArenaContent() {
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
       setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode, selectionAtAnalysis: selection, paramsAtAnalysis: settingsSig, locale, strategyAtAnalysis: strategy } }));
       // Track Quick signals separately so Deep can show an override notice when they disagree
-      if (mode === 'quick') setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal }));
+      if (mode === 'quick') { setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal })); setQuickReadAt(prev => ({ ...prev, [selectedCoin]: res.analyzedAt })); }
       setDetailIdx(null);
       setHistory(h => [{
         signal: res.signal, confidence: res.confidence,
@@ -2879,6 +2881,9 @@ function ArenaContent() {
           { id: 'cvd',     k: t('ARENA_FCHIP_WHALE_CVD'), v: coinD?.cvdDivergence === 'bullish' ? t('ARENA_FCHIP_V_BULLISH') : coinD?.cvdDivergence === 'bearish' ? t('ARENA_FCHIP_V_BEARISH') : t('ARENA_FCHIP_V_FLAT'), c: coinD?.cvdDivergence === 'bullish' ? GC : coinD?.cvdDivergence === 'bearish' ? RC : NC, a: coinD?.cvdDivergence === 'bullish' ? '↑' : coinD?.cvdDivergence === 'bearish' ? '↓' : '•' },
         ];
         const prevQuickSignal = quickSignals[selectedCoin];
+        const quickAt = quickReadAt[selectedCoin];
+        const showReplaced = cacheEntry?.mode === 'deep' && quickAt != null && Number.isFinite(quickAt) && Number.isFinite(result.analyzedAt) && quickAt < result.analyzedAt;
+        const clock = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
         const showOverride = !!(
           cacheEntry?.mode === 'deep' &&
           prevQuickSignal &&
@@ -2934,6 +2939,10 @@ function ArenaContent() {
             </div>
 
             {/* Deep override notice */}
+            {showReplaced && (
+              <div className="arena-override-notice" data-testid="deep-replaced-quick">{t('ARENA_DEEP_REPLACED_QUICK', { deep: clock(result.analyzedAt), quick: clock(quickAt!) })}</div>
+            )}
+
             {showOverride && (
               <div className="arena-override-notice">
                 {t('ARENA_OVERRIDE_NOTICE_PRE')}{' '}
@@ -3061,7 +3070,7 @@ function ArenaContent() {
         <div role="status" aria-live="polite" data-testid="arena-plan-checking" style={{ margin: '0 0 8px', fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('ARENA_PLAN_CHECKING')}</div>
       )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} liqHistOnly={liqHistOnly} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} strategyOverlay={arenaStrategy ? strategyState.result?.overlay ?? null : null} showSR={showSRDrawn} onShowSRChange={v => (layersLocked ? openLayersGate() : setShowSR(v))} showLiq={showLiqDrawn} onShowLiqChange={v => (layersLocked ? openLayersGate() : setShowLiq(v))} showEma={showEma} showRsi={showRsi} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
+      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} liqHistOnly={liqHistOnly} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} strategyOverlay={arenaStrategy ? strategyState.result?.overlay ?? null : null} strategyNoSetup={!!arenaStrategy && strategyState.result?.verdict === 'wait' && !(strategyState.result.overlay && (strategyState.result.overlay.levels.length || strategyState.result.overlay.zones.length || strategyState.result.overlay.lines.length || strategyState.result.overlay.history?.length))} showSR={showSRDrawn} onShowSRChange={v => (layersLocked ? openLayersGate() : setShowSR(v))} showLiq={showLiqDrawn} onShowLiqChange={v => (layersLocked ? openLayersGate() : setShowLiq(v))} showEma={showEma} showRsi={showRsi} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
       {/* ── Auth / upgrade notice ── BELOW THE CHART (arena layout shift, #1263). It exists only for a signed-out visitor and appears when auth resolves, about half a
           second after first paint. Above the chart it pushed the whole chart workspace down 54 px (QA's element measurement: CLS 0.041 on a CI build, 0.196 on the real network). Down here it can
           only push what is under the chart. */}

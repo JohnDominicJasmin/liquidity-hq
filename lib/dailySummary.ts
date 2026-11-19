@@ -83,20 +83,32 @@ export function squeezeLine(s: SqueezeRead): string {
   return `• <b>${s.label}</b> ${side} positioning, score ${s.score}/100${facts.length ? ` (${facts.join(', ')})` : ''}`;
 }
 
+/** The most squeeze setups one summary lists; the rest are one line, "... and N more" (PM, 2026-11-19: a user with many coins on and a low threshold got a wall of text, and past Telegram's 4096 characters the whole message is rejected). */
+export const DAILY_SUMMARY_MAX_SETUPS = 10;
+/** One message stays under this many characters (tags included, so it also holds after translation); a longer summary goes out as two messages: the moves, then the setups. Telegram's own limit is 4096. */
+export const TELEGRAM_SUMMARY_SPLIT_CHARS = 3800;
+
+/** The summary as one or two messages, in send order. Setups beyond DAILY_SUMMARY_MAX_SETUPS become "... and N more" (a start fragment, the number, an end fragment, so it localizes like the rest). */
+export function buildDailySummaryMessages(opts: {
+  dateStr: string; movers: Mover[]; setups: SqueezeRead[]; threshold: number; stamp: string;
+}): string[] {
+  const { dateStr, movers, setups, threshold, stamp } = opts;
+  const moversBlock = movers.length ? movers.map(moverLines).join('\n\n') : 'No 24 h data for the coins you have on.';
+  const shown = setups.slice(0, DAILY_SUMMARY_MAX_SETUPS);
+  const more = setups.length - shown.length;
+  const setupsBlock = setups.length
+    ? shown.map(squeezeLine).join('\n') + (more > 0 ? `\n… and ${more} more` : '')
+    : `None at or above your threshold (${threshold}).`;
+  const head = `☀️ <b>Daily Summary - ${dateStr}</b>\n\n` + `📈 <b>Biggest 24 h moves</b>\n${moversBlock}`;
+  const tail = `⚡ <b>Squeeze setups (score ${threshold}+)</b>\n${setupsBlock}\n\n` + `<i>${stamp}</i>`;
+  const whole = `${head}\n\n${tail}`;
+  return whole.length <= TELEGRAM_SUMMARY_SPLIT_CHARS ? [whole] : [head, tail];
+}
+
 export function buildDailySummaryText(opts: {
   dateStr: string; movers: Mover[]; setups: SqueezeRead[]; threshold: number; stamp: string;
 }): string {
-  const { dateStr, movers, setups, threshold, stamp } = opts;
-  const moversBlock = movers.length ? movers.map(moverLines).join('\n\n') : 'No 24 h data for the coins you have on.';
-  const setupsBlock = setups.length
-    ? setups.map(squeezeLine).join('\n')
-    : `None at or above your threshold (${threshold}).`;
-  return (
-    `☀️ <b>Daily Summary - ${dateStr}</b>\n\n` +
-    `📈 <b>Biggest 24 h moves</b>\n${moversBlock}\n\n` +
-    `⚡ <b>Squeeze setups (score ${threshold}+)</b>\n${setupsBlock}\n\n` +
-    `<i>${stamp}</i>`
-  );
+  return buildDailySummaryMessages(opts).join('\n\n');
 }
 
 interface BybitLinearTicker { symbol: string; lastPrice?: string; price24hPcnt?: string; highPrice24h?: string; lowPrice24h?: string }

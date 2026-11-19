@@ -4,6 +4,7 @@ import { useLabels } from '@/lib/labels';
 import type { StrategyDef } from '@/lib/strategies';
 import type { StrategySignalState } from '@/lib/useStrategySignal';
 import { priceText } from '@/lib/numberFormat';
+import { watchedItems } from '@/lib/strategies/chartDrawings';
 import { strategyReasonText } from '@/lib/strategies/reason';
 
 /* THE STRATEGY CALL BOX (owner decision 2026-11-14, option A: ONE strategy menu). The picked strategy's call sits DIRECTLY UNDER the "Strategy set" dropdown, inside the Strategy
@@ -27,7 +28,8 @@ export default function StrategyCallBox({ def, state }: Props) {
   const r = state.result;
   const colour = r?.verdict === 'buy' ? 'var(--green)' : r?.verdict === 'sell' ? 'var(--red)' : 'var(--txt2)';
   /* ON WAIT THE CALL BLOCK WOULD BE MOSTLY EMPTY (its height is reserved for the tallest call), so it lists the levels the strategy is watching, as text, from the same overlay data the chart draws: only 'watch' and 'confirm' levels (the wrong-if level is a BUY/SELL concern), lowest price first, at most four. Nothing is invented: no levels, no line. */
-  const watched = r && r.verdict === 'wait' ? (r.overlay?.levels ?? []).filter(l => l.role === 'watch' || l.role === 'confirm').sort((a, b) => a.price - b.price).slice(0, 4) : [];
+  /* THE SAME GEOMETRY THE CHART DRAWS, AS TEXT (owner, 2026-11-19: the chart shows it, the panel names it in one short line): the levels, the box edges of a zone and where each line ends now. */
+  const watched = watchedItems(r);
   /* The same sentence the AI read is handed for this strategy (lib/strategies/reason.ts). */
   const reason = r ? strategyReasonText(def, r, t) : '';
   /* FLAT, ANSWER FIRST (owner, 2026-11-15, PM distill pass): no card inside the panel's card and no name heading (the dropdown above already shows it). Order: the call (verdict, reason, invalidation) in the
@@ -77,7 +79,7 @@ export default function StrategyCallBox({ def, state }: Props) {
               {watched.length > 0 && (
                 <span data-testid="strategy-call-watching">
                   <span style={{ fontWeight: 600 }}>{t('STRAT_WATCHING')}: </span>
-                  {watched.map(l => `${t(l.labelKey, l.labelParams)} ${priceText(l.price)}`).join(' · ')}
+                  {watched.map(l => `${t(l.labelKey, l.labelParams)} ${l.price}`).join(' · ')}
                 </span>
               )}
             </p>
