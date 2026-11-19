@@ -185,7 +185,7 @@ export default function ConfluenceScore(
   const perpLine =
     perpSpot?.lean === 'perp' ? perpSpot.explanation
     : perpSpot?.lean === 'unknown'
-      ? 'Perps vs spot could not be measured for this coin - the score does not account for whether this move is real buying or leverage.'
+      ? t('CONFLUENCE_PERP_SPOT_NOT_USED', { n: factors.length })   // says what WAS used (PM 2026-11-20): the #340 disclosure without a failure word
       : perpSpot?.explanation ?? null;
 
   /* Only two of the four readings are a REASON TO SIZE DOWN, and only those two
