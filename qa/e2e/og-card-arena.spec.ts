@@ -1,5 +1,5 @@
 /* ONE 1200x630 CAPTURE for the social share card (PM, Dev's #2748), THIRD AND LAST TAKE after PM's review of og2-v1: PROD liquidity-hq.com/arena, signed out, dark theme, BTC 4h, Support/resistance flip, no paid AI read, nothing written or billed (GETs only; the only interaction is the local strategy menu).
- * PM's spec: viewport 1600x900 at device scale 2; hide the "Play a sound... Allow / Not now" prompt, the SIGNED OUT tag, the top nav, the Ask AI float, the news ticker, the usage line and EVERYTHING BELOW the chart row; screenshot a CLIP equal to the union box of the chart panel and the strategy panel, padded (centered) to the 1200x630 aspect 1.905:1, then resize to 1200x630 (in a scratch page with a canvas, high-quality smoothing). The clip always contains the whole union box (padding is only added, never cropped).
+ * PM's spec: viewport 1920x1300 at device scale 2 (PM said 1600x900: the chart + strategy panel box measured 1300x896 starting 217 px down, so 900 px of height cut it off and 1600 px of width could not hold the padding to 1.905:1; the taller, wider viewport only adds room, the clip is the same box); hide the "Play a sound... Allow / Not now" prompt, the SIGNED OUT tag, the top nav, the Ask AI float, the news ticker, the usage line and EVERYTHING BELOW the chart row; screenshot a CLIP equal to the union box of the chart panel and the strategy panel, padded (centered) to the 1200x630 aspect 1.905:1, then resize to 1200x630 (in a scratch page with a canvas, high-quality smoothing). The clip always contains the whole union box (padding is only added, never cropped).
  * Prints the union box, the clip, what was hidden and what is left; saves qa/.shots/og3-clip-2x.png (the raw 2x clip) and qa/.shots/og3-final-1200x630.png (the deliverable; CI artifact `qa-screenshots-*`). Asserts only that the chart rendered and the final file is 1200x630. */
 import { test, expect, type Page } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -8,7 +8,7 @@ mkdirSync('qa/.shots', { recursive: true });
 
 test('OG capture final: /arena BTC 4h, S/R flip, 1600x900 at scale 2, clip = chart + strategy panel, resized to 1200x630', async ({ browser }) => {
   test.setTimeout(240_000);
-  const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 2 });
+  const ctx = await browser.newContext({ viewport: { width: 1920, height: 1300 }, deviceScaleFactor: 2 });
   await ctx.addInitScript(() => { try { localStorage.setItem('theme', 'dark'); localStorage.setItem('lhq_lang_v1', 'en'); localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ } });
   const page: Page = await ctx.newPage();
   try {
@@ -30,6 +30,7 @@ test('OG capture final: /arena BTC 4h, S/R flip, 1600x900 at scale 2, clip = cha
       for (const el of leaves) { const t = (el.textContent || '').trim(); if (!t) continue;
         if (/play a sound/i.test(t) && t.length < 200 && el.children.length === 0) { hide(fixedOrSelf(el), 'sound-prompt'); }
         else if (/^(signed out)$/i.test(t) && el.children.length === 0) { hide(el, 'signed-out'); }
+        else if (/^(not now|allow)$/i.test(t) && el.children.length === 0) { hide(fixedOrSelf(el), 'sound-btn'); }
         else if (/^(ask\s*(ai|liquidityai))$/i.test(t) && el.children.length === 0) { hide(fixedOrSelf(el), 'ask-ai'); } }
       // 3) the chart panel and the strategy panel
       const chart = document.querySelector('.klc-wrap') as HTMLElement | null; const sel = document.querySelector('[data-testid="strategy-set-select"]') as HTMLElement | null; const box = document.querySelector('[data-testid="strategy-call-box"]') as HTMLElement | null;
