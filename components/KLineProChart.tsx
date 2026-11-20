@@ -1878,6 +1878,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             /* A LINE WHOLLY OFF THE VISIBLE PRICE WINDOW STILL SHOWS (same rule as the level line above): its label goes to the pane edge it lies beyond, with an arrow. */
             const paneH = bounding?.height ?? 300;
             const wholeAbove = pts.every(q => q.y < 0), wholeBelow = pts.every(q => q.y > paneH);
+            /* A LINE WHOLLY LEFT OF THE VISIBLE CANDLES STILL SHOWS (QA drawings audit R4 #1263: XAU 1h at 390 px, the channel's and the RSI divergence's swing lines lay left of the 307 px pane; AAPL's last-session VWAP too): its label sits at the left edge at the line's height, with an arrow. */
+            const wholeLeft = pts.every(q => q.x < 0);
+            if (wholeLeft && !wholeAbove && !wholeBelow) {
+              const ly = Math.min(paneH - 10, Math.max(10, pts[pts.length - 1].y));
+              return [{ type: 'text', attrs: { x: 4, y: ly, text: `← ${text}`, align: 'left', baseline: 'middle' }, styles: labelStyles(roleInk(role)) }];
+            }
             if (wholeAbove || wholeBelow) {
               return [{ type: 'text', attrs: { x: (bounding?.width ?? 9999) - 6, y: wholeAbove ? 12 + (slot ?? 0) * 17 : paneH - 12 - (slot ?? 0) * 17, text: `${text} ${wholeAbove ? '↑' : '↓'}`, align: 'right', baseline: wholeAbove ? 'top' : 'bottom' }, styles: labelStyles(roleInk(role)) }];
             }
