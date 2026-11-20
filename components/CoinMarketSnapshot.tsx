@@ -58,7 +58,13 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
    * as a finished value - the same unknown-shown-as-pending defect as #2119 and #2125. */
   /* currencyPrefix, not a literal $ (#2196): an HKD coin's VWAP read HK$ everywhere else on the page and $ here. */
   /* IN THE ARENA'S PRICE UNIT (PM, 2026-11-20, QA on qa 378cf39: pepe showed $0.00000383 beside a $0.0038 chart): the store's VWAP is per-token; this card is on the Arena only, whose prices for a 1000x contract are in the chart's unit (arenaPriceUnit, lib/coins.ts; 1 for every other coin). The percent beside it is scale-free. */
-  const vwapStr = vwap != null ? currencyPrefix(coin) + fmtPrice(vwap * arenaPriceUnit(coin), COIN_DEC[coin]) : null;
+  /* DECIMALS OF THE CHART'S UNIT (PM, 2026-11-20): COIN_DEC is the per-token precision (pepe 8), so the 1000x value printed "$0.00383500". A 1000x coin drops the decimals the multiplier gave up (log10 of it: 3 for 1000x) and trims trailing zeros (at least two decimals stay): "$0.00384", the chart axis's precision. Ordinary coins unchanged. */
+  const unit = arenaPriceUnit(coin);
+  const vwapStr = vwap != null
+    ? currencyPrefix(coin) + (unit === 1
+      ? fmtPrice(vwap, COIN_DEC[coin])
+      : (vwap * unit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: Math.max(2, (COIN_DEC[coin] ?? 2) - Math.round(Math.log10(unit))) }))
+    : null;
 
   /* #1613: the label and the number beside it come from the SAME hour. `store.oiTrend` is a different window (~3h at first load, ~25 min once the
      poll has filled its history) and made the label contradict the 1h figure and flip as its source changed, so this card no longer reads it.
