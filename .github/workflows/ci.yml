@@ -1086,6 +1086,7 @@ jobs:
           # skip the build entirely. See the input's own comment for why a remote
           # run is NOT the same measurement as the gate run.
           E2E_BASE_URL: ${{ inputs.base_url }}
+          E2E_ALLOW_BILLED_CALLS: '1'   # QA 2026-11-20: SIX billed Quick reads on the deployed qa build (#2721), approved by PM; this test ref only
 
           # THE TEAM-ONLY GATE (#2636): dev, qa and staging answer 401 without this password. Empty until the owner's secret exists, and then playwright.config.ts sends it (as HTTP Basic, to the origin under test only,
           # never to production). An empty secret changes nothing: the config adds no credentials.
