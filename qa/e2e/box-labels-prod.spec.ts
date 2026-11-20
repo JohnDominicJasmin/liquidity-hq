@@ -24,7 +24,7 @@ for (const theme of ['dark', 'light'] as const) {
     await ctx.routeWebSocket(/(bybit|bytick|binance)/, (ws) => { ws.close(); });
     const page = await ctx.newPage();
     /* NOTHING PAID CAN REACH THE SERVER FROM THIS SPEC: every AI route is aborted inside my browser before it is sent */
-    let aiAttempts = 0; await page.route(//api/(grok|grok-chat|thesis-check|strategy-research|pine-script|shadow-account|behavioral-bias|macro-context|briefing|dry-powder|onchain)(?|/|$)/, (r) => { aiAttempts++; return r.abort(); });
+    let aiAttempts = 0; const AI_PATHS = ['/api/grok', '/api/thesis-check', '/api/strategy-research', '/api/pine-script', '/api/shadow-account', '/api/behavioral-bias', '/api/macro-context', '/api/briefing', '/api/dry-powder', '/api/onchain']; await page.route((u) => AI_PATHS.some((p) => u.pathname === p || u.pathname.startsWith(p + '-') || u.pathname.startsWith(p + '/')), (r) => { aiAttempts++; return r.abort(); });
     const lim = (u: string) => Number(new URL(u).searchParams.get('limit') ?? '300');
     await page.route('**/api/market/klines**', (r) => {
       const u = new URL(r.request().url()), n = fx.candles.slice(-Math.min(lim(r.request().url()), fx.candles.length));
