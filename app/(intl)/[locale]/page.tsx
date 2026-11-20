@@ -51,10 +51,12 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
    * COMPOSED FROM `hero.h1Line1` + `h1Line2` rather than written here. Those are the page's own
    * headline, already translated and already approved in the copy batch, so this invents no new
    * Korean or Chinese marketing copy - which is not mine to write. A translated equivalent of the
-   * English title ("Crypto Liquidity, Funding & Squeeze Analytics") would be exactly that.
+   * English title ("Crypto Liquidity, Funding, Squeeze Analytics") would be exactly that.
    *
    * Twitter was absent entirely, so those two pages fell back to the root's English card. */
-  const localisedTitle = `${dict.hero.h1Line1} ${dict.hero.h1Line2} - LiquidityHQ`;
+  /* UNDER 60 CHARACTERS (SEO audit, PM 2026-11-20): the Russian headline plus the brand was 69 and a search result truncates near 60, so a title that would run over drops the brand suffix. The other three locales are 28-53 and keep it. */
+  const fullTitle = `${dict.hero.h1Line1} ${dict.hero.h1Line2} - LiquidityHQ`;
+  const localisedTitle = fullTitle.length < 60 ? fullTitle : `${dict.hero.h1Line1} ${dict.hero.h1Line2}`;
   return {
     title: localisedTitle,
     description: dict.hero.sub,
