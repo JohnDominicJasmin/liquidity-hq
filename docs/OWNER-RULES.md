@@ -750,25 +750,24 @@ Tracked on #1651.
   deploy), and even then never when he is resting.
 - If a tool blocks the suggestion, do everything else, and do not ask him to click anything.
 
-## 24. AT MOST TWO BACKGROUND TASKS EACH IN DEV AND QA (SET 2026-11-19, FINAL FOR NOW)
+## 24. NO BACKGROUND HELPERS. EACH SESSION WORKS ALONE, ONE ITEM AT A TIME (SET 2026-11-20)
 
-**Owner, 2026-11-19, first-hand to PM:** *"I think 2 background tasks maximum each. So 2 for dev, 2 for QA. That's maximum."*
+**Owner, 2026-11-20, first-hand to PM:** *"stop running multiple bg task after QA finished, my tokens are consumed too fast"*.
 
-This is the current rule, and it is a maximum, not a target: use the helpers when there is real parallel
-work. The same day went through several settings, all about cost:
+This is the current rule. Dev, QA and PM each work in their own session, one item at a time, with no
+background helpers or subagents. Running helpers finish their current task and are not restarted.
 
-- **2026-11-18:** parallel lanes, no cap. Agents re-read the code at 100-300k tokens each; limits hit within hours.
-- **2026-11-19 morning:** one item at a time, no background agents.
-- **2026-11-19 evening:** two each, then one each (*"too consuming"*), then two each as the maximum.
+The history, kept because every change was about cost:
+
+- **2026-11-18:** parallel lanes, no cap; usage limits hit within hours.
+- **2026-11-19:** one item at a time; then two helpers each; then one; then two as the maximum.
+- **2026-11-20:** none. Two helpers each used tokens too fast.
 
 How to apply it:
 
-- **Dev and QA each run their own session plus at most TWO background tasks.**
-- **PM gives each helper a lane that touches different files** from the session and the other helper.
-- **Each helper gets a narrow brief** (only its section of the tracker, the files to read, what to prove), so it
-  does not re-read the codebase.
-- **Heavy browser runs go to GitHub Actions**, which do not use the session's tokens.
-- If the sessions start hitting their usage limits, PM cuts to one helper and tells the owner in one line.
+- **No helpers, no subagents**, in any session. PM applies label migrations inline.
+- **Heavy browser runs still go to GitHub Actions**, which do not use the session's tokens.
+- **Nobody sits idle while tracker boxes are open** (owner, 2026-11-20): one item at a time is not zero items.
 
 ## 25. NO WORDY TEXT. THE APP IS NOT AN ESSAY OR A DIARY.
 
