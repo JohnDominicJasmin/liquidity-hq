@@ -74,7 +74,8 @@ export async function callGrokViaProxy(
   }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { error?: string; code?: string; refunded?: boolean; usage?: GrokUsageInfo };
+    /* `?? {}`: a failure whose body is the JSON literal `null` parsed to null and threw a TypeError at the first `err.` read, before any code or log line (QA review of #2723). */
+    const err = ((await res.json().catch(() => ({}))) ?? {}) as { error?: string; code?: string; refunded?: boolean; usage?: GrokUsageInfo };
     // The Pro gate (#1263) answers 403 { error: 'PRO_REQUIRED', message } with the code in
     // `error`, not `code`. Passed on as a code so the caller can show its own labelled locked
     // state - used as the message it reached Arena's banner as the raw text "PRO_REQUIRED".
@@ -98,10 +99,17 @@ export async function callGrokViaProxy(
     if (err.code === 'COIN_NOT_TRACKED') {
       throw Object.assign(new Error('COIN_NOT_TRACKED'), { code: 'COIN_NOT_TRACKED', usage: err.usage });
     }
+    /* A SERVER FAILURE NAMES ITSELF IN THE CONSOLE (#1651): six signed-in 502s on a Deep click were seen and the URL was never identified, because the
+       thrown error carried only the server's sentence. One fixed line: method, path, status, read type and the server's error code (a closed
+       upper-case word, or 'none' for a proxy page with no JSON). No query string, token, header, request body, user id or email can reach it. */
+    if (res.status >= 500) {
+      const code = typeof err.code === 'string' && /^[A-Z_]{1,32}$/.test(err.code) ? err.code : 'none';
+      console.error(`[read] POST /api/grok ${res.status} ${type} ${code}`);
+    }
     const msg = err.code === 'RATE_LIMIT'
       ? `${err.error ?? 'Rate limit reached.'} Resets at ${nextResetLocalTime()}.`
       : err.error ?? 'The AI read failed. Try again.';  // never the vendor name (product UI says "AI" only)
-    throw Object.assign(new Error(msg), { code: err.code, refunded: err.refunded, usage: err.usage });
+    throw Object.assign(new Error(msg), { code: err.code, refunded: err.refunded, usage: err.usage, status: res.status });
   }
 
   /* The answer is checked here, once, because every reader downstream (the page's raid alert, the result card, the history, the saved
