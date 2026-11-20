@@ -67,11 +67,23 @@ export function useOI1h(coin: CoinId): OI1hData {
   const [data, setData]   = useState<OI1hData>({ coin, oiUsd: null, pct: null, pricePct: null, loading: true, reason: 'failed' });
   const mountedRef        = useRef(true);
   const fetchingRef       = useRef(false);
+  /* A FAILED READ IS NOT A FAILURE LINE UNTIL THE SECOND IN A ROW, AND NEVER REPLACES A LAST GOOD VALUE (failing-text sweep 2, owner's rule via PM 2026-11-20): the first failed read with nothing on screen keeps the loading state; a failed poll after a good read keeps the last good figures; only two failures in a row with nothing to keep say so. */
+  const failsRef          = useRef(0);
+  const lastGoodRef       = useRef<Omit<OI1hData, 'loading'> | null>(null);
 
   useEffect(() => {
     mountedRef.current  = true;
     fetchingRef.current = false;
+    failsRef.current    = 0;
+    lastGoodRef.current = null;
     setData({ coin, oiUsd: null, pct: null, pricePct: null, loading: true, reason: 'failed' });
+
+    const onFailedRead = () => {
+      failsRef.current += 1;
+      if (lastGoodRef.current) { const kept = lastGoodRef.current; setData({ ...kept, loading: false }); return; }
+      if (failsRef.current < 2) { setData(prev => ({ ...prev, loading: true })); return; }
+      setData(prev => ({ ...prev, loading: false }));
+    };
 
     const load = async () => {
       if (fetchingRef.current) return;
@@ -162,9 +174,12 @@ export function useOI1h(coin: CoinId): OI1hData {
           }
         }
 
-        if (mountedRef.current) setData({ ...result, loading: false });
+        if (mountedRef.current) {
+          if (result.reason === 'failed') onFailedRead();
+          else { failsRef.current = 0; if (result.reason === 'ok') lastGoodRef.current = result; setData({ ...result, loading: false }); }
+        }
       } catch {
-        if (mountedRef.current) setData(prev => ({ ...prev, loading: false }));
+        if (mountedRef.current) onFailedRead();
       } finally {
         fetchingRef.current = false;
       }
