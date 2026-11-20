@@ -84,5 +84,3 @@ for (const route of routes) {
   for (const r of rows.sort((a, b) => b.gz - a.gz).slice(0, 14)) log(`| ${path.basename(r.url)}${r.missing ? ' (missing)' : ''} | ${r.kind} | ${kb(r.raw)} | ${kb(r.gz)} | ${r.kind === 'script' && !r.missing ? recognise(readFileSync(fileFor(r.url), 'utf8')) : ''} |`);
 }
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, '## First-load weight (built HTML)\n```\n' + out.join('\n') + '\n```\n');
-
-// throwaway: touches this file so the Bundle stats job runs on PR 2730; drop this commit before merge
