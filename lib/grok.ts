@@ -74,7 +74,8 @@ export async function callGrokViaProxy(
   }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { error?: string; code?: string; refunded?: boolean; usage?: GrokUsageInfo };
+    /* `?? {}`: a failure whose body is the JSON literal `null` parsed to null and threw a TypeError at the first `err.` read, before any code or log line (QA review of #2723). */
+    const err = ((await res.json().catch(() => ({}))) ?? {}) as { error?: string; code?: string; refunded?: boolean; usage?: GrokUsageInfo };
     // The Pro gate (#1263) answers 403 { error: 'PRO_REQUIRED', message } with the code in
     // `error`, not `code`. Passed on as a code so the caller can show its own labelled locked
     // state - used as the message it reached Arena's banner as the raw text "PRO_REQUIRED".
