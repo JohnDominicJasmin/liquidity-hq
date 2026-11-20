@@ -1144,6 +1144,8 @@ export default function MarketProvider(
         '/api/proxy?type=llama-stables&includePrices=true',
         { cache: 'no-cache' }
       );
+      /* A FAILED READ KEEPS THE LAST SUPPLY (PM route audit, 2026-11-20): a 502 body has no peggedAssets, so the "both coins must answer" check below read it as an unknown supply and wrote null over the last good figures. */
+      if (!res.ok) return;
       const data = await res.json();
       type Pegged = { peggedUSD?: number };
       const coins: Array<{ symbol: string; circulating: Pegged; circulatingPrevWeek?: Pegged; circulatingPrevMonth?: Pegged }> =
