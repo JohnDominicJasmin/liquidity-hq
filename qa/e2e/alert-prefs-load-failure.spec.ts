@@ -39,7 +39,7 @@ test.describe('#1309 item 10: alerts page must not re-seed mutes when the prefs 
     'this spec spawns its own local server with a Node --require hook - it cannot run against a ' +
     'deployed service, the same limitation qa/server-intercept.mjs documents in playwright.config.ts');
 
-  test('a forced GET /api/alert-prefs failure shows the load-failed banner and fires zero POSTs; the next load recovers unchanged', async ({ browser }) => {
+  test('a TRANSIENT GET /api/alert-prefs failure is retried quietly: no banner, zero POSTs, the next load recovers unchanged', async ({ browser }) => {
     const authRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method: 'POST',
       headers: { apikey: SUPABASE_ANON, 'Content-Type': 'application/json' },
@@ -91,10 +91,16 @@ test.describe('#1309 item 10: alerts page must not re-seed mutes when the prefs 
         'exact re-seeding bug item 10 describes: a DB hiccup must never look like a brand-new user ' +
         "and overwrite the account's real mute choices.").toBe(0);
 
+      /* RE-PINNED 2026-11-20 for the quiet retries of release v2026.11.22: a failed read is retried at 3 s / 10 s / 30 s with the toggles on their loading bars, and the banner shows only once the retries are used up. fail-once fires ONCE, so the
+         first retry (3 s) lands against the real backend: a SECOND GET, no banner, still zero POSTs, and the page ends loaded from the real read. The banner after a PERSISTENT failure is the next test. */
       const banner = page.getByText(/Couldn't load your mute preferences/i);
-      await expect(banner,
-        'the load-failed banner never rendered - a failed read must never be silently treated as ' +
-        'success').toBeVisible({ timeout: 10_000 });
+      await expect.poll(() => requests.filter(r => r.method === 'GET').length, {
+        message: 'no quiet retry: the page gave up after one failed read (or never read twice), so a transient blip is still shown to the user',
+        timeout: 30_000,
+      }).toBeGreaterThanOrEqual(2);
+      await page.waitForTimeout(3_000);
+      await expect(banner, 'the banner showed for a TRANSIENT failure that the quiet retry recovered').toHaveCount(0);
+      expect(requests.filter(r => r.method === 'POST').length, 'a POST fired during or after the retried read: the re-seeding bug (item 10)').toBe(0);
 
       // ── Second load, same process: fail-once already fired once, so this ──
       // is a REAL request against the real backend, not another mock.
@@ -108,6 +114,46 @@ test.describe('#1309 item 10: alerts page must not re-seed mutes when the prefs 
       await expect(banner,
         'the load-failed banner is still showing on a normal, unforced load - either the failure ' +
         'state never cleared or this load failed too, which this run cannot distinguish').toBeHidden({ timeout: 10_000 });
+    } finally {
+      await ctx.close();
+      await server.stop();
+    }
+  });
+
+  test('a PERSISTENT GET /api/alert-prefs failure shows the load-failed banner only after the quiet retries, with zero POSTs; the next load recovers', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const authRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: FIXTURES.aEmail, password: FIXTURES.aPassword }),
+    });
+    const session = await authRes.json();
+    expect(session?.access_token, `sign-in failed: HTTP ${authRes.status}`).toBeTruthy();
+    const ref = new URL(SUPABASE_URL).hostname.split('.')[0];
+
+    const server = await startFailOnceServer({ match: 'muted_alerts', status: 504 });
+    const ctx = await browser.newContext({ baseURL: server.baseURL, viewport: { width: 1440, height: 900 } });
+    const page = await ctx.newPage();
+    let failing = true; const requests: { method: string }[] = [];
+    await page.route(/\/api\/alert-prefs(\?|$)/, async (route) => { requests.push({ method: route.request().method() }); if (failing && route.request().method() === 'GET') return route.fulfill({ status: 504, contentType: 'application/json', body: JSON.stringify({ error: 'qa: forced' }) }); return route.fallback(); });
+    try {
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      await page.evaluate(([k, v]) => localStorage.setItem(k as string, v as string), [
+        `sb-${ref}-auth-token`,
+        JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token, expires_in: session.expires_in, expires_at: Math.floor(Date.now() / 1000) + session.expires_in, token_type: 'bearer', user: session.user }),
+      ] as [string, string]);
+      await page.goto('/alerts', { waitUntil: 'domcontentloaded' });
+      const banner = page.getByText(/Couldn't load your mute preferences/i);
+      await page.waitForTimeout(8_000);
+      await expect(banner, 'the banner showed before the quiet retries were used up (3 / 10 / 30 s)').toHaveCount(0);
+      await expect(banner, 'the load-failed banner never rendered after every retry failed - a failed read must never be silently treated as success').toBeVisible({ timeout: 90_000 });
+      expect(requests.filter(r => r.method === 'GET').length, 'the page did not retry before showing the banner').toBeGreaterThanOrEqual(3);
+      expect(requests.filter(r => r.method === 'POST').length, 'a POST fired during a FAILED read: the re-seeding bug (item 10)').toBe(0);
+
+      failing = false; requests.length = 0;
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await expect.poll(() => requests.some(r => r.method === 'GET'), { message: 'GET /api/alert-prefs was never attempted on the recovery load', timeout: 20_000 }).toBe(true);
+      await expect(banner, 'the banner is still showing on a normal, unforced load').toBeHidden({ timeout: 15_000 });
     } finally {
       await ctx.close();
       await server.stop();
