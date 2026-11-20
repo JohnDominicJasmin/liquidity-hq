@@ -46,6 +46,8 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let lastOkAt = Date.now();
+    /* THE UNAVAILABLE STATE ONLY AFTER THE SECOND FAILED READ IN A ROW (failing-text sweep 2, owner's rule via PM 2026-11-20): the first failure with no earlier call keeps the loading skeleton and the 45 s retry runs; a second one shows it. A failure after a good call keeps that call (below). */
+    let fails = 0;
     const run = async () => {
       let failed = false;
       try {
@@ -61,6 +63,7 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
            button that could never help. It is an honest end state: the call box says how many the strategy needs and how many this coin has. */
         /* NO CANDLES AT ALL IS A FAILED READ, NOT "THE COIN HAS 0" (QA drawings audit #1263: BTC 1d said "BTC has 0"): the catch below keeps the last good call or shows the retry state. */
         if (!closed.length) throw new Error('no candles');
+        fails = 0;   /* a read that yields candles resets the count; an empty one is a failed read and must not (QA review of #2732) */
         if (closed.length < def.minCandles) { setState({ result: null, loading: false, error: false, unavailable: { reasonKey: 'STRAT_NA_TOO_FEW', vars: { need: String(def.minCandles), tf, coin: coin.toUpperCase(), have: String(closed.length) } } }); }
         else {
           /* THE LIVE INPUTS OF THE DERIVATIVES STRATEGIES (phase 2): funding from the page's own feed, open interest history and taker volume read now. A failed read is simply absent, which the strategy answers as "needs live data" / "needs taker data", never as no signal. */
@@ -85,7 +88,8 @@ export function useStrategySignal(coin: CoinId, tf: string, strategyId: string |
         }
       /* A FAILED REFRESH KEEPS THE PREVIOUS CALL (audit A10, owner's feature-freeze order: last good value with its age, not a failure line). Only when there never was a call does the unavailable state show. */
       } catch {
-        if (!cancelled) setState(prev => (!prev.result ? { result: null, loading: false, error: true } : { ...prev, loading: false, error: false, staleSince: prev.staleSince ?? lastOkAt }));
+        fails += 1;
+        if (!cancelled) setState(prev => (!prev.result ? (fails >= 2 ? { result: null, loading: false, error: true } : { result: null, loading: true, error: false }) : { ...prev, loading: false, error: false, staleSince: prev.staleSince ?? lastOkAt }));
         failed = true;
       }
       /* a failed read tries again within a minute; waiting for the next candle close meant 15 min to 24 h of nothing */

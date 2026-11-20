@@ -389,7 +389,8 @@ export default function MarketProvider(
         } catch { return null; }
       })();
       if (!d || !Array.isArray(d.result?.list)) {
-        setScannerFeed({ universe: 'failed', binanceOnly: 'failed' });
+        /* THE WORD ONLY AFTER THE RETRIES ARE USED (failing-text sweep 2, owner's rule via PM 2026-11-20): until then the cells keep their loading ellipsis (or the last good price); 'failed' is set once the two capped retries (30 s and 60 s) have run. */
+        if (scannerRetryRef.current >= 2) setScannerFeed({ universe: 'failed', binanceOnly: 'failed' });
         if (scannerRetryRef.current < 2 && !scannerRetryTimer.current) {
           scannerRetryRef.current += 1;
           scannerRetryTimer.current = setTimeout(() => { scannerRetryTimer.current = null; fetchBybit(); }, 30_000 * scannerRetryRef.current);
@@ -556,7 +557,8 @@ export default function MarketProvider(
           }
         } catch { /* a missed cycle keeps the last values; the next poll retries */ }
       }
-      setScannerFeed({ binanceOnly: bnAnswered ? 'ok' : 'failed' });
+      if (bnAnswered) setScannerFeed({ binanceOnly: 'ok' });
+      else if (scannerRetryRef.current >= 2) setScannerFeed({ binanceOnly: 'failed' });   // the word only after the retries are used (see above)
       if (bnAnswered) scannerRetryRef.current = 0;
       else if (scannerRetryRef.current < 2 && !scannerRetryTimer.current) {
         scannerRetryRef.current += 1;
