@@ -6457,11 +6457,12 @@ html[lang="ar"] .lp-h1-accent {
    same row as the Ask AI FAB, clear of the mobile tab bar. */
 /* DESKTOP TOO (#1185, QA at ~1200 px: the collapsed pill floated at bottom: 140 over the settings card). Same row as the FAB, just to its left: the FAB is 64 px at right: 20, bottom: 24, the pill about 36 px tall, so bottom 38 centres it on the FAB and right 94 clears it by 10. The phone rule below still wins at 640 px and under. */
 .ob-checklist.ob-checklist-mini { bottom: 38px; right: 94px; }
-/* THE SETUP CARD STAYS OFF THE ARENA'S RIGHT RAIL (PM, 2026-11-20, visual sign-off #2706: the "Setup 3/4" pill sat on the strategy panel's CHART layer chips at 1280, next to Ask AI, hiding two of them). Where the Arena has its side rail (the 352 px column, from 1100 px up) the pill and the expanded card
-   move left of it: 372 px = the rail plus a 20 px gap, so no panel control is covered. Every other page keeps the places above. */
-@media (min-width: 1100px) {
-  body:has(.at-rail) .ob-checklist.ob-checklist-mini,
-  body:has(.at-rail) .ob-checklist:not(.ob-checklist-mini) { right: 372px; }
+/* THE SETUP CARD STAYS OFF THE ARENA'S RIGHT RAIL (PM, 2026-11-20, visual sign-off #2706: the "Setup 3/4" pill sat on the strategy panel's CHART layer chips at 1280, next to Ask AI, hiding two of them; QA's first measurement showed the first version keyed on a class nothing renders).
+   The Arena's side rail is `.arena-ws-rail` (a 320 px grid column plus a 14 px gap, from 981 px up; below that the workspace is one column). The pill and the expanded card sit to the LEFT of it: the rail's offset from the right edge is the content gutter (half of what the 1340 px page leaves free, never below 0) + the page's 20 px
+   padding + 320 + 14, so no rail control is under the card at any width. Every other page, and every width under 981 px, keeps the places above. */
+@media (min-width: 981px) {
+  body:has(.arena-ws-rail) .ob-checklist.ob-checklist-mini,
+  body:has(.arena-ws-rail) .ob-checklist:not(.ob-checklist-mini) { right: calc(max(0px, (100vw - 1340px) / 2) + 354px); }
 }
 .ob-cl-mini-text { font-size: var(--fs-caption); font-weight: 600; color: var(--txt2); white-space: nowrap; }
 .ob-cl-mini-track {
