@@ -3,7 +3,7 @@ import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS, venueSymbols } from '@/lib/marketStore';
 import { currencyPrefix } from '@/lib/coins';
-import { symbolDenominationFactor, binanceKlineSource } from '@/lib/coins';
+import { symbolDenominationFactor, binanceKlineSource, arenaPriceUnit } from '@/lib/coins';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
@@ -152,7 +152,9 @@ export default function MarketStructure({ coin, onData }: Props) {
         const r = await fetch(`/api/market/klines?source=${binanceKlineSource(coin)}&symbol=${binSym}&interval=4h&limit=100`, { signal: deadlineSignal(20_000) });
         if (!r.ok) throw new Error('Binance 4H fetch failed');
         const raw = await r.json() as (string | number)[][];
-        candles = raw.map(k => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] }));
+        /* IN THE ARENA'S PRICE UNIT (PM, 2026-11-20, QA on #2706: the card and the AI context quoted per-token swings beside a per-1000 price): per-token first (the symbol's own denomination), then the coin's Arena unit (arenaPriceUnit, lib/coins.ts). 1 for ordinary coins. */
+        const bf = symbolDenominationFactor(binSym) * arenaPriceUnit(coin);
+        candles = raw.map(k => ({ t: +k[0], o: +k[1] * bf, h: +k[2] * bf, l: +k[3] * bf, c: +k[4] * bf, v: +k[5] }));
       } else if (bytSym) {
         // #1080: retry shared with every other Bybit-klines caller (see
         // lib/bybitKlines.ts). Exhaustion throws into this function's
@@ -163,7 +165,7 @@ export default function MarketStructure({ coin, onData }: Props) {
         // Per-1000 quoting on 1000PEPEUSDT / 1000BONKUSDT. This card prints the
         // broken level and both swing levels as dollar prices, so without the
         // factor they read 1000x against the ticker right above them.
-        const pf = symbolDenominationFactor(bytSym);
+        const pf = symbolDenominationFactor(bytSym) * arenaPriceUnit(coin);   // per-token, then the Arena's unit (1000x coins quote the chart's unit)
         candles = [...(d.result?.list ?? [])].reverse().map(k => ({
           t: +k[0], o: +k[1] * pf, h: +k[2] * pf, l: +k[3] * pf, c: +k[4] * pf, v: +k[5],
         }));
