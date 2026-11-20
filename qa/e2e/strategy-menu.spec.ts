@@ -2,8 +2,8 @@
  * choice back. Candles are the real ones of the build under test (the CI stand-in market) unless a cell fails them on purpose.
  *   M1  the menu: Let the read choose, the sixteen strategies grouped as #2516 ships them (+ bos_fvg, #2566), Custom; no old presets, no duplicate label, no raw key; in en and ru
  *   M2  PM's rules: picking a strategy never removes chips (six write arena_strategy ONLY; Bollinger squeeze ADDS BOLL and writes both in ONE request); a chip tap keeps the strategy; Let the read choose / Custom write arena_strategy: null only
- *   M3  the call box sits directly under the dropdown inside the same panel with name, description, verdict + reason, the signals-not-predictions line; Let the read choose and Custom show no call box; a failed candle read
- *       is the UNAVAILABLE state (never WAIT), and so is supply / demand when only the BTC read fails
+ *   M3  the call box sits directly under the dropdown inside the same panel with name, description, verdict + reason, the signals-not-predictions line; Let the read choose and Custom show no call box
+ *   M3u a failed candle read is the LOADING skeleton first and the UNAVAILABLE state only after the SECOND failed read in a row (~50 s; never WAIT), and so is supply / demand when only the BTC read fails (RE-PINNED 2026-11-20 for #2732; M3u, M3u-ny, M3u-btc)
  *   M4  a saved old-preset chip set (no strategy id) shows Custom with every chip intact and NOTHING is written on load
  *   M5  an unknown stored strategy id falls back to Let the read choose, no call box, nothing written
  *   M7  no sideways scroll at 390, 768 and 1280, dark and light, with a call box open; shots named strategy-menu-<width>-<theme>.png
@@ -200,22 +200,47 @@ test.describe('one strategy menu (#2358)', () => {
     } finally { await ctx.close(); }
   });
 
-  test('M3u. a failed candle read is the UNAVAILABLE state for every strategy, never WAIT; supply / demand is unavailable when only BTC fails', async ({ browser }) => {
-    const a = await openArena(browser, { saved: null, chips: [], failKlines: 'all' });
+  /* RE-PINNED 2026-11-20 for #2732 (PM option A, "retries first, the word only after them"; written rule: a FAILED candle read from load shows the LOADING skeleton first, and the unavailable state only after the SECOND failed read in a row, a 45 s retry later, about 50 s from load; failKlines 'all' still ends in the unavailable state, later).
+   * M3u used to expect `strategy-call-unavailable` within 20 s of every pick, which is older than the change. It now pins the order: at the first look (about 12 s after load, or 6 s after a pick) the box shows the SKELETON, no unavailable state and no verdict (never WAIT); the unavailable state is NOT there yet and MUST be there by the end of a 100 s window.
+   * Every pick restarts the hook (a new strategy is a new read with its own count), so the end state is awaited for the strategy saved at load (the "about 50 s from load" case), for the LAST strategy picked, and for NY open on 15m / supply-demand-with-BTC-failing in their own tests; the strategies in between are pinned on the skeleton, never a verdict. The control for all of it is the same flow with no failure (M3, M2c, M6s: a verdict and no unavailable state). */
+  const NOT_YET = 'a failed read must show the loading skeleton first: the unavailable state may only appear after the second failed read in a row (about 50 s)';
+  const unavailableBy = async (p: Page, what: string) => { await expect(p.getByTestId('strategy-call-unavailable'), `${what}: the unavailable state never appeared after the retry (two failed reads, about 50 s from the start)`).toBeVisible({ timeout: 100_000 }); await expect(p.getByTestId('strategy-call-verdict'), `${what}: a verdict (WAIT) is showing next to a failed read`).toHaveCount(0); await expect(p.getByTestId('strategy-call-loading'), `${what}: the skeleton is still showing once the unavailable state is`).toHaveCount(0); };
+  const skeletonNow = async (p: Page, what: string) => { await expect(p.getByTestId('strategy-call-loading'), `${what}: no loading skeleton on the first failed read`).toBeVisible({ timeout: 5_000 }); await expect(p.getByTestId('strategy-call-unavailable'), `${what}: ${NOT_YET}`).toHaveCount(0); await expect(p.getByTestId('strategy-call-verdict'), `${what}: a verdict (WAIT) is showing on a failed read`).toHaveCount(0); };
+
+  test('M3u. a failed candle read is the loading skeleton first and the UNAVAILABLE state only after the second failed read, for every strategy, never WAIT', async ({ browser }) => {
+    test.setTimeout(420_000);
+    const a = await openArena(browser, { saved: 'ema_stack', chips: [], failKlines: 'all' });
     try {
       await expect(menu(a.page)).toBeVisible({ timeout: 30_000 });
-      for (const id of IDS) { if (NA_ON_1H.includes(id)) { expect((await optionState(a.page, id))!.disabled, `${id}: expected disabled on 1h (#2604)`).toBe(true); continue; } await pick(a.page, id); await expect(a.page.getByTestId('strategy-call-unavailable'), `${id}: no unavailable state on a failed read`).toBeVisible({ timeout: 20_000 }); await expect(a.page.getByTestId('strategy-call-verdict')).toHaveCount(0); }
+      await expect(box(a.page), 'no call box for the strategy saved at load').toBeVisible({ timeout: 20_000 });
+      await skeletonNow(a.page, 'ema_stack from load (about 12 s)');   /* the first read has failed, the retry is 45 s away */
+      await unavailableBy(a.page, 'ema_stack from load');
+      let last = 'ema_stack';
+      for (const id of IDS) {
+        if (id === 'ema_stack') continue;
+        if (NA_ON_1H.includes(id)) { expect((await optionState(a.page, id))!.disabled, `${id}: expected disabled on 1h (#2604)`).toBe(true); continue; }
+        await pick(a.page, id); await skeletonNow(a.page, `${id} right after the pick`); last = id;
+      }
+      await unavailableBy(a.page, `${last} (the last strategy picked)`);
     } finally { await a.ctx.close(); }
+  });
+
+  test('M3u-ny. NY open on 15m with every candle read failing: the skeleton first, the unavailable state after the second failed read', async ({ browser }) => {
+    test.setTimeout(240_000);
     const n = await openArena(browser, { saved: null, chips: [], failKlines: 'all', tf: '15m' });
     try {
       await expect(menu(n.page)).toBeVisible({ timeout: 30_000 });
-      await pick(n.page, 'ny_open_breakout'); await expect(n.page.getByTestId('strategy-call-unavailable'), 'ny_open_breakout on 15m: no unavailable state on a failed read').toBeVisible({ timeout: 20_000 }); await expect(n.page.getByTestId('strategy-call-verdict')).toHaveCount(0);
+      await pick(n.page, 'ny_open_breakout'); await skeletonNow(n.page, 'ny_open_breakout on 15m'); await unavailableBy(n.page, 'ny_open_breakout on 15m');
     } finally { await n.ctx.close(); }
+  });
+
+  test('M3u-btc. supply / demand with only the BTC read failing: the skeleton first, the unavailable state after the second failed read; a strategy that does not need BTC keeps its verdict', async ({ browser }) => {
+    test.setTimeout(300_000);
     const b = await openArena(browser, { saved: null, chips: [], failKlines: 'btc', coin: 'eth' });
     try {
       await expect(menu(b.page)).toBeVisible({ timeout: 30_000 });
-      await pick(b.page, 'supply_demand'); await expect(b.page.getByTestId('strategy-call-unavailable'), 'supply / demand with only BTC failing is not unavailable').toBeVisible({ timeout: 20_000 });
-      await pick(b.page, 'ema_stack'); await expect(b.page.getByTestId('strategy-call-verdict'), 'a strategy that does not need BTC lost its verdict').toBeVisible({ timeout: 20_000 });
+      await pick(b.page, 'supply_demand'); await skeletonNow(b.page, 'supply_demand with BTC failing'); await unavailableBy(b.page, 'supply_demand with BTC failing');
+      await pick(b.page, 'ema_stack'); await expect(b.page.getByTestId('strategy-call-verdict'), 'a strategy that does not need BTC lost its verdict').toBeVisible({ timeout: 20_000 }); await expect(b.page.getByTestId('strategy-call-unavailable'), 'a strategy that does not need BTC shows the unavailable state').toHaveCount(0);
     } finally { await b.ctx.close(); }
   });
 
