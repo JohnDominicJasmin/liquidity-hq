@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
+import { BINANCE_SYMS, BYBIT_SYMS, symbolDenominationFactor } from '@/lib/coins';
+import { liqPerTokenFactor } from '@/lib/liqUnits';
+import { priceText } from '@/lib/numberFormat';
 import { bucketSz } from '@/lib/liqClusters';
 import { getSupabase } from '@/lib/supabase';
 import { Warn } from '@/components/icons';
@@ -36,7 +38,7 @@ const MIN_ALERT          = 500_000;                // $500K = big hit
 const CASCADE_THRESHOLD  = 3_000_000;              // $3M in 30s = cascade
 const CASCADE_WIN        = 30_000;                 // 30-second window
 const CASCADE_HIDE_MS    = 12_000;                 // show cascade badge 12s
-const STORAGE_KEY        = 'liq-events-v2';        // localStorage key
+const STORAGE_KEY        = 'liq-events-v3';        // localStorage key (v3: prices are per-token; v2 held raw contract-unit prices and is ignored)
 const STORAGE_MAX        = 2000;                   // max events to persist locally
 /* How often the raw stream is handed to onEvents consumers. Not a render
    cadence - the heatmap buckets 24h into 34 columns, so ~42 minutes per
@@ -74,11 +76,13 @@ function snapBucket(price: number): number {
   return Math.round(price / sz) * sz;
 }
 function fmtBucket(price: number): string {
+  if (price < 0.1) return priceText(price);   // sub-dime prices (per-token 1000x coins): decimals by size, the bucket tier is a fraction of a cent
   const sz  = bucketSz(price);
   const dec = sz >= 1 ? 0 : sz >= 0.1 ? 1 : 2;
   return '$' + price.toLocaleString(undefined, { maximumFractionDigits: dec });
 }
 function fmtEventPrice(price: number): string {
+  if (price < 0.1) return priceText(price);
   return '$' + price.toLocaleString('en-US', { maximumFractionDigits: price < 10 ? 3 : 2 });
 }
 
@@ -212,7 +216,7 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
 
     const ev: LiqEvent = {
       id: ++idCounter, symbol: sym, coin: coinFromSym(sym),
-      side, usd, price, ts: Date.now(), source,
+      side, usd, price: price * symbolDenominationFactor(sym) /* per-token: 1000PEPEUSDT quotes per 1000 tokens (lib/liqUnits.ts) */, ts: Date.now(), source,
     };
     historyRef.current = [...historyRef.current, ev].slice(-5000);
     rebuild(historyRef.current);
@@ -387,7 +391,9 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
           const seen = new Set(
             historyRef.current.map(e => `${e.ts}_${e.coin}_${e.price}_${e.side}_${e.source}`)
           );
+          /* STORED ROWS KEEP THE VENUE'S RAW PRICE: converted to per-token before they are compared with live events or merged (lib/liqUnits.ts). */
           const newEvts = (data as Array<{ coin: string; side: string; usd: number; price: number; source: string; ts: number }>)
+            .map(r => ({ ...r, price: r.price * liqPerTokenFactor(r.coin, r.source) }))
             .filter(r => !seen.has(`${r.ts}_${r.coin}_${r.price}_${r.side}_${r.source}`))
             .map(r => ({
               id: ++idCounter,

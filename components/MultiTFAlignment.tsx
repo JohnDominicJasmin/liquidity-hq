@@ -227,7 +227,8 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
     : 'mixed';
 
   const verdictLabel = loadingState ? t('EMA_PHASE_LOADING') : noData ? t('MULTI_TF_ALIGNMENT_VERDICT_NO_DATA') : verdict === 'bullish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BULLISH') : verdict === 'bearish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BEARISH') : verdict === 'conflicting' ? t('MULTI_TF_ALIGNMENT_VERDICT_CONFLICTING') : t('MULTI_TF_ALIGNMENT_VERDICT_MIXED');
-  const verdictColor = noData ? 'var(--txt3)' : verdict === 'bullish' ? 'var(--green-2)' : verdict === 'bearish' ? 'var(--red)' : verdict === 'conflicting' ? 'var(--amber)' : 'var(--txt3)';
+  /* BULLISH TEXT IS --green-fg, NOT --green-2 (#1185 axe item): in the light terminal theme --green-2 (#14702c) on its own 10% tint over the card measured 4.48:1 on --bg1 and 4.17:1 on --bg2, under AA at 12px bold; --green-fg (#0f5a22) is 6.04 / 5.63 and is what the row chips already use (#738). The tint and border stay --green-2. */
+  const verdictColor = noData ? 'var(--txt3)' : verdict === 'bullish' ? 'var(--green-fg)' : verdict === 'bearish' ? 'var(--red)' : verdict === 'conflicting' ? 'var(--amber)' : 'var(--txt3)';
   const verdictBorder = noData ? 'var(--bdr)' : verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 40%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 40%, transparent)' : verdict === 'conflicting' ? 'color-mix(in srgb, var(--amber) 40%, transparent)' : 'var(--border-input)';
   const verdictBg = noData ? 'transparent' : verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 10%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 10%, transparent)' : verdict === 'conflicting' ? 'color-mix(in srgb, var(--amber) 10%, transparent)' : 'transparent';
 

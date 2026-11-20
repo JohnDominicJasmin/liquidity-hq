@@ -74,7 +74,8 @@ export async function callGrokViaProxy(
   }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { error?: string; code?: string; refunded?: boolean; usage?: GrokUsageInfo };
+    /* `?? {}`: a failure whose body is the JSON literal `null` parsed to null and threw a TypeError at the first `err.` read, before any code or log line (QA review of #2723). */
+    const err = ((await res.json().catch(() => ({}))) ?? {}) as { error?: string; code?: string; refunded?: boolean; usage?: GrokUsageInfo };
     // The Pro gate (#1263) answers 403 { error: 'PRO_REQUIRED', message } with the code in
     // `error`, not `code`. Passed on as a code so the caller can show its own labelled locked
     // state - used as the message it reached Arena's banner as the raw text "PRO_REQUIRED".
@@ -98,10 +99,17 @@ export async function callGrokViaProxy(
     if (err.code === 'COIN_NOT_TRACKED') {
       throw Object.assign(new Error('COIN_NOT_TRACKED'), { code: 'COIN_NOT_TRACKED', usage: err.usage });
     }
+    /* A SERVER FAILURE NAMES ITSELF IN THE CONSOLE (#1651): six signed-in 502s on a Deep click were seen and the URL was never identified, because the
+       thrown error carried only the server's sentence. One fixed line: method, path, status, read type and the server's error code (a closed
+       upper-case word, or 'none' for a proxy page with no JSON). No query string, token, header, request body, user id or email can reach it. */
+    if (res.status >= 500) {
+      const code = typeof err.code === 'string' && /^[A-Z_]{1,32}$/.test(err.code) ? err.code : 'none';
+      console.error(`[read] POST /api/grok ${res.status} ${type} ${code}`);
+    }
     const msg = err.code === 'RATE_LIMIT'
       ? `${err.error ?? 'Rate limit reached.'} Resets at ${nextResetLocalTime()}.`
       : err.error ?? 'The AI read failed. Try again.';  // never the vendor name (product UI says "AI" only)
-    throw Object.assign(new Error(msg), { code: err.code, refunded: err.refunded, usage: err.usage });
+    throw Object.assign(new Error(msg), { code: err.code, refunded: err.refunded, usage: err.usage, status: res.status });
   }
 
   /* The answer is checked here, once, because every reader downstream (the page's raid alert, the result card, the history, the saved
@@ -217,7 +225,12 @@ export function normalizeCombinedResult(raw: unknown, tf: string, session: strin
     ? { bullish: c.bullish as number, bearish: c.bearish as number } : null;
   /* #1631 A+D: carried only when the answer has them. A result from before them (a cache, a stub) has none, and "absent" is the true
      reading - an invented empty list would claim the server checked something it never saw. */
-  const extra: Pick<CombinedResult, 'citations' | 'counted' | 'checks' | 'why' | 'patternBias'> = {};
+  const extra: Pick<CombinedResult, 'citations' | 'counted' | 'checks' | 'why' | 'patternBias' | 'fixedLevels'> = {};
+  const fl = r.fixedLevels as Record<string, unknown> | null | undefined;
+  if (fl && typeof fl === 'object') {
+    const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
+    extra.fixedLevels = { above: num(fl.above), below: num(fl.below) };
+  }
   if ('citations' in r) extra.citations = strings(r.citations).filter((u) => /^https?:\/\//.test(u)).slice(0, 10);
   if ('counted' in r) extra.counted = counted;
   if ('checks' in r) extra.checks = strings(r.checks);
@@ -817,6 +830,8 @@ export interface CombinedResult {
   /* The three below are always set by the server since #1631 A+D, and absent on a result from before them. */
   /** #1631 A: the web/X sources Deep's search returned (url_citation annotations + the citations list). Empty for Quick. */
   citations?: string[];
+  /** The server's fixed watch levels for this read (lib/readLevels.ts, the same numbers the prompt quotes): the nearest resistance above and support below the last close, or null when none could be computed. The headline under a directional verdict falls back to them when the read's own LEVELS hold no usable support or resistance (PM 2026-11-20). Absent on a result from before this field. */
+  fixedLevels?: { above: number | null; below: number | null } | null;
   /** #1631 D: the signals the model says it counted per side (its COUNTED line), or null when it gave none. */
   counted?: { bullish: number; bearish: number } | null;
   /** #1631 D: what applyResultChecks changed or could not check, in plain words. Not shown in the UI. */
@@ -909,7 +924,7 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     'CHART_ANALYSIS: [ONE sentence, at most 15 words, on candles and indicators only - no mention of macro here]',
     'PATTERNS:',
     '- [identify chart patterns from the candle data: e.g. "Bear flag", "Bull flag", "Head and shoulders", "Double top", "Double bottom", "Ascending triangle", "Descending triangle", "Rising wedge", "Falling wedge", "Bullish engulfing", "Bearish engulfing", "Doji reversal", "Higher highs / higher lows", "Lower highs / lower lows" - be specific with price context. End each pattern line with " | BULLISH", " | BEARISH" or " | NEUTRAL" for the direction the pattern points. Write "None detected" if no clear pattern]',
-    'WAIT_FOR: [REQUIRED when SIGNAL is FLAT, LEAN BULLISH, or LEAN BEARISH. Write exactly: (1) which signals you counted and which direction they lean, (2) the specific price level to watch, (3) what candle/volume pattern would upgrade to BEARISH or BULLISH, (4) what derivative condition (funding, L/S ratio, taker ratio) would confirm the signal. Example (LEAN BEARISH): "2 continuation signals: rising OI + taker sell 63%. Watch $64,200 for a breakdown candle with volume spike. Taker sell above 65% + L/S above 1.5 → BEARISH. Bounce above $65,500 with CVD flip cancels bearish bias." Write N/A if SIGNAL is BULLISH or BEARISH.]',
+    'WAIT_FOR: [REQUIRED when SIGNAL is FLAT, LEAN BULLISH, or LEAN BEARISH. ONE line, at most 15 words: the specific price level and the candle, volume or derivative condition (funding, L/S ratio, taker ratio) that would move the signal to BEARISH or BULLISH, stated as a fact. Example (LEAN BEARISH): "A close below $64,200 with taker sell above 65% would make it BEARISH." Write N/A if SIGNAL is BULLISH or BEARISH.]',
     'REASONING: [At most 3 short sentences, 45 words in total, combining chart + derivatives + macro + news into one directional thesis. If FLAT, state whether selling is EXHAUSTING or CONTINUING and why.]',
   ].join('\n');
 

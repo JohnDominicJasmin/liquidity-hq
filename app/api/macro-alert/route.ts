@@ -161,9 +161,9 @@ export async function GET(req: Request) {
       let msg = `${emoji} <b>Macro Event in ~${minsStr} min</b>\n\n`;
       msg += `<b>${event.name}</b>\n`;
       msg += `🕐 ${eventTimeIn(event.isoDate, timeZone)}\n`;
-      if (event.estimate) msg += `Estimate: <b>${event.estimate}</b>`;
-      if (event.previous) msg += `  |  Prev: ${event.previous}`;
-      if (event.estimate || event.previous) msg += '\n';
+      /* THE PARTS THAT EXIST, JOINED (off-site failing-text sweep, PM 2026-11-20): a previous value without an estimate no longer starts the line with a separator. */
+      const figures = [event.estimate ? `Estimate: <b>${event.estimate}</b>` : '', event.previous ? `Prev: ${event.previous}` : ''].filter(Boolean);
+      if (figures.length) msg += figures.join('  |  ') + '\n';
       msg += `\n<i>High-impact release</i>`;
       return msg;
     };

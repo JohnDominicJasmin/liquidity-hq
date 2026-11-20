@@ -6,6 +6,7 @@ import { binanceKlineSource } from '@/lib/coins';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 import { priceText } from '@/lib/numberFormat';
 
@@ -188,6 +189,24 @@ function analyze(
 /* ── Component ── */
 interface Props { coin: CoinId; onData?: (d: AbsorptionData | null) => void }
 
+/* DISPLAY ONLY (#1185): d.label and d.detail stay English because the same strings reach the AI prompt and `d.label !== 'None'` compares them. */
+const ABS_LABEL_KEYS: Record<string, LabelKey> = { Strong: 'ABSORPTION_LABEL_STRONG', Moderate: 'ABSORPTION_LABEL_MODERATE', Weak: 'ABSORPTION_LABEL_WEAK', None: 'ABSORPTION_LABEL_NONE' };
+function absPart(p: string, t: (k: LabelKey, v?: Record<string, string | number>) => string): string {
+  let m = p.match(/^at (\S+) (bid|ask) wall$/);
+  if (m) return t(m[2] === 'bid' ? 'ABSORPTION_DETAIL_BID_AT' : 'ABSORPTION_DETAIL_ASK_AT', { price: m[1] });
+  m = p.match(/^([\d.]+)% from (\S+) (bid|ask) wall$/);
+  if (m) return t(m[3] === 'bid' ? 'ABSORPTION_DETAIL_BID_FROM' : 'ABSORPTION_DETAIL_ASK_FROM', { pct: m[1], price: m[2] });
+  m = p.match(/^at (.+) fib \((.+)\)$/);
+  if (m) return t('ABSORPTION_DETAIL_FIB', { level: m[1], price: m[2] });
+  m = p.match(/^(\d+) candles \(~(.+)\)$/);
+  if (m) return t('ABSORPTION_DETAIL_CANDLES', { n: m[1], t: m[2] });
+  m = p.match(/^([\d.]+)× avg vol$/);
+  if (m) return t('ABSORPTION_DETAIL_AVG_VOL', { x: m[1] });
+  if (p === 'Low absorption activity') return t('ABSORPTION_DETAIL_LOW');
+  return p;
+}
+function absText(s: string, t: (k: LabelKey, v?: Record<string, string | number>) => string): string { return s.split(' · ').map(p => absPart(p, t)).join(' · '); }
+
 export default function AbsorptionDetector({ coin, onData }: Props) {
   const { t } = useLabels();
   const { store }                 = useMarket();
@@ -331,19 +350,19 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
         <span className="abs-score-num" style={{ color: barCol }}>
           {d.score}<span className="abs-score-max">/100</span>
         </span>
-        <span className="abs-label" style={{ color: barCol }}>{d.label}</span>
+        <span className="abs-label" style={{ color: barCol }}>{ABS_LABEL_KEYS[d.label] ? t(ABS_LABEL_KEYS[d.label]) : d.label}</span>
       </div>
 
       {/* ── Detail ── */}
       {d.label !== 'None' && d.detail && (
-        <div className="abs-detail">{d.detail}</div>
+        <div className="abs-detail">{absText(d.detail, t)}</div>
       )}
 
       {/* ── Near level ── */}
       {d.nearLevel && (
         <div className="abs-level-row">
           <span className="abs-level-lbl">{t('ABSORPTION_DETECTOR_LEVEL_LABEL')}</span>
-          <span className="abs-level-val">{d.nearLevel}</span>
+          <span className="abs-level-val">{absText(d.nearLevel, t)}</span>
         </div>
       )}
 

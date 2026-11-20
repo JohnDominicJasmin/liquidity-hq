@@ -41,6 +41,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       rsi: res.rsi,
       ...(res.viaFallback.length ? { viaFallback: res.viaFallback } : {}),
+      /* Only when both groups failed and these are the last good tables; `ts` is then their real age. */
+      ...(res.stale ? { stale: true } : {}),
       ts: rsiCachedAt() ?? Date.now(),
     }, {
       /* Private since #1263: the body depends on who is asking, so a shared cache must not store

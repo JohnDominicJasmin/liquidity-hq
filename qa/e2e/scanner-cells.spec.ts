@@ -2,8 +2,8 @@
  * Binance proxy reads answer 429 and every Binance socket closes), so the result does not depend on which addresses the runner is allowed to reach.
  *
  *   K1  FET, COPPER, NATGAS, XPD, XPT, OURA, STRC and HYPE show a price (and a 24H) from the backup / the Bybit seed, never "-", "Unavailable" or the in-flight ellipsis
- *   K2  ANTHROPIC, OPENAI, MOONSHOT, DIS, FRHC, PAYP and HK0625/0700/0992/1810 read "Unavailable" with a note, and NO price cell anywhere in the list is a bare "-"
- *   K3  while the reads are in flight an unpriced row shows the ellipsis, never "Unavailable"; and the ellipsis does not persist past the capped retry
+ *   K2  ANTHROPIC, OPENAI, MOONSHOT, DIS, FRHC, PAYP and HK0625/0700/0992/1810 show the ellipsis while the retries run and read "Unavailable" with a note only AFTER them (about 90 s with Binance refused), and NO price cell anywhere in the list is a bare "-"
+ *   K3  while the reads are in flight an unpriced row shows the ellipsis, never "Unavailable"; when every read fails the ellipsis persists through the two capped retries (30 s, 60 s) and the word shows only after them (RE-PINNED 2026-11-20 for #2732, PM option A "retries first, the word only after them")
  *   K4  STATUS reads "No signals" instead of "n/a"
  *   K5  the backup is asked only for coins that still lack a price (HYPE, which Bybit seeds, is not asked for). NOT SHOWN: the Binance-healthy case itself (a runner cannot be made a
  *       Binance-allowed address); that stays a check on production after release.
@@ -24,8 +24,15 @@ async function refuseBinance(ctx: BrowserContext, log?: { bn: number[]; backup: 
 async function openList(page: Page) {
   const trig = page.getByTestId('scanner-trigger');
   await trig.waitFor({ state: 'visible', timeout: 60_000 });
-  if (!(await page.locator('[data-testid^="scanner-row-"]').first().isVisible().catch(() => false))) await trig.locator('div').first().click();
-  await page.locator('[data-testid^="scanner-row-"]').first().waitFor({ state: 'visible', timeout: 20_000 });
+  /* RE-PINNED 2026-11-20 (QA diagnostic run 44706014510 on qa 11a8065): a click made BEFORE the page is interactive never opens the list, and nothing clicks again, so K3a / K3b saw no rows at all; the CONTROL of the diagnostic (the K1 setup without K1's 16 s wait) failed the same way. The list is therefore opened by clicking again every 2 s until a row is visible (it only clicks while no row is visible, so it never closes an open list). */
+  const row = page.locator('[data-testid^="scanner-row-"]').first();
+  const deadline = Date.now() + 40_000;
+  while (Date.now() < deadline) {
+    if (await row.isVisible().catch(() => false)) return;
+    await trig.locator('div').first().click({ timeout: 3_000 }).catch(() => { /* not interactive yet: try again */ });
+    await page.waitForTimeout(2_000);
+  }
+  await row.waitFor({ state: 'visible', timeout: 5_000 });
 }
 const read = (page: Page) => page.evaluate(() => {
   const out: Record<string, { price: string; h24: string; vsbtc: string; status: string; score: string; title: string }> = {};
@@ -40,14 +47,16 @@ const isValue = (s: string) => /^[^\d]{0,3}[\d,]+(\.\d+)?/.test(s) && !/unavail|
 test.describe('#2245 scanner cells with Binance refused', () => {
   test.describe.configure({ timeout: 200_000 });
 
-  test('K1+K2+K4. backed rows show a price; unproven rows say Unavailable; no bare dash; STATUS says No signals', async ({ browser }) => {
+  /* RE-PINNED 2026-11-20 for #2732: K2 used to expect "Unavailable" on the ten unproven rows at ~16 s with Binance refused. Those rows are on the Binance-only feed, which now stays PENDING (the loading ellipsis) until the two capped retries (30 s, 60 s) have run, so "Unavailable" is expected only after them, about 90 s in. K1 (priced rows) and K4 (STATUS) are unchanged and still checked at ~16 s; the "no bare dash" check runs at both looks. */
+  test('K1+K2+K4. backed rows show a price; unproven rows show the ellipsis while the retries run and say Unavailable only after them; no bare dash; STATUS says No signals', async ({ browser }) => {
+    test.setTimeout(260_000);
     const log = { bn: [] as number[], backup: [] as string[] };
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await refuseBinance(ctx, log);
     /* THE BYBIT BULK READ IS STUBBED so HYPE's seed can be seen: in a locally built runner the server's own Bybit read is a synthetic stand-in that carries BTC and ETH only, so HYPE could never be priced from it. The body is the Bybit tickers shape the app reads (symbol, lastPrice, price24hPcnt, mark/index price, OI value). */
     await ctx.route(/\/api\/proxy\?.*type=bybit-tickers/, async (route) => { const t = (symbol: string, last: string, pct: string) => ({ symbol, lastPrice: last, price24hPcnt: pct, markPrice: last, indexPrice: last, openInterestValue: '5000000', openInterest: '100000', fundingRate: '0.0001', turnover24h: '90000000', volume24h: '2000000', nextFundingTime: '0' }); await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ retCode: 0, retMsg: 'OK', result: { category: 'linear', list: [t('BTCUSDT', '69000', '0.01'), t('ETHUSDT', '3500', '0.012'), t('HYPEUSDT', '42.5', '0.021')] } }) }); });
     const page = await ctx.newPage();
     try {
-      await gotoGuarded(page, '/arena'); await page.waitForTimeout(16_000); await openList(page);
+      const t0 = Date.now(); await gotoGuarded(page, '/arena'); await page.waitForTimeout(16_000); await openList(page);
       const rows = await read(page);
       const dashPrices = Object.entries(rows).filter(([, v]) => v.price === '-').map(([k]) => k);
       const noSignals = Object.values(rows).filter(v => /no signals/i.test(v.status)).length; const nas = Object.values(rows).filter(v => /^n\/a$/i.test(v.status)).length;
@@ -57,16 +66,28 @@ test.describe('#2245 scanner cells with Binance refused', () => {
       console.log(`[K4] status "No signals"=${noSignals} status "n/a"=${nas}`);
       expect(Object.keys(rows).length, 'the list did not render').toBeGreaterThan(100);
       for (const c of PRICED) { expect(rows[c], c + ' has no row').toBeTruthy(); expect(isValue(rows[c].price), `${c} price cell reads "${rows[c].price}"`).toBe(true); expect(isValue(rows[c].h24.replace('%', '').replace('+', '')), `${c} 24H cell reads "${rows[c].h24}"`).toBe(true); }
-      for (const c of UNAVAILABLE) { expect(rows[c], c + ' has no row').toBeTruthy(); expect(rows[c].price, `${c} price cell`).toMatch(/unavailable/i); expect(rows[c].title.replace(/\|/g, '').length, `${c} has no hover/screen-reader note`).toBeGreaterThan(5); }
+      /* AT ~16 S (retries not used yet): the loading ellipsis, never the word and never a dash */
+      for (const c of UNAVAILABLE) { expect(rows[c], c + ' has no row').toBeTruthy(); expect(rows[c].price, `${c} price cell at ~16 s: the ellipsis while the retries run`).toMatch(/…/); expect(rows[c].price, `${c} says Unavailable before the retries are used`).not.toMatch(/unavailable/i); }
       expect(dashPrices, 'a price cell is a bare dash').toEqual([]);
       expect(nas, 'STATUS still says n/a').toBe(0); expect(noSignals, 'STATUS does not say No signals').toBeGreaterThan(300);
+      /* STILL BEFORE THE THIRD PASS (~65 s: the 30 s retry has run, the 60 s one has not): still the ellipsis */
+      await page.waitForTimeout(Math.max(0, 65_000 - (Date.now() - t0)));
+      const mid = await read(page); const midBad = UNAVAILABLE.filter(c => !/…/.test(mid[c]?.price ?? '') || /unavailable/i.test(mid[c]?.price ?? ''));
+      console.log(`[K2] at ~65 s rows not showing the ellipsis: ${JSON.stringify(midBad)}`);
+      expect(midBad, 'an unproven row stopped showing the ellipsis before the retries (30 s and 60 s) were used').toEqual([]);
+      /* AFTER THE RETRIES (third pass at ~90 s): the word, with its note, and still no bare dash anywhere */
+      await expect.poll(async () => { const r = await read(page); return UNAVAILABLE.filter(c => !/unavailable/i.test(r[c]?.price ?? '')); }, { timeout: 110_000, intervals: [5_000], message: 'the unproven rows never said Unavailable after the retries were used (about 90 s)' }).toEqual([]);
+      const late = await read(page); console.log('[K2] after the retries ' + JSON.stringify(Object.fromEntries(UNAVAILABLE.map(c => [c, late[c] ? `${late[c].price} | note=${late[c].title.slice(0, 80)}` : '(no row)']))));
+      for (const c of UNAVAILABLE) { expect(late[c].price, `${c} price cell after the retries`).toMatch(/unavailable/i); expect(late[c].title.replace(/\|/g, '').length, `${c} has no hover/screen-reader note`).toBeGreaterThan(5); }
+      expect(Object.entries(late).filter(([, v]) => v.price === '-').map(([k]) => k), 'a price cell is a bare dash after the retries').toEqual([]);
+      for (const c of PRICED) expect(isValue(late[c].price), `${c} lost its price after the retries: "${late[c].price}"`).toBe(true);
       await page.screenshot({ path: 'qa/.shots/k-scanner-binance-refused.png' });
     } finally { await ctx.close(); }
   });
 
-  test('K3a. while the reads are in flight an unpriced row shows the ellipsis, never "Unavailable" (reads held 6 s)', async ({ browser }) => {
+  test('K3a. while the reads are in flight an unpriced row shows the ellipsis, never "Unavailable" (reads held 20 s)', async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-    await ctx.route(/\/api\/proxy\?.*type=(binance-24hr|binance-futures-24hr|premium-index|bybit-tickers)/, async (route) => { await new Promise(r => setTimeout(r, 6_000)); await route.continue(); });
+    await ctx.route(/\/api\/proxy\?.*type=(binance-24hr|binance-futures-24hr|premium-index|bybit-tickers)/, async (route) => { await new Promise(r => setTimeout(r, 20_000)); await route.continue(); });
     await ctx.routeWebSocket(/binance\.com/, ws => { ws.close(); });
     const page = await ctx.newPage();
     try {
@@ -80,22 +101,35 @@ test.describe('#2245 scanner cells with Binance refused', () => {
     } finally { await ctx.close(); }
   });
 
-  test('K3b. when every read fails the ellipsis does not persist past the capped retry (at most two retries, 30 s and 60 s)', async ({ browser }) => {
+  /* RE-PINNED 2026-11-20 for #2732 (PM option A, "retries first, the word only after them"): K3b used to say that after 80 s the ellipsis was gone and "Unavailable" was showing. The scanner feed is now set to failed only on the THIRD failed pass, after the two capped retries (30 s, then 60 s), so the ellipsis persists up to about 90 s and "Unavailable" shows after it. The look at ~10 s and the look at ~75 s now expect the ellipsis and NO word; the word is awaited (up to ~165 s) and the old end-state assertions (no ellipsis left, the word on the unpriced rows) run once it shows. The "at most two retries" bound is kept as it was, at its original ~80 s look; a lower bound is added: at least one retry round ran before the word appeared. */
+  test('K3b. when every read fails the ellipsis persists through the capped retries (30 s and 60 s) and "Unavailable" shows only after them, about 90 s in', async ({ browser }) => {
+    test.setTimeout(260_000);
     const log = { bn: [] as number[], backup: [] as string[] };
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await refuseBinance(ctx, log);
     await ctx.route(/\/api\/proxy\?.*type=bybit-tickers/, async (route) => { log.bn.push(Date.now()); await route.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"down"}' }); });
     await ctx.route(/\/api\/market\/price-backup/, async (route) => { await route.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"down"}' }); });
     const page = await ctx.newPage();
+    const tally = (rows: Awaited<ReturnType<typeof read>>) => { const texts: Record<string, number> = {}; for (const v of Object.values(rows)) texts[v.price.slice(0, 12)] = (texts[v.price.slice(0, 12)] ?? 0) + 1; return { ellipsis: Object.values(rows).filter(v => /…/.test(v.price)).length, word: Object.values(rows).filter(v => /unavailable/i.test(v.price)).length, top: JSON.stringify(Object.fromEntries(Object.entries(texts).sort((a, b) => b[1] - a[1]).slice(0, 6))) }; };
     try {
       const t0 = Date.now(); await gotoGuarded(page, '/arena'); await openList(page);
-      await page.waitForTimeout(80_000);
-      const rows = await read(page); const texts: Record<string, number> = {}; for (const v of Object.values(rows)) texts[v.price.slice(0, 12)] = (texts[v.price.slice(0, 12)] ?? 0) + 1;
+      await page.waitForTimeout(10_000);
+      const early = tally(await read(page)); console.log(`[K3b] at ~10 s: ellipsis=${early.ellipsis} word=${early.word} ${early.top}`);
+      expect(early.ellipsis, 'no ellipsis at ~10 s: the first failed read must keep the loading ellipsis').toBeGreaterThan(0);
+      expect(early.word, 'a row says Unavailable at ~10 s, before the retries were used').toBe(0);
+      await page.waitForTimeout(Math.max(0, 75_000 - (Date.now() - t0)));
+      const rows = await read(page); const mid = tally(rows);
       const times = log.bn.map(t => Math.round((t - t0) / 1000));
-      console.log(`[K3b] price texts at 80 s: ${JSON.stringify(Object.fromEntries(Object.entries(texts).sort((a, b) => b[1] - a[1]).slice(0, 6)))}; failing read timestamps (s): ${JSON.stringify(times)}`);
-      expect(Object.values(rows).filter(v => /…/.test(v.price)).length, 'the in-flight ellipsis persisted past the capped retry').toBe(0);
-      expect(Object.values(rows).filter(v => /unavailable/i.test(v.price)).length, 'no row says Unavailable after every read failed').toBeGreaterThan(0);
+      console.log(`[K3b] at ~75 s: ellipsis=${mid.ellipsis} word=${mid.word} ${mid.top}; failing read timestamps (s): ${JSON.stringify(times)}`);
+      expect(mid.ellipsis, 'the ellipsis was gone at ~75 s, before the second retry (60 s after the first) had run').toBeGreaterThan(0);
+      expect(mid.word, 'a row says Unavailable at ~75 s, before the retries were used').toBe(0);
       const retries = times.filter(s => s > 20);
       expect(retries.length, 'more retries than the two (30 s and 60 s) after the first read: ' + JSON.stringify(times)).toBeLessThanOrEqual(6);   // each retry round makes up to three reads (universe, binance-only, premium)
+      await expect.poll(async () => tally(await read(page)).word, { timeout: 90_000, intervals: [5_000], message: 'no row ever said Unavailable after every read failed and the retries were used (about 90 s)' }).toBeGreaterThan(0);
+      const late = tally(await read(page)); const lateTimes = log.bn.map(t => Math.round((t - t0) / 1000));
+      console.log(`[K3b] when the word showed: ellipsis=${late.ellipsis} word=${late.word} ${late.top}; failing read timestamps (s): ${JSON.stringify(lateTimes)}`);
+      expect(late.ellipsis, 'the in-flight ellipsis is still showing next to the word after the retries were used').toBe(0);
+      expect(late.word, 'no row says Unavailable after every read failed').toBeGreaterThan(0);
+      expect(lateTimes.filter(s => s > 20).length, 'the word showed with no retry round having run: it must come after the retries').toBeGreaterThanOrEqual(2);
     } finally { await ctx.close(); }
   });
 

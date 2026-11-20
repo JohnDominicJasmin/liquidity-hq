@@ -58,7 +58,7 @@
 
 import { apiError } from './apiError.ts';
 import { BINANCE_SYMS, BYBIT_SYMS } from './coins.ts';
-import { cached, cachedRefresh, cachedAt, cachedServable, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
+import { cached, cachedRefresh, cachedAt, cachedPeek, cachedServable, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
 
 /** When the oldest of the two RSI groups was fetched (epoch ms), or null when neither is cached: what the response's own time should be. */
 export function rsiCachedAt(): number | null {
@@ -361,6 +361,10 @@ async function buildGroup(fast: boolean): Promise<{ out: RsiMap; viaFallback: st
   /* Counted in SERIES on both sides (owner sweep 2026-11-18): `viaFallback` is a list of COINS, and one fallback coin fills several
      series, so adding it to `ok` (series) under-counted a Binance outage that Bybit fully covered and threw a complete map away. */
   const got = Object.values(out).reduce((n, row) => n + Object.values(row ?? {}).filter(v => typeof v === 'number' && Number.isFinite(v)).length, 0);
+  /* NOTHING CAME BACK IS A FAILED REFRESH, NOT AN EMPTY TABLE (QA's R5 on #2740): returning `{ out: {} }` cached the empty tables as fresh, so a total outage answered 200 with 0 coins and the all-failed last-good branch in mergeRsiGroups was never reached. Throwing keeps the previous entry (cachedRefresh) or, with none stored, answers the same error as before. */
+  if (allJobs.length > 0 && got === 0) {
+    throw new Error(`no RSI series came back (${fast ? 'fast' : 'slow'}): 0/${allJobs.length}`);
+  }
   if (allJobs.length > 0 && got / allJobs.length < 0.5 && cachedServable(`market-rsi:${fast ? 'fast' : 'slow'}`, (fast ? FAST_TTL : SLOW_TTL) + STALE_WHILE_REFRESH_MS)) {
     throw new Error(`partial RSI refresh (${fast ? 'fast' : 'slow'}): ${got}/${allJobs.length} series, keeping the last good result`);
   }
@@ -434,13 +438,26 @@ export function mergeRsiGroups(
   groups: RsiGroups,
   includeFast: boolean,
 ):
-  | { ok: true; rsi: RsiMap; viaFallback: string[] }
+  | { ok: true; rsi: RsiMap; viaFallback: string[]; stale?: boolean }
   | { ok: false; reason: unknown } {
   const [fastRes, slowRes] = groups;
   if (!fastRes || !slowRes) return { ok: false, reason: new Error('rsiGroups returned fewer than two results') };
 
   if (fastRes.status === 'rejected' && slowRes.status === 'rejected') {
     reportHealth('binance:rsi', 'market', false, healthError(fastRes.reason));
+    /* BOTH GROUPS FAILED: THE LAST GOOD TABLES (PM route audit, 2026-11-20). Only in this all-failed case (the normal bound, ttl + 60 s, is unchanged): the slow group (1h and up) up to 1 hour old, the 5m group up to 10 minutes. Flagged `stale`; the route's `ts` is the real age. Nothing stored -> the same error as before. */
+    const slowKept = cachedPeek<{ out: RsiMap; viaFallback: string[] }>('market-rsi:slow', 60 * 60_000);
+    const fastKept = includeFast ? cachedPeek<{ out: RsiMap; viaFallback: string[] }>('market-rsi:fast', 10 * 60_000) : null;
+    if (slowKept || fastKept) {
+      const kept: RsiMap = {};
+      const via = new Set<string>();
+      for (const g of [slowKept, fastKept]) {
+        if (!g) continue;
+        for (const [coin, fields] of Object.entries(g.data.out)) Object.assign(kept[coin] ??= {}, fields);
+        for (const coin of g.data.viaFallback) via.add(coin);
+      }
+      return { ok: true, rsi: kept, viaFallback: [...via], stale: true };
+    }
     return { ok: false, reason: fastRes.reason };
   }
 

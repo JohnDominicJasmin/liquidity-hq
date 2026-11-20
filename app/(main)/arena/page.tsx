@@ -53,7 +53,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
-import { arenaPriceUnit, liqUnitsMixed, binanceKlineSource, coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
+import { arenaPriceUnit, binanceKlineSource, coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF, CHART_TFS, ARENA_TFS } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
@@ -402,9 +402,14 @@ function ArenaContent() {
   /* Narrowed to the displayed coin here, memoised so the chart's draw effect
      re-runs when the clusters actually change rather than on every Arena
      re-render - and this page re-renders on every market tick. */
+  /* THE CLUSTERS IN THE ARENA'S PRICE UNIT (#1651, PM 2026-11-20): the liquidation feed is per-token (lib/liqUnits.ts); the chart, the strategies and the AI read draw and quote a 1000x coin in the chart's unit, so the selected coin's clusters are converted once here (arenaPriceUnit, lib/coins.ts). */
+  const arenaLiqClusters = useMemo(() => {
+    const u = arenaPriceUnit(selectedCoin);
+    return u === 1 ? liqClusters : liqClusters.map(b => (b.coin.toLowerCase() === selectedCoin ? { ...b, price: b.price * u } : b));
+  }, [liqClusters, selectedCoin]);
   const chartLiqClusters = useMemo(
-    () => (liqUnitsMixed(selectedCoin) ? [] : topClustersForCoin(liqClusters, selectedCoin)),   // mixed-unit liquidation feed: nothing drawn, nothing quoted (lib/coins.ts liqUnitsMixed)
-    [liqClusters, selectedCoin],
+    () => topClustersForCoin(arenaLiqClusters, selectedCoin),
+    [arenaLiqClusters, selectedCoin],
   );
   /* THE SETUP CARD CLEARS THE RAIL AT ITS REAL WIDTH (PM, 2026-11-20, QA: between 981 and 1099 px the rail is ~486 px wide, not 320, so a fixed offset left the card on it): the page measures the rail and publishes the distance from its left edge to the right edge of the viewport as --arena-rail-clear on <html>;
      app/globals.css positions the Setup pill and card with it (and falls back to its own calc() until the first measurement). Only from 981 px up (below that the rail is a full-width section); removed when the page unmounts. */
@@ -1233,10 +1238,11 @@ function ArenaContent() {
     if (store.fng != null && (store.fng <= settings.fng_fear || store.fng >= settings.fng_greed))
       fire(`fng-${store.fng <= settings.fng_fear ? 'fear' : 'greed'}-${b4h}`,
         store.fng <= settings.fng_fear ? t('ARENA_NOTIF_FNG_TITLE_FEAR') : t('ARENA_NOTIF_FNG_TITLE_GREED'),
+        /* AN EMPTY LABEL LEAVES NO STRAY "()" (off-site failing-text sweep, PM 2026-11-20): the label text puts {label} inside parentheses, so an empty value is dropped with its parentheses (works in every locale, no new label). */
         t('ARENA_NOTIF_FNG_BODY', {
           fng: store.fng, label: store.fngLabel,
           suffix: store.fng <= settings.fng_fear ? t('ARENA_NOTIF_FNG_SUFFIX_BOTTOM') : t('ARENA_NOTIF_FNG_SUFFIX_OVEREXTENDED'),
-        }));
+        }).replace(/\s*[(（]\s*[)）]/g, ''));
 
     /* 3 - CVD Divergence (1 hour cooldown) */
     if (coin?.cvdDivergence)
@@ -1412,7 +1418,7 @@ function ArenaContent() {
        'Not available' still has to be reachable and it is - a fresh session has
        watched no liquidations, so it has no 24h window, and a stated absence is
        the honest answer rather than a bug to design away. */
-    const liqLevels = formatClustersForPrompt(liqClusters, selectedCoin);
+    const liqLevels = formatClustersForPrompt(arenaLiqClusters, selectedCoin);
 
     /* BTC dom trend */
     const btcDomTrend = store.btcDomHistory && store.btcDomHistory.length >= 3
@@ -2003,7 +2009,7 @@ function ArenaContent() {
        #814 exists to fix, reproduced silently and indistinguishable from a
        browser that has genuinely watched no liquidations. It changes at most
        once per LIQ_CLUSTER_REFRESH_MS, so the identity churn is bounded. */
-  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, resultsCache, liqClusters, locale]);
+  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, resultsCache, arenaLiqClusters, locale]);
 
   /* #996: the one place QUICK/DEEP/ASK AI run from, so the toolbar buttons
      below and StrategyPanel's own copies of the same three buttons cannot
@@ -2970,12 +2976,14 @@ function ArenaContent() {
                 `javascript:` link either. */}
             {/* THE READ AT A GLANCE (owner rule 22): ONE plain summary line, then at most three short reasons (Deep: five). The chart read, the patterns and the long reasoning are behind "More details" under the chart. A read with no WHY lines (an older one, or the model gave none) falls back to the first sentences of its reasoning. */}
             {(() => {
-              const ps = plainSummary(result.signal, result.levels);
+              const ps = plainSummary(result.signal, result.levels, result.fixedLevels);
               if (!ps) return null;
               /* The headline above this card already states the direction, so the summary starts at the level to watch and does not restate it (PM 2026-11-18); with no level to watch it falls back to the verdict, the only thing it has to say. */
               const w = ps.watch ? t(ps.watch.key, { price: ps.watch.price }) : null;
-              const cx = w && ps.cancel ? t(ps.cancel.key, { price: ps.cancel.price }) : null;
-              return <p className="av-summary" data-testid="arena-plain-summary">{w ? `${w}${cx ? `; ${cx}` : ''}.` : t(ps.verdictKey)}</p>;
+              const cx = ps.cancel ? t(ps.cancel.key, { price: ps.cancel.price }) : null;
+              /* A VERDICT WITH ONLY A CANCEL LEVEL STILL NAMES IT (QA screenshots of full Bearish reads on BTC 1h, PM 2026-11-20): when price has already broken the level that would confirm the call (no support left below a Bearish, no resistance above a Bullish), the read keeps only the level whose recovery cancels it, and the headline used to print the bare verdict. It now reads "Bearish; a move back above $62,615 cancels it." from the same labels. */
+              const bare = t(ps.verdictKey).replace(/[.。]\s*$/, '');
+              return <p className="av-summary" data-testid="arena-plain-summary">{w ? `${w}${cx ? `; ${cx}` : ''}.` : cx ? `${bare}; ${cx}.` : t(ps.verdictKey)}</p>;
             })()}
             {(result.why?.length ?? 0) > 0
               ? <ul className="av-why-list" data-testid="arena-why-list">{result.why!.slice(0, 3).map((w, i) => <li key={i}><ReasoningText text={w} /></li>)}</ul>
@@ -3207,7 +3215,7 @@ function ArenaContent() {
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
       <div className="arena-ws-strat">
-      <StrategyPanel overlays={overlayStates({ showSR: showSRDrawn, showLiq: showLiqDrawn, showEma, showRsi, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} liqMixedUnits={liqUnitsMixed(selectedCoin)} layersLocked={layersLocked} onOverlayToggle={id => ((id === 'SR' || id === 'LIQ_CLUSTERS') && layersLocked ? openLayersGate() : id === 'SR' ? setShowSR(!showSR) : id === 'EMA_RIBBON' ? setShowEma(!showEma) : id === 'RSI' ? setShowRsi(!showRsi) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} runGate={runGate} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} coin={selectedCoin} tf={readTf} strategyState={strategyState} planChecking={planUnsettled} />
+      <StrategyPanel overlays={overlayStates({ showSR: showSRDrawn, showLiq: showLiqDrawn, showEma, showRsi, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} layersLocked={layersLocked} onOverlayToggle={id => ((id === 'SR' || id === 'LIQ_CLUSTERS') && layersLocked ? openLayersGate() : id === 'SR' ? setShowSR(!showSR) : id === 'EMA_RIBBON' ? setShowEma(!showEma) : id === 'RSI' ? setShowRsi(!showRsi) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} runGate={runGate} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} coin={selectedCoin} tf={readTf} strategyState={strategyState} planChecking={planUnsettled} />
       </div>
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">

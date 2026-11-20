@@ -40,7 +40,7 @@ export default function ForgotPasswordPage() {
     // Same message whether or not the email exists - resetPasswordForEmail
     // doesn't leak that, and neither should this page (don't let the UI
     // become an account-enumeration oracle).
-    if (error) setError(friendlyAuthError(error.message));
+    if (error) setError(friendlyAuthError(error.message, t));
     else setSent(true);
   };
 

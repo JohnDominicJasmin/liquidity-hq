@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { reportHealth, healthError } from '@/lib/apiHealth';
-import { cached } from '@/lib/apiCache';
+import { cached, cachedPeek } from '@/lib/apiCache';
 import { fetchFredRows } from '@/lib/fred';
 import { computeRealYield, REAL_YIELD_SERIES } from '@/lib/realYield';
 import { polledCacheControl } from '@/lib/cacheHeaders';
@@ -130,7 +130,8 @@ async function yf(sym: string, label: string) {
     return await cached(`macro:yahoo:${label}`, YF_TTL_MS, () => fetchYf(sym, label),
       { failTtlMs: YF_FAIL_TTL_MS });
   } catch {
-    return null;
+    /* THE LAST GOOD QUOTE, NOT A NULL (PM route audit, 2026-11-20): once the 60 s life passed and Yahoo blipped, the symbol went out as null and the page cleared DXY, S&P, gold, oil, yen and the 10-year for ten minutes. A quote up to 6 h old is served instead; its own `asOf` already tells the page how old it is. Nothing ever read -> null as before. */
+    return cachedPeek<{ price: number; chg: number | null; asOf: number | null }>(`macro:yahoo:${label}`, 6 * 3600_000)?.data ?? null;
   }
 }
 
