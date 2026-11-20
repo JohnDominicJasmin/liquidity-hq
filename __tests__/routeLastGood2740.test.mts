@@ -242,7 +242,7 @@ let ip = 0;
 const headersOf = (extra: Record<string, string> = {}) => ({ 'cf-connecting-ip': `198.51.100.${(ip++ % 250) + 1}-${ip}`, ...extra });
 const req = (path: string, extra: Record<string, string> = {}) => new NextRequest(`https://qa.invalid${path}`, { headers: headersOf(extra) });
 const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
-type Res = { status: number; body: any; h: (n: string) => string | null }; // eslint-disable-line @typescript-eslint/no-explicit-any
+type Res = { status: number; body: any; h: (n: string) => string | null };
 const read = async (r: Response): Promise<Res> => ({ status: r.status, body: await r.json(), h: (n) => r.headers.get(n) });
 const DEFAULT_CONFIG = { maintenanceMode: false, announcementBanner: null, featureFlags: { grok: true, telegram: true } };
 
