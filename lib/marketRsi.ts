@@ -361,6 +361,10 @@ async function buildGroup(fast: boolean): Promise<{ out: RsiMap; viaFallback: st
   /* Counted in SERIES on both sides (owner sweep 2026-11-18): `viaFallback` is a list of COINS, and one fallback coin fills several
      series, so adding it to `ok` (series) under-counted a Binance outage that Bybit fully covered and threw a complete map away. */
   const got = Object.values(out).reduce((n, row) => n + Object.values(row ?? {}).filter(v => typeof v === 'number' && Number.isFinite(v)).length, 0);
+  /* NOTHING CAME BACK IS A FAILED REFRESH, NOT AN EMPTY TABLE (QA's R5 on #2740): returning `{ out: {} }` cached the empty tables as fresh, so a total outage answered 200 with 0 coins and the all-failed last-good branch in mergeRsiGroups was never reached. Throwing keeps the previous entry (cachedRefresh) or, with none stored, answers the same error as before. */
+  if (allJobs.length > 0 && got === 0) {
+    throw new Error(`no RSI series came back (${fast ? 'fast' : 'slow'}): 0/${allJobs.length}`);
+  }
   if (allJobs.length > 0 && got / allJobs.length < 0.5 && cachedServable(`market-rsi:${fast ? 'fast' : 'slow'}`, (fast ? FAST_TTL : SLOW_TTL) + STALE_WHILE_REFRESH_MS)) {
     throw new Error(`partial RSI refresh (${fast ? 'fast' : 'slow'}): ${got}/${allJobs.length} series, keeping the last good result`);
   }
