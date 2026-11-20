@@ -109,7 +109,7 @@ export default function GexTable() {
               {leanReason && <span style={{ color: 'var(--txt2)' }}> - {leanReason}</span>}
               <span style={{ color: 'var(--txt3)' }}> · </span>
               <span style={{ color: regimeColor }}>{regimeLabel}</span>
-              <span style={{ color: 'var(--txt2)' }}> regime - {regimeDesc}</span>
+              <span style={{ color: 'var(--txt2)' }}> {t('GEX_TABLE_REGIME_WORD')} - {regimeDesc}</span>
             </>
           );
         })() : (

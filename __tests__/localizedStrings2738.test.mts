@@ -1,4 +1,5 @@
-/* QA: PR #2738 (#1185, PM go 2026-11-20), the hardcoded English that ko / zh / ru visitors still saw goes through labels: relative times, the offline / funding-loading / global-error screens, sign-in errors, the landing footer. Stacked on #2737.
+/* RE-PINNED 2026-11-20 for #2741. #2741 routes the briefing event row's countdown text through hToHMt (labels BRIEFING_DUR_MIN / _HM / _H, migration 20261128c); hToHM stays English for the AI-prompt line. The three T1 pins that read the event row were stale: (a) the cut expression now calls hToHMt(lh, t), (b) the "in 2h 30m" case now routes to BRIEFING_EVENT_IN with a nested BRIEFING_DUR_HM and reads in the language ("2시간 30분 후", "2 小时 30 分钟后", "через 2 ч 30 мин"), (c) the ko / zh / ru English-unit exemption for that row is gone because it no longer prints English units. Everything else is #2738's text unchanged.
+ * QA: PR #2738 (#1185, PM go 2026-11-20), the hardcoded English that ko / zh / ru visitors still saw goes through labels: relative times, the offline / funding-loading / global-error screens, sign-in errors, the landing footer. Stacked on #2737.
  *
  * THE WRITTEN RULES (Dev's PR body; the literals are the PR's, not read off the code):
  *   (1) friendlyAuthError(message, t?): WITHOUT t the old English text comes back exactly, for every known message; WITH t it returns t(KEY) (the label text); an unknown message is returned unchanged and t is not called. login (5 calls), forgot-password (1), reset-password (1), settings (1) and auth/callback (3) now pass t.
@@ -106,6 +107,7 @@ const MIG = '20261128b_labels_hardcoded_screens_times.sql';
 const migRaw = read(`supabase/migrations/${MIG}`);
 const migBlocks = blocksOf(migRaw);
 const prodRows = migBlocks.find((b) => b.table === 'lhq_labels')?.rows ?? [];
+const batch3Rows = blocksOf(read('supabase/migrations/20261128c_labels_scanner_absorption_journal.sql')).find((b) => b.table === 'lhq_labels')?.rows ?? []; // RE-PINNED 2026-11-20 for #2741
 const newRow = (rows: Row[], key: string, l: string) => rows.find((r) => r.key === key && r.locale === l)?.value;
 
 /** Every violation of the migration rules in `raw`; [] when it is clean. Pure, so the controls can feed it broken text. */
@@ -400,6 +402,7 @@ type Fns = {
 };
 function buildFns(s: typeof SRC): Fns {
   const hToHM = load<(h: number) => string>(cutBlock(s.briefing, 'function hToHM('), 'hToHM');
+  const hToHMt = load<(h: number, t: T) => string>(cutBlock(s.briefing, 'function hToHMt('), 'hToHMt'); // RE-PINNED 2026-11-20 for #2741
   const countdown = load<Fns['countdown']>(cutBlock(s.provider, 'function countdown('), 'countdown');
   const lineOf = (src: string, needle: string) => { const i = src.indexOf(needle); assert.ok(i >= 0, `CONTROL: anchor not found: ${needle}`); const a = src.lastIndexOf('\n', i) + 1; return src.slice(a, src.indexOf('\n', i)); };
   const brief = lineOf(s.briefing, 'const label = mins < 1 ?').trim().replace(/^const label = /, '').replace(/;$/, '');
@@ -407,11 +410,11 @@ function buildFns(s: typeof SRC): Fns {
   const evLine = lineOf(s.briefing, "isPast ? t('ALERTS_AGO_MINUTES'").trim().replace(/^\{/, '').replace(/\}$/, '');
   const upI = s.provider.indexOf("tRef.current('NEWS_UPCOMING_ALERT'"); assert.ok(upI >= 0, 'CONTROL: the upcoming-alert call moved');
   const upX = s.provider.slice(upI, s.provider.indexOf(", 'Calendar'", upI));
-  const f1 = expr(brief, ['t', 'mins']); const f2 = expr(yenX, ['t', 'jpyMinutesAgo']); const f3 = expr(evLine, ['t', 'isPast', 'lh', 'hToHM']); const f4 = expr(upX, ['tRef', 'e', 'countdown']);
+  const f1 = expr(brief, ['t', 'mins']); const f2 = expr(yenX, ['t', 'jpyMinutesAgo']); const f3 = expr(evLine, ['t', 'isPast', 'lh', 'hToHMt']); const f4 = expr(upX, ['tRef', 'e', 'countdown']);
   return {
     tsAgo: load(cutBlock(s.briefing, 'function tsAgo('), 'tsAgo'), relTime: load(cutBlock(s.chat, 'function relTime('), 'relTime'), tickerAgo: load(cutBlock(s.ticker, 'function timeAgo('), 'timeAgo'),
     providerAgo: load(cutBlock(s.provider, 'function timeAgo('), 'timeAgo'), countdown, fmtAge: load(cutBlock(s.ms, 'function fmtAge('), 'fmtAge'), hToHM,
-    briefLabel: (t, mins) => f1(t, mins), yen: (t, m) => f2(t, m), eventRow: (t, p, lh) => f3(t, p, lh, hToHM), upcoming: (t, e) => f4({ current: t }, e, countdown),
+    briefLabel: (t, mins) => f1(t, mins), yen: (t, m) => f2(t, m), eventRow: (t, p, lh) => f3(t, p, lh, hToHMt), upcoming: (t, e) => f4({ current: t }, e, countdown),
   };
 }
 /* label text per language: the new keys from the migration, the existing ALERTS_AGO_* / NEWS_TIME_* from the migrations that seeded them (ko, zh) and from the English defaults; ru has no repo row for those two families */
@@ -422,6 +425,7 @@ function labelT(l: Lang): T {
     let raw: string | undefined;
     if (l === 'en') raw = defaults[k];
     else if (NEW_KEYS.includes(k)) raw = newRow(prodRows, k, l);
+    else if (k.startsWith('BRIEFING_DUR_')) raw = newRow(batch3Rows, k, l); // RE-PINNED 2026-11-20 for #2741: the duration units come from 20261128c
     else if (EXISTING.includes(k)) raw = l === 'ko' ? seedRow('20260731a_labels_seed_translation_ko.sql', k, 'ko') : l === 'zh' ? seedRow('20260801a_labels_seed_translation_zh.sql', k, 'zh') : undefined;
     else raw = undefined;
     return raw === undefined ? `<<no ${l} row: ${k}>>` : interpolate(raw, v ?? {});
@@ -475,7 +479,7 @@ const CASES: Case[] = [
   { id: 'yen 2880 min (2 d)', run: (f, t) => f.yen(t, 2880), routed: 'ALERTS_AGO_DAYS{"n":2}', text: { en: '2d ago', ko: '2일 전', zh: '2天前' } },
   { id: 'event row past 30 min', run: (f, t) => f.eventRow(t, true, -0.5), routed: 'ALERTS_AGO_MINUTES{"n":30}', text: { en: '30m ago', ko: '30분 전', zh: '30分钟前' } },
   { id: 'event row now', run: (f, t) => f.eventRow(t, false, 0.01), routed: 'BRIEFING_EVENT_NOW', text: { en: 'NOW', ko: '지금', zh: '现在', ru: 'СЕЙЧАС' } },
-  { id: 'event row in 2 h 30 m', run: (f, t) => f.eventRow(t, false, 2.5), routed: 'BRIEFING_EVENT_IN{"time":"2h 30m"}', text: { en: 'in 2h 30m', ko: '2h 30m 후', zh: '2h 30m后', ru: 'через 2h 30m' } },
+  { id: 'event row in 2 h 30 m', run: (f, t) => f.eventRow(t, false, 2.5), routed: 'BRIEFING_EVENT_IN{"time":"BRIEFING_DUR_HM{\\"h\\":2,\\"m\\":30}"}', text: { en: 'in 2h 30m', ko: '2시간 30분 후', zh: '2 小时 30 分钟后', ru: 'через 2 ч 30 мин' } }, // RE-PINNED 2026-11-20 for #2741
   { id: 'upcoming alert, happening now', run: (f, t) => f.upcoming(t, { name: 'FOMC', h: 0.4 }), routed: 'NEWS_UPCOMING_ALERT{"name":"FOMC","countdown":"NEWS_COUNTDOWN_NOW"}', text: { en: 'Upcoming: FOMC - Happening NOW', ko: '예정: FOMC - 지금 진행 중', zh: '即将发生：FOMC - 正在进行', ru: 'Скоро: FOMC - Идёт сейчас' } },
   { id: 'upcoming alert, 1 h away', run: (f, t) => f.upcoming(t, { name: 'CPI', h: 0.9 }), routed: 'NEWS_UPCOMING_ALERT{"name":"CPI","countdown":"NEWS_COUNTDOWN_HOURS{\\"n\\":1}"}', text: { en: 'Upcoming: CPI - 1h away', ko: '예정: CPI - 1시간 후', zh: '即将发生：CPI - 1 小时后', ru: 'Скоро: CPI - через 1 ч' } },
 ];
@@ -496,7 +500,7 @@ test('T1. the relative-time functions, CUT FROM THE REAL SOURCES, give the pinne
   const calls: string[] = []; const spy: T = (k) => { calls.push(k); return k; };
   assert.equal(f.relTime(NOW - 7 * 86_400_000, spy), new RealDate(NOW - 7 * 86_400_000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })); assert.deepEqual(calls, [], 'a week-old chat row called a label');
   /* ko / zh / ru never print an English unit word where a label produced the text, except the hh:mm helper, which is pinned as it is */
-  for (const c of CASES) for (const l of ['ko', 'zh', 'ru'] as const) { const w = c.text[l]; if (w === undefined || /^(in |)\d+h \d+m/.test(c.text.en!) && c.id.startsWith('event row in')) continue; assert.doesNotMatch(w, /\b(ago|away|in|just now|NOW|current)\b/, `${c.id} [${l}] still reads English: ${w}`); }
+  for (const c of CASES) for (const l of ['ko', 'zh', 'ru'] as const) { const w = c.text[l]; if (w === undefined) continue; /* RE-PINNED 2026-11-20 for #2741: the event row's English-unit exemption is gone (hToHMt translates the units) */ assert.doesNotMatch(w, /\b(ago|away|in|just now|NOW|current)\b/, `${c.id} [${l}] still reads English: ${w}`); }
   assert.equal(f.hToHM(2.5), '2h 30m', 'hToHM output (the "h" / "m" in it are English units, untouched by the PR)'); assert.equal(f.hToHM(0.5), '30m'); assert.equal(f.hToHM(3), '3h');
   assert.equal(CASES.filter((c) => c.text.ru).length > 15, true, 'CONTROL: ru is pinned for the new keys');
 });

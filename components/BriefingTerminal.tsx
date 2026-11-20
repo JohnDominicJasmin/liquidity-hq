@@ -51,6 +51,15 @@ function hToHM(h: number): string {
   return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
 }
 
+/* hToHM for the SCREEN: the same text with the unit words from labels (#1185). hToHM itself stays English because it also writes the AI-prompt line. */
+function hToHMt(h: number, t: (k: LabelKey, v?: Record<string, string | number>) => string): string {
+  const totalMins = Math.round(h * 60);
+  if (totalMins < 60) return t('BRIEFING_DUR_MIN', { m: totalMins });
+  const hrs = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  return mins > 0 ? t('BRIEFING_DUR_HM', { h: hrs, m: mins }) : t('BRIEFING_DUR_H', { h: hrs });
+}
+
 function tsAgo(ts: number, t: (k: LabelKey, v?: Record<string, string | number>) => string): string {
   const s = Math.floor(Date.now() / 1000 - ts);
   if (s < 60) return t('ALERTS_AGO_JUST_NOW');
@@ -807,7 +816,7 @@ export default function BriefingTerminal() {
               <div className="mb-event-time" style={{
                 color: isPast ? 'var(--txt3)' : lh < 1 ? 'var(--red)' : lh < 6 ? 'var(--amber)' : 'var(--txt3)',
               }}>
-                {isPast ? t('ALERTS_AGO_MINUTES', { n: Math.round(-lh * 60) }) : lh < 0.017 ? t('BRIEFING_EVENT_NOW') : t('BRIEFING_EVENT_IN', { time: hToHM(lh) })}
+                {isPast ? t('ALERTS_AGO_MINUTES', { n: Math.round(-lh * 60) }) : lh < 0.017 ? t('BRIEFING_EVENT_NOW') : t('BRIEFING_EVENT_IN', { time: hToHMt(lh, t) })}
               </div>
             </div>
           );
