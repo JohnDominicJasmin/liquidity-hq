@@ -1,8 +1,8 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { use, useMemo, useState } from 'react';
 import { LabelsContext, interpolate, useLabels, type Locale } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
-import DEFAULT_EN_LABELS from '@/lib/labelDefaults.en.json';
+import { loadFullEnglish } from '@/lib/labelsFull';
 
 /* THE VISITOR'S LANGUAGE FROM THE FIRST PAINT, for one page (#1263, PM: GO on "d2", 2026-11-19).
  *
@@ -13,12 +13,14 @@ import DEFAULT_EN_LABELS from '@/lib/labelDefaults.en.json';
  * choice, when the cookie was stale), so a language switch made later behaves exactly as everywhere else. Server and client render the same seeded text first, so hydration matches. */
 export default function LabelsSeed({ locale, labels, children }: { locale: Locale; labels: Record<string, string>; children: React.ReactNode }) {
   const outer = useLabels();
+  /* The whole English table, from its own chunk (#1185 slow-3G, option B, DRAFT). /arena is not a critical-label route, so LabelsProvider above has already waited for it: this returns at once. */
+  const DEFAULT_EN_LABELS = use(loadFullEnglish());
   // Once settled, always settled: a later locale switch sets the app-wide `loading` again, and the page must keep following the app-wide value through it, not fall back to the seed.
   const [settled, setSettled] = useState(false);
   if (!outer.loading && !settled) setSettled(true);
   const seeded = useMemo(() => {
     const map: Record<string, string> = { ...DEFAULT_EN_LABELS, ...labels };
     return { locale, setLocale: outer.setLocale, t: (key: LabelKey, vars?: Record<string, string | number>) => interpolate(map[key] ?? key, vars), loading: false };
-  }, [locale, labels, outer.setLocale]);
+  }, [DEFAULT_EN_LABELS, locale, labels, outer.setLocale]);
   return <LabelsContext.Provider value={settled || !outer.loading ? outer : seeded}>{children}</LabelsContext.Provider>;
 }
