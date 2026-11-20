@@ -33,7 +33,9 @@ function moduleMap(route) {
   if (!f) return null;
   try {
     const text = readFileSync(f, 'utf8');
-    const json = JSON.parse(text.slice(text.indexOf('= ') + 2).replace(/;\s*$/, ''));
+    const m = /__RSC_MANIFEST\[[^\]]+\]\s*=\s*/.exec(text);
+    if (!m) return null;
+    const json = JSON.parse(text.slice(m.index + m[0].length).replace(/;\s*$/, ''));
     const byChunk = new Map();
     for (const [mod, info] of Object.entries(json.clientModules ?? {})) for (const ch of info.chunks ?? []) {
       const name = String(ch).split('/').pop().split('?')[0];
@@ -41,7 +43,7 @@ function moduleMap(route) {
       byChunk.get(name).add(mod.replace(/^\[project\]\//, '').split('#')[0]);
     }
     return byChunk;
-  } catch (e) { return null; }
+  } catch (e) { console.log(`(manifest parse failed: ${e.message})`); return null; }
 }
 /* WHAT A CHUNK HOLDS, by strings that survive minification (package names in error messages and globals). A hint, not a module list. */
 const MARKERS = [['react-dom', 'react-dom'], ['react-dom', '__reactContainer'], ['next/router', 'next-router'], ['supabase', 'supabase'], ['supabase', 'GoTrue'], ['posthog', 'posthog'], ['sentry', '@sentry'], ['sentry', 'Sentry'], ['klinecharts', 'klinecharts'], ['klinecharts', 'registerIndicator'], ['zod', 'ZodError'], ['lucide', 'lucide'], ['framer', 'framer-motion'], ['date-fns', 'date-fns'], ['intl', 'Intl.DateTimeFormat'], ['i18n labels', 'labelDefaults'], ['market store', 'fundingRate'], ['arena', 'ARENA_'], ['strategies', 'STRAT_OV_'], ['landing', 'LandingTerminal'], ['polyfills', 'Array.prototype.at']];
