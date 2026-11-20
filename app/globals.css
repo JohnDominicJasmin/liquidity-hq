@@ -599,6 +599,19 @@ body::after {
   /* Don't render both the sidebar AND the mobile stacked coin block */
 }
 
+/* ── ARENA AT 981-1099 PX (#1185, width audit 1024-1160) ──
+   From 981 px the Arena workspace is two columns (.arena-ws: chart + a fixed 320 px rail), but the shared
+   .app-content stays at its 700 px reading width until 1100 px, so at 1024 the chart column was only about
+   334 px wide (700 - 32 padding - 14 gap - 320 rail) and the rail sat 162 px in from the screen edge. The
+   dashboard already lifts the cap for its own two columns in this band (the tablet block above); this does
+   the same for the Arena, scoped with :has so no other page's reading column moves. The padding matches
+   the 1100 px and wider rule, so the rail's distance from the right edge is the 354 px the Setup card's
+   fallback expects (--arena-rail-clear is still measured by the Arena page, not set here). Below 981 px the
+   workspace is one column and nothing here applies. */
+@media (min-width: 981px) and (max-width: 1099px) {
+  .app-content:has(.arena-ws) { max-width: none; padding-left: 20px; padding-right: 20px; }
+}
+
 /* ── COIN SIDEBAR (desktop) ── */
 
 /* ── COIN SIDEBAR v2 - signal cards ── */
