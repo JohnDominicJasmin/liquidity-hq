@@ -150,6 +150,21 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* DRAFT, the release after v2026.11.22 (Dev 2026-11-20, PM). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs (rule 22; 2026-11-21 is a placeholder). Plain words, 12 words or fewer per line; only user-visible changes, facts only (QA checks each line).
+       Tied to: #2712 (VWAP card decimals), #2715 (partial-day VWAP line), #2718 (liquidation prices per-token, sub-penny buckets), #2719 (left-edge labels, VWAP window), #2721 (AI Confirms-to line cap). A line whose PR misses the tag is removed. */
+    date: '2026-11-21',
+    tag: 'v2026.11.23',
+    items: [
+      "Liquidation levels now show for PEPE, BONK and other low-priced coins.",
+      "Liquidation prices use one unit across both exchanges.",
+      "VWAP reclaim draws the day's VWAP from the first candle.",
+      "Strategy lines left of the visible candles show an edge label.",
+      "VWAP reclaim on stocks reads further back when the market is closed.",
+      "1000x coins show the Arena VWAP with fewer decimals.",
+      "The AI read keeps its 'Confirms to' line short.",
+    ],
+  },
+  {
     /* DRAFT, the release after v2026.11.21 (Dev 2026-11-20, PM). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs (rule 22; 2026-11-20 is the date of the release merge, which PM checks at the tag). Plain words, 12 words or fewer per line;
        only user-visible changes. Tied to: #2680 + #2681 + #2683 (no failing text), the strategy drawings (#2676-#2678, #2685-#2687, #2700, #2705), #2706 + #2708 + #2711 + #2712 (one price unit), #2704 (SMA), #2709 + #2710 (Setup card). */
     date: '2026-11-20',
