@@ -2,7 +2,7 @@
 import { useMarket, CoinId, fmtPrice, COIN_DEC, classifyFunding, FUNDING_TIP_KEY } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { oiTrend1h } from '@/lib/oiTrend1h';
-import { currencyPrefix } from '@/lib/coins';
+import { currencyPrefix, arenaPriceUnit } from '@/lib/coins';
 import ReadingGap from '@/components/ReadingGap';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -57,7 +57,8 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
    * pass, so on a universe coin the skeleton below spun for ever and the card settled into reading
    * as a finished value - the same unknown-shown-as-pending defect as #2119 and #2125. */
   /* currencyPrefix, not a literal $ (#2196): an HKD coin's VWAP read HK$ everywhere else on the page and $ here. */
-  const vwapStr = vwap != null ? currencyPrefix(coin) + fmtPrice(vwap, COIN_DEC[coin]) : null;
+  /* IN THE ARENA'S PRICE UNIT (PM, 2026-11-20, QA on qa 378cf39: pepe showed $0.00000383 beside a $0.0038 chart): the store's VWAP is per-token; this card is on the Arena only, whose prices for a 1000x contract are in the chart's unit (arenaPriceUnit, lib/coins.ts; 1 for every other coin). The percent beside it is scale-free. */
+  const vwapStr = vwap != null ? currencyPrefix(coin) + fmtPrice(vwap * arenaPriceUnit(coin), COIN_DEC[coin]) : null;
 
   /* #1613: the label and the number beside it come from the SAME hour. `store.oiTrend` is a different window (~3h at first load, ~25 min once the
      poll has filled its history) and made the label contradict the 1h figure and flip as its source changed, so this card no longer reads it.
