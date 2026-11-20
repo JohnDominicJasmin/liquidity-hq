@@ -29,8 +29,8 @@ const kb = n => (n / 1024).toFixed(1);
 /* CHUNK -> CLIENT MODULES from the route's client-reference manifest (Next writes it next to the page: it names every client module and the chunks that carry it). */
 function moduleMap(route) {
   const base = route === '/' ? '' : route.replace(/^\//, '') + '/';
-  const f = path.join(root, `.next/server/app/${base}page_client-reference-manifest.js`);
-  if (!existsSync(f)) return null;
+  const f = [`.next/server/app/${base}page_client-reference-manifest.js`, `.next/server/app/(main)/${base}page_client-reference-manifest.js`].map(x => path.join(root, x)).find(existsSync);
+  if (!f) return null;
   try {
     const text = readFileSync(f, 'utf8');
     const json = JSON.parse(text.slice(text.indexOf('= ') + 2).replace(/;\s*$/, ''));
