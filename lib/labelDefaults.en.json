@@ -1313,7 +1313,7 @@
   "SEO_HOURS_Q3": "What do quiet hours mean?",
   "SEO_HOURS_A3": "Quiet hours are the hours outside every defined window. The page labels them so you can tell them apart from the active windows.",
   "SEO_HOURS_Q4": "What is the Prime window?",
-  "SEO_HOURS_A4": "Prime is the daily window from 18:00 to 21:00 UTC, which the page treats as the US session.",
+  "SEO_HOURS_A4": "Prime is the daily window from 18:00 to 21:00 UTC, the US afternoon.",
   "SEO_ECON_TITLE": "How the economic calendar works",
   "SEO_ECON_P1": "Scheduled macro releases can move crypto markets, so this calendar lists the high-impact US events: Federal Reserve rate decisions (FOMC), the jobs report (NFP), CPI inflation, PCE and GDP, with their release times in your local time zone. Each event carries an impact level, which is a rating of how widely the event is watched, and the next event is shown with a countdown. If the feed is briefly unavailable, the page keeps the last calendar it loaded and shows how old it is.",
   "SEO_ECON_P2": "Where the data exists, a row also shows the previous figure, the forecast and, once it is published, the actual figure. Past events stay visible for a short while so you can compare the result with the forecast. Dates follow the published schedules of the Federal Reserve and the statistics agencies, and the actual figure is added after the release, so it can appear some time after the scheduled time.",
