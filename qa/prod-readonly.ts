@@ -225,6 +225,8 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'signout-resilience': 'writes on purpose: PATCHes settings and signs out',
   'strategy-panel-preload-race': 'writes on purpose: PATCHes strategy_selection',
   'failing-text-2731': 'signs in with a DEV-project fixture (not a production account) and drives a journal read that is route-stubbed to fail; its stand-in answers the one trade POST so nothing reaches the database, but a missed route match would write a real journal row. Also forces kline reads to fail, which against production would show a failure to real visitors.',
+  'badge-contrast-2743': 'injects a probe element into the live Arena card to measure text contrast: read-only signed out, but it edits the page DOM of whichever site it runs against, which is pointless against production (the real badge is measured by the same spec).',
+  'layout-tablet-2724-2725-2727': 'signs in with DEV-project fixtures (Pro, Free, trial) to measure the signed-in Arena, dashboard and nav at tablet widths: not production accounts.',
   'timezone-sync-settings-ready': 'writes on purpose: PATCHes timezone',
 };
 
