@@ -202,7 +202,9 @@ test('the prompt is fed from LiqFeed, not from the dead Coinglass array', () => 
   const arena = readFileSync(path.join(ROOT, appPath('app', 'arena', 'page.tsx')), 'utf8');
   const line = arena.match(/const liqLevels = [^;]+;/);
   assert.ok(line, 'the liqLevels prompt field is gone');
-  assert.match(line[0], /formatClustersForPrompt\(liqClusters, selectedCoin\)/);
+  /* RE-ANCHORED for #2718 (2026-11-20): the AI line reads the SCALED list (arenaLiqClusters = the LiqFeed list with the selected coin in the chart unit); liqPerTokenUnits2718 U4 runs that memo, and the match below pins that it is built from liqClusters */
+  assert.match(line[0], /formatClustersForPrompt\(arenaLiqClusters, selectedCoin\)/);
+  assert.match(arena, /const arenaLiqClusters = useMemo\(\(\) => \{[\s\S]{0,400}liqClusters\.map/, 'arenaLiqClusters is no longer derived from the LiqFeed list');
   assert.equal(/const liqLevels =[\s\S]{0,120}btcLiqLevels/.test(arena), false,
     'liqLevels reads store.btcLiqLevels again, which is permanently empty');
 });

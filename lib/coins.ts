@@ -638,7 +638,7 @@ export function arenaPriceUnit(coin: string): number {
   return f > 0 && f < 1 ? 1 / f : 1;
 }
 
-/* A COIN WHOSE LIQUIDATION FEED COMES IN MIXED UNITS (PM, 2026-11-20, data-integrity rule): the liquidation rows keep each event's price raw, in the contract unit of the venue that reported it, and the clusters mix both venues. Where Bybit and Binance list the coin with a DIFFERENT multiplier
+/* NO LONGER USED BY THE APP (#1651, PM 2026-11-20: liquidation prices are converted to per-token at the feed, lib/liqUnits.ts; kept so the helper's own pins still compile until QA re-pins). It marked a coin whose liquidation feed came in MIXED UNITS (data-integrity rule): the liquidation rows keep each event's price raw, in the contract unit of the venue that reported it, and the clusters mix both venues. Where Bybit and Binance list the coin with a DIFFERENT multiplier
  * (sats: Bybit 10000x, Binance 1000x; tag, toshi, turbo: Bybit 1000x, Binance per-token) one cluster list holds two scales, so the Arena draws no liquidation layer and quotes no liquidation note for it. Converting at ingest is tracked on #1651 (post-freeze). */
 export function liqUnitsMixed(coin: string): boolean {
   const v = venueSymbols(coin);
