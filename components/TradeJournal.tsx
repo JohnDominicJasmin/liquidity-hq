@@ -76,13 +76,23 @@ const RULE_OP_LABEL_KEYS: Record<RuleOperator, LabelKey> = {
 };
 
 const SESSIONS = ['New York', 'London', 'Asia', 'Pre-Market', 'Weekend'];
+/* The stored value is the English name (rules compare it); only the option text is translated (#1185). */
+const SESSION_LABEL_KEYS: Record<string, LabelKey> = { 'New York': 'JOURNAL_SESSION_NEW_YORK', London: 'JOURNAL_SESSION_LONDON', Asia: 'JOURNAL_SESSION_ASIA', 'Pre-Market': 'JOURNAL_SESSION_PRE_MARKET', Weekend: 'JOURNAL_SESSION_WEEKEND' };
+
+/* THE LIVE SESSION NAME IS NOT THE RULE'S SESSION OPTION (PM, 2026-11-20, QA's #2741 pass): a trade stores, and the form reads, the live window name from lib/session.ts getSessionName ("NY Session", "London Open", ...), while a session rule's value is one of SESSIONS ("New York", "London", ...). Compared raw they never matched, so "NY or London only" read as violated on every trade. The live name is mapped to the option it belongs to before the compare; display and the stored value are unchanged. NY Session and Prime (the 18-21 UTC US session) are New York; God Tier (the Sunday window) is Weekend; Mon Evening (Mon 12:00-15:00 UTC, checked before NY Session) is New York, PM's fallback because the rule check only has the stored name, not the trade's time (PM would split it 12:00-13:29 Pre-Market / 13:30-15:00 New York with a timestamp); Dead Zone and anything else compare raw and match no option. */
+const RULE_SESSION_OF_LIVE: Record<string, string> = {
+  'NY Session': 'New York', 'Prime': 'New York', 'Mon Evening': 'New York', 'London Open': 'London', 'Asia Session': 'Asia', 'Pre-NY': 'Pre-Market', 'God Tier': 'Weekend',
+};
+function ruleSessionName(live: string): string {
+  return RULE_SESSION_OF_LIVE[live] ?? live;
+}
 
 /* Check a single rule against live form fields. Returns true = VIOLATION */
 function ruleViolated(rule: TradingRule, fields: {
   coin: string; direction: string; setup_type: string; leverage: number; session: string;
 }): boolean {
   if (!rule.enabled) return false;
-  const raw = fields[rule.field];
+  const raw = rule.field === 'session' ? ruleSessionName(fields.session) : fields[rule.field];
   const vals = rule.value.split(',').map(v => v.trim().toLowerCase());
   const cmp  = String(raw).toLowerCase();
   switch (rule.operator) {
@@ -1633,7 +1643,7 @@ function Inner() {
                     style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
                   >
                     <option value="">{t('TRADE_JOURNAL_RULES_SELECT_SESSION_PLACEHOLDER')}</option>
-                    {SESSIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                    {SESSIONS.map(s => <option key={s} value={s}>{t(SESSION_LABEL_KEYS[s])}</option>)}
                   </select>
                 )}
                 {ruleField === 'leverage' && (

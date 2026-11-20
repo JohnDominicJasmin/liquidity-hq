@@ -76,7 +76,7 @@ export default function ResetPasswordPage() {
     // The 15 s bound fired, so the password may have changed anyway: end the other sessions in that case too (harmless if it
     // did not). Not awaited, never throws (signOutOtherSessions returns its error), and this session is kept (QA review of #2587).
     if (error?.unconfirmed) void signOutOtherSessions(sb).then(e => { if (e) console.error('[auth] ending other sessions after an unconfirmed reset failed:', e); });
-    if (error) { setLoading(false); setError(friendlyAuthError(error.message)); return; }
+    if (error) { setLoading(false); setError(friendlyAuthError(error.message, t)); return; }
     // A reset is how someone takes an account back: end the sessions opened
     // with the old password, keep this one (#1113). Best effort - the password
     // has already changed, so a failure here is logged, not shown.

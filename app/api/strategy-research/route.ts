@@ -117,8 +117,13 @@ export async function POST(req: NextRequest) {
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 1200,
     }),
-  }).catch(async (e: unknown) => { await refundToolUsage(authData.user.id, 'strategyResearch', reservedOn); throw e; });
+  }).catch((e: unknown) => e instanceof Error ? e : new Error(String(e)));
 
+  /* A NETWORK THROW IS GIVEN BACK AND ANSWERED AS JSON (PM route audit, 2026-11-20): it used to refund and then rethrow, so the page got a bare non-JSON 500; now it answers like a non-2xx, as behavioral-bias and shadow-account already did. */
+  if (res instanceof Error) {
+    await refundToolUsage(authData.user.id, 'strategyResearch', reservedOn);
+    return apiError('strategy-research', res, 502, 'AI service error');
+  }
   if (!res.ok) {
     await refundToolUsage(authData.user.id, 'strategyResearch', reservedOn);
     const err = await res.json().catch(() => ({})) as { error?: string };
@@ -126,7 +131,12 @@ export async function POST(req: NextRequest) {
     return apiError('strategy-research', err.error ?? 'upstream AI error', 502, 'AI service error');
   }
 
-  const data = await res.json();
+  /* A 2xx WHOSE BODY IS NOT JSON is a failed answer: the use is given back and the page gets JSON (PM route audit, 2026-11-20); it used to throw unhandled after the use was spent. */
+  const data = await res.json().catch(() => null);
+  if (!data) {
+    await refundToolUsage(authData.user.id, 'strategyResearch', reservedOn);
+    return apiError('strategy-research', 'unreadable AI answer', 502, 'AI service error');
+  }
   await recordAiCall({ userId: authData.user.id, callType: 'strategy_research', model: data.model ?? 'grok-4.3', usage: data.usage });
   const text: string = data.choices?.[0]?.message?.content ?? '';
   /* AN EMPTY OR CUT-OFF ANSWER IS NOT AN ANSWER (owner sweep 2026-11-18): it used to return 200 with a blank or half text and the use

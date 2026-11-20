@@ -22,7 +22,7 @@
  * not a gap: no local computation produces them (same finding as
  * dashboard's Best Setup Today, #587) and the spec designs for their
  * absence rather than assuming they exist. */
-import { useState, useEffect, useSyncExternalStore, type ReactNode } from 'react';
+import { Fragment, useState, useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useMarket, COIN_DEC, fmtPrice, classifyFunding, computeSqueezeScore } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
@@ -675,9 +675,9 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
               { title: dict.footer.columns.account, links: [
                 ['/login', dict.footer.links.signIn], ['/login?signup=1', dict.footer.links.createAccount],
                 ['/upgrade', dict.footer.links.pricing], ['/about', dict.footer.links.about],
-                ['/disclaimer', dict.footer.links.disclaimer], ['/terms', 'Terms of Use'],
-                ['/privacy', 'Privacy Policy'],
-                ['/contact', 'Contact'],
+                ['/disclaimer', dict.footer.links.disclaimer], ['/terms', dict.footer.links.terms],
+                ['/privacy', dict.footer.links.privacy],
+                ['/contact', dict.footer.links.contact],
               ] },
             ].map(col => (
               <div key={col.title}>
@@ -700,7 +700,7 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: isDesktop ? 40 : 28 }}>
           <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono), monospace', fontWeight: 700, letterSpacing: '.2em', color: 'var(--txt3)', flexShrink: 0, textTransform: 'uppercase' }}>
-            Risk disclosure
+            {dict.footer.riskTitle}
           </span>
           <div style={{ flex: 1, height: 1, background: 'var(--bdr)' }} />
         </div>
@@ -729,13 +729,17 @@ export default function LandingTerminal({ dict, locale, dir, aiAnalysisBody }: P
             <Link href="/disclaimer" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{dict.footer.fullDisclaimer}</Link>
           </p>
           <p style={{ fontSize: isDesktop ? 12.5 : 12, lineHeight: 1.6, color: 'var(--txt3)', margin: '8px 0 0' }}>
-            By using LiquidityHQ, you acknowledge that you understand and agree to our{' '}
-            <Link href="/disclaimer" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Disclaimer</Link>,{' '}
-            <Link href="/terms" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Terms of Use</Link>, and{' '}
-            <Link href="/privacy" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Privacy Policy</Link>.
+            {dict.footer.ack.split(/(\{disclaimer\}|\{terms\}|\{privacy\})/).map((part, i) => {
+              const slot = part === '{disclaimer}' ? ['/disclaimer', dict.footer.links.disclaimer]
+                : part === '{terms}' ? ['/terms', dict.footer.links.terms]
+                : part === '{privacy}' ? ['/privacy', dict.footer.links.privacy] : null;
+              return slot
+                ? <Link key={i} href={slot[0]} className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{slot[1]}</Link>
+                : <Fragment key={i}>{part}</Fragment>;
+            })}
           </p>
           <p style={{ fontSize: isDesktop ? 12.5 : 12, lineHeight: 1.6, color: 'var(--txt3)', margin: '8px 0 0' }}>
-            <Link href="/contact" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Contact</Link>:{' '}
+            <Link href="/contact" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{dict.footer.links.contact}</Link>:{' '}
             <a href={SUPPORT_MAILTO} data-testid="landing-support-email" className="lt-inline-hit" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{SUPPORT_EMAIL}</a>
           </p>
         </div>

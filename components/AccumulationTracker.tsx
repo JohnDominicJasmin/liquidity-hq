@@ -4,6 +4,7 @@ import { useMarket, COINS, CoinId, CoinData, fmtPrice, COIN_DEC } from '@/lib/ma
 import { SkeletonBar } from './Skeleton';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 /* ── Accumulation score ─────────────────────────────────────────────────────
    Detects coins being quietly loaded BEFORE the move: price still flat while
@@ -99,6 +100,24 @@ function scoreCoin(id: CoinId, d: CoinData | undefined): AccumRow | null {
     id, score: Math.min(100, score), price: d.price, change: d.change, reasons,
     inputsPresent, inputsTotal: INPUTS.length,
   };
+}
+
+/* The reasons are built as English ids (they key the chips and are what the rows carry); the screen translates them here (#1185). */
+const REASON_KEYS: Record<string, LabelKey> = {
+  'Price flat': 'ACCUMULATION_REASON_PRICE_FLAT', 'Price quiet': 'ACCUMULATION_REASON_PRICE_QUIET', 'CVD absorption': 'ACCUMULATION_REASON_CVD',
+  'OI building': 'ACCUMULATION_REASON_OI_BUILDING', 'OI drifting up': 'ACCUMULATION_REASON_OI_DRIFTING', 'Funding calm': 'ACCUMULATION_REASON_FUNDING_CALM',
+  'Shorts paying': 'ACCUMULATION_REASON_SHORTS_PAYING',
+};
+function reasonText(reason: string, t: (k: LabelKey, v?: Record<string, string | number>) => string): string {
+  const fixed = REASON_KEYS[reason];
+  if (fixed) return t(fixed);
+  let m = reason.match(/^(\d+)% taker buys$/);
+  if (m) return t('ACCUMULATION_REASON_TAKER', { n: m[1] });
+  m = reason.match(/^Whales (\d+)% long$/);
+  if (m) return t('ACCUMULATION_REASON_WHALES', { n: m[1] });
+  m = reason.match(/^Vol ([\d.]+)x$/);
+  if (m) return t('ACCUMULATION_REASON_VOL', { x: m[1] });
+  return reason;
 }
 
 const MIN_SCORE = 45;
@@ -220,7 +239,7 @@ export default function AccumulationTracker() {
                     background: 'rgba(255,255,255,0.045)', border: '0.5px solid var(--bdr)',
                     borderRadius: 5, padding: '1px 6px', whiteSpace: 'nowrap',
                   }}>
-                    {reason}
+                    {reasonText(reason, t)}
                   </span>
                 ))}
               </span>

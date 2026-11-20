@@ -5,6 +5,8 @@ import { useNow } from '@/lib/useNow';
 import { getSupabase } from '@/lib/supabase';
 import { T } from '@/lib/tables';
 import { onPageResume } from '@/lib/socketResume';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 // Push-based, not polled. A scheduled job (app/api/news/ingest and
 // app/api/econ-calendar/ingest, see docs/INFRASTRUCTURE.md §2) does the
@@ -129,11 +131,13 @@ export function useNews() { return useContext(NewsContext)!; }
 const ALERT_LIMIT = 300;
 const SEEN_LIMIT  = 1000;
 
-function timeAgo(ts: number): string {
+type TFn = (k: LabelKey, v?: Record<string, string | number>) => string;
+
+function timeAgo(ts: number, t: TFn): string {
   const s = Math.floor(Date.now() / 1000 - ts);
-  if (s < 60) return 'just now';
-  if (s < 3600) return Math.floor(s / 60) + 'm ago';
-  return Math.floor(s / 3600) + 'h ago';
+  if (s < 60) return t('NEWS_TIME_JUST_NOW');
+  if (s < 3600) return t('NEWS_TIME_MINUTES_AGO', { n: Math.floor(s / 60) });
+  return t('NEWS_TIME_HOURS_AGO', { n: Math.floor(s / 3600) });
 }
 
 function toLocalTime(dt: Date): string {
@@ -144,12 +148,12 @@ function toLocalTime(dt: Date): string {
   }
 }
 
-function countdown(h: number): string {
-  if (h < 0) return 'Just passed';
-  if (h < 0.5) return 'Happening NOW';
-  if (h < 24) return Math.round(h) + 'h away';
+function countdown(h: number, t: TFn): string {
+  if (h < 0) return t('NEWS_COUNTDOWN_PASSED');
+  if (h < 0.5) return t('NEWS_COUNTDOWN_NOW');
+  if (h < 24) return t('NEWS_COUNTDOWN_HOURS', { n: Math.round(h) });
   const d = Math.floor(h / 24), r = Math.round(h % 24);
-  return d + 'd' + (r ? ' ' + r + 'h' : '') + ' away';
+  return r ? t('NEWS_COUNTDOWN_DAYS', { d, r }) : t('NEWS_COUNTDOWN_DAYS_ONLY', { d });
 }
 
 
@@ -185,6 +189,11 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
      and claiming freshness we have not established is the failure this fixes. */
   const econStale = econStaleMs === null || econStaleMs > ECON_STALE_MS;
   const eventsLoadedRef = useRef(false);
+
+  /* The label function is read through a ref so a language change does not rebuild pushAlert (it is a dependency of the feed effects below) - #1185. */
+  const { t } = useLabels();
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const pushAlert = useCallback((
     headline: string,
@@ -237,7 +246,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     const ageMs = Date.now() - ts * 1000;
     if (notify && 'Notification' in window && Notification.permission === 'granted' && ageMs < 15 * 60 * 1000) {
       new Notification(headline, {
-        body: source + ' · ' + timeAgo(ts),
+        body: source + ' · ' + timeAgo(ts, tRef.current),
         requireInteraction: type === 'red',
         tag: key,
       });
@@ -286,7 +295,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     setEconEvents(events);
     setEventsLoaded(true);
     events.filter(e => e.h >= 0 && e.h < 1).forEach(e => {
-      pushAlert(`Upcoming: ${e.name} - ${countdown(e.h)}`, 'Calendar', Math.floor(Date.now() / 1000), 'amber');
+      pushAlert(tRef.current('NEWS_UPCOMING_ALERT', { name: e.name, countdown: countdown(e.h, tRef.current) }), 'Calendar', Math.floor(Date.now() / 1000), 'amber');
     });
   }, [pushAlert]);
 
