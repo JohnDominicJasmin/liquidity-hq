@@ -25,10 +25,12 @@ test('OG capture final: /arena BTC 4h, S/R flip, 1600x900 at scale 2, clip = cha
       for (const s of ['[class*="ticker" i]', '[data-testid*="ticker" i]', '[data-testid*="usage" i]', '[class*="usage" i]', '.arena-usage', '.tnav', 'header.tnav, .tnav-wrap, .app-header', '[class*="chat-fab" i]', '[data-testid*="ask" i]', '.tnav-session', '.session-pill']) for (const el of Array.from(document.querySelectorAll(s)) as HTMLElement[]) if (el.offsetParent !== null || getComputedStyle(el).position === 'fixed') hide(el, s);
       // 2) the sound prompt, the SIGNED OUT tag, the Ask AI float by their text
       const leaves = Array.from(document.querySelectorAll('body *')) as HTMLElement[];
+      /* hide the nearest FIXED/STICKY ancestor within 5 levels (a floating prompt or button), else only the element itself: never a layout container */
+      const fixedOrSelf = (el: HTMLElement): HTMLElement => { let c: HTMLElement | null = el; for (let i = 0; i < 5 && c && c !== document.body; i++) { const p = getComputedStyle(c).position; if (p === 'fixed' || p === 'sticky') return c; c = c.parentElement; } return el; };
       for (const el of leaves) { const t = (el.textContent || '').trim(); if (!t) continue;
-        if (/play a sound/i.test(t) && t.length < 200 && el.children.length <= 6) { let c: HTMLElement = el; for (let i = 0; i < 4 && c.parentElement && c.parentElement !== document.body && getComputedStyle(c).position !== 'fixed'; i++) c = c.parentElement; hide(c, 'sound-prompt'); }
+        if (/play a sound/i.test(t) && t.length < 200 && el.children.length === 0) { hide(fixedOrSelf(el), 'sound-prompt'); }
         else if (/^(signed out)$/i.test(t) && el.children.length === 0) { hide(el, 'signed-out'); }
-        else if (/^(ask\s*(ai|liquidityai))$/i.test(t) && el.children.length === 0) { let c: HTMLElement = el; for (let i = 0; i < 3 && c.parentElement && getComputedStyle(c).position !== 'fixed'; i++) c = c.parentElement; hide(c, 'ask-ai'); } }
+        else if (/^(ask\s*(ai|liquidityai))$/i.test(t) && el.children.length === 0) { hide(fixedOrSelf(el), 'ask-ai'); } }
       // 3) the chart panel and the strategy panel
       const chart = document.querySelector('.klc-wrap') as HTMLElement | null; const sel = document.querySelector('[data-testid="strategy-set-select"]') as HTMLElement | null; const box = document.querySelector('[data-testid="strategy-call-box"]') as HTMLElement | null;
       if (!chart || !sel || !box) return { error: `missing: chart ${!!chart} select ${!!sel} box ${!!box}`, hidden };
@@ -53,7 +55,8 @@ test('OG capture final: /arena BTC 4h, S/R flip, 1600x900 at scale 2, clip = cha
       const chartCard = (document.querySelector('.klc-wrap') as HTMLElement | null)?.parentElement; if (chartCard) { const r = chartCard.getBoundingClientRect(); if (r.width < 1700 && r.height < 1400) { x1 = Math.min(x1, r.left); y1 = Math.min(y1, r.top); x2 = Math.max(x2, r.right); y2 = Math.max(y2, r.bottom); } }
       return { x1, y1, x2, y2, vw: window.innerWidth, vh: window.innerHeight, sx: window.scrollX, sy: window.scrollY };
     });
-    const uw = union.x2 - union.x1, uh = union.y2 - union.y1; const AR = 1200 / 630; let cw = uw, ch = uh;
+    const uw = union.x2 - union.x1, uh = union.y2 - union.y1; expect(uw, `the chart + strategy panel box is empty (union ${uw}x${uh}): a hide rule removed a layout container`).toBeGreaterThan(300); expect(uh).toBeGreaterThan(200);
+    const AR = 1200 / 630; let cw = uw, ch = uh;
     if (uw / uh < AR) cw = uh * AR; else ch = uw / AR;           // pad (never crop) to 1.905:1
     let cx = union.x1 - (cw - uw) / 2, cy = union.y1 - (ch - uh) / 2;
     cx = Math.max(0, Math.min(cx, union.vw - cw)); cy = Math.max(0, Math.min(cy, union.vh - ch));
