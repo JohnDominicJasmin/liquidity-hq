@@ -327,7 +327,7 @@ export const ko: LandingDict = {
     copyright: '© 2026 LiquidityHQ · 교육 목적의 콘텐츠이며 투자 자문이 아닙니다 ·',
     fullDisclaimer: '전체 면책조항 보기',
     riskTitle: '위험 고지',
-    ack: 'LiquidityHQ를 이용하면 {disclaimer}, {terms} 및 {privacy}을(를) 이해하고 이에 동의하는 것으로 간주됩니다.',
+    ack: 'LiquidityHQ를 이용하면 {disclaimer}, {terms} 및 {privacy}의 내용을 이해하고 동의하는 것으로 간주됩니다.',
   },
 };
 
