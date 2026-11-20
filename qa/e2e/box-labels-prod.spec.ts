@@ -48,6 +48,8 @@ for (const theme of ['dark', 'light'] as const) {
       const labels = texts.filter((q) => labelRe.test(q.t.trim()) && q.t.trim().length <= 24); const ticks = texts.filter((q) => tick(q.t));
       const axisLeft = ticks.length ? Math.min(...ticks.map((q) => q.x)) : null;
       const uniq = (a: typeof texts) => Array.from(new Map(a.map((q) => [`${q.t}@${Math.round(q.x)},${Math.round(q.y)}`, q])).values());
+      /* DIAGNOSTIC: every distinct non-axis text the chart drew (so the label wording is read from the canvas, not guessed) */
+      const others = uniq(texts.filter((q) => !tick(q.t) && q.t.trim().length > 0 && q.t.trim().length <= 40)); console.log(`[BOX ${theme}] canvas texts (non-axis, distinct ${others.length}): ${JSON.stringify(others.slice(-70).map((q) => `${q.t.trim().slice(0, 30)}@${Math.round(q.x)},${Math.round(q.y)} w${Math.round(q.w)}`))}`);
       const L = uniq(labels).slice(-12); const over = axisLeft == null ? [] : L.filter((q) => q.x + q.w > axisLeft + 0.5);
       console.log(`[BOX ${theme}] labels ${JSON.stringify(L.map((q) => ({ t: q.t.slice(0, 22), x: Math.round(q.x), y: Math.round(q.y), w: Math.round(q.w), right: Math.round(q.x + q.w) })))} · axis ticks ${ticks.length} (leftmost x ${axisLeft == null ? 'n/a' : Math.round(axisLeft)}) · labels reaching the axis ${JSON.stringify(over.map((q) => q.t))}`);
       await page.screenshot({ path: `qa/.shots/box-${theme}-390.png` });
