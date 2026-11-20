@@ -1238,10 +1238,11 @@ function ArenaContent() {
     if (store.fng != null && (store.fng <= settings.fng_fear || store.fng >= settings.fng_greed))
       fire(`fng-${store.fng <= settings.fng_fear ? 'fear' : 'greed'}-${b4h}`,
         store.fng <= settings.fng_fear ? t('ARENA_NOTIF_FNG_TITLE_FEAR') : t('ARENA_NOTIF_FNG_TITLE_GREED'),
+        /* AN EMPTY LABEL LEAVES NO STRAY "()" (off-site failing-text sweep, PM 2026-11-20): the label text puts {label} inside parentheses, so an empty value is dropped with its parentheses (works in every locale, no new label). */
         t('ARENA_NOTIF_FNG_BODY', {
           fng: store.fng, label: store.fngLabel,
           suffix: store.fng <= settings.fng_fear ? t('ARENA_NOTIF_FNG_SUFFIX_BOTTOM') : t('ARENA_NOTIF_FNG_SUFFIX_OVEREXTENDED'),
-        }));
+        }).replace(/\s*[(（]\s*[)）]/g, ''));
 
     /* 3 - CVD Divergence (1 hour cooldown) */
     if (coin?.cvdDivergence)
