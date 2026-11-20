@@ -567,7 +567,7 @@ body::after {
   }
   .dashboard-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
+    grid-template-columns: minmax(0, 1fr) 352px;   /* was 1.4fr / 1fr: at 1024 px the main column was about 566 px (#1185 width audit); a fixed 352 px rail (the narrowest it ever was at 900 px) gives about 618 px */
     gap: 14px;
     align-items: start;
   }
@@ -967,6 +967,14 @@ body::after {
 .dash-section::after {
   content: ''; flex: 1; height: 0.5px;
   background: linear-gradient(90deg, var(--bdr) 0%, transparent 100%);
+}
+
+/* DASHBOARD AT 900-999 PX: ONE COLUMN (#1185, width audit 1024-1160). With the right rail fixed at 352 px the main column is 594 px at 1000 and smaller below it (494 px at 900), and the main column clips what is
+   wider than itself (overflow-x: hidden, as the 1100 px rule explains), so under 1000 px the rail stacks below the answers as it does under 900 px. From 1000 px up it stays two columns, with the 352 px rail. Assumed, not
+   measured: no browser on the dev laptop, so QA measures the main column at 1000, 1024 and 1099 px and a wide row (news banner, market read) at 900-999 for clipping. */
+@media (min-width: 900px) and (max-width: 999px) {
+  .dashboard-grid { display: block; }
+  .dash-right     { margin-top: 14px; }
 }
 
 /* ── HOT section headers - live, decision-critical ── */
