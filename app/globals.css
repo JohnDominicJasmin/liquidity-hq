@@ -6462,7 +6462,7 @@ html[lang="ar"] .lp-h1-accent {
    padding + 320 + 14, so no rail control is under the card at any width. Every other page, and every width under 981 px, keeps the places above. */
 @media (min-width: 981px) {
   body:has(.arena-ws-rail) .ob-checklist.ob-checklist-mini,
-  body:has(.arena-ws-rail) .ob-checklist:not(.ob-checklist-mini) { right: calc(max(0px, (100vw - 1340px) / 2) + 354px); }
+  body:has(.arena-ws-rail) .ob-checklist:not(.ob-checklist-mini) { right: var(--arena-rail-clear, calc(max(0px, (100vw - 1340px) / 2) + 354px)); }   /* --arena-rail-clear: the rail's measured distance from the viewport's right edge, set by the Arena page */
 }
 .ob-cl-mini-text { font-size: var(--fs-caption); font-weight: 600; color: var(--txt2); white-space: nowrap; }
 .ob-cl-mini-track {
