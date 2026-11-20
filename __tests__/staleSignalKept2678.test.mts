@@ -13,16 +13,19 @@ const must = (s: string, re: RegExp, what: string) => { const m = re.exec(s); as
 const ev = (expr: string, v: Record<string, unknown>) => new Function(...Object.keys(v), `return (${expr});`)(...Object.values(v));
 const strat = src('lib/useStrategySignal.ts'), ema = src('lib/useEMAStrategy.ts'), emaCard = src('components/EMASignal.tsx'), callBox = src('components/StrategyCallBox.tsx');
 
-test('T1. strategy hook: a failure keeps the previous call with its age; with no call it is the error state; an already-stale call keeps its ORIGINAL time', () => {
+test('T1. strategy hook: a failure keeps the previous call with its age; with no call the FIRST failed read keeps the loading skeleton and the error state shows from the SECOND in a row; an already-stale call keeps its ORIGINAL time', () => {
+  /* RE-PINNED 2026-11-20 for #2732 (PM option A, "retries first, the word only after them"): this pin said that with no call a failure IS the error state. That expectation is older than the change: the reducer now reads the hook's `fails` counter, and a failure with no call is the error state only when fails >= 2 (the second failed read in a row, 45 s after the first); at fails === 1 it is the LOADING skeleton. The kept-call rows are unchanged and are asserted at BOTH counts (a good call is kept whatever the counter says). */
   const body = must(strat, /if \(!cancelled\) setState\(prev => (\(!prev\.result \? [\s\S]+?\))\);\n\s*failed = true;/, 'strategy failure reducer');
-  const reduce = (prev: Record<string, unknown>, lastOkAt: number) => ev(`((prev) => ${body})`, { lastOkAt })(prev) as Record<string, unknown>;
+  const reduce = (prev: Record<string, unknown>, lastOkAt: number, fails: number) => ev(`((prev) => ${body})`, { lastOkAt, fails })(prev) as Record<string, unknown>;
   const call = { result: { call: 'BUY' }, loading: false, error: false };
-  assert.deepEqual(reduce(call, 1000), { result: { call: 'BUY' }, loading: false, error: false, staleSince: 1000 }, 'the previous call must stay, marked with when it was last confirmed');
-  assert.deepEqual(reduce({ ...call, staleSince: 500 }, 1000), { result: { call: 'BUY' }, loading: false, error: false, staleSince: 500 }, 'a second failure must keep the ORIGINAL confirmation time');
-  assert.deepEqual(reduce({ result: null, loading: false, error: false }, 1000), { result: null, loading: false, error: true }, 'never a call: the error state');
-  assert.deepEqual(reduce({ result: null, loading: true, error: false }, 1000), { result: null, loading: false, error: true }, 'still loading the first call: the error state');
-  assert.equal('staleSince' in reduce({ result: null, loading: false, error: false }, 1000), false, 'the error state carries no age');
-  assert.equal(reduce({ ...call, error: true }, 7).error, false, 'a kept call is not an error');
+  for (const fails of [1, 2, 5]) assert.deepEqual(reduce(call, 1000, fails), { result: { call: 'BUY' }, loading: false, error: false, staleSince: 1000 }, `fails=${fails}: the previous call must stay, marked with when it was last confirmed`);
+  for (const fails of [1, 2, 5]) assert.deepEqual(reduce({ ...call, staleSince: 500 }, 1000, fails), { result: { call: 'BUY' }, loading: false, error: false, staleSince: 500 }, `fails=${fails}: a second failure must keep the ORIGINAL confirmation time`);
+  assert.deepEqual(reduce({ result: null, loading: false, error: false }, 1000, 2), { result: null, loading: false, error: true }, 'never a call, second failed read in a row: the error state');
+  assert.deepEqual(reduce({ result: null, loading: false, error: false }, 1000, 1), { result: null, loading: true, error: false }, 'never a call, FIRST failed read: the loading skeleton, not the error state');
+  assert.deepEqual(reduce({ result: null, loading: true, error: false }, 1000, 2), { result: null, loading: false, error: true }, 'still loading the first call, second failed read in a row: the error state');
+  assert.deepEqual(reduce({ result: null, loading: true, error: false }, 1000, 1), { result: null, loading: true, error: false }, 'still loading the first call, FIRST failed read: stays the loading skeleton');
+  for (const fails of [1, 2]) assert.equal('staleSince' in reduce({ result: null, loading: false, error: false }, 1000, fails), false, `fails=${fails}: neither the error state nor the skeleton carries an age`);
+  for (const fails of [1, 2, 5]) assert.equal(reduce({ ...call, error: true }, 7, fails).error, false, `fails=${fails}: a kept call is not an error`);
 });
 test('T2. EMA hook: a failure keeps a good signal with its age; a loading, errored or LOADING-verdict signal becomes the unavailable state', () => {
   const body = must(ema, /setSig\(prev => (\(!prev\.loading && !prev\.error && prev\.verdict !== 'LOADING' \? [\s\S]+?\}\))\);/, 'EMA failure reducer');
