@@ -2,7 +2,7 @@ import type { LabelKey } from '@/lib/labelKeys';
 import DEFAULT_EN_LABELS from '@/lib/labelDefaults.en.json';
 
 /* A SERVER-RENDERED EXPLAINER AND ITS FAQ (SEO strategic item 1, PM 2026-11-20). The block is plain text through labels with English defaults, so the server HTML a crawler reads carries the English copy and a visitor in another language gets the translated rows once they exist. The FAQPage JSON-LD is built here from the SAME English defaults, so the structured data and the visible text cannot disagree. Facts only about what the page shows; no claim of accuracy. */
-export type ExplainerTopic = 'liq' | 'funding';
+export type ExplainerTopic = 'liq' | 'funding' | 'scanner' | 'calc' | 'hours' | 'econ';
 type Faq = { q: LabelKey; a: LabelKey };
 export const EXPLAINERS: Record<ExplainerTopic, { title: LabelKey; paras: LabelKey[]; faq: Faq[] }> = {
   liq: {
@@ -12,6 +12,22 @@ export const EXPLAINERS: Record<ExplainerTopic, { title: LabelKey; paras: LabelK
   funding: {
     title: 'SEO_FUNDING_TITLE', paras: ['SEO_FUNDING_P1', 'SEO_FUNDING_P2'],
     faq: [{ q: 'SEO_FUNDING_Q1', a: 'SEO_FUNDING_A1' }, { q: 'SEO_FUNDING_Q2', a: 'SEO_FUNDING_A2' }, { q: 'SEO_FUNDING_Q3', a: 'SEO_FUNDING_A3' }, { q: 'SEO_FUNDING_Q4', a: 'SEO_FUNDING_A4' }],
+  },
+  scanner: {
+    title: 'SEO_SCANNER_TITLE', paras: ['SEO_SCANNER_P1', 'SEO_SCANNER_P2'],
+    faq: [{ q: 'SEO_SCANNER_Q1', a: 'SEO_SCANNER_A1' }, { q: 'SEO_SCANNER_Q2', a: 'SEO_SCANNER_A2' }, { q: 'SEO_SCANNER_Q3', a: 'SEO_SCANNER_A3' }, { q: 'SEO_SCANNER_Q4', a: 'SEO_SCANNER_A4' }],
+  },
+  calc: {
+    title: 'SEO_CALC_TITLE', paras: ['SEO_CALC_P1', 'SEO_CALC_P2'],
+    faq: [{ q: 'SEO_CALC_Q1', a: 'SEO_CALC_A1' }, { q: 'SEO_CALC_Q2', a: 'SEO_CALC_A2' }, { q: 'SEO_CALC_Q3', a: 'SEO_CALC_A3' }, { q: 'SEO_CALC_Q4', a: 'SEO_CALC_A4' }],
+  },
+  hours: {
+    title: 'SEO_HOURS_TITLE', paras: ['SEO_HOURS_P1', 'SEO_HOURS_P2'],
+    faq: [{ q: 'SEO_HOURS_Q1', a: 'SEO_HOURS_A1' }, { q: 'SEO_HOURS_Q2', a: 'SEO_HOURS_A2' }, { q: 'SEO_HOURS_Q3', a: 'SEO_HOURS_A3' }, { q: 'SEO_HOURS_Q4', a: 'SEO_HOURS_A4' }],
+  },
+  econ: {
+    title: 'SEO_ECON_TITLE', paras: ['SEO_ECON_P1', 'SEO_ECON_P2'],
+    faq: [{ q: 'SEO_ECON_Q1', a: 'SEO_ECON_A1' }, { q: 'SEO_ECON_Q2', a: 'SEO_ECON_A2' }, { q: 'SEO_ECON_Q3', a: 'SEO_ECON_A3' }, { q: 'SEO_ECON_Q4', a: 'SEO_ECON_A4' }],
   },
 };
 
