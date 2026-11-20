@@ -368,7 +368,7 @@ function ArenaContent() {
      chart so the chart overlay can draw them (#766). Every coin's buckets
      arrive in this one array - LiqFeed does not apply its own coinFilter to
      what it emits - so it is stored raw here and narrowed at the point of use. */
-  const [liqClusters, setLiqClusters] = useState<Bucket[]>([]);
+  const [rawLiqClusters, setLiqClusters] = useState<Bucket[]>([]);   // per-token, as the feed emits them (lib/liqUnits.ts); `liqClusters` below is the same list in the Arena's price unit
   /* Throttled, and this is not a micro-optimisation. LiqFeed calls onClusters
      from `rebuild()`, which runs on EVERY liquidation event - not on a timer -
      and each call is a fresh array. Committing all of them would clear and
@@ -403,13 +403,13 @@ function ArenaContent() {
      re-runs when the clusters actually change rather than on every Arena
      re-render - and this page re-renders on every market tick. */
   /* THE CLUSTERS IN THE ARENA'S PRICE UNIT (#1651, PM 2026-11-20): the liquidation feed is per-token (lib/liqUnits.ts); the chart, the strategies and the AI read draw and quote a 1000x coin in the chart's unit, so the selected coin's clusters are converted once here (arenaPriceUnit, lib/coins.ts). */
-  const arenaLiqClusters = useMemo(() => {
+  const liqClusters = useMemo(() => {
     const u = arenaPriceUnit(selectedCoin);
-    return u === 1 ? liqClusters : liqClusters.map(b => (b.coin.toLowerCase() === selectedCoin ? { ...b, price: b.price * u } : b));
-  }, [liqClusters, selectedCoin]);
+    return u === 1 ? rawLiqClusters : rawLiqClusters.map(b => (b.coin.toLowerCase() === selectedCoin ? { ...b, price: b.price * u } : b));
+  }, [rawLiqClusters, selectedCoin]);
   const chartLiqClusters = useMemo(
-    () => topClustersForCoin(arenaLiqClusters, selectedCoin),
-    [arenaLiqClusters, selectedCoin],
+    () => topClustersForCoin(liqClusters, selectedCoin),
+    [liqClusters, selectedCoin],
   );
   /* THE SETUP CARD CLEARS THE RAIL AT ITS REAL WIDTH (PM, 2026-11-20, QA: between 981 and 1099 px the rail is ~486 px wide, not 320, so a fixed offset left the card on it): the page measures the rail and publishes the distance from its left edge to the right edge of the viewport as --arena-rail-clear on <html>;
      app/globals.css positions the Setup pill and card with it (and falls back to its own calc() until the first measurement). Only from 981 px up (below that the rail is a full-width section); removed when the page unmounts. */
@@ -1417,7 +1417,7 @@ function ArenaContent() {
        'Not available' still has to be reachable and it is - a fresh session has
        watched no liquidations, so it has no 24h window, and a stated absence is
        the honest answer rather than a bug to design away. */
-    const liqLevels = formatClustersForPrompt(arenaLiqClusters, selectedCoin);
+    const liqLevels = formatClustersForPrompt(liqClusters, selectedCoin);
 
     /* BTC dom trend */
     const btcDomTrend = store.btcDomHistory && store.btcDomHistory.length >= 3
@@ -2008,7 +2008,7 @@ function ArenaContent() {
        #814 exists to fix, reproduced silently and indistinguishable from a
        browser that has genuinely watched no liquidations. It changes at most
        once per LIQ_CLUSTER_REFRESH_MS, so the identity churn is bounded. */
-  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, resultsCache, arenaLiqClusters, locale]);
+  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, resultsCache, liqClusters, locale]);
 
   /* #996: the one place QUICK/DEEP/ASK AI run from, so the toolbar buttons
      below and StrategyPanel's own copies of the same three buttons cannot
