@@ -24,8 +24,15 @@ async function refuseBinance(ctx: BrowserContext, log?: { bn: number[]; backup: 
 async function openList(page: Page) {
   const trig = page.getByTestId('scanner-trigger');
   await trig.waitFor({ state: 'visible', timeout: 60_000 });
-  if (!(await page.locator('[data-testid^="scanner-row-"]').first().isVisible().catch(() => false))) await trig.locator('div').first().click();
-  await page.locator('[data-testid^="scanner-row-"]').first().waitFor({ state: 'visible', timeout: 20_000 });
+  /* RE-PINNED 2026-11-20 (QA diagnostic run 44706014510 on qa 11a8065): a click made BEFORE the page is interactive never opens the list, and nothing clicks again, so K3a / K3b saw no rows at all; the CONTROL of the diagnostic (the K1 setup without K1's 16 s wait) failed the same way. The list is therefore opened by clicking again every 2 s until a row is visible (it only clicks while no row is visible, so it never closes an open list). */
+  const row = page.locator('[data-testid^="scanner-row-"]').first();
+  const deadline = Date.now() + 40_000;
+  while (Date.now() < deadline) {
+    if (await row.isVisible().catch(() => false)) return;
+    await trig.locator('div').first().click({ timeout: 3_000 }).catch(() => { /* not interactive yet: try again */ });
+    await page.waitForTimeout(2_000);
+  }
+  await row.waitFor({ state: 'visible', timeout: 5_000 });
 }
 const read = (page: Page) => page.evaluate(() => {
   const out: Record<string, { price: string; h24: string; vsbtc: string; status: string; score: string; title: string }> = {};
@@ -78,9 +85,9 @@ test.describe('#2245 scanner cells with Binance refused', () => {
     } finally { await ctx.close(); }
   });
 
-  test('K3a. while the reads are in flight an unpriced row shows the ellipsis, never "Unavailable" (reads held 6 s)', async ({ browser }) => {
+  test('K3a. while the reads are in flight an unpriced row shows the ellipsis, never "Unavailable" (reads held 20 s)', async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-    await ctx.route(/\/api\/proxy\?.*type=(binance-24hr|binance-futures-24hr|premium-index|bybit-tickers)/, async (route) => { await new Promise(r => setTimeout(r, 6_000)); await route.continue(); });
+    await ctx.route(/\/api\/proxy\?.*type=(binance-24hr|binance-futures-24hr|premium-index|bybit-tickers)/, async (route) => { await new Promise(r => setTimeout(r, 20_000)); await route.continue(); });
     await ctx.routeWebSocket(/binance\.com/, ws => { ws.close(); });
     const page = await ctx.newPage();
     try {
