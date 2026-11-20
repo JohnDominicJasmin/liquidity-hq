@@ -357,10 +357,11 @@ test('E1. global-error COPY (cut from the real file): en / ko / zh / ru / ar, th
   const labelsSrc = read('lib/labels.ts');
   assert.match(labelsSrc, /const LS_KEY = 'lhq_lang_v1'/, 'the app stores the language under another key than global-error reads');
   assert.ok(geSrc.includes("localStorage.getItem('lhq_lang_v1')"), 'global-error does not read lhq_lang_v1');
-  const line = /try \{ const l = localStorage\.getItem\('lhq_lang_v1'\); if \(l && COPY\[l\]\) setLang\(l\); \} catch \{[^}]*\}/.exec(geSrc); assert.ok(line, 'the language-read line changed: re-pin');
+  /* RE-PINNED 2026-11-20 for #2738 (QA finding 3, fixed by Dev): the guard is an OWN-key test, so a stored 'constructor' / '__proto__' cannot pick an inherited property and render a blank screen */
+  const line = /try \{ const l = localStorage\.getItem\('lhq_lang_v1'\); if \(l && Object\.hasOwn\(COPY, l\)\) setLang\(l\); \} catch \{[^}]*\}/.exec(geSrc); assert.ok(line, 'the language-read line changed (it must be an own-key test, not COPY[l]): re-pin');
   const pick = (stored: string | null | 'THROW') => { let lang = 'en'; const localStorage = { getItem: () => { if (stored === 'THROW') throw new Error('blocked'); return stored; } }; new Function('localStorage', 'COPY', 'setLang', line![0])(localStorage, copy, (l: string) => { lang = l; }); return lang; };
   assert.deepEqual(['ko', 'zh', 'ru', 'ar', 'en'].map((l) => pick(l)), ['ko', 'zh', 'ru', 'ar', 'en']);
-  for (const other of [null, '', 'vi', 'pt-BR', 'tr', 'es', 'id', 'THROW'] as const) assert.equal(pick(other), 'en', `stored ${other} must read English`);
+  for (const other of [null, '', 'vi', 'pt-BR', 'tr', 'es', 'id', 'THROW', 'constructor', '__proto__', 'toString', 'hasOwnProperty'] as const) assert.equal(pick(other), 'en', `stored ${other} must read English`);
   assert.ok(geSrc.includes('<html lang={lang} dir={c.dir}>') && geSrc.includes('{c.title}') && geSrc.includes('{c.body}') && geSrc.includes('{c.again}'), 'the screen does not render the chosen entry');
   assert.doesNotMatch(geSrc, />\s*(Something went wrong|Try again)\s*</, 'an English literal is rendered again');
 });
