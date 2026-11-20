@@ -93,6 +93,12 @@ function lastGood(key: string): NextResponse | null {
   return NextResponse.json(hit.data, { headers: { ...CMC_CACHE(true), 'x-data-stale': '1', 'x-data-age-ms': String(Date.now() - hit.ts) } });
 }
 
+/* ANY FAILURE TAKES THE LAST-GOOD PATH (PM route audit, 2026-11-20): only a CmcError (HTTP error or an error_code body) used to reach lastGood(); an 8 s / 10 s abort, a network error or a body that was not JSON was rethrown to the outer catch and answered 500 with no last-good, and the 60 s fail hold then kept it that way for everyone. A non-CmcError is still logged. */
+function cmcFailed(e: unknown): null {
+  if (!(e instanceof CmcError)) console.error('[cmc] upstream failed, serving last good if any:', e instanceof Error ? e.message : String(e));
+  return null;
+}
+
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
   /* 120 PER MINUTE (was 20): answers are held on the server for five minutes, so the limit guards the route, not CoinMarketCap. A normal page-by-page walk spends 2-3 calls a page and reached 20 on the eighth page. */
@@ -124,7 +130,7 @@ export async function GET(req: NextRequest) {
           if (!cmcOk(r, body)) throw new CmcError(body);
           return body;
         } finally { clearTimeout(timer); }
-      }, { failTtlMs: CMC_FAIL_HOLD }).catch(e => { if (e instanceof CmcError) return null; throw e; });
+      }, { failTtlMs: CMC_FAIL_HOLD }).catch(cmcFailed);
       if (d === null) return lastGood('cmc:global') ?? NextResponse.json({ error: 'unavailable' }, { status: 502 });
       return NextResponse.json(d, { headers: CMC_CACHE(true) });
     }
@@ -146,7 +152,7 @@ export async function GET(req: NextRequest) {
         reportCmc('cmc:listings', r, body, (body as CmcBody)?.data?.length);
         if (!cmcOk(r, body)) throw new CmcError(body);
         return body;
-      }, { failTtlMs: CMC_FAIL_HOLD }).catch(e => { if (e instanceof CmcError) return null; throw e; });
+      }, { failTtlMs: CMC_FAIL_HOLD }).catch(cmcFailed);
       if (d === null) return lastGood('cmc:altseason') ?? NextResponse.json({ error: 'unavailable' }, { status: 502 });
       return NextResponse.json(d, { headers: CMC_CACHE(true) });
     }
