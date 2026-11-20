@@ -1646,6 +1646,7 @@ async function checkDailySummary(
       dateStr, stamp, threshold,
       movers: topMovers(movers, excluded),
       setups: squeezeSetups(squeezeReads, threshold, excluded),
+      squeezeKnown: squeezeReads.some(s => s.fundingPct != null || s.longPct != null),   // no read at all: the block is left out, not "None at or above"
     });
     /* One message, or two in order when the text would pass Telegram's length limit (lib/dailySummary.ts). The day counts as sent once the first one landed: a failed second part must not resend the first on the next run. */
     const res = await tg(token, r.chatId, messages[0]);
