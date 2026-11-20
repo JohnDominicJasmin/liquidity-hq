@@ -358,7 +358,7 @@ export default function SettingsPage() {
     // button spinning forever.
     const { error } = await updatePassword(sb, pwNew);
     setPwLoading(false);
-    if (error) { setPwError(friendlyAuthError(error.message)); return; }
+    if (error) { setPwError(friendlyAuthError(error.message, t)); return; }
     setPwNew(''); setPwConfirm('');
     setPwSaved(true);
     setTimeout(() => setPwSaved(false), 3000);
@@ -392,13 +392,13 @@ export default function SettingsPage() {
         // requestPermission method - feature-detect it rather than assume,
         // same as app/arena/page.tsx.
         if (!('Notification' in window) || typeof Notification.requestPermission !== 'function') {
-          alert('Push notifications are not supported in this browser.');
+          alert(t('SETTINGS_PUSH_UNSUPPORTED'));
           return;
         }
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') return;
         const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-        if (!vapidKey) { alert('Push not configured - VAPID key missing.'); return; }
+        if (!vapidKey) { alert(t('SETTINGS_PUSH_UNAVAILABLE')); return; }
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,

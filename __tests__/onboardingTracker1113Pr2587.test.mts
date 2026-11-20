@@ -264,7 +264,7 @@ async function resetRun(src: string): Promise<string[]> {
         setLoading: (v: boolean) => log.push('loading:' + v), setError: (v: string) => { if (v) log.push('error:' + v); }, setDone: (v: boolean) => log.push('done:' + v),
         updatePassword: async () => { log.push('update'); return { error: upd }; },
         signOutOtherSessions: async () => { log.push('others'); if (others === 'REJECT') throw new Error('boom'); return others; },
-        friendlyAuthError: (m: string) => 'friendly:' + m, router: { push: (u: string) => log.push('push:' + u) },
+        /* RE-PINNED 2026-11-20 for #2738: the stand-in accepts the second argument the page now passes (t) and ignores it; the text is the same. */ friendlyAuthError: (m: string, _t?: unknown) => 'friendly:' + m, router: { push: (u: string) => log.push('push:' + u) },
         setTimeout: (f: () => void) => { f(); }, console: { error: (...a: unknown[]) => log.push('console.error:' + String(a[0]).slice(0, 12)) },
       },
     };
@@ -296,7 +296,8 @@ test('R1. reset-password submit(): others-call only after a successful update; i
 test('R-MUT. the reset checks go red on each mutated copy of the page', async () => {
   const muts: Array<[string, string]> = [
     ['others-call before the update', mutate(resetSrc, '    const { error } = await updatePassword(sb, password);\n', '    await signOutOtherSessions(sb);\n    const { error } = await updatePassword(sb, password);\n')],
-    ['no early return on a failed update', mutate(resetSrc, 'if (error) { setLoading(false); setError(friendlyAuthError(error.message)); return; }', 'if (error) { setError(friendlyAuthError(error.message)); }')],
+    /* RE-PINNED 2026-11-20 for #2738: friendlyAuthError(error.message) now reads friendlyAuthError(error.message, t) (the anchor and its mutated copy both carry the second argument). */
+    ['no early return on a failed update', mutate(resetSrc, 'if (error) { setLoading(false); setError(friendlyAuthError(error.message, t)); return; }', 'if (error) { setError(friendlyAuthError(error.message, t)); }')],
     ['others-error shown to the user', mutate(resetSrc, "if (othersError) console.error('[auth] ending other sessions after reset failed:', othersError);", 'if (othersError) { setError(String(othersError)); return; }')],
     ['others-error not logged', mutate(resetSrc, "if (othersError) console.error('[auth] ending other sessions after reset failed:', othersError);", '')],
     ['others-call removed', mutate(resetSrc, 'const othersError = await signOutOtherSessions(sb);', 'const othersError = null;')],

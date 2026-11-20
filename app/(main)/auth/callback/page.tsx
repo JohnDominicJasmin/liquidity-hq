@@ -31,7 +31,7 @@ function CallbackInner() {
     // resolved it off-origin.
     const dest = safeNextPath(params.get('next'), '/arena');
 
-    if (error) { setErrMsg(friendlyAuthError(error)); return; }
+    if (error) { setErrMsg(friendlyAuthError(error, t)); return; }
 
     const sb = getSupabase();
     if (!sb) { router.push('/'); return; }
@@ -39,9 +39,9 @@ function CallbackInner() {
     if (code) {
       // PKCE flow: exchange auth code for session
       sb.auth.exchangeCodeForSession(code).then(({ error }) => {
-        if (error) setErrMsg(friendlyAuthError(error.message));
+        if (error) setErrMsg(friendlyAuthError(error.message, t));
         else router.push(dest);
-      }).catch((e: unknown) => setErrMsg(friendlyAuthError(e instanceof Error ? e.message : String(e))));
+      }).catch((e: unknown) => setErrMsg(friendlyAuthError(e instanceof Error ? e.message : String(e), t)));
     } else {
       // Implicit flow: Supabase picks up token from URL hash automatically
       router.push(dest);

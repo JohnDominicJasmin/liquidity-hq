@@ -99,9 +99,13 @@ export interface LandingDict {
       journal: string; calc: string; alerts: string; hours: string;
       learn: string;
       signIn: string; createAccount: string; pricing: string; about: string; disclaimer: string;
+      terms: string; privacy: string; contact: string;
     };
     copyright: string;
     fullDisclaimer: string;
+    /* the "Risk disclosure" divider and the one acknowledgement sentence, with {disclaimer} {terms} {privacy} marking the three link slots (#1185); the disclosure bodies under it stay English on purpose (legal text) */
+    riskTitle: string;
+    ack: string;
   };
 }
 
@@ -212,9 +216,12 @@ export const en: LandingDict = {
       journal: 'Journal', calc: 'Position Sizer', alerts: 'Alerts', hours: 'Best Hours',
       learn: 'Learn',
       signIn: 'Sign In', createAccount: 'Create Account', pricing: 'Pricing', about: 'About', disclaimer: 'Disclaimer',
+      terms: 'Terms of Use', privacy: 'Privacy Policy', contact: 'Contact',
     },
     copyright: '© 2026 LiquidityHQ · Educational content only, not financial advice ·',
     fullDisclaimer: 'Full disclaimer',
+    riskTitle: 'Risk disclosure',
+    ack: 'By using LiquidityHQ, you acknowledge that you understand and agree to our {disclaimer}, {terms}, and {privacy}.',
   },
 };
 
@@ -315,9 +322,12 @@ export const ko: LandingDict = {
       journal: '매매일지', calc: '포지션 사이저', alerts: '알림', hours: '최적 시간대',
       learn: '배우기',
       signIn: '로그인', createAccount: '계정 만들기', pricing: '요금제', about: '소개', disclaimer: '면책조항',
+      terms: '이용약관', privacy: '개인정보 처리방침', contact: '문의',
     },
     copyright: '© 2026 LiquidityHQ · 교육 목적의 콘텐츠이며 투자 자문이 아닙니다 ·',
     fullDisclaimer: '전체 면책조항 보기',
+    riskTitle: '위험 고지',
+    ack: 'LiquidityHQ를 이용하면 {disclaimer}, {terms} 및 {privacy}의 내용을 이해하고 동의하는 것으로 간주됩니다.',
   },
 };
 
@@ -418,9 +428,12 @@ export const zh: LandingDict = {
       journal: '交易日志', calc: '仓位计算器', alerts: '提醒', hours: '最佳时段',
       learn: '学习',
       signIn: '登录', createAccount: '创建账户', pricing: '定价', about: '关于我们', disclaimer: '免责声明',
+      terms: '使用条款', privacy: '隐私政策', contact: '联系我们',
     },
     copyright: '© 2026 LiquidityHQ · 仅供教育用途,非投资建议 ·',
     fullDisclaimer: '查看完整免责声明',
+    riskTitle: '风险披露',
+    ack: '使用 LiquidityHQ 即表示您已理解并同意我们的{disclaimer}、{terms}和{privacy}。',
   },
 };
 
@@ -521,9 +534,12 @@ export const ar: LandingDict = {
       journal: 'سجل التداول', calc: 'حاسبة حجم المركز', alerts: 'التنبيهات', hours: 'أفضل الأوقات',
       learn: 'تعلّم',
       signIn: 'تسجيل الدخول', createAccount: 'إنشاء حساب', pricing: 'الأسعار', about: 'من نحن', disclaimer: 'إخلاء المسؤولية',
+      terms: 'شروط الاستخدام', privacy: 'سياسة الخصوصية', contact: 'اتصل بنا',
     },
     copyright: '© 2026 LiquidityHQ · محتوى تعليمي فقط، وليس نصيحة مالية ·',
     fullDisclaimer: 'إخلاء المسؤولية الكامل',
+    riskTitle: 'الإفصاح عن المخاطر',
+    ack: 'باستخدامك LiquidityHQ، فإنك تقرّ بأنك تفهم وتوافق على {disclaimer} و{terms} و{privacy} الخاصة بنا.',
   },
 };
 
@@ -656,9 +672,12 @@ export const ru: LandingDict = {
       journal: 'Дневник сделок', calc: 'Расчёт позиции', alerts: 'Оповещения', hours: 'Лучшие часы',
       learn: 'Обучение',
       signIn: 'Войти', createAccount: 'Создать аккаунт', pricing: 'Тарифы', about: 'О нас', disclaimer: 'Отказ от ответственности',
+      terms: 'Условия использования', privacy: 'Политика конфиденциальности', contact: 'Контакты',
     },
     copyright: '© 2026 LiquidityHQ · Только образовательный контент, не финансовая рекомендация ·',
     fullDisclaimer: 'Полный отказ от ответственности',
+    riskTitle: 'Раскрытие рисков',
+    ack: 'Используя LiquidityHQ, вы подтверждаете, что понимаете и принимаете наши {disclaimer}, {terms} и {privacy}.',
   },
 };
 
