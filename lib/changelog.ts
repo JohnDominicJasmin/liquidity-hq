@@ -150,6 +150,21 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* DRAFT, the release after v2026.11.21 (Dev 2026-11-20, PM). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs (rule 22; 2026-11-20 is the date of the release merge, which PM checks at the tag). Plain words, 12 words or fewer per line;
+       only user-visible changes. Tied to: #2680 + #2681 + #2683 (no failing text), the strategy drawings (#2676-#2678, #2685-#2687, #2700, #2705), #2706 + #2708 + #2711 + #2712 (one price unit), #2704 (SMA), #2709 + #2710 (Setup card). */
+    date: '2026-11-20',
+    tag: 'v2026.11.22',
+    items: [
+      "Every strategy now draws on the chart, even with no setup.",
+      "Strategy lines off the visible price range show an edge label.",
+      "Pages keep the last good value instead of 'unavailable' text.",
+      "PEPE, BONK and other 1000x coins use one price unit.",
+      "The SMA line is now a true simple moving average.",
+      "Stock VWAP reclaim keeps the last session's line when the market closes.",
+      "The Setup card no longer covers the Arena's strategy panel.",
+    ],
+  },
+  {
     /* DRAFT, the release after v2026.11.20 (Dev 2026-11-19, PM). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs (rule 22). Plain words, 12 words or fewer per line;
        only user-visible changes. Tied to: #2645 (correlation tint), #2647 (Free trader copy, lock badge, Trading Sessions), #2650 (one OI hour, Funding title, micro-cap prices), #2651 (offline notice), #2652 (small
        text), #2653 + #2655 + #2665 (facts, not advice), #2656 (news hero), #2649 (accessibility), #2662 (Russian banner), #2663 (EMA hover text), #2666 (zone label). */
