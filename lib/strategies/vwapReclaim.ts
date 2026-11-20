@@ -24,7 +24,6 @@ export function detectVwapReclaim(candles: readonly OHLCV[], ctx: StrategyContex
   let start = n - 1;
   while (start - 1 >= 0 && dayOf(candles[start - 1].time) === day) start--;
   const session = candles.slice(start);
-  if (session.length < MIN_SESSION_BARS) return WAIT;
   const vwap: number[] = [];
   let pv = 0, vol = 0;
   for (const c of session) {
@@ -36,6 +35,8 @@ export function detectVwapReclaim(candles: readonly OHLCV[], ctx: StrategyContex
   if (!Number.isFinite(vwap[vwap.length - 1])) return WAIT;
   /* The session VWAP line from 00:00 UTC, whatever the verdict: it is the level this strategy watches. */
   const vwapLine: StrategyOverlay['lines'][number] = { points: session.map((c, i) => ({ ts: c.time, price: vwap[i] })).filter(p => Number.isFinite(p.price)), role: 'ref', labelKey: 'STRAT_OV_VWAP' };
+  /* THE PARTIAL DAY'S VWAP STILL DRAWS WHILE THE STRATEGY WAITS FOR ITS SIXTH CANDLE (QA drawings audit #1263 + PM, 2026-11-20: at 30m / 1h in the first six candles of the UTC day only past arrows and the reason showed): the line from the day open is the level it waits for, so it is drawn with 1-5 candles too. */
+  if (session.length < MIN_SESSION_BARS) return vwapLine.points.length ? { ...WAIT, overlay: { levels: [], zones: [], lines: [vwapLine], marker: null } } : WAIT;
   const m = session.length;
   const side = (i: number): 1 | -1 | 0 => (!Number.isFinite(vwap[i]) ? 0 : session[i].close > vwap[i] ? 1 : session[i].close < vwap[i] ? -1 : 0);
   for (let k = m - 1; k >= Math.max(1, m - FRESH_BARS); k--) {
