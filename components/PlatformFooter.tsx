@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from '@/lib/theme';
@@ -169,10 +169,13 @@ export default function PlatformFooter() {
       <div className="pf-footer-bottom">
         <span>© {new Date().getFullYear()} LiquidityHQ. {t('PF_RIGHTS_RESERVED')}</span>
         <span className="pf-footer-bottom-note">
-          By using LiquidityHQ, you acknowledge that you understand and agree to our{' '}
-          <Link href="/disclaimer" className="pf-footer-bottom-link">Disclaimer</Link>,{' '}
-          <Link href="/terms" className="pf-footer-bottom-link">Terms of Use</Link>, and{' '}
-          <Link href="/privacy" className="pf-footer-bottom-link">Privacy Policy</Link>.
+          {/* ONE SENTENCE WITH THREE LINK SLOTS (#1185, ko / zh / ru): the word order differs per language, so the sentence is a single label and {disclaimer} {terms} {privacy} mark where each link goes. */}
+          {t('PF_ACK_NOTE').split(/(\{disclaimer\}|\{terms\}|\{privacy\})/).map((part, i) => {
+            const slot = part === '{disclaimer}' ? ['/disclaimer', t('PF_LINK_DISCLAIMER_SHORT')]
+              : part === '{terms}' ? ['/terms', t('PF_LINK_TERMS')]
+              : part === '{privacy}' ? ['/privacy', t('PF_LINK_PRIVACY')] : null;
+            return slot ? <Link key={i} href={slot[0]} className="pf-footer-bottom-link">{slot[1]}</Link> : <Fragment key={i}>{part}</Fragment>;
+          })}
         </span>
       </div>
 
