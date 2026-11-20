@@ -26,37 +26,38 @@ const STEP_META: { key: string; labelKey: LabelKey }[] = [
   { key: 'Source',     labelKey: 'ONBOARDING_FLOW_STEP_SOURCE'     },
 ];
 
-const COUNTRIES = [
-  { flag: '🇦🇷', name: 'Argentina' },
-  { flag: '🇦🇺', name: 'Australia' },
-  { flag: '🇧🇩', name: 'Bangladesh' },
-  { flag: '🇧🇷', name: 'Brazil' },
-  { flag: '🇨🇦', name: 'Canada' },
-  { flag: '🇨🇳', name: 'China' },
-  { flag: '🇪🇹', name: 'Ethiopia' },
-  { flag: '🇫🇷', name: 'France' },
-  { flag: '🇩🇪', name: 'Germany' },
-  { flag: '🇬🇭', name: 'Ghana' },
-  { flag: '🇮🇳', name: 'India' },
-  { flag: '🇮🇩', name: 'Indonesia' },
-  { flag: '🇯🇵', name: 'Japan' },
-  { flag: '🇰🇪', name: 'Kenya' },
-  { flag: '🇲🇾', name: 'Malaysia' },
-  { flag: '🇲🇽', name: 'Mexico' },
-  { flag: '🇳🇬', name: 'Nigeria' },
-  { flag: '🇵🇰', name: 'Pakistan' },
-  { flag: '🇵🇭', name: 'Philippines' },
-  { flag: '🇷🇺', name: 'Russia' },
-  { flag: '🇸🇬', name: 'Singapore' },
-  { flag: '🇿🇦', name: 'South Africa' },
-  { flag: '🇰🇷', name: 'South Korea' },
-  { flag: '🇹🇭', name: 'Thailand' },
-  { flag: '🇹🇷', name: 'Turkey' },
-  { flag: '🇦🇪', name: 'UAE' },
-  { flag: '🇺🇦', name: 'Ukraine' },
-  { flag: '🇬🇧', name: 'United Kingdom' },
-  { flag: '🇺🇸', name: 'United States' },
-  { flag: '🇻🇳', name: 'Vietnam' },
+/* The stored value stays the English name; the list shows the visitor's language through Intl.DisplayNames (standard CLDR region names), English when the runtime lacks it (#1185). */
+const COUNTRIES: { flag: string; name: string; code?: string }[] = [
+  { flag: '🇦🇷', name: 'Argentina', code: 'AR' },
+  { flag: '🇦🇺', name: 'Australia', code: 'AU' },
+  { flag: '🇧🇩', name: 'Bangladesh', code: 'BD' },
+  { flag: '🇧🇷', name: 'Brazil', code: 'BR' },
+  { flag: '🇨🇦', name: 'Canada', code: 'CA' },
+  { flag: '🇨🇳', name: 'China', code: 'CN' },
+  { flag: '🇪🇹', name: 'Ethiopia', code: 'ET' },
+  { flag: '🇫🇷', name: 'France', code: 'FR' },
+  { flag: '🇩🇪', name: 'Germany', code: 'DE' },
+  { flag: '🇬🇭', name: 'Ghana', code: 'GH' },
+  { flag: '🇮🇳', name: 'India', code: 'IN' },
+  { flag: '🇮🇩', name: 'Indonesia', code: 'ID' },
+  { flag: '🇯🇵', name: 'Japan', code: 'JP' },
+  { flag: '🇰🇪', name: 'Kenya', code: 'KE' },
+  { flag: '🇲🇾', name: 'Malaysia', code: 'MY' },
+  { flag: '🇲🇽', name: 'Mexico', code: 'MX' },
+  { flag: '🇳🇬', name: 'Nigeria', code: 'NG' },
+  { flag: '🇵🇰', name: 'Pakistan', code: 'PK' },
+  { flag: '🇵🇭', name: 'Philippines', code: 'PH' },
+  { flag: '🇷🇺', name: 'Russia', code: 'RU' },
+  { flag: '🇸🇬', name: 'Singapore', code: 'SG' },
+  { flag: '🇿🇦', name: 'South Africa', code: 'ZA' },
+  { flag: '🇰🇷', name: 'South Korea', code: 'KR' },
+  { flag: '🇹🇭', name: 'Thailand', code: 'TH' },
+  { flag: '🇹🇷', name: 'Turkey', code: 'TR' },
+  { flag: '🇦🇪', name: 'UAE', code: 'AE' },
+  { flag: '🇺🇦', name: 'Ukraine', code: 'UA' },
+  { flag: '🇬🇧', name: 'United Kingdom', code: 'GB' },
+  { flag: '🇺🇸', name: 'United States', code: 'US' },
+  { flag: '🇻🇳', name: 'Vietnam', code: 'VN' },
   { flag: '🌐', name: 'Other' },
 ];
 
@@ -79,7 +80,12 @@ function CheckGlyph() {
 
 /* ── Custom country dropdown with emoji flags ── */
 function CountrySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const { t } = useLabels();
+  const { t, locale } = useLabels();
+  const label = (c: { name: string; code?: string }): string => {
+    if (!c.code) return c.name === 'Other' ? t('ONBOARDING_FLOW_COUNTRY_OTHER') : c.name;
+    if (locale === 'en') return c.name;
+    try { return new Intl.DisplayNames([locale], { type: 'region' }).of(c.code) ?? c.name; } catch { return c.name; }
+  };
   const [open, setOpen]   = useState(false);
   const [query, setQuery] = useState('');
   const containerRef      = useRef<HTMLDivElement>(null);
@@ -88,7 +94,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
 
   const selected = COUNTRIES.find(c => c.name === value);
   const filtered = query
-    ? COUNTRIES.filter(c => c.name.toLowerCase().includes(query.toLowerCase()))
+    ? COUNTRIES.filter(c => c.name.toLowerCase().includes(query.toLowerCase()) || label(c).toLowerCase().includes(query.toLowerCase()))
     : COUNTRIES;
 
   useEffect(() => {
@@ -123,7 +129,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
           {selected ? (
             <>
               <span style={{ fontSize: '1.25rem', flexShrink: 0, lineHeight: 1 }}>{selected.flag}</span>
-              <span id="obw-country-value" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
+              <span id="obw-country-value" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label(selected)}</span>
             </>
           ) : (
             <span id="obw-country-value">{t('ONBOARDING_FLOW_SELECT_COUNTRY_PLACEHOLDER')}</span>
@@ -167,7 +173,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
                   onClick={() => { onChange(c.name); setOpen(false); triggerRef.current?.focus(); }}
                 >
                   <span style={{ fontSize: '1.125rem', lineHeight: 1, flexShrink: 0 }}>{c.flag}</span>
-                  <span style={{ flex: 1 }}>{c.name}</span>
+                  <span style={{ flex: 1 }}>{label(c)}</span>
                   {isActive && (
                     <svg width="12" height="10" viewBox="0 0 12 10" fill="none" style={{ flexShrink: 0 }}>
                       <path d="M1 5L4.5 8.5L11 1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />

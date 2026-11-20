@@ -76,6 +76,8 @@ const RULE_OP_LABEL_KEYS: Record<RuleOperator, LabelKey> = {
 };
 
 const SESSIONS = ['New York', 'London', 'Asia', 'Pre-Market', 'Weekend'];
+/* The stored value is the English name (rules compare it); only the option text is translated (#1185). */
+const SESSION_LABEL_KEYS: Record<string, LabelKey> = { 'New York': 'JOURNAL_SESSION_NEW_YORK', London: 'JOURNAL_SESSION_LONDON', Asia: 'JOURNAL_SESSION_ASIA', 'Pre-Market': 'JOURNAL_SESSION_PRE_MARKET', Weekend: 'JOURNAL_SESSION_WEEKEND' };
 
 /* Check a single rule against live form fields. Returns true = VIOLATION */
 function ruleViolated(rule: TradingRule, fields: {
@@ -1633,7 +1635,7 @@ function Inner() {
                     style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
                   >
                     <option value="">{t('TRADE_JOURNAL_RULES_SELECT_SESSION_PLACEHOLDER')}</option>
-                    {SESSIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                    {SESSIONS.map(s => <option key={s} value={s}>{t(SESSION_LABEL_KEYS[s])}</option>)}
                   </select>
                 )}
                 {ruleField === 'leverage' && (
