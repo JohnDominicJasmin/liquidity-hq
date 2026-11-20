@@ -52,6 +52,7 @@ test('G2. the three geo call sites use the word matcher (no kw.some(...includes)
 
 test('T1. the Telegram news alert escapes the headline and the source; escapeHtml covers & < >', () => {
   const s = read('app/api/telegram/alert/route.ts');
-  assert.ok(s.includes('<b>${escapeHtml(item.headline)}</b>') && s.includes('Source: ${escapeHtml(item.source)}'), 'the headline or source goes into the HTML message raw: a "<" makes Telegram reject it and the alert is lost');
+  /* RE-PINNED 2026-11-20 for #2734: the PR wraps both in String() and leaves the Source line out when the item has none (the old pin was the unguarded text that THREW on a missing source); the assertion is still that both are escaped. */
+  assert.ok(s.includes('<b>${escapeHtml(String(item.headline))}</b>') && s.includes('Source: ${escapeHtml(String(item.source))}'), 'the headline or source goes into the HTML message raw: a "<" makes Telegram reject it and the alert is lost');
   assert.ok(s.includes("s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')"), 'escapeHtml no longer escapes & < >');
 });
