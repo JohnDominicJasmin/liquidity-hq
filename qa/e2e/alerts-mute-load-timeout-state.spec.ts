@@ -85,11 +85,16 @@ test.describe('The alerts page tells a signed-in user with no token from a signe
     const retry = labels.ALERTS_MUTE_LOAD_RETRY;
     expect(failed, 'ALERTS_MUTE_LOAD_FAILED missing from the served labels and shipped defaults').toBeTruthy();
 
+    /* RE-PINNED 2026-11-20 for the quiet retries of release v2026.11.22: a missing token is retried at 3 s / 10 s / 30 s with the toggles on their loading bars, and the notice shows only once the retries are used up (about 43 s). So the notice is NOT there at 8 s,
+       and it is there within 70 s. The notice, its retry, no signed-out gate and no network request (there is no token to send) are unchanged. */
+    test.setTimeout(150_000);
     const { ctx, page, prefRequests } = await openAlertsClientSide(browser, true);
     try {
+      await page.waitForTimeout(8_000);
+      await expect(page.getByText(failed, { exact: false }), 'the failure notice showed before the quiet retries were used up (3 / 10 / 30 s)').toHaveCount(0);
       await expect(page.getByText(failed, { exact: false }),
-        'a signed-in user with no token was NOT shown the mute-load failure notice - the timeout is being read as "signed out" or as "nothing configured" (#1167)')
-        .toBeVisible({ timeout: 20_000 });
+        'a signed-in user with no token was NOT shown the mute-load failure notice after the retries - the timeout is being read as "signed out" or as "nothing configured" (#1167)')
+        .toBeVisible({ timeout: 70_000 });
       await expect(page.getByRole('button', { name: retry }), 'the failure notice has no retry').toBeVisible();
       await expect(page.locator('.auth-gate'), 'the signed-out gate is showing for a user AuthProvider says is signed in').toHaveCount(0);
       expect(prefRequests, 'the page requested /api/alert-prefs with no token - it should not have reached the network').toEqual([]);
