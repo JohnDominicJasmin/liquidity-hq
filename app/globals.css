@@ -1102,6 +1102,12 @@ body::after {
   .dash-conditions-row { grid-template-columns: minmax(0, 1fr); }
   .dash-conditions-row > * { min-width: 0; max-width: 100%; }
 }
+/* THE CONDITIONS ROW STACKS WHILE THE MAIN COLUMN IS TOO NARROW FOR ITS TWO PANELS (QA width run on qa 178da9e, #2727: at 1000 and 1024 px the row measured 654 px against a 594 / 618 px main column and was clipped by .dash-main's overflow-x: hidden). From 900 to 1059 px the dashboard is two columns (main + a 352 px rail) and the main column is under the 654 px the calendar and the conditions panel need side by side, so they stack; from 1060 px the main column is 654 px or more. Below 900 the page is one column and the row is wide enough. */
+@media (min-width: 900px) and (max-width: 1059px) {
+  .dash-conditions-row { grid-template-columns: minmax(0, 1fr); }
+  .dash-conditions-row > * { min-width: 0; max-width: 100%; }
+  [data-design="terminal"] .dash-main > .dash-conditions-row > * + * { border-left: 0; border-top: 1px solid var(--bdr); }
+}
 /* These reuse .av-rail-panel (bg4 - a subtle gray elevation step meant for a
    narrow rail against a dark page). Full-width here, next to the white
    .edge-card "Coin Signals" cards right above them, bg4 read as flat gray
