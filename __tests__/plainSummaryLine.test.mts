@@ -121,8 +121,9 @@ test('S8. the cancel-without-watch pairing is the CALLER\'s invariant, and this 
      alternative is leaving the end-to-end invariant uncovered: this file cannot mount the page. */
   const page = readFileSync('app/(main)/arena/page.tsx', 'utf8');
   /* #2544 renamed the locals (watch/cancel/s became w/cx/ps) when the summary moved to the top of the read card: the pin now matches the SHAPE (a const assigned from a watch-like value && the summary's cancel), not the names */
-  assert.match(page, /const \w+ = \w+ && \w+\.cancel \?/,
-    'the Arena render must keep gating the cancel clause on the watch clause; plainSummary alone '
-    + 'does not enforce it, so this guard is the only thing standing between a reader and a '
-    + 'sentence that cancels something it never named');
+  /* RE-PINNED 2026-11-20 for #2736 (the pin above was /const \w+ = \w+ && \w+\.cancel \?/). #2736 deliberately REMOVED the "cancel only when there is a watch" gate: a lone cancel level (price already past the confirming level) is no longer dropped to the bare verdict, it is printed as "<verdict without its period>; <cancel text>." (fixedLevelsHeadline2736.test.mts F7 runs that logic whole). The invariant this cell stood for survives in a new shape: a cancel clause is NEVER a half-sentence, because with no watch clause it follows the verdict. Pinned in source on its parts. */
+  assert.match(page, /const \w+ = \w+\.cancel \?/, 'the cancel text is built from the summary\'s own cancel clause');
+  assert.match(page, /const bare = t\(ps\.verdictKey\)\.replace\(\/\[\.。\]\\s\*\$\/, ''\)/, 'the verdict loses only its trailing stop before a cancel text follows it');
+  assert.match(page, /: cx \? `\$\{bare\}; \$\{cx\}\.` : t\(ps\.verdictKey\)/,
+    'with no watch clause a cancel text must follow the verdict (no cancel text keeps the bare verdict): a cancel clause alone would be a sentence that cancels something it never named');
 });

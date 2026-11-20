@@ -47,7 +47,11 @@ const VERDICT: Record<string, SummaryVerdictKey> = {
   'BEARISH': 'ARENA_PLAIN_SUMMARY_BEARISH',
 };
 
-export function plainSummary(signal: string, levels: readonly SummaryLevel[] = []): PlainSummary | null {
+export function plainSummary(
+  signal: string, levels: readonly SummaryLevel[] = [],
+  /** The server's fixed watch levels for the read (CombinedResult.fixedLevels): used for a side the read's own levels leave empty. */
+  fixed?: { above: number | null; below: number | null } | null,
+): PlainSummary | null {
   const verdictKey = VERDICT[signal];
   if (!verdictKey) return null;           // an unknown tier gets no line rather than a guessed one
 
@@ -58,6 +62,9 @@ export function plainSummary(signal: string, levels: readonly SummaryLevel[] = [
   const finite = levels.filter(l => Number.isFinite(l.price));
   const supports    = finite.filter(l => l.type === 'support').map(l => l.price);
   const resistances = finite.filter(l => l.type === 'resistance').map(l => l.price);
+  /* A SIDE THE READ LEFT EMPTY TAKES THE SERVER'S FIXED LEVEL (PM, 2026-11-20: full Bullish / Bearish reads printed the bare verdict): the model's own LEVELS can be empty or dropped by the close check, and the server computes the nearest support and resistance for every read anyway. The model's levels still win when present. */
+  if (supports.length === 0 && fixed?.below != null && Number.isFinite(fixed.below)) supports.push(fixed.below);
+  if (resistances.length === 0 && fixed?.above != null && Number.isFinite(fixed.above)) resistances.push(fixed.above);
 
   /* Nearest to price WITHOUT needing the price: the highest support is the closest one below, and
      the lowest resistance the closest one above. */

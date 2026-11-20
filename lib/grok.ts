@@ -225,7 +225,12 @@ export function normalizeCombinedResult(raw: unknown, tf: string, session: strin
     ? { bullish: c.bullish as number, bearish: c.bearish as number } : null;
   /* #1631 A+D: carried only when the answer has them. A result from before them (a cache, a stub) has none, and "absent" is the true
      reading - an invented empty list would claim the server checked something it never saw. */
-  const extra: Pick<CombinedResult, 'citations' | 'counted' | 'checks' | 'why' | 'patternBias'> = {};
+  const extra: Pick<CombinedResult, 'citations' | 'counted' | 'checks' | 'why' | 'patternBias' | 'fixedLevels'> = {};
+  const fl = r.fixedLevels as Record<string, unknown> | null | undefined;
+  if (fl && typeof fl === 'object') {
+    const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
+    extra.fixedLevels = { above: num(fl.above), below: num(fl.below) };
+  }
   if ('citations' in r) extra.citations = strings(r.citations).filter((u) => /^https?:\/\//.test(u)).slice(0, 10);
   if ('counted' in r) extra.counted = counted;
   if ('checks' in r) extra.checks = strings(r.checks);
@@ -825,6 +830,8 @@ export interface CombinedResult {
   /* The three below are always set by the server since #1631 A+D, and absent on a result from before them. */
   /** #1631 A: the web/X sources Deep's search returned (url_citation annotations + the citations list). Empty for Quick. */
   citations?: string[];
+  /** The server's fixed watch levels for this read (lib/readLevels.ts, the same numbers the prompt quotes): the nearest resistance above and support below the last close, or null when none could be computed. The headline under a directional verdict falls back to them when the read's own LEVELS hold no usable support or resistance (PM 2026-11-20). Absent on a result from before this field. */
+  fixedLevels?: { above: number | null; below: number | null } | null;
   /** #1631 D: the signals the model says it counted per side (its COUNTED line), or null when it gave none. */
   counted?: { bullish: number; bearish: number } | null;
   /** #1631 D: what applyResultChecks changed or could not check, in plain words. Not shown in the UI. */

@@ -696,5 +696,7 @@ export async function POST(req: NextRequest) {
   // instead. One definition, so rewording it cannot silently stop the canary noticing.
   if (restated) (result.checks ??= []).push(VERDICT_RESTATED_CHECK);
 
+  /* The server's fixed watch levels travel with the read (lib/readLevels.ts): the headline under a directional verdict falls back to them when the read's own LEVELS hold no usable support or resistance (PM 2026-11-20). */
+  result.fixedLevels = levels ? { above: levels.above, below: levels.below } : null;
   return NextResponse.json({ result, usage });
 }
