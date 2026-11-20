@@ -2975,12 +2975,14 @@ function ArenaContent() {
                 `javascript:` link either. */}
             {/* THE READ AT A GLANCE (owner rule 22): ONE plain summary line, then at most three short reasons (Deep: five). The chart read, the patterns and the long reasoning are behind "More details" under the chart. A read with no WHY lines (an older one, or the model gave none) falls back to the first sentences of its reasoning. */}
             {(() => {
-              const ps = plainSummary(result.signal, result.levels);
+              const ps = plainSummary(result.signal, result.levels, result.fixedLevels);
               if (!ps) return null;
               /* The headline above this card already states the direction, so the summary starts at the level to watch and does not restate it (PM 2026-11-18); with no level to watch it falls back to the verdict, the only thing it has to say. */
               const w = ps.watch ? t(ps.watch.key, { price: ps.watch.price }) : null;
-              const cx = w && ps.cancel ? t(ps.cancel.key, { price: ps.cancel.price }) : null;
-              return <p className="av-summary" data-testid="arena-plain-summary">{w ? `${w}${cx ? `; ${cx}` : ''}.` : t(ps.verdictKey)}</p>;
+              const cx = ps.cancel ? t(ps.cancel.key, { price: ps.cancel.price }) : null;
+              /* A VERDICT WITH ONLY A CANCEL LEVEL STILL NAMES IT (QA screenshots of full Bearish reads on BTC 1h, PM 2026-11-20): when price has already broken the level that would confirm the call (no support left below a Bearish, no resistance above a Bullish), the read keeps only the level whose recovery cancels it, and the headline used to print the bare verdict. It now reads "Bearish; a move back above $62,615 cancels it." from the same labels. */
+              const bare = t(ps.verdictKey).replace(/[.。]\s*$/, '');
+              return <p className="av-summary" data-testid="arena-plain-summary">{w ? `${w}${cx ? `; ${cx}` : ''}.` : cx ? `${bare}; ${cx}.` : t(ps.verdictKey)}</p>;
             })()}
             {(result.why?.length ?? 0) > 0
               ? <ul className="av-why-list" data-testid="arena-why-list">{result.why!.slice(0, 3).map((w, i) => <li key={i}><ReasoningText text={w} /></li>)}</ul>
