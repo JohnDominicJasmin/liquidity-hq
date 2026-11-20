@@ -39,10 +39,10 @@ export const metadata: Metadata = {
     images: OG_IMAGES,
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     title: 'LiquidityHQ - Crypto Liquidity, Funding, Squeeze Analytics',
     description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
-    images: ['/icons/icon-512.png'],
+    images: OG_IMAGES,
   },
   appleWebApp: {
     capable: true,

@@ -65,8 +65,8 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
        Chinese landing pages are the two most likely to be shared into a chat app, and they were the two with no preview image. */
     openGraph: { title: localisedTitle, description: dict.hero.sub, images: OG_IMAGES },
     /* Twitter's card REPLACES rather than merges too, same as openGraph - so with no entry here
-       these two pages advertised themselves in English. `summary`, matching the root. */
-    twitter: { card: 'summary', title: localisedTitle, description: dict.hero.sub, images: OG_IMAGES },
+       these two pages advertised themselves in English. `summary_large_image`, matching the root (the share image is 1200x630). */
+    twitter: { card: 'summary_large_image', title: localisedTitle, description: dict.hero.sub, images: OG_IMAGES },
     /* #1740: SELF-referencing - `/ko` canonicalises to `/ko`, not to `/`.
      *
      * Pointing a translation at the English page is the obvious-looking move and it is the wrong one: a
