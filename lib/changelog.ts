@@ -151,16 +151,17 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     /* DRAFT, the release after v2026.11.22 (Dev 2026-11-20, PM). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs (rule 22; 2026-11-21 is a placeholder). Plain words, 12 words or fewer per line; only user-visible changes, facts only (QA checks each line).
-       Tied to: #2712 (VWAP card decimals), #2715 (partial-day VWAP line), #2718 (liquidation prices per-token, sub-penny buckets), #2719 (left-edge labels, VWAP window), #2721 (AI Confirms-to line cap). A line whose PR misses the tag is removed. */
+       Tied to: #2715 + #2719 (VWAP), #2718 (liquidation units), #2719 (edge labels), #2731 (last good candles and trades), #2732 (retries first), #2724 + #2725 (widths; the dashboard widths #2727 + #2733 join the line once QA's measurement passes), #2734 (Telegram), #2721 (Confirms-to cap). No entry on purpose: #2712 (VWAP card decimals) and #2735 (empty parentheses), cosmetic. A line whose PR misses the tag is removed. */
     date: '2026-11-21',
     tag: 'v2026.11.23',
     items: [
       "Liquidation levels now show for PEPE, BONK and other low-priced coins.",
-      "Liquidation prices use one unit across both exchanges.",
-      "VWAP reclaim draws the day's VWAP from the first candle.",
+      "VWAP reclaim draws from the first candle and reads further back.",
       "Strategy lines left of the visible candles show an edge label.",
-      "VWAP reclaim on stocks reads further back when the market is closed.",
-      "1000x coins show the Arena VWAP with fewer decimals.",
+      "The Arena chart and trade journal keep data when a reload fails.",
+      "Scanner, open interest and strategy cells retry before saying unavailable.",
+      "The Arena and top bar fit tablet and small laptop widths.",
+      "Telegram alerts leave out lines whose data is missing.",
       "The AI read keeps its 'Confirms to' line short.",
     ],
   },
