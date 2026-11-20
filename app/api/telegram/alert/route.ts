@@ -1108,7 +1108,7 @@ async function checkWhales(stamp: string, queue: SignalEntry[], skipCounts: Skip
         const pf = symbolDenominationFactor(sym);
         for (const t of trades) {
           const usd = parseFloat(t.price) * parseFloat(t.size);
-          if (usd < threshold) continue;
+          if (!(usd >= threshold)) continue;   // NaN (a garbled size) fails this, where `usd < threshold` let it through as $NaNK
           const side = t.side === 'Buy' ? 'BUY' : 'SELL';
           const key  = `whale_${coin}_${side}`;
           if (onCooldown(key, CD.whale)) continue;
@@ -1145,7 +1145,7 @@ async function checkWhales(stamp: string, queue: SignalEntry[], skipCounts: Skip
         const label  = LABELS[coin];
         for (const t of trades) {
           const usd = parseFloat(t.p) * parseFloat(t.q);
-          if (usd < threshold) continue;
+          if (!(usd >= threshold)) continue;   // NaN (a garbled size) fails this, where `usd < threshold` let it through as $NaNK
           const side = t.m ? 'SELL' : 'BUY';
           const key  = `whale_${coin}_${side}`;
           if (onCooldown(key, CD.whale)) continue;
@@ -1206,7 +1206,7 @@ async function checkNews(
       const label    = type === 'red' ? 'Breaking Alert' : 'Macro Alert';
       const to = type === 'red' ? chatId : macroChatId;
       if (to.length === 0) continue;
-      await tg(token, to, `${emoji} <b>${label}</b>\n\n<b>${escapeHtml(item.headline)}</b>\nSource: ${escapeHtml(item.source)}\n\n<i>${stamp}</i>`);
+      await tg(token, to, `${emoji} <b>${label}</b>\n\n<b>${escapeHtml(String(item.headline))}</b>\n${item.source ? `Source: ${escapeHtml(String(item.source))}\n` : ''}\n<i>${stamp}</i>`);   // no source: the line is left out (escapeHtml(undefined) threw and dropped the rest of the run)
       markSent(key); fired.push(`news: ${item.headline.slice(0, 50)}`);
     }
   } catch { /* skip */ }
@@ -1646,6 +1646,7 @@ async function checkDailySummary(
       dateStr, stamp, threshold,
       movers: topMovers(movers, excluded),
       setups: squeezeSetups(squeezeReads, threshold, excluded),
+      squeezeKnown: squeezeReads.some(s => s.fundingPct != null || s.longPct != null),   // no read at all: the block is left out, not "None at or above"
     });
     /* One message, or two in order when the text would pass Telegram's length limit (lib/dailySummary.ts). The day counts as sent once the first one landed: a failed second part must not resend the first on the next run. */
     const res = await tg(token, r.chatId, messages[0]);
@@ -1858,6 +1859,8 @@ async function checkSqueezeAlerts(
     const longPct  = longRat != null ? (longRat * 100).toFixed(1) + '%' : '-';
     const shortPct = longRat != null ? ((1 - longRat) * 100).toFixed(1) + '%' : '-';
     const canonicalHit = score >= DEFAULT_THRESHOLDS.squeezeThreshold;
+    /* A LINE WHOSE SOURCE IS MISSING IS LEFT OUT, NOT PRINTED AS A DASH (off-site failing-text sweep, PM 2026-11-20): with a user threshold below 70 one input can carry the score, so the other read may be absent. */
+    const lsLine = longRat != null ? `L/S Ratio: <b>${longPct} long / ${shortPct} short</b>\n` : '';
 
     if (dir === 'SHORT_SQ') {
       // Shorts overcrowded - expect pump to flush them
@@ -1867,8 +1870,8 @@ async function checkSqueezeAlerts(
         body:
           `⚡ <b>SHORT-HEAVY POSITIONING - ${label}/USDT</b>\n` +
           `Score: <b>${score}/100</b>\n\n` +
-          `Funding: <b>${frPct}</b> (shorts paying heavily)\n` +
-          `L/S Ratio: <b>${longPct} long / ${shortPct} short</b>\n\n` +
+          (fr != null ? `Funding: <b>${frPct}</b> (shorts paying heavily)\n` : '') +
+          lsLine + `\n` +
           `Positioning is short-heavy.\n\n` +
           `<i>${stamp}</i>`,
         metricValue: score, thresholdKind: 'squeeze', canonicalHit,
@@ -1883,8 +1886,8 @@ async function checkSqueezeAlerts(
         body:
           `🔥 <b>LONG-HEAVY POSITIONING - ${label}/USDT</b>\n` +
           `Score: <b>${score}/100</b>\n\n` +
-          `Funding: <b>${frPct}</b> (longs paying heavily)\n` +
-          `L/S Ratio: <b>${longPct} long / ${shortPct} short</b>\n\n` +
+          (fr != null ? `Funding: <b>${frPct}</b> (longs paying heavily)\n` : '') +
+          lsLine + `\n` +
           `Positioning is long-heavy.\n\n` +
           `<i>${stamp}</i>`,
         metricValue: score, thresholdKind: 'squeeze', canonicalHit,
@@ -2052,7 +2055,8 @@ async function checkDistribution(
           title: `Distribution Detected - Score ${res.score}/100`,
           body:
             `💰 <b>DISTRIBUTION DETECTED - ${label}/USDT</b>\n` +
-            `Score: <b>${res.score}/100</b>\n\n` +
+            `Score: <b>${res.score}/100</b>\n` +
+            (res.scoreableMax < 100 ? `Built from inputs worth ${res.scoreableMax} of 100 points.\n` : '') + `\n` +
             `Price still up <b>+${change24hPct.toFixed(1)}%</b> in 24h, while these distribution signs show:\n` +
             res.reasons.map(r => `• ${r}`).join('\n') + '\n\n' +
             `\n\n<i>${stamp}</i>`,

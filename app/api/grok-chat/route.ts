@@ -53,12 +53,14 @@ function sb(token: string) {
   return userClient(token);
 }
 
-async function getUsageRow(token: string, userId: string, today: string) {
-  const { data } = await sb(token).from(T.grok_usage)
+/* A FAILED USAGE READ IS UNKNOWN, NOT ZERO (PM route audit, 2026-11-20): `strict` makes a database error throw, so the usage GET answers 503 instead of 200 with every count at 0, which showed a user with no uses spent a full allowance and (for a user at the cap) a false zero. Only the GET asks for it; the POST paths keep reading the row as before. */
+async function getUsageRow(token: string, userId: string, today: string, strict = false) {
+  const { data, error } = await sb(token).from(T.grok_usage)
     .select('chat_count, chat_search_count')
     .eq('user_id', userId)
     .eq('date', today)
     .maybeSingle();
+  if (strict && error) throw new Error(`usage read failed: ${error.message}`);
   return { chatUsed: data?.chat_count ?? 0, searchUsed: data?.chat_search_count ?? 0 };
 }
 
@@ -71,10 +73,17 @@ export async function GET(req: NextRequest) {
   if (!userData.user) return NextResponse.json({ error: 'Auth required' }, { status: 401 });
   const userId = userData.user.id;
   const today = todayUtc();
-  const [{ chatUsed, searchUsed }, plan] = await Promise.all([
-    getUsageRow(token, userId, today),
-    getUsageTierStatus(token, userId),
-  ]);
+  let usageRead: Awaited<ReturnType<typeof getUsageRow>>, plan: Awaited<ReturnType<typeof getUsageTierStatus>>;
+  try {
+    [usageRead, plan] = await Promise.all([
+      getUsageRow(token, userId, today, true),
+      getUsageTierStatus(token, userId),
+    ]);
+  } catch (e) {
+    console.error('/api/grok-chat GET usage unavailable:', e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ error: 'USAGE_UNAVAILABLE' }, { status: 503 });
+  }
+  const { chatUsed, searchUsed } = usageRead;
   /* U7: an UNKNOWN plan is never billed against the Free cap. Every plan may chat, so it proceeds against the Pro count cap with the dollar cap failing closed, exactly as POST /api/grok does (#2412). */
   const role: UsageTier = plan.failed ? 'pro' : plan.tier;
   const chatLimit   = AI_LIMITS[role].chat;

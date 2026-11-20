@@ -91,8 +91,10 @@ export const TELEGRAM_SUMMARY_SPLIT_CHARS = 3800;
 /** The summary as one or two messages, in send order. Setups beyond DAILY_SUMMARY_MAX_SETUPS become "... and N more" (a start fragment, the number, an end fragment, so it localizes like the rest). */
 export function buildDailySummaryMessages(opts: {
   dateStr: string; movers: Mover[]; setups: SqueezeRead[]; threshold: number; stamp: string;
+  /** False when neither the funding nor the long/short read could be taken for ANY coin: the squeeze block is left out rather than saying "None at or above your threshold", which would be false (off-site failing-text sweep, PM 2026-11-20). Default true. */
+  squeezeKnown?: boolean;
 }): string[] {
-  const { dateStr, movers, setups, threshold, stamp } = opts;
+  const { dateStr, movers, setups, threshold, stamp, squeezeKnown = true } = opts;
   const moversBlock = movers.length ? movers.map(moverLines).join('\n\n') : 'No 24 h data for the coins you have on.';
   const shown = setups.slice(0, DAILY_SUMMARY_MAX_SETUPS);
   const more = setups.length - shown.length;
@@ -100,7 +102,7 @@ export function buildDailySummaryMessages(opts: {
     ? shown.map(squeezeLine).join('\n') + (more > 0 ? `\n… and ${more} more` : '')
     : `None at or above your threshold (${threshold}).`;
   const head = `☀️ <b>Daily Summary - ${dateStr}</b>\n\n` + `📈 <b>Biggest 24 h moves</b>\n${moversBlock}`;
-  const tail = `⚡ <b>Squeeze setups (score ${threshold}+)</b>\n${setupsBlock}\n\n` + `<i>${stamp}</i>`;
+  const tail = (squeezeKnown ? `⚡ <b>Squeeze setups (score ${threshold}+)</b>\n${setupsBlock}\n\n` : '') + `<i>${stamp}</i>`;
   const whole = `${head}\n\n${tail}`;
   return whole.length <= TELEGRAM_SUMMARY_SPLIT_CHARS ? [whole] : [head, tail];
 }

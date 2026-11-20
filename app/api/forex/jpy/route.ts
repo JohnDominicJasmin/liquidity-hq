@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { trackHealth } from '@/lib/apiHealth';
-import { cached } from '@/lib/apiCache';
+import { cached, cachedPeek } from '@/lib/apiCache';
 import { polledCacheControl } from '@/lib/cacheHeaders';
 
 /* FIVE MINUTES, HELD IN THIS PROCESS (#1397, #1404) - the same five minutes the
@@ -64,6 +64,13 @@ export async function GET(req: NextRequest) {
       headers: { 'Cache-Control': polledCacheControl(60) },
     });
   } catch (e) {
+    /* BOTH SOURCES DOWN: THE LAST GOOD RATE, DATED (PM route audit, 2026-11-20). Three first-load callers (Arena macro-risk input, Briefing yen watch, MacroStrip) read this; the yen rate moves slowly and the body already carries `asOf`, so a rate up to 6 h old is served with `stale: true` and its age instead of a 502. Nothing held: still the error. */
+    const last = cachedPeek<{ jpy: number; asOf: number; source: string }>('forex:usd-jpy', 6 * 3600_000);
+    if (last) {
+      return NextResponse.json({ jpy: last.data.jpy, asOf: last.data.asOf, source: last.data.source, stale: true, ageSeconds: Math.round((Date.now() - last.ts) / 1000) }, {
+        headers: { 'Cache-Control': 'no-store', 'x-data-stale': '1' },
+      });
+    }
     return apiError('forex/jpy', e, 502, 'Upstream fetch failed');
   }
 }

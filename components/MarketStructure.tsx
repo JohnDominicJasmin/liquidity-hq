@@ -7,6 +7,7 @@ import { symbolDenominationFactor, binanceKlineSource, arenaPriceUnit } from '@/
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 import { detectStructureSignals, structureState, type PACandle } from '@/lib/priceAction';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
 
@@ -81,13 +82,13 @@ function analyzeStructure(candles: Candle[]): MSData {
 }
 
 /* ── Candle-age → human time (each candle = 4h) ── */
-function fmtAge(candlesAgo: number): string {
-  if (candlesAgo === 0) return 'current';
+function fmtAge(candlesAgo: number, t: (k: LabelKey, v?: Record<string, string | number>) => string): string {
+  if (candlesAgo === 0) return t('MARKET_STRUCTURE_AGO_CURRENT');
   const h = candlesAgo * 4;
-  if (h < 24) return `~${h}h ago`;
+  if (h < 24) return t('MARKET_STRUCTURE_AGO_H', { h });
   const d = Math.floor(h / 24);
   const r = h % 24;
-  return r ? `~${d}d ${r}h ago` : `~${d}d ago`;
+  return r ? t('MARKET_STRUCTURE_AGO_DH', { d, r }) : t('MARKET_STRUCTURE_AGO_D', { d });
 }
 
 /* ── Price formatter ──
@@ -260,7 +261,7 @@ export default function MarketStructure({ coin, onData }: Props) {
                   </span>
           </span>
           <span className="ms-ev-price">{currencyPrefix(coin)}{fmtP(le.price)}</span>
-          <span className="ms-ev-ago">{fmtAge(le.candlesAgo)}</span>
+          <span className="ms-ev-ago">{fmtAge(le.candlesAgo, t)}</span>
           {le.type === 'CHoCH' && (
             <span style={{ fontSize: 'var(--fs-caption)', color: evCol(le), fontWeight: 700, marginLeft: 4 }}>{t('MARKET_STRUCTURE_FLIP_TAG')}</span>
           )}
@@ -294,7 +295,7 @@ export default function MarketStructure({ coin, onData }: Props) {
                   </span>
               </span>
               <span className="ms-hist-price">{currencyPrefix(coin)}{fmtP(ev.price)}</span>
-              <span className="ms-hist-ago">{fmtAge(ev.candlesAgo)}</span>
+              <span className="ms-hist-ago">{fmtAge(ev.candlesAgo, t)}</span>
             </div>
           ))}
         </div>

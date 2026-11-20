@@ -2116,8 +2116,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // fallback for this coin. This IS the #1073 defect if left
                 // silent - say so rather than a chart with nothing on it and
                 // no explanation.
-                if (json === null) setHistoryFailed(true);
-                if (!(json === null && keepLastGood())) applyBars([]);
+                /* A FAILED LOAD THAT KEPT THE LAST GOOD CANDLES SHOWS NO FAILURE LINE (failing-text sweep 2, owner's rule: last good value, not a failure): the flag is raised only when nothing was kept. */
+                if (!(json === null && keepLastGood())) { if (json === null) setHistoryFailed(true); applyBars([]); }
                 handled = true;
               }
               // else: Bybit had nothing (refused after retries, or genuinely
@@ -2211,16 +2211,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // #1073: both Bybit (after retry) and Binance spot+futures came
                 // up empty - the same "silent blank chart" defect class, for a
                 // coin that DOES have a fallback. Surface it the same way.
-                setHistoryFailed(true);
               }
-              if (!(bars.length === 0 && keepLastGood())) applyBars(bars);
+              if (bars.length === 0 && keepLastGood()) { /* last good candles kept: no failure line */ } else { if (bars.length === 0) setHistoryFailed(true); applyBars(bars); }
             } else if (!handled) {
               applyBars([]);
             }
             endFade();
             setLoadingTf(null);
             setBarsTick(n => n + 1);
-          } catch { if (!stale()) { setHistoryFailed(true); if (!keepLastGood()) { deliveredGenRef.current = myGen; callback([], false); } endFade(); setLoadingTf(null); } }
+          } catch { if (!stale()) { if (!keepLastGood()) { setHistoryFailed(true); deliveredGenRef.current = myGen; callback([], false); } endFade(); setLoadingTf(null); } }
           void symbol; // suppress unused
         },
 

@@ -1,4 +1,6 @@
-/* #1397 / #1404 / #1473: how many upstream calls do /api/macro and /api/forex/jpy make?
+/* RE-PINNED 2026-11-20 for #2740 (M3, M4, M5, J2): these four asserted what a FAILED read answers AFTER a good one - null for a Yahoo series (M3-M5) and a 502 for the rate (J2). #2740 changes that on purpose: a failed refresh serves the LAST GOOD quote (macro, up to 6 h, its own asOf) / the last good rate (forex/jpy, up to 6 h, stale: true, ageSeconds), so a held failure answers the stored value; "null" / 502 is now only for a series or rate that was never read (pinned in routeLastGood2740.test.mts, which also holds the 6 h bound). What each test is ABOUT - the upstream-call counts inside and at the end of the 30 s hold, a retry at 30 s, a recovery that is stored - is unchanged and still asserted at the same numbers.
+ *
+ * #1397 / #1404 / #1473: how many upstream calls do /api/macro and /api/forex/jpy make?
  *
  * THE REAL ROUTES RUN HERE. `GET` is imported from both route files and called
  * with real NextRequests. Only the network is a stand-in: `globalThis.fetch` is
@@ -129,7 +131,10 @@ test('M2. N concurrent COLD calls share one upstream call per series', async () 
   for (const b of bodies) for (const s of SERIES) assert.ok(b[s], `${s} null in a concurrent response`);
 });
 
-test('M3. a FAILED series is held for 30 s: N calls inside the hold make one upstream call, each still answers null for it', async () => {
+/* the oil quote the good reads above stored: what a failed refresh must now keep answering (RE-PINNED for #2740) */
+let lastGoodOil: Macro['oil'] = null;
+test('M3. a FAILED series is held for 30 s: N calls inside the hold make one upstream call, each answers its LAST GOOD quote (RE-PINNED for #2740: was null)', async () => {
+  lastGoodOil = (await macro()).oil; assert.ok(lastGoodOil && lastGoodOil.price > 0, 'no good oil quote to serve');   // inside the window: a cache hit, no upstream call
   tick(61_000);
   net.yahooMode.oil = 'http500';
   const oil0 = net.yahoo.oil;
@@ -137,7 +142,7 @@ test('M3. a FAILED series is held for 30 s: N calls inside the hold make one ups
   for (const at of [5_000, 10_000, 10_000, 4_900]) { tick(at); bodies.push(await macro()); } // up to 29.9 s after the failure
   assert.equal(net.yahoo.oil - oil0, 1, `a refusing Yahoo got ${net.yahoo.oil - oil0} oil calls in 29.9 s - the hold should allow one`);
   for (const b of bodies) {
-    assert.equal(b.oil, null, 'the failed series is not null - a failure is being served as a value');
+    assert.deepEqual(b.oil, lastGoodOil, 'the failed series did not answer its last good quote (RE-PINNED for #2740: it answered null, which cleared the page for ten minutes)');
     assert.ok(b.dxy && b.spx && b.gold && b.jpy, 'one failing series took the others down with it');
   }
 });
@@ -145,7 +150,7 @@ test('M3. a FAILED series is held for 30 s: N calls inside the hold make one ups
 test('M4. the first call at 30 s retries; a success after a failure is stored and served', async () => {
   tick(100); // exactly 30.0 s after the failure in M3
   const oil0 = net.yahoo.oil;
-  assert.equal((await macro()).oil, null, 'still failing, still null');
+  assert.deepEqual((await macro()).oil, lastGoodOil, 'still failing: still the last good quote (RE-PINNED for #2740: was null)');
   assert.equal(net.yahoo.oil - oil0, 1, 'the call at 30 s did not retry the upstream');
   tick(30_000);
   allOk();
@@ -158,15 +163,16 @@ test('M4. the first call at 30 s retries; a success after a failure is stored an
   assert.deepEqual(next.oil, recovered.oil);
 });
 
-test('M5. every failure shape is held, not only an HTTP error: a 200 with no price, and a network error', async () => {
+test('M5. every failure shape is held, not only an HTTP error: a 200 with no price, and a network error (each answers the last good gold quote, RE-PINNED for #2740: was null)', async () => {
+  const lastGoodGold = (await macro()).gold; assert.ok(lastGoodGold && lastGoodGold.price > 0, 'no good gold quote to serve');
   for (const shape of ['noPrice', 'network'] as const) {
     tick(61_000);
     allOk();
     net.yahooMode.gold = shape;
     const g0 = net.yahoo.gold;
-    for (let i = 0; i < 5; i++) { assert.equal((await macro()).gold, null, `${shape}: gold not null`); tick(2_000); }
+    for (let i = 0; i < 5; i++) { assert.deepEqual((await macro()).gold, lastGoodGold, `${shape}: gold is not its last good quote (RE-PINNED for #2740: was null)`); tick(2_000); }
     assert.equal(net.yahoo.gold - g0, 1, `${shape}: ${net.yahoo.gold - g0} upstream calls for 5 requests inside the hold`);
-    // Held as a FAILURE (retried at 30 s), not stored as a null value (which would sit for the full minute).
+    // Held as a FAILURE (retried at 30 s), not stored as a value (which would sit for the full minute).
     tick(20_000);
     await macro();
     assert.equal(net.yahoo.gold - g0, 2, `${shape}: not retried 30 s after the failure - it was stored as a value, not held as a failure`);
@@ -188,14 +194,15 @@ test('J1. inside 60 s: N calls make one call to the rate provider (the rate cach
   assert.equal(net.rate - r0, 2, 'the call after 60 s did not refresh');
 });
 
-test('J2. a failed rate read is held 30 s (still 502 to every caller), retried at 30 s, and a recovery is stored', async () => {
+test('J2. a failed rate read is held 30 s (every caller gets the LAST GOOD rate, stale: true; RE-PINNED for #2740: was a 502), retried at 30 s, and a recovery is stored', async () => {
   for (const shape of ['http500', 'noPrice'] as const) {
     tick(60_000 + 1_000);
     net.rateMode = shape;
     const r0 = net.rate;
-    for (let i = 0; i < 5; i++) { const a = await jpy(); assert.equal(a.status, 502, `${shape}: a held failure answered ${a.status}`); tick(i < 4 ? 7_000 : 2_000); } // 30 s later
+    const heldAnswer = (a: { status: number; body: { jpy?: number; stale?: boolean; ageSeconds?: number } }, label: string) => { assert.equal(a.status, 200, `${shape}: ${label} answered ${a.status} (RE-PINNED for #2740: it was a 502)`); assert.equal(a.body.jpy, 150.25, `${shape}: ${label} is not the last good rate`); assert.equal(a.body.stale, true, `${shape}: ${label} is not marked stale`); assert.ok((a.body.ageSeconds ?? 0) >= 61, `${shape}: ${label} ageSeconds ${a.body.ageSeconds}`); };
+    for (let i = 0; i < 5; i++) { heldAnswer(await jpy(), `held call ${i + 1}`); tick(i < 4 ? 7_000 : 2_000); } // 30 s later
     assert.equal(net.rate - r0, 1, `${shape}: ${net.rate - r0} calls to a refusing provider inside 30 s`);
-    assert.equal((await jpy()).status, 502);
+    heldAnswer(await jpy(), 'the call at 30 s');
     assert.equal(net.rate - r0, 2, `${shape}: no retry at 30 s`);
     tick(30_000);
     net.rateMode = 'ok';

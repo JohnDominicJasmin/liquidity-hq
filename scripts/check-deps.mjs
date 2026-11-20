@@ -107,8 +107,22 @@ function present(name) {
   return existsSync(path.join(resolveDir(name), 'package.json'));
 }
 
+/* A watched name only counts while the lockfile still lists it. `@opentelemetry/instrumentation` left the tree
+ * with the Sentry 11 upgrade (04bcb0a2): package-lock.json has no entry for it, so every fresh install - the
+ * Render build included - printed the banner below for a package nothing installs any more (prod build of
+ * v2026.11.22, 2026-11-20; #1185 / PM note). A list that outlives the tree it describes cries wolf, and the
+ * banner's reader cannot tell a stale list from a real hollow directory. If the lockfile cannot be read, every
+ * watched name is kept (the conservative direction). Exit code is unchanged: this script always exits 0. */
+let lockedNames = null;
+try {
+  const lock = JSON.parse(readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
+  lockedNames = Object.keys(lock.packages ?? {});
+} catch { /* no readable lockfile: keep the whole watch list */ }
+const inLockfile = name => lockedNames === null
+  || lockedNames.some(k => k === `node_modules/${name}` || k.endsWith(`/node_modules/${name}`));
+
 const missingDeclared = declared.filter(name => !present(name));
-const missingWatched = WATCHED_TRANSITIVE.filter(name => !present(name));
+const missingWatched = WATCHED_TRANSITIVE.filter(name => inLockfile(name) && !present(name));
 
 if (missingDeclared.length === 0 && missingWatched.length === 0) {
   process.exit(0);

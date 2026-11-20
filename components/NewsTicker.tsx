@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useNews } from './NewsProvider';
 import { useNow } from '@/lib/useNow';
 import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 function decodeEntities(str: string): string {
   if (typeof document === 'undefined') return str;
@@ -11,11 +12,11 @@ function decodeEntities(str: string): string {
   return txt.value;
 }
 
-function timeAgo(ts: number): string {
+function timeAgo(ts: number, t: (k: LabelKey, v?: Record<string, string | number>) => string): string {
   const s = Math.floor(Date.now() / 1000 - ts);
-  if (s < 60) return 'just now';
-  if (s < 3600) return Math.floor(s / 60) + 'm ago';
-  return Math.floor(s / 3600) + 'h ago';
+  if (s < 60) return t('NEWS_TIME_JUST_NOW');
+  if (s < 3600) return t('NEWS_TIME_MINUTES_AGO', { n: Math.floor(s / 60) });
+  return t('NEWS_TIME_HOURS_AGO', { n: Math.floor(s / 3600) });
 }
 
 export default function NewsTicker() {
@@ -81,9 +82,9 @@ export default function NewsTicker() {
 
   const text = useMemo(() =>
     sorted
-      .map(a => `${decodeEntities(a.headline)}  (${a.source} · ${timeAgo(a.ts)})`)
+      .map(a => `${decodeEntities(a.headline)}  (${a.source} · ${timeAgo(a.ts, t)})`)
       .join('          ·          '),
-  [sorted]);
+  [sorted, t]);
 
   // Calculate animation duration based on content width for constant 80px/s speed.
   // Defers via rAF to ensure layout has completed before measuring offsetWidth.

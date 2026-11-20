@@ -75,7 +75,8 @@ function anchorOnce(src: string, needle: string, label: string): number {
 test('S1. loadTrades: on error, tradesError is set and trades is NOT overwritten with the response data', () => {
   // The error branch is one single-line block: matching it EXACTLY already proves setTrades is not called
   // inside it (a call added there would change this literal string, and the anchor would stop matching).
-  const at = anchorOnce(source, 'if (error) { setTradesError(true); setLoading(false); return; }', 'the error branch');
+  /* RE-PINNED 2026-11-20 for #2731: a failed RE-read keeps the trades already on screen, so the error card is raised only when there is nothing to keep (trades.length === 0). failingTextSweep2_2731 J1-J3 run the real loadTrades for both cases. */
+  const at = anchorOnce(source, 'if (error) { if (trades.length === 0) setTradesError(true); setLoading(false); return; }', 'the error branch');
   const before = source.slice(Math.max(0, at - 400), at);
   assert.match(before, /setTradesError\(false\)/, 'loadTrades does not clear a stale tradesError before the new read');
 });
@@ -84,7 +85,7 @@ test('S2. loadTrades: on success, trades is set from the response and tradesErro
   anchorOnce(source, "setTrades((data ?? []) as Trade[]);", 'the success assignment');
   // tradesError(false) happens once, before the fetch - reaching this line (past the early-return on error) means it already ran.
   const clearAt = anchorOnce(source, 'setTradesError(false);', 'the pre-fetch clear');
-  const errorAt = source.indexOf('if (error) { setTradesError(true);');
+  const errorAt = source.indexOf('if (error) { if (trades.length === 0) setTradesError(true);');
   const successAt = source.indexOf('setTrades((data ?? []) as Trade[]);');
   assert.ok(clearAt < errorAt && errorAt < successAt, 'the clear does not happen before both the error check and the success assignment');
 });

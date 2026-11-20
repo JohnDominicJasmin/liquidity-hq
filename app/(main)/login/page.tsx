@@ -80,7 +80,7 @@ function LoginInner() {
         redirectTo: callbackUrl(),
       },
     });
-    if (error) { setError(friendlyAuthError(error.message)); setGoogleLoading(false); }
+    if (error) { setError(friendlyAuthError(error.message, t)); setGoogleLoading(false); }
     // On success, browser navigates away - no need to reset loading
   };
 
@@ -113,7 +113,7 @@ function LoginInner() {
     // retry (e.g. after a typo) gets a fresh token instead of a stale one.
     turnstileRef.current?.reset();
     setCaptchaToken('');
-    if (error) setError(friendlyAuthError(error.message));
+    if (error) setError(friendlyAuthError(error.message, t));
     else setEmailSent(true);
   };
 
@@ -151,7 +151,7 @@ function LoginInner() {
       setPwLoading(false);
       pwTurnstileRef.current?.reset();
       setPwCaptchaToken('');
-      if (error) { setPwError(friendlyAuthError(error.message)); return; }
+      if (error) { setPwError(friendlyAuthError(error.message, t)); return; }
       // Same account-creation path as magic-link (auth.users insert), so the
       // existing signup trial / disposable-domain / IP-velocity protections
       // all apply here too - nothing bypasses them just because this is a
@@ -188,7 +188,7 @@ function LoginInner() {
       pwTurnstileRef.current?.reset();
       setPwCaptchaToken('');
       if (error) {
-        setPwError(friendlyAuthError(error.message));
+        setPwError(friendlyAuthError(error.message, t));
         setNeedsConfirm(isEmailNotConfirmed(error.message));
         setResendState('idle');
         // Password + this exact failure together prove account ownership -
@@ -202,7 +202,7 @@ function LoginInner() {
           })
             .then(res => res.json())
             .then((j: { reason?: string | null }) => {
-              if (j.reason) setPwError(`${friendlyAuthError(error.message)} Reason: ${j.reason}`);
+              if (j.reason) setPwError(`${friendlyAuthError(error.message, t)} Reason: ${j.reason}`);
             })
             .catch(() => {});
         }

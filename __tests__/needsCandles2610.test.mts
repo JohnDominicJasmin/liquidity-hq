@@ -20,8 +20,12 @@ test('N1. the too-few branch sets an `unavailable` state with STRAT_NA_TOO_FEW a
   assert.ok(/error: false/.test(line) && !/error: true/.test(line), `the too-few state is still an error: ${line.slice(0, 200)}`);
   assert.ok(/unavailable: \{ reasonKey: 'STRAT_NA_TOO_FEW'/.test(line), 'the reason key is not STRAT_NA_TOO_FEW');
   for (const v of ['need: String(def.minCandles)', 'coin: coin.toUpperCase()', 'have: String(closed.length)']) assert.ok(line.includes(v), `variable missing or wrong: ${v}`); assert.ok(/\btf\b[,\s}]/.test(line.replace(/need: String\(def\.minCandles\)/, '')), 'variable tf missing');
-  const catchAt = hook.indexOf('} catch {'); assert.ok(catchAt > at && /error: true/.test(hook.slice(catchAt, catchAt + 120)), 'N5: a failed fetch must still be the generic error');
-  assert.ok(!/STRAT_NA_TOO_FEW/.test(hook.slice(catchAt, catchAt + 200)), 'the failure path must not claim too few candles');
+  /* RE-PINNED 2026-11-20 for #2732 (PM option A, "retries first, the word only after them"): N5 used to say a failed fetch is `error: true` within 120 characters of `} catch {`. That expectation is older than the change: a FIRST failed read with no earlier call now keeps the LOADING skeleton
+   * (`loading: true, error: false`), and the generic error (`error: true`) shows only after the SECOND failed read in a row (`fails >= 2`, the 45 s retry between them). A failed fetch is STILL the generic error, and still never "too few candles"; the pin now names both halves of the gate
+   * (the error at two, the skeleton below it) over the whole catch body, so neither the error nor the gate can be dropped. The kept-call branch is pinned by __tests__/staleSignalKept2678.test.mts T1 and the sequence by __tests__/retriesFirst2732.test.mts. */
+  const catchAt = hook.indexOf('} catch {'); const catchBody = hook.slice(catchAt, hook.indexOf('failed = true;', catchAt)); assert.ok(catchAt > at && catchBody.length > 20, 'CONTROL: the catch body was not found');
+  assert.ok(/fails >= 2 \? \{ result: null, loading: false, error: true \} : \{ result: null, loading: true, error: false \}/.test(catchBody), 'N5: a failed fetch must still be the generic error, but only from the SECOND failed read in a row; the first one keeps the loading skeleton');
+  assert.ok(!/STRAT_NA_TOO_FEW/.test(catchBody), 'the failure path must not claim too few candles');
 });
 test('N2. the sentence for the audit examples: ema_cross needs 601 1d candles (aapl has 226, nvda 237); ema_stack needs 230', () => {
   assert.equal(CROSS_MIN, 601); assert.equal(STACK_MIN, 230);
