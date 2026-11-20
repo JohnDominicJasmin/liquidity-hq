@@ -210,10 +210,13 @@ export async function GET(req: NextRequest) {
         throw new Error(err.error ?? 'AI error');
       }
 
-      const aiData = await aiRes.json();
+      /* A 2xx that is not JSON, or an EMPTY analysis, is a failed answer (PM route audit, 2026-11-20): the use is given back and nothing is cached. It used to throw unhandled with the use spent, or return the blank text as a 200 that was then held for 5 minutes. */
+      const aiData = await aiRes.json().catch(() => null);
+      if (!aiData) { await giveBack(); throw new Error('unreadable AI answer'); }
       /* Not awaited: the log is for accounting, never for the answer, and recordAiCall swallows its own errors (and reports them to the health table). */
       void recordAiCall({ userId: authData.user.id, callType: 'macro_context', model: aiData.model ?? 'grok-4.3', usage: aiData.usage });
       const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
+      if (!analysis.trim()) { await giveBack(); throw new Error('empty AI analysis'); }
 
       return { ...payload, analysis, missingData: missing };
     });

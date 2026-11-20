@@ -157,7 +157,12 @@ export async function POST(req: NextRequest) {
     return apiError('shadow-account', err.error ?? 'upstream AI error', 502, 'AI service error');
   }
 
-  const data = await res.json();
+  /* A 2xx WHOSE BODY IS NOT JSON is a failed answer: the use is given back and the page gets JSON (PM route audit, 2026-11-20); it used to throw unhandled after the use was spent. */
+  const data = await res.json().catch(() => null);
+  if (!data) {
+    await refundToolUsage(authData.user.id, 'shadowAccount', reservedOn);
+    return apiError('shadow-account', 'unreadable AI answer', 502, 'AI service error');
+  }
   await recordAiCall({ userId: authData.user.id, callType: 'shadow_account', model: data.model ?? 'grok-4.3', usage: data.usage });
   const text: string = data.choices?.[0]?.message?.content ?? '';
   /* An empty or cut-off answer is not a report (#1631), as on thesis-check, strategy-research and pine-script: the use is given back. */
