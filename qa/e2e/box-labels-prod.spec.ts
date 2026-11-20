@@ -23,6 +23,8 @@ for (const theme of ['dark', 'light'] as const) {
     }, theme);
     await ctx.routeWebSocket(/(bybit|bytick|binance)/, (ws) => { ws.close(); });
     const page = await ctx.newPage();
+    /* NOTHING PAID CAN REACH THE SERVER FROM THIS SPEC: every AI route is aborted inside my browser before it is sent */
+    let aiAttempts = 0; await page.route(//api/(grok|grok-chat|thesis-check|strategy-research|pine-script|shadow-account|behavioral-bias|macro-context|briefing|dry-powder|onchain)(?|/|$)/, (r) => { aiAttempts++; return r.abort(); });
     const lim = (u: string) => Number(new URL(u).searchParams.get('limit') ?? '300');
     await page.route('**/api/market/klines**', (r) => {
       const u = new URL(r.request().url()), n = fx.candles.slice(-Math.min(lim(r.request().url()), fx.candles.length));
@@ -36,6 +38,8 @@ for (const theme of ['dark', 'light'] as const) {
       const sel = page.getByTestId('strategy-set-select').first(); await sel.waitFor({ state: 'visible', timeout: 60_000 }); await page.waitForTimeout(6_000);
       const enabled = await sel.isEnabled().catch(() => false); if (enabled) await sel.selectOption('channel', { timeout: 20_000 }).catch(() => undefined); await page.waitForTimeout(9_000);
       const draw = page.getByRole('button', { name: /draw structure/i }); const drawCount = await draw.count(); const drawEnabled = drawCount ? await draw.first().isEnabled().catch(() => false) : false;
+      if (drawCount && drawEnabled) { await draw.first().click().catch(() => undefined); await page.waitForTimeout(10_000); }
+      console.log(`[BOX ${theme}] clicked Draw Structure ${drawCount && drawEnabled} · AI requests aborted in my browser ${aiAttempts}`);
       const call = await page.evaluate(() => ({ verdict: (document.querySelector('[data-testid="strategy-call-verdict"]') as HTMLElement | null)?.innerText?.trim() ?? '', box: ((document.querySelector('[data-testid="strategy-call-box"]') as HTMLElement | null)?.innerText || '').replace(/\s+/g, ' ').slice(0, 220) }));
       console.log(`[BOX ${theme}] menu enabled ${enabled} · Draw Structure controls ${drawCount} (enabled ${drawEnabled}) · call "${call.verdict}" ${call.box}`);
       const texts = await page.evaluate(() => { const w = window as unknown as { __ft?: Array<{ t: string; x: number; y: number; font: string; w: number }> }; return (w.__ft ?? []).slice(-1500); });
