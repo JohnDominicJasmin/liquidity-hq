@@ -30,5 +30,7 @@ jobs:
       - run: npm ci
       - name: Build
         run: npm run build
+      - name: Where Next wrote the client-reference manifests
+        run: find .next -name '*client-reference-manifest*' | head -20
       - name: Measure
         run: node scripts/bundle-stats.mjs ${{ github.event.inputs.routes }}
