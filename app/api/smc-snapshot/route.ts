@@ -9,6 +9,7 @@ import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { exchangeFetch } from '@/lib/exchangeGuard';
 import { BINANCE_SPOT_SYMS } from '@/lib/coins';
+import { bearerToken } from '@/lib/bearerToken';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // Every visitor requesting the same asset+timeframe within this window gets
@@ -123,7 +124,7 @@ function buildSMCPrompt(asset: string, tf: string, candles: Candle[]): string {
 }
 
 export async function POST(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data: authData } = await getUserCompatForBilledCall(token);

@@ -9,6 +9,7 @@ import { userClient } from '@/lib/supabase-user';
 import { apiError } from '@/lib/apiError';
 import { answerWasCutOff } from '@/lib/xaiAnswer';
 import { SHADOW_NO_PICK_TEXT } from '@/lib/shadowStrategy';
+import { bearerToken } from '@/lib/bearerToken';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -91,7 +92,7 @@ function buildShadowPrompt(trades: Record<string, unknown>[]): string {
 }
 
 export async function POST(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data: authData } = await getUserCompatForBilledCall(token);

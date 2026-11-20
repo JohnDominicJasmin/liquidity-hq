@@ -53,7 +53,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
-import { binanceKlineSource, coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
+import { arenaPriceUnit, liqUnitsMixed, binanceKlineSource, coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF, CHART_TFS, ARENA_TFS } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
@@ -403,9 +403,25 @@ function ArenaContent() {
      re-runs when the clusters actually change rather than on every Arena
      re-render - and this page re-renders on every market tick. */
   const chartLiqClusters = useMemo(
-    () => topClustersForCoin(liqClusters, selectedCoin),
+    () => (liqUnitsMixed(selectedCoin) ? [] : topClustersForCoin(liqClusters, selectedCoin)),   // mixed-unit liquidation feed: nothing drawn, nothing quoted (lib/coins.ts liqUnitsMixed)
     [liqClusters, selectedCoin],
   );
+  /* THE SETUP CARD CLEARS THE RAIL AT ITS REAL WIDTH (PM, 2026-11-20, QA: between 981 and 1099 px the rail is ~486 px wide, not 320, so a fixed offset left the card on it): the page measures the rail and publishes the distance from its left edge to the right edge of the viewport as --arena-rail-clear on <html>;
+     app/globals.css positions the Setup pill and card with it (and falls back to its own calc() until the first measurement). Only from 981 px up (below that the rail is a full-width section); removed when the page unmounts. */
+  useEffect(() => {
+    const root = document.documentElement;
+    const apply = () => {
+      const rail = document.querySelector('.arena-ws-rail') as HTMLElement | null;
+      const r = rail?.getBoundingClientRect();
+      if (r && r.width > 0 && window.innerWidth >= 981) root.style.setProperty('--arena-rail-clear', `${Math.max(0, Math.round(root.clientWidth - r.left + 14))}px`);
+      else root.style.removeProperty('--arena-rail-clear');
+    };
+    apply();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(apply) : null;
+    ro?.observe(document.body);
+    window.addEventListener('resize', apply);
+    return () => { ro?.disconnect(); window.removeEventListener('resize', apply); root.style.removeProperty('--arena-rail-clear'); };
+  }, []);
   const absDataRef    = useRef<AbsorptionData | null>(null);
   const emaSignalRef  = useRef<StrategySignal>(STRATEGY_LOADING);
   /* The strategy selection lives here rather than inside StrategyPanel
@@ -1300,7 +1316,8 @@ function ArenaContent() {
        Shared rather than duplicated on purpose: each one is a sentence with interpretive text in
        it, and a server-side copy differing by a space or a threshold would change the prompt - and
        so the answer - with nothing failing. */
-    const numberFields = arenaNumberFields(coin);
+    const priceUnit = arenaPriceUnit(selectedCoin);   // the scale the Arena shows prices in (1000x contracts: the chart's unit); every price text below is in it
+    const numberFields = arenaNumberFields(coin, priceUnit);
 
 
     /* CVD */
@@ -1328,15 +1345,15 @@ function ArenaContent() {
           const fibs = computeFibLevels(coin.high, coin.low, coin.price);
           if (!fibs.length) return '-';
           const nearest = fibs.reduce((acc, f) => Math.abs(coin.price - f.price) < Math.abs(coin.price - acc.price) ? f : acc);
-          return nearest.label + ' @ ' + priceText(nearest.price) + ' (' + nearest.dist + ')';
+          return nearest.label + ' @ ' + priceText(nearest.price * priceUnit) + ' (' + nearest.dist + ')';
         })()
       : '-';
 
     /* Order book walls */
     const orderWalls = coin?.orderBidWalls && coin?.orderAskWalls
       /* #1631 B: decimals by size - maximumFractionDigits 0 printed every XRP wall as "$2". */
-      ? 'Bid walls: ' + coin.orderBidWalls.map(w => priceText(w.price)).join(', ')
-        + ' | Ask walls: ' + coin.orderAskWalls.map(w => priceText(w.price)).join(', ')
+      ? 'Bid walls: ' + coin.orderBidWalls.map(w => priceText(w.price * priceUnit)).join(', ')
+        + ' | Ask walls: ' + coin.orderAskWalls.map(w => priceText(w.price * priceUnit)).join(', ')
       : '-';
 
     /* Squeeze score */
@@ -1753,27 +1770,26 @@ function ArenaContent() {
       // Step 1 - fetch candles (Binance preferred; fall back to Bybit for HYPE etc.)
       setReadStep(t('ARENA_STEP_READING_CHART'));
       let raw: (string|number)[][];
-      if (binanceSym) {
-        const r = await fetch(`/api/market/klines?source=${binanceKlineSource(selectedCoin)}&symbol=${binanceSym}&interval=${readTf}&limit=300`, { signal: deadlineSignal(20_000) });
-        if (!r.ok) throw new Error(t('ARENA_ERROR_BINANCE_API'));
-        raw = await r.json();
-      } else {
-        // Bybit klines: interval uses numbers (1, 5, 15, 30, 60, 240) or 'D'; response is newest-first
+      /* Bybit klines: interval uses numbers (1, 5, 15, 30, 60, 240) or 'D'; response is newest-first. #1080: the retry is shared with every other Bybit-klines caller (lib/bybitKlines.ts); exhaustion throws into this function's catch. */
+      const fromBybit = async (): Promise<(string|number)[][]> => {
         const bybitInterval = readTf === '1m' ? '1' : readTf === '5m' ? '5' : readTf === '30m' ? '30' : readTf === '15m' ? '15' : readTf === '1h' ? '60' : readTf === '2h' ? '120' : readTf === '4h' ? '240' : 'D';
-        // #1080: retry shared with every other Bybit-klines caller (see
-        // lib/bybitKlines.ts). Exhaustion throws into this function's
-        // existing catch, same as the old !r.ok check did.
-        // The guard above this handler (`if (!binanceSym && !bybitSym) return`)
-        // already ensures bybitSym is set whenever this branch runs, but it's
-        // a cross-variable guarantee TS can't carry into this `else` - the
-        // template-literal fetch this replaces tolerated `undefined` silently,
-        // a typed argument doesn't. Narrowing here (rather than asserting
-        // `bybitSym!`) so a future edit to that guard fails loudly at this
-        // call instead of silently reaching `undefined` inside a URL again.
         if (!bybitSym) throw new Error(t('ARENA_ERROR_NO_DATA_SOURCE', { coin: selectedCoin.toUpperCase() }));
         const d = await fetchBybitKlinesRetry(bybitSym, bybitInterval, 300, { attemptTimeoutMs: 15_000 });
         if (d === null) throw new Error(t('ARENA_ERROR_BYBIT_API'));
-        raw = [...(d.result?.list ?? [])].reverse(); // oldest-first to match Binance
+        return [...(d.result?.list ?? [])].reverse(); // oldest-first to match Binance
+      };
+      if (binanceSym) {
+        /* A BAD BINANCE ANSWER TRIES BYBIT BEFORE GIVING UP (audit A4, owner's feature-freeze order): the chart and the EMA card already fall back across venues; the read used to throw "Binance data unavailable" with a working Bybit symbol on hand. */
+        try {
+          const r = await fetch(`/api/market/klines?source=${binanceKlineSource(selectedCoin)}&symbol=${binanceSym}&interval=${readTf}&limit=300`, { signal: deadlineSignal(20_000) });
+          if (!r.ok) throw new Error(t('ARENA_ERROR_BINANCE_API'));
+          raw = await r.json();
+        } catch (e) {
+          if (!bybitSym) throw e;
+          raw = await fromBybit();
+        }
+      } else {
+        raw = await fromBybit();
       }
       // k[0]=time k[1]=open k[2]=high k[3]=low k[4]=close k[5]=vol - same index for both
       const candles = raw.map(k => ({ t: Number(k[0]), o: Number(k[1]), h: Number(k[2]), l: Number(k[3]), c: Number(k[4]), v: Number(k[5]) }));
@@ -3191,7 +3207,7 @@ function ArenaContent() {
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
       <div className="arena-ws-strat">
-      <StrategyPanel overlays={overlayStates({ showSR: showSRDrawn, showLiq: showLiqDrawn, showEma, showRsi, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} layersLocked={layersLocked} onOverlayToggle={id => ((id === 'SR' || id === 'LIQ_CLUSTERS') && layersLocked ? openLayersGate() : id === 'SR' ? setShowSR(!showSR) : id === 'EMA_RIBBON' ? setShowEma(!showEma) : id === 'RSI' ? setShowRsi(!showRsi) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} runGate={runGate} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} coin={selectedCoin} tf={readTf} strategyState={strategyState} planChecking={planUnsettled} />
+      <StrategyPanel overlays={overlayStates({ showSR: showSRDrawn, showLiq: showLiqDrawn, showEma, showRsi, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} liqMixedUnits={liqUnitsMixed(selectedCoin)} layersLocked={layersLocked} onOverlayToggle={id => ((id === 'SR' || id === 'LIQ_CLUSTERS') && layersLocked ? openLayersGate() : id === 'SR' ? setShowSR(!showSR) : id === 'EMA_RIBBON' ? setShowEma(!showEma) : id === 'RSI' ? setShowRsi(!showRsi) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} runGate={runGate} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} coin={selectedCoin} tf={readTf} strategyState={strategyState} planChecking={planUnsettled} />
       </div>
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">

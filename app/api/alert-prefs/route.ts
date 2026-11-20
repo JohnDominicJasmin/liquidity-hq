@@ -4,9 +4,10 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { fetchAuthUser, getUserCompat } from '@/lib/authUser';
 import { activeTypeMuteKeys, readTypeMutes } from '@/lib/alertTypeMute';
+import { bearerToken } from '@/lib/bearerToken';
 
 async function getAuthedUserId(req: NextRequest | Request, askAuth = false): Promise<string | null> {
-  const token = (req.headers as Headers).get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return null;
   // #1397: reads are verified locally (lib/authUser.ts). The save (askAuth) writes with the service role on the strength of the token alone,
   // so it asks Auth: a signed-out, banned or deleted account is refused at once, not when its token expires.

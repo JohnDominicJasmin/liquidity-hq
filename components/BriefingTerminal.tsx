@@ -271,14 +271,16 @@ export default function BriefingTerminal() {
     sq: computeSqueezeScore(store.coins[id]),
   }));
 
-  const pricesLoaded = coinRows.filter(r => r.c?.price != null && r.c.price > 0).length >= 8;
+  /* ONE PRICED COIN IS ENOUGH TO RENDER (audit B2, owner's feature-freeze order): it needed 8, so seven good prices in a partial feed outage blanked Top Setups and Notable Signals with "Unavailable". The panels list whatever coins are priced and hide only when none is. */
+  const pricesLoaded = coinRows.filter(r => r.c?.price != null && r.c.price > 0).length >= 1;
   const cvdAlerts = COINS
     .filter(id => store.coins[id]?.cvdDivergence)
     .map(id => ({ id, div: store.coins[id]!.cvdDivergence! }));
 
   async function generateBriefing() {
     if (!user) { setBriefErr(t('BRIEFING_SIGN_IN_REQUIRED')); return; }
-    setGen(true); setBrief(''); setBriefErr('');
+    /* The previous briefing is KEPT while a new one is generated and when the call fails (audit B5): it used to be wiped up front, so a failed Regenerate left nothing. It is hidden only while generating and shows again, with its age, under the error line. */
+    setGen(true); setBriefErr('');
     try {
       // getAuthToken(), not a raw getSession() - #1165/#1166 bounded it, so a
       // hung auth backend surfaces as BRIEFING_SESSION_EXPIRED within 8s
@@ -309,7 +311,7 @@ export default function BriefingTerminal() {
         if (data._usage && usage) setUsage({ ...usage, ...data._usage });
       }
     } catch (e) {
-      setBriefErr(e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError') ? t('BRIEFING_UNKNOWN_ERROR') : String(e));
+      setBriefErr(t('BRIEFING_UNKNOWN_ERROR'));   // a timeout or a network failure reads as one translated line, never a raw exception text (audit B5)
     }
     setGen(false);
   }
@@ -374,6 +376,9 @@ export default function BriefingTerminal() {
      read econStale; this page now does too. */
   const calendarUnavailable = econStale || !eventsLoaded;
   const futureEcon = urgentEcon.filter(e => e.dt.getTime() > nowMs);
+  /* THE SENTENCE ONLY WHEN THERE IS NOTHING TO LIST (audit B1): before the calendar has loaded nothing is said (it flashed on every visit), and a stale calendar that still has events lists them instead of contradicting itself. */
+  /* A STALE CALENDAR WITH NOTHING TO LIST SAYS NOTHING ON THE PAGE (QA signed-out matrix, owner's zero-failure-text rule: "Economic calendar unavailable right now" was true but is still failure text); the AI context above keeps the truthful flag. */
+  const showCalendarNote = false;
   const noEvents = !calendarUnavailable && futureEcon.length === 0 && recentGeo.length === 0 && (!whaleAlerts || whaleAlerts.length === 0);
 
   const jpyStatus = jpyUsd == null ? null
@@ -405,8 +410,8 @@ export default function BriefingTerminal() {
         body={t('BRIEFING_HINT_BODY')}
       />
 
-      {/* ── Top 3 Setups ── */}
-      <TPanel>
+      {/* ── Top 3 Setups ── (hidden when no coin has a price once the wait is over: audit B2) */}
+      <TPanel style={!pricesLoaded && graceOver ? { display: 'none' } : undefined}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div className="lbl" style={{ margin: 0 }}>{t('BRIEFING_TOP3_TITLE')} {t('BRIEFING_TOP_SETUPS_QUALIFY', { n: top3Setups.length })}</div>
           <Link href="/arena" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
@@ -580,7 +585,7 @@ export default function BriefingTerminal() {
       <SessionCountdown />
 
       {/* ── Macro Pulse ── A reading that failed once the grace period is over is LEFT OUT, and a missing trend line is empty, never a dash (owner sweep 2026-11-18). */}
-      <TPanel>
+      <TPanel style={graceOver && fng == null && store.btcDom == null && store.dxy == null && !(etfFlow != null && etfDate != null) ? { display: 'none' } : undefined}>   {/* no reading at all: no empty card (audit B4) */}
         <div className="lbl">{t('BRIEFING_MACRO_PULSE_TITLE')}</div>
         <div className="mb-macro-row">
           {(fng != null || !graceOver) && (
@@ -624,8 +629,8 @@ export default function BriefingTerminal() {
         </div>
       </TPanel>
 
-      {/* ── Yen Watch ── */}
-      <TPanel>
+      {/* ── Yen Watch ── (hidden until a rate exists once the wait is over: audit B3) */}
+      <TPanel style={jpyUsd == null && graceOver ? { display: 'none' } : undefined}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div className="lbl" style={{ margin: 0 }}>{t('BRIEFING_YEN_WATCH_TITLE')}</div>
           {jpyStatus && (
@@ -723,7 +728,7 @@ export default function BriefingTerminal() {
         const extra = byCoins.length - shown.length;
 
         return (
-          <TPanel>
+          <TPanel style={!pricesLoaded && graceOver ? { display: 'none' } : undefined}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: shown.length > 0 ? 10 : 0 }}>
               <div className="lbl" style={{ margin: 0 }}>{t('BRIEFING_NOTABLE_SIGNALS_TITLE')}</div>
               <Link href="/scanner" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
@@ -779,9 +784,9 @@ export default function BriefingTerminal() {
       <TPanel>
         <div className="lbl">{t('BRIEFING_EVENTS_NEWS_TITLE')}</div>
 
-        {(calendarUnavailable || noEvents) && (
+        {(showCalendarNote || noEvents) && (
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 0' }}>
-            {calendarUnavailable ? t('BRIEFING_CALENDAR_UNAVAILABLE') : t('BRIEFING_NO_EVENTS')}
+            {showCalendarNote ? t('BRIEFING_CALENDAR_UNAVAILABLE') : t('BRIEFING_NO_EVENTS')}
           </div>
         )}
 

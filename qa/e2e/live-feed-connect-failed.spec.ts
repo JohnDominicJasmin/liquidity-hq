@@ -13,17 +13,20 @@ async function open(page: Page, refuse: boolean) {
   await page.goto('/liq', { waitUntil: 'domcontentloaded' });
 }
 
-test('F1. every socket refused: skeletons first, then "could not connect" by 14 s', async ({ page }) => {
+/* RE-PINNED 2026-11-20 for the failure-text audit A17 (release v2026.11.22): a feed that is not connected yet and keeps retrying by itself no longer prints a "could not connect" sentence. After the 8 s wait the feed holds its space (the element
+ * is there, 106 px tall) and SAYS NOTHING; rows appear the moment a socket delivers. The test id is kept, so the pin is: the held space appears by 14 s, it is empty, and no "could not connect" text is anywhere on the page. */
+test('F1. every socket refused: skeletons first, then the held space says nothing (no "could not connect" sentence)', async ({ page }) => {
   test.setTimeout(90_000);
   await open(page, true);
   const liq = page.getByTestId('liq-feed-connect-failed');
   await page.waitForTimeout(5_000);
-  await expect(liq, 'the connect-failed line was there at 5 s: the 8 s wait is gone').toHaveCount(0);
-  await expect(liq, 'no connect-failed line after the sockets were refused: the feed sits on skeletons for ever').toBeVisible({ timeout: 14_000 });
-  await expect(liq).toContainText(/could not connect/i);
+  await expect(liq, 'the held space was there at 5 s: the 8 s wait is gone').toHaveCount(0);
+  await expect(liq, 'no held space after the sockets were refused: the feed sits on skeletons for ever').toBeVisible({ timeout: 14_000 });
+  await expect(liq, 'the held space prints a sentence: the A17 rule is that a feed that retries by itself says nothing').toHaveText('');
+  await expect(page.getByText(/could not connect/i), 'a "could not connect" sentence is on /liq').toHaveCount(0);
   const whale = page.getByTestId('whale-feed-connect-failed');
   if (await whale.count() === 0) test.info().annotations.push({ type: 'note', description: 'the whale feed does not render on /liq in this build: only the liquidation half was measured' });
-  else await expect(whale).toContainText(/could not connect/i);
+  else await expect(whale).toHaveText('');
 });
 
 test('F2. sockets that open and stay quiet: no "could not connect" line (a quiet market is not a failure)', async ({ page }) => {

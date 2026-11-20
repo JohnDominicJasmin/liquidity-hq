@@ -4,6 +4,7 @@ import { withAlpha } from '@/lib/color';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
 import { accountRatio } from '@/lib/accountRatioVenue';
+import { useGraceElapsed } from '@/lib/useGrace';
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
@@ -14,6 +15,7 @@ interface Signal { id: string; label: string; value: string; score: number; max:
 export default function BtcRiskLevel() {
   const { store } = useMarket();
   const { t } = useLabels();
+  const graceOver = useGraceElapsed();
   const fng    = store.fng;
   const btcDom = store.btcDom;
   const btcRsi = store.coins['btc']?.rsiDaily ?? null;
@@ -57,6 +59,9 @@ export default function BtcRiskLevel() {
   }
 
   const score = maxPossible > 0 ? Math.round((total / maxPossible) * 100) : null;
+
+  /* No input has arrived after the grace period: hide the card rather than say "Waiting" for ever (OWNER-RULES 21). It returns when a feed answers. */
+  if (score == null && graceOver) return null;
 
   const { label, color } = score == null
     ? { label: t('BTC_RISK_LEVEL_UNKNOWN'), color: 'var(--txt3)' }

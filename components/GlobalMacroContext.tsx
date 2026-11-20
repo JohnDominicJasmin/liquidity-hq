@@ -1,6 +1,6 @@
 'use client';
 import { deadlineSignal } from '@/lib/deadlineSignal';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuthToken } from '@/lib/supabase';
 import { useAuth } from './AuthProvider';
@@ -10,6 +10,8 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { macroStampDate } from '@/lib/macroStamp';
+import { useNow } from '@/lib/useNow';
+import { ageLabel } from '@/lib/ageLabel';
 
 interface MacroData {
   // #1309 item 11: null (not a fallback number) means that feed's fetch
@@ -32,7 +34,30 @@ interface MacroData {
 const CACHE_KEY = 'lhq_macro_context';
 const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
-type LoadState = MacroData | null | 'loading' | 'error' | 'unauth' | 'locked';
+/* 'error' means a read failed and there is NOTHING earlier to show; the card is then hidden and a retry runs (#1185 D13). Data already on screen, or in the browser copy, is kept instead. */
+type LoadState = MacroData | null | 'loading' | 'error' | 'locked';
+
+/* A failed read is tried again after 2 min, then 5, then every 10 (each success of the server is cached for 5 min, a failure is never cached). */
+const RETRY_DELAYS_MS = [2 * 60_000, 5 * 60_000, 10 * 60_000];
+/* The age of a kept copy is only said once it is older than this. */
+const SHOW_AGE_AFTER_MS = 10 * 60_000;
+
+/** The browser copy of the last good read, of ANY age (the 2 h limit only decides whether a fetch is needed, not whether the copy may be shown). */
+function readCache(): { ts: number; data: MacroData } | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as { ts?: unknown; data?: MacroData };
+    if (typeof p.ts !== 'number' || !p.data || typeof p.data.signal !== 'string') return null;
+    return { ts: p.ts, data: p.data };
+  } catch { return null; }
+}
+
+/* A copy with a feed missing is fresh for 15 minutes, not 2 hours: the next visit after that asks again instead of keeping the hole for 2 h (#1185 D14). */
+const PARTIAL_CACHE_TTL = 15 * 60 * 1000;
+
+/** All five feeds present. */
+const isComplete = (d: MacroData) => d.dxy != null && d.vix != null && d.gold != null && d.oil != null && d.tnx != null;
 
 const SIGNAL_META: Record<string, { col: string; bg: string; bdr: string; labelKey: LabelKey }> = {
   RISK_ON:  { col: 'var(--green-2)', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  labelKey: 'GLOBAL_MACRO_CONTEXT_SIGNAL_RISK_ON'  },
@@ -56,23 +81,42 @@ function chgStr(chg: number) {
   return (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
 }
 
-export default function GlobalMacroContext() {
+export default function GlobalMacroContext({ frame = false }: { frame?: boolean } = {}) {
   const { t } = useLabels();
   const router = useRouter();
   const { user, loading: authLoading, entitlementStatus, entitlementsLoading } = useAuth();
   const [state,  setState]  = useState<LoadState>('loading');
-  const [errMsg, setErrMsg] = useState('');
+  /* When the data on screen is an earlier copy (a refresh failed or is still out), the time it was read. */
+  const [staleTs, setStaleTs] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const now = useNow(60_000);
+  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const failuresRef = useRef(0);
+  const fetchRef = useRef<(() => void) | null>(null);
 
   const fetchData = useCallback(async () => {
-    setState('loading');
+    setRefreshing(true);
+    /* Data already on screen stays while a refresh runs; only an empty card shows the loading rows. */
+    setState(prev => (typeof prev === 'object' && prev !== null ? prev : 'loading'));
+    /* A failed read: the last good copy of ANY age, or what is already on screen, or - with nothing at all - a hidden card. Then a retry; never failure text. */
+    const fail = () => {
+      const c = readCache();
+      if (c) { setState(c.data); setStaleTs(c.ts); }
+      else setState(prev => (typeof prev === 'object' && prev !== null ? prev : 'error'));
+      const delay = RETRY_DELAYS_MS[Math.min(failuresRef.current, RETRY_DELAYS_MS.length - 1)];
+      failuresRef.current += 1;
+      if (retryRef.current) clearTimeout(retryRef.current);
+      retryRef.current = setTimeout(() => { fetchRef.current?.(); }, delay);
+    };
     try {
       // getAuthToken(), not a raw getSession() - #1165/#1166 bounded it. This
       // is mounted on /dashboard (DashboardTerminal, PerpSpotCard) and
       // /research; without the bound, a hung auth backend left this stuck on
       // its own 'loading' skeleton forever rather than reaching the visible
-      // 'unauth'/'error' states below.
+      // retry/cached states below.
       const token = await getAuthToken();
-      if (!token) { setState('unauth'); return; }
+      /* No token inside its bound is a failed read for a user who IS signed in, never a "sign in" prompt (#1185 D15): cached read or retry. */
+      if (!token) { fail(); return; }
 
       const res  = await fetch('/api/macro-context', { headers: { Authorization: `Bearer ${token}` }, signal: deadlineSignal(20_000) });
       const json = await res.json() as {
@@ -91,7 +135,7 @@ export default function GlobalMacroContext() {
          route (like price-alerts) puts it in `error` itself. */
       if (!res.ok) {
         if (json.error === 'PRO_REQUIRED') { setState('locked'); return; }
-        setErrMsg(json.error ?? ''); setState('error'); return;
+        fail(); return;
       }
 
       const text = json.analysis ?? '';
@@ -111,12 +155,23 @@ export default function GlobalMacroContext() {
         signal, analysis, implications, watchLevel,
       };
       setState(data);
-      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); } catch { /* ignore */ }
-    } catch (e) {
-      setErrMsg(String(e));
-      setState('error');
+      setStaleTs(null);
+      failuresRef.current = 0;
+      if (retryRef.current) { clearTimeout(retryRef.current); retryRef.current = null; }
+      /* A copy with a feed missing never replaces a complete one: the older complete copy stays the last good value. */
+      const prior = readCache();
+      if (isComplete(data) || !prior || !isComplete(prior.data)) {
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); } catch { /* ignore */ }
+      }
+    } catch {
+      fail();
+    } finally {
+      setRefreshing(false);
     }
   }, []);
+
+  useEffect(() => { fetchRef.current = () => { void fetchData(); }; }, [fetchData]);
+  useEffect(() => () => { if (retryRef.current) clearTimeout(retryRef.current); }, []);
 
   useEffect(() => {
     /* Gated on user, not entitled - #1171. This used to wait for the
@@ -136,13 +191,10 @@ export default function GlobalMacroContext() {
        always did, discovered from the server's actual answer instead of
        the client's own guess at it. */
     if (authLoading || !user) return;
-    try {
-      const raw = localStorage.getItem(CACHE_KEY);
-      if (raw) {
-        const { ts, data } = JSON.parse(raw) as { ts: number; data: MacroData };
-        if (Date.now() - ts < CACHE_TTL) { setState(data); return; }
-      }
-    } catch { /* ignore */ }
+    const c = readCache();
+    if (c && Date.now() - c.ts < (isComplete(c.data) ? CACHE_TTL : PARTIAL_CACHE_TTL)) { setState(c.data); setStaleTs(null); return; }
+    /* An older copy is on screen at once, with its age, while the new read is out. */
+    if (c) { setState(c.data); setStaleTs(c.ts); }
     fetchData();
   }, [authLoading, user, fetchData]);
 
@@ -173,8 +225,8 @@ export default function GlobalMacroContext() {
      the free-but-signed-in case it was added for.
 
      `prev === 'loading' ? 'locked' : prev` - only fires from the initial
-     state. Never stomps 'unauth' (a token-check timeout deserves its own
-     message, not a paywall), 'error', already-'locked', or real data -
+     state. Never stomps 'error' (a token-check timeout is a failed read,
+     not a paywall), already-'locked', or real data -
      the last of those cannot coexist with a confirmed not_entitled anyway (a
      200 body server-side already implies entitled), so the guard is a safety
      net, not a fix for a reachable conflict.
@@ -201,7 +253,10 @@ export default function GlobalMacroContext() {
     : 'NEUTRAL';
   const sm = SIGNAL_META[signalKey] ?? SIGNAL_META.NEUTRAL;
 
-  return (
+  /* Nothing to show and nothing earlier to keep: the card is hidden (with its frame on the dashboard), not a failure line. It comes back when a retry lands. */
+  if (state === 'error') return null;
+
+  const body = (
     <div>
       <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 4 }}>
         <Tip width={320} text={t('GLOBAL_MACRO_CONTEXT_TOOLTIP')}>
@@ -230,26 +285,11 @@ export default function GlobalMacroContext() {
           <SkeletonBar width="80%" height={11} radius={4} />
         </div>
       )}
-      {state === 'unauth' && (
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '8px 0' }}>{t('GLOBAL_MACRO_CONTEXT_SIGNIN_PROMPT')}</div>
-      )}
-      {state === 'error' && (
-        <div style={{ padding: '8px 0' }}>
-          {/* Empty errMsg means the server gave no message of its own, so the
-              generic label stands in. Translating here rather than in the fetch
-              callback keeps `t` out of that callback's dependencies - it had to
-              be omitted there, which froze the message to first-render's
-              language and left it stale after a locale switch. */}
-          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 6 }}>{errMsg || t('GLOBAL_MACRO_CONTEXT_FETCH_FAILED')}</div>
-          <button onClick={fetchData} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>{t('GLOBAL_MACRO_CONTEXT_RETRY')}</button>
-        </div>
-      )}
-
       {typeof state === 'object' && state !== null && (() => {
         const d = state;
         // #1309 item 11: `value: null` renders as "unavailable" below,
         // never a fabricated number for a feed that failed to fetch.
-        const rows: { id: string; label: string; value: string | null; chg: number; invertBullish?: boolean; asOf?: number | null }[] = [
+        const allRows: { id: string; label: string; value: string | null; chg: number; invertBullish?: boolean; asOf?: number | null }[] = [
           { id: 'dxy',    label: t('GLOBAL_MACRO_CONTEXT_ROW_DXY'),      value: d.dxy  != null ? d.dxy.toFixed(2) : null, chg: d.dxyChg ?? 0, invertBullish: true },
           { id: 'vix',    label: t('GLOBAL_MACRO_CONTEXT_ROW_VIX'),      value: d.vix  != null ? d.vix.toFixed(1) : null, chg: d.vixChg ?? 0, invertBullish: true },
           { id: 'gold',   label: t('GLOBAL_MACRO_CONTEXT_ROW_GOLD'),     value: d.gold != null ? '$' + d.gold.toLocaleString('en-US', { maximumFractionDigits: 0 }) : null, chg: d.goldChg ?? 0 },
@@ -257,6 +297,8 @@ export default function GlobalMacroContext() {
           { id: 'tnx',    label: t('GLOBAL_MACRO_CONTEXT_ROW_10Y_YIELD'), value: d.tnx  != null ? d.tnx.toFixed(2) + '%' : null, chg: d.tnxChg ?? 0, invertBullish: true },
           { id: 'goldoil', label: t('GLOBAL_MACRO_CONTEXT_ROW_GOLD_OIL'), value: d.goldOilRatio != null ? d.goldOilRatio.toFixed(1) + 'x' : null, chg: 0 },
         ];
+        /* A feed that did not arrive is left out, not drawn as "Unavailable" (#1185 D14). */
+        const rows = allRows.filter(r => r.value != null);
         return (
           <>
             {/* #656 item 4: five stacked sections (signal / grid / analysis /
@@ -323,12 +365,16 @@ export default function GlobalMacroContext() {
               </div>
             )}
 
-            <button onClick={fetchData} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={fetchData} disabled={refreshing} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: 'none', cursor: refreshing ? 'default' : 'pointer', padding: 0 }}>
               {t('GLOBAL_MACRO_CONTEXT_REFRESH_BUTTON')}
             </button>
+            {staleTs != null && now - staleTs > SHOW_AGE_AFTER_MS && (
+              <span data-testid="macro-age" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{' · '}{ageLabel(now - staleTs, t)}</span>
+            )}
           </>
         );
       })()}
     </div>
   );
+  return frame ? <div className="macro-rail-card">{body}</div> : body;
 }

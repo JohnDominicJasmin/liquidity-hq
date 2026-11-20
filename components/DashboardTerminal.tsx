@@ -71,6 +71,7 @@ function TMarketPulseStrip() {
   const { store } = useMarket();
   const { t } = useLabels();
   const [volLabel, setVolLabel] = useState<string | null>(null);
+  const graceOver = useGraceElapsed();
 
   useEffect(() => {
     try {
@@ -102,12 +103,15 @@ function TMarketPulseStrip() {
   const altNote = alt == null ? '' : alt >= 75 ? t('DASH_PULSE_NOTE_ALT_SEASON') : alt >= 50 ? t('DASH_PULSE_NOTE_LEAN_ALTS') : alt >= 25 ? t('DASH_PULSE_NOTE_BTC_LEADS') : t('DASH_PULSE_NOTE_BTC_SEASON');
 
   type Chip = { label: string; value: React.ReactNode; note: string; color: string };
+  /* A MISSING READING SAYS WHICH KIND OF MISSING (#1651, PM): an ellipsis while the CoinMarketCap read is still coming. Once it has failed, or its wait is over, the chip is left out instead of saying "Unavailable" (#1185 D3). */
+  const domWaiting = dom == null && store.btcDomStatus === 'pending' && !graceOver;
+  const altWaiting = alt == null && store.altSeasonStatus === 'pending' && !graceOver;
   const chips: Chip[] = [
-    /* A MISSING READING SAYS WHICH KIND OF MISSING (#1651, PM): an ellipsis while the CoinMarketCap read is still coming, the plain word once it is not. */
-    { label: t('DASH_PULSE_BTC_DOM_LABEL'), value: dom != null ? dom.toFixed(1) + '%' : <ReadingGap loading={store.btcDomStatus === 'pending'} />, note: domNote, color: 'var(--txt)' },
-    { label: t('DASH_PULSE_ALT_LABEL'), value: alt != null ? String(alt) : <ReadingGap loading={store.altSeasonStatus === 'pending'} />, note: altNote, color: altColor },
+    ...(dom != null || domWaiting ? [{ label: t('DASH_PULSE_BTC_DOM_LABEL'), value: dom != null ? dom.toFixed(1) + '%' : <ReadingGap loading />, note: domNote, color: 'var(--txt)' }] : []),
+    ...(alt != null || altWaiting ? [{ label: t('DASH_PULSE_ALT_LABEL'), value: alt != null ? String(alt) : <ReadingGap loading />, note: altNote, color: altColor }] : []),
     ...(volLabel ? [{ label: t('DASH_PULSE_VOL_LABEL'), value: volLabel.replace(' Vol', ''), note: t('DASH_PULSE_VOL_NOTE'), color: volColor }] : []),
   ];
+  if (chips.length === 0) return null;
 
   return (
     <div style={{
@@ -344,7 +348,8 @@ function TEdgeSignals() {
   const coin = store.selectedCoin;
   const d    = store.coins[coin];
   const oi1h = useOI1h(coin);
-  const oiGraceOver = useGraceElapsed();
+  /* Restarts on every coin switch: after the first 15 s on the page a switch used to show "Unavailable" before the new coin's read could land (#1185 D5). */
+  const oiGraceOver = useGraceElapsed(15_000, coin);
 
   const cbPct = store.cbPremiumPct;
   const cbCol = cbPct == null ? 'var(--txt3)'
@@ -639,12 +644,8 @@ export default function DashboardTerminal() {
       <aside className="dash-right" ref={rightRef}>
         <TCoinSidebar />
         <TMarketPulseStrip />
-        <div className="macro-rail-card">
-          <PerpSpotCard />
-        </div>
-        <div className="macro-rail-card">
-          <GlobalMacroContext />
-        </div>
+        <PerpSpotCard />
+        <GlobalMacroContext frame />
       </aside>
     </div>
   );

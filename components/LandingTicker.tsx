@@ -24,12 +24,11 @@ export default function LandingTicker({ mobile, dir, words }: { mobile: boolean;
      THE WORDS COME FROM THE LANDING DICTIONARY (the `words` prop), not the label table: the landing page does not read the label table (landingReadsNoLabels, #1889), so this
      component must not call useLabels. */
   const LOADING = words.loading;
-  const FAILED = words.failedNote;
-  const NONE = words.noneNote;
   const feed = store.scannerFeed.universe;
+  /* ONCE THE READ IS DONE A MISSING HALF IS LEFT BLANK, not printed as "Unavailable" (failure-text audit C20): on mobile the price is hidden, so every coin missing only its change used to read "Unavailable" on the first screen. */
   const gap = () => feed === 'pending'
     ? <span role="img" aria-label={LOADING} title={LOADING}>{'…'}</span>
-    : <span title={feed === 'failed' ? FAILED : NONE}>{words.unavailable}</span>;
+    : null;
 
   // landing.md line 518: the fade is direction-dependent - under RTL the
   // gradient must mirror to 270deg, or it hides the first cell instead of
@@ -58,7 +57,7 @@ export default function LandingTicker({ mobile, dir, words }: { mobile: boolean;
         /* Price AND change both missing: say it ONCE, in the first slot that is rendered (the price on desktop, the change on mobile), not twice. */
         const bothGone = !d?.price && chg == null;
         /* No price and no change once the read is done: the coin is left out of the band (owner sweep 2026-11-18), not shown as "Unavailable". */
-        if (bothGone && feed !== 'pending') return null;
+        if (feed !== 'pending' && (bothGone || (mobile && chg == null))) return null;
         return (
           <div key={id} className="lpt-tk-cell" style={{
             display: 'flex', alignItems: 'center', gap: mobile ? 6 : 8,

@@ -337,7 +337,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
             const warn = c.warn === true;
             const col  = warn ? 'var(--amber)' : pass === true ? 'var(--green-fg)' : pass === false ? 'var(--red)' : 'var(--txt-dim)';
             const bg   = warn ? 'color-mix(in srgb, var(--amber) 8%, transparent)' : pass === true ? 'color-mix(in srgb, var(--green-2) 7%, transparent)' : pass === false ? 'color-mix(in srgb, var(--red) 7%, transparent)' : 'rgba(255,255,255,0.02)';
-            const icon = warn ? '!' : pass === true ? '✓' : pass === false ? '✗' : '-';
+            const icon = warn ? '!' : pass === true ? '✓' : pass === false ? '✗' : '';   // an undetermined row has no mark (QA signed-out matrix: a bare dash)
             return (
               /* #939: the explain action was click-only. Spread conditionally -
                  a row that cannot explain must not advertise a role or take
@@ -358,7 +358,7 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
                 onMouseEnter={e => { if (canExplain) (e.currentTarget as HTMLDivElement).style.opacity = '0.75'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.opacity = '1'; }}
               >
-                <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: col, flexShrink: 0 }}>{icon}</span>
+                <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: col, flexShrink: 0, minWidth: 10 }}>{icon}</span>
                 <span style={{ fontSize: 'var(--fs-caption)', color: warn ? 'var(--txt2)' : pass === null ? 'var(--txt-dim)' : 'var(--txt2)', lineHeight: 1.2 }}>
                   {warn ? (c.detailKey ? t(c.detailKey) : c.detail) : condLabel(c.label)}
                 </span>
@@ -482,6 +482,12 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
         </button>
       )}
 
+      {signal.staleSince != null && !signal.error && (() => {
+        /* the last refresh failed; the signal above is the previous one (audit A15): say when it was last confirmed */
+        const secs = Math.max(0, Math.floor((Date.now() - signal.staleSince) / 1000));
+        const freshness = secs < 60 ? t('ARENA_FRESHNESS_JUST_NOW') : secs < 3600 ? t('ARENA_FRESHNESS_MINUTES_AGO', { n: Math.floor(secs / 60) }) : t('ARENA_FRESHNESS_HOURS_AGO', { n: Math.floor(secs / 3600) });
+        return <div data-testid="ema-signal-stale" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 6 }}>{t('ARENA_UPDATED_FRESHNESS', { freshness })}</div>;
+      })()}
       {signal.error && (
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 6 }}>
           {/* #1024 - was the raw exception/message, unlike AbsorptionDetector/

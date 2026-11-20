@@ -8,6 +8,7 @@ import { apiError } from '@/lib/apiError';
 import { TEXT_LIMITS, clip } from '@/lib/ownRowLimits';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
+import { bearerToken } from '@/lib/bearerToken';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -96,7 +97,7 @@ function parseSection(raw: string, key: string): string {
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
+  const token = bearerToken(req.headers) ?? '';
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { data: authData } = await getUserCompatForBilledCall(token);
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

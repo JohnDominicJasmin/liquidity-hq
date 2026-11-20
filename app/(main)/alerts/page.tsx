@@ -69,6 +69,9 @@ const LINK_POLL_MS      = 3_000;
 const LINK_POLL_MAX     = 40;
 const LINK_CODE_TTL_SEC = 600;
 
+const BOT_INFO_RETRY_MS = [4_000, 12_000, 30_000];
+const LOAD_RETRY_MS = [3_000, 10_000, 30_000];
+
 export default function AlertsPage() {
   const { t } = useLabels();
   const { user, entitlementStatus, entitlementsLoading, retryEntitlements, loading: authLoading } = useAuth();
@@ -154,15 +157,34 @@ export default function AlertsPage() {
      "No price alerts" underneath the error - the page reporting a failure and a confident negative about the same read, to a user who
      may have ten alerts. */
   const [paLoadFailed, setPaLoadFailed] = useState(false);
+  /* How many reads in a row have failed; each one schedules the next quiet retry (see the effect after loadPriceAlerts). */
+  const [paFailTick, setPaFailTick] = useState(0);
+  const paFailTickRef = useRef(0);
 
+  /* THE BOT STATUS IS READ AGAIN IN THE BACKGROUND (4 s / 12 s / 30 s) before the amber "status unavailable" line is allowed to show: one failed read is
+     the common case, and it used to stay on screen until the page was reloaded. A read that lands clears the line. */
   useEffect(() => {
-    fetch('/api/telegram/bot-info')
-      .then(async r => {
-        const d = await r.json().catch(() => null) as { ok?: boolean; username?: string | null; webhook_ok?: boolean } | null;
-        if (d) { setBotUsername(d.username ?? null); setWebhookOk(d.webhook_ok !== false); }
-        if (!r.ok || d?.ok !== true) setBotStatusUnavailable(true);
-      })
-      .catch(() => setBotStatusUnavailable(true));
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0;
+    function failed() {
+      if (cancelled) return;
+      if (attempt < BOT_INFO_RETRY_MS.length) { timer = setTimeout(load, BOT_INFO_RETRY_MS[attempt]); attempt += 1; return; }
+      setBotStatusUnavailable(true);
+    }
+    function load() {
+      fetch('/api/telegram/bot-info', { signal: deadlineSignal(10_000) })
+        .then(async r => {
+          const d = await r.json().catch(() => null) as { ok?: boolean; username?: string | null; webhook_ok?: boolean } | null;
+          if (cancelled) return;
+          if (d) { setBotUsername(d.username ?? null); setWebhookOk(d.webhook_ok !== false); }
+          if (!r.ok || d?.ok !== true) { failed(); return; }
+          setBotStatusUnavailable(false);
+        })
+        .catch(failed);
+    }
+    load();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, []);
 
   // #1167: waits for AuthProvider's own session resolve before doing anything,
@@ -170,16 +192,29 @@ export default function AlertsPage() {
   // token fetch timed out" (getAuthToken() still returns nothing after that)
   // are answered from two different, correctly-timed sources instead of one
   // early call that could not tell them apart.
+  /* A FAILED READ IS RETRIED QUIETLY (3 s / 10 s / 30 s) with the toggles still on their loading bars. They used to open as "everything on" after one
+     failure, a wrong picture of the user's settings. The line and its button show only once the retries are used up. */
+  const muteAttempt = useRef(0);
+  const muteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const loadMuteRef = useRef<() => void>(() => {});
+  const retryMuteLater = useCallback((): boolean => {
+    if (muteAttempt.current >= LOAD_RETRY_MS.length) return false;
+    muteTimer.current = setTimeout(() => loadMuteRef.current(), LOAD_RETRY_MS[muteAttempt.current]);
+    muteAttempt.current += 1;
+    return true;
+  }, []);
+  useEffect(() => () => { if (muteTimer.current) clearTimeout(muteTimer.current); }, []);
   const loadMutePrefs = useCallback(() => {
     if (!user) { setMutedLoaded(true); return; }
     setMuteLoadFailed(false);
+    let muteFailed = false;
     getAuthToken().then(token => {
       // Reached only when AuthProvider already confirmed a real signed-in
       // user above - this is a genuine timeout/backend miss, not "signed
       // out". Surfaced instead of silently presenting the empty-mute default
       // as if it were the user's real, confirmed preferences.
-      if (!token) { setMuteLoadFailed(true); setMutedLoaded(true); return; }
-      fetch('/api/alert-prefs', { headers: { Authorization: `Bearer ${token}` } })
+      if (!token) { if (!retryMuteLater()) { setMuteLoadFailed(true); setMutedLoaded(true); } return; }
+      fetch('/api/alert-prefs', { headers: { Authorization: `Bearer ${token}` }, signal: deadlineSignal(15_000) })
         // #1309 item 10: a non-ok response means the DB read failed server-side
         // (see app/api/alert-prefs/route.ts) - throw so this falls into the
         // same .catch() as a network failure below, rather than reading
@@ -247,16 +282,22 @@ export default function AlertsPage() {
           // on, because turning a key on deletes its row, leaving them
           // indistinguishable from a brand-new user on the next visit.
         })
-        .catch(() => setMuteLoadFailed(true))
+        .then(() => { muteAttempt.current = 0; })
+        .catch(() => { muteFailed = true; })
         // Runs after the seeding awaits above, so the pickers unblock on the
         // final state rather than the intermediate one. On failure it still
         // fires: a user who cannot reach the API should get the pickers back
         // (defaulting to everything-on, as before) rather than a permanent
         // skeleton.
-        .finally(() => setMutedLoaded(true));
+        .finally(() => {
+          if (muteFailed && retryMuteLater()) return;
+          if (muteFailed) setMuteLoadFailed(true);
+          setMutedLoaded(true);
+        });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+  useEffect(() => { loadMuteRef.current = loadMutePrefs; });
 
   useEffect(() => {
     if (authLoading) return;
@@ -369,11 +410,13 @@ export default function AlertsPage() {
     /* NO SESSION, NO REQUEST: a signed-out visitor used to fire GET /api/price-alerts and log a 401. While auth is still loading nothing is asked; once it settles signed-out, the list is simply empty. A SIGNED-IN user whose token read fails still takes the error path below (#1165). */
     if (authLoading) return;
     if (!signedIn) { setPriceAlerts([]); setPaLoadFailed(false); setPaError(''); setPaLoading(false); return; }
-    setPaLoading(true);
+    /* A retry after a failure does not bring the "Loading…" line back each time. */
+    if (paFailTickRef.current === 0) setPaLoading(true);
     try {
       const token = await getAuthToken();
       const res = await fetch('/api/price-alerts', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal: deadlineSignal(15_000),
       });
       const d = await res.json();
       /* !res.ok, not just a bare await - #1165. Missing this meant a 401
@@ -384,18 +427,28 @@ export default function AlertsPage() {
          alerts" with no error, no retry, nothing to report. Every sibling
          mutation below (add/delete/test/link/preview) already checks this;
          the one GET did not. */
-      if (!res.ok) throw new Error(d.error ?? t('ALERTS_NETWORK_ERROR'));
+      if (!res.ok) throw new Error(`price-alerts ${res.status}`);
       setPriceAlerts(d.alerts ?? []);
       setPaLoadFailed(false);
       setPaError('');
-    } catch (e) {
-      setPaError(e instanceof Error ? e.message : t('ALERTS_NETWORK_ERROR'));
+      paFailTickRef.current = 0; setPaFailTick(0);
+    } catch {
+      /* A failed LOAD prints nothing (no server text, no "Network error"): the list that was already on screen stays, and the read is retried quietly
+         by the effect below. `paError` is left for add, delete and test, which are the user's own actions. */
       setPaLoadFailed(true);
+      paFailTickRef.current += 1; setPaFailTick(paFailTickRef.current);
     }
     setPaLoading(false);
-  }, [t, signedIn, authLoading]);
+  }, [signedIn, authLoading]);
 
   useEffect(() => { loadPriceAlerts(); }, [loadPriceAlerts]);
+
+  /* The quiet retry: 3 s, 10 s, 30 s, then every minute until a read lands. */
+  useEffect(() => {
+    if (paFailTick === 0) return;
+    const id = setTimeout(() => { void loadPriceAlerts(); }, LOAD_RETRY_MS[paFailTick - 1] ?? 60_000);
+    return () => clearTimeout(id);
+  }, [paFailTick, loadPriceAlerts]);
 
   const addPriceAlert = async () => {
     if (!paPrice || isNaN(parseFloat(paPrice))) return;

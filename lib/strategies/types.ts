@@ -20,6 +20,8 @@ export interface StrategyContext {
      taker: per-candle taker buy / sell volume by candle open time, Binance klines only (absent for a coin without the split). */
   fundingClass?: 'longs_heavy' | 'shorts_heavy' | 'none';
   fundingPct?: number;
+  /** The rate equals the coin's own extreme value and too many settlements share it for the relative rule to ever hold (liveInputs.ts fundingClassRelative): the squeeze says so instead of a bare "not extreme". */
+  fundingPinned?: boolean;
   oiChange6Pct?: number | null;
   /** Open interest's change over the last 6 candles is in the TOP 20% of that coin's own changes on this timeframe (liveInputs.ts oiRelative): true / false, null = no reading (too little history). */
   oiExtreme?: boolean | null;

@@ -1,5 +1,5 @@
 'use client';
-import { Fragment, useState, useEffect } from 'react';
+import { Fragment, useState, useEffect, useRef } from 'react';
 import { deadlineSignal } from '@/lib/deadlineSignal';
 import MacroStrip from '@/components/MacroStrip';
 import LoadingState from '@/components/LoadingState';
@@ -159,6 +159,9 @@ export default function CorrelationTerminal() {
   const [rangeKey, setRangeKey] = useState<RangeKey>('7d');
   const [done, setDone]         = useState<ReadonlySet<CoinId>>(() => new Set());
   const [hovered, setHovered]   = useState<[number, number] | null>(null);
+  /* Bumped to read every coin again while every read has failed (failure-text audit A22); `retryRef` tells the load effect this run is a retry of the SAME range, so it does not blank the page and flash the loading state again. */
+  const [retryTick, setRetryTick] = useState(0);
+  const retryRef = useRef(false);
 
   const loading = done.size < COINS.length;   // true while any coin is still being read; the page itself paints at once
   /* EVERY coin settled and none has data (the price feed is down): say so, instead of an alt-season panel and a heatmap of dashes that read as a result (reliability leftover, PM 2026-11-17). */
@@ -168,8 +171,8 @@ export default function CorrelationTerminal() {
 
   useEffect(() => {
     let cancelled = false;
-    setDone(new Set());
-    setRets({});
+    if (!retryRef.current) { setDone(new Set()); setRets({}); }
+    retryRef.current = false;
     /* Every coin settles on its own: its returns are added the moment they arrive, then it is marked done (so its cells stop reading "…" and show a value, or a dash if it has no data). */
     COINS.forEach(async id => {
       const closes = await withDeadline(fetchCloses(id, interval, limit), COIN_DEADLINE_MS, [] as number[]);
@@ -180,7 +183,14 @@ export default function CorrelationTerminal() {
       setDone(prev => new Set(prev).add(id));
     });
     return () => { cancelled = true; };
-  }, [interval, limit]);
+  }, [interval, limit, retryTick]);
+
+  /* EVERY COIN FAILED: try again by itself every 30 seconds, for as long as the page is open, instead of staying failed until the range button is pressed or the page is reloaded. */
+  useEffect(() => {
+    if (!allFailed) return;
+    const id = setTimeout(() => { retryRef.current = true; setRetryTick(n => n + 1); }, 30_000);
+    return () => clearTimeout(id);
+  }, [allFailed, retryTick]);
 
   const matrix: (number | null)[][] = COINS.map((a, i) =>
     COINS.map((b, j) => {
@@ -227,16 +237,11 @@ export default function CorrelationTerminal() {
 
       {loading && <LoadingState message={t('CORRELATION_LOADING_MESSAGE')} />}
 
-      {allFailed && (
-        <TPanel>
-          <div role="status" className="corr-all-failed" data-testid="correlation-all-failed">{t('MARKET_FEED_FAILED')}</div>
-        </TPanel>
-      )}
-
+      {/* EVERY READ FAILED: nothing is drawn (no "couldn't load" sentence, no grid of blanks); the retry above brings it back by itself. */}
       {!allFailed && (
         <>
-          {/* Alt season signal */}
-          <TPanel style={{ border: `0.5px solid ${withAlpha(sig.color, '55')}`, background: sig.bg, borderRadius: 0 }}>
+          {/* Alt season signal: only with a reading, or while one is still coming. Never "Loading…" for ever when BTC's candles failed (failure-text audit A23). */}
+          {(avgCorr != null || loading) && <TPanel style={{ border: `0.5px solid ${withAlpha(sig.color, '55')}`, background: sig.bg, borderRadius: 0 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <div>
                 <div style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: sig.color, marginBottom: 4 }}>
@@ -252,7 +257,7 @@ export default function CorrelationTerminal() {
                 </div>
               </div>
             </div>
-          </TPanel>
+          </TPanel>}
 
           {/* Heatmap grid */}
           <TPanel>
@@ -333,8 +338,8 @@ export default function CorrelationTerminal() {
             </div>
           </TPanel>
 
-          {/* Strongest pairs */}
-          <TPanel>
+          {/* Strongest pairs: a card with no rows is left out (failure-text audit A24). */}
+          {strongest.length > 0 && <TPanel>
             <div className="lbl">{t('CORRELATION_STRONGEST_PAIRS_TITLE')}</div>
             {strongest.map(({ a, b, r }) => (
               <div key={`${a}-${b}`} className="corr-pair-row">
@@ -347,10 +352,10 @@ export default function CorrelationTerminal() {
                 </span>
               </div>
             ))}
-          </TPanel>
+          </TPanel>}
 
           {/* Weakest pairs */}
-          <TPanel>
+          {weakest.length > 0 && <TPanel>
             <div className="lbl">
               {t('CORRELATION_WEAKEST_PAIRS_TITLE')}
               <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>
@@ -368,7 +373,7 @@ export default function CorrelationTerminal() {
                 </span>
               </div>
             ))}
-          </TPanel>
+          </TPanel>}
 
         </>
       )}

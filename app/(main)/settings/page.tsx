@@ -18,6 +18,7 @@ import { playPing, unlockAudio, previewSound, SOUND_IDS, type SoundId } from '@/
 import { normaliseSoundPrefs, type ArenaSoundPrefs } from '@/lib/arenaSoundPrefs';
 import type { LabelKey } from '@/lib/labelKeys';
 import { getSupabase, getAuthToken } from '@/lib/supabase';
+import { deadlineSignal } from '@/lib/deadlineSignal';
 import { friendlyAuthError } from '@/lib/authErrors';
 import { updatePassword } from '@/lib/authSession';
 import { subscriptionPanelView, futureDateOrNull, type SubPanelView } from '@/lib/subscriptionPanel';
@@ -187,7 +188,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function SettingsPage() {
   const { t } = useLabels();
-  const { user, loading: authLoading, signOut, entitlementStatus } = useAuth();
+  const { user, loading: authLoading, signOut, entitlementStatus: authEntitlement, entitlementsLoading } = useAuth();
+  /* the plan is not known yet (#1651): the default-timeframe chips are not drawn locked, and a Pro-only saved value is not shown selected, until it is */
+  const planResolving = authLoading || (!!user && entitlementsLoading);
+  /* the status as this page reads it: 'loading' while the plan resolves, so the saved-timeframe expression below (pinned by arenaSoundPrefs F2) shows no chip selected until the plan is known */
+  const entitlementStatus: typeof authEntitlement | 'loading' = planResolving ? 'loading' : authEntitlement;
   const { settings, update } = useSettings();
   // Held WITH the account it was read for (QA, #1499): when the signed-in user changes, the
   // previous account's answer used to stay on screen until the new read landed. Anyone
@@ -197,6 +202,7 @@ export default function SettingsPage() {
   // Bumped by the "Couldn't check" retry, to re-run the status read below (QA, #1499).
   const [tgAttempt, setTgAttempt] = useState(0);
   const tgRetried  = useRef(false);
+  const tgAutoRetried = useRef(false);
   const tgRetryRef = useRef<HTMLButtonElement>(null);
   const tgLinkRef  = useRef<HTMLAnchorElement>(null);
   // #1309 item 21: the push toggle used to flip to "on" whatever the server said.
@@ -216,7 +222,7 @@ export default function SettingsPage() {
   // ── Subscription / cancel-a-plan (#1396) ──
   // `provider` and `cancelAtPeriodEnd` are #1630 Step 1: which processor the row is on, and whether it is set to stop renewing.
   type SubState = { role: string; lsStatus: string | null; currentPeriodEnd: string | null; hasSubscription: boolean; canCancel: boolean; provider?: string | null; cancelAtPeriodEnd?: boolean };
-  const [sub, setSub] = useState<SubState | 'error' | null>(null);
+  const [sub, setSub] = useState<SubState | null>(null);
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelDone, setCancelDone] = useState<{ endsAt: string | null } | null>(null);
@@ -225,16 +231,25 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!user) return;
     let alive = true;
-    (async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0;
+    /* A failed read (no token yet, a 401 or 503, a network blip) is retried quietly, 3 s / 10 s / 30 s then every minute, and draws NOTHING:
+       the panel exists only for a paying user, so "Couldn't load your subscription" printed to every signed-in user, free ones included. */
+    const load = async () => {
       try {
         const token = await getAuthToken();
-        const r = await fetch('/api/subscription', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        const r = await fetch('/api/subscription', { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal: deadlineSignal(15_000) });
         if (!alive) return;
-        if (!r.ok) { setSub('error'); return; }
+        if (!r.ok) throw new Error('subscription read failed');
         setSub(await r.json());
-      } catch { if (alive) setSub('error'); }
-    })();
-    return () => { alive = false; };
+      } catch {
+        if (!alive) return;
+        timer = setTimeout(() => { void load(); }, [3_000, 10_000, 30_000][attempt] ?? 60_000);
+        attempt += 1;
+      }
+    };
+    void load();
+    return () => { alive = false; if (timer) clearTimeout(timer); };
   }, [user]);
 
   const doCancel = async () => {
@@ -255,9 +270,8 @@ export default function SettingsPage() {
 
   // Pure state -> view (lib/subscriptionPanel). A just-completed cancel overrides
   // the fetched state so the panel updates without waiting for the webhook/refetch.
-  const subView: SubPanelView | 'error' | null =
-    sub === 'error' ? 'error'
-    : sub === null ? null
+  const subView: SubPanelView | null =
+    sub === null ? null
     : cancelDone ? { kind: 'cancelled', untilDate: futureDateOrNull(cancelDone.endsAt, Date.now()) }
     : subscriptionPanelView(sub);
 
@@ -281,6 +295,7 @@ export default function SettingsPage() {
     if (authLoading || !user) return;
     const uid = user.id;
     let cancelled = false;
+    let autoRetryTimer: ReturnType<typeof setTimeout> | undefined;
     (async () => {
       try {
         const token = await getAuthToken();
@@ -292,10 +307,18 @@ export default function SettingsPage() {
         if (!cancelled) setTgRead({ uid, status: d.configured ? (d.paused === true ? 'paused' : 'configured') : 'not_configured' });
       } catch (e) {
         console.error('[settings] telegram status check failed:', e);
-        if (!cancelled) setTgRead({ uid, status: 'error' });
+        if (cancelled) return;
+        /* ONE QUIET RETRY before "Couldn't check" shows: a single failed read (a token not ready yet, a network blip) is the common case. The row
+           keeps its loading bar meanwhile; a second failure shows the line and its button as before. */
+        if (!tgAutoRetried.current) {
+          tgAutoRetried.current = true;
+          autoRetryTimer = setTimeout(() => setTgAttempt(n => n + 1), 3_000);
+          return;
+        }
+        setTgRead({ uid, status: 'error' });
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; if (autoRetryTimer) clearTimeout(autoRetryTimer); };
   }, [authLoading, user?.id, tgAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // "Couldn't check" was a dead end short of reloading the page (QA, #1499).
@@ -573,12 +596,7 @@ export default function SettingsPage() {
       {/* ── Subscription / cancel-a-plan (#1396). VISUAL: wording + look need the
              owner's approval before close (condition 5). Shown only to users who
              have a plan to see; free/trial users get nothing here. ── */}
-      {subView === 'error' && (
-        <Section title={t('SETTINGS_SECTION_SUBSCRIPTION')}>
-          <div className="st-desc">{t('SETTINGS_SUB_LOAD_FAILED')}</div>
-        </Section>
-      )}
-      {subView && subView !== 'error' && subView.kind !== 'hidden' && (
+      {subView && subView.kind !== 'hidden' && (
         <Section title={t('SETTINGS_SECTION_SUBSCRIPTION')}>
           <div className="st-field">
             <div className="st-field-label">{t('SETTINGS_SUB_PLAN_PRO')}</div>
@@ -742,14 +760,14 @@ export default function SettingsPage() {
               // on), so treating it the same as a confirmed non-entitled
               // account isn't a guess, it's just not yet granting something
               // unconfirmed.
-              const locked = entitlementStatus !== 'entitled' && isGatedTf(tf);
+              const locked = !planResolving && entitlementStatus !== 'entitled' && isGatedTf(tf);
               return (
                 <button
                   key={tf}
                   className={`st-chip${shownTf === tf ? ' on' : ''}`}
                   aria-pressed={shownTf === tf}
                   onClick={() => { if (!locked) update({ default_tf: tf }); }}
-                  disabled={locked}
+                  disabled={locked || (planResolving && isGatedTf(tf))}   /* a Pro-only chip cannot be saved while the plan is unknown, and is not drawn locked either */
                   title={locked ? t('SETTINGS_TF_PRO_ONLY') : undefined}
                   style={locked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
                 >

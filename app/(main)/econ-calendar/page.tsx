@@ -8,6 +8,8 @@ import { econImpactKey, econImpactWordKey, type EconImpact } from '@/lib/classif
 import { localZoneAbbr } from '@/lib/resetTime';
 import PageHint from '@/components/PageHint';
 import { calendarFromResponse } from '@/lib/econCalendarFeed';
+import { deadlineSignal } from '@/lib/deadlineSignal';
+import { lastGoodAge, readLastGood, writeLastGood } from '@/lib/lastGoodAge';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -107,6 +109,12 @@ const IMPACT_CFG: Record<EconImpact, { color: string; bg: string; border: string
    every locale to restore a column that only needs a render. */
 const COLS = '68px 88px 1fr 70px';   // the COUNTRY column is 88 px so its head is not clipped (#1185)
 
+/* The last calendar that loaded, kept so a failed read shows it with its age instead of an error. A week old is the limit: older rows are all past. */
+const LAST_GOOD_KEY = 'lhq_econ_calendar_last_good';
+const LAST_GOOD_MAX_AGE_MS = 7 * 24 * 3_600_000;
+const RETRY_DELAYS_MS = [5_000, 15_000, 45_000];   // then every RETRY_STEADY_MS until a read lands
+const RETRY_STEADY_MS = 60_000;
+
 const COL_LABEL_KEYS: LabelKey[] = [
   'ECON_CALENDAR_COL_TIME', 'ECON_CALENDAR_COL_COUNTRY', 'ECON_CALENDAR_COL_EVENT', 'ECON_CALENDAR_COL_IMPACT',
 ];
@@ -123,16 +131,45 @@ export default function EconCalendarPage() {
   // Translating at render time removes the dependency entirely AND means the
   // message follows a language switch, which it previously did not.
   const [failed, setFailed]   = useState(false);
+  /* Set while the rows on screen are the saved ones (not a read from this visit): when they were read. */
+  const [savedTs, setSavedTs] = useState<number | null>(null);
   const now = useNow();
 
   useEffect(() => {
-    fetch('/api/econ-calendar')
-      .then(async r => calendarFromResponse<CalEvent>(r.ok, await r.json().catch(() => null)))
-      /* Not a calendar - source 'none' (#1625), a 429 or 500, a body without events (#1637): show the load error, never "no events" as if
-         nothing were scheduled. */
-      .then(cal => { if (!cal) { setFailed(true); return; } setEvents(cal.events); setSource(cal.source); })
-      .catch(() => setFailed(true))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0;
+
+    const saved = readLastGood<{ events: CalEvent[]; source: string }>(LAST_GOOD_KEY);
+    if (saved && Array.isArray(saved.v.events) && saved.v.events.length > 0 && Date.now() - saved.ts < LAST_GOOD_MAX_AGE_MS) {
+      setEvents(saved.v.events);
+      setSource(saved.v.source ?? '');
+      setSavedTs(saved.ts);
+      setLoading(false);
+    }
+
+    function load() {
+      fetch('/api/econ-calendar', { signal: deadlineSignal(10_000) })
+        .then(async r => calendarFromResponse<CalEvent>(r.ok, await r.json().catch(() => null)))
+        .then(cal => {
+          if (cancelled) return;
+          /* Not a calendar - source 'none' (#1625), a 429 or 500, a body without events (#1637): never "no events" as if nothing were scheduled.
+             The saved calendar stays on screen with its age, and the read is retried. */
+          if (!cal) { scheduleRetry(); return; }
+          setEvents(cal.events); setSource(cal.source); setSavedTs(null); setFailed(false);
+          if (cal.events.length > 0) writeLastGood(LAST_GOOD_KEY, { events: cal.events, source: cal.source });
+        })
+        .catch(() => { if (!cancelled) scheduleRetry(); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+    }
+    function scheduleRetry() {
+      setFailed(true);
+      timer = setTimeout(load, RETRY_DELAYS_MS[attempt] ?? RETRY_STEADY_MS);
+      attempt += 1;
+    }
+    load();
+
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, []);
 
   const sorted = [...events].sort((a, b) => new Date(a.isoDate).getTime() - new Date(b.isoDate).getTime());
@@ -159,8 +196,10 @@ export default function EconCalendarPage() {
           needs a heading that names it, and the hint collapses to a chip for returning visitors. */}
       <h1 className="sr-only">{t('ECON_CALENDAR_HINT_TITLE')}</h1>
 
-      {source && (
-        <div style={{ padding: '20px 0 16px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{source}</div>
+      {(source || (failed && savedTs != null)) && (
+        <div style={{ padding: '20px 0 16px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
+          {source}{source && failed && savedTs != null ? ' · ' : ''}{failed && savedTs != null ? lastGoodAge(savedTs, t, now) : ''}
+        </div>
       )}
 
       {/* Next event banner */}
@@ -205,7 +244,7 @@ export default function EconCalendarPage() {
       })()}
 
       {loading && <LoadingState message={t('ECON_CALENDAR_LOADING')} />}
-      {failed && (
+      {failed && sorted.length === 0 && (
         <div style={{ color: 'var(--red)', fontSize: 'var(--fs-label)', padding: '20px 0', textAlign: 'center' }}>{t('ECON_CALENDAR_LOAD_ERROR')}</div>
       )}
       {!loading && !failed && sorted.length === 0 && (

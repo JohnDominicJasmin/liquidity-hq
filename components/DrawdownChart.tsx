@@ -44,17 +44,60 @@ function fmtPrice(p: number): string {
    visible: if that map grows, this follows. */
 const SKELETON_ROWS = 17;
 
+/* THE LAST GOOD ATH MAP IS KEPT IN THE BROWSER (failure-text audit A9). An all-time high ages well, so a stored copy is still true after a reload while /api/ath is down.
+   Only the ATH and its date are stored: the route's `drawdownPct` is measured against a price from the moment it was fetched, so a stored one would be wrong, and the drawdown is recomputed from the live price instead (see `rows`). */
+const ATH_CACHE_KEY = 'lhq.ath.cache.v1';
+/* Waits before each retry after a failed read, in ms. After the last one the card is left out until the page is opened again. */
+const ATH_RETRY_MS = [4_000, 12_000, 30_000, 60_000];
+
+function readAthCache(): Record<string, AthEntry> | null {
+  try {
+    const raw = localStorage.getItem(ATH_CACHE_KEY);
+    if (!raw) return null;
+    const j = JSON.parse(raw) as { data?: Record<string, AthEntry> } | null;
+    return j && j.data && typeof j.data === 'object' ? j.data : null;
+  } catch { return null; }
+}
+
+function writeAthCache(data: Record<string, AthEntry>) {
+  try {
+    const slim: Record<string, AthEntry> = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (v && typeof v.ath === 'number') slim[k] = { ath: v.ath, athDate: v.athDate };
+    }
+    localStorage.setItem(ATH_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: slim }));
+  } catch { /* storage blocked or full: the card still works without it */ }
+}
+
 export default function DrawdownChart() {
   const { t } = useLabels();
   const { store } = useMarket();
   const [ath, setAth] = useState<Record<string, AthEntry> | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  /* True once every retry has failed. It only matters while there is nothing to show: a stored or earlier copy keeps the card on screen. */
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    fetch('/api/ath', { signal: deadlineSignal(20_000) })
-      .then(r => r.ok ? r.json() : Promise.reject(`${r.status}`))
-      .then(setAth)
-      .catch(e => setErr(String(e)));
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const cached = readAthCache();
+    if (cached) setAth(cached);
+    const attempt = (n: number) => {
+      fetch('/api/ath', { signal: deadlineSignal(20_000) })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(String(r.status))))
+        .then((data: Record<string, AthEntry>) => {
+          if (cancelled) return;
+          setAth(data);
+          setFailed(false);
+          writeAthCache(data);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          if (n < ATH_RETRY_MS.length) { timer = setTimeout(() => attempt(n + 1), ATH_RETRY_MS[n]); return; }
+          setFailed(true);
+        });
+    };
+    attempt(0);
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, []);
 
   /* DRAWDOWN FROM OUR OWN PRICE WHEN THE ROUTE DID NOT SEND ONE (#1651).
@@ -87,6 +130,11 @@ export default function DrawdownChart() {
 
   const nearAth = rows.filter(r => Math.abs(r.drawdown!) < 20).length;
 
+  /* Nothing to draw is never failure text. Still waiting on a price: the skeleton. Prices settled (or failed) and no row, or the ATH read failed with no stored copy: the card is left out (failure-text audit A9, A10). */
+  const pricesPending = !store.pricesFailed && !COINS.some(c => store.coins[c]?.price != null);
+  const showSkeleton = (!ath && !failed) || (ath != null && rows.length === 0 && pricesPending);
+  if ((failed && !ath) || (ath != null && rows.length === 0 && !pricesPending)) return null;
+
   return (
     <div style={{
       background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
@@ -109,7 +157,7 @@ export default function DrawdownChart() {
       </div>
 
       {/* Loading / error states */}
-      {!ath && !err && (
+      {showSkeleton && (
         /* One skeleton row per coin this card will actually show, shaped like a
            real row (label line + bar). Five generic bars reserved ~120px where
            the loaded card needs ~650, so the card grew by 454px the moment the
@@ -127,14 +175,8 @@ export default function DrawdownChart() {
           ))}
         </div>
       )}
-      {err && (
-        <div style={{ padding: '16px 14px', fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>{t('DRAWDOWN_CHART_ERROR', { error: err })}</div>
-      )}
 
       {/* Bar chart rows */}
-      {ath && rows.length === 0 && (
-        <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{t('DRAWDOWN_CHART_EMPTY')}</div>
-      )}
 
       {ath && rows.length > 0 && (
         <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 7 }}>

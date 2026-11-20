@@ -62,7 +62,7 @@ export interface RealYield {
 
 const UNAVAILABLE: RealYield = {
   value: null, changeBp: null, asOf: null, stale: true, signal: 'unknown',
-  note: '10Y real yield unavailable - cannot check the rates backdrop',
+  note: 'Macro risk excludes the 10Y real yield.',
 };
 
 /**
@@ -91,7 +91,7 @@ export function computeRealYield(rows: readonly FredRow[], nowMs = Date.now()): 
     const days = Math.floor((nowMs - asOf) / 86_400_000);
     return {
       value, changeBp, asOf, stale: true, signal: 'unknown',
-      note: `10Y real yield last updated ${days} days ago - rates backdrop cannot be checked`,
+      note: `Macro risk excludes the 10Y real yield, last updated ${days} days ago.`,
     };
   }
 

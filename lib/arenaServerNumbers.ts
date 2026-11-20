@@ -74,6 +74,7 @@
 import { marketSnapshotData } from './marketSnapshotData.ts';
 import { rsiSnapshot } from './marketRsi.ts';
 import { accountRatioFor } from './accountRatioData.ts';
+import { arenaPriceUnit } from './coins.ts';
 import { arenaNumberFields, SERVER_SOURCED_FIELDS, type ServerSourcedField } from './arenaContextFields.ts';
 import type { CoinData } from './marketStore.ts';
 import type { GrokContext } from './grok.ts';
@@ -166,7 +167,7 @@ export async function arenaServerNumbers(coin: string): Promise<ArenaNumbersResu
   /* Driven by SERVER_SOURCED_FIELDS rather than by a literal list, which is why adding
      `longShortRatio` to that constant was the whole wiring - this loop covered the thirteenth field
      the moment the list did. */
-  const all = arenaNumberFields(row);
+  const all = arenaNumberFields(row, arenaPriceUnit(coin));
   const fields: ServerNumberFields = {};
   for (const key of SERVER_SOURCED_FIELDS) fields[key] = all[key];
 

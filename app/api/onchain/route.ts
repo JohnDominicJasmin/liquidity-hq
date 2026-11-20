@@ -10,6 +10,7 @@ import { incrementToolUsage, rateLimitMessage, blockedResponse, type UsageBlockR
 import { getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { scoreOnchain } from '@/lib/onchainScore';
+import { bearerToken } from '@/lib/bearerToken';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // On-chain metrics (MVRV/SOPR/NVT/exchange flow) don't move within minutes, and
@@ -117,7 +118,7 @@ function buildOnChainPrompt(stats: BlockchainStats | null, btcPrice: number): st
 }
 
 export async function GET(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data: authData } = await getUserCompatForBilledCall(token);

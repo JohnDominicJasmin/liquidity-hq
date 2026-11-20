@@ -629,9 +629,27 @@ export function symbolDenominationFactor(symbol: string): number {
  * are a pixel conversion and a percentage distance to S/R, both scale-invariant. Revisit if
  * klinecharts fixes small-value axes - the fix is to delete this and re-apply
  * symbolDenominationFactor in the chart's fetches. */
+/* THE SCALE THE ARENA SHOWS A PRICE IN (PM, 2026-11-20, QA drawings audit: PEPE showed two scales on one screen). A 1000x contract is charted on the exchange's own series (see above), so every price TEXT on the Arena screen (call box, Watching, EMA card entry / stop / target, the AI read) is in that same unit:
+ * the multiplier that takes a per-token price to the unit of the coin's PRIMARY venue symbol (Bybit's when it lists the coin, else Binance's), which is also the series the chart draws. 1 for every ordinary coin; 1000 for 1000PEPE, 10000 for Bybit's 10000SATS. Other pages stay per-token. */
+export function arenaPriceUnit(coin: string): number {
+  const v = venueSymbols(coin);
+  const sym = v.bybit ?? v.binance;
+  const f = sym ? symbolDenominationFactor(sym) : 1;
+  return f > 0 && f < 1 ? 1 / f : 1;
+}
+
+/* A COIN WHOSE LIQUIDATION FEED COMES IN MIXED UNITS (PM, 2026-11-20, data-integrity rule): the liquidation rows keep each event's price raw, in the contract unit of the venue that reported it, and the clusters mix both venues. Where Bybit and Binance list the coin with a DIFFERENT multiplier
+ * (sats: Bybit 10000x, Binance 1000x; tag, toshi, turbo: Bybit 1000x, Binance per-token) one cluster list holds two scales, so the Arena draws no liquidation layer and quotes no liquidation note for it. Converting at ingest is tracked on #1651 (post-freeze). */
+export function liqUnitsMixed(coin: string): boolean {
+  const v = venueSymbols(coin);
+  return !!v.bybit && !!v.binance && symbolDenominationFactor(v.bybit) !== symbolDenominationFactor(v.binance);
+}
+
 export function chartDisplaySymbol(coin: string): string {
-  const prefix = BYBIT_SYMS[coin]?.startsWith('1000') ? '1000' : '';
-  return `${prefix}${BY_ID.get(coin)?.ticker ?? coin.toUpperCase()}/USDT`;
+  /* THE PREFIX THE EXCHANGE LISTS THE PERP WITH (PM, 2026-11-20): 1000PEPE, 10000SATS, 1000000MOG, not a flat "1000". */
+  const prefix = /^(\d+)/.exec(venueSymbols(coin).bybit ?? '')?.[1] ?? '';
+  const label = prefix && symbolDenominationFactor((venueSymbols(coin).bybit ?? '')) < 1 ? prefix : '';
+  return `${label}${BY_ID.get(coin)?.ticker ?? coin.toUpperCase()}/USDT`;
 }
 
 /* The helper arrived on `dev` in #1863 with a HAND-WRITTEN COIN_LABELS beside it; this branch

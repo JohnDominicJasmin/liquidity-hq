@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback, useId } from
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { COIN_DEC, CoinId, useMarket, computeSqueezeScore, venueSymbols } from '@/lib/marketStore';
 import { liftClearOfLevels } from '@/lib/chartLabelOffsets';
-import { chartDisplaySymbol, currencyPrefix } from '@/lib/coins';
+import { chartDisplaySymbol, currencyPrefix, symbolDenominationFactor } from '@/lib/coins';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
@@ -17,7 +17,7 @@ import { getAuthToken } from '@/lib/supabase';
 import { drawStructureAvailable, DRAW_STRUCTURE_NOISY_TFS, type DrawableStructure } from '@/lib/drawStructure';
 import { computeSRLevels, type SRLevel } from '@/lib/srLevels';
 import { detectChannel, SR_BAND_PCT } from '@/lib/strategies/channel';
-import type { OHLCV } from '@/lib/strategyCore';
+import { psarArr, smaArr, type OHLCV } from '@/lib/strategyCore';
 import Tip from '@/components/Tip';
 import { barsAfter, TF_MS } from '@/lib/candles';
 import { fetchBybitKlinesRetry } from '@/lib/bybitKlines';
@@ -1154,6 +1154,37 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       const kc = await import('klinecharts');
       if (disposed || !containerRef.current) return;
 
+      /* THE SAR DOTS ARE TEXTBOOK WILDER (PM, 2026-11-20, QA indicators matrix #1263 D2): klinecharts' own SAR uses the current bar's extreme point and resets its acceleration factor asymmetrically, so only 1-5% of its dots matched
+         TradingView's. A custom indicator registered UNDER THE SAME NAME replaces the built-in (klinecharts keeps one indicator class per name), keeps its figure, dot colours and the same calcParams (percent units: [2, 2, 20] = 0.02 / 0.02 / 0.2),
+         and calls psarArr (lib/strategyCore.ts), the calculation the EMA card's PSAR row and the AI's PSAR reading use too. */
+      (kc as unknown as { registerIndicator: (i: unknown) => void }).registerIndicator({
+        name: 'SAR', shortName: 'SAR', series: 'price', calcParams: [2, 2, 20], precision: 2, shouldOhlc: true,
+        figures: [{
+          key: 'sar', title: 'SAR: ', type: 'circle',
+          styles: ({ data, indicator, defaultStyles }: { data: { current?: { sar?: number; high?: number; low?: number } }; indicator: { styles?: { circles?: Array<{ upColor?: string; downColor?: string }> } }; defaultStyles: { circles: Array<{ upColor: string; downColor: string }> } }) => {
+            const cur = data.current;
+            const sar = cur?.sar ?? Number.MIN_SAFE_INTEGER, half = ((cur?.high ?? 0) + (cur?.low ?? 0)) / 2;
+            return { color: sar < half ? (indicator.styles?.circles?.[0]?.upColor ?? defaultStyles.circles[0].upColor) : (indicator.styles?.circles?.[0]?.downColor ?? defaultStyles.circles[0].downColor) };
+          },
+        }],
+        calc: (dataList: Array<{ timestamp: number; open: number; high: number; low: number; close: number; volume?: number }>, indicator: { calcParams: number[] }) => {
+          const [a0, a1, a2] = indicator.calcParams;
+          const vals = psarArr(dataList.map(d => ({ time: d.timestamp, open: d.open, high: d.high, low: d.low, close: d.close, volume: d.volume ?? 0 })), a0 / 100, a1 / 100, a2 / 100);
+          return vals.map(v => (Number.isFinite(v) ? { sar: v } : {}));
+        },
+      });
+
+      /* THE SMA LINE IS A ROLLING MEAN, AS ITS NAME SAYS (#1007; PM, 2026-11-20, QA indicators matrix: "draws EMA(12)"): klinecharts' own 'SMA' is the recursive SMA(N,M), which at its defaults IS EMA(12), while the verdict gating, the AI's reading and the blurb ("Simple moving average") already
+         use the rolling mean of the last N closes. A custom indicator registered under the same name replaces the built-in and draws smaArr (lib/strategyCore.ts) of the closes over ONE parameter, the length (default 12), so the line, the read and the gate are one calculation. */
+      (kc as unknown as { registerIndicator: (i: unknown) => void }).registerIndicator({
+        name: 'SMA', shortName: 'SMA', series: 'price', calcParams: [12], precision: 2, shouldOhlc: true,
+        figures: [{ key: 'sma', title: 'SMA: ', type: 'line' }],
+        calc: (dataList: Array<{ close: number }>, indicator: { calcParams: number[] }) => {
+          const len = Math.max(2, Math.round(indicator.calcParams[0] ?? 12));
+          return smaArr(dataList.map(d => d.close), len).map(v => (Number.isFinite(v) ? { sma: v } : {}));
+        },
+      });
+
       const chart = kc.init(containerRef.current);
       if (!chart) return;
       chartRef.current = chart;
@@ -1761,9 +1792,25 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           ...base, name: 'strategyLevelLine',
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
-            const { role, text, prices, rank } = overlay.extendData as { role: string; text: string; prices?: number[]; rank?: number };
+            const { role, text, prices, rank, slotBase } = overlay.extendData as { role: string; text: string; prices?: number[]; rank?: number; slotBase?: number };
             const c = coordinates[0];
-            if (!c || !isFinite(c.x) || !isFinite(c.y) || c.y < 0) return [];
+            if (!c || !isFinite(c.x) || !isFinite(c.y)) return [];
+            /* A LEVEL OFF THE VISIBLE PRICE WINDOW STILL SHOWS (QA drawings audit #1263, 390 px 4h: the EMA 50 / 200 levels sat above the visible prices and the strategy drew nothing in view): its label, with its price, goes to the pane edge it lies beyond, with an arrow, stacked with the other off-window labels on that edge. */
+            const paneH = bounding?.height ?? 300;
+            if (c.y < 0 || c.y > paneH) {
+              const above = c.y < 0;
+              let slot = slotBase ?? 0;
+              if (prices && rank != null && chartRef.current) {
+                for (let k = 0; k < prices.length; k++) {
+                  if (k === rank) continue;
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const o = (chartRef.current as any).convertToPixel?.({ value: prices[k] }, { paneId: 'candle_pane' });
+                  const oy = Array.isArray(o) ? o[0]?.y : o?.y;
+                  if (typeof oy === 'number' && isFinite(oy) && (above ? oy < 0 : oy > paneH) && (k < rank)) slot++;
+                }
+              }
+              return [{ type: 'text', attrs: { x: (bounding?.width ?? 9999) - 6, y: above ? 12 + slot * 17 : paneH - 12 - slot * 17, text: `${text} ${above ? '↑' : '↓'}`, align: 'right', baseline: above ? 'top' : 'bottom' }, styles: labelStyles(roleInk(role)) }];
+            }
             /* LABELS THAT COLLIDE STACK (PM ruling, #2372): this strategy's levels are listed by price (lowest first); a label lifts 15 px for every LOWER level that sits within 16 px of this line on screen, so two
                close levels (a sweep's swept and break levels on a low timeframe) read as two labels, not one smudge. */
             let lift = 0;
@@ -1789,13 +1836,26 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           ...base, name: 'strategyZone',
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
-            const { kind, text } = overlay.extendData as { kind: 'supply' | 'demand'; text: string };
+            const { kind, text, priceText, slot } = overlay.extendData as { kind: 'supply' | 'demand'; text: string; priceText?: string; slot?: number };
             const a = coordinates[0], b = coordinates[1];
             if (!a || !b || ![a.x, a.y, b.x, b.y].every(isFinite)) return [];
             const x0 = Math.max(0, Math.min(a.x, b.x)), x1 = Math.min(bounding?.width ?? 9999, Math.max(a.x, b.x));
             const y0 = Math.min(a.y, b.y), h = Math.abs(a.y - b.y);
-            if (x1 <= x0) return [];
-            const ink = resolveCssColor(kind === 'demand' ? 'var(--green)' : 'var(--red)');
+            const inkZ = resolveCssColor(kind === 'demand' ? 'var(--green)' : 'var(--red)');
+            /* A ZONE THAT ENDS LEFT OF THE VISIBLE CANDLES STILL SHOWS (QA drawings audit #1263, fair value gap 390 px 4h: the latest gap is older than the bars in view): its label, with its price, sits at the left edge at the zone's height, with an arrow. */
+            if (x1 <= x0) {
+              const leftOf = Math.max(a.x, b.x) < 0;
+              const paneH0 = bounding?.height ?? 300;
+              if (!text || !leftOf) return [];
+              return [{ type: 'text', attrs: { x: 4, y: Math.min(paneH0 - 10, Math.max(10, y0 + h / 2)), text: `← ${text}${priceText ? ' ' + priceText : ''}`, align: 'left', baseline: 'middle' }, styles: { color: inkZ, size: 10, weight: '700' } }];
+            }
+            const ink = inkZ;
+            /* A LABELLED ZONE OFF THE VISIBLE PRICE WINDOW STILL SHOWS (QA drawings audit #1263: at 390 px the supply zone sat above the visible prices, so the strategy drew nothing in view): its label goes to the pane edge it lies beyond, with its price and an arrow, the same idea as the Target / Stop labels. Unlabelled zones (the S/R bands) are left alone. */
+            const paneH = bounding?.height ?? 300, yBottom = y0 + Math.max(h, 1);
+            if (text && (yBottom < 0 || y0 > paneH)) {
+              const above = yBottom < 0, off = 10 + (slot ?? 0) * 12;
+              return [{ type: 'text', attrs: { x: x1 - 4, y: above ? Math.min(paneH - 10, off) : Math.max(10, paneH - off), text: `${text}${priceText ? ' ' + priceText : ''} ${above ? '↑' : '↓'}`, align: 'right', baseline: above ? 'top' : 'bottom' }, styles: { color: ink, size: 10, weight: '700' } }];
+            }
             /* THE LABEL SITS AT THE ZONE'S FAR EDGE, RIGHT END (#1263 box 9, then box 91). The Buy / Sell triangle of the signal candle sits on the PRICE side of the zone (a long's marker is below the candle's low, which is
                just above a demand zone's top), so a label above a demand zone's top covered it (box 91, "Demand" on top of the Buy marker). Demand: under the BOTTOM edge, right-aligned. Supply mirrors it: above the TOP
                edge, right-aligned. Neither covers the marker, which is on the other side. */
@@ -1810,11 +1870,17 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         (kc as any).registerOverlay({
           ...base, name: 'strategyPolyline',
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
-            const { role, text } = overlay.extendData as { role: string; text: string };
+          createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
+            const { role, text, slot } = overlay.extendData as { role: string; text: string; slot?: number };
             const pts = coordinates.filter(c => c && isFinite(c.x) && isFinite(c.y));
             if (pts.length < 1) return [];
             const ink = roleInk(role);
+            /* A LINE WHOLLY OFF THE VISIBLE PRICE WINDOW STILL SHOWS (same rule as the level line above): its label goes to the pane edge it lies beyond, with an arrow. */
+            const paneH = bounding?.height ?? 300;
+            const wholeAbove = pts.every(q => q.y < 0), wholeBelow = pts.every(q => q.y > paneH);
+            if (wholeAbove || wholeBelow) {
+              return [{ type: 'text', attrs: { x: (bounding?.width ?? 9999) - 6, y: wholeAbove ? 12 + (slot ?? 0) * 17 : paneH - 12 - (slot ?? 0) * 17, text: `${text} ${wholeAbove ? '↑' : '↓'}`, align: 'right', baseline: wholeAbove ? 'top' : 'bottom' }, styles: labelStyles(roleInk(role)) }];
+            }
             const end = pts[pts.length - 1];
             // ONE point is a text tag only (the existing ribbon line it labels is already drawn by the chart)
             return [
@@ -2969,16 +3035,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     const ov = strategyOverlay;
     if (!ov) return;
     const px = currencyPrefix(coinRef.current);
+    /* THE CHART'S PRICE UNIT, NOT THE STRATEGY'S (QA drawings audit #1263, PEPE: 0 of ~190 cells had an overlay in view): a 1000x contract (1000PEPE, 1000BONK, 10000SATS...) is charted on the exchange's own scaled series on purpose (klinecharts' axis collapses at tiny values, see chartDisplaySymbol in lib/coins),
+       but the strategy reads candles through fetchOHLCV, which divides by the denomination, so its levels, zones and lines were at the per-token price (0.0000038) on a chart axis reading 0.0038 and fell off the screen. Every price handed to the chart is converted to the unit of the series the chart actually drew (the venue the history came from). 1 for every ordinary coin. */
+    const vs = venueSymbols(coinRef.current);
+    const chartSym = (histSourceRef.current === 'bybit' ? vs.bybit : vs.binance) ?? vs.bybit ?? vs.binance ?? '';
+    const unit = (symbolDenominationFactor(vs.bybit ?? vs.binance ?? '') || 1) / (symbolDenominationFactor(chartSym) || 1);   /* the strategy's prices are in the unit of the PRIMARY venue's series (arenaPriceUnit): 1 when the chart drew that same series */
     const add = (name: string, points: Array<{ timestamp: number; value: number }>, extendData: Record<string, unknown>) => {
       if (!points.length || !points.every(p => Number.isFinite(p.timestamp) && Number.isFinite(p.value))) return;
       const id = chart.createOverlay({ name, groupId: 'strategy_overlay', lock: true, points, extendData } as OverlayCreate);
       if (typeof id === 'string') strategyOverlayIds.current.push(id);
     };
-    for (const z of ov.zones) add('strategyZone', [{ timestamp: z.fromTs, value: z.top }, { timestamp: z.toTs, value: z.bottom }], { kind: z.kind, text: tl(z.labelKey) });
-    for (const l of ov.lines) add('strategyPolyline', l.points.map(p => ({ timestamp: p.ts, value: p.price })), { role: l.role, text: tl(l.labelKey, l.labelParams) });
+    ov.zones.forEach((z, zi) => add('strategyZone', [{ timestamp: z.fromTs, value: z.top * unit }, { timestamp: z.toTs, value: z.bottom * unit }], { kind: z.kind, text: tl(z.labelKey), priceText: `${px}${fmtPx(((z.top + z.bottom) / 2) * unit)}`, slot: zi }));
+    ov.lines.forEach((l, li) => add('strategyPolyline', l.points.map(p => ({ timestamp: p.ts, value: p.price * unit })), { role: l.role, text: tl(l.labelKey, l.labelParams), slot: li }));
     const byPrice = [...ov.levels].sort((a, b) => a.price - b.price);
-    const prices = byPrice.map(l => l.price);
-    ov.levels.forEach(l => add('strategyLevelLine', [{ timestamp: l.fromTs, value: l.price }], { role: l.role, prices, rank: byPrice.indexOf(l), text: `${tl(l.labelKey, l.labelParams)} ${px}${fmtPx(l.price)}` }));
+    const prices = byPrice.map(l => l.price * unit);
+    ov.levels.forEach(l => add('strategyLevelLine', [{ timestamp: l.fromTs, value: l.price * unit }], { role: l.role, prices, rank: byPrice.indexOf(l), slotBase: ov.lines.length, text: `${tl(l.labelKey, l.labelParams)} ${px}${fmtPx(l.price * unit)}` }));
     if (ov.marker) {
       const bar = chart.getDataList().find(b => b.timestamp === ov.marker!.ts);
       if (bar) add('strategyMarker', [{ timestamp: bar.timestamp, value: ov.marker.dir === 'long' ? bar.low : bar.high }], { dir: ov.marker.dir });
@@ -3233,7 +3304,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           { name: entry.id, calcParams },
           entry.pane === 'own'
             ? { pane: { id: `strat_${key.toLowerCase()}`, height: 90, minHeight: 30 } }
-            : { pane: { id: 'candle_pane' } },
+            /* STACKED, so two or three candle-pane indicators (SMA / SAR / Bollinger) all draw (QA indicators matrix #1263, D1 HIGH: without isStack klinecharts removes the pane's earlier indicator when another is created, so choosing two or more drew only the LAST while the chips of all read pressed). */
+            : { isStack: true, pane: { id: 'candle_pane' } },
         );
         /* NULL, NOT A THROW. `createIndicator` returns `Nullable<string>` and
          * gives back null for a name klinecharts does not know - it does not

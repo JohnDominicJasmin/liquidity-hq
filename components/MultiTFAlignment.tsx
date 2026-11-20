@@ -141,10 +141,10 @@ function RsiRow({ tf, rsi, bias, last, locked }: { tf: string; rsi: number | nul
         fontFamily: 'var(--font-mono), monospace',
         ...(locked ? { filter: 'blur(5px)', userSelect: 'none' as const } : {}),
       }}>
-        {formatRsi(rsi)}
+        {locked ? '' : formatRsi(rsi)}
       </span>
       <div aria-hidden={locked || undefined} style={{ display: 'flex', justifyContent: 'flex-end', ...(locked ? { filter: 'blur(5px)', userSelect: 'none' as const } : {}) }}>
-        <BiasBadge bias={bias} />
+        {!locked && <BiasBadge bias={bias} />}
       </div>
     </div>
   );
@@ -156,7 +156,7 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
   /* Same `entitled` the rest of the app gates on - Pro OR active trial - so this
      card and the timeframe switcher in Arena can never disagree about who is a
      paying user (#310). */
-  const { entitlementStatus, loading: authLoading } = useAuth();
+  const { user, entitlementStatus, entitlementsLoading, loading: authLoading } = useAuth();
   /* Locked only once we KNOW the user is not entitled. While auth resolves,
      nothing is blurred: a Pro user briefly seeing their own paid signal smeared
      is a worse error than a free user seeing it a moment longer, and the row is
@@ -167,7 +167,8 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
      with a "Pro only" tooltip, true regardless), so treating unknown as
      locked isn't the false assertion the owner's ruling forbids, it's just
      not granting something unconfirmed. */
-  const locked = (tf: string) => !authLoading && entitlementStatus !== 'entitled' && isGatedTf(tf);
+  /* not while the plan is still resolving: a Pro account's Fast timeframes were drawn locked for the first 0.3-0.8 s (#1651) */
+  const locked = (tf: string) => !authLoading && !(!!user && entitlementsLoading) && entitlementStatus !== 'entitled' && isGatedTf(tf);
   const coin = (coinProp ?? store.selectedCoin) as ReturnType<typeof useMarket>['store']['selectedCoin'];
   const d = store.coins[coin];
 
@@ -229,6 +230,9 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
   const verdictColor = noData ? 'var(--txt3)' : verdict === 'bullish' ? 'var(--green-2)' : verdict === 'bearish' ? 'var(--red)' : verdict === 'conflicting' ? 'var(--amber)' : 'var(--txt3)';
   const verdictBorder = noData ? 'var(--bdr)' : verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 40%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 40%, transparent)' : verdict === 'conflicting' ? 'color-mix(in srgb, var(--amber) 40%, transparent)' : 'var(--border-input)';
   const verdictBg = noData ? 'transparent' : verdict === 'bullish' ? 'color-mix(in srgb, var(--green-2) 10%, transparent)' : verdict === 'bearish' ? 'color-mix(in srgb, var(--red) 10%, transparent)' : verdict === 'conflicting' ? 'color-mix(in srgb, var(--amber) 10%, transparent)' : 'transparent';
+
+  /* NOTHING TO SHOW AFTER THE WAIT: THE CARD IS LEFT OUT (QA signed-out matrix 2020-11-20, owner's zero-failure-text rule): it said "No data" over rows of dashes and "RSI readings unavailable right now". Every hook above has run, so returning here is safe. */
+  if (noDataShown) return null;
 
   const footerText = loadingState
     ? ''

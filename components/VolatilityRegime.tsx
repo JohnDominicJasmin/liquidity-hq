@@ -5,6 +5,7 @@ import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { lastGoodAge, readLastGood, writeLastGood } from '@/lib/lastGoodAge';
 
 interface HVData {
   hv30:       number;   // current 30-day annualized HV %
@@ -18,8 +19,14 @@ const REGIME_META: Record<'low' | 'neutral' | 'high', { labelKey: LabelKey; col:
   high:    { labelKey: 'VOLATILITY_REGIME_LABEL_HIGH',    col: 'var(--red)', bg: 'rgba(248,113,113,0.10)', bdr: 'rgba(248,113,113,0.3)', hintKey: 'VOLATILITY_REGIME_HINT_HIGH' },
 };
 
-const CACHE_KEY = 'lhq_vol_regime';
+/* One entry per coin, written ONLY from a successful read. The old single key stored a failed read (null) for 4 h and replayed it, so one blip showed
+ * "Unavailable" for hours after the feed recovered; it is ignored and removed. */
+const OLD_CACHE_KEY = 'lhq_vol_regime';
+const CACHE_KEY_BTC = 'lhq_vol_regime_btc';
+const CACHE_KEY_ETH = 'lhq_vol_regime_eth';
 const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours - daily data barely changes
+const RETRY_MS = 60_000;
+const MAX_RETRIES = 2;
 
 function calcHV(symbol: string): Promise<HVData | null> {
   return fetch(`/api/market/klines?source=binance&symbol=${symbol}&interval=1d&limit=152`)
@@ -64,25 +71,24 @@ function calcHV(symbol: string): Promise<HVData | null> {
     .catch(() => null);
 }
 
-type LoadState = HVData | null | 'loading';
+/* `null` = nothing good to show (the row is hidden); `ts` is when the value was read, so a value kept past a failed refresh says how old it is. */
+type LoadState = { data: HVData; ts: number } | null | 'loading';
 
-function HVRow({ label, data }: { label: string; data: LoadState }) {
+function HVRow({ label, state }: { label: string; state: LoadState }) {
   const { t } = useLabels();
 
-  if (data === 'loading') return (
+  if (state === 'loading') return (
     <div style={{ padding: '9px 0', borderTop: '0.5px solid var(--bdr)', display: 'flex', alignItems: 'center', gap: 8 }}>
       <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', minWidth: 28 }}>{label}</span>
       <SkeletonBar width={90} height={11} radius={4} />
     </div>
   );
 
-  if (!data) return (
-    <div style={{ padding: '9px 0', borderTop: '0.5px solid var(--bdr)', display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', minWidth: 28 }}>{label}</span>
-      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('VOLATILITY_REGIME_UNAVAILABLE')}</span>
-    </div>
-  );
+  /* No good reading at all: hide the row instead of printing a failure word. */
+  if (!state) return null;
 
+  const { data, ts } = state;
+  const stale = Date.now() - ts >= CACHE_TTL;
   const m = REGIME_META[data.regime];
 
   return (
@@ -104,6 +110,9 @@ function HVRow({ label, data }: { label: string; data: LoadState }) {
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontFamily: 'var(--font-mono), monospace' }}>
           p{data.percentile}
         </span>
+        {stale && (
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{lastGoodAge(ts, t)}</span>
+        )}
       </div>
 
       {/* Percentile track */}
@@ -139,28 +148,47 @@ export default function VolatilityRegime() {
   const [eth, setEth] = useState<LoadState>('loading');
 
   useEffect(() => {
-    // Try localStorage cache first
-    try {
-      const raw = localStorage.getItem(CACHE_KEY);
-      if (raw) {
-        const { ts, btcData, ethData } = JSON.parse(raw) as { ts: number; btcData: HVData; ethData: HVData };
-        if (Date.now() - ts < CACHE_TTL) {
-          setBtc(btcData);
-          setEth(ethData);
-          return;
-        }
-      }
-    } catch { /* ignore */ }
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try { localStorage.removeItem(OLD_CACHE_KEY); } catch { /* ignore */ }
 
-    // Fetch fresh
-    Promise.all([calcHV('BTCUSDT'), calcHV('ETHUSDT')]).then(([btcData, ethData]) => {
-      setBtc(btcData);
-      setEth(ethData);
-      try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), btcData, ethData }));
-      } catch { /* ignore */ }
-    });
+    const cachedBtc = readLastGood<HVData>(CACHE_KEY_BTC);
+    const cachedEth = readLastGood<HVData>(CACHE_KEY_ETH);
+    if (cachedBtc) setBtc({ data: cachedBtc.v, ts: cachedBtc.ts });
+    if (cachedEth) setEth({ data: cachedEth.v, ts: cachedEth.ts });
+    const isFresh = (c: { ts: number } | null) => c != null && Date.now() - c.ts < CACHE_TTL;
+    if (isFresh(cachedBtc) && isFresh(cachedEth)) return;
+
+    let attempt = 0;
+    const load = (needBtc: boolean, needEth: boolean) => {
+      Promise.all([
+        needBtc ? calcHV('BTCUSDT') : Promise.resolve(null),
+        needEth ? calcHV('ETHUSDT') : Promise.resolve(null),
+      ]).then(([btcData, ethData]) => {
+        if (cancelled) return;
+        const now = Date.now();
+        /* A good read replaces the value. A failed read keeps whatever was already shown (aged), and only a coin that never had one is hidden. */
+        if (btcData) { writeLastGood(CACHE_KEY_BTC, btcData); setBtc({ data: btcData, ts: now }); }
+        else if (needBtc) setBtc(prev => (prev === 'loading' ? null : prev));
+        if (ethData) { writeLastGood(CACHE_KEY_ETH, ethData); setEth({ data: ethData, ts: now }); }
+        else if (needEth) setEth(prev => (prev === 'loading' ? null : prev));
+
+        const retryBtc = needBtc && !btcData;
+        const retryEth = needEth && !ethData;
+        if ((retryBtc || retryEth) && attempt < MAX_RETRIES) {
+          attempt += 1;
+          timer = setTimeout(() => load(retryBtc, retryEth), RETRY_MS);
+        }
+      });
+    };
+    /* Refresh only a coin whose cached value is missing or past the TTL. */
+    load(!isFresh(cachedBtc), !isFresh(cachedEth));
+
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, []);
+
+  /* Neither coin has a reading and the reads are done: hide the card (it returns on the next visit). */
+  if (btc === null && eth === null) return null;
 
   return (
     <div style={{ padding: '12px 14px' }}>
@@ -187,8 +215,8 @@ export default function VolatilityRegime() {
         })}
       </div>
 
-      <HVRow label={t('VOLATILITY_REGIME_BTC')} data={btc} />
-      <HVRow label={t('VOLATILITY_REGIME_ETH')} data={eth} />
+      <HVRow label={t('VOLATILITY_REGIME_BTC')} state={btc} />
+      <HVRow label={t('VOLATILITY_REGIME_ETH')} state={eth} />
     </div>
   );
 }

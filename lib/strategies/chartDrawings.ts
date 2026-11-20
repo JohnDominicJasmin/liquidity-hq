@@ -1,7 +1,7 @@
 import { findChannel } from './channel.ts';
 import { lastSwing } from './liquiditySweepMss.ts';
 import { RANGE_MIN, nyOpenUtc } from './nyOpenBreakout.ts';
-import { currentRange } from './rangeBounce.ts';
+import { RANGE_BARS, currentRange } from './rangeBounce.ts';
 import { emaSeeded, srPrices, swingPivots3 } from './shared.ts';
 import { lineValueAt } from '../chartStructures.ts';
 import { bollingerBandsArr, type OHLCV } from '../strategyCore.ts';
@@ -54,6 +54,20 @@ function bandLines(candles: readonly OHLCV[]): OverlayLine[] {
     { points: up, role: 'watch', labelKey: 'STRAT_OV_BAND_TOP' },
     { points: dn, role: 'watch', labelKey: 'STRAT_OV_BAND_BOTTOM' },
   ] : [];
+}
+
+/** The newest gap box whatever its state (open, returned to or filled), or null when there is none in the lookback. */
+function latestGapBox(candles: readonly OHLCV[]): OverlayZone | null {
+  const k = candles.length - 1;
+  for (let i = k - 1; i >= Math.max(2, k - FVG_LOOKBACK); i--) {
+    const bull = candles[i - 2].high < candles[i].low;
+    const bear = candles[i - 2].low > candles[i].high;
+    if (!bull && !bear) continue;
+    const top = bull ? candles[i].low : candles[i - 2].low;
+    const bot = bull ? candles[i - 2].high : candles[i].high;
+    return { top, bottom: bot, fromTs: candles[i].time, toTs: candles[k].time, kind: bull ? 'demand' : 'supply', labelKey: 'STRAT_OV_FVG' };
+  }
+  return null;
 }
 
 /** The gap boxes no candle has returned into yet and none has closed through: what a fair value gap strategy is waiting for price to come back to. The nearest few to the last close. */
@@ -110,7 +124,18 @@ export function watchedDrawing(id: string, candles: readonly OHLCV[], ctx: Strat
     }
     case 'channel': {
       const fit = findChannel(candles, ctx.tf);   // flat or sloped: whatever channel the detector sees, both rails
-      if (!fit) break;
+      if (!fit) {
+        /* NO CHANNEL: STILL SOMETHING ON THE CHART (PM, 2026-11-20, owner's order: a strategy that is selected shows a line or a shape): the recent swing highs and swing lows a channel would be built from, each side joined (a single pivot is a level), faint and labelled "Swing high" / "Swing low". */
+        const { highs, lows } = swingPivots3(candles, 80);
+        const side = (pts: Array<{ i: number; p: number }>, labelKey: LabelKey): void => {
+          const last = pts.slice(-4);
+          if (last.length >= 2) out.lines.push({ points: last.map(x => ({ ts: candles[x.i].time, price: x.p })), role: 'watch', labelKey });
+          else if (last.length === 1) out.levels.push(level(last[0].p, candles[last[0].i].time, labelKey));
+        };
+        side(highs, 'STRAT_OV_SWING_HIGH');
+        side(lows, 'STRAT_OV_SWING_LOW');
+        break;
+      }
       const rail = (r: typeof fit.upper, labelKey: LabelKey): OverlayLine => {
         const start = Math.max(0, Math.min(...r.pivots.map(p => p.index), n - 1));
         return { points: [{ ts: candles[start].time, price: lineValueAt(r.fit, start) }, { ts: candles[n - 1].time, price: lineValueAt(r.fit, n - 1) }], role: 'watch', labelKey };
@@ -118,9 +143,12 @@ export function watchedDrawing(id: string, candles: readonly OHLCV[], ctx: Strat
       out.lines = [rail(fit.upper, 'STRAT_OV_CHANNEL_TOP'), rail(fit.lower, 'STRAT_OV_CHANNEL_BOTTOM')];
       break;
     }
-    case 'fvg':
+    case 'fvg': {
       out.zones = openGapBoxes(candles);
+      /* NO OPEN GAP: the most recent gap, already returned to or filled, is still drawn so the chart shows what the strategy is about (PM, 2026-11-20). */
+      if (!out.zones.length) { const g = latestGapBox(candles); if (g) out.zones = [g]; }
       break;
+    }
     case 'bos_fvg': {
       // the break-of-structure levels it waits on: the latest confirmed swing high and swing low
       const hi = lastSwing(candles, n - 1, 'high'), lo = lastSwing(candles, n - 1, 'low');
@@ -179,6 +207,19 @@ export function watchedDrawing(id: string, candles: readonly OHLCV[], ctx: Strat
       // the band it trades (last 30 candles before the newest, two touches on each edge): the edges a bounce is waited for
       const r = currentRange(candles);
       if (r) out.levels = [level(r.high, r.fromTs, 'STRAT_OV_RANGE_HIGH'), level(r.low, r.fromTs, 'STRAT_OV_RANGE_LOW')];
+      else {
+        /* NO RANGE: the high and low of the last RANGE_BARS candles, the band the strategy measures (it is not a range: too tall or too few touches), labelled as what it is. */
+        const win = candles.slice(0, -1).slice(-RANGE_BARS);
+        if (win.length) out.levels = [level(Math.max(...win.map(c => c.high)), win[0].time, 'STRAT_OV_LAST30_HIGH'), level(Math.min(...win.map(c => c.low)), win[0].time, 'STRAT_OV_LAST30_LOW')];
+      }
+      break;
+    }
+    case 'funding_oi_squeeze':
+    case 'cvd_absorption': {
+      /* THESE READ LIVE FUTURES DATA AND HAD NOTHING TO DRAW WHILE WAITING (QA drawings audit #1263): the last swing high and swing low, the levels a close through them would trigger on. */
+      const hi = lastSwing(candles, n - 1, 'high'), lo = lastSwing(candles, n - 1, 'low');
+      if (hi >= 0) out.levels.push(level(candles[hi].high, candles[hi].time, 'STRAT_OV_SWING_HIGH'));
+      if (lo >= 0) out.levels.push(level(candles[lo].low, candles[lo].time, 'STRAT_OV_SWING_LOW'));
       break;
     }
     default:
@@ -195,6 +236,8 @@ export function withWatchedDrawing(def: StrategyDef, result: StrategyResult, can
   const base = lastClose != null && Number.isFinite(lastClose) ? { ...result, lastClose } : result;
   if (result.verdict !== 'wait' || !empty(result.overlay)) return base;
   const w = watchedDrawing(def.id, candles, ctx);
+  /* A FAIR VALUE GAP WITH NO OPEN GAP says so (QA drawings audit #1263: fvg 1h drew only past arrows and no box): every recent gap has been returned to or filled, so the call box reads "No open gap..." instead of a bare wait. */
+  if (def.id === 'fvg' && openGapBoxes(candles).length === 0) return { ...(w ? { ...base, overlay: w } : base), params: { ...base.params, none: true } };
   return w ? { ...base, overlay: w } : base;
 }
 

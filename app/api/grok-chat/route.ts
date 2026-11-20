@@ -30,6 +30,7 @@ import { getUserCompat, getUserCompatForBilledCall } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { buildChatSystemPrompt, capChatSelection, parseChatContext, parseChatHistory, splitFollowUps } from '@/lib/chatPrompt';
 import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xaiAnswer';
+import { bearerToken } from '@/lib/bearerToken';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -64,7 +65,7 @@ async function getUsageRow(token: string, userId: string, today: string) {
 export async function GET(req: NextRequest) {
   if (!GROK_KEY) return NextResponse.json({ error: 'Not configured' }, { status: 503 });
   if (!(await isFeatureEnabled('grok'))) return NextResponse.json({ error: 'LiquidityAI is temporarily unavailable.', code: 'FEATURE_DISABLED' }, { status: 503 });
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Auth required' }, { status: 401 });
   const { data: userData } = await getUserCompat(token);
   if (!userData.user) return NextResponse.json({ error: 'Auth required' }, { status: 401 });
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest) {
   }
 
   /* ── Auth check ── */
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) {
     return NextResponse.json({ error: 'Sign in required', code: 'AUTH_REQUIRED' }, { status: 401 });
   }

@@ -65,6 +65,9 @@ export default function MacroStrip() {
     },
   ];
 
+  /* NOTHING TO SHOW: the strip is left out instead of a title over an empty row (failure-text audit A25). It appears when the first quote lands. */
+  if (jpyUsd == null && items.every(i => i.price == null)) return null;
+
   return (
     <div className="macro-strip">
       <div className="macro-strip-title">{t('MACRO_STRIP_TITLE')}</div>

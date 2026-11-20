@@ -5,6 +5,7 @@ import { sendWelcomeEmail } from '@/lib/email';
 import { T } from '@/lib/tables';
 import { classifyWelcomeClaim, missingRowReport } from '@/lib/signupIntegrity';
 import { fetchAuthUser, getUserCompat } from '@/lib/authUser';
+import { bearerToken } from '@/lib/bearerToken';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,7 @@ export const dynamic = 'force-dynamic';
 // (UPDATE ... WHERE ... IS NULL), so however many times this gets called for
 // an account, the email itself only ever goes out once.
 export async function POST(req: NextRequest) {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   /* #1397: SIGNED_IN fires on every page load of a signed-in user, and the email goes out once per account. So the token is checked locally,

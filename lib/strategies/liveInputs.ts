@@ -22,7 +22,7 @@ export const FUNDING_MIN_POINTS = 60;
 export const FUNDING_MIN_SPAN_DAYS = 30;
 export interface FundingPoint { time: number; rate: number }
 
-export function fundingClassRelative(rate: number | null | undefined, history: readonly FundingPoint[] | null | undefined, nowMs: number): { fundingClass: 'longs_heavy' | 'shorts_heavy' | 'none'; fundingPct: number } | null {
+export function fundingClassRelative(rate: number | null | undefined, history: readonly FundingPoint[] | null | undefined, nowMs: number): { fundingClass: 'longs_heavy' | 'shorts_heavy' | 'none'; fundingPct: number; fundingPinned?: boolean } | null {
   if (rate == null || !Number.isFinite(rate) || !Array.isArray(history)) return null;
   const day = 86_400_000;
   const pts = history.filter(p => Number.isFinite(p.rate) && Number.isFinite(p.time) && p.time >= nowMs - FUNDING_WINDOW_DAYS * day && p.time <= nowMs);
@@ -31,7 +31,10 @@ export function fundingClassRelative(rate: number | null | undefined, history: r
   const below = pts.filter(p => p.rate < rate).length / pts.length;
   const above = pts.filter(p => p.rate > rate).length / pts.length;
   const fundingClass = rate > 0 && below >= FUNDING_EXTREME_SHARE ? 'longs_heavy' : rate < 0 && above >= FUNDING_EXTREME_SHARE ? 'shorts_heavy' : 'none';
-  return { fundingClass, fundingPct: Math.round(rate * 100 * 10000) / 10000 };
+  /* PINNED (QA audit #1263, 2026-11-20: the squeeze was silent on every timeframe for SOL, XRP, SUI, BNB, MSTR and TSLA): the rate equals the coin's own top (or bottom) value and so many settlements share it (funding at the exchange ceiling, or at zero for a tokenized stock) that "strictly beyond 95% of them" can never hold. The answer stays 'none', but the call box can now say WHY instead of a bare "not extreme". */
+  const tied = pts.filter(p => p.rate === rate).length / pts.length;
+  const pinned = fundingClass === 'none' && rate !== 0 && (rate > 0 ? below + tied >= FUNDING_EXTREME_SHARE : above + tied >= FUNDING_EXTREME_SHARE);
+  return { fundingClass, fundingPct: Math.round(rate * 100 * 10000) / 10000, ...(pinned ? { fundingPinned: true } : {}) };
 }
 
 /** Settled funding rates from Binance futures (/fapi/v1/fundingRate: oldest first, `fundingTime` ms, `fundingRate` string). Rows that do not parse are dropped. */
@@ -53,12 +56,14 @@ export function parseBybitFunding(body: unknown): FundingPoint[] {
 const FUNDING_CACHE_MS = 30 * 60_000;
 const fundingCache = new Map<string, { at: number; pts: FundingPoint[] }>();
 
+/* THE BINANCE FUNDING ROUTE ANSWERS 502 FROM OUR HOSTS (QA, 2026-11-20: /api/proxy?type=funding-rate-1 failed on every load on qa while the Bybit route answered 200: Binance refuses the server's region). A failed first page marks the route blocked for half an hour, so the history goes straight to Bybit instead of paying a failing request per coin. */
+let binanceFundingBlockedUntil = 0;
 async function pageBinanceFunding(sym: string, start: number, end: number, signal?: AbortSignal): Promise<FundingPoint[]> {
   const out: FundingPoint[] = [];
   let cursor = start;
   for (let page = 0; page < 6; page++) {
     const r = await fetch(`/api/proxy?type=funding-rate-1&symbol=${sym}&startTime=${cursor}&endTime=${end}&limit=1000`, { signal });
-    if (!r.ok) break;
+    if (!r.ok) { if (page === 0) binanceFundingBlockedUntil = Date.now() + 30 * 60_000; break; }
     const rows = parseBinanceFunding(await r.json());
     if (!rows.length) break;
     out.push(...rows);
@@ -93,7 +98,7 @@ export async function fetchFundingHistory(coin: string, signal?: AbortSignal, no
   const by = coinRow(coin)?.bybit ?? undefined;
   const start = nowMs - FUNDING_WINDOW_DAYS * 86_400_000;
   const tries: Array<() => Promise<FundingPoint[]>> = [];
-  if (bn) tries.push(() => pageBinanceFunding(bn, start, nowMs, signal));
+  if (bn && nowMs >= binanceFundingBlockedUntil) tries.push(() => pageBinanceFunding(bn, start, nowMs, signal));
   if (by) tries.push(() => pageBybitFunding(by, start, nowMs, signal));
   for (const run of tries) {
     try {

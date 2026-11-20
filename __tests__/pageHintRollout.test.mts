@@ -88,7 +88,9 @@ test('S3. econ-calendar: PageHint is present, ECON_CALENDAR_SUBTITLE is gone, bu
   // d4bf1cdf: the owner's h1-drop restructured this line - it moved up and picked up the header's own
   // vertical rhythm (padding: '20px 0 16px') in place of the plain fontSize/color-only div it replaced.
   // Re-verified against origin/dev before updating this anchor, not just from the report that flagged it.
-  anchorOnce(source, "{source && (\n        <div style={{ padding: '20px 0 16px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{source}</div>", 'the standalone source-credit line');
+  // #2683: the same line now also carries the age of the saved calendar after a failed refresh ("source · 12 min ago"):
+  // it shows for a source OR a saved-calendar age, and the source credit is still its first child.
+  anchorOnce(source, "{(source || (failed && savedTs != null)) && (\n        <div style={{ padding: '20px 0 16px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>\n          {source}{source && failed && savedTs != null ?", 'the standalone source-credit line');
 });
 
 test('S3b. econ-calendar: the old h1 (ECON_CALENDAR_TITLE) is dropped too, per the owner\'s final h1-drop (d4bf1cdf) - PageHint is the sole intro, not a duplicate title above it', () => {

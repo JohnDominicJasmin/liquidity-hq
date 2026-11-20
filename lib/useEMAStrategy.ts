@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { CoinId, venueSymbols } from './marketStore.ts';
 import { OKX_SYMS } from './coins.ts';
 import { okxBarForBinanceInterval } from './okx.ts';
-import { symbolDenominationFactor, currencyPrefix } from './coins.ts';
+import { symbolDenominationFactor, currencyPrefix, arenaPriceUnit } from './coins.ts';
 import { fundingDetail } from './fundingDetail.ts';
 import {
   emaArr, smaArr, bollingerBandsArr, psarArr, macdArr, volMA, atrArr, detectEMASignals,
@@ -48,6 +48,8 @@ export interface StrategyCondition {
 }
 
 export interface StrategySignal {
+  /** Set when the LAST refresh failed and the rest of this object is the previous good signal: the ms epoch it was last confirmed (audit A15; the card shows its age instead of replacing it with a failure line). */
+  staleSince?:       number;
   verdict:           StrategyVerdict;
   phase:             string;
   conditions:        StrategyCondition[];
@@ -203,6 +205,8 @@ async function fetchBybitKlines(sym: string, interval: string, limit: number): P
   });
   if (d === null) throw new Error('Bybit klines failed after retry');
   const list = [...(d?.result?.list ?? [])].reverse();
+  /* NO CANDLES FROM A VENUE IS A FAILED READ, NOT "THE COIN HAS 0" (QA drawings audit #1263: BTC 1d said "BTC has 0"): throwing lets fetchOHLCV try the next venue, and only when all fail does the card say it could not read. */
+  if (!list.length) throw new Error('Bybit returned no candles');
   // 1000PEPEUSDT / 1000BONKUSDT are quoted per 1000 tokens. This feeds the
   // Arena EMA Signal card's entry / stop-loss / take-profit, which are shown as
   // dollar prices next to a ticker quoting per-token - so without this those
@@ -214,7 +218,7 @@ async function fetchBybitKlines(sym: string, interval: string, limit: number): P
   }));
 }
 
-export async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval: string, limit: number): Promise<OHLCV[]> {
+async function fetchOHLCVPerToken(coin: CoinId, bnInterval: string, bybitInterval: string, limit: number): Promise<OHLCV[]> {
   /* venueSymbols, not the editorial maps: the Arena scanner scores the whole universe (#1263). */
   const { binance: bnSym, bybit: bySym } = venueSymbols(coin);
   /* #1059: Bybit primary, Binance fallback - reversed from Binance-primary.
@@ -262,6 +266,14 @@ export async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval
     console.warn(`[useEMAStrategy] ${failed} klines failed for ${coin}, falling back to ${next}:`,
       err instanceof Error ? err.message : String(err));
   });
+}
+
+/** The candles the Arena strategies and the EMA card read, in the unit the Arena SHOWS prices in (PM, 2026-11-20): per-token for every ordinary coin, the exchange's 1000x contract unit for 1000PEPE and its kin, the same series the chart draws, so the call box, the Watching list, the
+ *  EMA card's entry / stop / target, the chart's markers and the AI read quote one scale. Volume is left alone. See arenaPriceUnit in lib/coins.ts. */
+export async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval: string, limit: number): Promise<OHLCV[]> {
+  const list = await fetchOHLCVPerToken(coin, bnInterval, bybitInterval, limit);
+  const u = arenaPriceUnit(coin);
+  return u === 1 ? list : list.map(k => ({ ...k, open: k.open * u, high: k.high * u, low: k.low * u, close: k.close * u }));
 }
 
 /* ── Initial / loading state ─────────────────────────────────────────────── */
@@ -347,6 +359,8 @@ export function useEMAStrategy(
   const { spreadMinPct, atrMult, persistBoost } = filterParams;
   const [sig, setSig] = useState<StrategySignal>(STRATEGY_LOADING);
   const mountedRef    = useRef(true);
+  const lastGoodAtRef = useRef(Date.now());
+  useEffect(() => { if (!sig.loading && !sig.error && sig.staleSince == null) lastGoodAtRef.current = Date.now(); }, [sig]);
 
   // Live inputs read at compute time. Funding/OI tick frequently and the anti-chop
   // toggle swaps filter params - none of those need new candles, so they must not be
@@ -1052,7 +1066,8 @@ export function useEMAStrategy(
         if (!mountedRef.current) return false;
         // #1058: same as the compute-path catch above - log before stringifying.
         console.error('[useEMAStrategy] kline fetch failed:', err);
-        setSig({ ...STRATEGY_LOADING, loading: false, error: String(err) });
+        /* A FAILED REFRESH KEEPS THE PREVIOUS SIGNAL (audit A15, owner's feature-freeze order): it used to replace verdict, levels and record with the loading object plus an error, and the Confluence score silently dropped its EMA factor. With a good signal on screen it stays, marked with the time it was last confirmed (the retry runs within a minute); the failure state only shows when there never was one. */
+        setSig(prev => (!prev.loading && !prev.error && prev.verdict !== 'LOADING' ? { ...prev, staleSince: prev.staleSince ?? lastGoodAtRef.current } : { ...STRATEGY_LOADING, loading: false, error: String(err) }));
         return false;
       }
     };

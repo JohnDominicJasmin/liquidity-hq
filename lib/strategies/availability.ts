@@ -18,10 +18,11 @@ export function strategyUnavailable(id: string, coin: string, tfMs: number | und
   const sym = coin.toUpperCase();
   switch (id) {
     case 'ny_open_breakout':
-      // the 30-minute opening range must be a whole number of candles
-      return tfOver(30 * MIN, '30m') ?? (tfMs != null && (30 * MIN) % tfMs !== 0 ? { reasonKey: 'STRAT_NA_TF_MAX', vars: { tf: '30m' } } : null);
-    case 'vwap_reclaim':
+      // the 30-minute opening range must be a whole number of candles; the strategy is described and built for 5m to 30m, so 1m is greyed with its reason (QA drawings audit, 2026-11-20: selectable at 1m but nothing drawn)
+      return (tfMs != null && tfMs < 5 * MIN ? { reasonKey: 'STRAT_NA_TF_MIN', vars: { tf: '5m' } } : null) ?? tfOver(30 * MIN, '30m') ?? (tfMs != null && (30 * MIN) % tfMs !== 0 ? { reasonKey: 'STRAT_NA_TF_MAX', vars: { tf: '30m' } } : null);
     case 'session_sweep':
+      return (tfMs != null && tfMs < 5 * MIN ? { reasonKey: 'STRAT_NA_TF_MIN', vars: { tf: '5m' } } : null) ?? tfOver(HOUR, '1h');
+    case 'vwap_reclaim':
       return tfOver(HOUR, '1h');
     case 'funding_oi_squeeze':
       if (tfMs != null && tfMs < 5 * MIN) return { reasonKey: 'STRAT_NA_TF_MIN', vars: { tf: '5m' } };

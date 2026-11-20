@@ -13,6 +13,7 @@ import type { User } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { userClient } from '@/lib/supabase-user';
+import { bearerToken } from './bearerToken.ts';
 
 export type AdminRole = 'owner' | 'staff';
 
@@ -74,7 +75,7 @@ export type AdminOk = { ok: true } & AdminCtx;
 
 // Returns the authenticated admin (with role), or a NextResponse (401/403).
 export async function requireAdmin(req: Request): Promise<AdminOk | NextResponse> {
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = bearerToken(req.headers);
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data, error } = await anon(token).auth.getUser();
