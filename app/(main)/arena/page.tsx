@@ -53,7 +53,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
-import { liqUnitsMixed, binanceKlineSource, coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
+import { arenaPriceUnit, liqUnitsMixed, binanceKlineSource, coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF, CHART_TFS, ARENA_TFS } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
@@ -1300,7 +1300,8 @@ function ArenaContent() {
        Shared rather than duplicated on purpose: each one is a sentence with interpretive text in
        it, and a server-side copy differing by a space or a threshold would change the prompt - and
        so the answer - with nothing failing. */
-    const numberFields = arenaNumberFields(coin);
+    const priceUnit = arenaPriceUnit(selectedCoin);   // the scale the Arena shows prices in (1000x contracts: the chart's unit); every price text below is in it
+    const numberFields = arenaNumberFields(coin, priceUnit);
 
 
     /* CVD */
@@ -1328,15 +1329,15 @@ function ArenaContent() {
           const fibs = computeFibLevels(coin.high, coin.low, coin.price);
           if (!fibs.length) return '-';
           const nearest = fibs.reduce((acc, f) => Math.abs(coin.price - f.price) < Math.abs(coin.price - acc.price) ? f : acc);
-          return nearest.label + ' @ ' + priceText(nearest.price) + ' (' + nearest.dist + ')';
+          return nearest.label + ' @ ' + priceText(nearest.price * priceUnit) + ' (' + nearest.dist + ')';
         })()
       : '-';
 
     /* Order book walls */
     const orderWalls = coin?.orderBidWalls && coin?.orderAskWalls
       /* #1631 B: decimals by size - maximumFractionDigits 0 printed every XRP wall as "$2". */
-      ? 'Bid walls: ' + coin.orderBidWalls.map(w => priceText(w.price)).join(', ')
-        + ' | Ask walls: ' + coin.orderAskWalls.map(w => priceText(w.price)).join(', ')
+      ? 'Bid walls: ' + coin.orderBidWalls.map(w => priceText(w.price * priceUnit)).join(', ')
+        + ' | Ask walls: ' + coin.orderAskWalls.map(w => priceText(w.price * priceUnit)).join(', ')
       : '-';
 
     /* Squeeze score */

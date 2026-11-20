@@ -104,8 +104,13 @@ void _fieldsAreReal;
  * degrades to `'-'` per field exactly as a missing value from the store does.
  */
 export function arenaNumberFields(
-  coin: Partial<CoinData> | undefined,
+  coinRow: Partial<CoinData> | undefined,
+  /** The Arena's price unit for this coin (arenaPriceUnit in lib/coins.ts): 1000 for 1000PEPE and its kin, so the AI quotes the scale the screen shows. 1 for every other coin. */
+  unit = 1,
 ): Pick<GrokContext, ArenaNumberField> {
+  const coin: Partial<CoinData> | undefined = coinRow && unit !== 1
+    ? { ...coinRow, ...(['price', 'ma20', 'poc', 'vah', 'val', 'vwap'] as const).reduce<Partial<CoinData>>((o, k) => (typeof coinRow[k] === 'number' ? { ...o, [k]: (coinRow[k] as number) * unit } : o), {}) }
+    : coinRow;
   /* Multi-TF RSI. Note `toFixed(0)` here against `toFixed(1)` for rsi14 below - that difference is
      in the original and is kept; the 14-period reading is quoted more precisely than the
      per-timeframe ones. */
