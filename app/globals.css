@@ -7392,6 +7392,20 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   }
   html[data-design="terminal"]:lang(ru) .tnav-wordmark { letter-spacing: .06em; }
 }
+/* #1185 (width audit 1024-1160): THE BAR IN ENGLISH FROM 945 TO 1279 PX. The English trims above stop at 944 px (and the Russian ones at 1279 are sized for Russian labels), but from 1024 px the Free badge also
+   shows its "Upgrade" word (about 133 px against 55 for "FREE", the .plan-badge-upgrade rule), so the signed-in bar adds up to roughly 1150 px of brand, six items, the session pill, theme and language buttons,
+   badge and avatar at the shipped spacing: about 130 px more than a 1024 px bar, so the avatar was pushed off the right edge. Same pattern as the 768-917 px rules above, and the same reasoning as #1114: the session
+   pill is supplementary (it is hidden from 768 to 944 already) so it goes below 1160 px; the bar's own gap (28 -> 16) and the items' side padding (12 -> 8) tighten from 945 to 1279 px, which recovers about 85 px with
+   the session pill still showing at 1160 and up. Rules for Russian carry higher specificity and keep their own values. NOT measured in a browser (none on the dev laptop): QA measures `.tnav` scrollWidth against
+   clientWidth and the avatar's right edge at 945, 1024, 1100 and 1279 px, signed in on Free, in English, Russian and Korean. */
+@media (min-width: 945px) and (max-width: 1159px) {
+  [data-design="terminal"] .tnav-session { display: none; }
+}
+@media (min-width: 945px) and (max-width: 1279px) {
+  [data-design="terminal"] .tnav { gap: 16px; }
+  [data-design="terminal"] .tnav-item { padding-left: 8px; padding-right: 8px; }
+  [data-design="terminal"] .tnav-right { gap: 10px; }
+}
 [data-design="terminal"] .tnav-kbd {
   color: var(--txt3);
   border: 1px solid var(--bdr);
