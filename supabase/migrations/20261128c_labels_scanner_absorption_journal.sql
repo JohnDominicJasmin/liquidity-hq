@@ -1,6 +1,6 @@
 -- NOT YET APPLIED TO ANY DATABASE. Apply ONE block per project: PROD on qdpwhnvmhqgzijuwopso BEFORE the release deploy; DEV on wdtjhrilakoitfcezxpx.
 --
--- Batch 3 of the ko / zh / ru English sweep (#1185, PM go 2026-11-20), after 20261128a and 20261128b: 30 new keys for text that was hardcoded in the app: scanner accumulation chips, Absorption card labels and detail, the GEX regime word, journal session names, the onboarding "Other" country and the TRIAL badge tooltip. en rows equal lib/labelDefaults.en.json. ko / zh / ru are AI-drafted and NOT native-reviewed. Country names are not rows: the picker uses the browser's own region names (Intl.DisplayNames).
+-- Batch 3 of the ko / zh / ru English sweep (#1185, PM go 2026-11-20), after 20261128a and 20261128b: 33 new keys for text that was hardcoded in the app: scanner accumulation chips, Absorption card labels and detail, the GEX regime word, journal session names, the onboarding "Other" country and the TRIAL badge tooltip. en rows equal lib/labelDefaults.en.json. ko / zh / ru are AI-drafted and NOT native-reviewed. Country names are not rows: the picker uses the browser's own region names (Intl.DisplayNames).
 
 -- ===================== PROD =====================
 insert into lhq_labels (key, locale, value) values
@@ -92,6 +92,18 @@ insert into lhq_labels (key, locale, value) values
 ('ACCUMULATION_REASON_WHALES','ko','고래 롱 {n}%'),
 ('ACCUMULATION_REASON_WHALES','zh','巨鲸多头 {n}%'),
 ('ACCUMULATION_REASON_WHALES','ru','Киты в лонге: {n}%'),
+('BRIEFING_DUR_H','en','{h}h'),
+('BRIEFING_DUR_H','ko','{h}시간'),
+('BRIEFING_DUR_H','zh','{h} 小时'),
+('BRIEFING_DUR_H','ru','{h} ч'),
+('BRIEFING_DUR_HM','en','{h}h {m}m'),
+('BRIEFING_DUR_HM','ko','{h}시간 {m}분'),
+('BRIEFING_DUR_HM','zh','{h} 小时 {m} 分钟'),
+('BRIEFING_DUR_HM','ru','{h} ч {m} мин'),
+('BRIEFING_DUR_MIN','en','{m}m'),
+('BRIEFING_DUR_MIN','ko','{m}분'),
+('BRIEFING_DUR_MIN','zh','{m} 分钟'),
+('BRIEFING_DUR_MIN','ru','{m} мин'),
 ('GEX_TABLE_REGIME_WORD','en','regime'),
 ('GEX_TABLE_REGIME_WORD','ko','국면'),
 ('GEX_TABLE_REGIME_WORD','zh','格局'),
@@ -216,6 +228,18 @@ insert into lhq_dev_labels (key, locale, value) values
 ('ACCUMULATION_REASON_WHALES','ko','고래 롱 {n}%'),
 ('ACCUMULATION_REASON_WHALES','zh','巨鲸多头 {n}%'),
 ('ACCUMULATION_REASON_WHALES','ru','Киты в лонге: {n}%'),
+('BRIEFING_DUR_H','en','{h}h'),
+('BRIEFING_DUR_H','ko','{h}시간'),
+('BRIEFING_DUR_H','zh','{h} 小时'),
+('BRIEFING_DUR_H','ru','{h} ч'),
+('BRIEFING_DUR_HM','en','{h}h {m}m'),
+('BRIEFING_DUR_HM','ko','{h}시간 {m}분'),
+('BRIEFING_DUR_HM','zh','{h} 小时 {m} 分钟'),
+('BRIEFING_DUR_HM','ru','{h} ч {m} мин'),
+('BRIEFING_DUR_MIN','en','{m}m'),
+('BRIEFING_DUR_MIN','ko','{m}분'),
+('BRIEFING_DUR_MIN','zh','{m} 分钟'),
+('BRIEFING_DUR_MIN','ru','{m} мин'),
 ('GEX_TABLE_REGIME_WORD','en','regime'),
 ('GEX_TABLE_REGIME_WORD','ko','국면'),
 ('GEX_TABLE_REGIME_WORD','zh','格局'),
