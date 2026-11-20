@@ -63,7 +63,7 @@
  */
 
 import { COINS, BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, bybitPriceFactor } from './coins.ts';
-import { cachedRefresh, cachedAt, cachedServable, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
+import { cachedRefresh, cachedAt, cachedPeek, cachedServable, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
 
 /* AN EMPTY OR HALF-EMPTY SECTION IS NOT A SUCCESS (owner sweep 2026-11-18). A build that came back with nothing, or with under half of
    what it owes while a good entry can still be served, used to be cached as a fresh success for the whole TTL: cells blanked for 3-5
@@ -457,6 +457,8 @@ export interface MarketSnapshot {
   viaFallback: Record<string, string[]>;
   /** When the OLDEST section in this response was fetched (epoch ms). The cached sections have different ages, so the response is only as fresh as its oldest part; null when none could be read. */
   fetchedAt: number | null;
+  /** True when EVERY section's refresh failed and this answer is the last good one, up to SNAPSHOT_LAST_GOOD_MS old; `fetchedAt` is then its real age. Omitted otherwise. */
+  stale?: boolean;
 }
 
 /**
@@ -473,6 +475,9 @@ function withinDeadline<T>(p: Promise<T>, ms: number): Promise<T> {
   return Promise.race([p, late]).finally(() => clearTimeout(timer));
 }
 
+/* WHEN EVERY SECTION FAILS, THE LAST GOOD SNAPSHOT (PM route audit, 2026-11-20): this was the 502 that left a first load with no prices, 24h change or long/short ratios until the exchange answered again. Only in that all-failed case, and only up to 10 minutes: the normal path keeps its own bound (ttl + 60 s), so nothing newly stale is served while an upstream works. The answer is flagged `stale` and `ts` stays the real age of its oldest part. */
+const SNAPSHOT_LAST_GOOD_MS = 10 * 60_000;
+
 export async function marketSnapshotData(): Promise<
   { ok: true; data: MarketSnapshot } | { ok: false; reason: unknown }
 > {
@@ -488,6 +493,15 @@ export async function marketSnapshotData(): Promise<
 
   if (t.status === 'rejected' && k.status === 'rejected' && l.status === 'rejected') {
     reportHealth('binance:snapshot', 'market', false, healthError(t.reason));
+    const tp = cachedPeek<{ out: Record<string, TickerEntry> }>('mkt:ticker', SNAPSHOT_LAST_GOOD_MS);
+    const kp = cachedPeek<{ out: Record<string, KlineMetrics> }>('mkt:klines', SNAPSHOT_LAST_GOOD_MS);
+    const lp = cachedPeek<Record<string, LsrEntry>>('mkt:lsr', SNAPSHOT_LAST_GOOD_MS);
+    if (tp || kp || lp) {
+      const ticker = tp?.data.out ?? {}, klines = kp?.data.out ?? {}, lsr = lp?.data ?? {};
+      const partial = ([['ticker', ticker], ['klines', klines], ['lsr', lsr]] as const).filter(([, v]) => Object.keys(v).length === 0).map(([name]) => name);
+      const ages = [tp?.ts, kp?.ts, lp?.ts].filter((n): n is number => n != null);
+      return { ok: true, data: { ticker, klines, lsr, partial, viaFallback: {}, fetchedAt: Math.min(...ages), stale: true } };
+    }
     return { ok: false, reason: t.reason };
   }
 

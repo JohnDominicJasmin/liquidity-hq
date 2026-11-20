@@ -101,12 +101,14 @@ function sb(token?: string) {
   return token ? userClient(token) : anonServerClient();
 }
 
-async function getUsageRow(token: string, userId: string, today: string) {
-  const { data } = await sb(token).from(T.grok_usage)
+/* A FAILED USAGE READ IS UNKNOWN, NOT ZERO (PM route audit, 2026-11-20): `strict` makes a database error throw, so the usage GET answers 503 instead of 200 with every count at 0, which showed a user with no uses spent a full allowance and (for a user at the cap) a false zero. Only the GET asks for it; the POST paths keep reading the row as before. */
+async function getUsageRow(token: string, userId: string, today: string, strict = false) {
+  const { data, error } = await sb(token).from(T.grok_usage)
     .select('deep_count, quick_count, chat_count, chat_search_count, briefing_count, tool_pool_count')
     .eq('user_id', userId)
     .eq('date', today)
     .maybeSingle();
+  if (strict && error) throw new Error(`usage read failed: ${error.message}`);
   return {
     deepUsed:     data?.deep_count        ?? 0,
     quickUsed:    data?.quick_count       ?? 0,
@@ -135,10 +137,17 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ usage: null });
 
   const today = todayUtc();
-  const [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed }, plan] = await Promise.all([
-    getUsageRow(token, userId, today),
-    getUsageTierStatus(token, userId),
-  ]);
+  let usageRead: Awaited<ReturnType<typeof getUsageRow>>, plan: Awaited<ReturnType<typeof getUsageTierStatus>>;
+  try {
+    [usageRead, plan] = await Promise.all([
+      getUsageRow(token, userId, today, true),
+      getUsageTierStatus(token, userId),
+    ]);
+  } catch (e) {
+    console.error('/api/grok GET usage unavailable:', e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ usage: null, error: 'USAGE_UNAVAILABLE' }, { status: 503 });
+  }
+  const { deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed } = usageRead;
   /* U7: the usage DISPLAY for an account whose plan could not be read shows the Pro numbers, not the Free ones: it used to read as Free, so a Pro user saw 5/3 and the Arena buttons disabled at used >= 5 until a reload. */
   const role: UsageTier = plan.failed ? 'pro' : plan.tier;
   const deepLimit     = AI_LIMITS[role].deep;

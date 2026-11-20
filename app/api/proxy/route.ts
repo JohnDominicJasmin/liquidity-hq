@@ -171,7 +171,7 @@ const PASSTHROUGH: Record<string, PassEntry> = {
   'open-interest-1': { url: 'https://api.bybit.com/v5/market/open-interest',
                        params: ['symbol', 'intervalTime', 'limit'], fixed: { category: 'linear' }, ttlMs: 120_000 },
   'funding-history': { url: 'https://api.bybit.com/v5/market/funding/history',
-                       params: ['symbol', 'limit', 'startTime', 'endTime'], fixed: { category: 'linear' }, ttlMs: 900_000 },
+                       params: ['symbol', 'limit', 'startTime', 'endTime'], fixed: { category: 'linear' }, ttlMs: 900_000, serveStaleMs: 6 * 60 * 60_000 },
 
   /* Binance spot and futures */
   /* FUTURES 24h ticker for a NAMED LIST of symbols - the universe rows Bybit does not list (Binance-only
@@ -347,16 +347,17 @@ const PASSTHROUGH: Record<string, PassEntry> = {
   'lsr-top':         { url: 'https://fapi.binance.com/futures/data/topLongShortPositionRatio',
                        params: ['symbol', 'period', 'limit'], ttlMs: 120_000 },
   'funding-rate-1':  { url: 'https://fapi.binance.com/fapi/v1/fundingRate',
-                       params: ['symbol', 'limit', 'startTime', 'endTime'], ttlMs: 900_000 },
+                       params: ['symbol', 'limit', 'startTime', 'endTime'], ttlMs: 900_000, serveStaleMs: 6 * 60 * 60_000 },
 
   /* Not exchanges, but the same reasoning: still the browser talking to a third
      party on every visit, and each is one global figure the whole app shares. */
   'fng':             { url: 'https://api.alternative.me/fng/',
                        params: ['limit'], ttlMs: 900_000, serveStaleMs: 24 * 60 * 60_000 },
   'deribit-book':    { url: 'https://www.deribit.com/api/v2/public/get_book_summary_by_currency',
-                       params: ['currency', 'kind'], ttlMs: 60_000, trim: trimDeribitBook },
+                       params: ['currency', 'kind'], ttlMs: 60_000, serveStaleMs: 60 * 60_000, trim: trimDeribitBook },
+  /* LAST GOOD BODY ON A FAILED REFRESH (PM route audit, 2026-11-20): only `fng` had this, so every other slow type answered 502 once its TTL passed and the page wrote null over what it had. Slow series only: stablecoin supply (24 h), the Deribit book (1 h), funding history (6 h). Prices and ratios stay live-or-error. The answer carries `x-data-stale` and `x-data-age-ms`. */
   'llama-stables':   { url: 'https://stablecoins.llama.fi/stablecoins',
-                       params: ['includePrices'], ttlMs: 900_000, trim: trimLlamaStables },
+                       params: ['includePrices'], ttlMs: 900_000, serveStaleMs: 24 * 60 * 60_000, trim: trimLlamaStables },
 };
 
 export async function GET(req: NextRequest) {
