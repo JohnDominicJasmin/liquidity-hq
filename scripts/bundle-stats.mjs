@@ -75,9 +75,7 @@ for (const route of routes) {
   log(`preloaded fonts: ${f.n} files, ${kb(f.raw)} KB`);
   log(`TOTAL over the wire (gzip, fonts raw): ${kb(s.gz + c.gz + f.raw + gzipSync(Buffer.from(html)).length)} KB`);
   const mm = moduleMap(route);
-  log(mm ? '
-client modules per chunk (from the client-reference manifest, up to 10 each):' : `
-(no client-reference manifest found for ${route})`);
+  log(mm ? 'client modules per chunk (from the client-reference manifest, up to 10 each):' : `(no client-reference manifest found for ${route})`);
   if (mm) for (const r of rows.filter(r => r.kind === 'script').sort((a, b) => b.gz - a.gz).slice(0, 10)) { const mods = mm.get(path.basename(r.url)); if (mods) log(`- ${path.basename(r.url)} (${kb(r.gz)} KB gzip): ${[...mods].slice(0, 10).join(', ')}`); }
   log('| file | kind | raw KB | gzip KB | recognised content |');
   log('|---|---|---:|---:|---|');
