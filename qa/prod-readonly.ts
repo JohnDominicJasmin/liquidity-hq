@@ -224,6 +224,7 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'settings-saves-one-at-a-time': 'writes on purpose: saves settings as a signed-in fixture account',
   'signout-resilience': 'writes on purpose: PATCHes settings and signs out',
   'strategy-panel-preload-race': 'writes on purpose: PATCHes strategy_selection',
+  'failing-text-2731': 'signs in with a DEV-project fixture (not a production account) and drives a journal read that is route-stubbed to fail; its stand-in answers the one trade POST so nothing reaches the database, but a missed route match would write a real journal row. Also forces kline reads to fail, which against production would show a failure to real visitors.',
   'timezone-sync-settings-ready': 'writes on purpose: PATCHes timezone',
 };
 
