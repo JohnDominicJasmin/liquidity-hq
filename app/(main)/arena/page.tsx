@@ -406,6 +406,22 @@ function ArenaContent() {
     () => (liqUnitsMixed(selectedCoin) ? [] : topClustersForCoin(liqClusters, selectedCoin)),   // mixed-unit liquidation feed: nothing drawn, nothing quoted (lib/coins.ts liqUnitsMixed)
     [liqClusters, selectedCoin],
   );
+  /* THE SETUP CARD CLEARS THE RAIL AT ITS REAL WIDTH (PM, 2026-11-20, QA: between 981 and 1099 px the rail is ~486 px wide, not 320, so a fixed offset left the card on it): the page measures the rail and publishes the distance from its left edge to the right edge of the viewport as --arena-rail-clear on <html>;
+     app/globals.css positions the Setup pill and card with it (and falls back to its own calc() until the first measurement). Only from 981 px up (below that the rail is a full-width section); removed when the page unmounts. */
+  useEffect(() => {
+    const root = document.documentElement;
+    const apply = () => {
+      const rail = document.querySelector('.arena-ws-rail') as HTMLElement | null;
+      const r = rail?.getBoundingClientRect();
+      if (r && r.width > 0 && window.innerWidth >= 981) root.style.setProperty('--arena-rail-clear', `${Math.max(0, Math.round(root.clientWidth - r.left + 14))}px`);
+      else root.style.removeProperty('--arena-rail-clear');
+    };
+    apply();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(apply) : null;
+    ro?.observe(document.body);
+    window.addEventListener('resize', apply);
+    return () => { ro?.disconnect(); window.removeEventListener('resize', apply); root.style.removeProperty('--arena-rail-clear'); };
+  }, []);
   const absDataRef    = useRef<AbsorptionData | null>(null);
   const emaSignalRef  = useRef<StrategySignal>(STRATEGY_LOADING);
   /* The strategy selection lives here rather than inside StrategyPanel
