@@ -26,6 +26,9 @@ function fileFor(url) {
   return path.join(root, 'public', clean);
 }
 const kb = n => (n / 1024).toFixed(1);
+/* WHAT A CHUNK HOLDS, by strings that survive minification (package names in error messages and globals). A hint, not a module list. */
+const MARKERS = [['react-dom', 'react-dom'], ['react-dom', '__reactContainer'], ['next/router', 'next-router'], ['supabase', 'supabase'], ['supabase', 'GoTrue'], ['posthog', 'posthog'], ['sentry', '@sentry'], ['sentry', 'Sentry'], ['klinecharts', 'klinecharts'], ['klinecharts', 'registerIndicator'], ['zod', 'ZodError'], ['lucide', 'lucide'], ['framer', 'framer-motion'], ['date-fns', 'date-fns'], ['intl', 'Intl.DateTimeFormat'], ['i18n labels', 'labelDefaults'], ['market store', 'fundingRate'], ['arena', 'ARENA_'], ['strategies', 'STRAT_OV_'], ['landing', 'LandingTerminal'], ['polyfills', 'Array.prototype.at']];
+function recognise(text) { return [...new Set(MARKERS.filter(([, m]) => text.includes(m)).map(([n]) => n))].join(', '); }
 
 for (const route of routes) {
   const rel = htmlFor(route);
@@ -54,8 +57,8 @@ for (const route of routes) {
   log(`stylesheets: ${c.n} files, ${kb(c.raw)} KB raw / ${kb(c.gz)} KB gzip (render-blocking)`);
   log(`preloaded fonts: ${f.n} files, ${kb(f.raw)} KB`);
   log(`TOTAL over the wire (gzip, fonts raw): ${kb(s.gz + c.gz + f.raw + gzipSync(Buffer.from(html)).length)} KB`);
-  log('| file | kind | raw KB | gzip KB |');
-  log('|---|---|---:|---:|');
-  for (const r of rows.sort((a, b) => b.gz - a.gz).slice(0, 12)) log(`| ${path.basename(r.url)}${r.missing ? ' (missing)' : ''} | ${r.kind} | ${kb(r.raw)} | ${kb(r.gz)} |`);
+  log('| file | kind | raw KB | gzip KB | recognised content |');
+  log('|---|---|---:|---:|---|');
+  for (const r of rows.sort((a, b) => b.gz - a.gz).slice(0, 14)) log(`| ${path.basename(r.url)}${r.missing ? ' (missing)' : ''} | ${r.kind} | ${kb(r.raw)} | ${kb(r.gz)} | ${r.kind === 'script' && !r.missing ? recognise(readFileSync(fileFor(r.url), 'utf8')) : ''} |`);
 }
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, '## First-load weight (built HTML)\n```\n' + out.join('\n') + '\n```\n');
