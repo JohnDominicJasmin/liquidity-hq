@@ -159,7 +159,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "VWAP reclaim draws from the first candle and reads further back.",
       "Strategy lines left of the visible candles show an edge label.",
       "The Arena chart and trade journal keep data when a reload fails.",
-      "Scanner, open interest and strategy cells retry before saying unavailable.",
+      "Scanner, open interest and strategy panels retry before saying unavailable.",
       "The Arena and top bar fit tablet and small laptop widths.",
       "Telegram alerts leave out lines whose data is missing.",
       "The AI read keeps its 'Confirms to' line short.",
