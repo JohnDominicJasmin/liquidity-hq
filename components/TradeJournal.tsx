@@ -436,7 +436,8 @@ function Inner() {
     // that reads as "you have no trades" to someone who has trades. Flag it so
     // the tabs can show an error + retry instead, the way the sibling GETs in
     // this file already do (#1168).
-    if (error) { setTradesError(true); setLoading(false); return; }
+    /* A FAILED RE-READ KEEPS THE LOADED TRADES (failing-text sweep 2, owner's rule: last good value, not a failure line): the error state is for a first read with nothing on screen. */
+    if (error) { if (trades.length === 0) setTradesError(true); setLoading(false); return; }
     setTrades((data ?? []) as Trade[]);
     setLoading(false);
   };
