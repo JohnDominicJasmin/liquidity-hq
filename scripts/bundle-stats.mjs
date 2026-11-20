@@ -26,6 +26,23 @@ function fileFor(url) {
   return path.join(root, 'public', clean);
 }
 const kb = n => (n / 1024).toFixed(1);
+/* CHUNK -> CLIENT MODULES from the route's client-reference manifest (Next writes it next to the page: it names every client module and the chunks that carry it). */
+function moduleMap(route) {
+  const base = route === '/' ? '' : route.replace(/^\//, '') + '/';
+  const f = path.join(root, `.next/server/app/${base}page_client-reference-manifest.js`);
+  if (!existsSync(f)) return null;
+  try {
+    const text = readFileSync(f, 'utf8');
+    const json = JSON.parse(text.slice(text.indexOf('= ') + 2).replace(/;\s*$/, ''));
+    const byChunk = new Map();
+    for (const [mod, info] of Object.entries(json.clientModules ?? {})) for (const ch of info.chunks ?? []) {
+      const name = String(ch).split('/').pop().split('?')[0];
+      if (!byChunk.has(name)) byChunk.set(name, new Set());
+      byChunk.get(name).add(mod.replace(/^\[project\]\//, '').split('#')[0]);
+    }
+    return byChunk;
+  } catch (e) { return null; }
+}
 /* WHAT A CHUNK HOLDS, by strings that survive minification (package names in error messages and globals). A hint, not a module list. */
 const MARKERS = [['react-dom', 'react-dom'], ['react-dom', '__reactContainer'], ['next/router', 'next-router'], ['supabase', 'supabase'], ['supabase', 'GoTrue'], ['posthog', 'posthog'], ['sentry', '@sentry'], ['sentry', 'Sentry'], ['klinecharts', 'klinecharts'], ['klinecharts', 'registerIndicator'], ['zod', 'ZodError'], ['lucide', 'lucide'], ['framer', 'framer-motion'], ['date-fns', 'date-fns'], ['intl', 'Intl.DateTimeFormat'], ['i18n labels', 'labelDefaults'], ['market store', 'fundingRate'], ['arena', 'ARENA_'], ['strategies', 'STRAT_OV_'], ['landing', 'LandingTerminal'], ['polyfills', 'Array.prototype.at']];
 function recognise(text) { return [...new Set(MARKERS.filter(([, m]) => text.includes(m)).map(([n]) => n))].join(', '); }
@@ -57,6 +74,11 @@ for (const route of routes) {
   log(`stylesheets: ${c.n} files, ${kb(c.raw)} KB raw / ${kb(c.gz)} KB gzip (render-blocking)`);
   log(`preloaded fonts: ${f.n} files, ${kb(f.raw)} KB`);
   log(`TOTAL over the wire (gzip, fonts raw): ${kb(s.gz + c.gz + f.raw + gzipSync(Buffer.from(html)).length)} KB`);
+  const mm = moduleMap(route);
+  log(mm ? '
+client modules per chunk (from the client-reference manifest, up to 10 each):' : `
+(no client-reference manifest found for ${route})`);
+  if (mm) for (const r of rows.filter(r => r.kind === 'script').sort((a, b) => b.gz - a.gz).slice(0, 10)) { const mods = mm.get(path.basename(r.url)); if (mods) log(`- ${path.basename(r.url)} (${kb(r.gz)} KB gzip): ${[...mods].slice(0, 10).join(', ')}`); }
   log('| file | kind | raw KB | gzip KB | recognised content |');
   log('|---|---|---:|---:|---|');
   for (const r of rows.sort((a, b) => b.gz - a.gz).slice(0, 14)) log(`| ${path.basename(r.url)}${r.missing ? ' (missing)' : ''} | ${r.kind} | ${kb(r.raw)} | ${kb(r.gz)} | ${r.kind === 'script' && !r.missing ? recognise(readFileSync(fileFor(r.url), 'utf8')) : ''} |`);
