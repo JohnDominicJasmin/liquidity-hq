@@ -151,7 +151,7 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     /* DRAFT, the release after v2026.11.22 (Dev 2026-11-20, PM). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs (rule 22; 2026-11-21 is a placeholder). Plain words, 12 words or fewer per line; only user-visible changes, facts only (QA checks each line).
-       Tied to: #2715 + #2719 (VWAP), #2718 (liquidation units), #2719 (edge labels), #2731 (last good candles and trades), #2732 (retries first), #2724 + #2725 (widths; the dashboard widths #2727 + #2733 join the line once QA's measurement passes), #2734 (Telegram), #2721 (Confirms-to cap). No entry on purpose: #2712 (VWAP card decimals) and #2735 (empty parentheses), cosmetic. A line whose PR misses the tag is removed. */
+       Tied to: #2715 + #2719 (VWAP), #2718 (liquidation units), #2719 (edge labels), #2731 (last good candles and trades), #2732 (retries first), #2724 + #2725 (widths; the dashboard widths #2727 + #2733 join the line once QA's measurement passes), #2734 (Telegram), #2721 (Confirms-to cap), #2735 (empty brackets in the Fear & Greed notification), #2736 (a full read names a level), #2737 (ko / zh / ru text; its follow-up #2738 joins the line when it merges). No entry on purpose: #2712 (VWAP card decimals), cosmetic. A line whose PR misses the tag is removed. */
     date: '2026-11-21',
     tag: 'v2026.11.23',
     items: [
@@ -163,6 +163,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       "The Arena and top bar fit tablet and small laptop widths.",
       "Telegram alerts leave out lines whose data is missing.",
       "The AI read keeps its 'Confirms to' line short.",
+      "A full Bullish or Bearish read now names a watch level.",
+      "The Fear & Greed notification no longer shows empty brackets.",
+      "Korean, Chinese and Russian pages show more text in your language.",
     ],
   },
   {
