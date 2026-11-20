@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   try {
     const res = await marketSnapshotData();
     if (!res.ok) return apiError('market-snapshot', res.reason, 502, 'Upstream unavailable');
-    const { ticker, klines, lsr, partial, viaFallback, fetchedAt } = res.data;
+    const { ticker, klines, lsr, partial, viaFallback, fetchedAt, stale } = res.data;
 
     return NextResponse.json({
       ticker,
@@ -28,6 +28,8 @@ export async function GET(req: NextRequest) {
          `'partial' in body` stays a valid check. */
       ...(partial.length ? { partial } : {}),
       ...(Object.keys(viaFallback).length ? { viaFallback } : {}),
+      /* Present only when every section's refresh failed and this is the last good snapshot; `ts` is then its real age. */
+      ...(stale ? { stale: true } : {}),
       /* The DATA's age, not the request's: this is served from three caches, so Date.now() made 3-minute-old numbers look fresh. */
       ts: fetchedAt ?? Date.now(),
     }, {
