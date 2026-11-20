@@ -97,6 +97,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'speed-first-load', needs: 'none', note: 'signed-out first-load size, chunk and initiator checks, chat button, consent banner and an intercepted early error; GETs only' },
   { spec: 'landing-overflow-sampling', needs: 'none', note: 'signed-out landing at 360-1440 normal and slow 3G sampled at first parse, 5 s and 30 s; GETs only, nothing clicked' },
   // ── anonymous ──
+  { spec: 'box-labels-prod', needs: 'none', note: 'signed-out /arena at 390 with candles stubbed inside the tester browser (nothing sent anywhere): reads the canvas texts of the Channel strategy position box; GETs only, no AI read' },
   { spec: 'a11y', needs: 'none', note: 'route sweep: spends the per-IP rate limit, one worker' },
   { spec: 'arena-legacy-signals', needs: 'none' },
   { spec: 'arena-panel-overlap', needs: 'none' },
