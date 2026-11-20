@@ -20,7 +20,7 @@ export default function GlobalError({
 }) {
   const [lang, setLang] = useState('en');
   useEffect(() => {
-    try { const l = localStorage.getItem('lhq_lang_v1'); if (l && COPY[l]) setLang(l); } catch { /* storage blocked: English */ }
+    try { const l = localStorage.getItem('lhq_lang_v1'); if (l && Object.hasOwn(COPY, l)) setLang(l); } catch { /* storage blocked: English */ }
   }, []);
   const c = COPY[lang];
 
