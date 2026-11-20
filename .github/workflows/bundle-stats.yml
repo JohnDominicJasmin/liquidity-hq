@@ -1,0 +1,36 @@
+# FIRST-LOAD WEIGHT OF THE LANDING AND A FEW PAGES, ON A GITHUB RUNNER (#1185 slow-3G boxes, PM 2026-11-20: bundle stats come from Actions, not the laptop).
+# DISPATCH, or a pull request that touches the script or this file: no push trigger and no other pull_request path, so it costs nothing until someone runs it. It builds the app and prints, per route, the scripts / stylesheets / preloaded fonts the built HTML names with their
+# sizes (scripts/bundle-stats.mjs) into the job summary. Run it on `dev` before and after a change that claims to cut the first load.
+name: Bundle stats
+on:
+  # Also runs on a pull request that changes the script or this file, so a change to the measurement is measured (and a new workflow file can be run before it reaches the default branch, where dispatch needs it).
+  pull_request:
+    paths:
+      - 'scripts/bundle-stats.mjs'
+      - '.github/workflows/bundle-stats.yml'
+  workflow_dispatch:
+    inputs:
+      routes:
+        description: 'Routes to measure, space separated (default: / /about /faq /pricing /arena)'
+        required: false
+        default: ''
+permissions:
+  contents: read
+jobs:
+  stats:
+    name: Build and measure
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Where Next wrote the client-reference manifests
+        run: find .next -name '*client-reference-manifest*' | head -20
+      - name: Measure
+        run: node scripts/bundle-stats.mjs ${{ github.event.inputs.routes }}

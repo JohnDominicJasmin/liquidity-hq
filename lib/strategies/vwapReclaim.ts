@@ -62,6 +62,8 @@ export const VWAP_RECLAIM: StrategyDef = {
   reasonSellKey: 'STRAT_VWAP_SELL',
   reasonWaitKey: 'STRAT_VWAP_WAIT',
   minCandles: 10,
+  /* 1000 CANDLES, NOT 300 (QA drawings audit R4 #1263: AAPL / TSLA at 1m had the last cash session outside the window, so the closed-market VWAP line had no candles to draw from): 1000 one-minute candles reach back about 16 hours; the session logic only reads the current UTC day and the last cash session. */
+  candleLimit: 1000,
   chips: [],
   logTfs: ['5m', '15m', '1h'],
   detect: detectVwapReclaim,

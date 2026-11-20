@@ -53,7 +53,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
-import { arenaPriceUnit, liqUnitsMixed, binanceKlineSource, coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
+import { arenaPriceUnit, binanceKlineSource, coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF, CHART_TFS, ARENA_TFS } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
@@ -402,9 +402,14 @@ function ArenaContent() {
   /* Narrowed to the displayed coin here, memoised so the chart's draw effect
      re-runs when the clusters actually change rather than on every Arena
      re-render - and this page re-renders on every market tick. */
+  /* THE CLUSTERS IN THE ARENA'S PRICE UNIT (#1651, PM 2026-11-20): the liquidation feed is per-token (lib/liqUnits.ts); the chart, the strategies and the AI read draw and quote a 1000x coin in the chart's unit, so the selected coin's clusters are converted once here (arenaPriceUnit, lib/coins.ts). */
+  const arenaLiqClusters = useMemo(() => {
+    const u = arenaPriceUnit(selectedCoin);
+    return u === 1 ? liqClusters : liqClusters.map(b => (b.coin.toLowerCase() === selectedCoin ? { ...b, price: b.price * u } : b));
+  }, [liqClusters, selectedCoin]);
   const chartLiqClusters = useMemo(
-    () => (liqUnitsMixed(selectedCoin) ? [] : topClustersForCoin(liqClusters, selectedCoin)),   // mixed-unit liquidation feed: nothing drawn, nothing quoted (lib/coins.ts liqUnitsMixed)
-    [liqClusters, selectedCoin],
+    () => topClustersForCoin(arenaLiqClusters, selectedCoin),
+    [arenaLiqClusters, selectedCoin],
   );
   /* THE SETUP CARD CLEARS THE RAIL AT ITS REAL WIDTH (PM, 2026-11-20, QA: between 981 and 1099 px the rail is ~486 px wide, not 320, so a fixed offset left the card on it): the page measures the rail and publishes the distance from its left edge to the right edge of the viewport as --arena-rail-clear on <html>;
      app/globals.css positions the Setup pill and card with it (and falls back to its own calc() until the first measurement). Only from 981 px up (below that the rail is a full-width section); removed when the page unmounts. */
@@ -1412,7 +1417,7 @@ function ArenaContent() {
        'Not available' still has to be reachable and it is - a fresh session has
        watched no liquidations, so it has no 24h window, and a stated absence is
        the honest answer rather than a bug to design away. */
-    const liqLevels = formatClustersForPrompt(liqClusters, selectedCoin);
+    const liqLevels = formatClustersForPrompt(arenaLiqClusters, selectedCoin);
 
     /* BTC dom trend */
     const btcDomTrend = store.btcDomHistory && store.btcDomHistory.length >= 3
@@ -2003,7 +2008,7 @@ function ArenaContent() {
        #814 exists to fix, reproduced silently and indistinguishable from a
        browser that has genuinely watched no liquidations. It changes at most
        once per LIQ_CLUSTER_REFRESH_MS, so the identity churn is bounded. */
-  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, resultsCache, liqClusters, locale]);
+  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, resultsCache, arenaLiqClusters, locale]);
 
   /* #996: the one place QUICK/DEEP/ASK AI run from, so the toolbar buttons
      below and StrategyPanel's own copies of the same three buttons cannot
@@ -3207,7 +3212,7 @@ function ArenaContent() {
           disables at all for that click, on a signed-in account, during the
           one window this matters. */}
       <div className="arena-ws-strat">
-      <StrategyPanel overlays={overlayStates({ showSR: showSRDrawn, showLiq: showLiqDrawn, showEma, showRsi, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} liqMixedUnits={liqUnitsMixed(selectedCoin)} layersLocked={layersLocked} onOverlayToggle={id => ((id === 'SR' || id === 'LIQ_CLUSTERS') && layersLocked ? openLayersGate() : id === 'SR' ? setShowSR(!showSR) : id === 'EMA_RIBBON' ? setShowEma(!showEma) : id === 'RSI' ? setShowRsi(!showRsi) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} runGate={runGate} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} coin={selectedCoin} tf={readTf} strategyState={strategyState} planChecking={planUnsettled} />
+      <StrategyPanel overlays={overlayStates({ showSR: showSRDrawn, showLiq: showLiqDrawn, showEma, showRsi, hasLiq: (chartLiqClusters?.length ?? 0) > 0, hasGex: selectedCoin === 'btc' && ((store.btcGexFlip != null && isFinite(store.btcGexFlip)) || (store.btcMaxPain != null && isFinite(store.btcMaxPain))) })} layersLocked={layersLocked} onOverlayToggle={id => ((id === 'SR' || id === 'LIQ_CLUSTERS') && layersLocked ? openLayersGate() : id === 'SR' ? setShowSR(!showSR) : id === 'EMA_RIBBON' ? setShowEma(!showEma) : id === 'RSI' ? setShowRsi(!showRsi) : setShowLiq(!showLiq))} status={settingsLoadStatus} onRetry={refreshSettings} selected={strategySelection} onSelectedChange={handleStrategySelectionChange} params={strategyParams} onParamsChange={handleStrategyParamsChange} onRun={runStrategy} runGate={runGate} strategy={arenaStrategy} onStrategyPick={handleStrategyMenuPick} coin={selectedCoin} tf={readTf} strategyState={strategyState} planChecking={planUnsettled} />
       </div>
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
