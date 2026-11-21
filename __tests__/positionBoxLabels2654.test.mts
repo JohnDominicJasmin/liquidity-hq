@@ -22,6 +22,11 @@ interface Fig { type: string; attrs: { x?: number; y?: number; text?: string; al
 type Pt = { x: number; y: number };
 type Overlay = (a: { overlay: { extendData: Record<string, unknown> }; coordinates: Pt[]; bounding: { width: number; height: number } }) => Fig[];
 
+/* #2761: the overlay reads srTagCenters / clearOfSrTags / srTagPricesRef from the component's scope. The REAL helpers are cut out of the same file and the S/R layer is OFF here (no tag prices), so every label sits exactly where it did before the PR: this file keeps judging the box's own spacing, not the tag clearance (that is __tests__/srTagClearance2761.test.mts). */
+const cutBlock = (re: RegExp): string => { const m = re.exec(SRC); assert.ok(m, `CONTROL: ${re} not found`); let i = SRC.indexOf('{', m.index + m[0].length - 1), d = 0; for (; i < SRC.length; i++) { if (SRC[i] === '{') d++; else if (SRC[i] === '}') { d--; if (d === 0) break; } } return SRC.slice(m.index, i + 1); };
+const srHelperJs = ts.transpileModule(`const SR_TAG_APART_PX = ${/const SR_TAG_APART_PX = (\d+);/.exec(SRC)![1]};\n${cutBlock(/function srTagCenters\(/)}\n${cutBlock(/function clearOfSrTags\(/)}`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
+const srHelpers = new Function(`${srHelperJs}\nreturn { srTagCenters, clearOfSrTags };`)() as { srTagCenters: unknown; clearOfSrTags: unknown };
+
 function compile(mutate?: (s: string) => string): Overlay {
   const a = SRC.indexOf("name: 'positionBox', totalStep: 3,"); assert.ok(a > 0, 'CONTROL: the positionBox overlay was not found');
   const c = SRC.indexOf('createPointFigures:', a), r = SRC.indexOf('return out;', c), end = SRC.indexOf('\n          },', r);
@@ -29,7 +34,7 @@ function compile(mutate?: (s: string) => string): Overlay {
   let fn = SRC.slice(c + 'createPointFigures:'.length, end + '\n          }'.length);
   if (mutate) { const m = mutate(fn); assert.notEqual(m, fn, 'CONTROL: the mutation changed nothing'); fn = m; }
   const js = ts.transpileModule(`const f = ${fn};`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
-  return new Function('resolveCssColor', 'withAlpha', `${js}\nreturn f;`)((v: string) => v, (v: string) => v) as Overlay;
+  return new Function('resolveCssColor', 'withAlpha', 'srTagCenters', 'clearOfSrTags', 'srTagPricesRef', 'chartRef', `${js}\nreturn f;`)((v: string) => v, (v: string) => v, srHelpers.srTagCenters, srHelpers.clearOfSrTags, { current: [] }, { current: null }) as Overlay;
 }
 const real = compile();
 
