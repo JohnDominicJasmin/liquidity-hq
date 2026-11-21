@@ -59,7 +59,7 @@ export default function GexTable() {
           </div>
         )}
         {btcMaxPain != null && (
-          <div className="gex-meta">{t('GEX_TABLE_MAX_PAIN_LABEL', { price: btcMaxPain.toLocaleString() })} <span style={{ fontWeight: 400, opacity: 0.6 }}>{t('GEX_TABLE_MAX_PAIN_DESC')}</span></div>
+          <div className="gex-meta">{t('GEX_TABLE_MAX_PAIN_LABEL', { price: btcMaxPain.toLocaleString() })} <span style={{ fontWeight: 400, color: 'var(--txt2)' }}>{t('GEX_TABLE_MAX_PAIN_DESC')}</span></div>
         )}
       </div>
 
