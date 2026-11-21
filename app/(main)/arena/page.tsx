@@ -2319,7 +2319,7 @@ function ArenaContent() {
                lean on it - aria-label wins the precedence and is what gets
                announced. */
             return (
-              <span title={h.label} {...healthGradeA11y(h.grade, h.labelKey, t)} style={{
+              <span title={t(h.labelKey)} {...healthGradeA11y(h.grade, h.labelKey, t)} style={{
                 fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
                 padding: '2px 6px', borderRadius: 6, flexShrink: 0,
                 color: h.color, background: withAlpha(h.color, '22'),
