@@ -2,20 +2,39 @@
  *
  * `import()` puts lib/labelDefaults.en.json in its own chunk, so a page that renders from the critical subset (lib/labelCriticalRoutes.ts) does not download it with its first-load JavaScript. The promise is
  * cached for the life of the page and carries React's `status` / `value` fields once settled, so `use(loadFullEnglish())` reads it without suspending the second time. A failed chunk load (a flaky network)
- * clears the cache so the next call retries, and settles to the critical subset for now: some English text rather than an error screen.
+ * is retried twice (0.4 s, 1.5 s later); if it still fails in the browser, the page is reloaded ONCE (a failed chunk is usually a stale deploy or a dropped connection, and a reload is the clean slate; a sessionStorage flag stops a loop) while the labels stay on their loading state; only if the reload fails too does it settle to the critical subset, because showing something beats an error screen. (QA, 2026-11-22: on a signed-in route that last resort prints every key outside the subset as its raw name, which the owner's rule forbids, so it is the LAST resort, after a retry and a reload.)
  *
  * Merged-over-defaults behaviour is unchanged: a fetched locale's table is layered over this one, so a key a translation lacks still shows English. */
 export type LabelTable = Record<string, string>;
 type Tracked = Promise<LabelTable> & { status?: 'pending' | 'fulfilled'; value?: LabelTable };
 
 let cached: Tracked | null = null;
+const RELOADED = 'lhq_labels_chunk_reload_v1';
+
+async function importFull(): Promise<LabelTable> {
+  let last: unknown;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const v = (await import('./labelDefaults.en.json')).default as unknown as LabelTable;
+      try { sessionStorage.removeItem(RELOADED); } catch { /* storage blocked */ }
+      return v;
+    } catch (e) { last = e; if (i < 2) await new Promise(r => setTimeout(r, i === 0 ? 400 : 1500)); }
+  }
+  throw last;
+}
 
 export function loadFullEnglish(): Promise<LabelTable> {
   if (cached) return cached;
-  const p: Tracked = import('./labelDefaults.en.json').then(
-    m => { const v = m.default as unknown as LabelTable; p.status = 'fulfilled'; p.value = v; return v; },
+  const p: Tracked = importFull().then(
+    v => { p.status = 'fulfilled'; p.value = v; return v; },
     async () => {
       cached = null;
+      /* One reload, only in the browser, only once per tab session: the labels stay on their loading state while it happens. */
+      if (typeof window !== 'undefined') {
+        let first = false;
+        try { first = !sessionStorage.getItem(RELOADED); if (first) sessionStorage.setItem(RELOADED, '1'); } catch { /* storage blocked: no reload loop risk, skip the reload */ }
+        if (first) { window.location.reload(); return new Promise<LabelTable>(() => { /* the page is going away */ }); }
+      }
       const v = (await import('./labelDefaults.critical.json')).default as unknown as LabelTable;
       p.status = 'fulfilled'; p.value = v;
       return v;
