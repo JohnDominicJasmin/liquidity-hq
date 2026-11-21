@@ -155,7 +155,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-11-22',
     tag: 'v2026.11.24',
     items: [
-      "Every data page now explains how it works, with a short FAQ.",
+      "Eight data pages now explain how they work, with a short FAQ.",
       "Shared links show a large Arena chart preview image.",
       "A failed first chart load no longer draws a single live candle.",
       "Strategy labels on the chart stay clear of support and resistance tags.",
