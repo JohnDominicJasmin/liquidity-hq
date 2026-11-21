@@ -58,6 +58,7 @@ export const NOINDEX_APP_PAGE: Metadata['robots'] = { index: false, follow: fals
  * a `.png`), and every shared link showed no picture until #1633. Three hand-written copies of a path that must agree is how that
  * recurs.
  *
- * A REAL 1200x630 SHARE IMAGE IS SEPARATE, OWNER-APPROVED WORK and is not this. 512x512 is the app icon pressed into service: it
- * renders as a small square rather than a banner on most platforms. Replacing it is a visual decision. */
-export const OG_IMAGES = [{ url: '/icons/icon-512.png', width: 512, height: 512, alt: 'LiquidityHQ' }];
+ * THE SHARE IMAGE IS A REAL 1200x630 CAPTURE (PM approved 2026-11-20, from a CI capture of the Arena): the full chart with support and
+ * resistance levels, the strategy panel and the market snapshot. It replaces the 512x512 app icon, which rendered as a small square
+ * rather than a banner on most platforms. The twitter card is summary_large_image to match. */
+export const OG_IMAGES = [{ url: '/og/arena-1200x630.png', width: 1200, height: 630, alt: 'LiquidityHQ Arena chart with support and resistance levels' }];
