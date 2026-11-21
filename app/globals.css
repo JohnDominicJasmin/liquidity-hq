@@ -3992,7 +3992,10 @@ html[data-theme="light"] { background: var(--bg0); }
 .corr-grid       { display: grid; gap: 3px; }
 .corr-col-hdr    { font-size: var(--fs-micro); font-weight: 700; color: var(--txt3); text-align: center; padding: 3px 1px 5px; text-transform: uppercase; letter-spacing: 0.04em; }
 .corr-row-hdr    { font-size: var(--fs-micro); font-weight: 700; color: var(--txt3); display: flex; align-items: center; padding: 0 3px; text-transform: uppercase; letter-spacing: 0.03em; }
-.corr-cell       { height: 34px; display: flex; align-items: center; justify-content: center; font-size: var(--fs-caption); font-weight: 700; border-radius: 5px; font-variant-numeric: tabular-nums; transition: filter 0.12s, opacity 0.1s; }
+.corr-cell       { height: 34px; display: flex; align-items: center; justify-content: center; font-size: var(--fs-caption); font-weight: 700; border-radius: 5px; font-variant-numeric: tabular-nums; transition: opacity 0.1s; cursor: crosshair; }
+/* The blank (no shared history) and diagonal cells carry no inline colour: these are the values the component used to write on every one of them (PM, 2026-11-20, HTML size). */
+.corr-cell-null  { background: rgba(255,255,255,0.03); color: var(--txt-dash); }
+.corr-cell-diag  { background: var(--accent-bdr); color: var(--txt); cursor: default; }
 .corr-cell:hover { filter: brightness(1.3); }
 .corr-legend     { font-size: var(--fs-caption); color: var(--txt3); padding-top: 8px; border-top: 0.5px solid var(--bdr); line-height: 1.6; }
 
