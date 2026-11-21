@@ -2039,6 +2039,7 @@
   "NEWS_EVENTS_IMPACT_WORD_MED": "Medium",
   "ECON_CALENDAR_TITLE": "Economic Calendar",
   "ECON_CALENDAR_SUBTITLE": "High-impact US macro events - FOMC, NFP, CPI, PCE, GDP and more",
+  "ECON_CALENDAR_SOURCE_OFFICIAL": "official schedules: BLS, BEA, Census, Fed",
   "NEWS_EVENTS_COL_TIME": "TIME",
   "ECON_CALENDAR_TODAY_PREFIX": "Today - {date}",
   "ECON_CALENDAR_LATEST_RELEASE": "Latest Release",
