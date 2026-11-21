@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     /* #1740 item 3: was the bare 'LiquidityHQ' - 11 characters on the one page with the most to say
        for itself. This is the DEFAULT, so it titles '/' only; every other route sets its own and gets
        the template below. Kept under ~60 so a search result does not truncate it. */
-    default: 'LiquidityHQ - Crypto Liquidity, Funding & Squeeze Analytics',
+    default: 'LiquidityHQ - Crypto Liquidity, Funding, Squeeze Analytics',
     template: '%s - LiquidityHQ',
   },
   description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
        'LiquidityHQ', openGraph said 'Crypto Market Analytics', twitter said 'LiquidityHQ' - so one
        page carried three names depending on who asked. appleWebApp.title stays the bare 'LiquidityHQ'
        on purpose: that is the installed PWA's name on a home screen, not a page title. */
-    title: 'LiquidityHQ - Crypto Liquidity, Funding & Squeeze Analytics',
+    title: 'LiquidityHQ - Crypto Liquidity, Funding, Squeeze Analytics',
     description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
     // #1633: this pointed at /icons/icon-512.jpg, which does not exist (404), so every shared link
     // showed no picture. The file is a .png. #1740 item 3: one constant, shared with /learn and
@@ -39,10 +39,10 @@ export const metadata: Metadata = {
     images: OG_IMAGES,
   },
   twitter: {
-    card: 'summary',
-    title: 'LiquidityHQ - Crypto Liquidity, Funding & Squeeze Analytics',
+    card: 'summary_large_image',
+    title: 'LiquidityHQ - Crypto Liquidity, Funding, Squeeze Analytics',
     description: 'Crypto market analytics - whale trades, funding rates, squeeze alerts, and AI analysis.',
-    images: ['/icons/icon-512.png'],
+    images: OG_IMAGES,
   },
   appleWebApp: {
     capable: true,

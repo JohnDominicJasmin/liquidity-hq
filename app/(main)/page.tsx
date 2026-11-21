@@ -7,6 +7,9 @@ import { AI_ANALYSIS_BODY } from '@/lib/legalDefaults';
    inherited by every page that does not set its own - and each of those would then declare itself to be
    `/`. The title and description still come from the layout; only this one field is page-scoped. */
 export const metadata: Metadata = {
+  /* The landing's own description (SEO audit, PM 2026-11-20): it used to inherit the sentence every page without one shares. The social-card description stays the root's (a local openGraph would replace the root's picture). 140-160 characters. */
+  description:
+    'Crypto market analytics: liquidation maps, funding rates, open interest, whale trades and squeeze alerts, plus an AI read of the chart you are watching.',
   alternates: {
     canonical: '/',
     /* #1740: hreflang for the three landing locales that ACTUALLY EXIST. Reciprocal on all three, with
