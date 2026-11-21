@@ -90,7 +90,8 @@ test('S3. econ-calendar: PageHint is present, ECON_CALENDAR_SUBTITLE is gone, bu
   // Re-verified against origin/dev before updating this anchor, not just from the report that flagged it.
   // #2683: the same line now also carries the age of the saved calendar after a failed refresh ("source · 12 min ago"):
   // it shows for a source OR a saved-calendar age, and the source credit is still its first child.
-  anchorOnce(source, "{(source || (failed && savedTs != null)) && (\n        <div style={{ padding: '20px 0 16px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>\n          {source}{source && failed && savedTs != null ?", 'the standalone source-credit line');
+  // #2751: the source credit is shown through a label when the API sends the one official string (ko / zh / ru read it in their language); any other string, and 'none', is printed as sent.
+  anchorOnce(source, "{(source || (failed && savedTs != null)) && (\n        <div style={{ padding: '20px 0 16px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>\n          {source === OFFICIAL_SOURCE ? t('ECON_CALENDAR_SOURCE_OFFICIAL') : source}{source && failed && savedTs != null ?", 'the standalone source-credit line');
 });
 
 test('S3b. econ-calendar: the old h1 (ECON_CALENDAR_TITLE) is dropped too, per the owner\'s final h1-drop (d4bf1cdf) - PageHint is the sole intro, not a duplicate title above it', () => {
