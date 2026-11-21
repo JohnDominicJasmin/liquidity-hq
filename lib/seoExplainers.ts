@@ -2,7 +2,7 @@ import type { LabelKey } from '@/lib/labelKeys';
 import DEFAULT_EN_LABELS from '@/lib/labelDefaults.en.json';
 
 /* A SERVER-RENDERED EXPLAINER AND ITS FAQ (SEO strategic item 1, PM 2026-11-20). The block is plain text through labels with English defaults, so the server HTML a crawler reads carries the English copy and a visitor in another language gets the translated rows once they exist. The FAQPage JSON-LD is built here from the SAME English defaults, so the structured data and the visible text cannot disagree. Facts only about what the page shows; no claim of accuracy. */
-export type ExplainerTopic = 'liq' | 'funding' | 'scanner' | 'calc' | 'hours' | 'econ';
+export type ExplainerTopic = 'liq' | 'funding' | 'scanner' | 'calc' | 'hours' | 'econ' | 'markets' | 'news';
 type Faq = { q: LabelKey; a: LabelKey };
 export const EXPLAINERS: Record<ExplainerTopic, { title: LabelKey; paras: LabelKey[]; faq: Faq[] }> = {
   liq: {
@@ -28,6 +28,14 @@ export const EXPLAINERS: Record<ExplainerTopic, { title: LabelKey; paras: LabelK
   econ: {
     title: 'SEO_ECON_TITLE', paras: ['SEO_ECON_P1', 'SEO_ECON_P2'],
     faq: [{ q: 'SEO_ECON_Q1', a: 'SEO_ECON_A1' }, { q: 'SEO_ECON_Q2', a: 'SEO_ECON_A2' }, { q: 'SEO_ECON_Q3', a: 'SEO_ECON_A3' }, { q: 'SEO_ECON_Q4', a: 'SEO_ECON_A4' }],
+  },
+  markets: {
+    title: 'SEO_MARKETS_TITLE', paras: ['SEO_MARKETS_P1', 'SEO_MARKETS_P2'],
+    faq: [{ q: 'SEO_MARKETS_Q1', a: 'SEO_MARKETS_A1' }, { q: 'SEO_MARKETS_Q2', a: 'SEO_MARKETS_A2' }, { q: 'SEO_MARKETS_Q3', a: 'SEO_MARKETS_A3' }, { q: 'SEO_MARKETS_Q4', a: 'SEO_MARKETS_A4' }],
+  },
+  news: {
+    title: 'SEO_NEWS_TITLE', paras: ['SEO_NEWS_P1', 'SEO_NEWS_P2'],
+    faq: [{ q: 'SEO_NEWS_Q1', a: 'SEO_NEWS_A1' }, { q: 'SEO_NEWS_Q2', a: 'SEO_NEWS_A2' }, { q: 'SEO_NEWS_Q3', a: 'SEO_NEWS_A3' }, { q: 'SEO_NEWS_Q4', a: 'SEO_NEWS_A4' }],
   },
 };
 
