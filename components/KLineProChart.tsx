@@ -589,6 +589,33 @@ const PA_MAX = 6;
 // jitter. Computing it here, once per actual data change, and baking the
 // result into each overlay's own extendData keeps every repaint painting the
 // same offset until the underlying levels actually change.
+/* A STRATEGY / BOX LABEL NEVER SITS ON AN S/R TAG (QA #1263 on prod at 390 px, PM 2026-11-20: "Stop $85,692" drew over "S $85,692" one pixel apart, "Target" over "R $89,121", "Entry" 8 px from "R $87,659"). The S/R tags are right-aligned on their line (centre about 9 px above it); a label whose centre is within SR_TAG_APART_PX of a tag's centre is moved by that distance, away from the tag (up when level), up to three times, inside the pane. The price is never dropped. */
+const SR_TAG_APART_PX = 14;
+/** The centre y (px) of each visible S/R tag, from the prices the chart is drawing tags for. */
+function srTagCenters(chart: KChart | null, prices: number[]): number[] {
+  if (!chart || !prices.length) return [];
+  const out: number[] = [];
+  for (const price of prices) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const o = (chart as any).convertToPixel?.({ value: price }, { paneId: 'candle_pane' });
+    const oy = Array.isArray(o) ? o[0]?.y : o?.y;
+    if (typeof oy === 'number' && isFinite(oy)) out.push(oy - 9);
+  }
+  return out;
+}
+/** `y` is the label's baseline y; `dy` the offset from it to the label's centre (-6 for a bottom baseline, +6 for a top one, 0 for middle). */
+function clearOfSrTags(y: number, dy: number, tagCentres: number[], lo: number, hi: number): number {
+  let out = y;
+  for (let n = 0; n < 3; n++) {
+    const cy = out + dy;
+    const hit = tagCentres.find(tc => Math.abs(cy - tc) < SR_TAG_APART_PX);
+    if (hit === undefined) break;
+    out += (cy <= hit ? -1 : 1) * SR_TAG_APART_PX;
+    out = Math.min(hi, Math.max(lo, out));
+  }
+  return out;
+}
+
 function computeLabelOffsets(levels: Array<{ price: number }>): Map<number, number> {
   const offsets = new Map<number, number>();
   if (levels.length < 2) return offsets;
@@ -814,6 +841,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
      recovery never mixes feeds - see the note at the getBars fallback (#359). */
   const histSourceRef  = useRef<'binance' | 'binance-futures' | 'bybit'>('bybit');
   const [srLevels, setSrLevels]   = useState<SRLevel[]>([]);
+  /* The prices the chart currently draws S/R tags for (none when the S/R layer is off): the strategy and box labels read it to stay clear of the tags. */
+  const srTagPricesRef = useRef<number[]>([]);
+  srTagPricesRef.current = showSR ? srLevels.map(l => l.price) : [];
   const srSetRef                  = useRef(setSrLevels);
   // Market-structure breaks (lib/priceAction.ts) - a second, price-only read
   // that runs alongside the EMA ribbon markers without touching them. Off by
@@ -900,6 +930,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const prevCoinRef    = useRef<CoinId>(coin);
   const prevTfRef      = useRef<ChartTf>(tf);
   const loadGenRef     = useRef(0);
+  /* A LONE LIVE CANDLE ON A FAILED FIRST LOAD (PM, 2026-11-20, QA's failing-text-2731 C2): the websocket handlers below called `callback(bar)` on every frame with no regard for the history, so when every kline request failed the chart still drew the one live bar next to the "Couldn't load price history" line. A live frame is now used only once the history of THIS load generation has been delivered (deliveredGenRef === loadGenRef; before that the frame is dropped, the next one a second later is used), and never over an empty chart whose history failed (historyFailedRef, kept in step with the failure state by markHistoryFailed). A refresh that fails but keeps the last good candles is unchanged (the chart still has bars); a legitimately empty history (nothing failed) still lets the first live frame start the chart. */
+  const historyFailedRef = useRef(false);
+  const markHistoryFailed = (v: boolean) => { historyFailedRef.current = v; setHistoryFailed(v); };
+  const liveFrameAllowed = (): boolean =>
+    deliveredGenRef.current === loadGenRef.current
+    && !(historyFailedRef.current && (chartRef.current?.getDataList().length ?? 0) === 0);
 
   // ── Candle-close countdown ───────────────────────────────────────────
   useEffect(() => {
@@ -1827,7 +1863,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const ink = roleInk(role);
             return [
               { type: 'line', attrs: { coordinates: [{ x: x0, y: c.y }, { x: x1, y: c.y }] }, styles: { style: role === 'confirm' || role === 'ref' ? 'solid' : 'dashed', color: ink, size: role === 'ref' ? 1 : 1.5, dashedValue: [5, 3] } },
-              { type: 'text', attrs: { x: Math.min(x1 - 6, Math.max(6, x0 + 6)), y: c.y - 3 - lift, text, align: 'left', baseline: 'bottom' }, styles: labelStyles(ink) },
+              { type: 'text', attrs: { x: Math.min(x1 - 6, Math.max(6, x0 + 6)), y: clearOfSrTags(c.y - 3 - lift, -6, srTagCenters(chartRef.current, srTagPricesRef.current), 10, paneH - 4), text, align: 'left', baseline: 'bottom' }, styles: labelStyles(ink) },
             ];
           },
         });
@@ -1913,6 +1949,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             if (x1 <= x0) return [];
             const green = resolveCssColor('var(--green)'), red = resolveCssColor('var(--red)'), ink = resolveCssColor('var(--txt2)');
             const out: Array<Record<string, unknown>> = [];
+            const tagC = srTagCenters(chartRef.current, srTagPricesRef.current);   // the S/R tags the box labels must stay clear of
             /* STOP AND TARGET LABELS ARE ALWAYS ON SCREEN (PM/QA 2026-11-18: the SELL stop was off the visible price scale on a short phone chart, so its label was clipped away). A level outside the pane keeps its label, pinned to the pane edge with the full value and an arrow toward the level; the scale is NOT changed, so nothing jumps. */
             const H = bounding?.height ?? 300;
             /* LABELS THAT WOULD LAND ON ONE ANOTHER ARE KEPT APART (QA #1263 L104, 390 px: when the stop or the target sits within about a label height of the entry, its label printed over the entry / R:R text, and over
@@ -1927,14 +1964,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             if (d.hasTarget && t && [t.x, t.y].every(isFinite)) {
               out.push({ type: 'rect', attrs: { x: x0, y: Math.min(e.y, t.y), width: x1 - x0, height: Math.max(Math.abs(e.y - t.y), 1) }, styles: { style: 'stroke_fill', color: withAlpha(green, 0.16), borderColor: green, borderSize: 1 } });
               const tp = pin(apart(t.y < e.y ? t.y + 3 : t.y - 3, t.y < e.y ? -1 : 1), d.targetText, 'T');
-              out.push({ type: 'text', attrs: { x: x1 - 4, y: tp.y, text: tp.text, align: 'right', baseline: t.y < e.y ? 'top' : 'bottom' }, styles: { color: green, size: 10, weight: '700' } });
+              out.push({ type: 'text', attrs: { x: x1 - 4, y: clearOfSrTags(tp.y, t.y < e.y ? 6 : -6, tagC, 10, H - 4), text: tp.text, align: 'right', baseline: t.y < e.y ? 'top' : 'bottom' }, styles: { color: green, size: 10, weight: '700' } });
             }
             out.push({ type: 'rect', attrs: { x: x0, y: Math.min(e.y, s.y), width: x1 - x0, height: Math.max(Math.abs(e.y - s.y), 1) }, styles: { style: 'stroke_fill', color: withAlpha(red, 0.16), borderColor: red, borderSize: 1 } });
             const sp = pin(apart(s.y > e.y ? s.y - 3 : s.y + 3, s.y > e.y ? 1 : -1), d.stopText, 'S');
-            out.push({ type: 'text', attrs: { x: x1 - 4, y: sp.y, text: sp.text, align: 'right', baseline: s.y > e.y ? 'bottom' : 'top' }, styles: { color: red, size: 10, weight: '700' } });
+            out.push({ type: 'text', attrs: { x: x1 - 4, y: clearOfSrTags(sp.y, s.y > e.y ? -6 : 6, tagC, 10, H - 4), text: sp.text, align: 'right', baseline: s.y > e.y ? 'bottom' : 'top' }, styles: { color: red, size: 10, weight: '700' } });
             out.push({ type: 'line', attrs: { coordinates: [{ x: x0, y: e.y }, { x: x1, y: e.y }] }, styles: { style: 'solid', color: ink, size: 1 } });
-            out.push({ type: 'text', attrs: { x: x0 + 4, y: e.y - 3, text: narrow ? 'E' : d.entryText, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } });
-            if (d.rrText) out.push({ type: 'text', attrs: { x: x0 + 4, y: e.y + 3, text: d.rrText, align: 'left', baseline: 'top' }, styles: { color: ink, size: 10, weight: '700' } });
+            out.push({ type: 'text', attrs: { x: x0 + 4, y: clearOfSrTags(e.y - 3, -6, tagC, 10, H - 4), text: narrow ? 'E' : d.entryText, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } });
+            if (d.rrText) out.push({ type: 'text', attrs: { x: x0 + 4, y: clearOfSrTags(e.y + 3, 6, tagC, 10, H - 4), text: d.rrText, align: 'left', baseline: 'top' }, styles: { color: ink, size: 10, weight: '700' } });
             out.push({ type: 'text', attrs: { x: 6, y: (bounding?.height ?? 300) - 6, text: d.caption, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '400' } });
             return out;
           },
@@ -2075,7 +2112,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                for. */
             callback(bars, { forward: bars.length > 0 });
           };
-          setHistoryFailed(false); // clear any previous coin's failure banner immediately
+          markHistoryFailed(false); // clear any previous coin's failure banner immediately
           setHistoryViaServerBybitFallback(false); // same - clear the previous coin's label immediately
           try {
             /* #1059: Bybit primary, Binance fallback - reversed from
@@ -2117,7 +2154,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // silent - say so rather than a chart with nothing on it and
                 // no explanation.
                 /* A FAILED LOAD THAT KEPT THE LAST GOOD CANDLES SHOWS NO FAILURE LINE (failing-text sweep 2, owner's rule: last good value, not a failure): the flag is raised only when nothing was kept. */
-                if (!(json === null && keepLastGood())) { if (json === null) setHistoryFailed(true); applyBars([]); }
+                if (!(json === null && keepLastGood())) { if (json === null) markHistoryFailed(true); applyBars([]); }
                 handled = true;
               }
               // else: Bybit had nothing (refused after retries, or genuinely
@@ -2212,14 +2249,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // up empty - the same "silent blank chart" defect class, for a
                 // coin that DOES have a fallback. Surface it the same way.
               }
-              if (bars.length === 0 && keepLastGood()) { /* last good candles kept: no failure line */ } else { if (bars.length === 0) setHistoryFailed(true); applyBars(bars); }
+              if (bars.length === 0 && keepLastGood()) { /* last good candles kept: no failure line */ } else { if (bars.length === 0) markHistoryFailed(true); applyBars(bars); }
             } else if (!handled) {
               applyBars([]);
             }
             endFade();
             setLoadingTf(null);
             setBarsTick(n => n + 1);
-          } catch { if (!stale()) { if (!keepLastGood()) { setHistoryFailed(true); deliveredGenRef.current = myGen; callback([], false); } endFade(); setLoadingTf(null); } }
+          } catch { if (!stale()) { if (!keepLastGood()) { markHistoryFailed(true); deliveredGenRef.current = myGen; callback([], false); } endFade(); setLoadingTf(null); } }
           void symbol; // suppress unused
         },
 
@@ -2367,6 +2404,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                     timestamp: Number(k.start), open: Number(k.open), high: Number(k.high),
                     low: Number(k.low), close: Number(k.close), volume: Number(k.volume),
                   };
+                  if (!liveFrameAllowed()) return; // no history for this load yet, or it failed and the chart is empty: no lone live candle
                   lastCloseRef.current = bar.close;
                   lastBarTsRef.current = bar.timestamp;
                   upsertEmaBar(bar);
@@ -2566,6 +2604,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 if (suspect) { suspect = false; setWsStatus('live'); }
                 const { k } = JSON.parse(e.data as string) as { k: Record<string, string | number> };
                 const bar = { timestamp: Number(k.t), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) };
+                if (!liveFrameAllowed()) return; // same gate as the Bybit handler above
                 lastCloseRef.current = bar.close;
                 lastBarTsRef.current = bar.timestamp;
                 upsertEmaBar(bar);

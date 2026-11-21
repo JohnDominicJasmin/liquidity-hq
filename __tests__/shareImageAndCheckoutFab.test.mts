@@ -17,11 +17,16 @@ const publicFile = (urlPath: string) => new URL(`../public${urlPath}`, import.me
 
 test('I1. every preview image in the root metadata is a real file under public/, and none is the old icon-512.jpg', () => {
   const src = stripTsComments(read(appPath('app/layout.tsx')));
-  const og = /openGraph:\s*\{[\s\S]*?images:\s*\[([\s\S]*?)\]/.exec(src);
-  const tw = /twitter:\s*\{[\s\S]*?images:\s*\[([\s\S]*?)\]/.exec(src);
+  /* THE IMAGES MAY BE A LITERAL ARRAY OR A NAMED CONSTANT (#2748 moves them to OG_IMAGES in lib/seo.ts, shared by the root, /learn and /[locale]): follow the name to its array, as I2 follows metadataBase */
+  const seo = stripTsComments(read('lib/seo.ts'));
+  const imagesOf = (key: string): string | null => {
+    const m = new RegExp(`${key}:\\s*\\{[\\s\\S]*?images:\\s*(\\[[\\s\\S]*?\\]|[A-Za-z_$][\\w$]*)`).exec(src); if (!m) return null; if (m[1].startsWith('[')) return m[1];
+    const c = new RegExp(`export const ${m[1]}\\s*=\\s*(\\[[\\s\\S]*?\\]);`).exec(seo); return c ? c[1] : null;
+  };
+  const og = imagesOf('openGraph'); const tw = imagesOf('twitter');
   assert.ok(og, 'openGraph.images not found');
   assert.ok(tw, 'twitter.images not found: a Twitter/X card with no image');
-  const urls = [...`${og[1]} ${tw[1]}`.matchAll(/['"](\/[^'"]+\.(?:png|jpe?g|webp))['"]/g)].map((m) => m[1]);
+  const urls = [...`${og} ${tw}`.matchAll(/['"](\/[^'"]+\.(?:png|jpe?g|webp))['"]/g)].map((m) => m[1]);
   assert.ok(urls.length >= 2, `expected an Open Graph and a Twitter image path, found ${JSON.stringify(urls)}`);
   for (const u of urls) assert.ok(existsSync(publicFile(u)), `${u} is named as a share image but public${u} does not exist (a 404 preview)`);
   assert.ok(!/icon-512\.jpg/.test(src), 'the 404 image /icons/icon-512.jpg is back in the metadata');
