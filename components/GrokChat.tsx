@@ -9,6 +9,7 @@ import {
 } from '@/lib/marketStore';
 import { getSessionName, plainSessionName } from '@/lib/session';
 import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 import { useNews, GeoEvent } from '@/components/NewsProvider';
 import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
@@ -80,15 +81,15 @@ function loadHistory(): SavedConvo[] {
 function persistHistory(convos: SavedConvo[]) {
   try { localStorage.setItem(HIST_KEY, JSON.stringify(convos.slice(0, MAX_CONVOS))); } catch {}
 }
-function relTime(ts: number): string {
+function relTime(ts: number, t: (k: LabelKey, v?: Record<string, string | number>) => string): string {
   const d = Date.now() - ts;
   const m = Math.floor(d / 60000);
   const h = Math.floor(d / 3600000);
   const dy = Math.floor(d / 86400000);
-  if (m < 1)  return 'just now';
-  if (m < 60) return `${m}m ago`;
-  if (h < 24) return `${h}h ago`;
-  if (dy < 7) return `${dy}d ago`;
+  if (m < 1)  return t('ALERTS_AGO_JUST_NOW');
+  if (m < 60) return t('ALERTS_AGO_MINUTES', { n: m });
+  if (h < 24) return t('ALERTS_AGO_HOURS', { n: h });
+  if (dy < 7) return t('ALERTS_AGO_DAYS', { n: dy });
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
@@ -803,7 +804,7 @@ export default function GrokChat() {
                     <div className="gchat-hist-body">
                       <div className="gchat-hist-title">{c.title}</div>
                       <div className="gchat-hist-meta">
-                        {c.messages.length} messages · {relTime(c.ts)}
+                        {t('CHAT_HISTORY_MESSAGES', { n: c.messages.length })} · {relTime(c.ts, t)}
                       </div>
                     </div>
                     <button

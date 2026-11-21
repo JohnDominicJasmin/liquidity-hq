@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
-import { cached } from '@/lib/apiCache';
+import { cachedStale } from '@/lib/apiCache';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { polledCacheControl } from '@/lib/cacheHeaders';
 import { exchangeFetch } from '@/lib/exchangeGuard';
@@ -105,7 +105,8 @@ export async function GET(req: NextRequest) {
 
   try {
     // One fetch-and-map per hour for every visitor, not per visitor (#1397).
-    const cycle2024 = await cached('cycle:2024', 60 * 60_000, fetchCycle2024);
+    /* cachedStale, not cached (PM route audit, 2026-11-20): the 2024 curve is weekly candles, so when the hourly refresh fails the last good curve is served with an `X-Data-Stale` header (the way /api/ath does) instead of a 500; nothing cached yet is still the error. */
+    const { data: cycle2024, stale, ageMs } = await cachedStale('cycle:2024', 60 * 60_000, fetchCycle2024);
     /* Cycle position is a slow signal - `currentDay` moves once a day and the
        2016/2020 curves are constants. Five minutes changes nobody's decision.
        Success only; the 429 and 500 paths stay uncached (#177). */
@@ -115,7 +116,9 @@ export async function GET(req: NextRequest) {
       '2024': cycle2024,
       currentDay,
     } satisfies CycleData, {
-      headers: { 'Cache-Control': polledCacheControl(300) },
+      headers: stale
+        ? { 'Cache-Control': 'no-store', 'X-Data-Stale': `true; age=${Math.round(ageMs / 1000)}s` }
+        : { 'Cache-Control': polledCacheControl(300) },
     });
   } catch (e) {
     return apiError('cycle', e, 500, 'Request failed');

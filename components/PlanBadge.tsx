@@ -104,7 +104,7 @@ export default function PlanBadge() {
     return (
       /* A link to /upgrade (owner, 2026-10-07): the badge was a dead span, so a trial user's one visible plan marker did
          nothing when pressed. */
-      <Link href="/upgrade" className="plan-badge plan-badge-trial plan-badge-link" title="Trial">
+      <Link href="/upgrade" className="plan-badge plan-badge-trial plan-badge-link" title={t('PLAN_BADGE_TRIAL_TITLE')}>
         TRIAL
         {/* #1222: the day count is its own span so the narrow nav bands
             (768-917px, 918-944px) can hide it without touching the badge

@@ -51,14 +51,23 @@ function hToHM(h: number): string {
   return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
 }
 
-function tsAgo(ts: number): string {
+/* hToHM for the SCREEN: the same text with the unit words from labels (#1185). hToHM itself stays English because it also writes the AI-prompt line. */
+function hToHMt(h: number, t: (k: LabelKey, v?: Record<string, string | number>) => string): string {
+  const totalMins = Math.round(h * 60);
+  if (totalMins < 60) return t('BRIEFING_DUR_MIN', { m: totalMins });
+  const hrs = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  return mins > 0 ? t('BRIEFING_DUR_HM', { h: hrs, m: mins }) : t('BRIEFING_DUR_H', { h: hrs });
+}
+
+function tsAgo(ts: number, t: (k: LabelKey, v?: Record<string, string | number>) => string): string {
   const s = Math.floor(Date.now() / 1000 - ts);
-  if (s < 60) return 'just now';
+  if (s < 60) return t('ALERTS_AGO_JUST_NOW');
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return t('ALERTS_AGO_MINUTES', { n: m });
   const h = Math.floor(m / 60);
   const rm = m % 60;
-  return rm > 0 ? `${h}h ${rm}m ago` : `${h}h ago`;
+  return rm > 0 ? t('BRIEFING_AGO_HM', { h, m: rm }) : t('ALERTS_AGO_HOURS', { n: h });
 }
 
 function rsiColor(rsi: number | null): string {
@@ -544,7 +553,7 @@ export default function BriefingTerminal() {
                 const ts = sessionStorage.getItem('lhq_brief_ts');
                 if (!ts) return null;
                 const mins = Math.round((nowMs - parseInt(ts)) / 60_000);
-                const label = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`;
+                const label = mins < 1 ? t('ALERTS_AGO_JUST_NOW') : mins < 60 ? t('ALERTS_AGO_MINUTES', { n: mins }) : t('ALERTS_AGO_HOURS', { n: Math.floor(mins / 60) });
                 return <div className="mb-brief-cached">{t('BRIEFING_BRIEF_CACHED', { label, mins: Math.max(0, 240 - mins) })}</div>;
               } catch { return null; }
             })()}
@@ -690,7 +699,7 @@ export default function BriefingTerminal() {
             </div>
             {jpyMinutesAgo !== null && (
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 5 }}>
-                {t('BRIEFING_YEN_UPDATED', { time: jpyMinutesAgo < 1 ? 'just now' : jpyMinutesAgo < 90 ? `${jpyMinutesAgo}m ago` : jpyMinutesAgo < 2880 ? `${Math.round(jpyMinutesAgo / 60)}h ago` : `${Math.round(jpyMinutesAgo / 1440)}d ago` })}
+                {t('BRIEFING_YEN_UPDATED', { time: jpyMinutesAgo < 1 ? t('ALERTS_AGO_JUST_NOW') : jpyMinutesAgo < 90 ? t('ALERTS_AGO_MINUTES', { n: jpyMinutesAgo }) : jpyMinutesAgo < 2880 ? t('ALERTS_AGO_HOURS', { n: Math.round(jpyMinutesAgo / 60) }) : t('ALERTS_AGO_DAYS', { n: Math.round(jpyMinutesAgo / 1440) }) })}
               </div>
             )}
           </>
@@ -807,7 +816,7 @@ export default function BriefingTerminal() {
               <div className="mb-event-time" style={{
                 color: isPast ? 'var(--txt3)' : lh < 1 ? 'var(--red)' : lh < 6 ? 'var(--amber)' : 'var(--txt3)',
               }}>
-                {isPast ? `${Math.round(-lh * 60)}m ago` : lh < 0.017 ? 'NOW' : `in ${hToHM(lh)}`}
+                {isPast ? t('ALERTS_AGO_MINUTES', { n: Math.round(-lh * 60) }) : lh < 0.017 ? t('BRIEFING_EVENT_NOW') : t('BRIEFING_EVENT_IN', { time: hToHMt(lh, t) })}
               </div>
             </div>
           );
@@ -827,7 +836,7 @@ export default function BriefingTerminal() {
               {e.tag}
             </div>
             <div className="mb-event-name">{e.headline}</div>
-            <div className="mb-event-time" style={{ color: 'var(--txt3)' }}>{tsAgo(e.ts)}</div>
+            <div className="mb-event-time" style={{ color: 'var(--txt3)' }}>{tsAgo(e.ts, t)}</div>
           </div>
         ))}
 
@@ -843,7 +852,7 @@ export default function BriefingTerminal() {
             <div className="mb-event-name">
               {w.symbol} · ${(w.usdValue / 1_000_000).toFixed(1)}M @ ${w.price.toLocaleString()}
             </div>
-            <div className="mb-event-time" style={{ color: 'var(--txt3)' }}>{tsAgo(w.ts)}</div>
+            <div className="mb-event-time" style={{ color: 'var(--txt3)' }}>{tsAgo(w.ts, t)}</div>
           </div>
         ))}
       </TPanel>

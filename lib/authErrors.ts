@@ -1,12 +1,17 @@
+import type { LabelKey } from '@/lib/labelKeys';
 // Supabase's raw ban error text ("User is banned", sometimes with a
 // until-timestamp appended) leaks internal wording straight to the sign-in
 // screen. Swap it for a message that tells the user what actually happened
 // without echoing GoTrue's phrasing.
-export function friendlyAuthError(message: string): string {
+type TFn = (key: LabelKey, vars?: Record<string, string | number>) => string;
+
+/* `t` is optional on purpose (#1185): called without it the English text comes back exactly as before; the pages pass their label function so ko / zh / ru / ar visitors read it in their language. */
+export function friendlyAuthError(message: string, t?: TFn): string {
+  const L = (key: LabelKey, en: string) => (t ? t(key) : en);
   /* GoTrue's raw "Email not confirmed" left a user with an expired confirmation link guessing; the sign-in screen now says what to do and offers a resend (isEmailNotConfirmed). */
-  if (isEmailNotConfirmed(message)) return 'Please confirm your email first. Check your inbox, or resend the confirmation email.';
+  if (isEmailNotConfirmed(message)) return L('AUTH_ERR_EMAIL_NOT_CONFIRMED', 'Please confirm your email first. Check your inbox, or resend the confirmation email.');
   if (/banned/i.test(message)) {
-    return 'This account has been suspended. Contact support if you believe this is a mistake.';
+    return L('AUTH_ERR_SUSPENDED', 'This account has been suspended. Contact support if you believe this is a mistake.');
   }
   /* GoTrue spells out its password policy by listing the raw character sets -
      "Password should contain at least one character of each:
@@ -24,10 +29,10 @@ export function friendlyAuthError(message: string): string {
      with the same password is exactly how the user learns the change went
      through. Checked first, so it gets its own message. */
   if (/should be different from the old password/i.test(message)) {
-    return 'That is already your current password.';
+    return L('AUTH_ERR_SAME_PASSWORD', 'That is already your current password.');
   }
   if (/password should (be|contain)/i.test(message)) {
-    return 'That password does not meet the requirements. Use at least 12 characters with an uppercase letter, a lowercase letter and a number.';
+    return L('AUTH_ERR_PASSWORD_POLICY', 'That password does not meet the requirements. Use at least 12 characters with an uppercase letter, a lowercase letter and a number.');
   }
   return message;
 }

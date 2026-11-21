@@ -184,7 +184,9 @@ test('C5. source: no old sentence count left in lib/grok.ts; buildPrompt\'s own 
   const quickLine = /'\[At most (\d+) short sentences, (\d+) words in total, citing/.exec(src);
   assert.ok(quickLine, "buildPrompt's REASONING line is not in the new shape");
   assert.deepEqual(served, [`${quickLine![1]}/${quickLine![2]}`], 'the combined prompt and buildPrompt must carry the same REASONING cap');
-  assert.equal(count(src, 'at most 15 words'), 1, 'one CHART_ANALYSIS cap in the source');
+  assert.equal(count(src, 'CHART_ANALYSIS: [ONE sentence, at most 15 words'), 1, 'one CHART_ANALYSIS cap in the source');
+  /* RE-PINNED for #2721 (2026-11-20): the WAIT_FOR line now carries its own 15-word cap, so the phrase is in the source exactly twice: the CHART_ANALYSIS cap and the WAIT_FOR cap (waitForOneLine2721 pins the second) */
+  assert.equal(count(src, 'at most 15 words'), 2, 'the CHART_ANALYSIS cap and the WAIT_FOR cap are the only two 15-word caps in the source');
   /* the combined prompt slices buildPrompt off at its output-format section, so that line is not served: say so in the test, not only in the report */
   assert.match(src, /const splitAt = base\.indexOf\('Output in EXACTLY this format'\);\s*const body = splitAt > -1 \? base\.slice\(0, splitAt\) : base;/);
 });

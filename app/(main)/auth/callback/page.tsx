@@ -5,8 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
 import LoadingState from '@/components/LoadingState';
+import { useLabels } from '@/lib/labels';
 
 function CallbackInner() {
+  const { t } = useLabels();
   const router = useRouter();
   const params = useSearchParams();
   const [errMsg, setErrMsg] = useState('');
@@ -29,7 +31,7 @@ function CallbackInner() {
     // resolved it off-origin.
     const dest = safeNextPath(params.get('next'), '/arena');
 
-    if (error) { setErrMsg(friendlyAuthError(error)); return; }
+    if (error) { setErrMsg(friendlyAuthError(error, t)); return; }
 
     const sb = getSupabase();
     if (!sb) { router.push('/'); return; }
@@ -37,9 +39,9 @@ function CallbackInner() {
     if (code) {
       // PKCE flow: exchange auth code for session
       sb.auth.exchangeCodeForSession(code).then(({ error }) => {
-        if (error) setErrMsg(friendlyAuthError(error.message));
+        if (error) setErrMsg(friendlyAuthError(error.message, t));
         else router.push(dest);
-      }).catch((e: unknown) => setErrMsg(friendlyAuthError(e instanceof Error ? e.message : String(e))));
+      }).catch((e: unknown) => setErrMsg(friendlyAuthError(e instanceof Error ? e.message : String(e), t)));
     } else {
       // Implicit flow: Supabase picks up token from URL hash automatically
       router.push(dest);
@@ -52,7 +54,7 @@ function CallbackInner() {
         <div className="login-card">
           <div className="login-logo">Liquidity<span>HQ</span></div>
           <div className="login-error" data-testid="login-error" style={{ marginTop: 24, textAlign: 'left' }}>
-            Sign-in failed: {errMsg}
+            {t('AUTH_CALLBACK_FAILED', { message: errMsg })}
           </div>
           {/*
             Deliberately a plain <a>, not next/link. This branch only renders
@@ -64,20 +66,21 @@ function CallbackInner() {
           */}
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/login" className="login-back-btn" style={{ display: 'block', textAlign: 'center', marginTop: 16 }}>
-            Try again
+            {t('COMMON_TRY_AGAIN')}
           </a>
         </div>
       </div>
     );
   }
 
-  return <LoadingState message="Signing you in…" fullPage />;
+  return <LoadingState message={t('AUTH_CALLBACK_SIGNING_IN')} fullPage />;
 }
 
 // useSearchParams requires a Suspense boundary in Next.js App Router
 export default function AuthCallbackPage() {
+  const { t } = useLabels();
   return (
-    <Suspense fallback={<LoadingState message="Loading…" fullPage />}>
+    <Suspense fallback={<LoadingState message={t('COMMON_LOADING')} fullPage />}>
       <CallbackInner />
     </Suspense>
   );

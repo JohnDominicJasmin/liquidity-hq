@@ -9,7 +9,7 @@ import { installMarketFixtures } from './_fixtures';
  *                sentinel: the fallback fires only on a failed read, never over a figure we hold. Without
  *                this, F1 passing could just mean "the chip always shows Binance".
  *   F1           Bybit tickers 500, premium index carries the sentinel. The chip shows the sentinel.
- *   F2           Both 500. The chip stays unknown ("Unavailable" since the honest-states batch; it was a bare "-"), never 0.
+ *   F2           Both 500. The chip stays unknown, never a number and never 0: the loading ellipsis while the scanner retries run (30 s, then 60 s), "Unavailable" only after them, about 90 s in (RE-PINNED 2026-11-20 for #2732, PM option A "retries first, the word only after them"; it said "Unavailable" at ~12 s, and was a bare "-" before the honest-states batch).
  *
  * Fixtures serve the rest of the market deterministically; the two routes under test are registered AFTER
  * installMarketFixtures so they win over it. Nothing is billed, nothing is written. */
@@ -65,13 +65,18 @@ test.describe('Arena funding chip - Binance fallback (#2186)', () => {
     await expect.poll(async () => fundingValue(page), { timeout: 20_000, message: 'chip never showed the Binance rate' }).toBe(SENTINEL_CHIP);
   });
 
-  test('F2: both venues 500 -> the chip stays unknown, not 0', async ({ page }) => {
+  /* RE-PINNED 2026-11-20 for #2732: F2 used to expect the word "Unavailable" at ~12 s. The Bybit tickers read that feeds the chip is a scanner-feed read, and its failure now keeps the feed PENDING (the loading ellipsis) until the two capped retries (30 s, 60 s) have run; the chip says the word only after them. At ~12 s it must show the ellipsis (not a number, not 0, not the word); the word is awaited up to ~165 s and must come after at least the two retry reads of bybit-tickers (3 reads in all). */
+  test('F2: both venues 500 -> the chip stays unknown, not 0: the ellipsis while the retries run, Unavailable only after them', async ({ page }) => {
+    test.setTimeout(260_000);
     const calls = await arrangeBtc(page, { bybit: '500', binance: '500' });
     await gotoGuarded(page, '/arena');
     await page.waitForTimeout(12_000);
     const v = await fundingValue(page);
-    console.log(`[funding F2] chip=${v} bybit500Calls=${calls.bybit} premiumIndexCalls=${calls.binance}`);
+    console.log(`[funding F2] at ~12 s chip=${v} bybit500Calls=${calls.bybit} premiumIndexCalls=${calls.binance}`);
     expect(calls.bybit, 'bybit-tickers was never requested').toBeGreaterThan(0);
-    expect(v, 'with both venues failing the chip must stay unknown: it says Unavailable, never a number and never 0').toBe('Unavailable');
+    expect(v, 'with both venues failing the chip shows the loading ellipsis at ~12 s: not a number, not 0 and not the word before the retries were used').toBe('\u2026');
+    await expect.poll(async () => fundingValue(page), { timeout: 150_000, intervals: [5_000], message: 'the chip never said Unavailable after both venues kept failing and the retries were used (about 90 s)' }).toBe('Unavailable');
+    console.log(`[funding F2] when the word showed: bybit500Calls=${calls.bybit} premiumIndexCalls=${calls.binance}`);
+    expect(calls.bybit, 'the word showed before the two retries (30 s and 60 s) had each re-read bybit-tickers').toBeGreaterThanOrEqual(3);
   });
 });

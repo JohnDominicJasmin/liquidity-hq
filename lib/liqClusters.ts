@@ -21,7 +21,6 @@
  * this feeds must say realized.
  */
 import { priceText } from './numberFormat.ts';
-import { liqUnitsMixed } from './coins.ts';
 
 export const LIQ_CLUSTER_LINES = 8;
 
@@ -44,8 +43,6 @@ export function formatClustersForPrompt<T extends { coin: string; price: number;
   coin: string,
   limit: number = LIQ_CLUSTER_LINES,
 ): string {
-  /* A coin whose liquidation feed comes in mixed units is not quoted (PM, 2026-11-20, lib/coins.ts liqUnitsMixed). */
-  if (liqUnitsMixed(coin)) return 'Not used for this coin (levels come in mixed units)';
   const top = topClustersForCoin(buckets, coin, limit);
   if (top.length === 0) return 'Not available';
   return top
@@ -135,6 +132,9 @@ export function bucketSz(price: number): number {
   if (price >= 100)   return 2;
   if (price >= 10)    return 0.5;
   if (price >= 1)     return 0.1;
+  if (price >= 0.1)   return 0.01;
+  /* SUB-DIME PRICES SNAP TO A FRACTION OF THEIR OWN SIZE (#1651, PM 2026-11-20): the fixed 0.01 rounded every price under half a cent to 0, so a coin like PEPE (per-token 0.0000037) never had a cluster at all (a price of 0 is dropped). One decade below the price: 1-10 % of it, continuous with the 0.01 tier at 0.1. */
+  if (price > 0 && Number.isFinite(price)) return Math.pow(10, Math.floor(Math.log10(price)) - 1);
   return 0.01;
 }
 

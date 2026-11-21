@@ -567,7 +567,7 @@ body::after {
   }
   .dashboard-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
+    grid-template-columns: minmax(0, 1fr) 352px;   /* was 1.4fr / 1fr: at 1024 px the main column was about 566 px (#1185 width audit); a fixed 352 px rail (the narrowest it ever was at 900 px) gives about 618 px */
     gap: 14px;
     align-items: start;
   }
@@ -597,6 +597,19 @@ body::after {
     gap: 8px;
   }
   /* Don't render both the sidebar AND the mobile stacked coin block */
+}
+
+/* ── ARENA AT 981-1099 PX (#1185, width audit 1024-1160) ──
+   From 981 px the Arena workspace is two columns (.arena-ws: chart + a fixed 320 px rail), but the shared
+   .app-content stays at its 700 px reading width until 1100 px, so at 1024 the chart column was only about
+   334 px wide (700 - 32 padding - 14 gap - 320 rail) and the rail sat 162 px in from the screen edge. The
+   dashboard already lifts the cap for its own two columns in this band (the tablet block above); this does
+   the same for the Arena, scoped with :has so no other page's reading column moves. The padding matches
+   the 1100 px and wider rule, so the rail's distance from the right edge is the 354 px the Setup card's
+   fallback expects (--arena-rail-clear is still measured by the Arena page, not set here). Below 981 px the
+   workspace is one column and nothing here applies. */
+@media (min-width: 981px) and (max-width: 1099px) {
+  .app-content:has(.arena-ws) { max-width: none; padding-left: 20px; padding-right: 20px; }
 }
 
 /* ── COIN SIDEBAR (desktop) ── */
@@ -969,6 +982,14 @@ body::after {
   background: linear-gradient(90deg, var(--bdr) 0%, transparent 100%);
 }
 
+/* DASHBOARD AT 900-999 PX: ONE COLUMN (#1185, width audit 1024-1160). With the right rail fixed at 352 px the main column is 594 px at 1000 and smaller below it (494 px at 900), and the main column clips what is
+   wider than itself (overflow-x: hidden, as the 1100 px rule explains), so under 1000 px the rail stacks below the answers as it does under 900 px. From 1000 px up it stays two columns, with the 352 px rail. Assumed, not
+   measured: no browser on the dev laptop, so QA measures the main column at 1000, 1024 and 1099 px and a wide row (news banner, market read) at 900-999 for clipping. */
+@media (min-width: 900px) and (max-width: 999px) {
+  .dashboard-grid { display: block; }
+  .dash-right     { margin-top: 14px; }
+}
+
 /* ── HOT section headers - live, decision-critical ── */
 .dash-section-hot { color: var(--txt); font-weight: 700; }
 .dash-section-hot::after {
@@ -1080,6 +1101,12 @@ body::after {
   /* minmax(0, 1fr), not 1fr: a bare 1fr is minmax(auto, 1fr), so the single column grew to the widest child's min-content (391 px at a 390 viewport, QA run 44222132363: the page scrolled 17 px sideways). The children may now shrink to the column. */
   .dash-conditions-row { grid-template-columns: minmax(0, 1fr); }
   .dash-conditions-row > * { min-width: 0; max-width: 100%; }
+}
+/* THE CONDITIONS ROW STACKS WHILE THE MAIN COLUMN IS TOO NARROW FOR ITS TWO PANELS (QA width run on qa 178da9e, #2727: at 1000 and 1024 px the row measured 654 px against a 594 / 618 px main column and was clipped by .dash-main's overflow-x: hidden). From 900 to 1059 px the dashboard is two columns (main + a 352 px rail) and the main column is under the 654 px the calendar and the conditions panel need side by side, so they stack; from 1060 px the main column is 654 px or more. Below 900 the page is one column and the row is wide enough. */
+@media (min-width: 900px) and (max-width: 1059px) {
+  .dash-conditions-row { grid-template-columns: minmax(0, 1fr); }
+  .dash-conditions-row > * { min-width: 0; max-width: 100%; }
+  [data-design="terminal"] .dash-main > .dash-conditions-row > * + * { border-left: 0; border-top: 1px solid var(--bdr); }
 }
 /* These reuse .av-rail-panel (bg4 - a subtle gray elevation step meant for a
    narrow rail against a dark page). Full-width here, next to the white
@@ -7378,6 +7405,20 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
     padding-left: 5px; padding-right: 5px; letter-spacing: .03em; font-size: 10px;
   }
   html[data-design="terminal"]:lang(ru) .tnav-wordmark { letter-spacing: .06em; }
+}
+/* #1185 (width audit 1024-1160): THE BAR IN ENGLISH FROM 945 TO 1279 PX. The English trims above stop at 944 px (and the Russian ones at 1279 are sized for Russian labels), but from 1024 px the Free badge also
+   shows its "Upgrade" word (about 133 px against 55 for "FREE", the .plan-badge-upgrade rule), so the signed-in bar adds up to roughly 1150 px of brand, six items, the session pill, theme and language buttons,
+   badge and avatar at the shipped spacing: about 130 px more than a 1024 px bar, so the avatar was pushed off the right edge. Same pattern as the 768-917 px rules above, and the same reasoning as #1114: the session
+   pill is supplementary (it is hidden from 768 to 944 already) so it goes below 1160 px; the bar's own gap (28 -> 16) and the items' side padding (12 -> 8) tighten from 945 to 1279 px, which recovers about 85 px with
+   the session pill still showing at 1160 and up. Rules for Russian carry higher specificity and keep their own values. NOT measured in a browser (none on the dev laptop): QA measures `.tnav` scrollWidth against
+   clientWidth and the avatar's right edge at 945, 1024, 1100 and 1279 px, signed in on Free, in English, Russian and Korean. */
+@media (min-width: 945px) and (max-width: 1159px) {
+  [data-design="terminal"] .tnav-session { display: none; }
+}
+@media (min-width: 945px) and (max-width: 1279px) {
+  [data-design="terminal"] .tnav { gap: 16px; }
+  [data-design="terminal"] .tnav-item { padding-left: 8px; padding-right: 8px; }
+  [data-design="terminal"] .tnav-right { gap: 10px; }
 }
 [data-design="terminal"] .tnav-kbd {
   color: var(--txt3);

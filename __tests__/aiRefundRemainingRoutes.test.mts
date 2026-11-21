@@ -13,14 +13,15 @@ const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])
 const src = (rel: string) => code(readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n'));
 const count = (s: string, needle: string) => s.split(needle).length - 1;
 
-/* route, how a refund is written there, how many refund sites (non-2xx, throw, an unparseable / empty / cut-off 2xx) */
+/* RE-PINNED 2026-11-20 for #2742: the three tool routes now have FOUR refund sites (a network throw is answered as 502 JSON instead of rethrown, and a 2xx with a non-JSON body is refunded). aiToolRoutesJson2742 pins each site by shape.
+   route, how a refund is written there, how many refund sites (non-2xx, throw, an unparseable / empty / cut-off 2xx) */
 const ROUTES: { file: string; reserve: string; refund: string; sites: number; why: string }[] = [
   { file: 'app/api/briefing/route.ts', reserve: 'incrementUsageColumn(', refund: "refundUsageColumn(userId, 'briefing_count', reservedOn)", sites: 3, why: 'non-2xx, an EMPTY 2xx reply (#2509: a blank card is a failed answer), and a throw before the 2xx (a billed flag guards the throw)' },
   { file: 'app/api/token-unlock/route.ts', reserve: "incrementToolUsage(authData.user.id, 'tokenUnlock'", refund: 'giveBack()', sites: 2, why: 'throw and non-2xx, inside the cache miss' },
   { file: 'app/api/onchain/route.ts', reserve: "incrementToolUsage(authData.user.id, 'onchain'", refund: 'giveBack()', sites: 3, why: 'throw, non-2xx and an unparseable / cut-off 2xx (the user got nothing)' },
-  { file: 'app/api/thesis-check/route.ts', reserve: "incrementToolUsage(authData.user.id, 'thesisCheck'", refund: "refundToolUsage(authData.user.id, 'thesisCheck', reservedOn)", sites: 3, why: 'throw, non-2xx, and an EMPTY or CUT-OFF 2xx answer (#2559: a blank or half answer is a failed answer)' },
-  { file: 'app/api/strategy-research/route.ts', reserve: "incrementToolUsage(authData.user.id, 'strategyResearch'", refund: "refundToolUsage(authData.user.id, 'strategyResearch', reservedOn)", sites: 3, why: 'throw, non-2xx, and an EMPTY or CUT-OFF 2xx answer (#2559: a blank or half answer is a failed answer)' },
-  { file: 'app/api/pine-script/route.ts', reserve: "incrementToolUsage(authData.user.id, 'pineScript'", refund: "refundToolUsage(authData.user.id, 'pineScript', reservedOn)", sites: 3, why: 'throw, non-2xx, and an EMPTY or CUT-OFF 2xx answer (#2559: a blank or half answer is a failed answer)' },
+  { file: 'app/api/thesis-check/route.ts', reserve: "incrementToolUsage(authData.user.id, 'thesisCheck'", refund: "refundToolUsage(authData.user.id, 'thesisCheck', reservedOn)", sites: 4, why: 'network throw (now answered as 502 JSON, #2742), non-2xx, a 2xx whose body is NOT JSON (#2742), and an EMPTY or CUT-OFF 2xx answer (#2559: a blank or half answer is a failed answer)' },
+  { file: 'app/api/strategy-research/route.ts', reserve: "incrementToolUsage(authData.user.id, 'strategyResearch'", refund: "refundToolUsage(authData.user.id, 'strategyResearch', reservedOn)", sites: 4, why: 'network throw (now answered as 502 JSON, #2742), non-2xx, a 2xx whose body is NOT JSON (#2742), and an EMPTY or CUT-OFF 2xx answer (#2559: a blank or half answer is a failed answer)' },
+  { file: 'app/api/pine-script/route.ts', reserve: "incrementToolUsage(authData.user.id, 'pineScript'", refund: "refundToolUsage(authData.user.id, 'pineScript', reservedOn)", sites: 4, why: 'network throw (now answered as 502 JSON, #2742), non-2xx, a 2xx whose body is NOT JSON (#2742), and an EMPTY or CUT-OFF 2xx answer (#2559: a blank or half answer is a failed answer)' },
 ];
 
 for (const r of ROUTES) {
