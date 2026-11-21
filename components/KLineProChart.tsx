@@ -605,15 +605,18 @@ function srTagCenters(chart: KChart | null, prices: number[]): number[] {
 }
 /** `y` is the label's baseline y; `dy` the offset from it to the label's centre (-6 for a bottom baseline, +6 for a top one, 0 for middle). */
 function clearOfSrTags(y: number, dy: number, tagCentres: number[], lo: number, hi: number): number {
-  let out = y;
-  for (let n = 0; n < 3; n++) {
-    const cy = out + dy;
-    const hit = tagCentres.find(tc => Math.abs(cy - tc) < SR_TAG_APART_PX);
-    if (hit === undefined) break;
-    out += (cy <= hit ? -1 : 1) * SR_TAG_APART_PX;
-    out = Math.min(hi, Math.max(lo, out));
+  const first = tagCentres.find(tc => Math.abs(y + dy - tc) < SR_TAG_APART_PX);
+  if (first === undefined) return y;
+  /* THE NEAREST SPOT CLEAR OF EVERY TAG, away from the one it hit first (QA #1263: three fixed 14 px hops walked a pinned Target label from one tag into the next, and it ended 4.5 px from "R $89,121"). Steps of 2 px, both directions, inside lo..hi; no free spot at all keeps y. */
+  const free = (v: number) => !tagCentres.some(tc => Math.abs(v + dy - tc) < SR_TAG_APART_PX);
+  const away = y + dy <= first ? -1 : 1;
+  for (let d = 2; d <= hi - lo; d += 2) {
+    for (const dir of [away, -away]) {
+      const v = y + dir * d;
+      if (v >= lo && v <= hi && free(v)) return v;
+    }
   }
-  return out;
+  return Math.min(hi, Math.max(lo, y));
 }
 
 function computeLabelOffsets(levels: Array<{ price: number }>): Map<number, number> {
@@ -1939,7 +1942,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           ...base, name: 'positionBox', totalStep: 3,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
-            const d = overlay.extendData as { hasTarget: boolean; targetText: string; entryText: string; stopText: string; rrText: string; caption: string };
+            const d = overlay.extendData as { hasTarget: boolean; targetText: string; entryText: string; stopText: string; rrText: string; caption: string; entryLabelled?: boolean };
             const e = coordinates[0], t = coordinates[1], s = coordinates[2];
             if (!e || !s || ![e.x, e.y, s.x, s.y].every(isFinite)) return [];
             const w = bounding?.width ?? 9999;
@@ -1950,6 +1953,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const green = resolveCssColor('var(--green)'), red = resolveCssColor('var(--red)'), ink = resolveCssColor('var(--txt2)');
             const out: Array<Record<string, unknown>> = [];
             const tagC = srTagCenters(chartRef.current, srTagPricesRef.current);   // the S/R tags the box labels must stay clear of
+            /* THE STRATEGY'S OWN "Entry $x" LABEL IS ON THE CHART WITH THE BOX (QA #1263, 390 px: "E", "R:R" and "Entry $87,528" within 6 px of one another): the level label already names the entry, so the box prints no second one, and the label's place (just above the entry line) is an obstacle for R:R. */
+            if (d.entryLabelled) tagC.push(e.y - 9);
             /* STOP AND TARGET LABELS ARE ALWAYS ON SCREEN (PM/QA 2026-11-18: the SELL stop was off the visible price scale on a short phone chart, so its label was clipped away). A level outside the pane keeps its label, pinned to the pane edge with the full value and an arrow toward the level; the scale is NOT changed, so nothing jumps. */
             const H = bounding?.height ?? 300;
             /* LABELS THAT WOULD LAND ON ONE ANOTHER ARE KEPT APART (QA #1263 L104, 390 px: when the stop or the target sits within about a label height of the entry, its label printed over the entry / R:R text, and over
@@ -1970,7 +1975,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const sp = pin(apart(s.y > e.y ? s.y - 3 : s.y + 3, s.y > e.y ? 1 : -1), d.stopText, 'S');
             out.push({ type: 'text', attrs: { x: x1 - 4, y: clearOfSrTags(sp.y, s.y > e.y ? -6 : 6, tagC, 10, H - 4), text: sp.text, align: 'right', baseline: s.y > e.y ? 'bottom' : 'top' }, styles: { color: red, size: 10, weight: '700' } });
             out.push({ type: 'line', attrs: { coordinates: [{ x: x0, y: e.y }, { x: x1, y: e.y }] }, styles: { style: 'solid', color: ink, size: 1 } });
-            out.push({ type: 'text', attrs: { x: x0 + 4, y: clearOfSrTags(e.y - 3, -6, tagC, 10, H - 4), text: narrow ? 'E' : d.entryText, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } });
+            if (!d.entryLabelled) out.push({ type: 'text', attrs: { x: x0 + 4, y: clearOfSrTags(e.y - 3, -6, tagC, 10, H - 4), text: narrow ? 'E' : d.entryText, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '700' } });
             if (d.rrText) out.push({ type: 'text', attrs: { x: x0 + 4, y: clearOfSrTags(e.y + 3, 6, tagC, 10, H - 4), text: d.rrText, align: 'left', baseline: 'top' }, styles: { color: ink, size: 10, weight: '700' } });
             out.push({ type: 'text', attrs: { x: 6, y: (bounding?.height ?? 300) - 6, text: d.caption, align: 'left', baseline: 'bottom' }, styles: { color: ink, size: 10, weight: '400' } });
             return out;
@@ -3504,11 +3509,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         hasTarget,
         targetText: hasTarget ? `${tl('STRAT_OV_TARGET')} ${px}${fmtPx(p.target!)} (${pct(p.target!)})` : '',
         entryText: `${tl('STRAT_OV_ENTRY')} ${px}${fmtPx(p.entry)}`,
+        entryLabelled: !!strategyOverlay?.levels.some(l => l.labelKey === 'STRAT_OV_ENTRY'),
         stopText: `${tl('STRAT_OV_STOP')} ${px}${fmtPx(p.stop)} (${pct(p.stop)})`,
         rrText: hasTarget && typeof p.rr === 'number' ? tl('CHANNEL_BOX_RR', { rr: p.rr.toFixed(1) }) : '',
         caption: tl('DRAW_STRUCTURE_LEVELS_CAPTION'),
       } });
-  }, [dsClicked, chartReady, srLevels, barsTick, themeInk, tf]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dsClicked, chartReady, srLevels, barsTick, themeInk, tf, strategyOverlay]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Proposals are about ONE window. Changing coin or timeframe makes every index they were
      built from meaningless, so they go rather than being redrawn against candles they were
