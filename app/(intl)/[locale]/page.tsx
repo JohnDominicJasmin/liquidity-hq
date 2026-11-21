@@ -51,10 +51,12 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
    * COMPOSED FROM `hero.h1Line1` + `h1Line2` rather than written here. Those are the page's own
    * headline, already translated and already approved in the copy batch, so this invents no new
    * Korean or Chinese marketing copy - which is not mine to write. A translated equivalent of the
-   * English title ("Crypto Liquidity, Funding & Squeeze Analytics") would be exactly that.
+   * English title ("Crypto Liquidity, Funding, Squeeze Analytics") would be exactly that.
    *
    * Twitter was absent entirely, so those two pages fell back to the root's English card. */
-  const localisedTitle = `${dict.hero.h1Line1} ${dict.hero.h1Line2} - LiquidityHQ`;
+  /* UNDER 60 CHARACTERS (SEO audit, PM 2026-11-20): the Russian headline plus the brand was 69 and a search result truncates near 60, so a title that would run over drops the brand suffix. The other three locales are 28-53 and keep it. */
+  const fullTitle = `${dict.hero.h1Line1} ${dict.hero.h1Line2} - LiquidityHQ`;
+  const localisedTitle = fullTitle.length < 60 ? fullTitle : `${dict.hero.h1Line1} ${dict.hero.h1Line2}`;
   return {
     title: localisedTitle,
     description: dict.hero.sub,
@@ -63,8 +65,8 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
        Chinese landing pages are the two most likely to be shared into a chat app, and they were the two with no preview image. */
     openGraph: { title: localisedTitle, description: dict.hero.sub, images: OG_IMAGES },
     /* Twitter's card REPLACES rather than merges too, same as openGraph - so with no entry here
-       these two pages advertised themselves in English. `summary`, matching the root. */
-    twitter: { card: 'summary', title: localisedTitle, description: dict.hero.sub, images: OG_IMAGES },
+       these two pages advertised themselves in English. `summary_large_image`, matching the root (the share image is 1200x630). */
+    twitter: { card: 'summary_large_image', title: localisedTitle, description: dict.hero.sub, images: OG_IMAGES },
     /* #1740: SELF-referencing - `/ko` canonicalises to `/ko`, not to `/`.
      *
      * Pointing a translation at the English page is the obvious-looking move and it is the wrong one: a
