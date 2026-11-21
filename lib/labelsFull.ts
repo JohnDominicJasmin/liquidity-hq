@@ -28,7 +28,7 @@ export function loadFullEnglish(): Promise<LabelTable> {
   const p: Tracked = importFull().then(
     v => { p.status = 'fulfilled'; p.value = v; return v; },
     async () => {
-      cached = null;
+      /* `cached` KEEPS POINTING AT THIS PROMISE. It was reset to null here, and once the subset fallback settled nothing put it back, so every render of `use(loadFullEnglish())` started a NEW three-attempt import: QA measured 72 whole-table requests in 40 s and a shell-only page on /markets with the chunk blocked (run 44952022583, P6). One promise per page means at most 3 requests, one reload, and 3 more, then the subset for good. */
       /* One reload, only in the browser, only once per tab session: the labels stay on their loading state while it happens. */
       if (typeof window !== 'undefined') {
         let first = false;
