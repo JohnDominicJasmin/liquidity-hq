@@ -3426,7 +3426,8 @@ html[data-theme="light"] { background: var(--bg0); }
 
 .liqfeed-row-coin  { font-weight: 700; font-size: var(--fs-caption); }
 .liqfeed-row-side  { font-size: var(--fs-caption); font-weight: 700; padding: 2px 6px; border-radius: 4px; text-align: center; }
-.liqfeed-row-side-long  { color: var(--red); background: rgba(248,113,113,0.12); }
+/* LONG LIQ text is --red-fg (the red for text on a red tint, #ff8a85 dark / #7d0f18 light): --red on this tint was 4.46:1 in dark (QA axe on prod, PM 2026-11-20); --red-fg is 6.83 dark and 8.05 light. */
+.liqfeed-row-side-long  { color: var(--red-fg); background: rgba(248,113,113,0.12); }
 .liqfeed-row-side-short { color: var(--green-2); background: rgba(52,211,153,0.12);  }
 .liqfeed-row-usd   { font-weight: 700; font-size: var(--fs-caption); text-align: right; }
 .liqfeed-row-price { color: var(--txt3); font-size: var(--fs-data); text-align: right; }
@@ -3492,7 +3493,8 @@ html[data-theme="light"] { background: var(--bg0); }
   font-size: var(--fs-caption); font-weight: 800; letter-spacing: .05em;
   padding: 1px 4px; border-radius: 3px; margin-right: 4px;
 }
-.liq-src-bn { background: rgba(240,165,0,0.15); color: #f0a500; }
+/* BN badge text is --amber, not the literal #f0a500 (QA axe on prod, PM 2026-11-20): #f0a500 on its own tint measured 1.58:1 in light; --amber is #755100 there (5.43:1 on the tint over --bg1) and #fbbf24 in dark (8.35:1). */
+.liq-src-bn { background: rgba(240,165,0,0.15); color: var(--amber); }
 .liq-src-bb { background: rgba(90,163,255,0.15); color: var(--accent-2); }
 
 @media (max-width: 480px) {
@@ -3990,7 +3992,10 @@ html[data-theme="light"] { background: var(--bg0); }
 .corr-grid       { display: grid; gap: 3px; }
 .corr-col-hdr    { font-size: var(--fs-micro); font-weight: 700; color: var(--txt3); text-align: center; padding: 3px 1px 5px; text-transform: uppercase; letter-spacing: 0.04em; }
 .corr-row-hdr    { font-size: var(--fs-micro); font-weight: 700; color: var(--txt3); display: flex; align-items: center; padding: 0 3px; text-transform: uppercase; letter-spacing: 0.03em; }
-.corr-cell       { height: 34px; display: flex; align-items: center; justify-content: center; font-size: var(--fs-caption); font-weight: 700; border-radius: 5px; font-variant-numeric: tabular-nums; transition: filter 0.12s, opacity 0.1s; }
+.corr-cell       { height: 34px; display: flex; align-items: center; justify-content: center; font-size: var(--fs-caption); font-weight: 700; border-radius: 5px; font-variant-numeric: tabular-nums; transition: opacity 0.1s; cursor: crosshair; }
+/* The blank (no shared history) and diagonal cells carry no inline colour: these are the values the component used to write on every one of them (PM, 2026-11-20, HTML size). */
+.corr-cell-null  { background: rgba(255,255,255,0.03); color: var(--txt-dash); }
+.corr-cell-diag  { background: var(--accent-bdr); color: var(--txt); cursor: default; }
 .corr-cell:hover { filter: brightness(1.3); }
 .corr-legend     { font-size: var(--fs-caption); color: var(--txt3); padding-top: 8px; border-top: 0.5px solid var(--bdr); line-height: 1.6; }
 
