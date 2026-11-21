@@ -1848,7 +1848,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   if (typeof oy === 'number' && isFinite(oy) && (above ? oy < 0 : oy > paneH) && (k < rank)) slot++;
                 }
               }
-              return [{ type: 'text', attrs: { x: (bounding?.width ?? 9999) - 6, y: above ? 12 + slot * 17 : paneH - 12 - slot * 17, text: `${text} ${above ? '↑' : '↓'}`, align: 'right', baseline: above ? 'top' : 'bottom' }, styles: labelStyles(roleInk(role)) }];
+              return [{ type: 'text', attrs: { x: (bounding?.width ?? 9999) - 6, y: clearOfSrTags(above ? 12 + slot * 17 : paneH - 12 - slot * 17, above ? 6 : -6, srTagCenters(chartRef.current, srTagPricesRef.current), 4, paneH - 4), text: `${text} ${above ? '↑' : '↓'}`, align: 'right', baseline: above ? 'top' : 'bottom' }, styles: labelStyles(roleInk(role)) }];
             }
             /* LABELS THAT COLLIDE STACK (PM ruling, #2372): this strategy's levels are listed by price (lowest first); a label lifts 15 px for every LOWER level that sits within 16 px of this line on screen, so two
                close levels (a sweep's swept and break levels on a low timeframe) read as two labels, not one smudge. */
@@ -1893,7 +1893,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const paneH = bounding?.height ?? 300, yBottom = y0 + Math.max(h, 1);
             if (text && (yBottom < 0 || y0 > paneH)) {
               const above = yBottom < 0, off = 10 + (slot ?? 0) * 12;
-              return [{ type: 'text', attrs: { x: x1 - 4, y: above ? Math.min(paneH - 10, off) : Math.max(10, paneH - off), text: `${text}${priceText ? ' ' + priceText : ''} ${above ? '↑' : '↓'}`, align: 'right', baseline: above ? 'top' : 'bottom' }, styles: { color: ink, size: 10, weight: '700' } }];
+              return [{ type: 'text', attrs: { x: x1 - 4, y: clearOfSrTags(above ? Math.min(paneH - 10, off) : Math.max(10, paneH - off), above ? 6 : -6, srTagCenters(chartRef.current, srTagPricesRef.current), 4, paneH - 4), text: `${text}${priceText ? ' ' + priceText : ''} ${above ? '↑' : '↓'}`, align: 'right', baseline: above ? 'top' : 'bottom' }, styles: { color: ink, size: 10, weight: '700' } }];
             }
             /* THE LABEL SITS AT THE ZONE'S FAR EDGE, RIGHT END (#1263 box 9, then box 91). The Buy / Sell triangle of the signal candle sits on the PRICE side of the zone (a long's marker is below the candle's low, which is
                just above a demand zone's top), so a label above a demand zone's top covered it (box 91, "Demand" on top of the Buy marker). Demand: under the BOTTOM edge, right-aligned. Supply mirrors it: above the TOP
