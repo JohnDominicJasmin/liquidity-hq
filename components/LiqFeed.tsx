@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { BINANCE_SYMS, BYBIT_SYMS, symbolDenominationFactor } from '@/lib/coins';
+import { BINANCE_SYMS, BYBIT_SYMS, symbolDenominationFactor, venueSymbols } from '@/lib/coins';
 import { liqPerTokenFactor } from '@/lib/liqUnits';
 import { priceText } from '@/lib/numberFormat';
 import { bucketSz } from '@/lib/liqClusters';
@@ -46,6 +46,14 @@ const STORAGE_MAX        = 2000;                   // max events to persist loca
    screen while re-rendering the page. */
 const EVENTS_EMIT_MS     = 15 * 1000;
 const SB_WIN_MS          = 24 * 60 * 60 * 1000;    // load last 24h from Supabase
+/* THE PROJECT API ANSWERS AT MOST 1000 ROWS PER REQUEST (QA on prod, 2026-11-22: the app asked limit=5000 and got `content-range 0-999` every time), so one `limit(5000)` read held only the newest 1000 rows of ALL coins: PEPE showed 3 of its 39 stored events and BONK 0 of 6, and the
+   "last 24 hours" the page says was not what it computed. Reads are now PAGES of SB_PAGE rows (.range), newest first, a bounded number of them: the all-coins read takes up to SB_PAGES_ALL pages (the 5000 the comment meant), and the selected coin gets its OWN read (its stored base names, up to
+   SB_PAGES_COIN pages, once per coin per mount) so an active coin cannot push a quiet one out of the window. At most 8 requests on mount and 3 per coin switch. */
+const SB_PAGE            = 1000;
+const SB_PAGES_ALL       = 5;
+const SB_PAGES_COIN      = 3;
+/* The in-memory history is trimmed by AGE (the 24 h window in rebuild), not by count; this is only a safety ceiling. A count trim of 5000 would drop the older events of a quiet coin whenever the busy ones filled it, which is the defect above in another place. */
+const HISTORY_MAX        = 20_000;
 // SB_RETAIN_MS (7 days) lived here while the browser ran the purge. Retention is server-side now -
 // RETAIN_MS in app/api/liq-events/purge/route.ts is the single definition. Not kept as a comment
 // for reference on purpose: two copies of a retention period is how they come to disagree.
@@ -66,6 +74,25 @@ function fmtTime(ts: number): string {
 }
 function coinFromSym(sym: string): string {
   return sym.replace(/^\d+/, '').replace(/USDT$|BUSD$|USDC$/, '');
+}
+/** The names a coin is stored under in lhq_liq_events: the coin id and the base of each venue's symbol (1000PEPEUSDT -> PEPE), upper case. */
+function storedCoinNames(coinUpper: string): string[] {
+  const v = venueSymbols(coinUpper.toLowerCase());
+  return [...new Set([coinUpper, v.bybit ? coinFromSym(v.bybit) : '', v.binance ? coinFromSym(v.binance) : ''].filter(Boolean))];
+}
+type StoredRow = { coin: string; side: string; usd: number; price: number; source: string; ts: number };
+/** Newest-first pages of the stored events of the last 24 h (all coins when `coins` is null), returned oldest first. A page shorter than SB_PAGE ends the read. */
+async function readStored(sb: NonNullable<ReturnType<typeof getSupabase>>, since: number, coins: string[] | null, maxPages: number): Promise<StoredRow[]> {
+  const rows: StoredRow[] = [];
+  for (let page = 0; page < maxPages; page++) {
+    let q = sb.from(T.liq_events).select('coin, side, usd, price, source, ts').gte('ts', since).order('ts', { ascending: false });
+    if (coins) q = q.in('coin', coins);
+    const { data, error } = await q.range(page * SB_PAGE, page * SB_PAGE + SB_PAGE - 1);
+    if (error || !data) break;
+    rows.push(...(data as StoredRow[]));
+    if (data.length < SB_PAGE) break;
+  }
+  return rows.reverse();
 }
 // bucketSz moved to lib/liqClusters.ts (#1075) - #1075's chart-side band
 // merge needs this same rounding tier as its "same zone" threshold, and
@@ -185,6 +212,52 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
     onClusters?.(buckets);
   }, [onClusters]);
 
+  /* ── Stored events (a page read or a coin read) merged into the history ── */
+  const coinVenuesRef = useRef(false);   // a coin read has set the "one venue only" note; the all-coins read then leaves it alone
+  const mergeStored = useCallback((data: StoredRow[], perCoin: boolean) => {
+    if (data.length === 0) return;
+    if (perCoin || !coinVenuesRef.current) {
+      const venues = new Set(data.map(r => r.source));
+      const only = venues.size === 1 ? (venues.has('BN') ? 'BN' : venues.has('BB') ? 'BB' : null) : null;
+      if (perCoin) coinVenuesRef.current = true;
+      setHistOnly(only);
+      onHistoryVenues?.(only);   // the /liq ladder and the Arena chart read the same table and say the same thing
+    }
+    const seen = new Set(historyRef.current.map(e => `${e.ts}_${e.coin}_${e.price}_${e.side}_${e.source}`));
+    /* STORED ROWS KEEP THE VENUE'S RAW PRICE: converted to per-token before they are compared with live events or merged (lib/liqUnits.ts). */
+    const newEvts = data
+      .map(r => ({ ...r, price: r.price * liqPerTokenFactor(r.coin, r.source) }))
+      .filter(r => !seen.has(`${r.ts}_${r.coin}_${r.price}_${r.side}_${r.source}`))
+      .map(r => ({
+        id: ++idCounter,
+        symbol: r.coin + 'USDT',
+        coin: r.coin,
+        side: r.side as 'LONG' | 'SHORT',
+        usd: r.usd,
+        price: r.price,
+        ts: r.ts,
+        source: r.source as 'BN' | 'BB',
+      }));
+    if (newEvts.length === 0) return;
+    const merged = [...historyRef.current, ...newEvts].sort((a, b) => a.ts - b.ts).slice(-HISTORY_MAX);
+    historyRef.current = merged;
+    rebuild(merged);
+    // Do NOT update setFeed here - old events should not appear in the live feed
+  }, [rebuild, onHistoryVenues]);
+
+  /* The selected coin's own stored events, once per coin (a coin switch on the Arena or /liq reads the new coin's). */
+  const loadedCoinsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const cf = coinFilter;
+    if (cf === 'ALL' || loadedCoinsRef.current.has(cf)) return;
+    const sb = getSupabase();
+    if (!sb) return;
+    loadedCoinsRef.current.add(cf);
+    readStored(sb, Date.now() - SB_WIN_MS, storedCoinNames(cf), SB_PAGES_COIN)
+      .then(rows => mergeStored(rows, true))
+      .catch(() => { loadedCoinsRef.current.delete(cf); });
+  }, [coinFilter, mergeStored]);
+
   /* ── Sync coinFilter prop → ref and re-derive stats/clusters ── */
   useEffect(() => {
     coinFilterRef.current = coinFilter;
@@ -218,7 +291,7 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
       id: ++idCounter, symbol: sym, coin: coinFromSym(sym),
       side, usd, price: price * symbolDenominationFactor(sym) /* per-token: 1000PEPEUSDT quotes per 1000 tokens (lib/liqUnits.ts) */, ts: Date.now(), source,
     };
-    historyRef.current = [...historyRef.current, ev].slice(-5000);
+    historyRef.current = [...historyRef.current, ev].slice(-HISTORY_MAX);
     rebuild(historyRef.current);
     setFeed(prev => [ev, ...prev].slice(0, FEED_SIZE));
     saveToStorage();
@@ -375,44 +448,7 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
     const sb = getSupabase();
     if (sb) {
       const since = Date.now() - SB_WIN_MS;
-      sb.from(T.liq_events)
-        .select('coin, side, usd, price, source, ts')
-        .gte('ts', since)
-        /* NEWEST 5000, then put back in time order. Ascending + limit kept the OLDEST 5000 of the window, and with both venues collected server-side a day can exceed 5000 rows, so the clusters and the one-venue note came from the oldest rows and missed the latest hours. */
-        .order('ts', { ascending: false })
-        .limit(5000)
-        .then(({ data: newestFirst }) => {
-          const data = newestFirst ? [...newestFirst].reverse() : newestFirst;
-          if (!data || data.length === 0) return;
-          const venues = new Set((data as Array<{ source: string }>).map(r => r.source));
-          const only = venues.size === 1 ? (venues.has('BN') ? 'BN' : venues.has('BB') ? 'BB' : null) : null;
-          setHistOnly(only);
-          onHistoryVenues?.(only);   // the /liq ladder and the Arena chart read the same table and say the same thing
-          const seen = new Set(
-            historyRef.current.map(e => `${e.ts}_${e.coin}_${e.price}_${e.side}_${e.source}`)
-          );
-          /* STORED ROWS KEEP THE VENUE'S RAW PRICE: converted to per-token before they are compared with live events or merged (lib/liqUnits.ts). */
-          const newEvts = (data as Array<{ coin: string; side: string; usd: number; price: number; source: string; ts: number }>)
-            .map(r => ({ ...r, price: r.price * liqPerTokenFactor(r.coin, r.source) }))
-            .filter(r => !seen.has(`${r.ts}_${r.coin}_${r.price}_${r.side}_${r.source}`))
-            .map(r => ({
-              id: ++idCounter,
-              symbol: r.coin + 'USDT',
-              coin: r.coin,
-              side: r.side as 'LONG' | 'SHORT',
-              usd: r.usd,
-              price: r.price,
-              ts: r.ts,
-              source: r.source as 'BN' | 'BB',
-            }));
-          if (newEvts.length === 0) return;
-          const merged = [...historyRef.current, ...newEvts]
-            .sort((a, b) => a.ts - b.ts)
-            .slice(-5000);
-          historyRef.current = merged;
-          rebuild(merged);
-          // Do NOT update setFeed here - old events should not appear in the live feed
-        });
+      readStored(sb, since, null, SB_PAGES_ALL).then(rows => mergeStored(rows, false)).catch(() => { /* the live feed and the coin read still run */ });
 
       /* The browser no longer saves liquidations (#1632 item 4): the server process collects them (lib/liqCollector.ts). The tab still READS the last 24 h above and shows its own live events. */
     }
