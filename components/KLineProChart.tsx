@@ -930,6 +930,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const prevCoinRef    = useRef<CoinId>(coin);
   const prevTfRef      = useRef<ChartTf>(tf);
   const loadGenRef     = useRef(0);
+  /* A LONE LIVE CANDLE ON A FAILED FIRST LOAD (PM, 2026-11-20, QA's failing-text-2731 C2): the websocket handlers below called `callback(bar)` on every frame with no regard for the history, so when every kline request failed the chart still drew the one live bar next to the "Couldn't load price history" line. A live frame is now used only once the history of THIS load generation has been delivered (deliveredGenRef === loadGenRef; before that the frame is dropped, the next one a second later is used), and never over an empty chart whose history failed (historyFailedRef, kept in step with the failure state by markHistoryFailed). A refresh that fails but keeps the last good candles is unchanged (the chart still has bars); a legitimately empty history (nothing failed) still lets the first live frame start the chart. */
+  const historyFailedRef = useRef(false);
+  const markHistoryFailed = (v: boolean) => { historyFailedRef.current = v; setHistoryFailed(v); };
+  const liveFrameAllowed = (): boolean =>
+    deliveredGenRef.current === loadGenRef.current
+    && !(historyFailedRef.current && (chartRef.current?.getDataList().length ?? 0) === 0);
 
   // ── Candle-close countdown ───────────────────────────────────────────
   useEffect(() => {
@@ -2106,7 +2112,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                for. */
             callback(bars, { forward: bars.length > 0 });
           };
-          setHistoryFailed(false); // clear any previous coin's failure banner immediately
+          markHistoryFailed(false); // clear any previous coin's failure banner immediately
           setHistoryViaServerBybitFallback(false); // same - clear the previous coin's label immediately
           try {
             /* #1059: Bybit primary, Binance fallback - reversed from
@@ -2148,7 +2154,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // silent - say so rather than a chart with nothing on it and
                 // no explanation.
                 /* A FAILED LOAD THAT KEPT THE LAST GOOD CANDLES SHOWS NO FAILURE LINE (failing-text sweep 2, owner's rule: last good value, not a failure): the flag is raised only when nothing was kept. */
-                if (!(json === null && keepLastGood())) { if (json === null) setHistoryFailed(true); applyBars([]); }
+                if (!(json === null && keepLastGood())) { if (json === null) markHistoryFailed(true); applyBars([]); }
                 handled = true;
               }
               // else: Bybit had nothing (refused after retries, or genuinely
@@ -2243,14 +2249,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // up empty - the same "silent blank chart" defect class, for a
                 // coin that DOES have a fallback. Surface it the same way.
               }
-              if (bars.length === 0 && keepLastGood()) { /* last good candles kept: no failure line */ } else { if (bars.length === 0) setHistoryFailed(true); applyBars(bars); }
+              if (bars.length === 0 && keepLastGood()) { /* last good candles kept: no failure line */ } else { if (bars.length === 0) markHistoryFailed(true); applyBars(bars); }
             } else if (!handled) {
               applyBars([]);
             }
             endFade();
             setLoadingTf(null);
             setBarsTick(n => n + 1);
-          } catch { if (!stale()) { if (!keepLastGood()) { setHistoryFailed(true); deliveredGenRef.current = myGen; callback([], false); } endFade(); setLoadingTf(null); } }
+          } catch { if (!stale()) { if (!keepLastGood()) { markHistoryFailed(true); deliveredGenRef.current = myGen; callback([], false); } endFade(); setLoadingTf(null); } }
           void symbol; // suppress unused
         },
 
@@ -2398,6 +2404,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                     timestamp: Number(k.start), open: Number(k.open), high: Number(k.high),
                     low: Number(k.low), close: Number(k.close), volume: Number(k.volume),
                   };
+                  if (!liveFrameAllowed()) return; // no history for this load yet, or it failed and the chart is empty: no lone live candle
                   lastCloseRef.current = bar.close;
                   lastBarTsRef.current = bar.timestamp;
                   upsertEmaBar(bar);
@@ -2597,6 +2604,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 if (suspect) { suspect = false; setWsStatus('live'); }
                 const { k } = JSON.parse(e.data as string) as { k: Record<string, string | number> };
                 const bar = { timestamp: Number(k.t), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) };
+                if (!liveFrameAllowed()) return; // same gate as the Bybit handler above
                 lastCloseRef.current = bar.close;
                 lastBarTsRef.current = bar.timestamp;
                 upsertEmaBar(bar);
