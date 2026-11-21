@@ -2,6 +2,9 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Disclaimer',
+  /* A DESCRIPTION OF ITS OWN (SEO audit, PM 2026-11-20): every page without one inherited the root's sentence, so six legal and contact pages shared it. 140-160 characters. */
+  description:
+    'LiquidityHQ is educational content, not financial advice. Read the trading risks, AI-generated analysis, data provider and no-guarantee disclosures in full.',
   /* #1740: a SELF-REFERENCING canonical. Deliberately not set on the root layout, where it would be
      INHERITED by every page that does not define its own - so each of those would declare itself to
      be `/`, which is worse than having no canonical at all. One per page, or none. */
