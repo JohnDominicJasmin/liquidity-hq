@@ -7,7 +7,7 @@
  *   B4  the threshold is strict: exactly 14 px stays, 13.9 moves
  *   B5  stacks of tags near the top edge land on the nearest free spot (46 / 52 / 60 for [6,22,38] / [14,30,44] / [10,24,38,52]: the three-hop defect that ended 4.5 px from "R $89,121"), clamped to the pane, no free spot = the label stays; W2 the box drops its own Entry text only when the strategy labels the entry
  *   B6  srTagCenters: a tag centre is its line's y minus 9; nothing for no chart, no prices, a missing convertToPixel or a non-finite y; the pixel call names the candle pane
- *   W1  wiring: five label sites go through clearOfSrTags (the level line + the box's Target, Stop, Entry, R:R), each with the offset that matches its baseline (bottom -> -6, top -> +6), the label TEXT expressions are untouched, the off-pane edge label (arrow text) is not wrapped, and the tag prices come from the S/R layer only when it is shown
+ *   W1  wiring: seven label sites go through clearOfSrTags (the level line, its off-pane edge branch, the zone's edge branch, and the box's Target, Stop, Entry, R:R), each with the offset that matches its baseline (bottom -> -6, top -> +6), the edge branches with lo 4 / hi paneH - 4, the label TEXT expressions untouched, tag prices only when the S/R layer is shown
  * WHAT THIS CANNOT PROVE: the pixels on the real chart (the stub spec on a build with #2761: stop == support at 390, with and without Draw Structure). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -80,16 +80,17 @@ test('B6. srTagCenters', () => {
   assert.deepEqual(srTagCenters({ convertToPixel: () => [{ y: 100 }] }, [50]), [91], 'the array form of the result');
 });
 
-test('W1. wiring: five sites, offsets matching their baselines, text untouched, edge label not wrapped, tag prices only when the layer is shown', () => {
+test('W1. wiring: seven sites (the level line, its edge branch, the zone edge branch, and the box Target / Stop / Entry / R:R), offsets matching their baselines, text untouched, tag prices only when the layer is shown', () => {
   const lines = SRC.split('\n').filter((l) => l.includes('clearOfSrTags(') && !l.includes('function clearOfSrTags'));
-  assert.equal(lines.length, 5, `expected 5 label sites through clearOfSrTags, found ${lines.length}`);
+  assert.equal(lines.length, 7, `expected 7 label sites through clearOfSrTags, found ${lines.length}`);
   for (const l of lines) {
-    const dy = /clearOfSrTags\([^;]*?,\s*(-6|6|t\.y < e\.y \? 6 : -6|s\.y > e\.y \? -6 : 6),\s*(?:tagC|srTagCenters\([^)]*\)\s*(?:,|\)))/.exec(l) ?? /clearOfSrTags\(.*?,\s*(-6|6|t\.y < e\.y \? 6 : -6|s\.y > e\.y \? -6 : 6),/.exec(l); assert.ok(dy, `dy not recognised: ${l.trim().slice(0, 140)}`);
-    const base = /baseline:\s*(?:'(top|bottom)'|(t\.y < e\.y \? 'top' : 'bottom')|(s\.y > e\.y \? 'bottom' : 'top'))/.exec(l); assert.ok(base, `baseline not recognised: ${l.trim().slice(0, 140)}`);
-    const want = base![1] === 'bottom' ? '-6' : base![1] === 'top' ? '6' : base![2] ? 't.y < e.y ? 6 : -6' : 's.y > e.y ? -6 : 6'; assert.equal(dy![1], want, `offset ${dy![1]} does not match the baseline: ${l.trim().slice(0, 120)}`);
+    const dy = /clearOfSrTags\([^;]*?,\s*(-6|6|above \? 6 : -6|t\.y < e\.y \? 6 : -6|s\.y > e\.y \? -6 : 6),\s*(?:tagC|srTagCenters\([^)]*\)\s*(?:,|\)))/.exec(l) ?? /clearOfSrTags\(.*?,\s*(-6|6|above \? 6 : -6|t\.y < e\.y \? 6 : -6|s\.y > e\.y \? -6 : 6),/.exec(l); assert.ok(dy, `dy not recognised: ${l.trim().slice(0, 140)}`);
+    const base = /baseline:\s*(?:'(top|bottom)'|(above \? 'top' : 'bottom')|(t\.y < e\.y \? 'top' : 'bottom')|(s\.y > e\.y \? 'bottom' : 'top'))/.exec(l); assert.ok(base, `baseline not recognised: ${l.trim().slice(0, 140)}`);
+    const want = base![1] === 'bottom' ? '-6' : base![1] === 'top' ? '6' : base![2] ? 'above ? 6 : -6' : base![3] ? 't.y < e.y ? 6 : -6' : 's.y > e.y ? -6 : 6'; assert.equal(dy![1], want, `offset ${dy![1]} does not match the baseline: ${l.trim().slice(0, 120)}`);
   }
   for (const frag of ["10, paneH - 4), text, align: 'left'", 'text: tp.text', 'text: sp.text', "text: narrow ? 'E' : d.entryText", 'text: d.rrText']) assert.ok(lines.some((l) => l.includes(frag)), `label text expression changed or missing: ${frag}`);
-  const edge = SRC.split('\n').filter((l) => l.includes("${text} ${above ? '↑' : '↓'}")); assert.equal(edge.length, 1); assert.ok(!edge[0].includes('clearOfSrTags'), 'the off-pane edge label must not be moved');
+  const edgeA = SRC.split('\n').filter((l) => l.includes("${text} ${above ? '↑' : '↓'}")); assert.equal(edgeA.length, 1, 'the level line\'s edge label'); assert.match(edgeA[0], /y: clearOfSrTags\(above \? 12 \+ slot \* 17 : paneH - 12 - slot \* 17, above \? 6 : -6, srTagCenters\(chartRef\.current, srTagPricesRef\.current\), 4, paneH - 4\)/, 'the level line edge label must go through clearOfSrTags with lo 4 / hi paneH - 4');
+  const edgeB = SRC.split('\n').filter((l) => l.includes("${text}${priceText ? ' ' + priceText : ''} ${above ? '↑' : '↓'}")); assert.equal(edgeB.length, 1, 'the zone\'s edge label'); assert.match(edgeB[0], /y: clearOfSrTags\(above \? Math\.min\(paneH - 10, off\) : Math\.max\(10, paneH - off\), above \? 6 : -6, srTagCenters\(chartRef\.current, srTagPricesRef\.current\), 4, paneH - 4\)/, 'the zone edge label must go through clearOfSrTags with lo 4 / hi paneH - 4');
   assert.match(SRC, /srTagPricesRef\.current = showSR \? srLevels\.map\(l => l\.price\) : \[\];/, 'tag prices must come from the S/R layer only when it is shown');
 });
 
