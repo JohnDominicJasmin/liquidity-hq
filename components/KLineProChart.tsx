@@ -3992,7 +3992,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             className={`klc-ws-dot${wsStatus === 'live' ? ' live' : wsStatus === 'error' ? ' err' : ''}`}
             role="img"
             aria-label={wsStatus === 'live' ? tl('CHART_FEED_LIVE') : wsStatus === 'error' ? tl('CHART_FEED_OFFLINE') : tl('CHART_FEED_CONNECTING')}
-            title={wsStatus}
+            title={wsStatus === 'live' ? tl('CHART_FEED_LIVE') : wsStatus === 'error' ? tl('CHART_FEED_OFFLINE') : tl('CHART_FEED_CONNECTING')}
           />
         </span>
       </div>
