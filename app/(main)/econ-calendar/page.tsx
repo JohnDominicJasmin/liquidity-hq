@@ -36,11 +36,15 @@ function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) + ' ' + localZoneAbbr();
 }
 
-function fmtHeaderDate(iso: string, t: TFn): string {
+/* The string app/api/econ-calendar/route.ts sends as `source` (and a saved last-good copy may hold): shown through a label so ko / zh / ru read it in their language; agency names stay as they are. */
+const OFFICIAL_SOURCE = 'official schedules: BLS, BEA, Census, Fed';
+
+function fmtHeaderDate(iso: string, t: TFn, locale: string): string {
   const d = new Date(iso);
   const today = new Date();
   const isToday = d.toDateString() === today.toDateString();
-  const label = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  /* THE VISITOR'S LANGUAGE, NOT THE BROWSER'S (QA's ru / ko / zh sweep, PM 2026-11-20): `undefined` took the browser locale, so a Russian page read "Wednesday, November 25, 2026". */
+  const label = d.toLocaleDateString(locale, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   return isToday ? t('ECON_CALENDAR_TODAY_PREFIX', { date: label }) : label;
 }
 
@@ -120,7 +124,7 @@ const COL_LABEL_KEYS: LabelKey[] = [
 ];
 
 export default function EconCalendarPage() {
-  const { t } = useLabels();
+  const { t, locale } = useLabels();
   const [events, setEvents]   = useState<CalEvent[]>([]);
   const [source, setSource]   = useState('');
   const [loading, setLoading] = useState(true);
@@ -198,7 +202,7 @@ export default function EconCalendarPage() {
 
       {(source || (failed && savedTs != null)) && (
         <div style={{ padding: '20px 0 16px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-          {source}{source && failed && savedTs != null ? ' · ' : ''}{failed && savedTs != null ? lastGoodAge(savedTs, t, now) : ''}
+          {source === OFFICIAL_SOURCE ? t('ECON_CALENDAR_SOURCE_OFFICIAL') : source}{source && failed && savedTs != null ? ' · ' : ''}{failed && savedTs != null ? lastGoodAge(savedTs, t, now) : ''}
         </div>
       )}
 
@@ -257,7 +261,7 @@ export default function EconCalendarPage() {
 
           {/* Date header */}
           <div style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)', marginBottom: 10, letterSpacing: '-.01em' }}>
-            {fmtHeaderDate(dayEvents[0].isoDate, t)}
+            {fmtHeaderDate(dayEvents[0].isoDate, t, locale)}
           </div>
 
           {/* Table */}
