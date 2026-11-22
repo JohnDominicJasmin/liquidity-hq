@@ -17,7 +17,7 @@ import { polledCacheControl } from '@/lib/cacheHeaders';
 import { getUserCompat } from '@/lib/authUser';
 import { userClient } from '@/lib/supabase-user';
 import { exchangeFetch } from '@/lib/exchangeGuard';
-import { trimBybitTickers, trimDeribitBook, trimLlamaStables } from '@/lib/payloadTrim';
+import { trimBybitTickers, trimDeribitBook, trimLlamaStables, trimToRequestedSymbols } from '@/lib/payloadTrim';
 import { COIN_UNIVERSE } from '@/lib/coinUniverse.generated';
 import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { bearerToken } from '@/lib/bearerToken';
@@ -87,7 +87,7 @@ interface PassEntry {
   serveStaleMs?: number;
   fixed?: Record<string, string>;
   /** #1651: keeps only the fields this entry's one caller reads, applied to the primary body BEFORE it is cached and serialised. */
-  trim?: (body: unknown) => unknown;
+  trim?: (body: unknown, params: URLSearchParams) => unknown;
   /* #1237 (#1077 split): a per-entry Bybit retry when the primary upstream
    * fails. Optional and rare (only `binance-24hr` and `depth` have one) -
    * this is a generic passthrough table, and most entries either already
@@ -176,9 +176,9 @@ const PASSTHROUGH: Record<string, PassEntry> = {
   /* Binance spot and futures */
   /* FUTURES 24h ticker for a NAMED LIST of symbols - the universe rows Bybit does not list (Binance-only
    * TradFi). Always call it WITH `symbols`: unfiltered it returns the whole futures market, about 330 KB.
-   * The only caller (components/MarketProvider.tsx) sends the 18 symbols from UNIVERSE_BINANCE_ONLY. */
+   * The only caller (components/MarketProvider.tsx) sends the 18 symbols from UNIVERSE_BINANCE_ONLY. BINANCE IGNORES `symbols` ON THIS ENDPOINT (it takes one `symbol`) and answers the whole market, 817 items, 302 KB (QA, prod 2026-11-23): `trim` keeps only the requested symbols before the body is cached. */
   'binance-futures-24hr': { url: 'https://fapi.binance.com/fapi/v1/ticker/24hr',
-                       params: ['symbols'], ttlMs: 30_000 },
+                       params: ['symbols'], ttlMs: 30_000, trim: trimToRequestedSymbols },
   'binance-24hr':    { url: 'https://api.binance.com/api/v3/ticker/24hr',
                        params: ['symbols', 'symbol'], ttlMs: 30_000,
                        bybitFallback: {
@@ -556,7 +556,7 @@ export async function GET(req: NextRequest) {
           /* THE BODY CAN BE LATE EVEN WHEN THE HEADERS WERE NOT (reliability leftover, PM 2026-11-17). The 3 s signal covers reading the body too, so a primary that answered 200 and then stalled mid-body aborted HERE, outside the try above, and the request failed without ever asking Bybit. A late or unreadable body now falls to the same fallback as a late or failed primary; with no fallback the original error is rethrown unchanged. */
           try {
             const body = await r.json();
-            return { json: JSON.stringify(entry.trim ? entry.trim(body) : body), viaFallback: false };
+            return { json: JSON.stringify(entry.trim ? entry.trim(body, req.nextUrl.searchParams) : body), viaFallback: false };
           } catch (e) {
             if (!fbUrl) throw e;
             primaryFailure = e;
