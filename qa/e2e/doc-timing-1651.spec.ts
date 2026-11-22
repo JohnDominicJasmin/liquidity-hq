@@ -47,3 +47,22 @@ for (const who of ['out', 'pro'] as const) {
     expect(answered, 'no visit produced a navigation entry').toBeGreaterThan(0);
   });
 }
+
+/* DOC:imm : the 4.8 s "navigation committed" of the old T3 warm visit followed the cold visit IMMEDIATELY (no wait), and the six document rounds above wait 15 s between visits and found 0.2 to 0.6 s. This asks whether the gap is the missing wait: A, then B at once (goto 'commit'), then C after 15 s, same context, per page; prints the commit time of each. */
+for (const who of ['out', 'pro'] as const) {
+  test(`DOC:imm ${who} visit then an immediate second visit, versus one after 15 s`, async ({ browser }) => {
+    test.skip(who === 'pro' && !AUTH_READY, 'the Pro fixture does not exist on this host');
+    test.setTimeout(900_000); const signedIn = who === 'pro'; let n = 0;
+    for (let round = 1; round <= 4; round++) for (const path of PAGES) {
+      const { ctx, page } = await ctxFor(browser, signedIn);
+      try {
+        await visit(page, path, signedIn); await page.waitForTimeout(500);   // A: settled enough to have its sockets and timers running
+        const t1 = Date.now(); await page.goto(path, { waitUntil: 'commit', timeout: 120_000 }); const imm = Date.now() - t1;
+        await page.waitForTimeout(15_000);
+        const t2 = Date.now(); await page.goto(path, { waitUntil: 'commit', timeout: 120_000 }); const late = Date.now() - t2; n++;
+        console.log(`[DOC1651] ${who} IMM round ${round} ${path}: immediate second visit committed in ${imm} ms · after 15 s in ${late} ms`);
+      } finally { await ctx.close().catch(() => {}); }
+    }
+    expect(n).toBeGreaterThan(0);
+  });
+}
