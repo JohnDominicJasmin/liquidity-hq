@@ -124,3 +124,25 @@ test('P8. CONTROL: with the 14 px rule switched off, P1\'s check finds the overp
   assert.ok(sweep(off, 366, 300, 150, 286, (l) => collisions(l)).length > 0, 'CONTROL: no overprint found without the rule, so P1 proves nothing');
   assert.ok(sweep(real, 366, 300, 150, 286, (l) => collisions(l)).length === 0, 'the real code still overprints');
 });
+
+/* #2769 (QA #1263 at 390 px: the box's "E" and "R:R" printed within 6 px of the strategy's own "Entry $x" level label): when the strategy labels the entry the box prints no second Entry text, and the level label's place (entry y - 9) is an obstacle for the other box labels; with no level label nothing changes. */
+function layoutWith(fn: Overlay, W: number, H: number, e: Pt, t: Pt | null, s: Pt, extra: Record<string, unknown>): Lab[] {
+  const figs = fn({ overlay: { extendData: { ...TEXTS, hasTarget: t !== null, rrText: t !== null ? TEXTS.rrText : '', ...extra } }, coordinates: [e, t ?? e, s], bounding: { width: W, height: H } });
+  const out: Lab[] = [];
+  for (const f of figs.filter((x) => x.type === 'text')) { const { x = 0, y = 0, text = '', align, baseline } = f.attrs, w = text.length * CHAR_W; const x0 = align === 'right' ? x - w : align === 'center' ? x - w / 2 : x, y0 = baseline === 'top' ? y : baseline === 'bottom' ? y - LINE_H : y - LINE_H / 2; const color = f.styles?.color; const role = color === 'var(--green)' ? 'T' : color === 'var(--red)' ? 'S' : text.startsWith('R:R') ? 'R' : text.startsWith('Levels') ? 'C' : 'E'; out.push({ role, text, x0, x1: x0 + w, y0, y1: y0 + LINE_H, anchorY: y }); }
+  return out;
+}
+test('P9. #2769: entryLabelled = no Entry / E text from the box, and no box label sits within 14 px of the level label\'s place', () => {
+  let n = 0; const bad: string[] = [];
+  for (const W of [366, 700]) for (const H of [300, 420]) for (const dir of ['BUY', 'SELL'] as const) for (const ds of [10, 14, 20, 30, 65]) for (const dt of [null, 12, 20, 30, 65] as Array<number | null>) {
+    const sc = scene(dir, Math.round(H / 2), 286, ds, dt); const labs = layoutWith(real, W, H, sc.e, sc.t, sc.s, { entryLabelled: true }); const on = layoutWith(real, W, H, sc.e, sc.t, sc.s, { entryLabelled: false }); n++;
+    if (labs.some((l) => l.role === 'E')) bad.push(`${dir} ds ${ds} dt ${dt} W ${W}: an Entry text is still printed`);
+    if (!on.some((l) => l.role === 'E')) bad.push(`CONTROL ${dir} ds ${ds} dt ${dt} W ${W}: entryLabelled false lost its Entry text`);
+    const place = sc.e.y - 9; for (const l of labs.filter((x) => x.role === 'R')) { const c = (l.y0 + l.y1) / 2; if (Math.abs(c - place) < 14) bad.push(`${dir} ds ${ds} dt ${dt} W ${W}: R:R centre ${c} is ${Math.abs(c - place).toFixed(1)} px from the level label's place ${place}`); }
+  }
+  console.log(`[P9] ${n} scenes`); assert.deepEqual(bad.slice(0, 6), [], `${bad.length} problems`);
+});
+test('P10. #2769: with no level label (entryLabelled false or absent) the output is exactly what it was', () => {
+  let n = 0; for (const W of [366, 700]) for (const dir of ['BUY', 'SELL'] as const) for (const ds of [4, 10, 20, 65]) for (const dt of [null, 6, 30] as Array<number | null>) { const sc = scene(dir, 150, 286, ds, dt); const a = layoutWith(real, W, 300, sc.e, sc.t, sc.s, {}); const b = layoutWith(real, W, 300, sc.e, sc.t, sc.s, { entryLabelled: false }); n++; assert.deepEqual(b, a, `${dir} ds ${ds} dt ${dt} W ${W}: entryLabelled false changed the output`); assert.ok(a.some((l) => l.role === 'E')); }
+  console.log(`[P10] ${n} scenes`);
+});
