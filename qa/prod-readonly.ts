@@ -98,6 +98,8 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'landing-overflow-sampling', needs: 'none', note: 'signed-out landing at 360-1440 normal and slow 3G sampled at first parse, 5 s and 30 s; GETs only, nothing clicked' },
   // ── anonymous ──
   { spec: 's3g-prod-1185', needs: 'none', note: 'slow 3G (matrix profile) first text, main content and LCP on /, /about, /faq, /liq, /news, signed out; GETs only, nothing written' },
+  { spec: 'audit-a11y', needs: 'none', note: 'axe critical and serious, keyboard-only and reduced-motion cells; on production only the signed-out persona runs; GETs only, writes stubbed, paid AI fenced' },
+  { spec: 'i18n-leftovers-1185', needs: 'none', note: 'prints which English leftovers remain in ru / ko / zh pages, signed out, GETs only' },
   { spec: 'nofail-sweep', needs: 'none', note: 'the no-failing-data sweep: every page signed out at 390 and 1280, GETs only, collects visible failing-data words and placeholders' },
   { spec: 'prod-release-1124', needs: 'none', note: 'signed-out prod checks of release v2026.11.24: changelog entry, the Liq layer in the chart unit for PEPE / BONK / sats / tag / toshi / turbo (one local chip toggle), version; GETs only, nothing written, no AI read' },
   { spec: 'a11y', needs: 'none', note: 'route sweep: spends the per-IP rate limit, one worker' },
