@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import * as nodeModule from 'node:module';
 
 /* #2666 (#1263 box 91): THE SUPPLY / DEMAND ZONE LABEL DOES NOT COVER THE BUY / SELL MARKER. Written rule (PR body): the marker is on the PRICE side of the zone (a long's triangle is below the signal candle's low, just above a demand zone's top edge; a short's is above the candle's high, just below a supply zone's bottom edge), so the label moves to the FAR edge: demand = under the bottom edge, supply = above the top edge, both still right-aligned (x1 - 4), and S/R bands (no text) are unchanged.
  * The real strategyZone createPointFigures is cut out of components/KLineProChart.tsx and run on chosen pixel positions; the label is a 10px-high rectangle with an estimated 6px per character; the marker is a 18px-high zone of triangle on the price side of the edge.
@@ -9,12 +10,16 @@ import { readFileSync } from 'node:fs';
  *   Z3 right-aligned at x1 - 4 in both, clamped to the pane width; the zone rectangle itself is unchanged (x0, y0, width, height at least 1)
  *   Z4 CONTROL: the OLD placement (demand above the top edge) does overlap the marker in this model, so the test can fail
  *   Z5 DIAGNOSTIC: a supply zone whose top edge is within 13 px of the pane top puts its label above the pane (printed, not asserted: needs a browser cell) */
+const stripTypeScriptTypes = (nodeModule as unknown as { stripTypeScriptTypes: (code: string) => string }).stripTypeScriptTypes;
 const src = readFileSync(new URL('../components/KLineProChart.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 /* #2688: the zone figure now also reads priceText / slot and draws an OFF-WINDOW label at the pane edge (pinned in zoneInViewLabel2688); this test still pins the in-window placement, so it cuts from the new first line. */
 const start = src.indexOf("const { kind, text, priceText, slot } = overlay.extendData as { kind: 'supply' | 'demand'; text: string; priceText?: string; slot?: number };"); assert.ok(start > 0, 'CONTROL: the zone figure code was not found');
 const end = src.indexOf('];\n', src.indexOf("{ type: 'text', attrs: { x: x1 - 4, y: demand", start)); assert.ok(end > start, 'CONTROL: the end of the figure list was not found');
 const body = src.slice(start, end + 2).replace(/ as \{[^}]*\}/g, '');   // the one TypeScript assertion in the slice
-const figures = new Function('overlay', 'coordinates', 'bounding', 'resolveCssColor', 'withAlpha', 'isFinite', `${body}`) as (o: unknown, c: unknown, b: unknown, r: (s: string) => string, w: (c: string, a: number) => string, f: (n: number) => boolean) => Array<{ type: string; attrs: Record<string, number | string>; styles?: unknown }>;
+/* #2769: the zone's edge label goes through clearOfSrTags / srTagCenters (component scope). The REAL helpers are cut out of the same file and the S/R layer is OFF here (no tag prices), so every label sits where it did before: this file keeps judging the zone's own placement (the tag clearance is pinned in srTagClearance2761). */
+const cutBlock = (re: RegExp): string => { const m = re.exec(src); assert.ok(m, `CONTROL: ${re} not found`); let i = src.indexOf('{', m.index + m[0].length - 1), d = 0; for (; i < src.length; i++) { if (src[i] === '{') d++; else if (src[i] === '}') { d--; if (d === 0) break; } } return src.slice(m.index, i + 1); };
+const srHelpers = new Function(`${stripTypeScriptTypes(`const SR_TAG_APART_PX = ${/const SR_TAG_APART_PX = (\d+);/.exec(src)![1]};\n${cutBlock(/function srTagCenters\(/)}\n${cutBlock(/function clearOfSrTags\(/)}`)}\nreturn { srTagCenters, clearOfSrTags };`)() as { srTagCenters: unknown; clearOfSrTags: unknown };
+const figuresRaw = new Function('overlay', 'coordinates', 'bounding', 'resolveCssColor', 'withAlpha', 'isFinite', 'clearOfSrTags', 'srTagCenters', 'srTagPricesRef', 'chartRef', `${body}`); const figures = ((o: unknown, c: unknown, b: unknown, r: unknown, w: unknown, fin: unknown) => (figuresRaw as (...a: unknown[]) => unknown)(o, c, b, r, w, fin, srHelpers.clearOfSrTags, srHelpers.srTagCenters, { current: [] }, { current: null })) as unknown as (o: unknown, c: unknown, b: unknown, r: (s: string) => string, w: (c: string, a: number) => string, f: (n: number) => boolean) => Array<{ type: string; attrs: Record<string, number | string>; styles?: unknown }>;
 const zone = (kind: 'demand' | 'supply', y0: number, h: number, x0 = 40, x1 = 300, text = kind === 'demand' ? 'Demand' : 'Supply') => figures({ extendData: { kind, text } }, [{ x: x0, y: y0 }, { x: x1, y: y0 + h }], { width: 400 }, (s: string) => s, (c: string) => c, Number.isFinite);
 const label = (f: ReturnType<typeof zone>) => f.find((x) => x.type === 'text')!;
 const rect = (f: ReturnType<typeof zone>) => f.find((x) => x.type === 'rect')!;

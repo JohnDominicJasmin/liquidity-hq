@@ -1,0 +1,4 @@
+{
+  "routes": ["/", "/about", "/faq", "/terms", "/privacy", "/refund", "/disclaimer", "/security", "/accessibility", "/contact", "/login", "/forgot-password", "/reset-password", "/learn", "/help", "/changelog", "/status"],
+  "extraEntries": ["app/(main)/layout.tsx", "app/(intl)/[locale]/layout.tsx", "app/(intl)/[locale]/page.tsx", "app/global-not-found.tsx", "app/(main)/not-found.tsx"]
+}

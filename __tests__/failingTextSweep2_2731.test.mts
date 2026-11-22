@@ -99,7 +99,8 @@ function chartHarness(world: World) {
   const scope: Record<string, unknown> = {
     ...refs,
     venueSymbols: () => world.venues,
-    setHistoryFailed: (v: boolean) => { failedCalls.push(v); },
+    /* RE-PINNED 2026-11-20 for #2759: the chart raises the failure flag through markHistoryFailed (it mirrors the value into a ref the live-frame gate reads); the recorded calls are the same. */
+    markHistoryFailed: (v: boolean) => { failedCalls.push(v); },
     setHistoryViaServerBybitFallback: () => {}, setLoadingTf: () => {}, setBarsTick: () => {}, endFade: () => {}, syncEmaRibbon: () => {},
     computeSRLevels: () => [], detectStructureSignals: () => [], PA_MAX: 5,
     periodToBybitInterval: () => '60', periodToBnInterval: () => '1h', HISTORY_ATTEMPT_TIMEOUT_MS: 1_000, deadlineSignal: () => undefined,
@@ -181,8 +182,8 @@ test('C3. controls: an upstream that answers OK with a genuinely empty list is n
 test('S1. the chart raises the failure flag in exactly three places, none of them unguarded', () => {
   const body = cutBody(CHART, GETBARS_ANCHOR, 'the chart getBars');
   const code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  const raises = [...code.matchAll(/setHistoryFailed\(true\)/g)];
-  assert.equal(raises.length, 3, `setHistoryFailed(true) is raised ${raises.length} time(s) in getBars, the rule names three (Bybit-only, all sources empty, the catch)`);
+  const raises = [...code.matchAll(/markHistoryFailed\(true\)/g)];
+  assert.equal(raises.length, 3, `markHistoryFailed(true) is raised ${raises.length} time(s) in getBars, the rule names three (Bybit-only, all sources empty, the catch)`);
   for (const m of raises) {
     const before = code.slice(Math.max(0, m.index! - 160), m.index!);
     assert.match(before, /(keepLastGood\(\)|json === null|bars\.length === 0)/, `a failure flag is raised with no "nothing was kept / nothing came back" test in front of it: ...${JSON.stringify(before.slice(-90))}`);
