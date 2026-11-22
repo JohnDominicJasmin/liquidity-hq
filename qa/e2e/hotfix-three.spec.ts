@@ -49,7 +49,9 @@ test('H2. the LiqFeed history asks for the NEWEST rows in pages (order ts desc, 
       expect(u, `limit=5000 is back: the API answers 1000 rows and the rest of the window is silently lost: ${u}`).not.toMatch(/limit=5000/);
     }
     expect(perCoin.length, 'no per-coin liq_events read (coin=in.(...)) went out for the selected coin').toBeGreaterThan(0);
-    for (const u of perCoin) expect(u, 'the per-coin read does not name the selected coin (BTC) by its stored names').toMatch(/coin=in\.\([^)]*BTC/i);
+    /* the page reads the SELECTED coin and one more per-coin set (ETH on staging 2295543): each per-coin read names at least one coin, and one of them names the selected coin (BTC) */
+    for (const u of perCoin) expect(u, `a per-coin read names no coin: ${u}`).toMatch(/coin=in\.\([A-Za-z0-9_,.-]+\)/);
+    expect(perCoin.some((u) => /coin=in\.\([^)]*BTC/i.test(u)), `no per-coin read names the selected coin (BTC): ${perCoin.join(' | ')}`).toBe(true);
     for (const u of wide) expect(u, `the all-coins read carries a coin filter after all: ${u}`).not.toMatch(/coin=/);
     console.log(`[HOTFIX] all-coins reads ${wide.length} (first offset ${/offset=(\d+)/.exec(wide[0] ?? '')?.[1] ?? 'n/a'}) · per-coin reads ${perCoin.length} · total ${asks.length}`);
     expect(asks.length, `${asks.length} liq_events requests on load (budget 8: 5 pages for all coins + 3 for the coin)`).toBeLessThanOrEqual(8);
