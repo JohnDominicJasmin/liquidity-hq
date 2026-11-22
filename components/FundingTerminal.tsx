@@ -499,7 +499,8 @@ export default function FundingTerminal() {
             </div>
 
             {/* Coin regime rows */}
-            <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {/* A scroll box with no focusable child cannot be scrolled from the keyboard (axe scrollable-region-focusable, #1185). tabIndex 0 puts it in the tab order; the page-wide :focus-visible ring shows it. The name is the card's own heading, already translated. Same pattern as the history list below. */}
+            <div role="region" tabIndex={0} aria-label={t('FUNDING_REGIME_OVERVIEW_LABEL')} style={{ maxHeight: 220, overflowY: 'auto' }}>
               {liveCoins.map(({ id, fr, sig, carryArb, contraShort, contraLong }) => (
                 <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderTop: '0.5px solid var(--bdr)' }}>
                   {/* PLAIN TEXT, NOT THE BADGE COLOUR (#734, owner ruling).
