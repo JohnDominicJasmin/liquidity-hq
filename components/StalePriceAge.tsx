@@ -7,7 +7,7 @@ import { useLabels } from '@/lib/labels';
 
 /* THE AGE OF A PRICE THE ROUTE SERVED FROM ITS LAST GOOD BODY (#2783; owner's data-integrity rule: every number shows its age or an unknown state).
  * The Binance-only coins (pre-IPO references, commodities, Hong Kong shares) are priced by one read of /api/proxy?type=binance-futures-24hr. When Binance
- * refuses, the route answers with its last good body, up to 10 minutes old, flagged `x-data-stale`; MarketProvider keeps that body's moment in
+ * refuses, the route answers with its last good body, up to 60 minutes old, flagged `x-data-stale`; MarketProvider keeps that body's moment in
  * `binanceOnlyStaleAt`. While it is set, every place that prints one of these prices carries this line under it. The same label as every other age in the app
  * (ARENA_FRESHNESS_*), no new copy. It keys on the route's flag, not on age: the read repeats every 8 minutes, so a live price can be that old and is not marked.
  * One test id on every surface (Markets, Dashboard, Arena scanner) so one pin covers them all. */
