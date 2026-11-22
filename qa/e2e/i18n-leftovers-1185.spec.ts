@@ -24,8 +24,9 @@ for (const [loc, path, needles] of CASES) {
       const r = await page.evaluate((ns) => {
         const text = (document.body.innerText || '').replace(/\s+/g, ' ');
         const attrs = Array.from(document.querySelectorAll('[title],[aria-label]')).map((e) => `${e.getAttribute('title') ?? ''} ${e.getAttribute('aria-label') ?? ''}`).join(' | ');
-        const wordRe = (n: string) => new RegExp(`(^|[^A-Za-z])${n.replace(/[.*+?^${}()|[\]\]/g, '\$&')}([^A-Za-z]|$)`);
-        const english = ns.filter((n) => wordRe(n).test(text) || wordRe(n).test(attrs));
+        const isLetter = (c: string) => /[A-Za-z]/.test(c);
+        const has = (hay: string, n: string) => { let i = hay.indexOf(n); while (i >= 0) { const b = i === 0 ? '' : hay[i - 1], a = hay[i + n.length] ?? ''; if (!isLetter(b) && !isLetter(a)) return true; i = hay.indexOf(n, i + 1); } return false; };
+        const english = ns.filter((n) => has(text, n) || has(attrs, n));
         const longDate = /(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), (January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}, \d{4}/.exec(text)?.[0] ?? null;
         return { english, longDate, lang: document.documentElement.lang, len: text.length };
       }, needles);
