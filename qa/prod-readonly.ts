@@ -101,6 +101,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'audit-a11y', needs: 'none', note: 'axe critical and serious, keyboard-only and reduced-motion cells; on production only the signed-out persona runs; GETs only, writes stubbed, paid AI fenced' },
   { spec: 'i18n-leftovers-1185', needs: 'none', note: 'prints which English leftovers remain in ru / ko / zh pages, signed out, GETs only' },
   { spec: 'doc-timing-1651', needs: 'none', note: 'document timing of /research, /learn and /faq, cold and warm, six rounds; signed out on production (GETs only); the signed-in cell skips where the fixture does not exist' },
+  { spec: 'landing-768-1185', needs: 'none', note: 'the landing hero as server HTML with JavaScript off, at 768 / 900 / 1023 / 1099 / 390 / 1280, dark and light, then JS on at 768; GETs only, nothing written' },
   { spec: 'nofail-sweep', needs: 'none', note: 'the no-failing-data sweep: every page signed out at 390 and 1280, GETs only, collects visible failing-data words and placeholders' },
   { spec: 'prod-release-1124', needs: 'none', note: 'signed-out prod checks of release v2026.11.24: changelog entry, the Liq layer in the chart unit for PEPE / BONK / sats / tag / toshi / turbo (one local chip toggle), version; GETs only, nothing written, no AI read' },
   { spec: 'a11y', needs: 'none', note: 'route sweep: spends the per-IP rate limit, one worker' },
