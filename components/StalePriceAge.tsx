@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { useMarket } from '@/lib/marketStore';
 import { UNIVERSE_BINANCE_ONLY } from '@/lib/coins';
 import { useNow } from '@/lib/useNow';
@@ -18,6 +19,14 @@ const BINANCE_ONLY_IDS = new Set<string>(Object.values(UNIVERSE_BINANCE_ONLY));
 export function useBinanceOnlyPriceStale(coin: string): boolean {
   const { store } = useMarket();
   return store.binanceOnlyStaleAt != null && BINANCE_ONLY_IDS.has(coin);
+}
+
+/** A VALUE WORKED OUT FROM THIS COIN'S PRICE, HELD WHILE THAT PRICE IS STALE (PM, #2783). Live price: `live` as it is. Stale price: the last `live` seen while the price was live, for this coin; `none` if there never was one. So an hour-old price cannot change a verdict. */
+export function useHeldWhileStale<T>(coin: string, live: T, none: T): T {
+  const stale = useBinanceOnlyPriceStale(coin);
+  const [held, setHeld] = useState<{ coin: string; v: T } | null>(null);
+  if (!stale && (held?.coin !== coin || held.v !== live)) setHeld({ coin, v: live });
+  return stale ? (held?.coin === coin ? held.v : none) : live;
 }
 
 function AgeLine({ at }: { at: number }) {
