@@ -14,6 +14,12 @@ import { useLabels } from '@/lib/labels';
  * coin strip list only the 50 curated coins (`COINS`), which this read never prices, so they carry no mark. One test id on every surface. */
 const BINANCE_ONLY_IDS = new Set<string>(Object.values(UNIVERSE_BINANCE_ONLY));
 
+/** True while this coin's store price came from the route's last good body (#2783). A verdict computed from the price must not newly change while this is true. */
+export function useBinanceOnlyPriceStale(coin: string): boolean {
+  const { store } = useMarket();
+  return store.binanceOnlyStaleAt != null && BINANCE_ONLY_IDS.has(coin);
+}
+
 function AgeLine({ at }: { at: number }) {
   const { t } = useLabels();
   const now = useNow(60_000);   // the clock lives here, so a row with no mark runs no timer
