@@ -193,6 +193,7 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'arena-alert-resilience': 'clicks Save on a price alert on purpose; safe only while a route stub matches, and a missed match would create a real alert',
   'checkout': 'clicks the checkout CTA on purpose; safe only while a route stub matches, and a missed match would create a real checkout session',
   'channel-box-2511': 'CLICKS Draw Structure (a CAPPED AI route, stubbed and fenced) and signs in as the Pro fixture, a DEV-project account that does not exist on production',
+  'tick-1651-staging': 'signs in as the A fixture (a DEV-project Pro account that does not exist on production) and times /research and /dashboard on staging; read-only but meaningless against production',
   'draw-structure-labels-render': 'CLICKS the Draw Structure control, which calls a CAPPED AI route - safe only while the route stub matches, and a missed match is a billed xAI call on a production account. Same reason as checkout and arena-alert-resilience. It also signs in with a DEV-project fixture, which is not a production account at all.',
   'draw-structure-menu': 'CLICKS Draw Structure, a CAPPED AI route - safe only while the route stub matches; signs in with a DEV-project fixture. Same reason as draw-structure-labels-render.',
   'arena-grok-unreadable': 'CLICKS the Quick read button, which calls /api/grok - a billed xAI route - safe only while the route stub matches; signs in with a DEV-project fixture, not a production account. Same reason as arena-bad-answer-copy.',
@@ -226,6 +227,7 @@ export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'signout-resilience': 'writes on purpose: PATCHes settings and signs out',
   'strategy-panel-preload-race': 'writes on purpose: PATCHes strategy_selection',
   'failing-text-2731': 'signs in with a DEV-project fixture (not a production account) and drives a journal read that is route-stubbed to fail; its stand-in answers the one trade POST so nothing reaches the database, but a missed route match would write a real journal row. Also forces kline reads to fail, which against production would show a failure to real visitors.',
+  'str-drawings': 'signs in as the Pro fixture (a DEV-project account that does not exist on production) and picks each of the 16 strategies on a deployed non-production build to count drawings; not a production spec.',
   'timezone-sync-settings-ready': 'writes on purpose: PATCHes timezone',
 };
 
