@@ -2,6 +2,7 @@
  *   [I18NL] <locale> <path>: {"english":[...strings still English...],"checked":N}
  * It asserts nothing (Dev decides which are deliberate: the Pro TF tooltips, the acronyms); one soft assertion per cell that the page loaded in the language (html[lang]). */
 import { test, expect } from '@playwright/test';
+test.skip(!process.env.E2E_BASE_URL, 'dispatch-only: measures a deployed site (-f base_url=<site>); on the runner build the default suite must not run it (a long sweep once hit the 2 h cap)');
 
 const CASES: Array<[string, string, string[]]> = [
   ['ru', '/upgrade', ['Not included:']],

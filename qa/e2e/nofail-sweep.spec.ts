@@ -4,6 +4,7 @@
  * Words: unavailable, no data, not available, couldn't, could not, failed, error, retry, try again, NaN, undefined, null, "—" / "--" / "-" alone, "n/a". Asserts nothing: the table is built from the log. */
 import { test } from '@playwright/test';
 import { collect } from './_nofail';
+test.skip(!process.env.E2E_BASE_URL, 'dispatch-only: measures a deployed site (-f base_url=<site>); on the runner build the default suite must not run it (a long sweep once hit the 2 h cap)');
 
 const OUT_PAGES = ['/', '/about', '/faq', '/markets', '/dashboard', '/briefing', '/correlation', '/scanner', '/news', '/funding', '/liq', '/hours', '/upgrade', '/changelog', '/login', '/arena?coin=btc', '/arena?coin=hype'];
 for (const width of [390, 1280]) {

@@ -9,6 +9,7 @@ import { test, type Page } from '@playwright/test';
 import { join } from 'node:path';
 import { AUTH_READY } from './_auth';
 import { PAGES, PROD, open, arm, watch, untilSettled, type Persona } from './_matrix';
+test.skip(!process.env.E2E_BASE_URL, 'dispatch-only: measures a deployed site (-f base_url=<site>); on the runner build the default suite must not run it (a long sweep once hit the 2 h cap)');
 
 const AXE = join(process.cwd(), 'node_modules', 'axe-core', 'axe.min.js');
 const THEMES = ['light', 'dark'] as const;

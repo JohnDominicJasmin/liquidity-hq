@@ -1,6 +1,7 @@
 /* #1185 SLOW 3G on PRODUCTION (PM 2026-11-23): signed out, read-only (GETs only, nothing written), the audit matrix's own profile (400 kbit/s down, 200 kbit/s up, 400 ms latency), 390 px, a fresh context per page.
  * Per page: first text (first paint with any text), LCP, and MAIN CONTENT = the first moment the page body holds 300 characters of text and no skeleton / aria-busy element is visible. The criterion on the tracker is main content under 5 s on every page. Prints [S3G1185] lines; the assertion is soft so one page never hides the rest. */
 import { test, expect } from '@playwright/test';
+test.skip(!process.env.E2E_BASE_URL, 'dispatch-only: measures a deployed site (-f base_url=<site>); on the runner build the default suite must not run it (a long sweep once hit the 2 h cap)');
 
 const PAGES = ['/', '/about', '/faq', '/liq', '/news'] as const;
 for (const path of PAGES) {

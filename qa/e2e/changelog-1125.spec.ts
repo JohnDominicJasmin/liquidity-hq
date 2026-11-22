@@ -1,5 +1,6 @@
 /* v2026.11.25 CANDIDATE CHECK, read-only: /changelog serves the new top entry (one line, dated 23 November 2026), then v2026.11.24 with its eight lines in order dated 23 November 2026 (the date fix of PR 2771), then v2026.11.23; no sideways scroll at 1280 and 390. GETs only. */
 import { test, expect } from '@playwright/test';
+test.skip(!process.env.E2E_BASE_URL, 'dispatch-only: measures a deployed site (-f base_url=<site>); on the runner build the default suite must not run it (a long sweep once hit the 2 h cap)');
 
 const L25 = 'Pro accounts no longer see an upgrade card while the plan loads.';
 const L24 = [

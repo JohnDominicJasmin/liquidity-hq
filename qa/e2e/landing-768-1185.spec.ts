@@ -1,6 +1,7 @@
 /* #1185 / fix/landing-768-hero-clip: THE LANDING HERO BEFORE HYDRATION (Dev's request 2026-11-23). "/" signed out, read-only (GETs only), JavaScript DISABLED (the server HTML on its own) at 768, 900, 1023, 1099 and the controls 390 and 1280, colour scheme dark and light, then JavaScript ON at 768.
  * Per cell [L768] prints: documentElement.scrollWidth vs the viewport, the right edge of .lp-read-panel, the heights of the two hero CTAs (one line = 48 / 46 px, a wrapped one is taller), the nav brand text scrollWidth vs clientWidth (.lt-brand-text and .tnav-brand), and whether the page has a sideways scroll at all. Soft assertions: scrollWidth <= viewport, panel right <= viewport, CTA heights at most 50. */
 import { test, expect } from '@playwright/test';
+test.skip(!process.env.E2E_BASE_URL, 'dispatch-only: measures a deployed site (-f base_url=<site>); on the runner build the default suite must not run it (a long sweep once hit the 2 h cap)');
 
 const WIDTHS = [768, 900, 1023, 1099, 390, 1280] as const;
 const measure = () => {

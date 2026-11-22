@@ -6,6 +6,7 @@
 import { test, expect, type Page, type Browser } from '@playwright/test';
 import { AUTH_READY, signedInContext, gotoSignedIn } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
+test.skip(!process.env.E2E_BASE_URL, 'dispatch-only: measures a deployed site (-f base_url=<site>); on the runner build the default suite must not run it (a long sweep once hit the 2 h cap)');
 
 const PAGES = ['/arena?coin=hype', '/arena?coin=btc', '/research', '/alerts', '/dashboard'] as const;
 const RX = /\bupgrade\b|\bunlock with pro\b|\bpro feature\b|\bsee pro\b|\bwith pro\b|\bpro only\b|^pro$/i;

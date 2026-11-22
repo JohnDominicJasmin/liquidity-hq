@@ -13,6 +13,7 @@ import { test, expect, type Browser } from '@playwright/test';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
 import { gotoGuarded } from './_shared';
+test.skip(!process.env.E2E_BASE_URL, 'dispatch-only: measures a deployed site (-f base_url=<site>); on the runner build the default suite must not run it (a long sweep once hit the 2 h cap)');
 
 const BUDGET = 0.1; const LOADS = 6;
 type Src = { tag: string; cls: string; testid: string; text: string; prev: number[]; cur: number[] };

@@ -4,6 +4,7 @@
  *   E3 prod serves 1109b76, is not gated, not noindex */
 import { test, expect, type Browser, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+test.skip(!process.env.E2E_BASE_URL, 'dispatch-only: measures a deployed site (-f base_url=<site>); on the runner build the default suite must not run it (a long sweep once hit the 2 h cap)');
 
 mkdirSync('qa/.shots', { recursive: true });
 const V = (tag: string, msg: string) => console.log(`[R24] ${tag} ${msg}`);
