@@ -177,8 +177,9 @@ const PASSTHROUGH: Record<string, PassEntry> = {
   /* FUTURES 24h ticker for a NAMED LIST of symbols - the universe rows Bybit does not list (Binance-only
    * TradFi). Always call it WITH `symbols`: unfiltered it returns the whole futures market, about 330 KB.
    * The only caller (components/MarketProvider.tsx) sends the 18 symbols from UNIVERSE_BINANCE_ONLY. BINANCE IGNORES `symbols` ON THIS ENDPOINT (it takes one `symbol`) and answers the whole market, 817 items, 302 KB (QA, prod 2026-11-23): `trim` keeps only the requested symbols before the body is cached. */
+  /* A 429 FROM BINANCE ANSWERED 502 (QA, #1651, 16 tokenized symbols): the page then had nothing for these rows until the next poll. Now the last good body answers, up to 60 minutes old, marked `x-data-stale` with `x-data-age-ms`, same as the slow types below. The page shows that age under the price (PM, #2783), so a number that old is honest, and the exchange breaker can hold Binance off past 10 minutes on a repeat ban. Older than 60 minutes it is a 502 again. The cache key includes the symbols list, so only that one list is ever served. */
   'binance-futures-24hr': { url: 'https://fapi.binance.com/fapi/v1/ticker/24hr',
-                       params: ['symbols'], ttlMs: 30_000, trim: trimToRequestedSymbols },
+                       params: ['symbols'], ttlMs: 30_000, serveStaleMs: 60 * 60_000, trim: trimToRequestedSymbols },
   'binance-24hr':    { url: 'https://api.binance.com/api/v3/ticker/24hr',
                        params: ['symbols', 'symbol'], ttlMs: 30_000,
                        bybitFallback: {

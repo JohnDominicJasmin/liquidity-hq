@@ -175,6 +175,8 @@ export type MarketStore = {
    *  binanceOnly - the small Binance request for the rows Bybit does not list.
    *  'pending' until the first answer; 'ok' = it answered (a row still empty then has no quote there); 'failed' = it errored. */
   scannerFeed: { universe: ScannerFeedState; binanceOnly: ScannerFeedState };
+  /** WHEN THE BINANCE-ONLY ROWS' PRICES WERE LAST GOOD, set only while the route answered with its last good body (`x-data-stale`, #2783): the moment that body was read, so a row can say how old its price is. null = the answer was live (or none has come): no mark. The read repeats every 8 minutes, so age alone says nothing; the route's flag is what marks a row. */
+  binanceOnlyStaleAt: number | null;
   /** THE STATE OF THE ONE BULK SNAPSHOT READ (`/api/market/snapshot`), which is what supplies the first
    *  VWAP, RSI and long/short figures on a cold load.
    *    'loading' - no answer yet. A figure that depends on it is simply not here YET, and a surface must
@@ -255,6 +257,7 @@ export const defaultStore: MarketStore = {
   wsStatus: 'Connecting...',
   pricesFailed: false,
   scannerFeed: { universe: 'pending', binanceOnly: 'pending' },
+  binanceOnlyStaleAt: null,
   snapshotStatus: 'loading',
   newsCache: [],
   oilPrice: null,
