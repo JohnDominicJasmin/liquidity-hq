@@ -38,9 +38,9 @@ async function startMutationLoop(page: import('@playwright/test').Page) {
     const note = (el: Element | null, text: string) => { const r = el ? (el as HTMLElement).getBoundingClientRect() : null; const cs = el ? getComputedStyle(el) : null; const vis = !!r && r.width > 0 && r.height > 0 && cs!.visibility !== 'hidden' && cs!.display !== 'none' && Number(cs!.opacity) > 0; w.__mo.hits.push({ t: Math.round(performance.now()), text: text.slice(0, 80), vis }); };
     const scan = (n: Node) => { const el = n.nodeType === 1 ? (n as Element) : n.parentElement; const tx = (n.textContent || ''); const m = RE.exec(tx); if (m) note(el, m[0]); };
     const start = () => {
-      new MutationObserver((ms) => { w.__mo.obs += ms.length; for (const m of ms) { m.addedNodes.forEach(scan); if (m.type === 'characterData') scan(m.target); if (w.__mo.proAt == null && document.querySelector('.plan-badge-pro')) w.__mo.proAt = Math.round(performance.now()); } }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+      new MutationObserver((ms) => { w.__mo.obs += ms.length; for (const m of ms) { m.addedNodes.forEach(scan); if (m.type === 'characterData') scan(m.target); if (w.__mo.proAt == null && document.querySelector('.plan-badge-pro')) w.__mo.proAt = Math.round(performance.now()); } }).observe(document, { childList: true, subtree: true, characterData: true });
     };
-    start();
+    start();   /* observe(document), not documentElement: addInitScript runs before the root element exists, so the first run threw inside the init script and saw 0 mutations (the control caught it) */
   });
 }
 for (const path of ['/research', '/dashboard', '/arena', '/briefing', '/correlation']) {
