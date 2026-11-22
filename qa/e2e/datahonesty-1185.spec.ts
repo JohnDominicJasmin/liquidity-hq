@@ -29,7 +29,8 @@ test('DH1 /scanner with every market read failing: no "nothing here" claim', asy
     await page.goto('/scanner', { waitUntil: 'domcontentloaded', timeout: 60_000 }); await page.waitForTimeout(25_000);
     const t = await body(page);
     const claims = { setupNoMatch: /No setups match|No strong setups right now|No coins match/i.test(t), accumulationEmpty: t.includes(prefix('ACCUMULATION_TRACKER_EMPTY')), distributionEmpty: t.includes(prefix('DISTRIBUTION_TRACKER_EMPTY_TITLE')) };
-    DH('DH1', `${JSON.stringify(claims)} · page text (first 700): ${t.slice(0, 700)}`);
+    const win = (re: RegExp, n = 320) => { const m = re.exec(t); return m ? t.slice(m.index, m.index + n) : 'NOT ON THE PAGE'; };
+    DH('DH1', `${JSON.stringify(claims)} · SETUP: ${win(/Setup Scanner|squeeze risk/i)} · ACCUMULATION: ${win(/Accumulation Tracker/i)} · DISTRIBUTION: ${win(/Distribution Tracker/i)}`);
     expect.soft(claims.setupNoMatch, 'SetupScanner says no match for a failed read').toBe(false);
     expect.soft(claims.accumulationEmpty, 'AccumulationTracker says nothing detected for a failed read').toBe(false);
     expect.soft(claims.distributionEmpty, 'DistributionTracker says nothing detected for a failed read').toBe(false);
@@ -62,7 +63,8 @@ test('DH3 /news All tab with the reads failing: not a loading state for ever, no
     await page.goto('/news', { waitUntil: 'domcontentloaded', timeout: 60_000 });
     await page.waitForTimeout(20_000); const t20 = await body(page); await page.waitForTimeout(40_000); const t60 = await body(page);
     const busy = await page.evaluate(() => document.querySelectorAll('[aria-busy="true"], [class*="skeleton" i]').length);
-    DH('DH3', `at 20 s: ${t20.slice(0, 400)} || at 60 s: ${t60.slice(0, 400)} || skeleton/busy elements at 60 s: ${busy}`);
+    const after = (t: string) => { const i = t.indexOf('Breaking crypto headlines'); return i < 0 ? t.slice(-500) : t.slice(i, i + 700); };
+    DH('DH3', `at 20 s: ${after(t20)} || at 60 s: ${after(t60)} || skeleton/busy elements at 60 s: ${busy}`);
     expect.soft(busy, 'the News page is still on a loading state after 60 s with every read failing').toBe(0);
     expect.soft(/no news|nothing here|no alerts|no articles/i.test(t60) && !/couldn.t|could not|unavailable|failed|retry|try again/i.test(t60), 'the News page claims there is nothing for a failed read').toBe(false);
   } finally { await ctx.close().catch(() => {}); }
