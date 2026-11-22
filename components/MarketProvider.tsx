@@ -554,6 +554,11 @@ export default function MarketProvider(
             }
             updateCoins(bn);
             bnAnswered = true;
+            /* A STALE ANSWER IS SAID TO BE STALE (#2783): the route serves its last good body, up to 10 minutes old, when Binance refuses. The flag and the age are on the headers; a stale answer with no readable age is taken as the bound (10 minutes), never as live. */
+            const staleAnswer = r.headers.get('x-data-stale') === '1';
+            const ageHeader = Number(r.headers.get('x-data-age-ms'));
+            const staleAt = staleAnswer ? Date.now() - (Number.isFinite(ageHeader) && ageHeader >= 0 ? ageHeader : 10 * 60_000) : null;
+            setStore(s => (s.binanceOnlyStaleAt === staleAt ? s : { ...s, binanceOnlyStaleAt: staleAt }));
           }
         } catch { /* a missed cycle keeps the last values; the next poll retries */ }
       }
