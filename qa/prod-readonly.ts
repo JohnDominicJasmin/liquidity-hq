@@ -104,6 +104,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'landing-768-1185', needs: 'none', note: 'the landing hero as server HTML with JavaScript off, at 768 / 900 / 1023 / 1099 / 390 / 1280, dark and light, then JS on at 768; GETs only, nothing written' },
   { spec: 'changelog-1125', needs: 'none', note: 'the /changelog top entries for v2026.11.25, .24 and .23 in order with their dates; GETs only' },
   { spec: 'upsell-count-1185b', needs: 'pro', note: 'upsell strings per page for out / Free / Pro at 1280 light and 390 dark and light; Free and Pro cells need the DEV-project fixtures, so staging and CI' },
+  { spec: 'datahonesty-1185', needs: 'none', note: 'the seven data-honesty sites with every market read aborted; the Pro cell skips where the fixture does not exist' },
   { spec: 'nofail-sweep', needs: 'none', note: 'the no-failing-data sweep: every page signed out at 390 and 1280, GETs only, collects visible failing-data words and placeholders' },
   { spec: 'prod-release-1124', needs: 'none', note: 'signed-out prod checks of release v2026.11.24: changelog entry, the Liq layer in the chart unit for PEPE / BONK / sats / tag / toshi / turbo (one local chip toggle), version; GETs only, nothing written, no AI read' },
   { spec: 'a11y', needs: 'none', note: 'route sweep: spends the per-IP rate limit, one worker' },
