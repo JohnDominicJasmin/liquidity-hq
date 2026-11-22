@@ -257,7 +257,6 @@ function TCoinSidebar() {
               </span>
               <span className="csb2-price">
                 {d?.price ? '$' + fmtPrice(d.price, dec) : <QuoteGap coin={id} />}
-                {d?.price ? <StalePriceAge coin={id} /> : null}
               </span>
             </div>
 

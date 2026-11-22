@@ -2,7 +2,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth } from '@/lib/marketStore';
-import StalePriceAge from '@/components/StalePriceAge';
 import type { CoinId } from '@/lib/marketStore';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
@@ -352,8 +351,6 @@ export default function MarketsTerminal() {
               <div className={`mkt-mono mkt-price${d?.price && ('$' + fmtPrice(d.price, dec)).length > 9 ? ' mkt-price-long' : ''}${d?.price ? '' : ' mkt-price-gap'}`} style={{ textAlign: 'right', fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt2)' }}>
                 {/* A MISSING QUOTE (#1651, PM, owner's "no failing data" order 2026-11-19): an ellipsis while the first read is still coming; once it is not coming the cell is EMPTY (a blank, not "No data"). Prod: bonk, pepe and xau carry no taker-buy ratio in the market snapshot, so the pressure cell said "No data" on those rows. */}
                 {d?.price ? '$' + fmtPrice(d.price, dec) : store.scannerFeed.universe === 'pending' ? '…' : ' '}
-                {/* DATA INTEGRITY (PM, #2783): a price the route served from its last good body says how old it is. Under the price, so the column does not widen; it appears only on the stale answer. */}
-                {d?.price ? <StalePriceAge coin={id} /> : null}
               </div>
 
               {/* Change */}

@@ -10,7 +10,8 @@ import { useLabels } from '@/lib/labels';
  * refuses, the route answers with its last good body, up to 60 minutes old, flagged `x-data-stale`; MarketProvider keeps that body's moment in
  * `binanceOnlyStaleAt`. While it is set, every place that prints one of these prices carries this line under it. The same label as every other age in the app
  * (ARENA_FRESHNESS_*), no new copy. It keys on the route's flag, not on age: the read repeats every 8 minutes, so a live price can be that old and is not marked.
- * One test id on every surface (Markets, Dashboard, Arena scanner) so one pin covers them all. */
+ * Where these coins' prices are printed: the Arena scanner rows and the Dashboard's selected-coin card (the selected coin can be one of them). /markets and the Dashboard
+ * coin strip list only the 50 curated coins (`COINS`), which this read never prices, so they carry no mark. One test id on every surface. */
 const BINANCE_ONLY_IDS = new Set<string>(Object.values(UNIVERSE_BINANCE_ONLY));
 
 function AgeLine({ at }: { at: number }) {
