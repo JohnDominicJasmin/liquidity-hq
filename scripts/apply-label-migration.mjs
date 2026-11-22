@@ -150,7 +150,7 @@ const baseUrl = String(pick('SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL') ?? '').r
 const serviceKey = pick('SUPABASE_SERVICE_ROLE_KEY');
 if (!baseUrl || !serviceKey) die(`the env file has no SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY for target ${target}`);
 let host; try { host = new URL(baseUrl).hostname; } catch { die('the Supabase URL in the env file is not a URL'); }
-if (!host.startsWith(`${REFS[target]}.`)) die(`REFUSED: the env file's Supabase project is not the ${target} project (${REFS[target]}); no request was made`);
+if (host !== `${REFS[target]}.supabase.co`) die(`REFUSED: the env file's Supabase project is not the ${target} project (${REFS[target]}); no request was made`);
 
 const headers = (extra = {}) => ({ apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, ...extra });
 async function call(method, urlPath, body, extra) {
