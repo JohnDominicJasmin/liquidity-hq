@@ -67,6 +67,15 @@ function routeComposedSource(...routeFile: string[]): string {
   const wrapper = own.match(
     /export\s+default\s+function\s+\w+\s*\([^)]*\)\s*\{\s*return\s*<(\w+)\s*\/>\s*;?\s*\}/,
   );
+  /* #2749 (SEO explainer under the terminal): the route is still a pure wrapper, but it now returns a FRAGMENT: the terminal, the explainer and a JSON-LD script. Same rule, same bound: the WHOLE
+     default-export body is nothing but `return <>...</>;` (no hooks, no branches); every capitalised tag in it that is imported from `@/...` is one hop, and what they compose is what the route renders.
+     A file with its own logic does not match and is read as-is, so the loose-search failure the paragraph above describes still cannot happen. */
+  const frag = own.match(/export\s+default\s+function\s+\w+\s*\([^)]*\)\s*\{\s*return\s*\(?\s*<>([\s\S]*?)<\/>\s*\)?\s*;?\s*\}/);
+  if (!wrapper && frag && !/\b(?:if|use[A-Z]\w*)\s*\(/.test(frag[1])) {
+    const tags = [...new Set([...frag[1].matchAll(/<([A-Z]\w*)\b/g)].map((m) => m[1]))];
+    const files = tags.map((t) => own.match(new RegExp(`import\\s+${t}\\s+from\\s+['"]@/([^'"]+)['"]`))?.[1]).filter((p): p is string => !!p);
+    if (files.length) return files.map((p) => { const parts = p.split('/'); const last = parts[parts.length - 1]; if (!last.includes('.')) parts[parts.length - 1] = last + '.tsx'; return stripComments(read(...parts)); }).join('\n');
+  }
   if (!wrapper) return own;
   const tag = wrapper[1];
   const imp = own.match(new RegExp(`import\\s+${tag}\\s+from\\s+['"]@/([^'"]+)['"]`));
@@ -125,12 +134,12 @@ test('Arena mounts it headless and /liq does not', () => {
   const arena = stripComments(read(appPath('app', 'arena', 'page.tsx')));
   const liq   = routeComposedSource(appPath('app', 'liq', 'page.tsx'));
 
-  const arenaTag = arena.match(/<LiqFeed[^>]*\/>/);
+  const arenaTag = arena.match(/<LiqFeed\b[^>]*\/>/);
   assert.ok(arenaTag, 'Arena no longer mounts LiqFeed - the chart loses its cluster lines');
   assert.match(arenaTag[0], /\bheadless\b/,
     'Arena mounts LiqFeed visibly again: ' + arenaTag[0]);
 
-  const liqTag = liq.match(/<LiqFeed[^>]*\/>/);
+  const liqTag = liq.match(/<LiqFeed\b[^>]*\/>/);
   assert.ok(liqTag, '/liq no longer mounts LiqFeed anywhere in what it actually composes');
   assert.doesNotMatch(liqTag[0], /\bheadless\b/,
     '/liq went headless, which hides the card that page exists for: ' + liqTag[0]);
@@ -138,7 +147,7 @@ test('Arena mounts it headless and /liq does not', () => {
 
 test('Arena still passes onClusters, which is why it mounts this at all', () => {
   const arena = stripComments(read(appPath('app', 'arena', 'page.tsx')));
-  const tag = arena.match(/<LiqFeed[^>]*\/>/)![0];
+  const tag = arena.match(/<LiqFeed\b[^>]*\/>/)![0];
   assert.match(tag, /onClusters=/,
     'a headless LiqFeed with no onClusters is a websocket connection that feeds nothing');
 });

@@ -377,7 +377,8 @@ export default function EMASignal({ signal, tf = '4h', coin, aboveCeiling = fals
           border: '0.5px solid var(--bdr)',
           borderRadius: 7,
         }}>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginRight: 4 }}>{t('EMA_SIGNAL_LEVELS')}</span>
+          {/* --txt-dash, not --txt3: the row is painted with a 2 percent white overlay and --txt3 measured 4.49:1 on it in dark (QA axe on prod, PM 2026-11-20); --txt-dash is the token made for text on such an overlay (#679), 5.0:1. */}
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dash)', marginRight: 4 }}>{t('EMA_SIGNAL_LEVELS')}</span>
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--red)' }}>
             {t('EMA_SIGNAL_SL_LINE', { price: `${currencyPrefix(coin)}${fmt(signal.sl)}` })}
           </span>

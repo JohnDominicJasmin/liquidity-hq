@@ -51,14 +51,16 @@ test('P7. the symbol -> coin derivation: USDT/BUSD/USDC suffixes and the 1000x p
 
 test('S1. THE BROWSER NEVER WRITES THE TABLE: LiqFeed.tsx has no insert / upsert / update / delete call at all, and nothing on T.liq_events other than the read', () => {
   const src = strip(read('components/LiqFeed.tsx'));
-  for (const verb of ['.insert(', '.upsert(', '.update(', '.delete(']) assert.equal(src.includes(verb), false, `LiqFeed.tsx still contains ${verb}`);
+  /* a write verb is a database write only when it sits on a supabase query chain (#2767 added a Set `.delete(cf)` to retry a failed coin read, which is not one): `.insert(` / `.upsert(` / `.update(` anywhere are still banned, `.delete(` is banned when `.from(` / `sb` / `supabase` precedes it within the same statement */
+  for (const verb of ['.insert(', '.upsert(', '.update(']) assert.equal(src.includes(verb), false, `LiqFeed.tsx still contains ${verb}`);
+  let at = -1; while ((at = src.indexOf('.delete(', at + 1)) >= 0) { const pre = src.slice(Math.max(0, at - 60), at); assert.equal(/\)\s*$|\bsb\s*$|supabase\s*$/i.test(pre), false, `LiqFeed.tsx deletes on a database chain: ...${pre.trim().slice(-50)}.delete(`); }
   const uses = src.split('T.liq_events').length - 1; assert.ok(uses >= 1, 'the history read of T.liq_events is gone');
   assert.equal(/persistedKeysRef|SB_SAVE_TS_KEY|batchKeys/.test(src), false, 'the old browser-save state is still in the component');
 });
 test('S2. the read stays: the same six columns, the 24 h window, ordered by ts, limited (the table every visitor loads)', () => {
   const src = strip(read('components/LiqFeed.tsx'));
   assert.ok(src.includes(".select('coin, side, usd, price, source, ts')"), 'the select changed');
-  assert.ok(/\.gte\('ts', since\)/.test(src) && /\.order\('ts', \{ ascending: false \}\)/.test(src) && /\.limit\(5000\)/.test(src), 'the 24 h window / order / limit changed (the order is NEWEST first since the hotfix: ascending + limit kept the oldest 5000 rows; liqFeedNewestRows.test.mts pins the reverse)');
+  assert.ok(/\.gte\('ts', since\)/.test(src) && /\.order\('ts', \{ ascending: false \}\)/.test(src) && /\.range\(\s*page \* SB_PAGE/.test(src) && !/\.limit\(5000\)/.test(src), 'the 24 h window / order / paging changed (newest first, and PAGED with .range() since #2767: the API answers at most 1000 rows per request, so a limit(5000) read held 1000; liqFeedNewestRows.test.mts pins the pages)');
   assert.ok(/SB_WIN_MS\s*=\s*24\s*\*\s*60\s*\*\s*60\s*\*\s*1000/.test(src), 'the window is no longer 24 h');
 });
 test('S3. the one-venue note stays: histOnly is derived from the venues in the read, passed up through onHistoryVenues, and shown with LIQ_FEED_HISTORY_ONE_VENUE', () => {

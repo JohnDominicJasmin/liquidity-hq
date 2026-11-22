@@ -277,7 +277,8 @@ test('CONTROL: the five rescued subpaths really are broken without the hook', ()
  * a change is a decision, and it is BOUNDED: repo JSON only, never node_modules. */
 
 /** Repo JSON files the source imports WITHOUT an attribute today. Add to this deliberately. */
-const EXPECTED_BARE_JSON = ['lib/labelDefaults.en.json'];
+/* #2730 (held): the English label table is split. lib/labelDefaults.critical.json is the generated subset the public routes paint from and lib/labelCriticalRoutes.json names those routes; both are read by the provider and by lib/labelsFull.ts with the same bare import as the whole table, and the Next build resolves all three the same way. Sorted, as the test compares it. */
+const EXPECTED_BARE_JSON = ['lib/labelCriticalRoutes.json', 'lib/labelDefaults.critical.json', 'lib/labelDefaults.en.json'];
 
 /** JSON specifiers imported without `with {`, from ONE source text, resolved to repo-relative paths. */
 function bareJsonImportsIn(source: string, fileRel: string): string[] {

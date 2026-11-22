@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import SeoExplainer from '@/components/SeoExplainer';
+import { faqJsonLd } from '@/lib/seoExplainers';
 
 export const metadata: Metadata = {
   title: 'Crypto Position Size Calculator',
@@ -10,6 +12,13 @@ export const metadata: Metadata = {
   alternates: { canonical: '/calc' },
 };
 
+/* A SERVER-RENDERED EXPLAINER AND FAQPage DATA UNDER THE PAGE (SEO strategic item 1, PM 2026-11-20): the layout is a server component, so the text is in the HTML a crawler reads; the page itself is unchanged. */
 export default function CalcLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <SeoExplainer topic="calc" />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: faqJsonLd('calc') }} />
+    </>
+  );
 }
