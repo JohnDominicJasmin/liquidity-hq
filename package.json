@@ -16,7 +16,8 @@
     "verify": "npm run lint && npm run typecheck && npm test && npm run build",
     "prepare": "git config core.hooksPath .githooks || true",
     "postinstall": "node scripts/check-deps.mjs",
-    "labels:regen": "node scripts/regen-label-defaults.mjs"
+    "labels:regen": "node scripts/regen-label-defaults.mjs",
+    "labels:critical": "node scripts/gen-critical-labels.mjs"
   },
   "overrides": {
     "dompurify": "3.4.17",
