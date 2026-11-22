@@ -35,6 +35,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useGraceElapsed } from '@/lib/useGrace';
 import { useLabels } from '@/lib/labels';
+import StalePriceAge from '@/components/StalePriceAge';
 import ReadingGap from '@/components/ReadingGap';
 import { fundingWord, setupWord, patternWord } from '@/lib/shortWords';
 
@@ -256,6 +257,7 @@ function TCoinSidebar() {
               </span>
               <span className="csb2-price">
                 {d?.price ? '$' + fmtPrice(d.price, dec) : <QuoteGap coin={id} />}
+                {d?.price ? <StalePriceAge coin={id} /> : null}
               </span>
             </div>
 
@@ -559,6 +561,7 @@ function TSelectedCoinCard() {
       <div className="scc-id">
         <span className="scc-ticker">{id.toUpperCase()}</span>
         <span className="scc-price">{d?.price ? '$' + fmtPrice(d.price, dec) : <QuoteGap coin={id} />}</span>
+        {d?.price ? <StalePriceAge coin={id} /> : null}
       </div>
       <div className="scc-meta">
         {chg != null && <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}><span aria-hidden="true">{up ? '▲' : '▼'}</span> {fmtChg(chg)}</span>}

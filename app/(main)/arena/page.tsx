@@ -52,6 +52,7 @@ import { coinLockedForUnpaid, gateSignal, signalPlanFor } from '@/lib/signalCoin
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
+import StalePriceAge from '@/components/StalePriceAge';
 import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
 import { arenaPriceUnit, binanceKlineSource, coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
@@ -2552,6 +2553,7 @@ function ArenaContent() {
                   {/* Price */}
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: isActive ? 'var(--txt)' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
                     {price ? currencyPrefix(c) + fmtPrice(price) : quoteGap(c, 'price')}
+                    {price ? <StalePriceAge coin={c} /> : null}
                   </span>
                   {/* 24h % */}
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? 'var(--txt3)' : change >= 0 ? 'var(--green-2)' : 'var(--red)' }}>

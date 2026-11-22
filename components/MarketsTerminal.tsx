@@ -2,9 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth } from '@/lib/marketStore';
-import { UNIVERSE_BINANCE_ONLY } from '@/lib/coins';
-import { useNow } from '@/lib/useNow';
-import { ageLabel } from '@/lib/ageLabel';
+import StalePriceAge from '@/components/StalePriceAge';
 import type { CoinId } from '@/lib/marketStore';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
@@ -58,15 +56,10 @@ const PAGE_SIZE = 20;
 /* The grade column is 66 px, not 48 (#1185, QA/PM at 1280): its head is the word GRADE plus the 24 px info icon, and at 48 px the icon touched COIN. The two 1fr columns give the 18 px back. */
 const ROW_COLS = '66px 1fr 40px 96px 58px 92px 1fr';
 
-/* The rows priced by the Binance-only read (pre-IPO references, commodities, Hong Kong shares). When the route answered with its last good body (#2783) their price carries its age. */
-const BINANCE_ONLY_IDS = new Set<string>(Object.values(UNIVERSE_BINANCE_ONLY));
-
 export default function MarketsTerminal() {
   const { t } = useLabels();
   const { store, selectCoin } = useMarket();
   const router = useRouter();
-  const now = useNow(60_000);
-  const staleAt = store.binanceOnlyStaleAt;
   /* The skeleton ends when ANY of three things is true, not only when the socket status changes: a price has arrived from any source (REST also fills the store), or every price source
      has failed (`pricesFailed`, set by the REST backup). Keyed on the socket status alone it stayed up for as long as the socket stayed 'Connecting...', which is for ever when the socket is
      blocked and the backup also cannot answer (QA page-load run, /markets stuck at 15 s). OWNER-RULES 21. */
@@ -360,9 +353,7 @@ export default function MarketsTerminal() {
                 {/* A MISSING QUOTE (#1651, PM, owner's "no failing data" order 2026-11-19): an ellipsis while the first read is still coming; once it is not coming the cell is EMPTY (a blank, not "No data"). Prod: bonk, pepe and xau carry no taker-buy ratio in the market snapshot, so the pressure cell said "No data" on those rows. */}
                 {d?.price ? '$' + fmtPrice(d.price, dec) : store.scannerFeed.universe === 'pending' ? '…' : ' '}
                 {/* DATA INTEGRITY (PM, #2783): a price the route served from its last good body says how old it is. Under the price, so the column does not widen; it appears only on the stale answer. */}
-                {d?.price && staleAt != null && BINANCE_ONLY_IDS.has(id) && (
-                  <span data-testid="price-age" style={{ display: 'block', fontSize: 'var(--fs-micro)', fontWeight: 500, color: 'var(--txt3)' }}>{ageLabel(Math.max(0, now - staleAt), t)}</span>
-                )}
+                {d?.price ? <StalePriceAge coin={id} /> : null}
               </div>
 
               {/* Change */}
