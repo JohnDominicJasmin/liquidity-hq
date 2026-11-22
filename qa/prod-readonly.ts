@@ -97,6 +97,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'speed-first-load', needs: 'none', note: 'signed-out first-load size, chunk and initiator checks, chat button, consent banner and an intercepted early error; GETs only' },
   { spec: 'landing-overflow-sampling', needs: 'none', note: 'signed-out landing at 360-1440 normal and slow 3G sampled at first parse, 5 s and 30 s; GETs only, nothing clicked' },
   // ── anonymous ──
+  { spec: 's3g-prod-1185', needs: 'none', note: 'slow 3G (matrix profile) first text, main content and LCP on /, /about, /faq, /liq, /news, signed out; GETs only, nothing written' },
   { spec: 'nofail-sweep', needs: 'none', note: 'the no-failing-data sweep: every page signed out at 390 and 1280, GETs only, collects visible failing-data words and placeholders' },
   { spec: 'prod-release-1124', needs: 'none', note: 'signed-out prod checks of release v2026.11.24: changelog entry, the Liq layer in the chart unit for PEPE / BONK / sats / tag / toshi / turbo (one local chip toggle), version; GETs only, nothing written, no AI read' },
   { spec: 'a11y', needs: 'none', note: 'route sweep: spends the per-IP rate limit, one worker' },
@@ -177,6 +178,8 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
 /** Every other spec, and why it is kept off production. A spec must appear in exactly one
  *  of the two lists; the unit test enforces it. */
 export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
+  'upsell-count-2514': 'counts the upsell strings for the Free and Pro fixtures, which exist on the dev project only; staging and CI',
+
   'anon-grants': 'API-level cells against the shared DEV database: sends write-verb requests as the anon role and as the A fixture (a DEV-project account that does not exist on production); writes one tiny liquidation event and a throwaway trade it deletes; not a production spec',
   'briefing-row-opens-that-coin': 'signs in as the A fixture, which is a DEV-project Supabase account that does not exist on the production project at all - same first reason as upgrade-purchase-marker. Two stronger ones follow. C1 and C2 INTERCEPT the Supabase user_settings read and serve a stubbed row, so against production they would interpose on a real signed-in account\'s settings read; and C3 deliberately does NOT stub, it OBSERVES the real response to compare the settled URL against whatever the account has saved - which on production means reading a real person\'s saved coin and timeframe. Neither is a write, and the exclusion is not about writes: it is about interposing on, and reading, a real account\'s data. The two annotated cells also pin an OPEN defect (#1263, a cold /arena load ignoring saved settings), so on production they would fail by design and say nothing new.',
   '_record-proxy': 'a recorder of live upstream payloads, not a test',
