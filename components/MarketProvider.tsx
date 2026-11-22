@@ -5,6 +5,7 @@ import {
   MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
   BINANCE_SYMS, BYBIT_SYMS, UNIVERSE_SYM_TO_COIN,
 } from '@/lib/marketStore';
+import { staleAtFromHeaders } from '@/lib/staleAnswer';
 import { bybitPriceFactor, binancePriceFactor, BINANCE_SPOT_SYMS, UNIVERSE_BINANCE_ONLY, HL_PRICE_BACKUP } from '@/lib/coins';
 import { computeRSI14 } from '@/lib/rsi';
 import type { RealYield } from '@/lib/realYield';
@@ -555,9 +556,7 @@ export default function MarketProvider(
             updateCoins(bn);
             bnAnswered = true;
             /* A STALE ANSWER IS SAID TO BE STALE (#2783): the route serves its last good body, up to 60 minutes old, when Binance refuses. The flag and the age are on the headers; a stale answer with no readable age is taken as the bound (60 minutes), never as live. */
-            const staleAnswer = r.headers.get('x-data-stale') === '1';
-            const ageHeader = Number(r.headers.get('x-data-age-ms'));
-            const staleAt = staleAnswer ? Date.now() - (Number.isFinite(ageHeader) && ageHeader >= 0 ? ageHeader : 60 * 60_000) : null;
+            const staleAt = staleAtFromHeaders(r.headers.get('x-data-stale'), r.headers.get('x-data-age-ms'), Date.now());
             setStore(s => (s.binanceOnlyStaleAt === staleAt ? s : { ...s, binanceOnlyStaleAt: staleAt }));
           }
         } catch { /* a missed cycle keeps the last values; the next poll retries */ }

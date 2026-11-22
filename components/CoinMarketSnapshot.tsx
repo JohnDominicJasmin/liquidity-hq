@@ -1,5 +1,4 @@
 'use client';
-import { useState } from 'react';
 import { useMarket, CoinId, fmtPrice, COIN_DEC, classifyFunding, FUNDING_TIP_KEY } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { oiTrend1h } from '@/lib/oiTrend1h';
@@ -8,7 +7,7 @@ import ReadingGap from '@/components/ReadingGap';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
-import { useBinanceOnlyPriceStale } from '@/components/StalePriceAge';
+import { useHeldWhileStale } from '@/components/StalePriceAge';
 import type { LabelKey } from '@/lib/labelKeys';
 
 /* ── Coin Market Snapshot ─────────────────────────────────────────────────
@@ -44,11 +43,8 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
   const liveAbove = vwap != null && price != null ? price > vwap : null;
   const livePct   = vwap && price ? ((price - vwap) / vwap) * 100 : null;
   /* NO NEW ABOVE/BELOW ON A STALE PRICE (PM, #2783): while this coin's price is the route's last good body (up to 60 minutes old), the VWAP relation keeps the last one worked out from a live price, and shows nothing if there was none. An hour-old price must not flip the arrow. */
-  const priceStale = useBinanceOnlyPriceStale(coin);
-  const [held, setHeld] = useState<{ coin: string; above: boolean | null; pct: number | null } | null>(null);
-  if (!priceStale && (held?.coin !== coin || held.above !== liveAbove || held.pct !== livePct)) setHeld({ coin, above: liveAbove, pct: livePct });
-  const vwapAbove = priceStale ? (held?.coin === coin ? held.above : null) : liveAbove;
-  const vwapPct   = priceStale ? (held?.coin === coin ? held.pct : null) : livePct;
+  const vwapAbove = useHeldWhileStale<boolean | null>(coin, liveAbove, null);
+  const vwapPct   = useHeldWhileStale<number | null>(coin, livePct, null);
   const vwapCol   = vwapAbove === null ? 'var(--txt3)' : vwapAbove ? 'var(--green)' : 'var(--red)';
   /* THE CARD SHOWS THE VWAP, under a heading that says VWAP (#1263, owner report).
    *

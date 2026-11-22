@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { nextHeld, shownWhileStale, type Held } from '@/lib/heldWhileStale';
 import { useMarket } from '@/lib/marketStore';
 import { UNIVERSE_BINANCE_ONLY } from '@/lib/coins';
 import { useNow } from '@/lib/useNow';
@@ -24,9 +25,10 @@ export function useBinanceOnlyPriceStale(coin: string): boolean {
 /** A VALUE WORKED OUT FROM THIS COIN'S PRICE, HELD WHILE THAT PRICE IS STALE (PM, #2783). Live price: `live` as it is. Stale price: the last `live` seen while the price was live, for this coin; `none` if there never was one. So an hour-old price cannot change a verdict. */
 export function useHeldWhileStale<T>(coin: string, live: T, none: T): T {
   const stale = useBinanceOnlyPriceStale(coin);
-  const [held, setHeld] = useState<{ coin: string; v: T } | null>(null);
-  if (!stale && (held?.coin !== coin || held.v !== live)) setHeld({ coin, v: live });
-  return stale ? (held?.coin === coin ? held.v : none) : live;
+  const [held, setHeld] = useState<Held<T> | null>(null);
+  const next = nextHeld(held, coin, stale, live);
+  if (next !== held) setHeld(next);
+  return shownWhileStale(held, coin, stale, live, none);
 }
 
 function AgeLine({ at }: { at: number }) {
