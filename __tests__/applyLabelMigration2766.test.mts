@@ -6,7 +6,7 @@
  *   A3  REFUSALS, each with a reason and NO network attempt (fetch is replaced by a tripwire): a duplicate (key, locale); a column list other than (key, locale, value); a conflict rule other than "do update set value = excluded.value"; a value that is not a string literal; no rows for the chosen target; a missing file; an unknown target
  *   A4  THE REF CHECK: an env file whose URL is another project is refused before any request, for dev and for prod, and the key's value appears in no output
  *   A5  THE KEY IS NEVER PRINTED: every line of the script that mentions the key is the read, the existence check or the request headers; no console / write / die call carries it
- *   A6  OBSERVED (printed, not asserted): the ref check is `host.startsWith(ref + '.')`, so a host such as `<ref>.example.invalid` passes it; a hardening would require the `.supabase.co` suffix
+ *   A6  THE EXACT HOST (Dev's hardening on this PR): `<ref>.example.invalid`, `<ref>.supabase.co.evil.test`, `<ref>-x.supabase.co`, a path trick and a subdomain of the project host are all refused before any request for dev and prod; `<ref>.supabase.co` itself passes the check (reaches the request step, where the tripwire stops it); the key is in no output
  * WHAT THIS CANNOT PROVE: the upsert and the read-back against a real project (the first DEV runs, MATCH on six files, are Dev's), and that the service-role key in .env.local belongs to the project it says. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -80,7 +80,11 @@ test('A5. the service-role key is only read, checked and sent as a header', () =
   assert.ok(!/\$\{(?:env|process\.env)\b/.test(SRC.replace(/pick = .*/, '')), 'the whole env is interpolated somewhere'); const rec = /writeFileSync\(path\.join\('\.work'[^\n]*/.exec(SRC)?.[0] ?? ''; assert.ok(rec && !/serviceKey|value/.test(rec.replace(/readback=.*/, '')), 'the record file carries the key or row values'); assert.ok(existsSync(new URL('../.gitignore', import.meta.url)) && /^\/?\.work\/?$/m.test(readFileSync(new URL('../.gitignore', import.meta.url), 'utf8')), '.work/ is not git-ignored');
 });
 
-test('A6. OBSERVED: the project check is a prefix test on the host', () => {
-  const m = /if \(!host\.startsWith\(`\$\{REFS\[target\]\}\.`\)\)/.test(SRC); const env = tmpFile('env-evil.txt', `SUPABASE_URL=https://${REF.dev}.example.invalid\nSUPABASE_SERVICE_ROLE_KEY=QA_SENTINEL_KEY_x\n`); const mig = tmpFile('a6.sql', `${HEAD('lhq_dev_labels')}('K_A','en','x')${TAIL}`); const r = run([mig, 'dev', '--env-file', env]);
-  console.log(`[A6] prefix check in the source: ${m}; host "${REF.dev}.example.invalid" reached the network step: ${r.out.includes('NETWORK-ATTEMPT')} (a hardening would require the .supabase.co suffix)`); assert.ok(m, 'the check changed: update this observation');
+test('A6. the project check is the EXACT host <ref>.supabase.co: look-alike hosts are refused before any request, the real host passes the check', () => {
+  assert.match(SRC, /if \(host !== `\$\{REFS\[target\]\}\.supabase\.co`\) die\(/, 'the host check is not the exact comparison'); assert.ok(!/host\.startsWith\(/.test(SRC), 'a prefix test on the host is back');
+  const mig = tmpFile('a6.sql', `${HEAD('lhq_dev_labels')}('K_A','en','x')${TAIL}\n${HEAD('lhq_labels')}('K_A','en','x')${TAIL}`); const SENT = 'QA_SENTINEL_KEY_a6';
+  for (const t of ['dev', 'prod'] as const) {
+    for (const url of [`https://${REF[t]}.example.invalid`, `https://${REF[t]}.supabase.co.evil.test`, `https://${REF[t]}-x.supabase.co`, `https://evil.test/${REF[t]}.supabase.co`, `https://x.${REF[t]}.supabase.co`]) { const r = run([mig, t, '--env-file', tmpFile(`env-a6-${t}-${url.length}.txt`, `SUPABASE_URL=${url}\nSUPABASE_SERVICE_ROLE_KEY=${SENT}\n`)]); assert.notEqual(r.code, 0, `${t} ${url}: not refused`); assert.match(r.out, /REFUSED: the env file's Supabase project is not the/, `${t} ${url}`); assert.ok(!r.out.includes('NETWORK-ATTEMPT'), `${t} ${url}: a request was attempted`); assert.ok(!r.out.includes(SENT)); }
+    const ok = run([mig, t, '--env-file', tmpFile(`env-a6ok-${t}.txt`, `SUPABASE_URL=https://${REF[t]}.supabase.co/\nSUPABASE_SERVICE_ROLE_KEY=${SENT}\n`)]); assert.ok(ok.out.includes('NETWORK-ATTEMPT'), `${t}: the real project host did not pass the check (${ok.out.slice(0, 160)})`); assert.ok(!ok.out.includes(SENT));
+  }
 });
