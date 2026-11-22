@@ -26,7 +26,7 @@ test.describe.configure({ retries: 0 });
 
 /* The menu order of lib/strategies/index.ts STRATEGY_GROUPS: Beginner / Trend, Price action / SMC, Sessions, Derivatives. 16 strategies. */
 const STRATS = ['ema_stack', 'ema_cross', 'range_bounce', 'liq_sweep_mss', 'supply_demand', 'sr_flip', 'fvg', 'bos_fvg', 'channel', 'rsi_divergence', 'bb_squeeze', 'ny_open_breakout', 'session_sweep', 'vwap_reclaim', 'funding_oi_squeeze', 'cvd_absorption'] as const;
-const EXPECT_COMMIT = '05b32f6';
+const EXPECT_COMMIT = '';   /* any build: the served commit is logged per cell. A hard-coded sha made the first runs wait 15 min and fail on a build that was fine (runs 45018904351, 45019923277) */
 const CRYPTO = ['btc', 'eth', 'sol', 'hype', 'doge', 'pepe', 'cyber'] as const;
 const TOKENIZED_DEEP = ['aapl', 'tsla', 'spy', 'xau', 'hk0700', 'anthropic'] as const;   // stock, stock, ETF, gold, a Hong Kong share (HK$), a pre-IPO reference
 const TOKENIZED_ALL: string[] = COIN_UNIVERSE.filter((r) => !!r.kind).map((r) => r.id);
