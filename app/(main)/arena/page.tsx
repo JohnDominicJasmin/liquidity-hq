@@ -21,6 +21,7 @@ import { Warn, Lock } from '@/components/icons';
 import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
 import UpgradeGateModal, { LockedFeatureCard, EntitlementUnknownCard } from '@/components/UpgradeGateModal';
 import ConfluenceScore from '@/components/ConfluenceScore';
+import { SkeletonCard } from '@/components/Skeleton';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { oiTrend1h } from '@/lib/oiTrend1h';
@@ -3239,6 +3240,9 @@ function ArenaContent() {
           copy. */}
       {authLoading || entitlementStatus === 'entitled' ? (
         <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} structure={chartStructure} />
+      ) : !!user && entitlementsLoading ? (
+        /* The plan read is still running (signed in, auth done): entitlementStatus says 'not_entitled' until it lands, which put the page's "With Pro" row on screen for about 0.8 s for a paying account (QA, #1651). A skeleton holds the slot; the locked row mounts only once the plan is known Free. Same guard as DryPowder and OnChainScore. */
+        <SkeletonCard label={t('ARENA_CONFLUENCE_GATE_TITLE')} />
       ) : entitlementStatus === 'unknown' ? (
         <EntitlementUnknownCard title={t('ARENA_CONFLUENCE_GATE_TITLE')} onRetry={retryEntitlements} />
       ) : (
