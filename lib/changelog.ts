@@ -150,6 +150,22 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* DRAFT, the release after v2026.11.23 (Dev 2026-11-22, PM). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs (rule 22; 2026-11-22 is a placeholder). Plain words, 12 words or fewer per line; only user-visible changes, facts only (QA checks each line).
+       Tied to: #2749 + #2750 + #2755 (explainers and FAQ on /liq, /funding, /scanner, /calc, /hours, /econ-calendar, /markets, /news), #2748 (share image; the titles and descriptions are not user-visible and get no line), #2759 (no lone candle), #2761 (labels clear of S/R tags), #2762 (contrast), #2757 (news sources), #2751 (econ-calendar date and source line, tooltips), #2754 (correlation HTML: about 59 percent smaller by estimate, QA measures the real size, so that line is removed if the measurement disagrees). #2730 (slow 3G, about 41 KB gzip less script on every first load) joins as a ninth line only if it ships and QA's sweep passes; the 8-line cap then merges the news and calendar lines. A line whose PR misses the tag is removed. */
+    date: '2026-11-22',
+    tag: 'v2026.11.24',
+    items: [
+      "Eight data pages now explain how they work, with a short FAQ.",
+      "Shared links show a large Arena chart preview image.",
+      "A failed first chart load no longer draws a single live candle.",
+      "Strategy labels on the chart stay clear of support and resistance tags.",
+      "Small texts on the liquidation and Arena pages are easier to read.",
+      "The news page lists only the sources it reads.",
+      "Economic calendar dates and source line follow your language.",
+      "The correlation page sends about 290 KB less data.",
+    ],
+  },
+  {
     /* DRAFT, the release after v2026.11.22 (Dev 2026-11-20, PM). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs (rule 22; 2026-11-21 is a placeholder). Plain words, 12 words or fewer per line; only user-visible changes, facts only (QA checks each line).
        Tied to: #2715 + #2719 (VWAP), #2718 (liquidation units), #2719 (edge labels), #2731 (last good candles and trades), #2732 (retries first), #2724 + #2725 (widths; the dashboard widths #2727 + #2733 join the line once QA's measurement passes), #2734 (Telegram), #2721 (Confirms-to cap), #2735 (empty brackets in the Fear & Greed notification), #2736 (a full read names a level), #2737 (ko / zh / ru text; its follow-up #2738 joins the line when it merges). No entry on purpose: #2712 (VWAP card decimals), cosmetic. A line whose PR misses the tag is removed. */
     date: '2026-11-22',
