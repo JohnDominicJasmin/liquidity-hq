@@ -1,6 +1,6 @@
 /* THE THREE #2408 CODE-REVIEW FIXES, behaviour in a browser (Dev's hotfix/staging-three-fixes). Run on a CI-local build of the branch (no base_url) or on a deployed build:
  *   gh workflow run ci.yml --ref <branch> -f e2e=true -f spec=qa/e2e/hotfix-three.spec.ts -f project=desktop
- *   H2  LiqFeed history reads the NEWEST rows: the /rest/v1/liq_events request carries order=ts.desc and limit=5000 (it was ascending, so a day of more than 5000 rows showed the OLDEST 5000).
+ *   H2  LiqFeed history reads the NEWEST rows in PAGES (#2767: supabase-js .range(), offset + limit 1000): every liq_events request carries order=ts.desc, offset and limit=1000 (never limit=5000, the cap the API ignores: it answers 1000 rows); the all-coins read has no coin= filter, the per-coin read has coin=in.(<the selected coin's stored names>); at most 8 liq_events requests on load (5 pages all coins + 3 for the coin).
  *   H3  the strategy menu, with chips ON (fixture A, Pro): 'Let the read choose' (auto) clears the chips AND stays on auto; 'Custom' keeps the chips; with zero chips, 'Custom' stays on Custom; a strategy
  *       picked, then 'Custom': the chips stay. The browser-without-AbortSignal case is legacy-abortsignal.spec.ts; the OI unit is __tests__/oiTrendWindow.test.mts.
  * Fixture A's saved selection is written the way the sibling arena specs write it and put back at the end. Paid AI is fenced; nothing here presses QUICK / DEEP / ASK AI. */
@@ -26,7 +26,7 @@ async function saveSelection(page: Page, selection: string[]) {
   }, selection);
 }
 
-test('H2. the LiqFeed 24 h history asks for the NEWEST rows (order ts desc, limit 5000)', async ({ browser }) => {
+test('H2. the LiqFeed history asks for the NEWEST rows in pages (order ts desc, offset, limit 1000); all-coins read without coin=, coin read with coin=in.(...), at most 8 asks', async ({ browser }) => {
   test.setTimeout(150_000);
   const ctx = await signedInContext(browser, 'a');
   const page = await ctx.newPage();
@@ -38,10 +38,23 @@ test('H2. the LiqFeed 24 h history asks for the NEWEST rows (order ts desc, limi
   try {
     await gotoSignedIn(page, '/arena');
     await expect.poll(() => asks.length, { message: 'the page never asked for the liquidation history, so this run measured nothing', timeout: 30_000 }).toBeGreaterThan(0);
-    const q = asks.find((u) => /limit=5000/.test(u)) ?? asks[0];
-    console.log(`[HOTFIX] liq history request: ${q.replace(/^.*\/rest\/v1\//, '')}`);
-    expect(q, 'the history query is not ordered newest first: with limit=5000 it returns the OLDEST 5000 rows of the window').toMatch(/order=ts\.desc/);
-    expect(q).toMatch(/limit=5000/);
+    await page.waitForTimeout(10_000);   /* the pages and the per-coin read are separate requests: let them all go out before counting */
+    const short = asks.map((u) => u.replace(/^.*\/rest\/v1\//, ''));
+    console.log(`[HOTFIX] ${asks.length} liq_events request(s):\n  ${short.join('\n  ')}`);
+    const wide = asks.filter((u) => !/[?&]coin=/.test(u)), perCoin = asks.filter((u) => /[?&]coin=in\.\(/.test(u));
+    for (const u of asks) {
+      expect(u, `a liq_events request is not ordered newest first: ${u}`).toMatch(/order=ts\.desc/);
+      expect(u, `a liq_events request has no offset (a paged read): ${u}`).toMatch(/[?&]offset=\d+/);
+      expect(u, `a liq_events request does not ask for limit=1000, the most the API returns: ${u}`).toMatch(/[?&]limit=1000(&|$)/);
+      expect(u, `limit=5000 is back: the API answers 1000 rows and the rest of the window is silently lost: ${u}`).not.toMatch(/limit=5000/);
+    }
+    expect(perCoin.length, 'no per-coin liq_events read (coin=in.(...)) went out for the selected coin').toBeGreaterThan(0);
+    /* the page reads the SELECTED coin and one more per-coin set (ETH on staging 2295543): each per-coin read names at least one coin, and one of them names the selected coin (BTC) */
+    for (const u of perCoin) expect(u, `a per-coin read names no coin: ${u}`).toMatch(/coin=in\.\([A-Za-z0-9_,.-]+\)/);
+    expect(perCoin.some((u) => /coin=in\.\([^)]*BTC/i.test(u)), `no per-coin read names the selected coin (BTC): ${perCoin.join(' | ')}`).toBe(true);
+    for (const u of wide) expect(u, `the all-coins read carries a coin filter after all: ${u}`).not.toMatch(/coin=/);
+    console.log(`[HOTFIX] all-coins reads ${wide.length} (first offset ${/offset=(\d+)/.exec(wide[0] ?? '')?.[1] ?? 'n/a'}) · per-coin reads ${perCoin.length} · total ${asks.length}`);
+    expect(asks.length, `${asks.length} liq_events requests on load (budget 8: 5 pages for all coins + 3 for the coin)`).toBeLessThanOrEqual(8);
   } finally { await ctx.close(); }
 });
 

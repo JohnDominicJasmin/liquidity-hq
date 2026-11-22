@@ -306,17 +306,16 @@ export default function CorrelationTerminal() {
                       return (
                         <div
                           key={b}
-                          className="corr-cell"
-                          style={{
-                            background: cellBg(r, diag),
-                            color: cellColor(r, diag),
-                            borderRadius: 0,
-                            opacity: hovered && !inCross ? 0.25 : 1,
-                            outline: isExact ? '1.5px solid var(--accent)' : undefined,
-                            outlineOffset: isExact ? '-1px' : undefined,
-                            transition: 'opacity 0.1s',
-                            cursor: diag ? 'default' : 'crosshair',
-                          }}
+                          /* THE SAME LOOK WITH LESS HTML (PM, 2026-11-20: /correlation served 492 KB, 2,500 of these cells at about 170 bytes each): everything that is the same on every cell (radius, transition, cursor, and the blank / diagonal colours) is in the stylesheet, so a cell with no data or on the diagonal carries no inline style and only a hovered or coloured cell carries the few properties that differ. The colours below are the ones cellBg / cellColor returned for those two cases. */
+                          className={diag ? 'corr-cell corr-cell-diag' : r === null ? 'corr-cell corr-cell-null' : 'corr-cell'}
+                          style={diag || r === null
+                            ? (hovered && !inCross ? { opacity: 0.25 } : isExact ? { outline: '1.5px solid var(--accent)', outlineOffset: '-1px' } : undefined)
+                            : {
+                              background: cellBg(r, diag),
+                              color: cellColor(r, diag),
+                              ...(hovered && !inCross ? { opacity: 0.25 } : {}),
+                              ...(isExact ? { outline: '1.5px solid var(--accent)', outlineOffset: '-1px' } : {}),
+                            }}
                           title={diag ? COIN_LABELS[a] : r !== null ? `${COIN_LABELS[a]} / ${COIN_LABELS[b]}: ${r.toFixed(2)}` : `${COIN_LABELS[a]} / ${COIN_LABELS[b]}`}
                           onMouseEnter={() => setHovered([i, j])}
                         >
