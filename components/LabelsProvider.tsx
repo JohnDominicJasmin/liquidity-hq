@@ -1,6 +1,6 @@
 'use client';
 import { deadlineSignal } from '@/lib/deadlineSignal';
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { use, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { htmlLangFor } from '@/lib/htmlLang';
 import { LabelsContext, Locale, loadLocalLocale, saveLocalLocale, saveLocaleCookie, interpolate } from '@/lib/labels';
@@ -8,7 +8,11 @@ import { offeredLocaleFromPath } from '@/lib/locales';
 import type { LabelKey } from '@/lib/labelKeys';
 // Public by construction: this file ships in every visitor's JS. The admin console's `OPS_*` copy
 // is NOT in it - that is lib/labelDefaults.ops.en.json, imported only by server code (#1632 item 15).
-import DEFAULT_EN_LABELS from '@/lib/labelDefaults.en.json';
+// The whole English table is NOT imported here any more (#1185 slow-3G, option B, DRAFT): the public routes paint from the small
+// critical subset below and the rest loads after first paint; every other route waits for the whole table (see the render below).
+import CRITICAL_EN_LABELS from '@/lib/labelDefaults.critical.json';
+import { loadFullEnglish, fullEnglishIfLoaded, type LabelTable } from '@/lib/labelsFull';
+import { isCriticalLabelRoute } from '@/lib/labelCriticalRoutes';
 
 // Not user-scoped (labels are public content, same for every visitor), so
 // this mounts outside AuthProvider and doesn't wait on auth to hydrate -
@@ -58,7 +62,19 @@ export default function LabelsProvider({
   localeFromPath?: boolean;
 }) {
   const [locale, setLocaleState] = useState<Locale>('en');
-  const [map, setMap] = useState<Record<string, string>>(DEFAULT_EN_LABELS);
+  /* THE ENGLISH BASE AND THE LOCALE LAYER (#1185 slow-3G, option B, DRAFT). The map used to be `useState(DEFAULT_EN_LABELS)` with the whole table in the bundle. It is now base + overrides:
+       base      = the whole English table when this route has it, else the critical subset (lib/labelDefaults.critical.json);
+       overrides = what a fetched or cached locale table says, layered OVER the base exactly as `{ ...DEFAULT_EN_LABELS, ...data }` was.
+     A public route (lib/labelCriticalRoutes.ts) starts on the subset and loads the whole table after first paint (effect below); the server render and the first client render both use the subset, so
+     they match. Any other route cannot paint from a subset (it uses keys the subset does not hold), so it WAITS for the whole table with React `use` (conditional `use` is allowed): the server HTML is
+     the same complete English as before and no route ever shows a raw key because a table had not arrived. */
+  const pathname = usePathname();
+  const lazy = localeFromPath || isCriticalLabelRoute(pathname);
+  const [fullEn, setFullEn] = useState<LabelTable | null>(null);
+  const full: LabelTable | null = lazy ? (fullEn ?? fullEnglishIfLoaded()) : use(loadFullEnglish());
+  const base: LabelTable = full ?? (CRITICAL_EN_LABELS as LabelTable);
+  const [overrides, setOverrides] = useState<LabelTable | null>(null);
+  const map = useMemo<LabelTable>(() => (overrides ? { ...base, ...overrides } : base), [base, overrides]);
   const [loading, setLoading] = useState(true);
   const reqId = useRef(0);
 
@@ -102,7 +118,7 @@ export default function LabelsProvider({
         if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length === 0) {
           return; // keep whatever is on screen - defaults, or the last good map
         }
-        setMap({ ...DEFAULT_EN_LABELS, ...data });
+        setOverrides(data);
         saveCachedMap(l, data);
       })
       .catch(() => { /* keep last-known map on transient failure */ })
@@ -130,7 +146,7 @@ export default function LabelsProvider({
        by an older build, or for a locale that is only partly translated, would
        otherwise render its missing keys raw. Same reasoning as the fetch path
        above. */
-    if (cached) { setMap({ ...DEFAULT_EN_LABELS, ...cached }); setLoading(false); }
+    if (cached) { setOverrides(cached); setLoading(false); }
     fetchLabels(real);
   }, [fetchLabels, localeFromPath]);
 
@@ -146,17 +162,30 @@ export default function LabelsProvider({
      AppShell has four branches and every one of them wraps in LabelsProvider,
      so putting it here covers every route and cannot drift when a fifth branch
      is added - which mounting the component in each branch would not. */
-  const pathname = usePathname();
   useEffect(() => {
     const { lang, dir } = htmlLangFor(pathname, locale);
     document.documentElement.lang = lang;
     document.documentElement.dir = dir;
   }, [pathname, locale]);
+  /* The rest of the English table, once the page has painted (public routes only; other routes already have it). requestIdleCallback with a timeout, so a busy phone still gets it within a few seconds;
+     the merge changes no visible text (every key the page rendered has the same value in both tables), it only supplies the keys a later screen, menu or dialog will ask for. */
+  useEffect(() => {
+    if (!lazy || fullEn) return;
+    let cancelled = false;
+    const go = () => { loadFullEnglish().then(t => { if (!cancelled) setFullEn(t); }).catch(() => { /* keeps the subset */ }); };
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    if (typeof w.requestIdleCallback === 'function') {
+      const id = w.requestIdleCallback(go, { timeout: 2500 });
+      return () => { cancelled = true; w.cancelIdleCallback?.(id); };
+    }
+    const id = setTimeout(go, 1500);
+    return () => { cancelled = true; clearTimeout(id); };
+  }, [lazy, fullEn]);
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
     saveLocalLocale(l);
     const cached = loadCachedMap(l);
-    if (cached) setMap({ ...DEFAULT_EN_LABELS, ...cached });
+    if (cached) setOverrides(cached);
     fetchLabels(l);
   }, [fetchLabels]);
 
