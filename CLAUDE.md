@@ -443,13 +443,14 @@ locally" caveat in Risk level. Promoting without it is deploying into silence.
 Keep it open while QA works; failures are reported as comments on it.
 
 **What "closed" means — the owner's definition, 2026-09-10. An issue is CLOSED
-only when ALL FIVE are true:**
+only when ALL SIX are true:**
 
 1. **QA tested it.**
 2. **QA audited it.**
 3. **It passed manual testing.**
 4. **PM/DevOps audited it.**
 5. **If it is VISUAL, PM verifies at 390/768/1280, light/dark, states, on a deployed URL (owner waiver 2026-11-06).** Until then this read "the OWNER approved it".
+6. **Zero unticked boxes anywhere on the issue: body AND every comment** (OWNER-RULES 28, added 2026-11-23). A box is ticked, or marked decided in place, or moved to the PENDING list of an open tracker. PM checks the body and every comment before closing, and says on the issue that the count is zero.
 
 **Steps 4 and 5 are the new ones.** The owner set this after finding PM/DevOps
 closing issues on QA's report alone. **Closing on a report is not auditing a

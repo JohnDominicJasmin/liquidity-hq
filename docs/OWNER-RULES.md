@@ -884,3 +884,12 @@ much work was left.
    "38" or "20 plus 1", never a number that includes duplicates or done items. Answer first:
    *"32 pending."* Then the list if he asks.
 5. **No reasons, no categories of excuse** ("these look like test checklists"). Done or not done.
+6. **How to count.** Dump every issue (open and closed) with its body, every issue comment, and
+   every PR body (`gh issue list --state all`, `gh api --paginate repos/<repo>/issues/comments`,
+   `gh pr list --state all`), and count lines matching the regex in point 1. Write the total and
+   the date on #2601. A count that skipped comments or closed issues is not a count.
+7. **The owner's list is numbered and the numbers never change.** He refers to items by number.
+   A finished item is marked done under its number; nothing is renumbered, nothing is merged
+   silently. Severity (high / medium / low) is set by PM and changed only by the owner.
+8. **Before telling the owner "done", "finished" or "N left", PM runs the count and quotes its
+   total.** If the count was not run in that turn, the sentence is not said.
