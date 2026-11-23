@@ -108,6 +108,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'liq-lcp-1185', needs: 'none', note: '/liq on slow 3G at 390: every LCP candidate, API finish times, panel mount times; GETs only' },
   { spec: 'klines-probe-1263', needs: 'none', note: 'read-only GETs of /api/market/klines for the assets whose chart held 0 candles; prints status and the first 100 bytes; GETs only' },
   { spec: 'no-candles-1263', needs: 'pro', note: 'watches the strategy panel and the klines answers for an asset with no candles for 4 minutes; signed in as the Pro fixture (staging / qa only); paid AI fenced' },
+  { spec: 'changelog-1126', needs: 'none', note: 'the /changelog top entries for v2026.11.26, .25 and .24 in order with their dates; GETs only' },
   { spec: 'nofail-sweep', needs: 'none', note: 'the no-failing-data sweep: every page signed out at 390 and 1280, GETs only, collects visible failing-data words and placeholders' },
   { spec: 'prod-release-1124', needs: 'none', note: 'signed-out prod checks of release v2026.11.24: changelog entry, the Liq layer in the chart unit for PEPE / BONK / sats / tag / toshi / turbo (one local chip toggle), version; GETs only, nothing written, no AI read' },
   { spec: 'a11y', needs: 'none', note: 'route sweep: spends the per-IP rate limit, one worker' },
