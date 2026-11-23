@@ -83,6 +83,7 @@ broken most often, in short — the full text and the rest are in that file:
 - **The product UI never names the AI vendor or model.** It says "AI". Only the
   FOUR legal strings name the processor (privacy law, and the trademark non-affiliation
   notice) - OWNER-RULES §5 lists them.
+- **ONE CLEAR PENDING NUMBER (OWNER-RULES 28).** Before saying done or N left, count unticked boxes in EVERY issue body, EVERY issue comment and EVERY PR body, open and closed. Each open tracker starts with a PENDING: N list of real tasks, no duplicates, who does each. Report only that number to the owner; never raw box counts.
 - **Short messages to him.** Under 80 words, bullets or a table, answer first.
   When asking him anything, give **clickable options with a recommendation**.
 
