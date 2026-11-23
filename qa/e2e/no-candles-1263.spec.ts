@@ -7,7 +7,7 @@ test.skip(!process.env.E2E_BASE_URL, 'dispatch-only: watches a deployed site (-f
 test.skip(!AUTH_READY, 'the Pro fixture does not exist on this host');
 
 test('NC DIS on /arena for 4 minutes: the strategy panel text, the klines answers, the console', async ({ browser }) => {
-  test.setTimeout(420_000);
+  test.setTimeout(480_000);
   const ctx = await signedInContext(browser, 'a', { viewport: { width: 1280, height: 900 } }); const page = await ctx.newPage();
   const t0 = Date.now(); const since = () => Math.round((Date.now() - t0) / 1000);
   const kl: string[] = [], con: string[] = [];
@@ -17,8 +17,14 @@ test('NC DIS on /arena for 4 minutes: the strategy panel text, the klines answer
   try {
     await installPaidAiFence(page);
     await gotoSignedIn(page, '/arena?coin=dis&tf=1h');
+    /* THE DECISIVE VARIANT (Dev): pick ONE strategy and touch nothing else for 150 s; the strategy hook's failure count restarts on every strategy change, so a sweep of 16 strategies never reaches its second failed read */
+    const sel = page.getByTestId('strategy-set-select').first(); await sel.waitFor({ state: 'visible', timeout: 60_000 }); await expect(sel).toBeEnabled({ timeout: 60_000 });
+    const values = await sel.locator('option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value)); const pick = values.find((v) => v !== 'auto' && v !== 'custom') ?? values[1];
+    await sel.selectOption(pick); const tPick = Date.now(); console.log(`[NC] picked strategy ${pick} at ${since()} s`);
+    const box = async () => page.evaluate(() => ({ loading: document.querySelectorAll('[data-testid="strategy-call-loading"]').length, unavailable: document.querySelectorAll('[data-testid="strategy-call-unavailable"]').length, retry: !!Array.from(document.querySelectorAll('[data-testid="strategy-call-unavailable"] button, [data-testid="strategy-call-unavailable"] [role="button"]')).length }));
+    for (const at of [15, 45, 90, 120, 150]) { await page.waitForTimeout(Math.max(0, at * 1000 - (Date.now() - tPick))); console.log(`[NC] ${at} s after the pick: ${JSON.stringify(await box())}`); }
     const panel = () => page.evaluate(() => { const el = document.querySelector('.strat-panel') as HTMLElement | null; return el ? el.innerText.replace(/\s+/g, ' ').slice(0, 260) : 'NO .strat-panel'; });
-    for (const at of [15, 45, 90, 150, 240]) {
+    for (const at of [200]) {
       await page.waitForTimeout(Math.max(0, at * 1000 - (Date.now() - t0 - 0)));
       console.log(`[NC] ${since()}s panel: ${await panel()}`);
     }
