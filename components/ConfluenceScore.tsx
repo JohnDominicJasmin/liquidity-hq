@@ -79,7 +79,10 @@ export default function ConfluenceScore(
           weight: 30,
         }]),
     orderFlowFactor(of.bias),
-    multiTfRsiFactor(d.rsi14, d.rsi1h, d.rsi4h),
+    /* NO RSI READ, NO VOTE (#1185): with all three timeframes missing the factor used to vote neutral, which still adds its 20 points to the
+       denominator and quietly pulls the score toward 0, the same dilution the EMA factor above was fixed for. It drops out instead. One or two
+       timeframes landing still vote on what is there. */
+    ...(d.rsi14 == null && d.rsi1h == null && d.rsi4h == null ? [] : [multiTfRsiFactor(d.rsi14, d.rsi1h, d.rsi4h)]),
     // GEX is BTC-only (options data) and a REGIME MODIFIER, not a directional
     // vote: long gamma = ranging → dampens confidence in the trend signals;
     // short gamma = trending → no penalty. Included only for BTC.
