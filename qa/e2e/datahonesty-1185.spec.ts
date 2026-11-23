@@ -74,6 +74,8 @@ test('DH4 Pro /arena with klines failing: the Confluence panel text', async ({ b
   test.skip(!AUTH_READY, 'the Pro fixture does not exist on this host'); test.setTimeout(150_000);
   const ctx = await signedInContext(browser, 'a', { viewport: { width: 1280, height: 900 } }); const page = await ctx.newPage();
   try {
+    /* a free-plan host sleeps while the runner builds: wake it first (up to 3 minutes) so the cold-start placeholder does not decide the cell */
+    for (let i = 0; i < 36; i++) { const r = await page.request.get('/api/version', { timeout: 20_000 }).catch(() => null); if (r && r.ok() && /"commit"/.test(await r.text().catch(() => ''))) break; await page.waitForTimeout(5_000); }
     await installPaidAiFence(page); await failReads(page);
     await gotoSignedIn(page, '/arena?coin=btc&tf=1h'); await page.waitForTimeout(25_000);
     const c = await page.evaluate(() => {
