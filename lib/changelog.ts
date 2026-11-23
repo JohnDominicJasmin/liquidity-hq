@@ -150,6 +150,17 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* DRAFT, the release after v2026.11.25 (Dev 2026-11-23, PM). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs (rule 22; 2026-11-23 is the expected date of the release merge, which PM checks at the tag). Plain words, 12 words or fewer per line; only user-visible changes, facts only (QA checks each line).
+       Tied to: #2783 (tokenized prices served from the last good read, with their age), #2785 (scanner chip counts wait for data), #2782 (Funding regime list reachable by keyboard). #2784 (smaller futures ticker answer) and QA's test PRs are not user-visible and get no line. */
+    date: '2026-11-23',
+    tag: 'v2026.11.26',
+    items: [
+      "Tokenized prices show their last value and age during an exchange block.",
+      "Scanner filter counts wait for data instead of showing zero.",
+      "The Funding regime list can now be reached with the keyboard.",
+    ],
+  },
+  {
     /* DRAFT, the release after v2026.11.24 (Dev 2026-11-23, PM). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs (rule 22; 2026-11-23 is the expected date of the release merge, which PM checks at the tag). Plain words, 12 words or fewer per line; only user-visible changes, facts only (QA checks each line).
        Tied to: #2777 (no Pro upsell card while the plan loads on /arena). QA's test PRs in this release are not user-visible and get no line. */
     date: '2026-11-23',
