@@ -80,7 +80,14 @@ test('DH4 Pro /arena with klines failing: the Confluence panel text', async ({ b
       const el = Array.from(document.querySelectorAll('section,div')).filter((e) => /confluence/i.test((e as HTMLElement).innerText?.slice(0, 60) ?? '')).sort((a, b) => (a as HTMLElement).innerText.length - (b as HTMLElement).innerText.length)[0] as HTMLElement | undefined;
       return el ? el.innerText.replace(/\s+/g, ' ').slice(0, 700) : null;
     });
+    const mtf = await page.evaluate(() => {
+      const el = Array.from(document.querySelectorAll('section,div,aside')).filter((e) => /multi.?tf|timeframe alignment|alignment/i.test((e as HTMLElement).innerText?.slice(0, 80) ?? '')).sort((a, b) => (a as HTMLElement).innerText.length - (b as HTMLElement).innerText.length)[0] as HTMLElement | undefined;
+      const bars = el ? Array.from(el.querySelectorAll('[style*="width"]')).map((b) => (b as HTMLElement).style.width).filter((w) => /%/.test(w)).slice(0, 12) : [];
+      return { found: !!el, txt: el ? el.innerText.replace(/s+/g, ' ').slice(0, 400) : null, bars };
+    });
     DH('DH4', `Confluence panel text: ${c}`);
+    DH('DH4-MTF', JSON.stringify(mtf));
+    expect.soft(mtf.bars.filter((w) => /^0(.0+)?%$/.test(w)).length, `MultiTFAlignment draws zero-percent bars while every read fails: ${JSON.stringify(mtf.bars)}`).toBe(0);
     expect.soft(c, 'the Confluence panel is missing').not.toBeNull();
   } finally { await ctx.close().catch(() => {}); }
 });
