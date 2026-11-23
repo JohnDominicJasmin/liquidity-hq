@@ -7,6 +7,7 @@ import ReadingGap from '@/components/ReadingGap';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { useHeldWhileStale } from '@/components/StalePriceAge';
 import type { LabelKey } from '@/lib/labelKeys';
 
 /* ── Coin Market Snapshot ─────────────────────────────────────────────────
@@ -39,8 +40,11 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
 
   const price = d?.price;
   const vwap  = d?.vwap;
-  const vwapAbove = vwap != null && price != null ? price > vwap : null;
-  const vwapPct   = vwap && price ? ((price - vwap) / vwap) * 100 : null;
+  const liveAbove = vwap != null && price != null ? price > vwap : null;
+  const livePct   = vwap && price ? ((price - vwap) / vwap) * 100 : null;
+  /* NO NEW ABOVE/BELOW ON A STALE PRICE (PM, #2783): while this coin's price is the route's last good body (up to 60 minutes old), the VWAP relation keeps the last one worked out from a live price, and shows nothing if there was none. An hour-old price must not flip the arrow. */
+  const vwapAbove = useHeldWhileStale<boolean | null>(coin, liveAbove, null);
+  const vwapPct   = useHeldWhileStale<number | null>(coin, livePct, null);
   const vwapCol   = vwapAbove === null ? 'var(--txt3)' : vwapAbove ? 'var(--green)' : 'var(--red)';
   /* THE CARD SHOWS THE VWAP, under a heading that says VWAP (#1263, owner report).
    *

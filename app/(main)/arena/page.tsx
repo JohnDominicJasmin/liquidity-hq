@@ -52,6 +52,7 @@ import { coinLockedForUnpaid, gateSignal, signalPlanFor } from '@/lib/signalCoin
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
+import StalePriceAge, { useHeldWhileStale } from '@/components/StalePriceAge';
 import { healthGradeA11y } from '@/lib/healthGradeA11y';
 import type { LabelKey } from '@/lib/labelKeys';
 import { arenaPriceUnit, binanceKlineSource, coinKind, coinLabel, coinCaveat, coinRow, currencyPrefix, TRADFI_CATEGORY_COINS, type CoinKind } from '@/lib/coins';
@@ -76,7 +77,7 @@ const LIQ_CLUSTER_REFRESH_MS = 15_000;
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
 
 /* ── Distribution score inputs from live store data (shared scorer in lib/distribution.ts) ── */
-function distInputsFromCoin(d: CoinData): DistributionInputs {
+function distInputsFromCoin(d: CoinData, belowVwap?: boolean | null): DistributionInputs {
   return {
     change24hPct:   d.change ?? null,
     cvdDivergence:  d.cvdDivergence,
@@ -85,7 +86,8 @@ function distInputsFromCoin(d: CoinData): DistributionInputs {
     whaleLongRatio: d.bnWhaleLongRatio,
     fundingRatePct: d.fundingRate != null ? d.fundingRate * 100 : null,
     volRatio:       d.volRatio,
-    priceBelowVwap: d.vwap != null && d.price ? d.price < d.vwap : null,
+    /* `belowVwap` is the held value (a Binance-only coin whose price is stale keeps its last live answer, #2783); left out, it is worked out here as before. */
+    priceBelowVwap: belowVwap !== undefined ? belowVwap : d.vwap != null && d.price ? d.price < d.vwap : null,
   };
 }
 
@@ -322,6 +324,10 @@ function ArenaContent() {
     const valid: readonly ChartTf[] = CHART_TFS;
     return valid.includes(tf as ChartTf) ? tf as ChartTf : '15m';
   });
+  /* "Lost VWAP" (the distribution score's price-below-VWAP input) keeps its last live value while this coin's price is stale, none if it never was live (PM, #2783): an hour-old price must not move a verdict. */
+  const selCoinData = store.coins[selectedCoin];
+  const belowVwapLive = selCoinData?.vwap != null && selCoinData.price ? selCoinData.price < selCoinData.vwap : null;
+  const belowVwapHeld = useHeldWhileStale<boolean | null>(selectedCoin, belowVwapLive, null);
   // #1263: whether the page was actually navigated to with a coin/tf param,
   // captured ONCE on first render like the lazy state above - never re-read
   // later. The URL-sync effect below (`Sync coin + tf to URL`) calls
@@ -1588,7 +1594,7 @@ function ArenaContent() {
       cascadeLine, whaleFlow,
       distribution: (() => {
         if (!coin?.price) return '-';
-        const res = computeDistributionScore(distInputsFromCoin(coin));
+        const res = computeDistributionScore(distInputsFromCoin(coin, belowVwapHeld));
         if (!res) return 'Not applicable - no 24h run-up (profit-taking needs prior strength)';
         /* #661: a partial score says so here too. This string is read as a
            conclusion - "62/100 - Distribution" - and 55 of those 100 points sit
@@ -2552,6 +2558,7 @@ function ArenaContent() {
                   {/* Price */}
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: isActive ? 'var(--txt)' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
                     {price ? currencyPrefix(c) + fmtPrice(price) : quoteGap(c, 'price')}
+                    {price ? <StalePriceAge coin={c} /> : null}
                   </span>
                   {/* 24h % */}
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? 'var(--txt3)' : change >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
@@ -3298,7 +3305,7 @@ function ArenaContent() {
           "This pump is getting weaker" made explicit as text, not just a header chip. ── */}
       {(() => {
         const d = store.coins[selectedCoin];
-        const res = d?.price ? computeDistributionScore(distInputsFromCoin(d)) : null;
+        const res = d?.price ? computeDistributionScore(distInputsFromCoin(d, belowVwapHeld)) : null;
         if (!res || res.score < 45) return null;
         const col = distributionColor(res.score);
         return (

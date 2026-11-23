@@ -209,6 +209,8 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
     return c;
   }, [sorted]);
 
+  /* A COUNT IS A READING, AND NO READING IS NOT ZERO (QA, #1185): while no coin has a price - a read still coming, or every read failing - each chip shows the loading mark where its count goes, never "(0)". The counts return with the first price. */
+  const readLanded = COINS.some(id => store.coins[id]?.price != null);
   const highestLongLiq = sorted.find(r => r.dir === 'LONG_LIQ');
   const highestShortSq = sorted.find(r => r.dir === 'SHORT_SQ');
 
@@ -263,10 +265,10 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
       <div className="scan-filter-row">
         <div className="scan-filter-dirs">
           {([
-            { key: 'all',      label: t('SETUP_SCANNER_FILTER_ALL', { count: rows.length }) },
-            { key: 'LONG_LIQ', label: t('SETUP_SCANNER_FILTER_LONG_LIQ', { count: counts.LONG_LIQ }) },
-            { key: 'SHORT_SQ', label: t('SETUP_SCANNER_FILTER_SHORT_SQ', { count: counts.SHORT_SQ }) },
-            { key: 'NEUTRAL',  label: t('SETUP_SCANNER_FILTER_NEUTRAL', { count: counts.NEUTRAL }) },
+            { key: 'all',      label: t('SETUP_SCANNER_FILTER_ALL', { count: readLanded ? rows.length : '…' }) },
+            { key: 'LONG_LIQ', label: t('SETUP_SCANNER_FILTER_LONG_LIQ', { count: readLanded ? counts.LONG_LIQ : '…' }) },
+            { key: 'SHORT_SQ', label: t('SETUP_SCANNER_FILTER_SHORT_SQ', { count: readLanded ? counts.SHORT_SQ : '…' }) },
+            { key: 'NEUTRAL',  label: t('SETUP_SCANNER_FILTER_NEUTRAL', { count: readLanded ? counts.NEUTRAL : '…' }) },
           ] as { key: FilterDir; label: string }[]).map(f => (
             <button
               key={f.key}

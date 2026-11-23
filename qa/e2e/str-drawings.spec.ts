@@ -22,6 +22,8 @@ import { COIN_UNIVERSE } from '../../lib/coinUniverse.generated';
 
 mkdirSync('qa/.shots', { recursive: true });
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+/* DISPATCH-ONLY: this sweep reads LIVE market data on a deployed site (about 1.5 minutes a cell, hundreds of cells). On the runner's own build the market reads are stubbed, so most cells find no setup and fail, and the run outlasts the 2-hour job cap (the v2026.11.25 release suite was cancelled by it). Dispatch it with -f base_url=<deployed site>. */
+test.skip(!process.env.E2E_BASE_URL, 'dispatch-only: needs -f base_url=<a deployed site>; the runner build has stubbed market data');
 test.describe.configure({ retries: 0 });
 
 /* The menu order of lib/strategies/index.ts STRATEGY_GROUPS: Beginner / Trend, Price action / SMC, Sessions, Derivatives. 16 strategies. */

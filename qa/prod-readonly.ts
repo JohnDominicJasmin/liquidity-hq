@@ -97,6 +97,16 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'speed-first-load', needs: 'none', note: 'signed-out first-load size, chunk and initiator checks, chat button, consent banner and an intercepted early error; GETs only' },
   { spec: 'landing-overflow-sampling', needs: 'none', note: 'signed-out landing at 360-1440 normal and slow 3G sampled at first parse, 5 s and 30 s; GETs only, nothing clicked' },
   // ── anonymous ──
+  { spec: 's3g-prod-1185', needs: 'none', note: 'slow 3G (matrix profile) first text, main content and LCP on /, /about, /faq, /liq, /news, signed out; GETs only, nothing written' },
+  { spec: 'audit-a11y', needs: 'none', note: 'axe critical and serious, keyboard-only and reduced-motion cells; on production only the signed-out persona runs; GETs only, writes stubbed, paid AI fenced' },
+  { spec: 'i18n-leftovers-1185', needs: 'none', note: 'prints which English leftovers remain in ru / ko / zh pages, signed out, GETs only' },
+  { spec: 'doc-timing-1651', needs: 'none', note: 'document timing of /research, /learn and /faq, cold and warm, six rounds; signed out on production (GETs only); the signed-in cell skips where the fixture does not exist' },
+  { spec: 'landing-768-1185', needs: 'none', note: 'the landing hero as server HTML with JavaScript off, at 768 / 900 / 1023 / 1099 / 390 / 1280, dark and light, then JS on at 768; GETs only, nothing written' },
+  { spec: 'changelog-1125', needs: 'none', note: 'the /changelog top entries for v2026.11.25, .24 and .23 in order with their dates; GETs only' },
+  { spec: 'pins-2782-2783', needs: 'none', note: 'the /funding keyboard region and the Arena scanner stale price age; signed out, routes intercepted, nothing written' },
+  { spec: 'chips-2785', needs: 'none', note: 'the Setup Scanner filter chips with every read failing and with the reads working; signed out, routes aborted, nothing written' },
+  { spec: 'nofail-sweep', needs: 'none', note: 'the no-failing-data sweep: every page signed out at 390 and 1280, GETs only, collects visible failing-data words and placeholders' },
+  { spec: 'prod-release-1124', needs: 'none', note: 'signed-out prod checks of release v2026.11.24: changelog entry, the Liq layer in the chart unit for PEPE / BONK / sats / tag / toshi / turbo (one local chip toggle), version; GETs only, nothing written, no AI read' },
   { spec: 'a11y', needs: 'none', note: 'route sweep: spends the per-IP rate limit, one worker' },
   { spec: 'arena-legacy-signals', needs: 'none' },
   { spec: 'arena-panel-overlap', needs: 'none' },
@@ -175,6 +185,10 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
 /** Every other spec, and why it is kept off production. A spec must appear in exactly one
  *  of the two lists; the unit test enforces it. */
 export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
+  'cls-arena-gate': 'signs in as the A and B fixtures (DEV-project accounts that do not exist on production); staging and CI',
+
+  'upsell-count-2514': 'counts the upsell strings for the Free and Pro fixtures, which exist on the dev project only; staging and CI',
+
   'anon-grants': 'API-level cells against the shared DEV database: sends write-verb requests as the anon role and as the A fixture (a DEV-project account that does not exist on production); writes one tiny liquidation event and a throwaway trade it deletes; not a production spec',
   'briefing-row-opens-that-coin': 'signs in as the A fixture, which is a DEV-project Supabase account that does not exist on the production project at all - same first reason as upgrade-purchase-marker. Two stronger ones follow. C1 and C2 INTERCEPT the Supabase user_settings read and serve a stubbed row, so against production they would interpose on a real signed-in account\'s settings read; and C3 deliberately does NOT stub, it OBSERVES the real response to compare the settled URL against whatever the account has saved - which on production means reading a real person\'s saved coin and timeframe. Neither is a write, and the exclusion is not about writes: it is about interposing on, and reading, a real account\'s data. The two annotated cells also pin an OPEN defect (#1263, a cold /arena load ignoring saved settings), so on production they would fail by design and say nothing new.',
   '_record-proxy': 'a recorder of live upstream payloads, not a test',
