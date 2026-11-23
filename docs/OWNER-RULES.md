@@ -855,3 +855,41 @@ for itself it picked Manila, because that is where the owner is. That is the hab
 - **Before shipping anything with a time in it, ask: does this read the same in New York, London, Lagos
   and Seoul?** If it only reads right in Manila, it is wrong.
 
+
+## 28. ONE CLEAR PENDING NUMBER. EVERY BOX COUNTED. NO CONFUSING REPORTS. (SET 2026-11-23)
+
+> *"What I care is how many are pendings."*
+> *"Putting 38, even it's confusing. You should have cleared it at first place."*
+> *"Stop giving me confusing reports. Put that in your documentation."*
+
+**What happened.** PM told the owner 5 items were left and closed two trackers because their issue
+**body** had no unticked boxes. The owner opened GitHub and found unticked boxes everywhere: **621**
+across issue bodies, issue **comments** and PR descriptions, open and closed. Findings had been
+added as comment checklists and never moved into the tracker body. Then PM reported raw box counts
+("38", "20 plus 1") that repeated the same task several times, and the owner could not tell how
+much work was left.
+
+**The rule, for every session:**
+
+1. **Count everything before saying "done" or "N left".** Every issue (open and closed): body and
+   every comment. Every PR description. Regex `^\s*([-*+]|\d+\.)\s+\[ \]`. A tracker closes only
+   when this count is zero for it, or every remaining box is listed as decided.
+2. **A finding written in a comment goes into the tracker body the same day**, or is ticked or
+   marked decided in place. A box that lives only in a comment does not exist for anyone reading
+   the tracker.
+3. **Each open tracker starts with one "PENDING: N" list**: real tasks only, duplicates merged,
+   plain words, and who does each one (Owner / PM / Dev / QA / waits on a customer). Nothing else
+   on the issue counts toward "pending".
+4. **Reports to the owner give the pending number of real tasks.** Never a raw box count, never
+   "38" or "20 plus 1", never a number that includes duplicates or done items. Answer first:
+   *"32 pending."* Then the list if he asks.
+5. **No reasons, no categories of excuse** ("these look like test checklists"). Done or not done.
+6. **How to count.** Dump every issue (open and closed) with its body, every issue comment, and
+   every PR body (`gh issue list --state all`, `gh api --paginate repos/<repo>/issues/comments`,
+   `gh pr list --state all`), and count lines matching the regex in point 1. Write the total and
+   the date on #2601. A count that skipped comments or closed issues is not a count.
+7. **The owner's list is numbered and the numbers never change.** He refers to items by number.
+   A finished item is marked done under its number; nothing is renumbered, nothing is merged
+   silently. Severity (high / medium / low) is set by PM and changed only by the owner.
+8. **Before telling the owner "done", "finished" or "N left", PM runs the count and quotes its
+   total.** If the count was not run in that turn, the sentence is not said.

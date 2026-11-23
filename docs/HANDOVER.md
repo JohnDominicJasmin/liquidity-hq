@@ -11,7 +11,17 @@ file.**
 
 ---
 
-> ### State on 2026-11-05 (PM/DevOps)
+> ### State on 2026-11-24 (PM/DevOps)
+>
+> - **Production: `ae816f6`, tag `v2026.11.27`.** Check `/api/version`, not this line.
+> - **89 pending tasks**, found on 2026-11-23 by counting every unticked box in every issue body,
+>   issue comment and PR body (621 boxes; the rest were done, decided or duplicates). Each area tracker
+>   starts with a **`## PENDING: N`** list: #1632 security, #1651 data, #1630 payments, #1263 Arena,
+>   #1185 UI, #1413 ops/test, #2601 owner/marketing. **Only those lists count.**
+> - **Why this section exists:** trackers were closed with to-dos still sitting in comments, and the
+>   owner was told "5 left". Read OWNER-RULES 28 before reporting any number.
+>
+> ### Superseded: state on 2026-11-05 (PM/DevOps)
 >
 > The only dated status in this file. Check it against the live sources in the table further down.
 >

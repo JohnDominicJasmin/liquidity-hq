@@ -794,13 +794,16 @@ ready" removes the only independent check the project has.**
 
 ## What "closed" means — the owner's definition, 2026-09-10
 
-**An issue is CLOSED only when ALL FIVE are true:**
+**An issue is CLOSED only when ALL SIX are true:**
 
 1. **QA tested it.**
 2. **QA audited it.**
 3. **It passed manual testing.**
 4. **PM/DevOps audited it.**
 5. **If it is VISUAL — anything the owner sees — the OWNER approved it.**
+6. **Zero unticked boxes anywhere on the issue: body AND every comment** (OWNER-RULES 28, added 2026-11-23). A box is ticked, or marked decided in place, or moved to the PENDING list of an open tracker. PM checks the body and every comment before closing, and says on the issue that the count is zero.
+
+**Step 5 has been PM/DevOps's since 2026-11-06** (owner waiver; see CLAUDE.md). The paragraph below records the original rule.
 
 **Step 5 is the owner's, added the same day and not delegable.** Layout,
 spacing, labels, colour, what a panel says, where it sits, what a chart draws.
