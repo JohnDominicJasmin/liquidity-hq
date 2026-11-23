@@ -670,7 +670,7 @@ export default function FundingTerminal() {
                               <CoinIcon coin={id} size={16} color={coinBadgeColor(id)} bg={withAlpha(coinBadgeColor(id), '24')} decorative />
                               {COIN_LABELS[id]}
                               {/* The history is Bybit's (Binance has none for this coin): said on the row, one word, not a sentence above the table (owner sweep 2026-11-18). */}
-                              {bybitCoins.includes(id) && <span data-testid="funding-venue-bybit" style={{ marginLeft: 6, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Bybit</span>}
+                              {bybitCoins.includes(id) && <span data-testid="funding-venue-bybit" style={{ marginLeft: 6, fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>Bybit</span>}
                             </button>
                           </td>
                           <td style={{ color: current != null ? frColor(current) : 'var(--txt3)', fontWeight: 700 }}>
