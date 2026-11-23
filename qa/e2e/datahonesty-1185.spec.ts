@@ -12,8 +12,8 @@ import DEFAULT_EN from '../../lib/labelDefaults.en.json';
 
 const EN = DEFAULT_EN as Record<string, string>;
 const DH = (id: string, msg: string) => console.log(`[DH] ${id} ${msg}`);
-async function failReads(page: Page) {
-  for (const g of ['**/api/market/**', '**/api/proxy**', '**/api/news**']) await page.route(g, (r) => r.abort('failed'));
+async function failReads(page: Page, only?: string[]) {
+  for (const g of only ?? ['**/api/market/**', '**/api/proxy**', '**/api/news**']) await page.route(g, (r) => r.abort('failed'));
   const ws = (page as unknown as { routeWebSocket?: (u: RegExp, h: (w: { close: () => void }) => void) => Promise<void> }).routeWebSocket;
   if (ws) await ws.call(page, /.*/, (w) => w.close());
 }
@@ -76,7 +76,8 @@ test('DH4 Pro /arena with klines failing: the Confluence panel text', async ({ b
   try {
     /* a free-plan host sleeps while the runner builds: wake it first (up to 3 minutes) so the cold-start placeholder does not decide the cell */
     for (let i = 0; i < 36; i++) { const r = await page.request.get('/api/version', { timeout: 20_000 }).catch(() => null); if (r && r.ok() && /"commit"/.test(await r.text().catch(() => ''))) break; await page.waitForTimeout(5_000); }
-    await installPaidAiFence(page); await failReads(page);
+    /* ONLY THE CANDLE AND RSI READS FAIL: the rest of the market store fills, so the Confluence and Multi-timeframe panels render with a missing RSI / loading EMA, which is the case the audit named */
+    await installPaidAiFence(page); await failReads(page, ['**/api/market/klines**', '**/api/market/kline-batch**', '**/api/market/rsi**']);
     await gotoSignedIn(page, '/arena?coin=btc&tf=1h'); await page.waitForTimeout(25_000);
     const c = await page.evaluate(() => {
       const el = Array.from(document.querySelectorAll('section,div')).filter((e) => /confluence/i.test((e as HTMLElement).innerText?.slice(0, 60) ?? '')).sort((a, b) => (a as HTMLElement).innerText.length - (b as HTMLElement).innerText.length)[0] as HTMLElement | undefined;
