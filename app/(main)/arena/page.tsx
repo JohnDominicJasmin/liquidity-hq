@@ -702,6 +702,12 @@ function ArenaContent() {
   const alertCoinCovered = (COINS as string[]).includes(selectedCoin);
 
   function openAlertForm() {
+    /* A CONFIRMED FREE PLAN MEETS THE UPGRADE PROMPT HERE, NOT AFTER FILLING THE FORM IN (#1263): price alerts are Pro, and the server
+       refused the save. A plan still loading or unreadable opens the form; the server decides. */
+    if (!authLoading && !entitlementsLoading && entitlementStatus === 'not_entitled') {
+      setUpgradeGate(t('ALERTS_PRICE_ALERTS_LABEL'));
+      return;
+    }
     const price = store.coins[selectedCoin]?.price;
     setAlertPrice(price ? String(price) : '');
     setAlertDir('above');
