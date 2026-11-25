@@ -195,6 +195,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
  *  of the two lists; the unit test enforces it. */
 export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
   'cls-arena-gate': 'signs in as the A and B fixtures (DEV-project accounts that do not exist on production); staging and CI',
+  'release-batch-1128': 'qa check of the 2026-11-25 batch: signs in as the dev-project fixtures and stores one push subscription it then removes; qa and staging only',
 
   'upsell-count-2514': 'counts the upsell strings for the Free and Pro fixtures, which exist on the dev project only; staging and CI',
 
