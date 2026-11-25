@@ -43,8 +43,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const req = input instanceof Request ? input : new Request(String(input), init);
   if (new URL(req.url).origin !== SUPABASE) throw new Error(`stray request ${req.method} ${req.url}`);
   /* #2810: the database-size metrics page of the same project. Not "the read" the cache cells count: it has its own hourly cache (dbSize2810). */
-  if (new URL(req.url).pathname === '/customer/v1/privileged/metrics') return new Response('pg_database_size_mb{datname="postgres"} 40.1
-', { status: 200 });
+  if (new URL(req.url).pathname === '/customer/v1/privileged/metrics') return new Response('pg_database_size_mb{datname="postgres"} 40.1\n', { status: 200 });
   net.reads++;
   const signal = init?.signal ?? req.signal;
   if (net.mode === 'netError') throw new TypeError(`fetch failed ${LEAK}`);
@@ -417,5 +416,5 @@ test('H11: (#2810) the answer carries the database size beside ok, with no key o
   const r = await call(await route());
   assert.equal(r.res.status, 200); assert.equal(r.body.ok, true);
   assert.deepEqual(r.body.db_size, { size_mb: 40.1, cap_mb: 500, percent: 8 });
-  for (const secret of [SERVICE_KEY, 'supabase.invalid', 'service_role', 'metrics']) assert.ok(!r.text.includes(secret), );
+  for (const secret of [SERVICE_KEY, 'supabase.invalid', 'service_role', 'metrics']) assert.ok(!r.text.includes(secret), `the public body carries ${secret}`);
 });
