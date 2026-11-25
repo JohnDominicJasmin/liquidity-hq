@@ -2357,6 +2357,13 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .klc-canvas {
   width: 100%; height: 800px; overflow: hidden; border-radius: 0;
 }
+/* THE CHART'S KEYBOARD FOCUS IS VISIBLE (#1185). The charting library focuses its own child and sets `outline: none` inline on it, and its
+   canvases would paint over a ring on that child, so the standard ring is drawn over the chart instead. :focus-visible: keyboard only. */
+.klc-canvas { position: relative; }
+.klc-canvas:has(> :focus-visible)::after {
+  content: ''; position: absolute; inset: 0; z-index: 10; pointer-events: none;
+  border: 2px solid var(--accent); border-radius: 3px;
+}
 @media (max-width: 520px) {
   .klc-canvas { height: 520px; }
 }
