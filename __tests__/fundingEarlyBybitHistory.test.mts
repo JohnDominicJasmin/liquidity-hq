@@ -93,7 +93,7 @@ test('(3)(4)(5) each answer lands on its own coin; state is written only after t
   r.cleanup();
 });
 
-test('(5) a batch coin named in `via` is Binance's and is not tagged; the other batch coin is, and a late Bybit-only coin is added, not replacing it', async () => {
+test('(5) a batch coin named in `via` is from Binance and is not tagged; the other batch coin is, and a late Bybit-only coin is added, not replacing it', async () => {
   const r = rig({ binance: { ETHUSDT: pts(2), SOLUSDT: pts(4) }, via: ['ETHUSDT'] });
   await tick(); r.releaseBatch(); await tick(); await tick();
   r.bybit.get(BYBIT_SYMS['pepe'])!.resolve(pts(9)); await tick(); await tick();
