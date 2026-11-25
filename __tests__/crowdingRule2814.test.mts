@@ -6,7 +6,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { crowdedSide, ratioNote } from '../lib/crowding.ts';
-import { arenaNumberFields, arenaPriceUnit } from '../lib/arenaContextFields.ts';
+import { arenaNumberFields } from '../lib/arenaContextFields.ts';
+import { arenaPriceUnit } from '../lib/coins.ts';
 import { buildChatSystemPrompt, type ChatContext } from '../lib/chatPrompt.ts';
 import type { CoinData } from '../lib/marketStore.ts';
 
@@ -22,7 +23,7 @@ test('K2. the Arena field and the chat line say the same thing', () => {
   for (const [long, short, words] of [[0.6, 0.4, ' (L/S 1.50:1) (balanced)'], [0.62, 0.38, ' (L/S 1.63:1) (balanced)'], [0.66, 0.34, ' (L/S 1.94:1) (overleveraged longs)'], [0.34, 0.66, ' (L/S 0.52:1) (overleveraged shorts)']] as const) {
     const arena = arenaNumberFields({ price: 100, bnLongRatio: long, bnShortRatio: short } as Partial<CoinData>, arenaPriceUnit('btc')).longShortRatio;
     assert.ok(arena.endsWith(words), `Arena ${long}: "${arena}"`);
-    const chat = buildChatSystemPrompt({ coin: 'btc', longRatio: long, shortRatio: short, ratioVenue: 'Binance' } as ChatContext, { search: false });
+    const chat = buildChatSystemPrompt({ coin: 'btc', longRatio: long, shortRatio: short, ratioVenue: 'Binance' } as ChatContext, { search: false, minimal: false });
     const line = chat.split('\n').find((l) => l.includes('Long/Short %')) ?? '';
     assert.ok(line.includes(words), `chat ${long}: "${line}"`);
   }
