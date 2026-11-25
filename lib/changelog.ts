@@ -151,35 +151,21 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     /* DRAFT, the release after v2026.11.27 (Dev 2026-11-25, PM). PM SETS THE DATE at the release: it must be the tagged commit's %cs (rule 22); the one below is the drafting day.
-       Tied to: #2798, #2812, #2797, #2805, #2804, #2813, #2814, #2815, #2817, #2821, #2818, #2819, #2840, #2828, #2839, #2820, #2823, #2831, #2824, #2825 + #2826, #2827, #2808, #2802, #2806, in line order.
-       A line whose PR misses the tag is removed. Plain words, 12 words or fewer per line; facts only (QA checks each line). */
+       Tied to, in line order: #2798 + #2812; #2797; #2805; #2804; #2808; #2817 + #2821; #2818 + #2819 + #2840; #2823; #2825 + #2826; #2839.
+       At most 10 lines a trader notices (PM). A line whose PR misses the tag is removed. Plain words, 12 words or fewer per line; facts only (QA checks each line). */
     date: '2026-11-25',
     tag: 'v2026.11.28',
     items: [
-      "Funding shows per 8 hours again for 4-hour and 1-hour coins.",
-      "Funding history uses one exchange, per 8 hours, like Current.",
+      "Funding shows per 8 hours; history uses the same exchange as Current.",
       "Deep Research uses another exchange when one refuses the price read.",
       "Market Read no longer shows or scores the order wall.",
       "Take-profit is now 2:1 from the entry shown on the card.",
-      "A coin that barely moved says so instead of giving a reading.",
-      "AI reads use one rule for crowded longs and crowded shorts.",
-      "AI watch levels stay inside the range of the chart.",
-      "Funding, premium and backup prices show their age during outages.",
-      "A chip says when prices are on backup or delayed.",
-      "The AI says how long liquidations were watched.",
-      "Liquidation clusters say when their 24-hour history is incomplete.",
-      "Live Liquidations shows no zeros before the last hour loads.",
-      "The live liquidation totals sit on one row again.",
-      "XAU, PEPE and BONK now have 1-hour and 4-hour RSI.",
-      "Dry Powder shows its last saved read, with the date.",
-      "Trading Hours lists the next windows during quiet hours too.",
-      "Calendar alerts count the minutes, then say Happening NOW at the start.",
-      "Free accounts see the upgrade prompt before the price-alert form.",
-      "Price-alert errors and the signed-out signal line are translated.",
-      "Browser tab titles follow your language.",
       "Pro includes up to 50 active price alerts, and says so.",
-      "Browser push notifications are a Pro feature, and Settings shows it.",
-      "The Privacy page names the error-tracking and CAPTCHA services.",
+      "Outage prices show their age, and a chip flags backup feeds.",
+      "Liquidation figures say when they are unknown or incomplete.",
+      "Trading Hours lists the next windows during quiet hours too.",
+      "Price-alert errors and the signed-out signal line are translated.",
+      "XAU, PEPE and BONK now have 1-hour and 4-hour RSI.",
     ],
   },
   {
