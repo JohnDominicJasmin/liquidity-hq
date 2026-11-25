@@ -15,6 +15,9 @@ const keysSrc = readFileSync(new URL('lib/labelKeys.ts', root), 'utf8');
 const dir = new URL('supabase/migrations/', root);
 const held = readdirSync(dir).filter((f) => /_labels_.*\.sql$/.test(f)).filter((f) => /NOT YET APPLIED TO ANY DATABASE/.test(readFileSync(new URL(f, dir), 'utf8'))).sort();
 
+/* Keys a later release removed from the page on purpose: their database rows stay, unread. marketReadNoWall2805 N4 proves nothing registers, ships or reads them, so this list cannot hide a key that is merely unregistered. */
+const RETIRED = new Set(['ORDER_WALL', 'TIGHT', 'NEARBY', 'FAR', 'NO_WALLS', 'WALL_TIGHT', 'WALL_CLOSE', 'WALL_AWAY', 'WALL_FAR', 'WALL_TOO_FAR'].map((k) => 'MARKET_READ_TXT_' + k));
+
 type Rows = Map<string, Map<string, string>>;   // key -> locale -> value
 /* two letters or language-REGION (pt-BR), and an optional E prefix (an escape string: TG_BOT_HELP has line breaks): the old pattern read neither, so those rows were never checked (#2638) */
 const ROW = /\('([A-Za-z0-9_]+)','([a-z]{2}(?:-[A-Z]{2})?)',(E?)'((?:[^']|'')*)'\)/g;
@@ -58,6 +61,6 @@ for (const f of held) {
     }
   });
   test(`M4. ${f}: every key is registered in labelKeys.ts`, () => {
-    for (const k of prod.keys()) assert.ok(keysSrc.includes(`'${k}'`), `${k} is not registered in lib/labelKeys.ts: nothing reads it`);
+    for (const k of prod.keys()) if (!RETIRED.has(k)) assert.ok(keysSrc.includes(`'${k}'`), `${k} is not registered in lib/labelKeys.ts: nothing reads it`);
   });
 }

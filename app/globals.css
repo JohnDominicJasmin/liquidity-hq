@@ -1042,7 +1042,7 @@ body::after {
    Same trap as .pf-footer-bottom-note and .st-locked-list; if this label needs
    to read as secondary, do it with weight or size, not alpha. */
 .mr-scale-good { font-weight: 600; }
-.mr-factors { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.mr-factors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .mr-factor { border: 0.5px solid var(--bdr); border-radius: 8px; padding: 8px 9px; background: var(--bg2);
   min-width: 0; }
 .mr-factor-k { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); letter-spacing: .1em;
