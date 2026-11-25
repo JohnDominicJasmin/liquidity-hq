@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
-import { cached } from '@/lib/apiCache';
+import { cached, cachedPeek } from '@/lib/apiCache';
+import { apiError } from '@/lib/apiError';
 import { trackHealth } from '@/lib/apiHealth';
 
 // Coinbase Exchange public ticker - no auth required, no CORS issues from server
@@ -11,6 +12,8 @@ const CB_USDT_TICKER = 'https://api.exchange.coinbase.com/products/USDT-USD/tick
 const CACHE_TTL = 20_000;
 // How long the answer waits for the USDT rate after the BTC price is in. A slower rate answers null this time (premium unknown), not late.
 const USDT_WAIT_MS = 1_000;
+// When Coinbase does not answer, the last good price is still served this long, flagged with its age (#1651).
+const LAST_GOOD_MS = 10 * 60_000;
 
 export async function GET(req: NextRequest) {
   if (!rateLimit(`coinbase-price:${getClientIp(req)}`, 20, 60_000)) {
@@ -52,7 +55,14 @@ export async function GET(req: NextRequest) {
     );
     const usdtUsd = await Promise.race([usdtP, new Promise<null>((resolve) => setTimeout(() => resolve(null), USDT_WAIT_MS))]);
     return NextResponse.json({ price, usdtUsd });
-  } catch {
-    return NextResponse.json({ error: 'fetch failed' }, { status: 502 });
+  } catch (e) {
+    const last = cachedPeek<number>('coinbase-price', LAST_GOOD_MS);
+    if (last) {
+      // No USDT rate with it: a premium must not be worked out from an old price against a live one.
+      return NextResponse.json({ price: last.data, usdtUsd: null }, {
+        headers: { 'Cache-Control': 'no-store', 'x-data-stale': '1', 'x-data-age-ms': String(Date.now() - last.ts) },
+      });
+    }
+    return apiError('coinbase-price', e, 502, 'fetch failed');
   }
 }

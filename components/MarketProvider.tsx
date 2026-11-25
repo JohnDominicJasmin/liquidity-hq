@@ -48,6 +48,13 @@ const WS_BACKOFF_CAP_MS = 30_000;
 /* How long a socket may stay CONNECTING before it is treated as failed (starts the REST backup), and how long the REST backup poll may wait. */
 const WS_CONNECT_TIMEOUT_MS = 5_000;
 const REST_POLL_TIMEOUT_MS = 8_000;
+/* EVERY READ IN THIS FILE HAS A DEADLINE (#1651, OWNER-RULES 21). Many carried none, so one hung answer held a first load's panel for as
+   long as the browser allowed. A call that brings its own signal keeps it. Longer than the server's own 20 s limits, so the server
+   answers first. */
+const PROVIDER_FETCH_TIMEOUT_MS = 25_000;
+function fetch(input: string, init?: RequestInit): Promise<Response> {
+  return globalThis.fetch(input, { ...init, signal: init?.signal ?? deadlineSignal(PROVIDER_FETCH_TIMEOUT_MS) });
+}
 
 /* ── Liquidation Cascade (the on-screen banner; no message is sent anywhere) ── */
 const LIQ_CASCADE_THRESHOLDS: Record<string, number> = {
@@ -185,7 +192,8 @@ export default function MarketProvider(
     if (!need.length) return;
     try {
       const r = await fetch('/api/market/price-backup?coins=' + need.join(','));
-      if (!r.ok) return;
+      /* An old quote (the route's last good one) is not seeded: this cell has nowhere to say how old it is, and shows only live figures. */
+      if (!r.ok || r.headers.get('x-data-stale') === '1') return;
       const body: unknown = await r.json();
       if (!body || typeof body !== 'object') return;
       const seed: Record<string, Partial<MarketStore['coins'][CoinId]>> = {};
@@ -1271,7 +1279,9 @@ export default function MarketProvider(
     try {
       const markCb = (status: 'ok' | 'failed') => setStore(s => ({ ...s, cbPremiumStatus: s.cbPremiumStatus === 'ok' ? 'ok' : status }));
       const res = await fetch('/api/coinbase-price', { cache: 'no-store' });
-      if (!res.ok) { markCb('failed'); return; }
+      /* A stale answer is the route's last good Coinbase price (#1651): the premium already on screen stays, none is worked out from an old
+         price against a live one. */
+      if (!res.ok || res.headers?.get('x-data-stale') === '1') { markCb('failed'); return; }
       const { price: cbPrice, usdtUsd } = await res.json() as { price: number; usdtUsd?: number | null };
       if (!cbPrice || isNaN(cbPrice)) { markCb('failed'); return; }
       setStore(s => {
@@ -1555,6 +1565,13 @@ export default function MarketProvider(
     let active: 'binance' | 'bybit' = 'binance';
     let alive = true;
 
+    /* The watch starts with the first open socket and ends when none is left (lib/liqWatch.ts). */
+    const watchStarted = () => setStore(s => (s.liqWatchSince != null ? s : { ...s, liqWatchSince: Date.now() }));
+    const watchMayHaveEnded = () => {
+      if (bnWs?.readyState === 1 || bbWs?.readyState === 1) return;
+      setStore(s => (s.liqWatchSince == null ? s : { ...s, liqWatchSince: null }));
+    };
+
     function recordLiq(coin: string, side: 'LONG' | 'SHORT', usd: number) {
       if (!isFinite(usd) || usd <= 0) return;
       const now = Date.now();
@@ -1585,6 +1602,7 @@ export default function MarketProvider(
       }, BN_CONNECT_TIMEOUT_MS);
 
       ws.onopen = () => {
+        watchStarted();
         if (settled) return;
         clearTimeout(timeoutTimer);
         if (!alive) return;
@@ -1631,6 +1649,7 @@ export default function MarketProvider(
         handleFailure();
       };
       ws.onclose = () => {
+        watchMayHaveEnded();
         if (settled) return; // error or the timeout already handled this attempt
         settled = true;
         clearTimeout(timeoutTimer);
@@ -1673,6 +1692,7 @@ export default function MarketProvider(
       const ws = new WebSocket(host);
       bbWs = ws;
       ws.onopen = () => {
+        watchStarted();
         if (!alive) return;
         bbAttempt = 0;
         ws.send(JSON.stringify({ op: 'subscribe', args: BB_LIQ_TOPICS }));
@@ -1704,6 +1724,7 @@ export default function MarketProvider(
         } catch { /* */ }
       };
       ws.onclose = () => {
+        watchMayHaveEnded();
         // Torn down deliberately by connectBN's onopen once Binance recovers -
         // `active` already flipped back before that close(), so this must not
         // reconnect a fallback that is no longer wanted.
@@ -1787,6 +1808,7 @@ export default function MarketProvider(
 
     return () => {
       alive = false;
+      setStore(s => (s.liqWatchSince == null ? s : { ...s, liqWatchSince: null }));
       offResume();
       offOnline();
       clearInterval(analyzer);

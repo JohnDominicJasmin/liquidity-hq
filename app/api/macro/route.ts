@@ -177,6 +177,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(
     { oil, dxy, spx, gold, jpy, tnx, real10y },
-    { headers: { 'Cache-Control': polledCacheControl(300) } },
+    /* No longer than the server keeps a quote (YF_TTL_MS): a shared cache must not hold an answer past that (#1651). */
+    { headers: { 'Cache-Control': polledCacheControl(YF_TTL_MS / 1000) } },
   );
 }

@@ -6,6 +6,8 @@ import { useNow } from '@/lib/useNow';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
 import { REASONING_SPLIT, emphasisInner } from '@/lib/reasoningMarkup';
 import { plainSummary } from '@/lib/plainSummary';
+import { noCascadeLine } from '@/lib/liqWatch';
+import { staleAtFromHeaders } from '@/lib/staleAnswer';
 import { useSearchParams } from 'next/navigation';
 import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, venueSymbols, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
@@ -393,6 +395,7 @@ function ArenaContent() {
   const liqEmitRef = useRef(0);
   const liqFilledRef = useRef(false);
   const [liqHistOnly, setLiqHistOnly] = useState<'BN' | 'BB' | null>(null);
+  const [liqHistPartial, setLiqHistPartial] = useState(false);
   const handleLiqClusters = useCallback((c: Bucket[]) => {
     const now = Date.now();
     if (!acceptClusterEmission({
@@ -1154,6 +1157,8 @@ function ArenaContent() {
   /* ── Cross-exchange funding data ── */
   type FundingRow = { coin: string; binance: number|null; bybit: number|null };
   const [fundingData, setFundingData] = useState<Record<string, FundingRow>>({});
+  /* When the rates were last good, set only while the route answers with its last good table (`x-data-stale`, #1651). */
+  const [fundingStaleAt, setFundingStaleAt] = useState<number | null>(null);
   useEffect(() => {
     const load = async () => {
       try {
@@ -1163,6 +1168,7 @@ function ArenaContent() {
           const map: Record<string, FundingRow> = {};
           (json.data as FundingRow[]).forEach(r => { map[r.coin] = r; });
           setFundingData(map);
+          setFundingStaleAt(staleAtFromHeaders(res.headers.get('x-data-stale'), res.headers.get('x-data-age-ms'), Date.now()));
         }
       } catch { /* silent */ }
     };
@@ -1425,7 +1431,8 @@ function ArenaContent() {
        'Not available' still has to be reachable and it is - a fresh session has
        watched no liquidations, so it has no 24h window, and a stated absence is
        the honest answer rather than a bug to design away. */
-    const liqLevels = formatClustersForPrompt(arenaLiqClusters, selectedCoin);
+    const liqClustersText = formatClustersForPrompt(arenaLiqClusters, selectedCoin);
+    const liqLevels = liqHistPartial && liqClustersText !== 'Not available' ? `${liqClustersText} (24h history incomplete)` : liqClustersText;
 
     /* BTC dom trend */
     const btcDomTrend = store.btcDomHistory && store.btcDomHistory.length >= 3
@@ -1527,7 +1534,7 @@ function ArenaContent() {
     const ca = store.cascadeAlert;
     const cascadeLine = ca && (Date.now() - ca.ts < 4 * 60 * 60 * 1000)
       ? `${ca.side} cascade on ${ca.coin} - $${(ca.totalUsd / 1e6).toFixed(1)}M liquidated (${Math.floor((Date.now() - ca.ts) / 60000)}m ago)`
-      : 'None in last 4h';
+      : noCascadeLine(store.liqWatchSince, Date.now());
 
     /* Whale net flow - last 1h for selected coin (#29) */
     const nowSec = Math.floor(Date.now() / 1000);
@@ -1560,7 +1567,8 @@ function ArenaContent() {
             : avg * 100 <= -0.05 ? ' - extreme short crowding (squeeze risk)'
             : avg * 100 <= -0.01 ? ' - shorts paying, mild crowding'
             : ' - neutral';
-          return `Binance ${fmt(cf.binance)} | Bybit ${fmt(cf.bybit)} | Avg ${fmt(avg)}${sentiment}${divergent ? ' · DIVERGENCE: exchanges differ - flow imbalance' : ''}`;
+          const aged = fundingStaleAt != null ? ` (rates last read ${Math.max(1, Math.round((Date.now() - fundingStaleAt) / 60_000))} min ago)` : '';
+          return `Binance ${fmt(cf.binance)} | Bybit ${fmt(cf.bybit)} | Avg ${fmt(avg)}${sentiment}${divergent ? ' · DIVERGENCE: exchanges differ - flow imbalance' : ''}${aged}`;
         })()
       : '-';
 
@@ -2016,7 +2024,7 @@ function ArenaContent() {
        #814 exists to fix, reproduced silently and indistinguishable from a
        browser that has genuinely watched no liquidations. It changes at most
        once per LIQ_CLUSTER_REFRESH_MS, so the identity churn is bounded. */
-  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, resultsCache, arenaLiqClusters, locale]);
+  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, fundingStaleAt, resultsCache, arenaLiqClusters, liqHistPartial, locale]);
 
   /* #996: the one place QUICK/DEEP/ASK AI run from, so the toolbar buttons
      below and StrategyPanel's own copies of the same three buttons cannot
@@ -3093,7 +3101,7 @@ function ArenaContent() {
         <div role="status" aria-live="polite" data-testid="arena-plan-checking" style={{ margin: '0 0 8px', fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>{t('ARENA_PLAN_CHECKING')}</div>
       )}
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} liqHistOnly={liqHistOnly} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} strategyOverlay={arenaStrategy ? strategyState.result?.overlay ?? null : null} strategyNoSetup={!!arenaStrategy && strategyState.result?.verdict === 'wait' && !(strategyState.result.overlay && (strategyState.result.overlay.levels.length || strategyState.result.overlay.zones.length || strategyState.result.overlay.lines.length))} showSR={showSRDrawn} onShowSRChange={v => (layersLocked ? openLayersGate() : setShowSR(v))} showLiq={showLiqDrawn} onShowLiqChange={v => (layersLocked ? openLayersGate() : setShowLiq(v))} showEma={showEma} showRsi={showRsi} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
+      <KLineProChart onLiveBars={onLiveBars} coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} liqClusters={chartLiqClusters} liqHistOnly={liqHistOnly} liqHistPartial={liqHistPartial} onStructure={setChartStructure} indicators={strategySelection} indicatorParams={strategyParams} strategyOverlay={arenaStrategy ? strategyState.result?.overlay ?? null : null} strategyNoSetup={!!arenaStrategy && strategyState.result?.verdict === 'wait' && !(strategyState.result.overlay && (strategyState.result.overlay.levels.length || strategyState.result.overlay.zones.length || strategyState.result.overlay.lines.length))} showSR={showSRDrawn} onShowSRChange={v => (layersLocked ? openLayersGate() : setShowSR(v))} showLiq={showLiqDrawn} onShowLiqChange={v => (layersLocked ? openLayersGate() : setShowLiq(v))} showEma={showEma} showRsi={showRsi} onUnlock={() => setUpgradeGate(t('ARENA_DRAW_STRUCTURE_GATE_FEATURE_LABEL'))} />
       {/* ── Auth / upgrade notice ── BELOW THE CHART (arena layout shift, #1263). It exists only for a signed-out visitor and appears when auth resolves, about half a
           second after first paint. Above the chart it pushed the whole chart workspace down 54 px (QA's element measurement: CLS 0.041 on a CI build, 0.196 on the real network). Down here it can
           only push what is under the chart. */}
@@ -3294,7 +3302,7 @@ function ArenaContent() {
           What replaces it is not the same claim. The heatmap showed PREDICTED
           liquidation levels bought from a vendor; this shows REALIZED ones
           streamed from Binance and Bybit - keyless, free, and not BTC-only. */}
-      <LiqFeed onClusters={handleLiqClusters} onHistoryVenues={setLiqHistOnly} coinFilter={selectedCoin.toUpperCase()} headless />
+      <LiqFeed onClusters={handleLiqClusters} onHistoryVenues={setLiqHistOnly} onHistoryPartial={setLiqHistPartial} coinFilter={selectedCoin.toUpperCase()} headless />
       {/* GEX / Options Market Pressure table removed here 2026-07-25
           (signal-overload pass): biggest single block on the page (~456px),
           BTC-only, and max-pain/net-gamma is background context rather than a
