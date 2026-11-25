@@ -7,6 +7,7 @@ import { getSupabase } from '@/lib/supabase';
 import { LabelsContext, interpolate, useLabels, type LabelsContextValue } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { adminFetch } from './_client';
+import OpsSecondFactor from './_secondFactor';
 import styles from './ops.module.css';
 import { forceSignOut } from '@/lib/authSession';
 
@@ -50,7 +51,9 @@ export default function OpsGate({ preAuthLabels, children }: { preAuthLabels: La
     };
   }, [parentLabels, preAuthLabels, consoleLabels]);
   const { t } = labels;
-  const [state, setState] = useState<'checking' | 'ok' | 'denied'>('checking');
+  const [state, setState] = useState<'checking' | 'ok' | 'denied' | 'secondFactor'>('checking');
+  // Bumped after a code is accepted: the same user, a stronger session, so the check runs again.
+  const [recheck, setRecheck] = useState(0);
   const [role, setRole] = useState<'owner' | 'staff' | null>(null);
   // #1149: forceSignOut's network call can be slow, not just fail - without
   // this both sign-out buttons gave no indication anything was happening.
@@ -99,11 +102,13 @@ export default function OpsGate({ preAuthLabels, children }: { preAuthLabels: La
         setRole(j.role === 'owner' ? 'owner' : 'staff');
         setState('ok');
       } else {
-        setState('denied');
+        const body = res && res.status === 403 ? await res.json().catch(() => null) as { code?: string } | null : null;
+        if (!alive) return;
+        setState(body?.code === 'MFA_REQUIRED' ? 'secondFactor' : 'denied');
       }
     })();
     return () => { alive = false; };
-  }, [userId, loading, isLoginRoute, router]);
+  }, [userId, loading, isLoginRoute, router, recheck]);
 
   async function signOutAndSwitch() {
     if (signingOut) return;
@@ -141,6 +146,14 @@ export default function OpsGate({ preAuthLabels, children }: { preAuthLabels: La
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (state === 'secondFactor') {
+    return (
+      <LabelsContext.Provider value={labels}>
+        <OpsSecondFactor onVerified={() => setRecheck(n => n + 1)} onSignOut={signOutAndSwitch} signingOut={signingOut} />
+      </LabelsContext.Provider>
     );
   }
 
