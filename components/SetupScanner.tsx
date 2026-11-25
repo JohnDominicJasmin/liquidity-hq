@@ -88,7 +88,8 @@ function ScoreBar({ score, color }: { score: number; color: string }) {
   );
 }
 
-function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
+/* `rsiAnswered`: the RSI read has landed (some coin has a value), so a coin still without one says so instead of showing nothing (#1651). */
+function CoinCard({ row, rank, rsiAnswered }: { row: ScanRow; rank: number; rsiAnswered: boolean }) {
   const { t } = useLabels();
   const cd = row.coin;
   const fr = classifyFunding(cd.fundingRate ?? 0);
@@ -145,13 +146,13 @@ function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
             {fmtVR(cd.volRatio)}
           </span>
         </div>}
-        {cd.rsi1h != null && <div className="scan-stat">
+        {(cd.rsi1h != null || rsiAnswered) && <div className="scan-stat">
           <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_RSI_1H')}</span>
-          <span className="scan-stat-val">{fmtRSI(cd.rsi1h)}</span>
+          <span className="scan-stat-val">{cd.rsi1h != null ? fmtRSI(cd.rsi1h) : t('ARENA_SCANNER_UNAVAILABLE_NARROW')}</span>
         </div>}
-        {cd.rsi4h != null && <div className="scan-stat">
+        {(cd.rsi4h != null || rsiAnswered) && <div className="scan-stat">
           <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_RSI_4H')}</span>
-          <span className="scan-stat-val">{fmtRSI(cd.rsi4h)}</span>
+          <span className="scan-stat-val">{cd.rsi4h != null ? fmtRSI(cd.rsi4h) : t('ARENA_SCANNER_UNAVAILABLE_NARROW')}</span>
         </div>}
       </div>
     </div>
@@ -211,6 +212,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
 
   /* A COUNT IS A READING, AND NO READING IS NOT ZERO (QA, #1185): while no coin has a price - a read still coming, or every read failing - each chip shows the loading mark where its count goes, never "(0)". The counts return with the first price. */
   const readLanded = COINS.some(id => store.coins[id]?.price != null);
+  const rsiAnswered = COINS.some(id => store.coins[id]?.rsi1h != null);
   const highestLongLiq = sorted.find(r => r.dir === 'LONG_LIQ');
   const highestShortSq = sorted.find(r => r.dir === 'SHORT_SQ');
 
@@ -220,7 +222,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
     if (!row) return <div style={{ padding: '1rem 0', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('SETUP_SCANNER_NO_DATA', { coin: coinProp.toUpperCase() })}</div>;
     return (
       <div style={{ paddingTop: 8 }}>
-        <CoinCard row={row} rank={sorted.indexOf(row) + 1} />
+        <CoinCard row={row} rank={sorted.indexOf(row) + 1} rsiAnswered={rsiAnswered} />
       </div>
     );
   }
@@ -338,7 +340,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
 
       <div className="scan-list">
         {searchDisplayed.map((row) => (
-          <CoinCard key={row.id} row={row} rank={sorted.indexOf(row) + 1} />
+          <CoinCard key={row.id} row={row} rank={sorted.indexOf(row) + 1} rsiAnswered={rsiAnswered} />
         ))}
       </div>
 
