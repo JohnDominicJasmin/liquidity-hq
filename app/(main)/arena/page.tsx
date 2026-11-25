@@ -6,6 +6,7 @@ import { useNow } from '@/lib/useNow';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
 import { REASONING_SPLIT, emphasisInner } from '@/lib/reasoningMarkup';
 import { plainSummary } from '@/lib/plainSummary';
+import { alertErrorText } from '@/lib/alertErrorText';
 import { noCascadeLine } from '@/lib/liqWatch';
 import { staleAtFromHeaders } from '@/lib/staleAnswer';
 import { useSearchParams } from 'next/navigation';
@@ -739,7 +740,7 @@ function ArenaContent() {
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({} as { error?: string; message?: string }));
-        setAlertError(d.message ?? d.error ?? t('ALERTS_NETWORK_ERROR'));
+        setAlertError(alertErrorText(t, res.status, d.error, 'ALERTS_ADD_ALERT_FAILED'));
         return;
       }
       const { alert } = await res.json() as { alert: { id: string } };
