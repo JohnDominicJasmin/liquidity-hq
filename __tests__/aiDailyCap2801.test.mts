@@ -80,7 +80,8 @@ test('C3. a refused call emails the owner once with the matching words, and the 
   assert.deepEqual(await reserve('pro'), { blocked: true, reason: 'global', limit: 100 });
   await settle(2);
   assert.equal(mails.length, 2); assert.match(mails[1].htmlContent, /All AI calls are now refused/);
-  assert.equal(world.state?.global_free, today); assert.equal(world.state?.global, today, 'the second mark dropped or never stored');
+  const stored = world.state as unknown as Record<string, string> | null;
+  assert.equal(stored?.global_free, today); assert.equal(stored?.global, today, 'the second mark dropped or never stored');
   world.reserve = 1; world.siteSpend = 1_000;
   const got = await reserve('free');
   assert.equal((got as { reason?: string }).reason, 'fuse');
