@@ -6,6 +6,7 @@ import { useNow } from '@/lib/useNow';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
 import { REASONING_SPLIT, emphasisInner } from '@/lib/reasoningMarkup';
 import { plainSummary } from '@/lib/plainSummary';
+import { staleAtFromHeaders } from '@/lib/staleAnswer';
 import { useSearchParams } from 'next/navigation';
 import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, venueSymbols, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
@@ -1155,6 +1156,8 @@ function ArenaContent() {
   /* ── Cross-exchange funding data ── */
   type FundingRow = { coin: string; binance: number|null; bybit: number|null };
   const [fundingData, setFundingData] = useState<Record<string, FundingRow>>({});
+  /* When the rates were last good, set only while the route answers with its last good table (`x-data-stale`, #1651). */
+  const [fundingStaleAt, setFundingStaleAt] = useState<number | null>(null);
   useEffect(() => {
     const load = async () => {
       try {
@@ -1164,6 +1167,7 @@ function ArenaContent() {
           const map: Record<string, FundingRow> = {};
           (json.data as FundingRow[]).forEach(r => { map[r.coin] = r; });
           setFundingData(map);
+          setFundingStaleAt(staleAtFromHeaders(res.headers.get('x-data-stale'), res.headers.get('x-data-age-ms'), Date.now()));
         }
       } catch { /* silent */ }
     };
@@ -1562,7 +1566,8 @@ function ArenaContent() {
             : avg * 100 <= -0.05 ? ' - extreme short crowding (squeeze risk)'
             : avg * 100 <= -0.01 ? ' - shorts paying, mild crowding'
             : ' - neutral';
-          return `Binance ${fmt(cf.binance)} | Bybit ${fmt(cf.bybit)} | Avg ${fmt(avg)}${sentiment}${divergent ? ' · DIVERGENCE: exchanges differ - flow imbalance' : ''}`;
+          const aged = fundingStaleAt != null ? ` (rates last read ${Math.max(1, Math.round((Date.now() - fundingStaleAt) / 60_000))} min ago)` : '';
+          return `Binance ${fmt(cf.binance)} | Bybit ${fmt(cf.bybit)} | Avg ${fmt(avg)}${sentiment}${divergent ? ' · DIVERGENCE: exchanges differ - flow imbalance' : ''}${aged}`;
         })()
       : '-';
 
@@ -2018,7 +2023,7 @@ function ArenaContent() {
        #814 exists to fix, reproduced silently and indistinguishable from a
        browser that has genuinely watched no liquidations. It changes at most
        once per LIQ_CLUSTER_REFRESH_MS, so the identity churn is bounded. */
-  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, resultsCache, arenaLiqClusters, liqHistPartial, locale]);
+  }, [selectedCoin, readTf, store, latestNews, econEvents, eventsLoaded, alertsLoaded, econStale, fundingData, fundingStaleAt, resultsCache, arenaLiqClusters, liqHistPartial, locale]);
 
   /* #996: the one place QUICK/DEEP/ASK AI run from, so the toolbar buttons
      below and StrategyPanel's own copies of the same three buttons cannot

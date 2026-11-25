@@ -3534,6 +3534,7 @@
   "EMA_PHASE_DAILY_ABOVE_RIBBON_NOT_BULL": "Daily above 200 SMA but {tf} ribbon not bullish",
   "EMA_PHASE_DAILY_BELOW_RIBBON_NOT_BEAR": "Daily below 200 SMA but {tf} ribbon not bearish",
   "EMA_PHASE_NO_SETUP": "No clear setup",
+  "EMA_PHASE_NOT_ENOUGH_MOVEMENT": "Not enough movement to judge",
   "EMA_PHASE_LOADING": "Loading…",
   "EMA_PHASE_COUNTER_SUFFIX": "counter-trend vs the daily 200 SMA",
   "EMA_PHASE_SEL_SMA_LONG": "Selected SMA disagrees with the entry - price at or below the 12-period rolling mean, waiting",

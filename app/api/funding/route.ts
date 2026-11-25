@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
-import { cachedRefresh } from '@/lib/apiCache';
+import { cachedRefresh, cachedPeek } from '@/lib/apiCache';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { polledCacheControl } from '@/lib/cacheHeaders';
 import { exchangeFetch } from '@/lib/exchangeGuard';
@@ -15,6 +15,8 @@ export const dynamic = 'force-dynamic';
    so a screen can say how old they are. Nothing that DECIDES (alerts, the squeeze score) reads this route. */
 const CACHE_TTL = 120_000;
 const CACHE_MAX_STALE = 300_000;
+/* When a read fails past that, the last good table is still served this long, flagged with its age (#1651). */
+const LAST_GOOD_MS = 60 * 60_000;
 
 interface BNTicker { symbol: string; lastFundingRate: string; nextFundingTime: number }
 interface BBTicker { symbol: string; fundingRate: string; nextFundingTime: string }
@@ -126,6 +128,12 @@ export async function GET(req: NextRequest) {
       headers: { 'Cache-Control': polledCacheControl(60) },
     });
   } catch (err) {
+    const last = cachedPeek<unknown>('funding', LAST_GOOD_MS);
+    if (last) {
+      return NextResponse.json(last.data, {
+        headers: { 'Cache-Control': 'no-store', 'x-data-stale': '1', 'x-data-age-ms': String(Date.now() - last.ts) },
+      });
+    }
     return apiError('funding', err, 500, 'Request failed');
   }
 }
