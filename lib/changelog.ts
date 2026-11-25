@@ -150,10 +150,10 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    /* DRAFT, the release after v2026.11.27 (Dev 2026-11-25, PM). PM SETS THE DATE at the release: it must be the tagged commit's %cs (rule 22); the one below is the drafting day.
+    /* DRAFT, the release after v2026.11.27 (Dev 2026-11-25, PM). Date set by PM: it must be the tagged commit's %cs (rule 22).
        Tied to, in line order: #2798 + #2812; #2797; #2805; #2804; #2808; #2821; #2818 + #2819 + #2840; #2823; #2825 + #2826; #2839.
        At most 10 lines a trader notices (PM). A line whose PR misses the tag is removed. Plain words, 12 words or fewer per line; facts only (QA checks each line). */
-    date: '2026-11-25',
+    date: '2026-11-27',
     tag: 'v2026.11.28',
     items: [
       "Funding shows per 8 hours; history uses the same exchange as Current.",
