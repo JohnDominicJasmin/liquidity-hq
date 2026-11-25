@@ -40,6 +40,23 @@ export function lastDays<P extends { ts: number }>(points: ReadonlyArray<P>, day
   return points.filter(p => p.ts > from);
 }
 
+/**
+ * Whether the history reaches back the whole of `days`. A range is never labelled over less: from the newest settlement back to the start
+ * of the oldest row's interval, with one hour of slack for a settlement stamped a little late.
+ */
+export function coversDays(points: ReadonlyArray<{ ts: number; hours?: number }>, days: number): boolean {
+  if (!points.length) return false;
+  const span = points[points.length - 1].ts - points[0].ts + (points[0].hours ?? 8) * HOUR_MS;
+  return span >= (days * 24 - 1) * HOUR_MS;
+}
+
+/** The rows (any order) from the newest back `days` days. Used to send no more history than a page can show. */
+export function recentRows<R>(rows: ReadonlyArray<R>, tsOf: (row: R) => number, days: number): R[] {
+  if (!rows.length) return [];
+  const newest = Math.max(...rows.map(tsOf));
+  return rows.filter(r => tsOf(r) >= newest - days * 24 * HOUR_MS);
+}
+
 /** The average per-8h rate over time: each row counts for the hours it covered. */
 export function timeAverage(points: ReadonlyArray<{ rate: number; hours?: number }>): number | null {
   let sum = 0, hours = 0;

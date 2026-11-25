@@ -19,12 +19,16 @@ import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
 import { BINANCE_SYMS, BINANCE_SYM_TO_COIN, BYBIT_SYMS } from '@/lib/coins';
 import { polledCacheControl } from '@/lib/cacheHeaders';
+import { recentRows } from '@/lib/fundingHistory';
 
 /* Every Binance-listed coin, hype included (#2513): excluding it made /funding report "Binance was unavailable for HYPE" and show Bybit's history, though HYPEUSDT is on Binance futures. */
 const SYMBOLS = Object.entries(BINANCE_SYMS)
   .map(([, sym]) => sym);
 
-const MAX_LIMIT = 100;
+const MAX_LIMIT = 200;
+/* The page's longest range is 14 days; rows older than that (and a day of slack) are not sent, so an 8-hour contract's 200 rows do not
+   travel as 66 days of history. */
+const KEEP_DAYS = 15;
 
 /* #1234 (#1077 split): Bybit's funding-history endpoint as the per-symbol
  * fallback, same shape of change as #1233's agg-trades. Confirmed live
@@ -74,7 +78,7 @@ function bybitFundingToBinanceShape(
     ?.result?.list;
   // An empty list is a miss, so the other venue is asked.
   if (!Array.isArray(list) || list.length === 0) return null;
-  return list.map(t => ({ fundingRate: t.fundingRate, fundingTime: Number(t.fundingRateTimestamp) }));
+  return recentRows(list.map(t => ({ fundingRate: t.fundingRate, fundingTime: Number(t.fundingRateTimestamp) })), r => r.fundingTime, KEEP_DAYS);
 }
 
 export async function GET(req: NextRequest) {
@@ -104,8 +108,8 @@ export async function GET(req: NextRequest) {
       bybitFundingToBinanceShape,
       {
         buildUrl: (sym) => `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${sym}&limit=${limit}`,
-        /* Verbatim array; /funding maps and sorts it itself. */
-        pick: (body) => (Array.isArray(body) ? body : null),
+        /* Binance's rows as sent (the old ones dropped); /funding maps and sorts them itself. */
+        pick: (body) => (Array.isArray(body) ? recentRows(body as Array<{ fundingTime: number }>, r => r.fundingTime, KEEP_DAYS) : null),
       },
     );
 

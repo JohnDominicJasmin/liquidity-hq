@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { deadlineSignal } from '@/lib/deadlineSignal';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId, useMarket } from '@/lib/marketStore';
-import { perEightHours, lastDays, timeAverage } from '@/lib/fundingHistory';
+import { perEightHours, lastDays, timeAverage, coversDays } from '@/lib/fundingHistory';
 import { useTheme } from '@/lib/theme';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
@@ -35,10 +35,10 @@ const RANGE_LABEL_KEYS: Record<RangeKey, LabelKey> = {
 
 /* ── data fetching ── */
 /* The batch is Bybit's history, the same venue as the "Current" column. `via` = the symbols Bybit could not give and Binance did (the route's viaFallback),
-   so the page can say whose numbers it is showing. 100 rows cover 14 days down to a 4-hour contract. */
+   so the page can say whose numbers it is showing. 200 rows (Bybit's most per call) cover 7 days even for an hourly contract. */
 async function fetchAllBinanceFR(): Promise<{ out: Record<string, FRPoint[]>; via: string[] }> {
   try {
-    const res = await fetch('/api/market/funding-rate?limit=100', { signal: deadlineSignal(10_000) });
+    const res = await fetch('/api/market/funding-rate?limit=200', { signal: deadlineSignal(10_000) });
     if (!res.ok) return { out: {}, via: [] };
     const { data, viaFallback } = await res.json() as {
       data: Record<string, Array<{ fundingRate: string; fundingTime: number }>>;
@@ -57,7 +57,7 @@ async function fetchAllBinanceFR(): Promise<{ out: Record<string, FRPoint[]>; vi
 async function fetchBybitFR(sym: string): Promise<FRPoint[]> {
   try {
     const res  = await fetch(
-      `/api/proxy?type=funding-history&symbol=${sym}&limit=100`,
+      `/api/proxy?type=funding-history&symbol=${sym}&limit=200`,
     );
     const data = await res.json();
     return perEightHours(((data?.result?.list ?? []) as Array<{ fundingRate: string; fundingRateTimestamp: string }>)
@@ -423,6 +423,8 @@ export default function FundingTerminal() {
   }, [history, selected, rangeDays, isLight]);
 
   function getStats(id: CoinId) {
+    /* A HISTORY SHORTER THAN THE RANGE HAS NO FIGURE FOR IT (#1651, PM): an "Avg 14d" over eight days is not one. Unknown, not shorter. */
+    if (!coversDays(history[id] ?? [], rangeDays)) return null;
     const pts = lastDays(history[id] ?? [], rangeDays);
     if (!pts.length) return null;
     const rates = pts.map(p => p.rate);
@@ -701,7 +703,7 @@ export default function FundingTerminal() {
                             }
                           </td>
                           <td className="frh-spark-cell">
-                            {!noData
+                            {!noData && coversDays(history[id] ?? [], rangeDays)
                               ? <canvas
                                   style={{ display: 'block', width: '100%', height: '36px' }}
                                   ref={el => { sparkRefs.current[id] = el ?? undefined; }}
@@ -759,7 +761,7 @@ export default function FundingTerminal() {
                   );
                 })()}
 
-                {(history[selected] ?? []).length >= 2
+                {(history[selected] ?? []).length >= 2 && coversDays(history[selected] ?? [], rangeDays)
                   ? <canvas ref={fullChartRef} style={{ display: 'block', width: '100%', height: '190px' }} />
                   : !hasPerp(selected)
                     ? <div style={{ height: 190, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>
