@@ -29,6 +29,7 @@ test('F33 /funding: Current vs Avg 7 days, venue and unit per row', async ({ bro
     const hist = history as unknown as Record<string, Array<{ fundingRate: string; fundingTime: number }>>;
     console.log(`[F33] ${new Date().toISOString()} head=${JSON.stringify(head)} rows=${rows.length} tickers=${list.length} tickersWithInterval=${list.filter((t) => 'fundingIntervalHour' in t).length}`);
     const pct = (v: number | null) => (v == null || !Number.isFinite(v) ? '-' : `${(v * 100).toFixed(4)}%`);
+    let scaled = 0;
     for (const r of rows) {
       const coin = r.coin.split(' ')[0].toUpperCase();
       const t = list.find((x) => x.symbol === `${coin}USDT`) ?? list.find((x) => x.symbol === `1000${coin}USDT`);
@@ -36,7 +37,16 @@ test('F33 /funding: Current vs Avg 7 days, venue and unit per row', async ({ bro
       const avg = h.length ? h.reduce((a, x) => a + Number(x.fundingRate), 0) / h.length : null;
       const gapH = h.length > 1 ? Math.round((h[h.length - 1].fundingTime - h[h.length - 2].fundingTime) / 3_600_000) : null;
       console.log(`[F33] ${coin} shown current=${r.current} avg=${r.avg} bybitTag=${r.bybitTag} | bybit ticker raw=${pct(t ? Number(t.fundingRate) : null)} | binance-history mean21=${pct(avg)} step=${gapH}h`);
+      /* #91: Current is per 8 hours, so a contract quoted per 4 or 1 hours reads its raw figure times 8/interval */
+      const iv = Number(t?.fundingIntervalHour);
+      if (t && iv > 0 && iv !== 8 && t.fundingRate !== '') {
+        const want = Number(t.fundingRate) * (8 / iv); scaled++;
+        console.log(`[F33] ${coin} interval ${iv}h: shown ${r.current}, per 8h ${pct(want)}`);
+        expect.soft(Math.abs(parseFloat(r.current) / 100 - want), `${coin} Current ${r.current} is not the ${iv} hour rate scaled to 8 hours (${pct(want)})`).toBeLessThanOrEqual(0.0000011);
+      }
     }
     expect.soft(list.some((t) => 'fundingIntervalHour' in t), 'the page\'s Bybit ticker response has no fundingIntervalHour on any contract, so no rate can be scaled to per 8 hours').toBe(true);
+    console.log(`[F33] rows quoted off 8 hours: ${scaled}`);
+    expect.soft(scaled, 'CONTROL: no row on a contract quoted off 8 hours was checked').toBeGreaterThan(0);
   } finally { await ctx.close().catch(() => {}); }
 });
