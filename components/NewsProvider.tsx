@@ -295,7 +295,11 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     setEconEvents(events);
     setEventsLoaded(true);
     events.filter(e => e.h >= 0 && e.h < 1).forEach(e => {
-      pushAlert(tRef.current('NEWS_UPCOMING_ALERT', { name: e.name, countdown: countdown(e.h, tRef.current) }), 'Calendar', Math.floor(Date.now() / 1000), 'amber');
+      /* AN EVENT THAT SAYS "Happening NOW" IS NOT ALSO "Upcoming" (#1185). */
+      const headline = e.h < 0.5
+        ? `${e.name} - ${countdown(e.h, tRef.current)}`
+        : tRef.current('NEWS_UPCOMING_ALERT', { name: e.name, countdown: countdown(e.h, tRef.current) });
+      pushAlert(headline, 'Calendar', Math.floor(Date.now() / 1000), 'amber');
     });
   }, [pushAlert]);
 
