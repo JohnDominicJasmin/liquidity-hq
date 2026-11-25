@@ -64,7 +64,8 @@ test('B2. no file reads the header with the old replace(\'Bearer \', \'\') patte
 });
 
 test('B3. the optional-token routes read the token through the helper', () => {
-  for (const f of ['app/api/market/rsi/route.ts', 'app/api/grok/route.ts', 'app/api/proxy/route.ts', 'app/api/cmc/route.ts']) {
+  // #2833: proxy and cmc no longer read the token at all (quietRequestLogs2833)
+  for (const f of ['app/api/market/rsi/route.ts', 'app/api/grok/route.ts']) {
     const s = read(f);
     assert.match(s, /from '@\/lib\/bearerToken'/, `${f} does not import the helper`);
     assert.match(s, /bearerToken\(\s*(req|request)\.headers\s*\)/, `${f} does not call it on the request headers`);
