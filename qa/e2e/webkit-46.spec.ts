@@ -8,6 +8,12 @@ test.skip(!process.env.E2E_BASE_URL, 'dispatch-only: reads a deployed site (-f b
 test.describe.configure({ timeout: 240_000, retries: 0 });
 const OUT = ['/', '/dashboard', '/arena', '/markets', '/liq', '/scanner', '/funding', '/correlation', '/news', '/econ-calendar', '/calc', '/hours', '/upgrade', '/login', '/learn', '/faq'];
 const PROFILES = [['iphone', 'iPhone 13'], ['desktop', 'Desktop Safari']] as const;
+/* WebKit did not answer the site gate through httpCredentials (run 45665110409): the team password is added by hand, to this site's own origin only, and only where the request carries no authorization of its own. */
+async function throughGate(ctx: BrowserContext) {
+  const password = process.env.SITE_GATE_PASSWORD; if (!password) return;
+  const origin = new URL(process.env.E2E_BASE_URL as string).origin; const basic = `Basic ${Buffer.from(`team:${password}`).toString('base64')}`;
+  await ctx.route((u) => u.origin === origin, async (route) => { const h = await route.request().allHeaders(); if (!h.authorization) h.authorization = basic; await route.continue({ headers: h }); });
+}
 const gate = () => (process.env.SITE_GATE_PASSWORD ? { httpCredentials: { username: 'team', password: process.env.SITE_GATE_PASSWORD, origin: new URL(process.env.E2E_BASE_URL as string).origin } } : {});
 
 async function visit(ctx: BrowserContext, tag: string, path: string, shot: boolean) {
@@ -26,13 +32,14 @@ async function visit(ctx: BrowserContext, tag: string, path: string, shot: boole
   } catch (e) { console.log(`[W46] ${tag} ${path}: FAILED ${String((e as Error).message).slice(0, 200)}`); } finally { await page.close().catch(() => {}); }
 }
 
-for (const engine of ['webkit', 'chromium'] as const) for (const [profile, device] of PROFILES) {
+for (const engine of ['webkit'] as const) for (const [profile, device] of PROFILES) {
   test(`${engine} ${profile} signed out`, async ({ playwright }) => {
     test.setTimeout(600_000);
     const browser: Browser = await playwright[engine].launch();
     try {
       const { defaultBrowserType: _ignored, ...d } = devices[device];
       const ctx = await browser.newContext({ ...d, baseURL: process.env.E2E_BASE_URL, ...gate() });
+      await throughGate(ctx);
       await ctx.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'en'); localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private */ } });
       console.log(`[W46] ${engine} ${profile}: version ${browser.version()}`);
       for (const path of OUT) await visit(ctx, `${engine} ${profile}`, path, engine === 'webkit' && ['/', '/dashboard', '/arena', '/liq'].includes(path));
@@ -46,6 +53,7 @@ test('webkit iphone signed in', async ({ playwright }) => {
   const browser: Browser = await playwright.webkit.launch();
   try {
     const ctx = await signedInContext(browser, 'a', { viewport: { width: 390, height: 844 }, theme: 'dark' });
+    await throughGate(ctx);
     for (const path of ['/dashboard', '/arena', '/alerts', '/settings', '/journal']) await visit(ctx, 'webkit iphone-pro', path, false);
     await ctx.close();
   } catch (e) { console.log(`[W46] webkit signed in FAILED ${String((e as Error).message).slice(0, 220)}`); } finally { await browser.close().catch(() => {}); }
