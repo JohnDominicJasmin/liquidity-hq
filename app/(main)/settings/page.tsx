@@ -791,7 +791,8 @@ export default function SettingsPage() {
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
                 {pushError
                   ? <span role="alert" style={{ color: 'var(--red)' }}>{t('SETTINGS_PUSH_ENABLE_FAILED')}</span>
-                  : pushEnabled ? t('SETTINGS_PUSH_ACTIVE') : t('SETTINGS_PUSH_INACTIVE')}
+                  : pushEnabled ? t('SETTINGS_PUSH_ACTIVE')
+                    : entitlementStatus === 'not_entitled' ? t('UPGRADE_GATE_PRO_FEATURE_LABEL') : t('SETTINGS_PUSH_INACTIVE')}
               </div>
             </div>
             {/* aria-label was missing here while the Analytics toggle directly
@@ -806,9 +807,10 @@ export default function SettingsPage() {
               role="switch"
               aria-checked={pushEnabled}
               aria-label={t('SETTINGS_FIELD_PUSH_NOTIFICATIONS')}
-              disabled={pushWorking}
+              /* Pro only: a Free account cannot turn it on (it can still turn an old one off). */
+              disabled={pushWorking || (!pushEnabled && entitlementStatus === 'not_entitled')}
               onClick={handlePushToggle}
-              style={{ opacity: pushWorking ? 0.5 : 1 }}
+              style={{ opacity: pushWorking || (!pushEnabled && entitlementStatus === 'not_entitled') ? 0.5 : 1 }}
             >
               <span className="st-toggle-thumb" />
             </button>
