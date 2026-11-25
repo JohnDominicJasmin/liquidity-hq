@@ -33,7 +33,7 @@ let ip = 0;
 const req = (path: string) => new NextRequest(`http://localhost${path}`, { headers: { 'x-forwarded-for': `10.7.0.${++ip}` } });
 const MIN = 60_000;
 const ROUTES = [
-  { name: 'funding', mod: '../app/api/funding/route.ts', path: '/api/funding', bound: 60 * MIN, errorStatus: 500, error: 'Request failed' },
+  { name: 'funding', mod: '../app/api/funding/route.ts', path: '/api/funding', bound: 60 * MIN, errorStatus: 502, error: 'Request failed' },
   { name: 'coinbase', mod: '../app/api/coinbase-price/route.ts', path: '/api/coinbase-price', bound: 10 * MIN, errorStatus: 502, error: 'fetch failed' },
   { name: 'backup', mod: '../app/api/market/price-backup/route.ts', path: '/api/market/price-backup?coins=fet,copper', bound: 10 * MIN, errorStatus: 502, error: 'Price backup unavailable.' },
 ];
