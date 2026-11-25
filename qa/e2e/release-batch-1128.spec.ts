@@ -56,7 +56,7 @@ for (const width of SIZES) for (const theme of THEMES) {
     } finally { await ctx.close().catch(() => {}); }
   });
 
-  test(`B2805 market read tiles, ${width} ${theme}`, async ({ browser }, info) => {
+  test(`B2805 market read tiles, ${width} ${theme}`, async ({ browser }) => {
     const ctx = await anon(browser, width, theme); const page = await ctx.newPage();
     try {
       await installPaidAiFence(page); await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 150_000 });
@@ -64,18 +64,18 @@ for (const width of SIZES) for (const theme of THEMES) {
       const m = await grid.evaluate((g) => ({ tiles: Array.from(g.querySelectorAll('.mr-factor')).map((e) => (e as HTMLElement).innerText.replace(/\s+/g, ' ').trim()), columns: getComputedStyle(g).gridTemplateColumns.split(' ').length, overflow: g.scrollWidth - g.clientWidth, page: document.documentElement.scrollWidth }));
       console.log(`[B] market read ${width} ${theme}: ${JSON.stringify(m)}`);
       expect.soft(m.tiles.length).toBe(4); expect.soft(m.tiles.join(' ')).not.toMatch(/wall/i); expect.soft(m.page).toBeLessThanOrEqual(width);
-      await grid.locator('xpath=ancestor::*[contains(@class,"card") or contains(@class,"mr-")][last()]').screenshot({ path: info.outputPath(`shot-2805-market-read-${width}-${theme}.png`) }).catch(async () => { await grid.screenshot({ path: info.outputPath(`shot-2805-market-read-${width}-${theme}.png`) }); });
+      await grid.locator('xpath=ancestor::*[contains(@class,"card") or contains(@class,"mr-")][last()]').screenshot({ path: `qa/.shots/pr2805-market-read-${width}-${theme}.png` }).catch(async () => { await grid.screenshot({ path: `qa/.shots/pr2805-market-read-${width}-${theme}.png` }); });
     } finally { await ctx.close().catch(() => {}); }
   });
 
-  test(`B2808 upgrade feature list, ${width} ${theme}`, async ({ browser }, info) => {
+  test(`B2808 upgrade feature list, ${width} ${theme}`, async ({ browser }) => {
     const ctx = await anon(browser, width, theme); const page = await ctx.newPage();
     try {
       await installPaidAiFence(page); await page.goto('/upgrade', { waitUntil: 'domcontentloaded', timeout: 150_000 }); await page.waitForTimeout(12_000);
       const t = await text(page); const line = /.{0,40}50 active price alerts.{0,20}/i.exec(t)?.[0] ?? null;
       console.log(`[B] upgrade ${width} ${theme}: line=${JSON.stringify(line)} unlimited=${UNLIMITED.test(t)} scrollWidth=${await page.evaluate(() => document.documentElement.scrollWidth)}`);
       expect.soft(line, 'the upgrade list does not say 50 active price alerts').not.toBeNull(); expect.soft(UNLIMITED.test(t)).toBe(false);
-      await page.screenshot({ path: info.outputPath(`shot-2808-upgrade-${width}-${theme}.png`), fullPage: true });
+      await page.screenshot({ path: `qa/.shots/pr2808-upgrade-list-${width}-${theme}.png`, fullPage: true });
     } finally { await ctx.close().catch(() => {}); }
   });
 }
@@ -135,5 +135,19 @@ test('B2809 signed-out public pages still read their data (grants not applied ye
       expect.soft(t).not.toMatch(/permission denied/i);
     }
     console.log(`[B] database refusals seen by the browser: ${bad.length ? bad.join(' | ') : 'none'}`);
+  } finally { await ctx.close().catch(() => {}); }
+});
+
+test('BAR privacy in Arabic: the date and the page direction once the labels have arrived', async ({ browser }) => {
+  const ctx = await anon(browser, 1280, 'dark', 'ar'); const page = await ctx.newPage(); const labels: string[] = []; const from = Date.now();
+  page.on('response', (r) => { if (/\/api\/labels\?/.test(r.url())) labels.push(`${Math.round((Date.now() - from) / 1000)}s ${r.status()} ${r.url().split('?')[1]}`); });
+  try {
+    await installPaidAiFence(page); await page.goto('/privacy', { waitUntil: 'domcontentloaded', timeout: 150_000 });
+    for (const at of [8, 20, 45]) {
+      await page.waitForTimeout(Math.max(0, at * 1000 - (Date.now() - from)));
+      const m = await page.evaluate(() => { const t = (document.querySelector('main') ?? document.body).innerText; return { dir: document.documentElement.dir, lang: document.documentElement.lang, arabic: (t.match(/[\u0600-\u06FF]/g) ?? []).length, latin: (t.match(/[A-Za-z]/g) ?? []).length, date: /(Last updated|آخر تحديث)[^\n]{0,30}/.exec(t)?.[0] ?? null }; });
+      console.log(`[B] privacy ar at ${at}s: ${JSON.stringify(m)}`);
+    }
+    console.log(`[B] privacy ar label reads: ${labels.join(' | ') || 'none'}`);
   } finally { await ctx.close().catch(() => {}); }
 });
