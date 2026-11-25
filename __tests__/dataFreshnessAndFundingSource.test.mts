@@ -41,18 +41,18 @@ test('V1. the page reads the route\'s viaFallback and returns it with the series
   assert.ok(FUND.includes('const { data, viaFallback } = await res.json() as {') && FUND.includes('return { out, via: viaFallback ?? [] };'), 'viaFallback is not read');
   assert.ok(FUND.includes('if (!res.ok) return { out: {}, via: [] };') && FUND.includes('} catch { return { out: {}, via: [] }; }'), 'the failure paths lost their shape');
 });
-test('V2. a coin is marked Bybit-sourced when the route fell back to Bybit for its Binance symbol AND when the page\'s own Bybit fallback supplied it; a coin with no data is not marked', () => {
+test('V2. (#2812: the route asks Bybit first) a batch coin is marked Bybit-sourced unless the route fell back to Binance for it, AND when the page\'s own Bybit fallback supplied it; a coin with no data is not marked', () => {
   /* progressive paint (#2471): the Binance batch is marked in the loop, each Bybit fallback coin is marked as it arrives */
-  assert.ok(FUND.includes('if (pts.length) { first[id] = pts; if (binSym && via.includes(binSym)) fromBybit.add(id); }'), 'the route-fallback case is not marked (or an empty result is)');
+  assert.ok(FUND.includes('if (pts.length) { first[id] = pts; if (binSym && !via.includes(binSym)) fromBybit.add(id); }'), 'a Bybit batch row is not marked (or a Binance fallback or an empty result is)');
   /* #2680: load() can run again (retry while no coin has history), so the marks are MERGED and never duplicated */
   assert.ok(FUND.includes('if (!cancelled && pts.length) { setHistory(prev => ({ ...prev, [id]: pts })); setBybitCoins(prev => (prev.includes(id) ? prev : [...prev, id])); return 1; }'), 'the page-fallback case is not marked, marked twice, or an empty result is');
   assert.ok(FUND.includes('setBybitCoins(prev => [...prev, ...[...fromBybit].filter(id => !prev.includes(id))]);'), 'the marked coins are not kept, or a retry marks a coin twice');
 });
-test('V3. (#2555, owner order) the sentence above the table is GONE; the venue is a one-word tag on the row of each Bybit-sourced coin, shown only for those coins', () => {
+test('V3. (#2555, owner order) the sentence above the table is GONE; the venue is a one-word tag, since #2812 on the rows whose history is Binance's, shown only for those', () => {
   assert.ok(!FUND.includes('data-testid="funding-via-bybit"'), 'the sentence note is back (funding-via-bybit)');
   assert.ok(!FUND.includes('FUNDING_VIA_BYBIT_NOTE'), 'the sentence label is used again');
-  assert.ok(FUND.includes('{bybitCoins.includes(id) && <span data-testid="funding-venue-bybit"'), 'the per-row Bybit tag is gone, or is not limited to Bybit-sourced coins');
-  assert.ok(FUND.includes('>Bybit</span>'), 'the tag does not say Bybit');
+  assert.ok(FUND.includes('{(history[id]?.length ?? 0) > 0 && !bybitCoins.includes(id) && <span data-testid="funding-venue-binance"'), 'the per-row Binance tag is gone, or shows on a Bybit row or a row with no history');
+  assert.ok(FUND.includes('>Binance</span>'), 'the tag does not say Binance'); assert.ok(!FUND.includes('funding-venue-bybit'), 'Bybit rows are tagged again: they are the Current column's venue');
   assert.ok(FUND.includes('if (!loading && (!hasPerp(id) || (current == null && noData))) return null;'), 'a row with nothing to show is drawn again ("No data" / "Unavailable")');
   assert.ok(!FUND.includes("t(hasPerp(id) ? 'STATE_UNAVAILABLE'"), 'the "Unavailable" cell text is back');
 });
