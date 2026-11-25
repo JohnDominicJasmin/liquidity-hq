@@ -1,5 +1,6 @@
 import { emaArr, smaArr, bollingerBandsArr, psarArr, macdArr, type OHLCV } from './strategyCore.ts';
 import { rsiArr } from './divergence.ts';
+import { notEnoughMovement } from './deadSeries.ts';
 
 /* THE SELECTED INDICATORS' LATEST VALUES, FOR THE AI READ (#1631). Moved out of lib/useEMAStrategy.ts unchanged (owner order 2026-11-19: every
  * indicator reaches Quick and Deep) so the wording can be produced and checked outside the React hook; the hook calls this with the same candles.
@@ -18,6 +19,7 @@ export function selectedIndicatorReadings(candles: readonly OHLCV[], selection: 
   const price = cl4[cl4.length - 1];
   const fvNum = (n: number) => n.toLocaleString('en-US', { maximumSignificantDigits: 6 });
   const selectedReadings: Array<{ id: string; text: string }> = [];
+  if (notEnoughMovement(candles)) return selectedReadings;   // nothing to weigh on a series that did not move (#1651)
   const pn = (id: string, key: string, def: number, lo: number, hi: number) => {
     const v = ip?.[id]?.[key]; const n = typeof v === 'number' ? v : Number(v);
     return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def;
