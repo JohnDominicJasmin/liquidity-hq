@@ -12,7 +12,7 @@ import { coinKind } from '@/lib/coins';
 import { usCashOpen } from '@/lib/marketHours';
 import { READ_TAKER_CONFIRM_PCT, readLevels, candleRange, levelsInside } from '@/lib/readLevels';
 import { TF_MS } from '@/lib/candles';
-import { EMA_SIGNAL_TFS, fetchRibbonCandles, type EMASignalTF } from '@/lib/ribbonCandles';
+import { EMA_SIGNAL_TFS, fetchChartCandles, fetchRibbonCandles, type EMASignalTF } from '@/lib/ribbonCandles';
 import { T } from '@/lib/tables';
 import { getPlanSnapshot, getUsageTierStatus } from '@/lib/entitlements';
 import { selectionForPlan } from '@/lib/strategyRegistry';
@@ -415,7 +415,8 @@ export async function POST(req: NextRequest) {
   let promptChart = chart;
   if (process.env.GROK_SERVER_CHART === '1' && coin && (EMA_SIGNAL_TFS as readonly string[]).includes(tf)) {
     try {
-      const built = chartFromCandles(tf, await fetchRibbonCandles(coin, tf as EMASignalTF));
+      // Fresh, and from the chart's own market (lib/ribbonCandles.ts fetchChartCandles): the cached series holds an old forming candle.
+      const built = chartFromCandles(tf, await fetchChartCandles(coin, tf as EMASignalTF));
       if (built) promptChart = built; else console.warn(`[grok] server chart: too few candles for ${logTag(coin)}/${tf}, keeping the browser's`);
     } catch {
       console.warn(`[grok] server chart: candle fetch failed for ${logTag(coin)}/${tf}, keeping the browser's`);
