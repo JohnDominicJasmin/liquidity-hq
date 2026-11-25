@@ -954,6 +954,10 @@ jobs:
         if: steps.pwcache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
+      # QA test ref only (item 46): WebKit for one spec. Never merge.
+      - name: Install WebKit (QA test ref only)
+        run: npx playwright install --with-deps webkit
+
       # playwright.config.ts's webServer runs `npm run build && npm start` on
       # port 3100, so CI and local exercise the same production build.
       #
