@@ -66,6 +66,18 @@ function globalDailyMax(): number | null {
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : null;
 }
 
+/** The part of the daily call cap that free and trial calls may use. The rest is kept for Pro, so free accounts cannot use up what paying users need. */
+export const FREE_TRIAL_GLOBAL_SHARE = 0.7;
+export function globalCapFor(tier: UsageTier, max: number | null): number | null {
+  if (max === null || tier === 'pro') return max;
+  return Math.max(1, Math.floor(max * FREE_TRIAL_GLOBAL_SHARE));
+}
+
+/* Tell the owner, without making the caller wait for it or fail with it. */
+function noteCapTrip(kind: 'global_free' | 'global' | 'fuse'): void {
+  void import('@/lib/aiCapAlert').then((m) => m.alertAiCapTrip(kind)).catch(() => { /* alerting never changes an answer */ });
+}
+
 const EXTRA_TOOL_COLUMN: Record<ExtraTool, string> = {
   thesisCheck:       'thesis_check_count',
   strategyResearch:  'strategy_research_count',
@@ -157,12 +169,13 @@ export async function incrementUsageColumn(
   if (dollar.blocked) {
     // Our own failure, not a limit the account reached: reported as `error` so the caller answers a retryable 503 and never names a cap nobody hit.
     if (dollar.reason === 'ledger_unreadable') return { blocked: true, reason: 'error', limit: 0 };
+    if (dollar.reason === 'fuse') noteCapTrip('fuse');
     return { blocked: true, reason: dollar.reason, limit: 0 };
   }
 
   const { data, error } = await getSupabaseAdmin().rpc('increment_ai_usage', {
     p_user_id: userId, p_date: reservedOn, p_column: column, p_limit: limit,
-    p_global_limit: globalDailyMax(),
+    p_global_limit: globalCapFor(tier, globalDailyMax()),
     p_pool_limit: poolLimit,
   });
   if (error) {
@@ -187,6 +200,7 @@ export async function incrementUsageColumn(
   // back in-txn before the sentinel was returned.
   if (data === -1) {
     console.error(`[aiUsage] GLOBAL daily xAI cap hit (AI_GLOBAL_DAILY_MAX) - blocked ${column} for ${userId}`);
+    noteCapTrip(tier === 'pro' ? 'global' : 'global_free');
     return { blocked: true, reason: 'global', limit };
   }
   if (data === -2) {
@@ -279,6 +293,7 @@ export async function incrementGlobalUsage(): Promise<boolean> {
   }
   if (data === -1) {
     console.error('[aiUsage] GLOBAL daily xAI cap hit (AI_GLOBAL_DAILY_MAX) - blocked checkEMASignal commentary');
+    noteCapTrip('global');
     return false;
   }
   return true;
