@@ -13,6 +13,7 @@ import {
   SPREAD_MIN_BY_TF, pendingSetupOf, judgeRibbon,
 } from './strategyCore.ts';
 import { detectRSIDivergence, rsiArr } from './divergence.ts';
+import { notEnoughMovement } from './deadSeries.ts';
 import { selectedIndicatorReadings } from './indicatorReadings.ts';
 import { describeSelection } from './strategyRegistry.ts';
 import { simulateTrades } from './backtestEngine.ts';
@@ -444,6 +445,9 @@ export function useEMAStrategy(
         const judged = judgeRibbon({ ribbonBull, ribbonBear, have200D, above200D, price, ema9, ema20, ema50, inVZoneLong, inVZoneShort, tfLabel: tf.toUpperCase() });
         let verdict: StrategyVerdict = judged.verdict;
         let phase = judged.phase;
+        /* A SERIES THAT DID NOT MOVE GETS NO SETUP (#1651, lib/deadSeries.ts): its ribbon would read like a balanced market. */
+        const deadSeries = notEnoughMovement(cRibbon);
+        if (deadSeries) { verdict = 'FREEZE'; phase = 'Not enough movement to judge'; }
         const { counterTrend, judgeLong } = judged;
 
         /* #985 gap 1, second indicator (#997 was RSI, advisory-only). Owner
