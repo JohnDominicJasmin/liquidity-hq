@@ -21,6 +21,7 @@ import { useLabels } from '@/lib/labels';
 import { STRUCTURE_TFS, structureOnKey } from '@/lib/structurePrefs';
 import PageHint from '@/components/PageHint';
 import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
+import { alertErrorText } from '@/lib/alertErrorText';
 
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
 
@@ -464,13 +465,14 @@ export default function AlertsPage() {
         },
         body: JSON.stringify({ coin: paCoin, target_price: parseFloat(paPrice), direction: paDir, label: paLabel }),
       });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error ?? t('ALERTS_ADD_ALERT_FAILED'));
+      const d = await res.json().catch(() => ({} as { error?: string }));
+      if (!res.ok) { setPaError(alertErrorText(t, res.status, d.error, 'ALERTS_ADD_ALERT_FAILED')); setPaAdding(false); return; }
       setPaPrice(''); setPaLabel('');
       window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'priceAlert' }));
       await loadPriceAlerts();
-    } catch (e) {
-      setPaError(e instanceof Error ? e.message : t('ALERTS_ADD_ALERT_FAILED'));
+    } catch {
+      // A request that never got an answer: the browser's own English message is not shown.
+      setPaError(t('ALERTS_ADD_ALERT_FAILED'));
     }
     setPaAdding(false);
   };
@@ -483,11 +485,11 @@ export default function AlertsPage() {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error ?? t('ALERTS_REMOVE_ALERT_FAILED'));
+      const d = await res.json().catch(() => ({} as { error?: string }));
+      if (!res.ok) { setPaError(alertErrorText(t, res.status, d.error, 'ALERTS_REMOVE_ALERT_FAILED')); return; }
       setPriceAlerts(prev => prev.filter(a => a.id !== id));
-    } catch (e) {
-      setPaError(e instanceof Error ? e.message : t('ALERTS_REMOVE_ALERT_FAILED'));
+    } catch {
+      setPaError(t('ALERTS_REMOVE_ALERT_FAILED'));
     }
   };
 
