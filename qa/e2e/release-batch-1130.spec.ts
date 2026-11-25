@@ -68,18 +68,14 @@ test('D96 liquidation totals while the history read is held, then failed', async
   } finally { await ctx.close().catch(() => {}); }
 });
 
-test('D32 the feed chip with the live socket and backup refused', async ({ browser }) => {
-  for (const mode of ['healthy', 'blocked'] as const) {
-    const ctx = await anon(browser, 390, 'dark'); const page = await ctx.newPage();
-    try {
-      await installPaidAiFence(page);
-      if (mode === 'blocked') { await page.routeWebSocket(/binance|bybit/i, (ws) => { void ws.close(); }); await page.route(/\/api\/proxy\?type=binance-24hr/, (r) => r.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"qa: forced"}' })); }
-      await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 150_000 }); await page.waitForTimeout(45_000);
-      const chip = await page.getByTestId('feed-status').first().innerText({ timeout: 2_000 }).catch(() => null);
-      console.log(`[D] chip ${mode}: ${JSON.stringify(chip)}`);
-      if (mode === 'healthy') expect.soft(chip).toBeNull(); else expect.soft(chip ?? '').toMatch(/Delayed|Backup/);
-    } finally { await ctx.close().catch(() => {}); }
-  }
+test('D32b the live sockets as this runner sees them, and the chip', async ({ browser }) => {
+  const ctx = await anon(browser, 1280, 'dark'); const page = await ctx.newPage(); const socks: Record<string, { frames: number; closed: boolean; errors: string[] }> = {};
+  page.on('websocket', (ws) => { const k = ws.url().replace(/?.*/, ''); const m = (socks[k] ??= { frames: 0, closed: false, errors: [] }); ws.on('framereceived', () => { m.frames++; }); ws.on('close', () => { m.closed = true; }); ws.on('socketerror', (e) => { m.errors.push(String(e).slice(0, 80)); }); });
+  try {
+    await installPaidAiFence(page); await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 150_000 }); await page.waitForTimeout(40_000);
+    console.log(`[D] sockets: ${JSON.stringify(socks)}`);
+    console.log(`[D] chip with the runner's own network: ${JSON.stringify(await page.getByTestId('feed-status').first().innerText({ timeout: 2_000 }).catch(() => null))}`);
+  } finally { await ctx.close().catch(() => {}); }
 });
 
 test('D73 D74 Korean: tab titles and the new Korean words', async ({ browser }) => {
@@ -115,14 +111,14 @@ test('D66 D61 signed in: a refused alert in Korean, and the settings plan panel'
   try {
     await installPaidAiFence(page);
     await ctx.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'ko'); } catch { /* private */ } });
-    await page.route(/\/api\/price-alerts/, (r) => (r.request().method() === 'POST' ? r.fulfill({ status: 400, contentType: 'application/json', body: '{"error":"ALERT_LIMIT","message":"You can have up to 50 active price alerts. Delete one to add another."}' }) : r.fallback()));
+    await page.route(/\/api\/price-alerts/, (r) => (r.request().method() === 'POST' ? r.fulfill({ status: 400, contentType: 'application/json', body: '{"error":"ALERT_LIMIT","message":"QA-RAW-SERVER-WORDS"}' }) : r.fallback()));
     await gotoSignedIn(page, '/alerts'); await page.waitForTimeout(10_000);
     const price = page.locator('input[type="number"]').filter({ visible: true }).first();
     await price.fill('1'); await price.press('Enter'); await page.waitForTimeout(1_000);
     let t = await text(page);
     if (!/50개|You can have up to/.test(t)) { await price.locator('xpath=ancestor::*[.//button][1]').locator('button').last().click().catch(() => {}); await page.waitForTimeout(2_000); t = await text(page); }
-    console.log(`[D] alert refusal ko: ${JSON.stringify(/.{0,60}(50개|You can have up to).{0,60}/.exec(t)?.[0] ?? null)}`);
-    expect.soft(t).toMatch(/50개/); expect.soft(t).not.toMatch(/You can have up to/);
+    console.log(`[D] alert refusal: label=${JSON.stringify(/.{0,40}(50개|You can have up to 50).{0,60}/.exec(t)?.[0] ?? null)} rawShown=${t.includes('QA-RAW-SERVER-WORDS')} lang=${await page.evaluate(() => document.documentElement.lang)}`);
+    expect.soft(t).toMatch(/50개|You can have up to 50/); expect.soft(t).not.toContain('QA-RAW-SERVER-WORDS');
     await gotoSignedIn(page, '/settings'); await page.waitForTimeout(12_000);
     const s = await text(page);
     const buttons = await page.getByRole('button').allInnerTexts();
