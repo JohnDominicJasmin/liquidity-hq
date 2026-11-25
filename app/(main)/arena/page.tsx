@@ -747,6 +747,7 @@ function ArenaContent() {
       chartAlertsCoinRef.current = selectedCoin;
       setChartAlerts(prev => [...prev, { id: alert.id, target_price: parseFloat(alertPrice), direction: alertDir, label: alertLabel }]);
       window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'priceAlert' }));
+      track.alertCreated(selectedCoin, alertDir);
       setAlertSuccess(true);
       setAlertLabel('');
       setTimeout(() => { setAlertFormOpen(false); setAlertSuccess(false); }, 1500);
@@ -2519,6 +2520,7 @@ function ArenaContent() {
                   aria-current={isSelected ? 'true' : undefined}
                   onClick={() => {
                     coinTouchedRef.current = true;
+                    if (c !== selectedCoin) track.coinSwitched(c);
                     setSelectedCoin(c); setScannerOpen(false); setScannerSearch(''); window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'coins' }));
                   }}
                   style={{

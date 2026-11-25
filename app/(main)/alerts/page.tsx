@@ -20,6 +20,7 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { STRUCTURE_TFS, structureOnKey } from '@/lib/structurePrefs';
 import PageHint from '@/components/PageHint';
+import { track } from '@/lib/analytics';
 import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
 import { alertErrorText } from '@/lib/alertErrorText';
 
@@ -469,6 +470,7 @@ export default function AlertsPage() {
       if (!res.ok) { setPaError(alertErrorText(t, res.status, d.error, 'ALERTS_ADD_ALERT_FAILED')); setPaAdding(false); return; }
       setPaPrice(''); setPaLabel('');
       window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'priceAlert' }));
+      track.alertCreated(paCoin, paDir);
       await loadPriceAlerts();
     } catch {
       // A request that never got an answer: the browser's own English message is not shown.
