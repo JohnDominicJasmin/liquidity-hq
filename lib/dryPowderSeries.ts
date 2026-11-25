@@ -38,11 +38,11 @@ const isNumbers = (n: unknown): n is DryPowderNumbers => {
 };
 
 /** The stored numbers, or null when none are stored, they are unreadable, or they are too old to serve. Never throws. */
-export async function readStoredDryPowderNumbers(nowMs = Date.now()): Promise<StoredDryPowderNumbers | null> {
+export async function readStoredDryPowderNumbers(nowMs = Date.now(), maxAgeMs = DRY_POWDER_NUMBERS_MAX_AGE_MS): Promise<StoredDryPowderNumbers | null> {
   const snap = await readSnapshot(DRY_POWDER_NUMBERS_KEY);
   const p = snap?.payload as Partial<StoredDryPowderNumbers> | null | undefined;
   if (!p || typeof p.at !== 'number' || !isNumbers(p.numbers)) return null;
-  return nowMs - p.at <= DRY_POWDER_NUMBERS_MAX_AGE_MS ? { numbers: p.numbers, at: p.at } : null;
+  return nowMs - p.at <= maxAgeMs ? { numbers: p.numbers, at: p.at } : null;
 }
 
 let numbersLastFailAt = 0;
@@ -66,6 +66,18 @@ export function ensureDryPowderNumbers(nowMs = Date.now()): Promise<'fresh' | 'r
     }
   })();
   return numbersInflight;
+}
+
+/** The figures, and the UTC day they were stored when they are the LAST SAVED ones: nothing fresh is stored and the live read failed (#1651).
+ *  A caller shows that day. Throws only when there is no saved row at all. */
+export async function getDryPowderNumbersOrSaved(nowMs = Date.now()): Promise<{ numbers: DryPowderNumbers; savedDay?: string }> {
+  try {
+    return { numbers: await getDryPowderNumbers() };
+  } catch (e) {
+    const old = await readStoredDryPowderNumbers(nowMs, Number.POSITIVE_INFINITY);
+    if (!old) throw e;
+    return { numbers: old.numbers, savedDay: new Date(old.at).toISOString().slice(0, 10) };
+  }
 }
 
 /** The figures the card shows: the stored row when there is one, else a live read. Throws 'Insufficient stablecoin data' only from the live path. */

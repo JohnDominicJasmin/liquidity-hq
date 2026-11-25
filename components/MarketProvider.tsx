@@ -1562,6 +1562,13 @@ export default function MarketProvider(
     let active: 'binance' | 'bybit' = 'binance';
     let alive = true;
 
+    /* The watch starts with the first open socket and ends when none is left (lib/liqWatch.ts). */
+    const watchStarted = () => setStore(s => (s.liqWatchSince != null ? s : { ...s, liqWatchSince: Date.now() }));
+    const watchMayHaveEnded = () => {
+      if (bnWs?.readyState === 1 || bbWs?.readyState === 1) return;
+      setStore(s => (s.liqWatchSince == null ? s : { ...s, liqWatchSince: null }));
+    };
+
     function recordLiq(coin: string, side: 'LONG' | 'SHORT', usd: number) {
       if (!isFinite(usd) || usd <= 0) return;
       const now = Date.now();
@@ -1592,6 +1599,7 @@ export default function MarketProvider(
       }, BN_CONNECT_TIMEOUT_MS);
 
       ws.onopen = () => {
+        watchStarted();
         if (settled) return;
         clearTimeout(timeoutTimer);
         if (!alive) return;
@@ -1638,6 +1646,7 @@ export default function MarketProvider(
         handleFailure();
       };
       ws.onclose = () => {
+        watchMayHaveEnded();
         if (settled) return; // error or the timeout already handled this attempt
         settled = true;
         clearTimeout(timeoutTimer);
@@ -1680,6 +1689,7 @@ export default function MarketProvider(
       const ws = new WebSocket(host);
       bbWs = ws;
       ws.onopen = () => {
+        watchStarted();
         if (!alive) return;
         bbAttempt = 0;
         ws.send(JSON.stringify({ op: 'subscribe', args: BB_LIQ_TOPICS }));
@@ -1711,6 +1721,7 @@ export default function MarketProvider(
         } catch { /* */ }
       };
       ws.onclose = () => {
+        watchMayHaveEnded();
         // Torn down deliberately by connectBN's onopen once Binance recovers -
         // `active` already flipped back before that close(), so this must not
         // reconnect a fallback that is no longer wanted.
@@ -1794,6 +1805,7 @@ export default function MarketProvider(
 
     return () => {
       alive = false;
+      setStore(s => (s.liqWatchSince == null ? s : { ...s, liqWatchSince: null }));
       offResume();
       offOnline();
       clearInterval(analyzer);
