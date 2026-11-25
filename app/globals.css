@@ -4487,6 +4487,10 @@ html[data-sess="1"] .usage-meter-host { min-height: 55px; }
 .st-save-toast.conflict { background: var(--amber-bg); border-color: var(--amber-bdr); color: var(--amber); }
 /* The offline notice stays up, so it needs an opaque base under the translucent amber (the page showed through the text), (its placement over the Arena chart toolbar is PM's visual call: the owner rejected a bottom/right corner for toasts). */
 .offline-notice-region .st-save-toast { background: linear-gradient(var(--amber-bg), var(--amber-bg)), var(--bg2); }
+/* The price feed chip (#1651): in the page's flow, only while prices are not live. Empty, the region takes no room. */
+.feed-status-chip { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 8px; padding: 3px 10px; border-radius: 999px;
+  border: 0.5px solid var(--amber); background: linear-gradient(var(--amber-bg), var(--amber-bg)), var(--bg2); color: var(--txt);
+  font-size: var(--fs-caption); }
 /* Error: red token, an icon as well as the colour, and real buttons - so it
    takes pointer events, unlike the passive states. */
 .st-save-toast.error    { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.45); color: var(--red); pointer-events: auto; }

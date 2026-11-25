@@ -293,6 +293,9 @@ export default function MarketProvider(
       clearTimeout(connectTimer);
       retriesRef.current++;
       urlIdxRef.current++;
+      /* The live feed is gone until a socket opens again or the backup answers, and the status says so (#1651): it read "Live" through
+         every retry. The chip waits ten seconds before showing it. */
+      setStore(s => (s.wsStatus === 'Live' ? { ...s, wsStatus: 'Connecting...' } : s));
 
       /* ALWAYS SCHEDULE THE NEXT ATTEMPT. One chain, capped, no end condition - `ws.onopen` resets
          the counter and clears this, which is the only thing that stops it. The five-attempt
