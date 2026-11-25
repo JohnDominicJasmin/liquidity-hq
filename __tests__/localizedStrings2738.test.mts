@@ -220,7 +220,9 @@ test('A2. login (5), forgot-password (1), reset-password (1), settings (1), auth
   /* the five are ALL the callers: a sixth page that calls it with one argument keeps English for ko / zh / ru and nothing here would see it */
   const callers = ['app', 'components', 'lib'].flatMap((d) => walk(new URL(`../${d}/`, import.meta.url))).filter((p) => /friendlyAuthError\(/.test(readFileSync(p.replace(/^\/(?=[A-Za-z]:)/, ''), 'utf8')) && !/lib\/authErrors\.ts$/.test(p)).map((p) => p.replace(/^.*\/(app|components|lib)\//, '$1/')).sort();
   assert.deepEqual(callers, PAGES.map(([f]) => f).sort(), 'the set of pages that call friendlyAuthError changed');
-  assert.ok(read('app/(main)/login/page.tsx').includes('`${friendlyAuthError(error.message, t)} Reason: ${j.reason}`'), 'the suspended "Reason:" line must go through t too');
+  /* #2835: the reason is asked for once a fresh Turnstile token exists, so the translated sentence is kept with the question and printed with the answer */
+  const login = read('app/(main)/login/page.tsx');
+  assert.ok(login.includes('setBanAsk({ email: trimmed, password, message: friendlyAuthError(error.message, t) })') && login.includes('`${ask.message} Reason: ${j.reason}`'), 'the suspended "Reason:" line must go through t too');
 });
 test('A2-CONTROL. a one-argument call, a missing call, and a call outside the component that holds t are flagged', () => {
   const good = '\nfunction P() {\n  const { t } = useLabels();\n  const f = () => { setError(friendlyAuthError(error.message, t)); };\n}\n';
