@@ -156,7 +156,8 @@ export default function BestHours() {
   const ampm = h >= 12 ? t('HOURS_PM') : t('HOURS_AM');
   const h12 = h % 12 || 12;
 
-  const upcoming = (!win && !dead) ? getUpcomingWindows(now, 3) : [];
+  /* THE QUIET PERIOD HAS NEXT WINDOWS TOO (#1185): it used to ask for none then, and the card said "No windows detected in next 7 days". */
+  const upcoming = !win ? getUpcomingWindows(now, 3) : [];
 
   return (
     <div className="hours-term-wrap">

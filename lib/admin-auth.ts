@@ -70,6 +70,20 @@ async function resolveRole(user: User): Promise<AdminRole | null> {
   return null;
 }
 
+/* The session's assurance level, read from the access token AFTER Auth has accepted that token (getUser above), so the claim is the
+   server's own. 'aal2' means a second factor was checked for this session. Anything unreadable is not aal2. */
+function assuranceLevel(token: string): string | null {
+  try {
+    const claims = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8')) as { aal?: unknown };
+    return typeof claims.aal === 'string' ? claims.aal : null;
+  } catch { return null; }
+}
+
+/** The second factor is required for every admin route. OPS_SECOND_FACTOR_OFF=1 is the way back in if the factor service itself is unavailable. */
+function secondFactorRequired(): boolean {
+  return process.env.OPS_SECOND_FACTOR_OFF !== '1';
+}
+
 export type AdminCtx = { user: User; token: string; role: AdminRole };
 export type AdminOk = { ok: true } & AdminCtx;
 
@@ -84,6 +98,10 @@ export async function requireAdmin(req: Request): Promise<AdminOk | NextResponse
 
   const role = await resolveRole(user);
   if (!role) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  /* Told apart from "not an admin" only AFTER the role check, so a non-admin learns nothing new. */
+  if (secondFactorRequired() && assuranceLevel(token) !== 'aal2') {
+    return NextResponse.json({ error: 'Second factor required', code: 'MFA_REQUIRED' }, { status: 403 });
+  }
   return { ok: true, user, token, role };
 }
 

@@ -60,3 +60,14 @@ test('S4. constants and the ingest wiring: key, one hour, 36 hours; the ingest d
   assert.match(ing, /import \{ ensureDryPowderNumbers \} from '@\/lib\/dryPowderSeries';/); assert.equal((ing.match(/ensureDryPowderNumbers\(/g) ?? []).length, 1, 'exactly one call'); assert.match(ing, /\bvoid ensureDryPowderNumbers\(\);/, 'the ingest must not await the refresh (it takes 5-10 s once an hour)'); assert.equal(/await ensureDryPowderNumbers/.test(ing), false);
   const lib2 = readFileSync(new URL('../lib/dryPowderSeries.ts', import.meta.url), 'utf8'); assert.equal(/\bxai\b|grok|anthropic/i.test(lib2.replace(/\/\*[\s\S]*?\*\//g, '')), false, 'an AI call in the numbers path');
 });
+
+/* #2820 (#1651 owner item 56): the last saved read, dated, when nothing fresh is stored and the live read fails. */
+test('S6. a failed live read answers the saved figures with their UTC day, whatever their age; with none saved the error stands; a fresh row or a working source carries no day', async (t) => {
+  const orSaved = lib.getDryPowderNumbersOrSaved;
+  let now = start(t); const at = now - 100 * 3_600_000; net.row = row(at); net.mode = 'down';
+  assert.deepEqual(await orSaved(now), { numbers, savedDay: new Date(at).toISOString().slice(0, 10) });
+  now = start(t); net.row = null; net.mode = 'down'; await assert.rejects(orSaved(now));
+  now = start(t); net.row = { payload: { at: now, numbers: 'bad' }, source: 'x', updated_at: new Date(now).toISOString() }; net.mode = 'down'; await assert.rejects(orSaved(now), 'an unreadable row is not served');
+  now = start(t); net.row = row(now - 3_600_000); net.mode = 'down'; assert.deepEqual(await orSaved(now), { numbers }); assert.equal(net.llama, 0);
+  now = start(t); net.row = row(now - 100 * 3_600_000); net.mode = 'ok'; const live = await orSaved(now); assert.equal(live.savedDay, undefined); assert.equal(live.numbers.current, 150e9 + 119e9);
+});

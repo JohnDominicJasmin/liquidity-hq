@@ -1042,7 +1042,7 @@ body::after {
    Same trap as .pf-footer-bottom-note and .st-locked-list; if this label needs
    to read as secondary, do it with weight or size, not alpha. */
 .mr-scale-good { font-weight: 600; }
-.mr-factors { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.mr-factors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .mr-factor { border: 0.5px solid var(--bdr); border-radius: 8px; padding: 8px 9px; background: var(--bg2);
   min-width: 0; }
 .mr-factor-k { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); letter-spacing: .1em;
@@ -1441,8 +1441,10 @@ body[data-rpm-level="high"]::before {
 }
 
 @keyframes ticker-slide-in {
-  from { opacity: 0; transform: translateY(-100%); }
-  to   { opacity: 1; transform: translateY(0); }
+  /* No opacity step: a fade-in blends the badge text and fill into the page behind, so for 0.28 s a scan reads white-on-pale
+     (1.4:1 to 4.7:1 on the light theme). The settled badge is 6.47:1; the slide alone keeps it that every frame (#1185). */
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(0); }
 }
 
 /* body.ticker-on no longer needed for app-content - base padding covers both states */

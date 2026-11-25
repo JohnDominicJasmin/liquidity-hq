@@ -113,6 +113,7 @@ const strip = (s: string) => s.replace(/\r\n/g, '\n').replace(/\/\*[\s\S]*?\*\//
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 test('D7a. the route only READS: it imports readDryPowderAnalysis, answers 202 pending when none, and has no xAI call, no reservation, no refund, no cachedOwn, no per-visitor cost', () => {
   const route = strip(read('app/api/dry-powder/route.ts'));
+  assert.ok(/const \{ numbers, savedDay \} = await getDryPowderNumbersOrSaved\(\);\s*return NextResponse\.json\(\{ \.\.\.numbers, \.\.\.\(savedDay \? \{ from: savedDay \} : \{\}\) \}\);/.test(route), 'the numbers part does not say which day saved figures are from (#2820)');
   assert.ok(/readDryPowderAnalysis\(\)/.test(route), 'the route does not read the stored text');
   assert.ok(/status:\s*202/.test(route) && /pending:\s*true/.test(route), 'no 202 pending answer for an empty store');
   for (const bad of ['xaiFetch', 'api.x.ai', 'incrementToolUsage', 'refundToolUsage', 'cachedOwn', 'recordAiCall', 'RateLimitError', 'blockedResponse']) assert.equal(route.includes(bad), false, `the visitor route still uses ${bad}`);
@@ -140,20 +141,26 @@ test('D7e. the route: today\'s text has no "from"; yesterday\'s or a 5-day-old t
   const endMark = 'analysis: latest.analysis'; const e = route.indexOf(endMark, a); assert.ok(e > a, 'CONTROL: the answer is not in the route'); const stop = route.indexOf(');', e) + 2;
   const block = route.slice(a, stop);
   class Res { body: unknown; status: number; constructor(body: unknown, status: number) { this.body = body; this.status = status; } } const NextResponse = { json: (body: unknown, init?: { status?: number }) => new Res(body, init?.status ?? 200) };
-  let numbersReads = 0; const getDryPowderNumbers = async () => { numbersReads++; return { current: 200e9, prev30: 190e9, prev90: 180e9, series: [1, 2, 3] }; };
-  const fn = new Function('readDryPowderAnalysis', 'readLatestDryPowderAnalysis', 'getDryPowderNumbers', 'NextResponse', `return (async () => { ${block} })();`) as (...a: unknown[]) => Promise<Res>;
-  const call = () => fn(readDryPowderAnalysis, readLatestDryPowderAnalysis, getDryPowderNumbers, NextResponse);
+  let numbersReads = 0; let savedDay: string | undefined; const getDryPowderNumbersOrSaved = async () => { numbersReads++; const numbers = { current: 200e9, prev30: 190e9, prev90: 180e9, series: [1, 2, 3] }; return savedDay ? { numbers, savedDay } : { numbers }; };
+  const fn = new Function('readDryPowderAnalysis', 'readLatestDryPowderAnalysis', 'getDryPowderNumbersOrSaved', 'NextResponse', `return (async () => { ${block} })();`) as (...a: unknown[]) => Promise<Res>;
+  const call = () => fn(readDryPowderAnalysis, readLatestDryPowderAnalysis, getDryPowderNumbersOrSaved, NextResponse);
   t.mock.timers.enable({ apis: ['Date'], now: at(20, 10) });
   reset(); numbersReads = 0; let r = await call(); assert.equal(r.status, 202); assert.deepEqual(r.body, { pending: true }); assert.equal(numbersReads, 0, 'pending must not read the numbers'); assert.equal(xaiCalls, 0, 'the route called xAI');
   put('dry-powder-analysis', stored('2026-11-20', at(20, 3))); r = await call(); assert.equal(r.status, 200); const b1 = r.body as Record<string, unknown>; assert.equal(b1.analysis, 'SIGNAL: x'); assert.equal('from' in b1, false, 'today\'s text must carry no "from"');
   put('dry-powder-analysis', stored('2026-11-19', at(19, 3))); r = await call(); const b2 = r.body as Record<string, unknown>; assert.equal(b2.analysis, 'SIGNAL: x'); assert.equal(b2.from, '2026-11-19', 'yesterday\'s text must say which day it is from');
   put('dry-powder-analysis', stored('2026-11-15', at(15, 3))); r = await call(); const b3 = r.body as Record<string, unknown>; assert.equal(r.status, 200, 'a 5-day-old text (beyond 36 h) must still be served'); assert.equal(b3.from, '2026-11-15');
   assert.deepEqual(Object.keys(b3).sort(), ['analysis', 'current', 'from', 'prev30', 'prev90', 'series'], 'the answer shape');
+  /* #2820: when the figures are the last saved ones (live read failed) the date on the card is the OLDEST thing on it */
+  const fromOf = async () => ((await call()).body as { from?: string }).from;
+  savedDay = '2026-11-12'; assert.equal(await fromOf(), '2026-11-12', 'saved figures older than the text');
+  savedDay = '2026-11-18'; assert.equal(await fromOf(), '2026-11-15', 'a text older than the saved figures');
+  put('dry-powder-analysis', stored('2026-11-20', at(20, 3))); savedDay = '2026-11-17'; assert.equal(await fromOf(), '2026-11-17', 'today\'s text over saved figures');
+  savedDay = '2026-11-20'; assert.equal(await fromOf(), undefined, 'both of today');
   assert.equal(xaiCalls, 0, 'the route never calls xAI');
 });
 test('D7f. the card: the "From <date>" line shows only when from is set, and a SECOND pending keeps the loading state (no "unavailable"); the label exists', () => {
   const card = strip(read('components/DryPowder.tsx')); const en = JSON.parse(read('lib/labelDefaults.en.json')) as Record<string, string>;
-  assert.ok(/d\.analysis === 'ready' && d\.from && \(/.test(card), 'the from line is not conditional on from being set'); assert.ok(card.includes("data-testid=\"dry-powder-from\"") && card.includes("t('DRY_POWDER_FROM_DATE'"), 'the from line or its label is missing');
+  assert.ok(/\{d\.from && \(\s*<div data-testid="dry-powder-from"/.test(card), 'the from line is not conditional on from being set (#2820: shown for saved figures with or without the text)'); assert.ok(/\.\.\.\(json\.from \? \{ from: json\.from \} : \{\}\)/.test(card), 'the figures answer does not carry its day into the state'); assert.ok(card.includes("data-testid=\"dry-powder-from\"") && card.includes("t('DRY_POWDER_FROM_DATE'"), 'the from line or its label is missing');
   assert.ok(/\.\.\.\(ai\.json\.from \? \{ from: ai\.json\.from \} : \{\}\)/.test(card), 'the card does not carry from into its state');
   /* #2683: a SECOND pending no longer prints "summary unavailable": the summary is hidden (state 'unavailable' draws nothing, the figures stay) and the handler stops. */
   const second = card.indexOf('ai = await askAi();'); assert.ok(second > 0); const blk = card.indexOf('if (ai?.json.pending) {', second); assert.ok(blk > second && blk - second < 200, 'after the second ask a pending answer must be handled before falling through'); const blkEnd = card.indexOf('return;', blk); assert.ok(blkEnd > blk && blkEnd - blk < 220 && /analysis: 'unavailable'/.test(card.slice(blk, blkEnd)), 'a second pending must hide the summary and stop, not fall through to the failure path'); assert.equal(card.includes('DRY_POWDER_ANALYSIS_UNAVAILABLE'), false, 'the "summary unavailable" sentence is rendered again');

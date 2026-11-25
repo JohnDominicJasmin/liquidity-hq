@@ -13,6 +13,7 @@ import {
   SPREAD_MIN_BY_TF, pendingSetupOf, judgeRibbon,
 } from './strategyCore.ts';
 import { detectRSIDivergence, rsiArr } from './divergence.ts';
+import { notEnoughMovement } from './deadSeries.ts';
 import { selectedIndicatorReadings } from './indicatorReadings.ts';
 import { describeSelection } from './strategyRegistry.ts';
 import { simulateTrades } from './backtestEngine.ts';
@@ -444,6 +445,9 @@ export function useEMAStrategy(
         const judged = judgeRibbon({ ribbonBull, ribbonBear, have200D, above200D, price, ema9, ema20, ema50, inVZoneLong, inVZoneShort, tfLabel: tf.toUpperCase() });
         let verdict: StrategyVerdict = judged.verdict;
         let phase = judged.phase;
+        /* A SERIES THAT DID NOT MOVE GETS NO SETUP (#1651, lib/deadSeries.ts): its ribbon would read like a balanced market. */
+        const deadSeries = notEnoughMovement(cRibbon);
+        if (deadSeries) { verdict = 'FREEZE'; phase = 'Not enough movement to judge'; }
         const { counterTrend, judgeLong } = judged;
 
         /* #985 gap 1, second indicator (#997 was RSI, advisory-only). Owner
@@ -630,16 +634,16 @@ export function useEMAStrategy(
            never contains it. `rsiSelected`/`rsiLast` stay - the RSI
            advisory CONDITION below still uses them (it can never move the verdict, see :109). */
 
-        // SL / TP (0.5% buffer beyond 50 EMA)
+        // SL / TP (0.5% buffer beyond 50 EMA). The 2:1 is measured from the ENTRY THE CARD SHOWS (the 20 EMA), not from the last price.
         const BUF = 0.005;
         let sl: number | null = null;
         let tp: number | null = null;
         if (verdict === 'LONG_SETUP') {
           sl = ema50 * (1 - BUF);
-          tp = price + (price - sl) * 2;
+          tp = ema20 + (ema20 - sl) * 2;
         } else if (verdict === 'SHORT_SETUP') {
           sl = ema50 * (1 + BUF);
-          tp = price - (sl - price) * 2;
+          tp = ema20 - (sl - ema20) * 2;
         }
 
         // Conditions checklist

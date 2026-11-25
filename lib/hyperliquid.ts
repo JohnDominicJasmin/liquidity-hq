@@ -462,3 +462,37 @@ export function parseHlAssetCtxs(body: unknown): { prices: HlAssetCtx[]; refused
 
   return { prices, refused };
 }
+
+/** A whole day's figures for one instrument, per token. */
+export interface HlDayStat {
+  price: number;
+  /** Percent against the venue's previous-day price. */
+  change: number;
+  /** 24h notional volume in USD. */
+  volumeUsd: number;
+}
+
+/**
+ * Price, 24h change and 24h USD volume by instrument name, from the same `metaAndAssetCtxs` answer
+ * `parseHlAssetCtxs` reads (so the same names are refused). A row missing either extra figure is left out: unknown is never 0.
+ * This venue sends no 24h high or low.
+ */
+export function parseHlDayStats(body: unknown): Map<string, HlDayStat> {
+  const priced = new Map(parseHlAssetCtxs(body).prices.map(p => [p.name, p.price]));
+  const [meta, ctxs] = body as [{ universe: Array<{ name?: unknown }> }, Array<Record<string, unknown>>];
+  const out = new Map<string, HlDayStat>();
+  meta.universe.forEach((u, i) => {
+    const name = u?.name;
+    if (typeof name !== 'string') return;
+    const price = priced.get(name);
+    if (price === undefined) return;
+    const ctx = ctxs[i];
+    /* The change is a ratio of two raw quotes, so the instrument's multiplier cancels out of it. */
+    const now = hlNum(ctx?.markPx ?? ctx?.midPx ?? ctx?.oraclePx);
+    const prev = hlNum(ctx?.prevDayPx);
+    const volumeUsd = hlNum(ctx?.dayNtlVlm);
+    if (!(prev > 0) || !(volumeUsd >= 0)) return;
+    out.set(name, { price, change: (now / prev - 1) * 100, volumeUsd });
+  });
+  return out;
+}

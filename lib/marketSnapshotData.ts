@@ -62,7 +62,8 @@
  * remainder, not an oversight.
  */
 
-import { COINS, BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, bybitPriceFactor } from './coins.ts';
+import { COINS, BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS, HL_SYMS, bybitPriceFactor } from './coins.ts';
+import { HL_INFO_URL, parseHlDayStats } from './hyperliquid.ts';
 import { cachedRefresh, cachedAt, cachedPeek, cachedServable, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
 
 /* AN EMPTY OR HALF-EMPTY SECTION IS NOT A SUCCESS (owner sweep 2026-11-18). A build that came back with nothing, or with under half of
@@ -145,7 +146,8 @@ const OWED_COINS: string[] = [...SYMS.map(([c]) => c), ...BYBIT_ONLY_COINS];
  * excluding it there would lose a working source. */
 const SPOT_SYMS = Object.entries(BINANCE_SPOT_SYMS);
 
-interface TickerEntry { price: number; change: number; high: number; low: number; vol24: number }
+/* `high` and `low` are absent on a row served by Hyperliquid, which sends neither. */
+interface TickerEntry { price: number; change: number; high?: number; low?: number; vol24: number }
 interface LsrEntry {
   bnLongRatio?: number; bnShortRatio?: number;
   bnWhaleLongRatio?: number; bnWhaleShortRatio?: number;
@@ -270,6 +272,16 @@ function bybitKlineToBinanceShape(body: unknown, priceFactor: number): string[][
   });
 }
 
+/** Hyperliquid's one call for every instrument. Throws on a non-2xx or non-JSON answer. */
+async function hyperliquidAssetCtxs(timeoutMs = 8000): Promise<unknown> {
+  const res = await exchangeFetch(HL_INFO_URL, {
+    method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(timeoutMs),
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'metaAndAssetCtxs' }),
+  });
+  if (!res.ok) throw new Error(`Hyperliquid ${res.status}`);
+  return res.json();
+}
+
 async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFallback: string[] }> {
   const out: Record<string, TickerEntry> = {};
   const byCoin = Object.fromEntries(SYMS.map(([c, s]) => [s, c]));
@@ -291,14 +303,20 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
     }
   };
 
+  /* A BAN MID-CALL MUST NOT END THE BUILD. `get` throws on 418/429, so a ban landing between the ping and the ticker call used to
+     throw out of this function before any other venue was asked, and the section came back empty (Deep then refused every read).
+     Each Binance attempt is its own miss; the venues below fill what is missing. */
+  const tryBinance = async (hosts: readonly string[], pingPath: string, tickerPath: string): Promise<void> => {
+    const host = await resolveHost(hosts, pingPath);
+    if (!host) return;
+    try { absorb(await get(`${host}${tickerPath}`)); } catch { /* banned or rate-limited */ }
+  };
+
   /* Spot first: one batched call for all 45 symbols, exactly as the client
      did. Weight 80 either way - the saving is that it happens once per TTL
      rather than once per visitor. */
-  const spot = await resolveHost(SPOT_HOSTS, '/api/v3/ping');
-  if (spot) {
-    const batch = encodeURIComponent(JSON.stringify(SPOT_SYMS.map(([, s]) => s)));
-    absorb(await get(`${spot}/api/v3/ticker/24hr?symbols=${batch}`));
-  }
+  const batch = encodeURIComponent(JSON.stringify(SPOT_SYMS.map(([, s]) => s)));
+  await tryBinance(SPOT_HOSTS, '/api/v3/ping', `/api/v3/ticker/24hr?symbols=${batch}`);
 
   /* Futures fallback. Spot and futures are separate rate-limit buckets, and in
      practice they fail independently - this was found with spot returning 418
@@ -310,10 +328,7 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
      the same pair, so this is a degraded answer rather than an equal one -
      which is why it is a fallback and not the default. */
   const source = Object.keys(out).length > 0 ? 'spot' : 'futures';
-  if (Object.keys(out).length === 0) {
-    const fut = await resolveHost(FUTURES_HOSTS, '/fapi/v1/ping');
-    if (fut) absorb(await get(`${fut}/fapi/v1/ticker/24hr`));
-  }
+  if (Object.keys(out).length === 0) await tryBinance(FUTURES_HOSTS, '/fapi/v1/ping', '/fapi/v1/ticker/24hr');
 
   /* #1236: whatever coin still has no entry - both Binance attempts missed
      it entirely, or (rare) a symbol mapping gap - gets one shot at Bybit's
@@ -352,9 +367,27 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
     } catch { /* Bybit also unreachable - those coins simply stay missing, same as today */ }
   }
 
+  /* THIRD VENUE: Hyperliquid, only when neither Binance nor Bybit answered for any coin. Price, 24h change and USD volume only. A coin or
+     two missing while the others answer is a coverage gap, not an outage, and is not worth a third venue's call every 45 s. */
+  let viaHyperliquid = 0;
+  const stillMissing = Object.keys(out).length === 0 ? OWED_COINS.filter(c => HL_SYMS[c]) : [];
+  if (stillMissing.length > 0) {
+    try {
+      const stats = parseHlDayStats(await hyperliquidAssetCtxs());
+      for (const coin of stillMissing) {
+        const s = stats.get(HL_SYMS[coin]);
+        if (!s) continue;
+        out[coin] = { price: s.price, change: s.change, vol24: s.volumeUsd };
+        viaFallback.push(coin);
+        viaHyperliquid++;
+      }
+    } catch { /* Hyperliquid also unreachable - those coins stay missing */ }
+  }
+
   reportHealth('binance:ticker', 'market', Object.keys(out).length > 0,
     `${Object.keys(out).length} coins via ${source}`
-      + (viaFallback.length ? `, ${viaFallback.length} via bybit-fallback` : ''));
+      + (viaFallback.length > viaHyperliquid ? `, ${viaFallback.length - viaHyperliquid} via bybit-fallback` : '')
+      + (viaHyperliquid ? `, ${viaHyperliquid} via hyperliquid-fallback` : ''));
   refusePartial('ticker', 'mkt:ticker', Object.keys(out).length, OWED_COINS.length, TICKER_TTL + STALE_WHILE_REFRESH_MS);
   return { out, viaFallback };
 }
@@ -453,7 +486,7 @@ export interface MarketSnapshot {
   lsr: Record<string, LsrEntry>;
   /** Sections that came back EMPTY, named rather than signalled as a boolean - see below. */
   partial: string[];
-  /** Per-section lists of coins served by Bybit rather than Binance. */
+  /** Per-section lists of coins served by another venue rather than Binance (ticker: Bybit or Hyperliquid; klines: Bybit). */
   viaFallback: Record<string, string[]>;
   /** When the OLDEST section in this response was fetched (epoch ms). The cached sections have different ages, so the response is only as fresh as its oldest part; null when none could be read. */
   fetchedAt: number | null;

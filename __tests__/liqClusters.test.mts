@@ -200,7 +200,8 @@ test('the prompt header names the coin and says REALIZED', () => {
 
 test('the prompt is fed from LiqFeed, not from the dead Coinglass array', () => {
   const arena = readFileSync(path.join(ROOT, appPath('app', 'arena', 'page.tsx')), 'utf8');
-  const line = arena.match(/const liqLevels = [^;]+;/);
+  assert.match(arena, /const liqLevels = liqHistPartial && liqClustersText !== 'Not available' \? `\$\{liqClustersText\} \(24h history incomplete\)` : liqClustersText;/, 'the prompt field is no longer the cluster text, marked when the history is partial (#2819)');
+  const line = arena.match(/const liqClustersText = [^;]+;/);
   assert.ok(line, 'the liqLevels prompt field is gone');
   /* RE-ANCHORED for #2718 (2026-11-20): the AI line reads the SCALED list (arenaLiqClusters = the LiqFeed list with the selected coin in the chart unit); liqPerTokenUnits2718 U4 runs that memo, and the match below pins that it is built from liqClusters */
   assert.match(line[0], /formatClustersForPrompt\(arenaLiqClusters, selectedCoin\)/);

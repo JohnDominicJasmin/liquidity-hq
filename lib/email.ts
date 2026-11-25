@@ -134,6 +134,44 @@ export async function sendAdminAddedEmail(args: AdminAddedArgs): Promise<boolean
   }
 }
 
+/* Sent by lib/aiCapAlert the first time a day that a site-wide AI cap refuses calls. Same owner recipient list as the other operations notices. */
+export async function sendAiCapAlertEmail(args: { kind: 'global_free' | 'global' | 'fuse'; day: string }): Promise<boolean> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const from = process.env.BREVO_SENDER_EMAIL;
+  const to = spikeAlertRecipients();
+  if (!apiKey || !from || to.length === 0) return false;
+
+  const what = {
+    global_free: 'Free and trial AI calls reached their share of the daily call cap. Free and trial calls are now refused; Pro calls continue.',
+    global: 'The daily AI call cap is reached. All AI calls are now refused.',
+    fuse: 'The daily AI spend fuse tripped. Free and trial AI calls are now refused; Pro calls continue under their own limits.',
+  }[args.kind];
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#111;max-width:520px">
+      <h2 style="margin:0 0 12px;font-size:18px">AI limit reached</h2>
+      <p style="margin:0 0 12px">${what}</p>
+      <p style="margin:0 0 12px">Day (UTC): ${args.day}. The count resets at 00:00 UTC.</p>
+      <p style="margin:0 0 12px">Details: <a href="${opsLoginUrl()}">${opsLoginUrl()}</a></p>
+    </div>`;
+
+  try {
+    const res = await brevoFetch({
+      method: 'POST',
+      headers: { 'api-key': apiKey, 'Content-Type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({
+        sender: { name: `${APP_NAME} Ops`, email: from },
+        to: to.map(email => ({ email })),
+        subject: `${APP_NAME}: AI limit reached`,
+        htmlContent: html,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // Owner-only warning: today's xAI call volume crossed 80% of the global
 // daily cap (app/api/ops/spike-alert/route.ts). Fixed recipient list, not
 // per-user - see spikeAlertRecipients() above.

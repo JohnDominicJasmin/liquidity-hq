@@ -35,7 +35,8 @@ export async function GET(req: NextRequest) {
     }, {
       /* Public and visitor-independent, and already only as fresh as the shortest TTL. Letting any
          shared cache in front of this serve it removes the origin hit for the common case. */
-      headers: { 'Cache-Control': polledCacheControl(60) },
+      /* No longer than the server keeps the ticker, its shortest section (45 s) (#1651). */
+      headers: { 'Cache-Control': polledCacheControl(45) },
     });
   } catch (e) {
     return apiError('market-snapshot', e, 500, 'Request failed');

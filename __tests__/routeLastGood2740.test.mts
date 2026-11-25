@@ -599,7 +599,7 @@ test('Y1. HEALTHY PATH: a good read answers {price, chg, asOf} per series (asOf 
   const r = await macro();
   for (const s of SERIES) { const v = q(r, s)!; assert.equal(v.price, 200, s); assert.ok(near(v.chg!, 25), `${s} chg ${v.chg}`); assert.equal(v.asOf, MACRO_TIME * 1000, s); }
   assert.deepEqual(Object.keys(r.body).sort(), ['dxy', 'gold', 'jpy', 'oil', 'real10y', 'spx', 'tnx']);
-  assert.equal(r.h('cache-control'), polledCacheControl(300));
+  assert.equal(r.h('cache-control'), polledCacheControl(60));
 });
 
 test('Y2. YAHOO FAILING after the TTL: every series answers its LAST GOOD quote (the same price, chg and asOf), not null - for an HTTP error, a 200 without a price and a network error', async () => {
@@ -608,7 +608,7 @@ test('Y2. YAHOO FAILING after the TTL: every series answers its LAST GOOD quote 
     setMacro(shape); tick(YF_TTL + YF_HOLD + 1_000);
     const r = await macro();
     for (const s of SERIES) { assert.notEqual(q(r, s), null, `${shape}: ${s} went null on a failed refresh`); assert.deepEqual(q(r, s), q(good, s), `${shape}: ${s} is not its last good quote`); }
-    assert.equal(r.h('cache-control'), polledCacheControl(300));
+    assert.equal(r.h('cache-control'), polledCacheControl(60));
   }
 });
 
@@ -644,10 +644,10 @@ const cycle = async (path = '/api/cycle') => read(await cycleGET(req(path)));
 const ratios = (closes: number[]) => closes.map((c, i) => ({ day: i * 7, ratio: c / closes[0] }));
 const CYCLE_TTL = HOUR;
 
-test('Z0. NEVER READ: Bybit failing with no good read is the same 500 "Request failed" as before, with no stale marker', async () => {
+test('Z0. NEVER READ: Bybit failing with no good read is a 502 "Request failed" (#2822: one status when an upstream is down), with no stale marker', async () => {
   net.cycle.mode = 'http500';
   const f = await cycle();
-  assert.equal(f.status, 500); assert.deepEqual(f.body, { error: 'Request failed' }); assert.equal(f.h('x-data-stale'), null);
+  assert.equal(f.status, 502); assert.deepEqual(f.body, { error: 'Request failed' }); assert.equal(f.h('x-data-stale'), null);
 });
 
 test('Z1. HEALTHY PATH: a good read answers the three curves and currentDay, with the polled header and no stale marker; inside the hour it is served from memory', async () => {
@@ -729,7 +729,7 @@ test('P1. HEALTHY PATH: each slow type answers 200 with the route\'s own (trimme
     fresh(type); tick(ttl + 1_000);
     const a = await proxyRaw(PROXY_URL[type]);
     assert.equal(a.status, 200, type); assert.deepEqual(JSON.parse(a.text), expectBody(type, 1), `${type}: the healthy body changed`);
-    assert.equal(a.h('content-type'), 'application/json'); assert.equal(a.h('cache-control'), polledCacheControl(300), type);
+    assert.equal(a.h('content-type'), 'application/json'); assert.equal(a.h('cache-control'), polledCacheControl(Math.min(300, ttl / 1000)), `${type}: the header is longer than the server keeps this type (#2822)`);
     assert.equal(a.h('x-data-stale'), null, type); assert.equal(a.h('x-data-age-ms'), null, type);
   }
 });
@@ -801,7 +801,7 @@ test('S1. HEALTHY PATH: a good read answers ticker, klines, lsr and ts (the olde
   assert.equal(a.status, 200);
   assert.ok(Object.keys(a.body.ticker).length > 40, `ticker has ${Object.keys(a.body.ticker).length} coins`); assert.ok(Object.keys(a.body.klines).length > 40); assert.ok(Object.keys(a.body.lsr).length > 40);
   assert.equal('stale' in a.body, false, 'a healthy answer carries a stale key'); assert.equal(a.body.ts, snapshotGoodAt);
-  assert.equal(a.h('cache-control'), polledCacheControl(60));
+  assert.equal(a.h('cache-control'), polledCacheControl(TICKER_TTL / 1000));
   assert.equal(a.body.ticker.btc.price, 100, 'the ticker value is not the stand-in\'s'); assert.equal(a.body.ticker.btc.change, 1.5);
 });
 
@@ -819,7 +819,7 @@ test('S3. EVERY SECTION FAILED (all three beyond ttl + 60 s, the upstream down):
   assert.equal(f.body.stale, true); assert.equal(f.body.ts, snapshotGoodAt, 'ts must be the real age of the data, not "now"');
   assert.ok(Object.keys(f.body.ticker).length > 40 && Object.keys(f.body.klines).length > 40 && Object.keys(f.body.lsr).length > 40, 'a section of the last good snapshot is missing');
   assert.equal(f.body.ticker.btc.price, 100); assert.equal('partial' in f.body, false, 'a complete last-good snapshot carries partial');
-  assert.equal(f.h('cache-control'), polledCacheControl(60));
+  assert.equal(f.h('cache-control'), polledCacheControl(TICKER_TTL / 1000));
 });
 
 test('S4. THE 10 MINUTE BOUND: the last good is served up to 10 minutes minus 1 ms old and at 10 minutes the answer is the same 502', async () => {

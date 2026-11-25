@@ -5,8 +5,10 @@ import {
   MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
   BINANCE_SYMS, BYBIT_SYMS, UNIVERSE_SYM_TO_COIN,
 } from '@/lib/marketStore';
+import { staleAtFromHeaders } from '@/lib/staleAnswer';
 import { bybitPriceFactor, binancePriceFactor, BINANCE_SPOT_SYMS, UNIVERSE_BINANCE_ONLY, HL_PRICE_BACKUP } from '@/lib/coins';
 import { computeRSI14 } from '@/lib/rsi';
+import { notEnoughMovement } from '@/lib/deadSeries';
 import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
 import { getAuthToken, getSupabase } from '@/lib/supabase';
@@ -46,6 +48,13 @@ const WS_BACKOFF_CAP_MS = 30_000;
 /* How long a socket may stay CONNECTING before it is treated as failed (starts the REST backup), and how long the REST backup poll may wait. */
 const WS_CONNECT_TIMEOUT_MS = 5_000;
 const REST_POLL_TIMEOUT_MS = 8_000;
+/* EVERY READ IN THIS FILE HAS A DEADLINE (#1651, OWNER-RULES 21). Many carried none, so one hung answer held a first load's panel for as
+   long as the browser allowed. A call that brings its own signal keeps it. Longer than the server's own 20 s limits, so the server
+   answers first. */
+const PROVIDER_FETCH_TIMEOUT_MS = 25_000;
+function fetch(input: string, init?: RequestInit): Promise<Response> {
+  return globalThis.fetch(input, { ...init, signal: init?.signal ?? deadlineSignal(PROVIDER_FETCH_TIMEOUT_MS) });
+}
 
 /* ── Liquidation Cascade (the on-screen banner; no message is sent anywhere) ── */
 const LIQ_CASCADE_THRESHOLDS: Record<string, number> = {
@@ -183,7 +192,8 @@ export default function MarketProvider(
     if (!need.length) return;
     try {
       const r = await fetch('/api/market/price-backup?coins=' + need.join(','));
-      if (!r.ok) return;
+      /* An old quote (the route's last good one) is not seeded: this cell has nowhere to say how old it is, and shows only live figures. */
+      if (!r.ok || r.headers.get('x-data-stale') === '1') return;
       const body: unknown = await r.json();
       if (!body || typeof body !== 'object') return;
       const seed: Record<string, Partial<MarketStore['coins'][CoinId]>> = {};
@@ -554,6 +564,9 @@ export default function MarketProvider(
             }
             updateCoins(bn);
             bnAnswered = true;
+            /* A STALE ANSWER IS SAID TO BE STALE (#2783): the route serves its last good body, up to 60 minutes old, when Binance refuses. The flag and the age are on the headers; a stale answer with no readable age is taken as the bound (60 minutes), never as live. */
+            const staleAt = staleAtFromHeaders(r.headers.get('x-data-stale'), r.headers.get('x-data-age-ms'), Date.now());
+            setStore(s => (s.binanceOnlyStaleAt === staleAt ? s : { ...s, binanceOnlyStaleAt: staleAt }));
           }
         } catch { /* a missed cycle keeps the last values; the next poll retries */ }
       }
@@ -627,7 +640,7 @@ export default function MarketProvider(
       const res = await fetch('/api/market/snapshot');
       if (!res.ok) { mark('failed'); return; }
       const body = await res.json() as {
-        ticker?: Record<string, { price: number; change: number; high: number; low: number; vol24: number }>;
+        ticker?: Record<string, { price: number; change: number; high?: number; low?: number; vol24: number }>;
         klines?: Record<string, Record<string, unknown>>;
         lsr?: Record<string, Record<string, number>>;
       };
@@ -651,7 +664,8 @@ export default function MarketProvider(
         const patch: Partial<CoinData> = {};
         if (v.vol24 != null) patch.vol24 = v.vol24;
         if (storeRef.current.coins[id]?.price == null && v.price) {
-          patch.price = v.price; patch.change = v.change; patch.high = v.high; patch.low = v.low;
+          patch.price = v.price; patch.change = v.change;
+          if (v.high != null && v.low != null) { patch.high = v.high; patch.low = v.low; }
         }
         if (Object.keys(patch).length) updateCoin(id, patch);
       }
@@ -751,7 +765,8 @@ export default function MarketProvider(
           o: parseFloat(k[1]) * pf, h: parseFloat(k[2]) * pf,
           l: parseFloat(k[3]) * pf, c: parseFloat(k[4]) * pf,
         }));
-        const patterns = detectPatterns(patternCandles);
+        const dead = notEnoughMovement(klines.slice(0, -1).map((k: string[]) => ({ close: parseFloat(k[4]), volume: parseFloat(k[5]) })));
+        const patterns = dead ? [] : detectPatterns(patternCandles);
         updateCoin(coin, { rsi14, ma20, volRatio, vwap, poc, vah, val, chartPattern: patterns.length > 0 ? patterns.join('; ') : null });
 
         // Taker buy ratio from recent trades (Bybit klines don't split maker/taker)
@@ -1261,7 +1276,9 @@ export default function MarketProvider(
     try {
       const markCb = (status: 'ok' | 'failed') => setStore(s => ({ ...s, cbPremiumStatus: s.cbPremiumStatus === 'ok' ? 'ok' : status }));
       const res = await fetch('/api/coinbase-price', { cache: 'no-store' });
-      if (!res.ok) { markCb('failed'); return; }
+      /* A stale answer is the route's last good Coinbase price (#1651): the premium already on screen stays, none is worked out from an old
+         price against a live one. */
+      if (!res.ok || res.headers?.get('x-data-stale') === '1') { markCb('failed'); return; }
       const { price: cbPrice, usdtUsd } = await res.json() as { price: number; usdtUsd?: number | null };
       if (!cbPrice || isNaN(cbPrice)) { markCb('failed'); return; }
       setStore(s => {
@@ -1545,6 +1562,13 @@ export default function MarketProvider(
     let active: 'binance' | 'bybit' = 'binance';
     let alive = true;
 
+    /* The watch starts with the first open socket and ends when none is left (lib/liqWatch.ts). */
+    const watchStarted = () => setStore(s => (s.liqWatchSince != null ? s : { ...s, liqWatchSince: Date.now() }));
+    const watchMayHaveEnded = () => {
+      if (bnWs?.readyState === 1 || bbWs?.readyState === 1) return;
+      setStore(s => (s.liqWatchSince == null ? s : { ...s, liqWatchSince: null }));
+    };
+
     function recordLiq(coin: string, side: 'LONG' | 'SHORT', usd: number) {
       if (!isFinite(usd) || usd <= 0) return;
       const now = Date.now();
@@ -1575,6 +1599,7 @@ export default function MarketProvider(
       }, BN_CONNECT_TIMEOUT_MS);
 
       ws.onopen = () => {
+        watchStarted();
         if (settled) return;
         clearTimeout(timeoutTimer);
         if (!alive) return;
@@ -1621,6 +1646,7 @@ export default function MarketProvider(
         handleFailure();
       };
       ws.onclose = () => {
+        watchMayHaveEnded();
         if (settled) return; // error or the timeout already handled this attempt
         settled = true;
         clearTimeout(timeoutTimer);
@@ -1663,6 +1689,7 @@ export default function MarketProvider(
       const ws = new WebSocket(host);
       bbWs = ws;
       ws.onopen = () => {
+        watchStarted();
         if (!alive) return;
         bbAttempt = 0;
         ws.send(JSON.stringify({ op: 'subscribe', args: BB_LIQ_TOPICS }));
@@ -1694,6 +1721,7 @@ export default function MarketProvider(
         } catch { /* */ }
       };
       ws.onclose = () => {
+        watchMayHaveEnded();
         // Torn down deliberately by connectBN's onopen once Binance recovers -
         // `active` already flipped back before that close(), so this must not
         // reconnect a fallback that is no longer wanted.
@@ -1777,6 +1805,7 @@ export default function MarketProvider(
 
     return () => {
       alive = false;
+      setStore(s => (s.liqWatchSince == null ? s : { ...s, liqWatchSince: null }));
       offResume();
       offOnline();
       clearInterval(analyzer);

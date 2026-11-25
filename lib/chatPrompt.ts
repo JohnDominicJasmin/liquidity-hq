@@ -16,6 +16,7 @@
 import { COINS, type CoinId } from './coins.ts';
 import { priceText as fmtPrice, signedUsd } from './numberFormat.ts';
 import { INDICATOR_SETTINGS_RULE, INDICATOR_SETTINGS_SHAPE } from './indicatorSettingsText.ts';
+import { ratioNote } from './crowding.ts';
 
 export interface ChatContext {
   coin: CoinId;
@@ -163,7 +164,7 @@ export function buildChatSystemPrompt(ctx: ChatContext, opts: { search: boolean;
     ln('CVD (200)', ctx.cvd != null ? (ctx.cvd >= 0 ? '+' : '-') + (Math.abs(ctx.cvd) / 1000).toFixed(1) + 'K' : '-'),
     ln('Funding', or(ctx.funding)),
     ln('Open Interest', ctx.oi != null ? '$' + (ctx.oi / 1e9).toFixed(2) + 'B' : '-'),
-    ln(ctx.ratioVenue ? `Long/Short % (${ctx.ratioVenue}, accounts, 1h)` : 'Long/Short %', ctx.longRatio != null ? (ctx.longRatio * 100).toFixed(1) + '% / ' + ((ctx.shortRatio ?? 0) * 100).toFixed(1) + '%' : '-'),
+    ln(ctx.ratioVenue ? `Long/Short % (${ctx.ratioVenue}, accounts, 1h)` : 'Long/Short %', ctx.longRatio != null ? (ctx.longRatio * 100).toFixed(1) + '% / ' + ((ctx.shortRatio ?? 0) * 100).toFixed(1) + '%' + ratioNote(ctx.longRatio, ctx.shortRatio ?? 0) : '-'),
     ln('Squeeze score', or(ctx.squeeze)),
     ln('Basis', ctx.basisPct != null ? ctx.basisPct.toFixed(4) + '%' : '-'),
     ln('Order book', ctx.bidWalls?.length ? 'Bids: ' + ctx.bidWalls.map(fmtPrice).join(', ') : '-'),

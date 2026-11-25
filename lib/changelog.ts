@@ -150,6 +150,35 @@ export interface ChangelogEntry {
 /** Newest first, which is the order the page renders. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    /* DRAFT, the release after v2026.11.26 (Dev 2026-11-23, PM). Tag and date are set when THIS release is tagged: the date must be the tag's %cs.
+       Tied to: #2791 (Confluence Score drops the RSI factor when no timeframe has a read). The contrast fixes (#2790) are not user-visible and get no line. */
+    date: '2026-11-23',
+    tag: 'v2026.11.27',
+    items: [
+      "The Confluence Score no longer counts missing RSI readings as neutral.",
+    ],
+  },
+  {
+    /* DRAFT, the release after v2026.11.25 (Dev 2026-11-23, PM). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs (rule 22; 2026-11-23 is the expected date of the release merge, which PM checks at the tag). Plain words, 12 words or fewer per line; only user-visible changes, facts only (QA checks each line).
+       Tied to: #2783 (tokenized prices served from the last good read, with their age), #2785 (scanner chip counts wait for data), #2782 (Funding regime list reachable by keyboard). #2784 (smaller futures ticker answer) and QA's test PRs are not user-visible and get no line. */
+    date: '2026-11-23',
+    tag: 'v2026.11.26',
+    items: [
+      "Tokenized prices show their last value and age during an exchange block.",
+      "Scanner filter counts wait for data instead of showing zero.",
+      "The Funding regime list can now be reached with the keyboard.",
+    ],
+  },
+  {
+    /* DRAFT, the release after v2026.11.24 (Dev 2026-11-23, PM). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs (rule 22; 2026-11-23 is the expected date of the release merge, which PM checks at the tag). Plain words, 12 words or fewer per line; only user-visible changes, facts only (QA checks each line).
+       Tied to: #2777 (no Pro upsell card while the plan loads on /arena). QA's test PRs in this release are not user-visible and get no line. */
+    date: '2026-11-23',
+    tag: 'v2026.11.25',
+    items: [
+      "Pro accounts no longer see an upgrade card while the plan loads.",
+    ],
+  },
+  {
     /* DRAFT, the release after v2026.11.23 (Dev 2026-11-22, PM). Tag and date are set when THIS release is tagged: the date must be the tagged commit's %cs (rule 22; 2026-11-23 is the tagged commit's date, set at the tag). Plain words, 12 words or fewer per line; only user-visible changes, facts only (QA checks each line).
        Tied to: #2749 + #2750 + #2755 (explainers and FAQ on /liq, /funding, /scanner, /calc, /hours, /econ-calendar, /markets, /news), #2748 (share image; the titles and descriptions are not user-visible and get no line), #2759 (no lone candle), #2761 (labels clear of S/R tags), #2762 (contrast), #2757 (news sources), #2751 (econ-calendar date and source line, tooltips), #2754 (correlation HTML: about 59 percent smaller by estimate, QA measures the real size, so that line is removed if the measurement disagrees). #2730 (slow 3G, about 41 KB gzip less script on every first load) joins as a ninth line only if it ships and QA's sweep passes; the 8-line cap then merges the news and calendar lines. A line whose PR misses the tag is removed. */
     date: '2026-11-23',
