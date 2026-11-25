@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkCronAuth } from '@/lib/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,15 +28,11 @@ export const dynamic = 'force-dynamic';
  *   same ip  -> shared egress, and no cache tuning on our side fixes it
  *   differs  -> the hypothesis is dead and the cause is ours after all
  *
- * WHY THIS IS NOT A LEAK. The egress IP is not a secret: every host we call
- * already sees it, which is the entire premise of the bug. Binance knows it,
- * Bybit knows it, and so does anyone running a service we fetch from. Exposing
- * it here tells an attacker nothing they could not learn by receiving one
- * request from us.
+ * SCHEDULER SECRET ONLY (owner item #52): send it as the `x-cron-secret` header, as for the other operator checks:
  *
- * It reports the IP and nothing else - no headers, no env, no region, no
- * service name. /api/version already sets the precedent for a deliberately
- * minimal public diagnostic.
+ *   curl -H "x-cron-secret: $CRON_SECRET" https://liquidity-hq.com/api/egress-ip
+ *
+ * A service with no CRON_SECRET answers 401 to everyone. It reports the IP and nothing else.
  *
  * DELETE THIS WHEN #368 CLOSES. It exists to answer one question. A diagnostic
  * with no removal condition becomes permanent surface area by accident - the
@@ -52,8 +49,8 @@ const ECHO_SERVICES = [
 
 /* IN-PROCESS CACHE, because this endpoint is an amplifier otherwise.
  *
- * Public, unauthenticated, and one outbound fetch per request - so anyone can
- * make this service call out repeatedly, from the IP whose rate-limit budget is
+ * One outbound fetch per request would let a caller make this service call out
+ * repeatedly, from the IP whose rate-limit budget is
  * the entire subject of #368. QA caught it, and the irony is the point: a
  * diagnostic for a rate-limit problem should not be a way to spend the quota.
  *
@@ -67,12 +64,15 @@ const ECHO_SERVICES = [
 const CACHE_MS = 60_000;
 let cached: { ip: string; via: string; at: number } | null = null;
 
-export async function GET() {
+export async function GET(req: Request) {
+  if (!checkCronAuth(req, { headerOnly: true })) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+  }
   const now = Date.now();
   if (cached && now - cached.at < CACHE_MS) {
     return NextResponse.json(
       { ip: cached.ip, via: cached.via, cached: true },
-      { headers: { 'Cache-Control': 'public, max-age=60' } },
+      { headers: { 'Cache-Control': 'private, no-store' } },
     );
   }
 
@@ -88,7 +88,7 @@ export async function GET() {
       cached = { ip: body.ip, via: new URL(url).host, at: now };
       return NextResponse.json(
         { ip: body.ip, via: cached.via, cached: false },
-        { headers: { 'Cache-Control': 'public, max-age=60' } },
+        { headers: { 'Cache-Control': 'private, no-store' } },
       );
     } catch {
       /* try the next one - see the note above on failed measurements */
