@@ -629,7 +629,8 @@ export async function GET(req: NextRequest) {
         return new NextResponse(result.json, {
           headers: {
             'Content-Type': 'application/json',
-            ...(cacheable ? PROXY_CACHE : {}),
+            /* No longer than the server keeps this type: some are held 15 to 30 s (#1651). */
+            ...(cacheable ? { 'Cache-Control': polledCacheControl(Math.min(300, entry.ttlMs / 1000)) } : {}),
             // #1237: the only way a caller (or QA) can tell this answer came
             // from the fallback rather than the primary upstream - a header,
             // not a body-shape change, matching #1240's klines route.
