@@ -41,6 +41,8 @@ for (const width of [390, 1280]) for (const theme of ['dark', 'light']) {
       const { ctx, page } = await open(browser, width, theme, { now: state }, '/dashboard');
       try {
         if (state === 'live') await page.waitForTimeout(16_000); else await chip(page).waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
+        /* the chip says Backup until the next backup read fails (about 30 s) while the other price reads answer */
+        if (state === 'delayed') for (let i = 0; i < 60 && (await chip(page).getAttribute('data-state').catch(() => null)) !== 'delayed'; i++) await page.waitForTimeout(1_000);
         await page.waitForTimeout(2_000);
         const m = await measure(page); console.log(`[FC] ${state} ${width} ${theme}: ${JSON.stringify(m)}`);
         if (state === 'live') expect.soft(m.chip).toBeNull(); else { expect.soft(m.chip?.state).toBe(state); expect.soft(m.chip?.text ?? '').toMatch(state === 'backup' ? /Backup feed/ : /Delayed/); }
