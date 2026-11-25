@@ -59,8 +59,11 @@ test('D4. a failed refresh keeps the last value until it is 24 hours old', async
 });
 
 test('D5. a page that does not answer holds the first caller about 2.5 s, no longer', async () => {
-  world.mode = 'hang'; const from = process.hrtime.bigint();
-  assert.equal(await at(10 * MIN), null);
+  /* the wait is for a process that has never had a value, so this cell takes its own copy of the module */
+  const copy = 'first';
+  const fresh = await import(`../lib/dbSize.ts?qa=${copy}`) as { databaseSize: (now: number) => Promise<unknown> };
+  world.mode = 'hang'; const from = process.hrtime.bigint(); clock += 10 * MIN;
+  assert.equal(await fresh.databaseSize(clock), null);
   const waited = Number(process.hrtime.bigint() - from) / 1e6;
   assert.ok(waited >= 2_300 && waited < 6_000, `waited ${waited.toFixed(0)} ms`);
 });
