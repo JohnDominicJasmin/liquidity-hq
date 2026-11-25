@@ -26,8 +26,8 @@ for (const others of ['answering', 'down'] as const) {
     const { ctx, page } = await open(browser, 1280, 'dark', { now: 'delayed' }, '/dashboard');
     try {
       const seen: string[] = []; const reads: string[] = []; const from = Date.now();
-      if (others === 'down') await page.route(//api/(proxy|market)[^?]*(?|$)/, (r) => (/binance-24hr/.test(r.request().url()) ? r.fallback() : r.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"down"}' })));
-      page.on('response', (r) => { if (/bybit-tickers|binance-24hr|market/snapshot|price-backup/.test(r.url())) reads.push(`${Math.round((Date.now() - from) / 1000)}s ${r.status()} ${/type=([w-]+)|market/([w-]+)/.exec(r.url())?.slice(1).find(Boolean)}`); });
+      if (others === 'down') await page.route(/\/api\/(proxy|market)[^?]*(\?|$)/, (r) => (/binance-24hr/.test(r.request().url()) ? r.fallback() : r.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"down"}' })));
+      page.on('response', (r) => { if (/bybit-tickers|binance-24hr|market\/snapshot|price-backup/.test(r.url())) reads.push(`${Math.round((Date.now() - from) / 1000)}s ${r.status()} ${/type=([\w-]+)|market\/([\w-]+)/.exec(r.url())?.slice(1).find(Boolean)}`); });
       if (others === 'down') await page.reload({ waitUntil: 'domcontentloaded' });
       let last = ''; while (Date.now() - from < 75_000) { const st = (await chip(page).getAttribute('data-state', { timeout: 500 }).catch(() => null)) ?? 'none'; if (st !== last) { seen.push(`${Math.round((Date.now() - from) / 1000)}s ${st}`); last = st; } await page.waitForTimeout(1_000); }
       console.log(`[FC] timeline others-${others}: ${seen.join(' | ')}`); console.log(`[FC] reads others-${others}: ${reads.slice(0, 16).join(' | ')}`);
