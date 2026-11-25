@@ -630,16 +630,16 @@ export function useEMAStrategy(
            never contains it. `rsiSelected`/`rsiLast` stay - the RSI
            advisory CONDITION below still uses them (it can never move the verdict, see :109). */
 
-        // SL / TP (0.5% buffer beyond 50 EMA)
+        // SL / TP (0.5% buffer beyond 50 EMA). The 2:1 is measured from the ENTRY THE CARD SHOWS (the 20 EMA), not from the last price.
         const BUF = 0.005;
         let sl: number | null = null;
         let tp: number | null = null;
         if (verdict === 'LONG_SETUP') {
           sl = ema50 * (1 - BUF);
-          tp = price + (price - sl) * 2;
+          tp = ema20 + (ema20 - sl) * 2;
         } else if (verdict === 'SHORT_SETUP') {
           sl = ema50 * (1 + BUF);
-          tp = price - (sl - price) * 2;
+          tp = ema20 - (sl - ema20) * 2;
         }
 
         // Conditions checklist
