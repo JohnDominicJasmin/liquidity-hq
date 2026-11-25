@@ -2,22 +2,26 @@ import { NextResponse } from 'next/server';
 import { withAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
-import { estimateRowCostUsd, revenuePerMonthUsd, recordedPlan, ALL_USAGE_COLUMNS } from '@/lib/aiCost';
+import { revenuePerMonthUsd, recordedPlan, ALL_USAGE_COLUMNS } from '@/lib/aiCost';
+import { spendSumToUsd, type SpendSumRow } from '@/lib/aiSpendCap';
 import { selectAllRows } from '@/lib/selectAllRows';
 
 export const dynamic = 'force-dynamic';
 
 const DAY = 86_400_000;
 
-// AI (Grok) cost & usage. Three datasets:
+// AI (Grok) cost & usage. Four datasets:
 //  - alert_grok_log: system-level calls made by the alert cron (no user_id).
+//  - ai_call_log: one row per AI call with its RECORDED cost - every $ figure
+//    below (#1413). A row with no cost counts at the same estimate the spend caps
+//    use (lib/aiSpendCap.ts). Site totals are summed in the database, so no row
+//    bound applies to them; the per-user list is read in pages and says when cut.
 //  - grok_usage: per-user daily counts (deep/quick/chat/chat_search/briefing/
-//    + 11 one-shot tools) - the basis for the $ estimates below. The
-//    authoritative column list is ALL_USAGE_COLUMNS in lib/aiCost.ts.
+//    + 11 one-shot tools) - calls by type only. The authoritative column list is
+//    ALL_USAGE_COLUMNS in lib/aiCost.ts.
 //  - global_ai_usage: the circuit breaker's single daily counter, read here
 //    only to show "today's calls vs AI_GLOBAL_DAILY_MAX" and raise a spike
-//    flag - grok_usage is the source for the actual $ figures since it has
-//    the per-call-type breakdown the flat counter doesn't.
+//    flag.
 export const GET = withAdmin(async () => {
   const admin = getSupabaseAdmin();
   const now = Date.now();
@@ -56,11 +60,20 @@ export const GET = withAdmin(async () => {
     .map(([type, count]) => ({ type, count }))
     .sort((a, b) => b.count - a.count);
 
-  // Per-user usage, last 30 days - enough to bucket into 24h/7d/30d $ figures.
+  // Usage counts and recorded cost over the last 30 days.
   const today = new Date(now).toISOString().slice(0, 10);
   const since30Date = new Date(now - 30 * DAY).toISOString().slice(0, 10);
-  const since7Date = new Date(now - 7 * DAY).toISOString().slice(0, 10);
-  const [{ data: usage, error: usageErr, truncated: usageTruncated }, { data: subs }, { data: globalToday }] = await Promise.all([
+  const since24Iso = new Date(now - DAY).toISOString();
+  const since7Iso = new Date(now - 7 * DAY).toISOString();
+  const since30Iso = new Date(now - 30 * DAY).toISOString();
+  const spendSince = (since: string) => admin.rpc('lhq_ai_spend_all_since', { p_since: since });
+  const [
+    { data: usage, error: usageErr, truncated: usageTruncated },
+    { data: subs, error: subsErr, truncated: subsTruncated },
+    { data: globalToday },
+    { data: calls, error: callsErr, truncated: callsTruncated },
+    spend24, spend7, spend30,
+  ] = await Promise.all([
     // Paged (#1397): one row per user per day, so a plain read stopped at 1000
     // user-days and every $ total and call count below came out short.
     // Ordered by (user_id, date), the primary key.
@@ -76,43 +89,49 @@ export const GET = withAdmin(async () => {
     selectAllRows('ops:ai-cost:user_subscriptions', 'user_id', () =>
       admin.from(T.user_subscriptions).select('*')),
     admin.from(T.global_ai_usage).select('xai_call_count').eq('date', today).maybeSingle(),
+    selectAllRows('ops:ai-cost:ai_call_log', 'id', () =>
+      admin.from(T.ai_call_log).select('id, user_id, call_type, cost_usd, created_at').gte('created_at', since30Iso)),
+    spendSince(since24Iso),
+    spendSince(since7Iso),
+    spendSince(since30Iso),
   ]);
-  if (usageErr) return NextResponse.json({ error: usageErr.message }, { status: 500 });
+  // A failed read is an error, never $0 spend or every account shown as Free.
+  const readErr = usageErr ?? subsErr ?? callsErr ?? spend24.error ?? spend7.error ?? spend30.error;
+  if (readErr) return NextResponse.json({ error: readErr.message }, { status: 500 });
 
   const subByUser = new Map((subs ?? []).map(s => [
     s.user_id as string,
     { role: s.role as string, plan: recordedPlan(s.plan) },
   ]));
 
-  // $ cost buckets by recency, per user and app-wide. grok_usage only has a
-  // `date` column (no timestamp), so "24h"/"7d" here means calendar-day
-  // buckets (today; today back 7 days) - same granularity the rest of /ops
-  // already uses (aiUsage14d on the user-detail page is day-bucketed too).
+  // Recorded $ per user over the last 24 hours, 7 days and 30 days.
   const userCost24h = new Map<string, number>();
   const userCost7d = new Map<string, number>();
   const userCost30d = new Map<string, number>();
-  let globalCost24h = 0, globalCost7d = 0, globalCost30d = 0;
+  for (const call of calls ?? []) {
+    const uid = call.user_id as string | null;
+    if (!uid) continue; // a scheduled job's call: in the site totals, nobody's row
+    const unknown = call.cost_usd == null;
+    const cost = spendSumToUsd({
+      cost: call.cost_usd as number | string | null,
+      null_search: unknown && call.call_type === 'chat_search' ? 1 : 0,
+      null_other: unknown && call.call_type !== 'chat_search' ? 1 : 0,
+    });
+    const at = new Date(call.created_at as string).getTime();
+    userCost30d.set(uid, (userCost30d.get(uid) ?? 0) + cost);
+    if (now - at <= 7 * DAY) userCost7d.set(uid, (userCost7d.get(uid) ?? 0) + cost);
+    if (now - at <= DAY) userCost24h.set(uid, (userCost24h.get(uid) ?? 0) + cost);
+  }
+  const siteUsd = (data: unknown) => spendSumToUsd((Array.isArray(data) ? data[0] : data) as SpendSumRow | null);
+
   // Call-count breakdown by feature (quick/deep/chat/etc), summed across
   // every user, 30-day window - answers "how many calls of each kind have
-  // we made," distinct from the $ totals above (same source rows, just
-  // counted instead of priced). Mirrors system.byType's shape below, which
+  // we made," distinct from the $ totals above (which come from the call
+  // ledger). Mirrors system.byType's shape below, which
   // does the same thing for the alert cron's signal types.
   const userCallsByTypeMap = new Map<string, number>();
 
   for (const row of usage ?? []) {
-    const uid = row.user_id as string;
-    const date = row.date as string;
-    const cost = estimateRowCostUsd(row as Record<string, number | null>);
-    userCost30d.set(uid, (userCost30d.get(uid) ?? 0) + cost);
-    globalCost30d += cost;
-    if (date >= since7Date) {
-      userCost7d.set(uid, (userCost7d.get(uid) ?? 0) + cost);
-      globalCost7d += cost;
-    }
-    if (date === today) {
-      userCost24h.set(uid, (userCost24h.get(uid) ?? 0) + cost);
-      globalCost24h += cost;
-    }
     for (const col of ALL_USAGE_COLUMNS) {
       const n = Number((row as Record<string, number | null>)[col] ?? 0);
       if (n) userCallsByTypeMap.set(col, (userCallsByTypeMap.get(col) ?? 0) + n);
@@ -161,11 +180,11 @@ export const GET = withAdmin(async () => {
     system: { total24h, total7d, perDay, byType },
     userCallsByType,
     topSpenders,
-    cost: { global24h: globalCost24h, global7d: globalCost7d, global30d: globalCost30d },
+    cost: { global24h: siteUsd(spend24.data), global7d: siteUsd(spend7.data), global30d: siteUsd(spend30.data) },
     globalBreaker: { todayCalls, capCalls: globalCapCalls, spikeAlert },
-    // true only if a read reached selectAllRows' 10,000-row bound - the
-    // counts and $ above are then a minimum, and the AI cost card says so.
-    truncated: logsTruncated || usageTruncated,
+    // true only if a read reached selectAllRows' 10,000-row bound - the counts
+    // and the per-user list are then a minimum, and the AI cost card says so.
+    truncated: logsTruncated || usageTruncated || subsTruncated || callsTruncated,
     generatedAt: new Date(now).toISOString(),
   });
 });
