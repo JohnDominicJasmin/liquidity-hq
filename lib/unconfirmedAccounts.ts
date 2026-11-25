@@ -14,6 +14,9 @@ const PAGE = 1000;
 const MAX_PAGES = 100;
 const CHUNK = 100;
 
+/** The trial claim the sign-up trigger writes (not in lib/tables.ts: no other code reads it). */
+const TRIAL_CLAIMS = T.user_subscriptions.replace(/user_subscriptions$/, 'trial_claims');
+
 export interface AuthAccount {
   id: string;
   created_at?: string | null;
@@ -91,6 +94,11 @@ export async function purgeUnconfirmedAccounts(admin: AdminClient, opts: { nowMs
       // Read again just before deleting: the person may have confirmed since the list was taken.
       const now = await admin.auth.admin.getUserById(id);
       if (now.error || !now.data.user || !isStaleUnconfirmed(now.data.user as AuthAccount, nowMs)) continue;
+      /* ITS TRIAL WAS NEVER USED, so the claim this account made goes too, or signing up again would get none. Only the claim carrying
+         this account's id. It goes first: afterwards the database blanks that id and the claim could not be found. If it cannot be
+         removed the account stays. */
+      const claim = await admin.from(TRIAL_CLAIMS).delete().eq('first_user_id', id);
+      if (claim.error) { failed++; continue; }
       const { error } = await admin.auth.admin.deleteUser(id);
       if (error) failed++; else removed++;
     }
