@@ -48,6 +48,9 @@ import { chip } from './_shared';
 
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
 
+/* 2026-11-20 (release PR #2752 mobile run: :73 failed twice, green alone on qa and on the previous release run): the desktop and mobile E2E jobs run in PARALLEL against the same real test user A in the shared dev DB, and this spec RESETS that user's strategy_selection by PATCH, so a settings write from the other job between the seed and the read flips the result. A Playwright lock cannot span two CI jobs, so this logic spec (the seed effect is not layout) runs on the desktop job only; the proper fix is a separate pinned fixture user for the mobile job (an account in the shared dev DB: PM / owner), after which this skip is removed. */
+test.beforeEach(async ({}, testInfo) => { test.skip(testInfo.project.name === 'mobile', 'user A is shared with the parallel desktop job: this spec resets its saved selection (see the comment above)'); });
+
 async function resetStrategySelection(page: import('@playwright/test').Page, selection: string[]) {
   const result = await page.evaluate(async (sel) => {
     const raw = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
