@@ -590,6 +590,7 @@
   "CHAT_HISTORY_MESSAGES": "{n} messages",
   "NEWS_COUNTDOWN_PASSED": "Just passed",
   "NEWS_COUNTDOWN_NOW": "Happening NOW",
+  "NEWS_COUNTDOWN_MINUTES": "in {n} min",
   "NEWS_COUNTDOWN_HOURS": "{n}h away",
   "NEWS_COUNTDOWN_DAYS": "{d}d {r}h away",
   "NEWS_COUNTDOWN_DAYS_ONLY": "{d}d away",
