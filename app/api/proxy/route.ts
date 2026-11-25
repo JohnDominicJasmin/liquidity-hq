@@ -14,36 +14,13 @@ import { cached, cachedPeek } from '@/lib/apiCache';
 import { etfFlowDays, etfFlowMillions, type EtfFlowDay } from '@/lib/etfFlows';
 import { reportHealth } from '@/lib/apiHealth';
 import { polledCacheControl } from '@/lib/cacheHeaders';
-import { getUserCompat } from '@/lib/authUser';
-import { userClient } from '@/lib/supabase-user';
 import { exchangeFetch } from '@/lib/exchangeGuard';
 import { trimBybitTickers, trimDeribitBook, trimLlamaStables, trimToRequestedSymbols } from '@/lib/payloadTrim';
 import { COIN_UNIVERSE } from '@/lib/coinUniverse.generated';
 import { BINANCE_SYMS, BINANCE_SPOT_SYMS, BYBIT_SYMS } from '@/lib/coins';
-import { bearerToken } from '@/lib/bearerToken';
 
 // Google Trends' 7-day bitcoin score barely moves hour to hour, and the
 // unofficial endpoint blocks aggressively under repeated hits - cache long.
-
-function sb(token: string) {
-  return userClient(token);
-}
-
-// Same shape as /api/cmc and /api/econ-calendar: intentionally unauthenticated
-// (public data, called for signed-out visitors too) - a bearer token is
-// attached when the caller happens to be signed in, so a COINGLASS_API_KEY
-// quota spike (coinglass-flow / coinglass-liq) is attributable to an account,
-// not just an IP.
-async function attributedUser(req: NextRequest): Promise<string> {
-  const token = bearerToken(req.headers);
-  if (!token) return 'anon';
-  try {
-    const { data } = await getUserCompat(token);
-    return data.user?.id ?? 'anon';
-  } catch {
-    return 'anon';
-  }
-}
 
 /* Shared edge cache (#177) - this route fans out to several third-party APIs
    and was calling them again for every visitor.
@@ -375,8 +352,8 @@ export async function GET(req: NextRequest) {
   }
 
   const type = req.nextUrl.searchParams.get('type');
-  const user = await attributedUser(req);
-  console.log(`[proxy] ip=${ip} user=${user} type=${type}`);
+  // Nothing about the caller is logged: no address, no account id.
+  console.log(`[proxy] type=${type}`);
 
   try {
     /* ── Coinglass: BTC exchange net flow - DEAD UPSTREAM ──────────────────
