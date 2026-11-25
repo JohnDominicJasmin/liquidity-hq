@@ -1,6 +1,7 @@
 'use client';
 import { deadlineSignal } from '@/lib/deadlineSignal';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { track } from '@/lib/analytics';
 import {
   MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
   BINANCE_SYMS, BYBIT_SYMS, UNIVERSE_SYM_TO_COIN,
@@ -206,6 +207,8 @@ export default function MarketProvider(
   }, [seedPrices]);
 
   const selectCoin = useCallback((c: CoinId) => {
+    // Counted only when the coin really changes (#1413). Every caller is a reader's click.
+    if (c !== storeRef.current.selectedCoin) track.coinSwitched(c);
     setStore(s => ({ ...s, selectedCoin: c }));
   }, []);
 

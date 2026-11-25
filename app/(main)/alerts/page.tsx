@@ -20,6 +20,7 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import { STRUCTURE_TFS, structureOnKey } from '@/lib/structurePrefs';
 import PageHint from '@/components/PageHint';
+import { track } from '@/lib/analytics';
 import { SHOW_PERFORMANCE_STATS } from '@/lib/flags';
 
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
@@ -468,6 +469,7 @@ export default function AlertsPage() {
       if (!res.ok) throw new Error(d.error ?? t('ALERTS_ADD_ALERT_FAILED'));
       setPaPrice(''); setPaLabel('');
       window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'priceAlert' }));
+      track.alertCreated(paCoin, paDir);
       await loadPriceAlerts();
     } catch (e) {
       setPaError(e instanceof Error ? e.message : t('ALERTS_ADD_ALERT_FAILED'));
