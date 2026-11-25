@@ -2720,6 +2720,7 @@
   "LIQ_FEED_DOM_LONG_ABBR": "L",
   "LIQ_FEED_DOM_SHORT_ABBR": "S",
   "LIQ_FEED_HISTORY_ONE_VENUE": "24 h history: {venue} only",
+  "LIQ_HISTORY_PARTIAL": "24 h history incomplete",
   "LIQ_FEED_SR_WATCHING": "Watching for {coin} liquidations > $10K…",
   "LIQ_FEED_ALL_MARKETS": "all markets",
   "LIQ_FEED_SR_CONNECTING": "Connecting to Binance + Bybit…",

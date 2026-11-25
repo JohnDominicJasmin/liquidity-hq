@@ -82,15 +82,16 @@ function storedCoinNames(coinUpper: string): string[] {
 }
 type StoredRow = { coin: string; side: string; usd: number; price: number; source: string; ts: number };
 /** Newest-first pages of the stored events of the last 24 h (all coins when `coins` is null), returned oldest first. A page shorter than SB_PAGE ends the read. */
-async function readStored(sb: NonNullable<ReturnType<typeof getSupabase>>, since: number, coins: string[] | null, maxPages: number): Promise<StoredRow[]> {
+async function readStored(sb: NonNullable<ReturnType<typeof getSupabase>>, since: number, coins: string[] | null, maxPages: number, onPartial?: () => void): Promise<StoredRow[]> {
   const rows: StoredRow[] = [];
   for (let page = 0; page < maxPages; page++) {
     let q = sb.from(T.liq_events).select('coin, side, usd, price, source, ts').gte('ts', since).order('ts', { ascending: false });
     if (coins) q = q.in('coin', coins);
     const { data, error } = await q.range(page * SB_PAGE, page * SB_PAGE + SB_PAGE - 1);
-    if (error || !data) break;
+    if (error || !data) { onPartial?.(); break; }
     rows.push(...(data as StoredRow[]));
     if (data.length < SB_PAGE) break;
+    if (page === maxPages - 1) onPartial?.();   // the last page allowed came back full: older rows were not read
   }
   return rows.reverse();
 }
@@ -128,7 +129,7 @@ function fmtEventPrice(price: number): string {
  *  The live event ticker goes with it. The owner was offered "keep the ticker,
  *  drop the duplicated bars" and chose to hide the card - recorded here so it
  *  does not come back as an oversight. */
-export default function LiqFeed({ onClusters, coinFilter, headless = false, onHistoryVenues }: { onClusters?: (clusters: Bucket[]) => void; coinFilter: string; headless?: boolean; onHistoryVenues?: (only: 'BN' | 'BB' | null) => void }) {
+export default function LiqFeed({ onClusters, coinFilter, headless = false, onHistoryVenues, onHistoryPartial }: { onClusters?: (clusters: Bucket[]) => void; coinFilter: string; headless?: boolean; onHistoryVenues?: (only: 'BN' | 'BB' | null) => void; onHistoryPartial?: (partial: boolean) => void }) {
   const { t } = useLabels();
   const [feed,     setFeed]     = useState<LiqEvent[]>([]);
   const [stats,    setStats]    = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
@@ -245,6 +246,12 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
     // Do NOT update setFeed here - old events should not appear in the live feed
   }, [rebuild, onHistoryVenues]);
 
+  /* WHETHER THE 24 h HISTORY IS INCOMPLETE (#1651): a read that failed or hit its page limit leaves older events out, and the clusters
+     built from it must say so. Per coin read, with the all-coins read ('ALL') standing for a coin that has not had its own. */
+  const [partialBy, setPartialBy] = useState<Record<string, boolean>>({});
+  const historyPartial = partialBy[coinFilter] ?? partialBy.ALL ?? false;
+  useEffect(() => { onHistoryPartial?.(historyPartial); }, [historyPartial, onHistoryPartial]);
+
   /* The selected coin's own stored events, once per coin (a coin switch on the Arena or /liq reads the new coin's). */
   const loadedCoinsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -253,8 +260,9 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
     const sb = getSupabase();
     if (!sb) return;
     loadedCoinsRef.current.add(cf);
-    readStored(sb, Date.now() - SB_WIN_MS, storedCoinNames(cf), SB_PAGES_COIN)
-      .then(rows => mergeStored(rows, true))
+    let partial = false;
+    readStored(sb, Date.now() - SB_WIN_MS, storedCoinNames(cf), SB_PAGES_COIN, () => { partial = true; })
+      .then(rows => { setPartialBy(m => ({ ...m, [cf]: partial })); mergeStored(rows, true); })
       .catch(() => { loadedCoinsRef.current.delete(cf); });
   }, [coinFilter, mergeStored]);
 
@@ -448,7 +456,10 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
     const sb = getSupabase();
     if (sb) {
       const since = Date.now() - SB_WIN_MS;
-      readStored(sb, since, null, SB_PAGES_ALL).then(rows => mergeStored(rows, false)).catch(() => { /* the live feed and the coin read still run */ });
+      let partial = false;
+      readStored(sb, since, null, SB_PAGES_ALL, () => { partial = true; })
+        .then(rows => { setPartialBy(m => ({ ...m, ALL: partial })); mergeStored(rows, false); })
+        .catch(() => { setPartialBy(m => ({ ...m, ALL: true })); /* the live feed and the coin read still run */ });
 
       /* The browser no longer saves liquidations (#1632 item 4): the server process collects them (lib/liqCollector.ts). The tab still READS the last 24 h above and shows its own live events. */
     }
@@ -497,6 +508,7 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
           {t('LIQ_FEED_SOURCES_LINE', { status: msgCount > 0 ? t('LIQ_FEED_EVENTS_COUNT', { count: msgCount }) : t('LIQ_FEED_WAITING') })}
           {histOnly && <> · {t('LIQ_FEED_HISTORY_ONE_VENUE', { venue: histOnly === 'BN' ? 'Binance' : 'Bybit' })}</>}
+          {historyPartial && <> · {t('LIQ_HISTORY_PARTIAL')}</>}
         </span>
       </div>
 
