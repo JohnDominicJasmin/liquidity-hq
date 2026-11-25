@@ -1,5 +1,5 @@
 /* QA: PR #2797 (#1651 item 6), Deep's 24h ticker falls back to other venues when Binance refuses. The REAL marketSnapshotData runs against a stand-in network, one process per scenario (_tickerFallback2797Run.mts).
- *   T1 a Binance 418 on the ticker call (pings still 200) no longer ends the build: Bybit fills the ticker and viaFallback names those coins; Hyperliquid only fills what BOTH missed
+ *   T1 a Binance 418 on the ticker call (pings still 200) no longer ends the build: Bybit fills the ticker and viaFallback names those coins; Hyperliquid is not asked while any venue answered for any coin (a missing coin is a coverage gap, c2677656)
  *   T2 Binance 418 and Bybit 403: Hyperliquid serves price, 24h change and USD volume, per token (kPEPE), with NO high or low keys (never 0); a row without a previous-day price or a volume is left out
  *   T3 every venue down: the snapshot is not ok and arenaServerNumbers refuses (so Deep answers unavailable instead of inventing numbers)
  *   T4 Binance answering: Binance serves the ticker and Hyperliquid is not called
@@ -29,8 +29,9 @@ test('T1. a Binance ban on the ticker call is a miss, not the end: Bybit fills t
   assert.equal(r.ticker.btc?.price, 200, 'BTC is Bybit\'s figure, not Hyperliquid\'s 100');
   assert.equal(r.ticker.btc?.high, 210); assert.equal(r.ticker.btc?.low, 190);
   assert.ok(r.viaFallback.includes('btc') && r.viaFallback.includes('pepe'), `viaFallback.ticker: ${r.viaFallback}`);
-  assert.equal(r.ticker.eth?.price, 45, 'ETH, missed by both, comes from Hyperliquid');
-  assert.equal(r.viaFallback.filter((c) => c === 'btc').length, 1);
+  assert.equal(r.calls.hyperliquid, 0, 'Bybit answered some coins: a gap is not an outage, no third venue call');
+  assert.equal(r.ticker.eth, undefined, 'a coin both missed stays absent');
+  assert.deepEqual([...r.viaFallback].sort(), Object.keys(r.ticker).sort());
 });
 
 test('T2. Binance and Bybit refusing: Hyperliquid rows have price, change and volume, no high or low, per token', () => {
