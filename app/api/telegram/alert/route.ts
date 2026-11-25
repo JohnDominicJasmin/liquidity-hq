@@ -1485,7 +1485,7 @@ async function checkPriceAlerts(
       if (!recipient) continue;
       /* The "Price Level Alerts" switch on /alerts mutes the rule key `price_alerts`; it used to have no effect here (owner sweep
          2026-11-18). Off: the alert is not sent and stays active, so it fires once the switch is back on. */
-      if (isMutedFor(mutedByUser, alert.user_id, 'price_alerts')) continue;
+      if (isMutedFor(mutedByUser, alert.user_id!, 'price_alerts')) continue;
 
       const label    = LABELS[alert.coin] ?? alert.coin.toUpperCase();
       const dirLabel = alert.direction === 'above' ? '📈 Crossed Above' : '📉 Crossed Below';
