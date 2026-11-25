@@ -20,6 +20,21 @@ async function open(browser: Browser, width: number, theme: string, mode: { now:
 const chip = (page: import('@playwright/test').Page) => page.getByTestId('feed-status');
 const measure = (page: import('@playwright/test').Page) => page.evaluate(() => { const c = document.querySelector('[data-testid="feed-status"]') as HTMLElement | null; const r = c?.getBoundingClientRect(); return { chip: c ? { state: c.dataset.state, text: c.innerText.replace(/\s+/g, ' '), x: Math.round(r!.x), y: Math.round(r!.y), w: Math.round(r!.width), h: Math.round(r!.height) } : null, region: document.querySelector('[data-testid="feed-status-region"]')?.getBoundingClientRect().height ?? null, scrollWidth: document.documentElement.scrollWidth }; });
 
+/* THE TIMELINE of the chip with the live socket and the backup read both down, sampled every 2 s for 75 s; `others` says whether the page's other price reads answer. */
+for (const others of ['answering', 'down'] as const) {
+  test(`FC timeline, backup down, other price reads ${others}`, async ({ browser }) => {
+    const { ctx, page } = await open(browser, 1280, 'dark', { now: 'delayed' }, '/dashboard');
+    try {
+      const seen: string[] = []; const reads: string[] = []; const from = Date.now();
+      if (others === 'down') await page.route(//api/(proxy|market)[^?]*(?|$)/, (r) => (/binance-24hr/.test(r.request().url()) ? r.fallback() : r.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"down"}' })));
+      page.on('response', (r) => { if (/bybit-tickers|binance-24hr|market/snapshot|price-backup/.test(r.url())) reads.push(`${Math.round((Date.now() - from) / 1000)}s ${r.status()} ${/type=([w-]+)|market/([w-]+)/.exec(r.url())?.slice(1).find(Boolean)}`); });
+      if (others === 'down') await page.reload({ waitUntil: 'domcontentloaded' });
+      let last = ''; while (Date.now() - from < 75_000) { const st = (await chip(page).getAttribute('data-state', { timeout: 500 }).catch(() => null)) ?? 'none'; if (st !== last) { seen.push(`${Math.round((Date.now() - from) / 1000)}s ${st}`); last = st; } await page.waitForTimeout(1_000); }
+      console.log(`[FC] timeline others-${others}: ${seen.join(' | ')}`); console.log(`[FC] reads others-${others}: ${reads.slice(0, 16).join(' | ')}`);
+    } finally { await ctx.close().catch(() => {}); }
+  });
+}
+
 for (const width of [390, 1280]) for (const theme of ['dark', 'light']) {
   for (const state of ['live', 'backup', 'delayed'] as const) {
     test(`FC ${state} ${width} ${theme}`, async ({ browser }, info) => {
