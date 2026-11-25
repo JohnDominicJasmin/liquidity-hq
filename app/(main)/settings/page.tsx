@@ -611,6 +611,7 @@ export default function SettingsPage() {
       <Section title={t('SETTINGS_SECTION_WATCHLIST')}>
         <div className="st-desc">{t('SETTINGS_WATCHLIST_DESC')}</div>
         <CoinMultiSelect
+          label={t('SETTINGS_SECTION_WATCHLIST')}
           value={settings.watchlist ?? []}
           onChange={next => update({ watchlist: next })}
         />
