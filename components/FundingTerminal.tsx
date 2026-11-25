@@ -38,7 +38,9 @@ const RANGE_LABEL_KEYS: Record<RangeKey, LabelKey> = {
    so the page can say whose numbers it is showing. 200 rows (Bybit's most per call) cover 7 days even for an hourly contract. */
 async function fetchAllBinanceFR(): Promise<{ out: Record<string, FRPoint[]>; via: string[] }> {
   try {
-    const res = await fetch('/api/market/funding-rate?limit=200', { signal: deadlineSignal(10_000) });
+    /* LONGER THAN THE SERVER'S OWN LIMIT (#1651): on a cold cache the route may take up to 20 s (lib/bybitFanout.ts). Giving up at 10 s
+       threw that work away and asked once per coin, which made a slow load slower. The table paints from the snapshot meanwhile. */
+    const res = await fetch('/api/market/funding-rate?limit=200', { signal: deadlineSignal(22_000) });
     if (!res.ok) return { out: {}, via: [] };
     const { data, viaFallback } = await res.json() as {
       data: Record<string, Array<{ fundingRate: string; fundingTime: number }>>;

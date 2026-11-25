@@ -60,7 +60,10 @@ test('H4. /funding paints from the snapshot: no table-wide gate; batch shown fir
   /* #2680: the batch is MERGED over what an earlier attempt delivered (a retry never blanks a coin that had history) and still shown before loading clears */
   const showAt = fund.indexOf('setHistory(prev => ({ ...prev, ...first }));'); assert.ok(showAt > 0 && showAt < fund.indexOf('setLoading(false);'), 'the batch is not shown before loading clears');
   assert.ok(fund.includes('setHistory(prev => ({ ...prev, [id]: pts }));'), 'a Bybit fallback replaces the history instead of merging into it'); assert.ok(fund.includes('if (!cancelled && pts.length)'), 'a late fallback writes after unmount or with no data');
-  assert.ok(fund.includes("fetch('/api/market/funding-rate?limit=200', { signal: deadlineSignal(10_000) })"), 'the batch has no 10 s deadline');
+  assert.ok(fund.includes("fetch('/api/market/funding-rate?limit=200', { signal: deadlineSignal(22_000) })"), 'the batch has no 22 s deadline');
+  /* #2841 (#94): the page must outwait the server, or it throws the answer away and asks once per coin */
+  const server = /export const FANOUT_DEADLINE_MS = ([\d_]+);/.exec(readFileSync(new URL('../lib/bybitFanout.ts', import.meta.url), 'utf8'));
+  assert.ok(server && 22_000 > Number(server[1].replace(/_/g, '')), `the server's own limit (${server?.[1]}) is not shorter than the page's wait`);
 });
 const fa = fund.indexOf('async function fetchAllBinanceFR'); assert.ok(fa > 0, 'CONTROL: fetchAllBinanceFR not found'); const fb = fund.indexOf('\n}\n', fa) + 2;
 /* the slice is OUR OWN checked-in source, never input; fetch and deadlineSignal are stubbed */
