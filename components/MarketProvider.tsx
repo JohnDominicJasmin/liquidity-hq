@@ -8,6 +8,7 @@ import {
 import { staleAtFromHeaders } from '@/lib/staleAnswer';
 import { bybitPriceFactor, binancePriceFactor, BINANCE_SPOT_SYMS, UNIVERSE_BINANCE_ONLY, HL_PRICE_BACKUP } from '@/lib/coins';
 import { computeRSI14 } from '@/lib/rsi';
+import { notEnoughMovement } from '@/lib/deadSeries';
 import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
 import { getAuthToken, getSupabase } from '@/lib/supabase';
@@ -756,7 +757,8 @@ export default function MarketProvider(
           o: parseFloat(k[1]) * pf, h: parseFloat(k[2]) * pf,
           l: parseFloat(k[3]) * pf, c: parseFloat(k[4]) * pf,
         }));
-        const patterns = detectPatterns(patternCandles);
+        const dead = notEnoughMovement(klines.slice(0, -1).map((k: string[]) => ({ close: parseFloat(k[4]), volume: parseFloat(k[5]) })));
+        const patterns = dead ? [] : detectPatterns(patternCandles);
         updateCoin(coin, { rsi14, ma20, volRatio, vwap, poc, vah, val, chartPattern: patterns.length > 0 ? patterns.join('; ') : null });
 
         // Taker buy ratio from recent trades (Bybit klines don't split maker/taker)
