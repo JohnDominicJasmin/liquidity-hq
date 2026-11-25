@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 const TRACKED_COINS = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'ltc', 'bch', 'ada'] as const;
 
 export async function GET(req: Request) {
-  if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!checkCronAuth(req, { headerOnly: true })) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const fires: FireForOutcome[] = [];
   const errors: string[] = [];
   let evaluated = 0;

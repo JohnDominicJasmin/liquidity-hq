@@ -186,7 +186,7 @@ export async function runResolve(deps: ResolveDeps = {}): Promise<{ resolved24h:
 }
 
 export async function GET(req: Request) {
-  if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!checkCronAuth(req, { headerOnly: true })) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   /* WHAT A 200 MEANS ON THIS ROUTE, stated once because three separate defects
    * in this file came from not having said it:

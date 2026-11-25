@@ -17,7 +17,7 @@ import { sendSpikeAlertEmail } from '@/lib/email';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!checkCronAuth(req, { headerOnly: true })) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const rawMax  = Number(process.env.AI_GLOBAL_DAILY_MAX);
   const capCalls = Number.isFinite(rawMax) && rawMax > 0 ? rawMax : null;

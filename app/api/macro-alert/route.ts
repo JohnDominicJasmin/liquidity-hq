@@ -82,7 +82,7 @@ async function sendTelegram(token: string, chatId: string, text: string): Promis
 }
 
 export async function GET(req: Request) {
-  if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!checkCronAuth(req, { headerOnly: true })) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN not set' }, { status: 503 });

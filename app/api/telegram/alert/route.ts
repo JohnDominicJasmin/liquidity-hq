@@ -2547,7 +2547,7 @@ export async function GET(req: NextRequest) {
   // price alerts if left reachable by anyone who finds the URL. See
   // lib/cronAuth.ts for why this denies by default instead of only checking
   // when CRON_SECRET happens to be set.
-  if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!checkCronAuth(req, { headerOnly: true })) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token)

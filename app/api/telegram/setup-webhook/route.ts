@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 // Protected by CRON_SECRET - this mutates where Telegram sends bot updates,
 // so it must not be triggerable by an arbitrary caller (or Host-header spoof).
 export async function GET(req: NextRequest) {
-  if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!checkCronAuth(req, { headerOnly: true })) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return NextResponse.json({ ok: false, error: 'No TELEGRAM_BOT_TOKEN configured' }, { status: 500 });
