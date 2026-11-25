@@ -173,7 +173,7 @@ test('T3. through the real scorer: no Bybit open-interest read -> 25+15+15+15+10
 
 /* ── A: the macro reminder's message builder, cut out of the cron's GET ── */
 function macroMsg(event: { name: string; isoDate: string; estimate?: unknown; previous?: unknown }): string {
-  const msgIn = build<(tz: string | null) => string>(MACRO, 'msgIn', [], { emoji: '🔴', minsStr: 60, event, eventTimeIn: () => '14:30 UTC' });
+  const msgIn = build<(tz: string | null) => string>(MACRO, 'msgIn', [], { emoji: '🔴', minsStr: 60, event, eventTimeIn: () => '14:30 UTC', telegramText: build<(v: unknown) => string>(MACRO, 'telegramText', [], {}) /* #2838: the builder escapes the calendar's text */ });
   const m = msgIn(null); clean(m, 'macro reminder'); return m;
 }
 const ev = { name: 'US CPI', isoDate: '2026-11-20T14:30:00Z' };
