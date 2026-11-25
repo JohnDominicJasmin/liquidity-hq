@@ -16,7 +16,7 @@
  * cannot make a count look right - T1 is the control for that. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').split(/\r?\n/).join('\n');
 const MIGRATION = 'supabase/migrations/20261001c_labels_translations_ko_zh_ar_ru.sql';
@@ -138,8 +138,25 @@ test('T7. every {placeholder} in the English default is in every translation of 
 const KNOWN_NUMERAL_EXCEPTIONS = ['AI_CAP_PRO_MONTHLY ar'];
 const numerals = (s: string): string[] => [...(s.match(/\d+/g) ?? [])];
 
+/* The English default moves on, and so does the stored translation: a LATER label migration that says \`do update\` replaces this file's row, so T8 compares the number in the default with the value that wins (#2808: the Free vs Pro answer gained "50" and 20261130d carries it in every language). Later files win in name order; a \`do nothing\` file cannot replace a row. */
+const BASE_FILE = MIGRATION.split('/').pop()!;
+function storedToday(): { rows: Row[]; replaced: string[] } {
+  const dir = new URL('../supabase/migrations/', import.meta.url);
+  const later = new Map<string, string>();
+  for (const f of readdirSync(dir).filter((x) => /_labels_.*\.sql$/.test(x) && x > BASE_FILE).sort()) {
+    const sql = read(`supabase/migrations/${f}`);
+    if (!/on\s+conflict[^;]*do\s+update/i.test(sql)) continue;
+    for (const m of sql.matchAll(/\('([A-Z0-9_]+)','([a-z]{2})','((?:[^']|'')*)'\)/g)) later.set(`${m[1]} ${m[2]}`, m[3].split("''").join("'"));
+  }
+  const replaced: string[] = [];
+  const rows = live().map((r) => { const v = later.get(`${r.key} ${r.locale}`); if (v === undefined) return r; replaced.push(`${r.key} ${r.locale}`); return { ...r, value: v }; });
+  return { rows, replaced };
+}
+
 test('T8. every number in the English default appears in each translation (and a $ amount keeps its $) - the only exception is the exact KNOWN_NUMERAL_EXCEPTIONS set', (t) => {
-  const rows = live();
+  const { rows, replaced } = storedToday();
+  t.diagnostic(`${replaced.length} of ${rows.length} rows are replaced by a later migration`);
+  assert.equal(rows.length, 784, 'CONTROL: the overlay dropped or added a row');
   const withNums = keysOf(rows).filter((k) => numerals(defaults[k]).length > 0);
   t.diagnostic(`${withNums.length} keys carry numbers: ${withNums.join(', ')}`);
   assert.ok(withNums.length >= 9, 'CONTROL: fewer number-bearing keys than measured (9) - re-derive before trusting a pass');
