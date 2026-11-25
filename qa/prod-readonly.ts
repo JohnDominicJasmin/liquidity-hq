@@ -93,6 +93,7 @@ export type Needs = 'none' | 'pro' | 'free';
 /** Specs that may run against production. `needs` is the account tier the spec signs in as
  *  (fixture A is Pro, B is free); 'none' is anonymous. */
 export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; note?: string }> = [
+  { spec: 'arena-chart-parity-41', needs: 'none', note: 'candle GETs only: browser chart data against server chart data' },
   { spec: 'econ-calendar-35', needs: 'none', note: 'signed-out calendar page and event warnings; GETs only, paid AI fenced' },
   { spec: 'real-numbers-34', needs: 'none', note: 'signed-out Scanner RSI and FET funding cells; GETs only, paid AI fenced' },
   { spec: 'lcp-breakdown', needs: 'none', note: 'signed-out LCP element and timing breakdown at 390 px, normal and slow 3G, repeat visit and client-side navigation; GETs only' },
