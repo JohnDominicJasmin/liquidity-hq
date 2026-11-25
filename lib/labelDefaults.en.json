@@ -836,6 +836,8 @@
   "ARENA_READ_BAD_ANSWER_COUNTED": "The AI could not give a clear verdict, so nothing is shown. This read was counted, and trying again will use another one. Email support@liquidity-hq.com with the coin and the time and we will look.",
   "ARENA_READ_COIN_NOT_TRACKED": "The AI read covers the coins on the main list. {coin} is tradable here and its price and chart are live, but it is not one we analyse yet.",
   "ARENA_COIN_LOCK_LINE": "Buy/Sell signals, Quick Research and Deep Research for {coin} are available in Pro. Free includes BTC, ETH and SOL.",
+  "ARENA_SIGNED_OUT_LOCK_LINE": "Sign up free to see signals on more coins",
+  "ARENA_SIGNED_OUT_LOCK_CTA": "Sign up",
   "ARENA_COIN_LOCK_PANEL": "Signals for this coin are Pro only.",
   "ARENA_PAGE_TITLE": "LiquidityAI Arena",
   "ARENA_LIVE_BADGE": "LiquidityAI · LIVE · web + X",
