@@ -53,7 +53,7 @@ const UID = '77777777-7777-4777-8777-777777777777', CHAT = '4242';
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 /* ── the stand-in world ── */
-type Alert = { id: number; coin: string; target_price: number; direction: string; label: string; user_id: string; created_at: string; active: boolean };
+type Alert = { id: number; coin: string; target_price: number; direction: string; label: string; user_id: string | null; created_at: string; active: boolean };
 const world = {
   alerts: [] as Alert[],
   btc: 101_000,
@@ -70,6 +70,7 @@ const world = {
   failPrefs: null as null | 'muted' | 'thresholds',          // the per-user mutes / thresholds read answers 500 (#2426 B6)
   writes: [] as string[],                                    // every non-GET the route made to Supabase: 'METHOD path body'
   allMessages: [] as string[],                               // EVERY Telegram message, whatever it is
+  sends: [] as Array<{ chat: string; text: string }>,         // who each Telegram message was addressed to (#2799)
   oiSyms: [] as string[],                                    // the symbol of every open-interest request, to count requests per coin
   realistic: false,                                          // serve real klines / tickers / open-interest instead of empty lists (see `realistic` below)                      // extra spot prices by symbol, e.g. ETHUSDT, for the multi-coin cells
 };
@@ -128,8 +129,9 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const req = input instanceof Request ? input : new Request(String(input), init);
   const url = new URL(req.url);
   if (url.host === 'api.telegram.org') {
-    const body = JSON.parse(await req.text()) as { text: string };
+    const body = JSON.parse(await req.text()) as { text: string; chat_id?: string | number };
     world.allMessages.push(body.text);
+    world.sends.push({ chat: String(body.chat_id), text: body.text });
     if (body.text.includes('Price Alert Triggered')) world.priceAlertMessages.push(body.text);
     return world.telegram === 'ok' ? json(200, { ok: true }) : json(403, { ok: false, description: 'Forbidden: bot was blocked by the user' });
   }
@@ -556,3 +558,30 @@ test('NP2. THRESHOLDS unreadable behaves the same way: signal alerts skipped, pr
 });
 
 /* NP3 (the daily summary window) lives in __tests__/dailySummaryWindow.test.mts: a whole cron run per probe costs 10-14 s against this stand-in and the route's own limit is 28 s, so a cell with several runs flaked on a loaded machine. */
+
+/* ── #1632 owner item 3 (#2799): a price alert goes to its owner and to nobody else. Before it, a triggered row with no user_id was BROADCAST to every connected Pro chat and to TELEGRAM_CHAT_ID, its private note included. ── */
+test('O1. a triggered alert with NO owner is sent to nobody (the operator chat included) and is left on; an owned alert in the same pass reaches its owner only', async () => {
+  const ENV_CHAT = '9999';
+  try {
+    resetB(); world.failPrefs = null; tick(25 * 3_600_000); setWorld(); world.btc = 101_000;
+    process.env.TELEGRAM_CHAT_ID = ENV_CHAT;
+    world.alerts = [{ ...alert(901), user_id: null, label: 'ownerless-note' }, { ...alert(902), label: 'owned-note' }];
+    const n = world.sends.length, off = world.switchedOff.length;
+    const r = await run();
+    assert.equal(r.status, 200, JSON.stringify(r.body).slice(0, 300));
+    const sent = world.sends.slice(n);
+    assert.deepEqual(sent.filter((m) => m.text.includes('ownerless-note')).map((m) => m.chat), [], 'a row with no owner was sent');
+    assert.deepEqual(sent.filter((m) => m.text.includes('owned-note')).map((m) => m.chat), [CHAT], 'CONTROL: the owned alert must reach its owner, once, and nobody else');
+    assert.deepEqual(world.switchedOff.slice(off).flat(), [902], 'only the delivered alert is switched off');
+    assert.equal(world.alerts.find((a) => a.id === 901)?.active, true);
+  } finally { delete process.env.TELEGRAM_CHAT_ID; resetB(); world.failPrefs = null; }
+});
+
+test('O2. the migration removes ownerless rows and requires an owner: the prod block on the prod table, the dev block on the dev table', async () => {
+  const { readFileSync } = await import('node:fs');
+  const sql = readFileSync(new URL('../supabase/migrations/20261130a_price_alerts_owner_required.sql', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const at = sql.indexOf('-- ── dev:'); assert.ok(at > 0, 'CONTROL: the dev block marker is gone');
+  const statements = (part: string) => part.split('\n').filter((l) => l.trim() && !l.trim().startsWith('--')).map((l) => l.trim().toLowerCase());
+  assert.deepEqual(statements(sql.slice(0, at)), ['delete from public.lhq_price_alerts where user_id is null;', 'alter table public.lhq_price_alerts alter column user_id set not null;']);
+  assert.deepEqual(statements(sql.slice(at)), ['delete from public.lhq_dev_price_alerts where user_id is null;', 'alter table public.lhq_dev_price_alerts alter column user_id set not null;']);
+});
