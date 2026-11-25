@@ -48,6 +48,13 @@ const WS_BACKOFF_CAP_MS = 30_000;
 /* How long a socket may stay CONNECTING before it is treated as failed (starts the REST backup), and how long the REST backup poll may wait. */
 const WS_CONNECT_TIMEOUT_MS = 5_000;
 const REST_POLL_TIMEOUT_MS = 8_000;
+/* EVERY READ IN THIS FILE HAS A DEADLINE (#1651, OWNER-RULES 21). Many carried none, so one hung answer held a first load's panel for as
+   long as the browser allowed. A call that brings its own signal keeps it. Longer than the server's own 20 s limits, so the server
+   answers first. */
+const PROVIDER_FETCH_TIMEOUT_MS = 25_000;
+function fetch(input: string, init?: RequestInit): Promise<Response> {
+  return globalThis.fetch(input, { ...init, signal: init?.signal ?? deadlineSignal(PROVIDER_FETCH_TIMEOUT_MS) });
+}
 
 /* ── Liquidation Cascade (the on-screen banner; no message is sent anywhere) ── */
 const LIQ_CASCADE_THRESHOLDS: Record<string, number> = {
