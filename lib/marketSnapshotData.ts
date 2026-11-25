@@ -367,9 +367,10 @@ async function buildTicker(): Promise<{ out: Record<string, TickerEntry>; viaFal
     } catch { /* Bybit also unreachable - those coins simply stay missing, same as today */ }
   }
 
-  /* THIRD VENUE: Hyperliquid, for coins neither Binance nor Bybit answered for. Price, 24h change and USD volume only. */
+  /* THIRD VENUE: Hyperliquid, only when neither Binance nor Bybit answered for any coin. Price, 24h change and USD volume only. A coin or
+     two missing while the others answer is a coverage gap, not an outage, and is not worth a third venue's call every 45 s. */
   let viaHyperliquid = 0;
-  const stillMissing = OWED_COINS.filter(c => !out[c] && HL_SYMS[c]);
+  const stillMissing = Object.keys(out).length === 0 ? OWED_COINS.filter(c => HL_SYMS[c]) : [];
   if (stillMissing.length > 0) {
     try {
       const stats = parseHlDayStats(await hyperliquidAssetCtxs());
