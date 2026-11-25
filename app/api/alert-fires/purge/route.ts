@@ -14,7 +14,9 @@ import { purgeUnconfirmedAccounts } from '@/lib/unconfirmedAccounts';
  * SCHEDULING: no code in this repo schedules it; cron-job.org daily (docs/INFRASTRUCTURE.md). POST with an `x-cron-secret` header.
  * `headerOnly: true` because this route DELETES: a secret in a query string ends up in access logs.
  *
- * The same daily run also removes accounts left unconfirmed for a day (lib/unconfirmedAccounts.ts); only counts are logged. */
+ * The same daily run also removes accounts left unconfirmed for a day (lib/unconfirmedAccounts.ts); only counts are logged.
+ * UNCONFIRMED_PURGE_DRY_RUN: set to 1 to count and log only, deleting no account. Unset (or 0) is the real run; any other value is
+ * treated as 1, so a mistyped value never deletes. */
 
 export const dynamic = 'force-dynamic';
 
@@ -56,8 +58,11 @@ export async function POST(req: Request) {
     console.log(`[alert-fires-purge] deleted=${count ?? 0} older_than=${cutoff}`);
     // Its failure is logged only: the history purge above has already succeeded, and its answer is unchanged.
     try {
-      const { removed, failed } = await purgeUnconfirmedAccounts(admin, { nowMs: now });
-      console.log(`[unconfirmed-accounts] removed=${removed} failed=${failed}`);
+      const dryRun = !['', '0'].includes((process.env.UNCONFIRMED_PURGE_DRY_RUN ?? '').trim());
+      const { candidates, kept, removed, failed } = await purgeUnconfirmedAccounts(admin, { nowMs: now, dryRun });
+      console.log(dryRun
+        ? `[unconfirmed-accounts] dry-run would_remove=${candidates} kept=${kept} removed=0`
+        : `[unconfirmed-accounts] removed=${removed} failed=${failed}`);
     } catch (e) {
       console.error(`[unconfirmed-accounts] threw: ${e instanceof Error ? e.message : String(e)}`);
     }
