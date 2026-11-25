@@ -631,7 +631,7 @@ export default function MarketProvider(
       const res = await fetch('/api/market/snapshot');
       if (!res.ok) { mark('failed'); return; }
       const body = await res.json() as {
-        ticker?: Record<string, { price: number; change: number; high: number; low: number; vol24: number }>;
+        ticker?: Record<string, { price: number; change: number; high?: number; low?: number; vol24: number }>;
         klines?: Record<string, Record<string, unknown>>;
         lsr?: Record<string, Record<string, number>>;
       };
@@ -655,7 +655,8 @@ export default function MarketProvider(
         const patch: Partial<CoinData> = {};
         if (v.vol24 != null) patch.vol24 = v.vol24;
         if (storeRef.current.coins[id]?.price == null && v.price) {
-          patch.price = v.price; patch.change = v.change; patch.high = v.high; patch.low = v.low;
+          patch.price = v.price; patch.change = v.change;
+          if (v.high != null && v.low != null) { patch.high = v.high; patch.low = v.low; }
         }
         if (Object.keys(patch).length) updateCoin(id, patch);
       }
