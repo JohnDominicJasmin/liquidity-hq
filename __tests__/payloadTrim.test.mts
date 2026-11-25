@@ -145,8 +145,8 @@ test('C1. a Bybit-sourced fallback is still converted to the Binance array shape
   assert.equal(Number(body[0].priceChangePercent), 2, 'price24hPcnt 0.02 is 2 %');
 });
 
-test('C3. the Bybit tickers entry is TRIMMED before it is served (12 fields per contract), and a repeat read is the same small body', async () => {
-  const row = { symbol: 'BTCUSDT', lastPrice: '1', indexPrice: '2', markPrice: '3', openInterest: '4', openInterestValue: '5', fundingRate: '6', nextFundingTime: '7', highPrice24h: '8', lowPrice24h: '9', price24hPcnt: '10', turnover24h: '11', volume24h: 'DROP', bid1Price: 'DROP' };
+test('C3. the Bybit tickers entry is TRIMMED before it is served (13 fields per contract), and a repeat read is the same small body', async () => {
+  const row = { symbol: 'BTCUSDT', lastPrice: '1', indexPrice: '2', markPrice: '3', openInterest: '4', openInterestValue: '5', fundingRate: '6', nextFundingTime: '7', highPrice24h: '8', lowPrice24h: '9', price24hPcnt: '10', turnover24h: '11', fundingIntervalHour: '4', volume24h: 'DROP', bid1Price: 'DROP' };
   let upstream = 0;
   plan = (u) => { if (!u.includes('api.bybit.com/v5/market/tickers')) return null; upstream++; return json({ retCode: 0, result: { category: 'linear', list: [row] } }); };
   const a = await call('type=bybit-tickers'); const b = await call('type=bybit-tickers');
@@ -155,6 +155,7 @@ test('C3. the Bybit tickers entry is TRIMMED before it is served (12 fields per 
   }
   const body = await a.json() as { result: { list: Array<Record<string, string>> } };
   assert.deepEqual(Object.keys(body.result.list[0]).sort(), [...BYBIT_TICKER_FIELDS].sort(), 'the served ticker still carries fields nobody reads (or lost one somebody does)');
+  assert.equal(body.result.list[0].fundingIntervalHour, '4', 'the funding interval was not served as the exchange sent it');
   assert.deepEqual(await b.json(), body, 'the cached read differs from the first');
   assert.equal(upstream, 1, 'the second read went upstream again: the trimmed body was not cached');
 });
