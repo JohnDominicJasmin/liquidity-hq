@@ -6,6 +6,7 @@ import { useNow } from '@/lib/useNow';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
 import { REASONING_SPLIT, emphasisInner } from '@/lib/reasoningMarkup';
 import { plainSummary } from '@/lib/plainSummary';
+import { noCascadeLine } from '@/lib/liqWatch';
 import { useSearchParams } from 'next/navigation';
 import { useMarket, classifyFunding, CoinId, CoinData, COINS, UNIVERSE_COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, venueSymbols, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
@@ -1527,7 +1528,7 @@ function ArenaContent() {
     const ca = store.cascadeAlert;
     const cascadeLine = ca && (Date.now() - ca.ts < 4 * 60 * 60 * 1000)
       ? `${ca.side} cascade on ${ca.coin} - $${(ca.totalUsd / 1e6).toFixed(1)}M liquidated (${Math.floor((Date.now() - ca.ts) / 60000)}m ago)`
-      : 'None in last 4h';
+      : noCascadeLine(store.liqWatchSince, Date.now());
 
     /* Whale net flow - last 1h for selected coin (#29) */
     const nowSec = Math.floor(Date.now() / 1000);
