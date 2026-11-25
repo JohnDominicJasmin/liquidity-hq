@@ -184,7 +184,8 @@ export default function MarketProvider(
     if (!need.length) return;
     try {
       const r = await fetch('/api/market/price-backup?coins=' + need.join(','));
-      if (!r.ok) return;
+      /* An old quote (the route's last good one) is not seeded: this cell has nowhere to say how old it is, and shows only live figures. */
+      if (!r.ok || r.headers.get('x-data-stale') === '1') return;
       const body: unknown = await r.json();
       if (!body || typeof body !== 'object') return;
       const seed: Record<string, Partial<MarketStore['coins'][CoinId]>> = {};
@@ -1267,6 +1268,8 @@ export default function MarketProvider(
       const markCb = (status: 'ok' | 'failed') => setStore(s => ({ ...s, cbPremiumStatus: s.cbPremiumStatus === 'ok' ? 'ok' : status }));
       const res = await fetch('/api/coinbase-price', { cache: 'no-store' });
       if (!res.ok) { markCb('failed'); return; }
+      /* The route's last good Coinbase price: the premium already on screen stays, none is worked out from an old price against a live one. */
+      if (res.headers.get('x-data-stale') === '1') { markCb('failed'); return; }
       const { price: cbPrice, usdtUsd } = await res.json() as { price: number; usdtUsd?: number | null };
       if (!cbPrice || isNaN(cbPrice)) { markCb('failed'); return; }
       setStore(s => {
