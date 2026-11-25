@@ -134,6 +134,6 @@ export async function GET(req: NextRequest) {
         headers: { 'Cache-Control': 'no-store', 'x-data-stale': '1', 'x-data-age-ms': String(Date.now() - last.ts) },
       });
     }
-    return apiError('funding', err, 500, 'Request failed');
+    return apiError('funding', err, 502, 'Request failed');
   }
 }

@@ -53,6 +53,6 @@ export async function GET(req: NextRequest) {
       headers: { 'Cache-Control': 'private, max-age=60', Vary: 'Authorization' },
     });
   } catch (err) {
-    return apiError('market-rsi', err, 500, 'Request failed');
+    return apiError('market-rsi', err, 502, 'Request failed');
   }
 }

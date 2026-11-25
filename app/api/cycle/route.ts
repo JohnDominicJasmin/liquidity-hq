@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
     const { data: cycle2024, stale, ageMs } = await cachedStale('cycle:2024', 60 * 60_000, fetchCycle2024);
     /* Cycle position is a slow signal - `currentDay` moves once a day and the
        2016/2020 curves are constants. Five minutes changes nobody's decision.
-       Success only; the 429 and 500 paths stay uncached (#177). */
+       Success only; the 429 and 502 paths stay uncached (#177). */
     return NextResponse.json({
       '2016': CYCLE_2016,
       '2020': CYCLE_2020,
@@ -121,6 +121,6 @@ export async function GET(req: NextRequest) {
         : { 'Cache-Control': polledCacheControl(300) },
     });
   } catch (e) {
-    return apiError('cycle', e, 500, 'Request failed');
+    return apiError('cycle', e, 502, 'Request failed');
   }
 }
