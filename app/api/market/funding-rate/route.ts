@@ -1,4 +1,6 @@
-/* Binance funding-rate history for every tracked symbol, in one request (#200).
+/* Funding-rate history for every tracked symbol, in one request (#200). Bybit first, Binance for what Bybit cannot give (#1651): the
+ * page's "Current" column is Bybit's, and one venue per row is what makes the average comparable with it. Rows are keyed by the Binance
+ * symbol and keep Binance's field names whichever venue answered; `viaFallback` names the ones Binance answered.
  *
  * 45 calls, one per symbol, all with limit=42, and only on /funding. QA measured
  * it as the identical shape to account-ratio and revised their own advice to
@@ -70,7 +72,8 @@ function bybitFundingToBinanceShape(
 ): Array<{ fundingRate: string; fundingTime: number }> | null {
   const list = (body as { result?: { list?: Array<{ fundingRate: string; fundingRateTimestamp: string }> } })
     ?.result?.list;
-  if (!Array.isArray(list)) return null;
+  // An empty list is a miss, so the other venue is asked.
+  if (!Array.isArray(list) || list.length === 0) return null;
   return list.map(t => ({ fundingRate: t.fundingRate, fundingTime: Number(t.fundingRateTimestamp) }));
 }
 
@@ -91,27 +94,25 @@ export async function GET(req: NextRequest) {
       SYMBOLS,
       `binance:funding-rate:${limit}`,
       900_000,
-      (sym) => `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${sym}&limit=${limit}`,
-      /* Verbatim array; /funding maps and sorts it itself. */
-      (body) => (Array.isArray(body) ? body : null),
+      (sym) => {
+        const coin = BINANCE_SYM_TO_COIN[sym];
+        const bbSymbol = coin ? BYBIT_SYMS[coin] : undefined;
+        // fet has no Bybit linear perp (lib/coins.ts): throwing is a per-symbol miss, so Binance is asked for it below.
+        if (!bbSymbol) throw new Error(`no Bybit symbol for ${sym}`);
+        return `${BB_FUNDING_URL}?category=linear&symbol=${bbSymbol}&limit=${limit}`;
+      },
+      bybitFundingToBinanceShape,
       {
-        buildUrl: (sym) => {
-          const coin = BINANCE_SYM_TO_COIN[sym];
-          const bbSymbol = coin ? BYBIT_SYMS[coin] : undefined;
-          // #1234: fet has no Bybit linear perp (lib/coins.ts) - throwing
-          // here is caught by symbolFanout's own fallback pool exactly like
-          // any other per-symbol miss, so it stays absent from `data`.
-          if (!bbSymbol) throw new Error(`no Bybit symbol for ${sym}`);
-          return `${BB_FUNDING_URL}?category=linear&symbol=${bbSymbol}&limit=${limit}`;
-        },
-        pick: (body) => bybitFundingToBinanceShape(body),
+        buildUrl: (sym) => `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${sym}&limit=${limit}`,
+        /* Verbatim array; /funding maps and sorts it itself. */
+        pick: (body) => (Array.isArray(body) ? body : null),
       },
     );
 
     reportHealth(
       'binance:funding-rate', 'market', !stopped,
       viaFallback?.length
-        ? `${ok}/${total}, ${viaFallback.length} via bybit-fallback${stopped ? ' (primary rate-limited)' : ''}`
+        ? `${ok}/${total}, ${viaFallback.length} via binance-fallback${stopped ? ' (primary rate-limited)' : ''}`
         : (stopped ? `${ok}/${total} then rate-limited` : `${ok}/${total}`),
       ok,
     );
@@ -122,8 +123,8 @@ export async function GET(req: NextRequest) {
        `'stopped' in body` is a valid check, the same convention
        /api/market/snapshot uses for `partial`. Reported unhealthy too: a run cut
        short by a ban is not a success with fewer rows.
-       `viaFallback`, #1234: which symbols came from Bybit rather than
-       Binance - additive, so an all-Binance response's shape is unchanged. */
+       `viaFallback`: which symbols came from Binance rather than
+       Bybit - additive, so an all-Bybit response's shape is unchanged. */
     return NextResponse.json({
       data, ok, total,
       ...(stopped ? { stopped: true } : {}),

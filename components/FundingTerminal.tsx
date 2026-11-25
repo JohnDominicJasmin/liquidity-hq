@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { deadlineSignal } from '@/lib/deadlineSignal';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId, useMarket } from '@/lib/marketStore';
+import { perEightHours, lastDays, timeAverage } from '@/lib/fundingHistory';
 import { useTheme } from '@/lib/theme';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
@@ -13,15 +14,16 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 
 /* ── types ── */
-interface FRPoint { rate: number; ts: number; }
+/* `rate` is per 8 hours and `hours` is the interval the row covered (lib/fundingHistory.ts). */
+interface FRPoint { rate: number; ts: number; hours?: number; }
 type FRHistory = Partial<Record<CoinId, FRPoint[]>>;
 
 
 const RANGES = [
-  { key: '24h', label: '24h', count: 3  },
-  { key: '3d',  label: '3d',  count: 9  },
-  { key: '7d',  label: '7d',  count: 21 },
-  { key: '14d', label: '14d', count: 42 },
+  { key: '24h', label: '24h', days: 1 },
+  { key: '3d',  label: '3d',  days: 3 },
+  { key: '7d',  label: '7d',  days: 7 },
+  { key: '14d', label: '14d', days: 14 },
 ] as const;
 type RangeKey = typeof RANGES[number]['key'];
 const RANGE_LABEL_KEYS: Record<RangeKey, LabelKey> = {
@@ -32,10 +34,11 @@ const RANGE_LABEL_KEYS: Record<RangeKey, LabelKey> = {
 };
 
 /* ── data fetching ── */
-/* `via` = the Binance symbols whose history Binance could not give and Bybit did (the route's viaFallback), so the page can say whose numbers it is showing. */
+/* The batch is Bybit's history, the same venue as the "Current" column. `via` = the symbols Bybit could not give and Binance did (the route's viaFallback),
+   so the page can say whose numbers it is showing. 100 rows cover 14 days down to a 4-hour contract. */
 async function fetchAllBinanceFR(): Promise<{ out: Record<string, FRPoint[]>; via: string[] }> {
   try {
-    const res = await fetch('/api/market/funding-rate?limit=42', { signal: deadlineSignal(10_000) });
+    const res = await fetch('/api/market/funding-rate?limit=100', { signal: deadlineSignal(10_000) });
     if (!res.ok) return { out: {}, via: [] };
     const { data, viaFallback } = await res.json() as {
       data: Record<string, Array<{ fundingRate: string; fundingTime: number }>>;
@@ -43,9 +46,9 @@ async function fetchAllBinanceFR(): Promise<{ out: Record<string, FRPoint[]>; vi
     };
     const out: Record<string, FRPoint[]> = {};
     for (const [sym, rows] of Object.entries(data ?? {})) {
-      out[sym] = rows
+      out[sym] = perEightHours(rows
         .map(d => ({ rate: parseFloat(d.fundingRate), ts: d.fundingTime }))
-        .sort((a, b) => a.ts - b.ts);
+        .sort((a, b) => a.ts - b.ts));
     }
     return { out, via: viaFallback ?? [] };
   } catch { return { out: {}, via: [] }; }
@@ -54,12 +57,12 @@ async function fetchAllBinanceFR(): Promise<{ out: Record<string, FRPoint[]>; vi
 async function fetchBybitFR(sym: string): Promise<FRPoint[]> {
   try {
     const res  = await fetch(
-      `/api/proxy?type=funding-history&symbol=${sym}&limit=42`,
+      `/api/proxy?type=funding-history&symbol=${sym}&limit=100`,
     );
     const data = await res.json();
-    return ((data?.result?.list ?? []) as Array<{ fundingRate: string; fundingRateTimestamp: string }>)
+    return perEightHours(((data?.result?.list ?? []) as Array<{ fundingRate: string; fundingRateTimestamp: string }>)
       .map(d => ({ rate: parseFloat(d.fundingRate), ts: parseInt(d.fundingRateTimestamp) }))
-      .sort((a, b) => a.ts - b.ts);
+      .sort((a, b) => a.ts - b.ts));
   } catch { return []; }
 }
 
@@ -345,14 +348,14 @@ export default function FundingTerminal() {
   const [selected, setSelected] = useState<CoinId>('btc');
   const [rangeKey, setRangeKey] = useState<RangeKey>('7d');
   const [loading, setLoading]   = useState(true);
-  /* Coins whose funding history is Bybit's because Binance could not supply it. Said on the page, never shown as Binance's. */
+  /* Coins whose funding history is Bybit's, the venue of the Current column. A row with history from Binance instead says so. */
   const [bybitCoins, setBybitCoins] = useState<CoinId[]>([]);
   const [frSearch, setFrSearch] = useState('');
 
   const fullChartRef = useRef<HTMLCanvasElement>(null);
   const sparkRefs    = useRef<Partial<Record<CoinId, HTMLCanvasElement>>>({});
 
-  const rangeCount = RANGES.find(r => r.key === rangeKey)!.count;
+  const rangeDays = RANGES.find(r => r.key === rangeKey)!.days;
 
   useEffect(() => {
     let cancelled = false;
@@ -376,7 +379,7 @@ export default function FundingTerminal() {
       for (const id of COINS) {
         const binSym = (BINANCE_SYMS as Record<string, string>)[id];
         const pts = binSym ? binanceAll[binSym] ?? [] : [];
-        if (pts.length) { first[id] = pts; if (binSym && via.includes(binSym)) fromBybit.add(id); }
+        if (pts.length) { first[id] = pts; if (binSym && !via.includes(binSym)) fromBybit.add(id); }
         else if ((BYBIT_SYMS as Record<string, string>)[id]) needBybit.push(id);
       }
       /* Merged over what an earlier attempt already delivered, so a retry never blanks a coin that had history. */
@@ -406,24 +409,24 @@ export default function FundingTerminal() {
       COINS.forEach(id => {
         const canvas = sparkRefs.current[id];
         if (!canvas) return;
-        drawSparkline(canvas, (history[id] ?? []).slice(-rangeCount), isLight);
+        drawSparkline(canvas, lastDays(history[id] ?? [], rangeDays), isLight);
       });
     });
-  }, [history, rangeCount, isLight]);
+  }, [history, rangeDays, isLight]);
 
   useEffect(() => {
     const canvas = fullChartRef.current;
     if (!canvas) return;
-    const pts = (history[selected] ?? []).slice(-rangeCount);
+    const pts = lastDays(history[selected] ?? [], rangeDays);
     if (pts.length < 2) return;
     requestAnimationFrame(() => drawFullChart(canvas, pts, isLight));
-  }, [history, selected, rangeCount, isLight]);
+  }, [history, selected, rangeDays, isLight]);
 
   function getStats(id: CoinId) {
-    const pts = (history[id] ?? []).slice(-rangeCount);
+    const pts = lastDays(history[id] ?? [], rangeDays);
     if (!pts.length) return null;
     const rates = pts.map(p => p.rate);
-    const avg   = rates.reduce((a, b) => a + b, 0) / rates.length;
+    const avg   = timeAverage(pts) as number;
     /* `trend` used to be computed here - an ↑/↓/→ glyph from first vs last rate -
        and returned, and never rendered by either file. Removed with the two
        locals that existed only to feed it (#945).
@@ -637,7 +640,7 @@ export default function FundingTerminal() {
                     {COINS.filter(id => !frSearch || id.toLowerCase().includes(frSearch.toLowerCase())).map(id => {
                       const stats   = getStats(id);
                       const current = store.coins[id]?.fundingRate ?? null;
-                      const pts     = (history[id] ?? []).slice(-rangeCount);
+                      const pts     = lastDays(history[id] ?? [], rangeDays);
                       const noData  = pts.length < 2;
                       /* NOTHING TO SHOW, NO ROW (owner sweep 2026-11-18): a coin with no funding market, or one with neither a current rate
                          nor any history once loading is done, used to fill its row with "No data" / "Unavailable". It is left out instead. */
@@ -669,8 +672,8 @@ export default function FundingTerminal() {
                             >
                               <CoinIcon coin={id} size={16} color={coinBadgeColor(id)} bg={withAlpha(coinBadgeColor(id), '24')} decorative />
                               {COIN_LABELS[id]}
-                              {/* The history is Bybit's (Binance has none for this coin): said on the row, one word, not a sentence above the table (owner sweep 2026-11-18). */}
-                              {bybitCoins.includes(id) && <span data-testid="funding-venue-bybit" style={{ marginLeft: 6, fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>Bybit</span>}
+                              {/* The history is normally Bybit's, like the Current column. A row whose history came from Binance says so, one word. */}
+                              {(history[id]?.length ?? 0) > 0 && !bybitCoins.includes(id) && <span data-testid="funding-venue-binance" style={{ marginLeft: 6, fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>Binance</span>}
                             </button>
                           </td>
                           <td style={{ color: current != null ? frColor(current) : 'var(--txt3)', fontWeight: 700 }}>
