@@ -1376,6 +1376,8 @@ jobs:
           # rather than pass. That is deliberate and it is the part to preserve:
           # a skip is legible, a vacuous pass is not.
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
+          # QA test ref only: two approved billed reads (PM 2026-11-25). Never merge.
+          E2E_ALLOW_BILLED_CALLS: '1'
 
       # failure() only. This used to upload on every green run too - ~15s and
       # storage for a report nobody opens. failure() still excludes
