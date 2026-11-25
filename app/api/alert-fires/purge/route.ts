@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { purgeUnconfirmedAccounts } from '@/lib/unconfirmedAccounts';
 
 /* Retention for the alert history (`lhq_alert_fires`), run daily with the service role (#1651, PM decision 2026-11-18: keep 90 days).
  *
@@ -11,7 +12,9 @@ import { T } from '@/lib/tables';
  * history the hit-rate work needs and stops the one table that grows with users from growing without bound.
  *
  * SCHEDULING: no code in this repo schedules it; cron-job.org daily (docs/INFRASTRUCTURE.md). POST with an `x-cron-secret` header.
- * `headerOnly: true` because this route DELETES: a secret in a query string ends up in access logs. */
+ * `headerOnly: true` because this route DELETES: a secret in a query string ends up in access logs.
+ *
+ * The same daily run also removes accounts left unconfirmed for a day (lib/unconfirmedAccounts.ts); only counts are logged. */
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +54,13 @@ export async function POST(req: Request) {
 
     // Logged on every run, including the zero: "nothing to delete" and "the job stopped running" look identical from the table alone.
     console.log(`[alert-fires-purge] deleted=${count ?? 0} older_than=${cutoff}`);
+    // Its failure is logged only: the history purge above has already succeeded, and its answer is unchanged.
+    try {
+      const { removed, failed } = await purgeUnconfirmedAccounts(admin, { nowMs: now });
+      console.log(`[unconfirmed-accounts] removed=${removed} failed=${failed}`);
+    } catch (e) {
+      console.error(`[unconfirmed-accounts] threw: ${e instanceof Error ? e.message : String(e)}`);
+    }
     return NextResponse.json({ deleted: count ?? 0, cutoff, retainDays: RETAIN_MS / 86_400_000 });
   } catch (e) {
     console.error(`[alert-fires-purge] threw: ${e instanceof Error ? e.message : String(e)}`);
