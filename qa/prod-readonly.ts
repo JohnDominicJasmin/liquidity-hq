@@ -195,6 +195,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
 /** Every other spec, and why it is kept off production. A spec must appear in exactly one
  *  of the two lists; the unit test enforces it. */
 export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
+  'funding-timing-94': 'timing probe for qa and staging',
   'release-batch-1129': 'signs in as dev-project fixtures; qa and staging only',
   'auth-probe-2802': 'signs in as a dev-project fixture and probes bearer routes; qa and staging only',
   'cls-arena-gate': 'signs in as the A and B fixtures (DEV-project accounts that do not exist on production); staging and CI',
