@@ -260,7 +260,7 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
   /* THE 1h FIGURES ARE SHOWN ONLY ONCE THE STORED HOUR IS IN (#1651): a panel opened seconds ago used to read $0 and 0 events beside
      "waiting", which is a claim nothing had been read to support. Per read, keyed like `partialBy`: undefined while it runs. */
   const [hourBy, setHourBy] = useState<Record<string, boolean>>({});
-  const hourReads = coinFilter === 'ALL' ? [hourBy.ALL] : [hourBy[coinFilter], hourBy.ALL];
+  const hourReads: (boolean | undefined)[] = coinFilter === 'ALL' ? [hourBy.ALL] : [hourBy[coinFilter], hourBy.ALL];
   const hourKnown = hourReads.includes(true);
   const hourPending = !hourKnown && hourReads.includes(undefined);
 
