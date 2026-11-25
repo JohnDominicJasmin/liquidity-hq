@@ -318,7 +318,9 @@ async function fallbackMissing(
   const wanted = (f: RsiField) => FAST_FIELDS.has(f) === fast;
   const missing: Job[] = [];
 
-  for (const coin of Object.keys(BINANCE_SYMS)) {
+  /* EVERY COIN, NOT ONLY BINANCE'S (#1651). A 418/429 from Binance stops the first pool part way, and the Bybit-only jobs sit at its end;
+     walking BINANCE_SYMS here meant nobody asked for pepe, bonk or xau again, and they lost their RSI for that whole cache window. */
+  for (const coin of COINS) {
     const bbSym = BYBIT_SYMS[coin];
     if (!bbSym) continue; // fet - no Bybit linear perp (lib/coins.ts)
     for (const tf of BN_TIMEFRAMES) {
