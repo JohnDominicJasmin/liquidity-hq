@@ -107,7 +107,7 @@ export default function DryPowder() {
       const res  = await fetch('/api/dry-powder?part=numbers', { headers });
       const json = await res.json() as {
         current?: number; prev30?: number; prev90?: number;
-        series?: number[]; error?: string;
+        series?: number[]; error?: string; from?: string;
       };
 
       // Entitlement can lapse while the tab is still open (a trial ending
@@ -124,6 +124,8 @@ export default function DryPowder() {
         prev90:    json.prev90,
         series:    json.series  ?? [],
         signal: '', narrative: '', keyLevel: '', analysis: 'loading',
+        /* Saved figures carry their day (#1651): shown with it, whether or not the text arrives. */
+        ...(json.from ? { from: json.from } : {}),
       };
       setState(nums);
       writeLastGood(LAST_NUMBERS_KEY, nums);
@@ -283,7 +285,7 @@ export default function DryPowder() {
             )}
             {/* 'unavailable' draws nothing: the figures above stand alone, no failure line. */}
 
-            {d.analysis === 'ready' && d.from && (
+            {d.from && (
               <div data-testid="dry-powder-from" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 4 }}>
                 {t('DRY_POWDER_FROM_DATE', { date: new Date(`${d.from}T00:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }) })}
               </div>
