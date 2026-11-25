@@ -17,7 +17,7 @@ The brief names `Monochrome Terminal.dc.html · 6a`. **Do not build 6a.**
 | Risk disclosure | 1 sentence | 6 items | 6 items |
 | Language switcher | absent | present | present |
 | Coins claimed | 28 | 50 | 50 |
-| Pro price | not shown | $25 | $25 |
+| Pro price | not shown | $49 | $49 |
 
 `7a` sits at the top of the same file, badge `7A`, id anchor `id="7a"`. `6a` is directly below it and is left in place for comparison only.
 
@@ -119,20 +119,20 @@ Everything on `/` today, and where it goes. Diffed against `components/LandingCo
 | `LanguageSwitcher` | Nav, right of spacer | Kept as a control — see §Controls |
 | Sign In → `/login` | Nav, right | Ghost button |
 | Get Started → `/login?signup=1` | Nav, far right | Accent button |
-| `BeamsBackground` + `.lp-hero-glow` | **Removed** | See §Duplication / removals below |
+| `BeamsBackground` | **Removed** | `.lp-hero-glow` is **kept** (see §Removals: the owner never gave the yes to remove it) |
 | Hero badge + live dot | Hero, top of left column | |
 | H1, two lines, 2nd accented | Hero left | Treatment changes, copy does not |
 | Hero sub | Hero left | |
 | Primary CTA → `/login?signup=1` | Hero left, CTA row | |
 | Ghost CTA → `/briefing` | Hero left, CTA row | |
-| 4 hero stats | Hero left, below rule | 50 / 35 / Grok / Live |
+| 3 hero stats | Hero left, below rule | 50 / AI / Auto (the product never names the AI vendor, OWNER-RULES §5) |
 | — | **Hero right: live read panel** | **New relative to production.** Present in `6a` too — this inventory diffs against `LandingContent.tsx`, not against `6a`, and production has no live read. Not evidence of a stale handoff. |
 | 6 feature cards | Features grid | Order and routes unchanged |
 | Feature pills | Inside each card | |
 | "Open →" per card | Card footer | |
 | How-it-works steps | Section 5 | Arrow connectors replaced — see below |
 | Pricing Free `$0` | Pricing left | |
-| Pricing Pro `$25` + badge | Pricing right | |
+| Pricing Pro `$49` + badge | Pricing right | Pro moved to $49 by owner decision (#1552) |
 | Free feature list, `✓`/`✕` | Free plan | |
 | Pro feature list, `✓` | Pro plan | |
 | Free CTA → `/login?signup=1` | Free plan footer | |
@@ -154,7 +154,7 @@ Everything on `/` today, and where it goes. Diffed against `components/LandingCo
 
 ### Removals and additions — both are decisions, flagged as such
 
-**Removed — needs the owner's explicit yes, per QA. `BeamsBackground` and `.lp-hero-glow`.** These are animated gradient washes behind the hero. They are decoration, not a panel: no text, no link, no data. They are also directly contrary to the stated design rule (flat near-black ground, hairline separation, one accent). The no-lost-components check counts links, buttons and headings — this removes none of those, so it will pass, but I am naming it here rather than letting it look like an oversight. **If the owner wants motion in the hero, it needs a separate decision; this spec specifies none.**
+**Updated 2026-11-25 (PM): the page shipped without the owner's yes to remove `.lp-hero-glow`, so the glow stays and this spec follows the page. `BeamsBackground` is gone.** Original note: **Removed — needs the owner's explicit yes, per QA. `BeamsBackground` and `.lp-hero-glow`.** These are animated gradient washes behind the hero. They are decoration, not a panel: no text, no link, no data. They are also directly contrary to the stated design rule (flat near-black ground, hairline separation, one accent). The no-lost-components check counts links, buttons and headings — this removes none of those, so it will pass, but I am naming it here rather than letting it look like an oversight. **If the owner wants motion in the hero, it needs a separate decision; this spec specifies none.**
 
 **Added: the live read panel** (hero right, 472px). This is new surface, not a moved panel. Rationale: the page currently asserts the product's value in prose; this shows it. It is the only element on this route carrying live data.
 
@@ -400,7 +400,7 @@ PRO       ground --bg1, border-top 2px --accent, padding 30px 28px
           name as Free but --txt
           trial chip beside the name: 9.5px mono/700 .14em, text --bg0,
             fill --accent, padding 3px 8px
-          price $25
+          price $49
           rows all ✓ --green, text --txt
           CTA height 46, fill --accent, text --bg0, 12px mono/700 .12em
             → /upgrade
@@ -546,7 +546,7 @@ Two controls on this route are visually under 24px and need a padded hit area wi
 
 **None**, with one exception.
 
-- `BeamsBackground` and `.lp-hero-glow` are removed — the only two animated elements on the page today.
+- `BeamsBackground` is removed. `.lp-hero-glow` stays: its removal needed the owner's explicit yes, which was never given (PM, 2026-11-25).
 - No scroll animation, no reveal, no parallax, no counting numbers on the stats.
 - **Exception:** hover transitions on controls, `120ms ease`, on `background` and `border-color` only. Never on layout properties.
 - All of it inside `@media (prefers-reduced-motion: reduce)` → `transition: none`.
@@ -651,10 +651,10 @@ Each readable off the DOM at `/?design=terminal`.
 4. Each feature card's outermost element is an `<a>` — not a `<div>` containing one.
 5. Footer contains exactly 4 link columns.
 6. Risk disclosure contains exactly 6 items.
-7. Pricing contains exactly 2 plans; their price strings are `$0` and `$25`.
-8. Hero contains exactly 4 stat cells reading `50`, `35`, `Grok`, `Live`.
+7. Pricing contains exactly 2 plans; their price strings are `$0` and `$49`.
+8. Hero contains exactly 3 stat cells reading `50`, `AI`, `Auto`.
 9. Hero contains exactly 2 CTAs, to `/login?signup=1` and `/briefing`.
-10. No element on the route matches `[class*="beams"]` or `[class*="hero-glow"]`.
+10. No element on the route matches `[class*="beams"]`. (`.lp-hero-glow` is kept: see §Removals.)
 
 **Geometry — desktop, 1440**
 11. Nav `offsetHeight === 56`. Ticker `offsetHeight === 34`. Hero's top edge is at `y = 90`.
