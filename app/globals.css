@@ -3388,8 +3388,9 @@ html[data-theme="light"] { background: var(--bg0); }
 .liqfeed-dot-connecting { background: #d97706; box-shadow: 0 0 6px #d97706; }
 .liqfeed-dot-error      { background: var(--red);   box-shadow: 0 0 6px var(--red); }
 
+/* Five children: longs, rule, events, rule, shorts. Three columns wrapped the last two onto a second line, with Shorts in the 40px one (#1185). */
 .liqfeed-stats {
-  display: grid; grid-template-columns: 1fr 40px 1fr;
+  display: grid; grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr);
   padding: 10px 14px; gap: 0; align-items: center;
   border-bottom: 0.5px solid var(--bdr);
 }
