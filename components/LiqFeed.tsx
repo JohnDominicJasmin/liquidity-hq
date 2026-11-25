@@ -95,6 +95,11 @@ async function readStored(sb: NonNullable<ReturnType<typeof getSupabase>>, since
   }
   return rows.reverse();
 }
+/** Whether a stored read (rows oldest first) holds the whole 1h stats window: it ran to its end, or what it did read reaches back past it. */
+function coversStatsWindow(rows: StoredRow[], partial: boolean): boolean {
+  return !partial || (rows.length > 0 && rows[0].ts <= Date.now() - STATS_WIN);
+}
+
 // bucketSz moved to lib/liqClusters.ts (#1075) - #1075's chart-side band
 // merge needs this same rounding tier as its "same zone" threshold, and
 // lib/ cannot import from components/, so the shared copy lives in lib and
@@ -252,6 +257,13 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
   const historyPartial = partialBy[coinFilter] ?? partialBy.ALL ?? false;
   useEffect(() => { onHistoryPartial?.(historyPartial); }, [historyPartial, onHistoryPartial]);
 
+  /* THE 1h FIGURES ARE SHOWN ONLY ONCE THE STORED HOUR IS IN (#1651): a panel opened seconds ago used to read $0 and 0 events beside
+     "waiting", which is a claim nothing had been read to support. Per read, keyed like `partialBy`: undefined while it runs. */
+  const [hourBy, setHourBy] = useState<Record<string, boolean>>({});
+  const hourReads: (boolean | undefined)[] = coinFilter === 'ALL' ? [hourBy.ALL] : [hourBy[coinFilter], hourBy.ALL];
+  const hourKnown = hourReads.includes(true);
+  const hourPending = !hourKnown && hourReads.includes(undefined);
+
   /* The selected coin's own stored events, once per coin (a coin switch on the Arena or /liq reads the new coin's). */
   const loadedCoinsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -262,8 +274,8 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
     loadedCoinsRef.current.add(cf);
     let partial = false;
     readStored(sb, Date.now() - SB_WIN_MS, storedCoinNames(cf), SB_PAGES_COIN, () => { partial = true; })
-      .then(rows => { setPartialBy(m => ({ ...m, [cf]: partial })); mergeStored(rows, true); })
-      .catch(() => { loadedCoinsRef.current.delete(cf); });
+      .then(rows => { setPartialBy(m => ({ ...m, [cf]: partial })); mergeStored(rows, true); setHourBy(m => ({ ...m, [cf]: coversStatsWindow(rows, partial) })); })
+      .catch(() => { loadedCoinsRef.current.delete(cf); setHourBy(m => ({ ...m, [cf]: false })); });
   }, [coinFilter, mergeStored]);
 
   /* ── Sync coinFilter prop → ref and re-derive stats/clusters ── */
@@ -458,8 +470,8 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
       const since = Date.now() - SB_WIN_MS;
       let partial = false;
       readStored(sb, since, null, SB_PAGES_ALL, () => { partial = true; })
-        .then(rows => { setPartialBy(m => ({ ...m, ALL: partial })); mergeStored(rows, false); })
-        .catch(() => { setPartialBy(m => ({ ...m, ALL: true })); /* the live feed and the coin read still run */ });
+        .then(rows => { setPartialBy(m => ({ ...m, ALL: partial })); mergeStored(rows, false); setHourBy(m => ({ ...m, ALL: coversStatsWindow(rows, partial) })); })
+        .catch(() => { setPartialBy(m => ({ ...m, ALL: true })); setHourBy(m => ({ ...m, ALL: false })); /* the live feed and the coin read still run */ });
 
       /* The browser no longer saves liquidations (#1632 item 4): the server process collects them (lib/liqCollector.ts). The tab still READS the last 24 h above and shows its own live events. */
     }
@@ -481,6 +493,8 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
   /* ── Derived display values ── */
   const displayed = coinFilter === 'ALL' ? feed : feed.filter(e => e.coin === coinFilter);
   const totalUsd  = stats.longUsd + stats.shortUsd;
+  // What a 1h figure says while it cannot be told: an ellipsis while the stored hour is being read, the words if it could not be.
+  const hourGap   = hourPending ? '…' : t('ARENA_SCANNER_UNAVAILABLE_NARROW');
   const longDom   = stats.longUsd  > stats.shortUsd * 1.2;
   const shortDom  = stats.shortUsd > stats.longUsd  * 1.2;
   const anyLive   = bnStatus === 'live' || bbStatus === 'live';
@@ -536,22 +550,22 @@ export default function LiqFeed({ onClusters, coinFilter, headless = false, onHi
       <div className="liqfeed-stats">
         <div className="liqfeed-stat">
           <span className="liqfeed-stat-lbl">{t('LIQ_FEED_STAT_LONGS')}</span>
-          <span className="liqfeed-stat-val" style={{ color: 'var(--red)' }}>{fmtUSD(stats.longUsd)}</span>
+          <span className="liqfeed-stat-val" style={{ color: 'var(--red)' }}>{hourKnown ? fmtUSD(stats.longUsd) : hourGap}</span>
         </div>
         <div className="liqfeed-stat-sep" />
         <div className="liqfeed-stat" style={{ textAlign: 'center' }}>
           <span className="liqfeed-stat-lbl">{t('LIQ_FEED_STAT_EVENTS')}</span>
-          <span className="liqfeed-stat-val" style={{ color: 'var(--accent)' }}>{stats.count}</span>
+          <span className="liqfeed-stat-val" style={{ color: 'var(--accent)' }}>{hourKnown ? stats.count : hourGap}</span>
         </div>
         <div className="liqfeed-stat-sep" />
         <div className="liqfeed-stat" style={{ textAlign: 'right' }}>
           <span className="liqfeed-stat-lbl">{t('LIQ_FEED_STAT_SHORTS')}</span>
-          <span className="liqfeed-stat-val" style={{ color: 'var(--green-2)' }}>{fmtUSD(stats.shortUsd)}</span>
+          <span className="liqfeed-stat-val" style={{ color: 'var(--green-2)' }}>{hourKnown ? fmtUSD(stats.shortUsd) : hourGap}</span>
         </div>
       </div>
 
       {/* ── Bias bar ── */}
-      {totalUsd > 0 && (
+      {hourKnown && totalUsd > 0 && (
         <>
           <div className="liqfeed-bias-wrap">
             <div className="liqfeed-bias-bar liqfeed-bias-long"  style={{ width: `${(stats.longUsd  / totalUsd) * 100}%` }} />
