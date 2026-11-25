@@ -129,6 +129,9 @@ export async function GET(req: Request) {
 
   const body = {
     ...check.body,
+    /* Whether this host checks that a request came through Cloudflare before trusting its address headers (lib/rateLimit.ts). A yes or
+       no only, never the value. */
+    originAuthConfigured: Boolean(process.env.ORIGIN_AUTH_SECRET),
     checked_at: new Date(now).toISOString(),
     db_age_ms: dbAgeMs,
     exchanges,
