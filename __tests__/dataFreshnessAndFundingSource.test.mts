@@ -48,11 +48,11 @@ test('V2. (#2812: the route asks Bybit first) a batch coin is marked Bybit-sourc
   assert.ok(FUND.includes('if (!cancelled && pts.length) { setHistory(prev => ({ ...prev, [id]: pts })); setBybitCoins(prev => (prev.includes(id) ? prev : [...prev, id])); return 1; }'), 'the page-fallback case is not marked, marked twice, or an empty result is');
   assert.ok(FUND.includes('setBybitCoins(prev => [...prev, ...[...fromBybit].filter(id => !prev.includes(id))]);'), 'the marked coins are not kept, or a retry marks a coin twice');
 });
-test('V3. (#2555, owner order) the sentence above the table is GONE; the venue is a one-word tag, since #2812 on the rows whose history is Binance's, shown only for those', () => {
+test('V3. (#2555, owner order) the sentence above the table is GONE; the venue is a one-word tag, since #2812 on the rows whose history is from Binance, shown only for those', () => {
   assert.ok(!FUND.includes('data-testid="funding-via-bybit"'), 'the sentence note is back (funding-via-bybit)');
   assert.ok(!FUND.includes('FUNDING_VIA_BYBIT_NOTE'), 'the sentence label is used again');
   assert.ok(FUND.includes('{(history[id]?.length ?? 0) > 0 && !bybitCoins.includes(id) && <span data-testid="funding-venue-binance"'), 'the per-row Binance tag is gone, or shows on a Bybit row or a row with no history');
-  assert.ok(FUND.includes('>Binance</span>'), 'the tag does not say Binance'); assert.ok(!FUND.includes('funding-venue-bybit'), 'Bybit rows are tagged again: they are the Current column's venue');
+  assert.ok(FUND.includes('>Binance</span>'), 'the tag does not say Binance'); assert.ok(!FUND.includes('funding-venue-bybit'), 'Bybit rows are tagged again: they share the venue of the Current column');
   assert.ok(FUND.includes('if (!loading && (!hasPerp(id) || (current == null && noData))) return null;'), 'a row with nothing to show is drawn again ("No data" / "Unavailable")');
   assert.ok(!FUND.includes("t(hasPerp(id) ? 'STATE_UNAVAILABLE'"), 'the "Unavailable" cell text is back');
 });
