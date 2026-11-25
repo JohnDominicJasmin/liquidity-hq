@@ -1395,9 +1395,9 @@ async function checkCVD(stamp: string, queue: SignalEntry[], skipCounts: SkipCou
 /* ════════════════════════════════════════
    8. PRICE ALERTS (user-set, Supabase)
    Per-user: each alert fires only to its owner's Telegram.
-   Falls back to allChatIds for legacy rows with no user_id.
+   A row with no owner is sent to nobody.
    ════════════════════════════════════════ */
-interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; user_id?: string | null; created_at?: string | null }
+interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; user_id: string | null; created_at?: string | null }
 
 /* The Bybit market a coin's price is read from: the same choice fetchSpotPrices makes (spot for Binance-listed coins, linear for TAO and for the
    coins that only exist on Bybit). */
@@ -1410,7 +1410,7 @@ const WICK_LOOKBACK_MIN = 15;
 
 async function checkPriceAlerts(
   token: string, stamp: string, prices: Record<string, number>,
-  allChatIds: string[], proUserIds: Set<string>, mutedByUser: Map<string, Set<string>> = new Map(),
+  proUserIds: Set<string>, mutedByUser: Map<string, Set<string>> = new Map(),
 ): Promise<string[]> {
   const fired: string[] = [];
   try {
@@ -1478,22 +1478,14 @@ async function checkPriceAlerts(
       const touch = pending ? null : evaluatePriceAlert(alert, price ?? null, candlesByCoin.get(alert.coin) ?? []);
       if (!pending && !touch) continue;
 
-      // Route to owner if known; only a row with NO user_id at all (true
-      // legacy, pre-dates per-user ownership) falls back to broadcasting to
-      // everyone. A row WITH a user_id whose owner isn't entitled/connected
-      // must never fall through to the broadcast branch - that used to
-      // happen here (ownerChatId ?? allChatIds treated "owner not entitled"
-      // the same as "no owner"), which leaked a free user's private price-
-      // alert note to every Pro user's Telegram. Leave it active; it's
-      // retried next tick in case the owner becomes entitled.
-      const hasOwner = !!alert.user_id;
-      const ownerChatId = hasOwner ? chatIdByUser.get(alert.user_id!) : undefined;
-      if (hasOwner && !ownerChatId) continue;
+      /* A price alert goes to its owner and to nobody else. A row with no owner, or one whose owner is not entitled or not connected,
+         is never sent anywhere; it stays active and is looked at again next run. */
+      if (!alert.user_id) continue;
+      const recipient = chatIdByUser.get(alert.user_id);
+      if (!recipient) continue;
       /* The "Price Level Alerts" switch on /alerts mutes the rule key `price_alerts`; it used to have no effect here (owner sweep
          2026-11-18). Off: the alert is not sent and stays active, so it fires once the switch is back on. */
-      if (hasOwner && isMutedFor(mutedByUser, alert.user_id!, 'price_alerts')) continue;
-      if (!hasOwner && allChatIds.length === 0) continue;
-      const recipient = hasOwner ? ownerChatId! : allChatIds;
+      if (isMutedFor(mutedByUser, alert.user_id, 'price_alerts')) continue;
 
       const label    = LABELS[alert.coin] ?? alert.coin.toUpperCase();
       const dirLabel = alert.direction === 'above' ? '📈 Crossed Above' : '📉 Crossed Below';
@@ -2643,9 +2635,8 @@ async function runAlerts(token: string): Promise<NextResponse> {
   } catch { /* admin key not configured - fall through to env var */ }
 
   // Env var fallback (legacy / single-user installs) - not a per-user row,
-  // predates the Pro gate, always allowed. Has no user_id, so it can't be
-  // muted per-rule - only ever reachable via the broadcast-fallback paths
-  // (checkPriceAlerts' legacy branch), not the per-recipient ones below.
+  // predates the Pro gate. Has no user_id, so it can't be muted per-rule and
+  // is not among the per-recipient sends below. It never receives a price alert.
   const envChatId = process.env.TELEGRAM_CHAT_ID;
   if (envChatId && !allChatIds.includes(envChatId)) allChatIds.push(envChatId);
   // The label tables for the languages present this run (one read each; English needs none). A failed read leaves that language in English.
@@ -2714,7 +2705,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   /* MUTES OR THRESHOLDS UNREADABLE (B6): the signal alerts are NOT sent this run. Without them every recipient would be treated as having muted nothing and as using the default thresholds, and the alerts they muted would go out and
      burn their cooldowns. Price alerts depend on neither, so they still run; every cooldown mark is dropped; the next tick tries again; a health row says why. */
   if (!mutedRaw || !thresholdsRaw) {
-    const priceFired = await checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds, mutedRaw ?? new Map());
+    const priceFired = await checkPriceAlerts(token, stamp, prices, proUserIds, mutedRaw ?? new Map());
     discardStagedMarks();
     reportHealth('alert:prefs', 'delivery', false, `${!mutedRaw ? 'mutes' : 'thresholds'} could not be read; signal alerts skipped this run, price alerts still sent (${priceFired.length})`);
     return NextResponse.json({ ok: true, skipped: 'prefs_unreadable', fired: priceFired, delivery: { sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons] } });
@@ -2788,7 +2779,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     checkDailySummary(token, recipients, mutedByUser, stamp, frMap, lsMap, thresholdsByUser), // per recipient - sends directly
     checkOISpike(stamp, prices, signalQueue, skipCounts),
     checkCVD(stamp, signalQueue, skipCounts),
-    checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds, mutedByUser),       // already per-user (own table)
+    checkPriceAlerts(token, stamp, prices, proUserIds, mutedByUser),       // already per-user (own table)
     checkSentimentExtremes(token, recipients, mutedByUser, stamp, frMap, skipCounts), // global - sends directly
     checkSqueezeAlerts(stamp, frMap, lsMap, prices, signalQueue, recipients, thresholdsByUser),
     checkDistribution(stamp, frMap, signalQueue, fullyMutedCoins, skipCounts),
