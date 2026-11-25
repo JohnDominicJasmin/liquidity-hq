@@ -70,7 +70,7 @@ test('D96 liquidation totals while the history read is held, then failed', async
 
 test('D32b the live sockets as this runner sees them, and the chip', async ({ browser }) => {
   const ctx = await anon(browser, 1280, 'dark'); const page = await ctx.newPage(); const socks: Record<string, { frames: number; closed: boolean; errors: string[] }> = {};
-  page.on('websocket', (ws) => { const k = ws.url().replace(/?.*/, ''); const m = (socks[k] ??= { frames: 0, closed: false, errors: [] }); ws.on('framereceived', () => { m.frames++; }); ws.on('close', () => { m.closed = true; }); ws.on('socketerror', (e) => { m.errors.push(String(e).slice(0, 80)); }); });
+  page.on('websocket', (ws) => { const k = ws.url().split('?')[0]; const m = (socks[k] ??= { frames: 0, closed: false, errors: [] }); ws.on('framereceived', () => { m.frames++; }); ws.on('close', () => { m.closed = true; }); ws.on('socketerror', (e) => { m.errors.push(String(e).slice(0, 80)); }); });
   try {
     await installPaidAiFence(page); await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 150_000 }); await page.waitForTimeout(40_000);
     console.log(`[D] sockets: ${JSON.stringify(socks)}`);
