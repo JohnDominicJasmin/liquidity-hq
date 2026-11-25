@@ -74,7 +74,8 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   }
   if (url.pathname.startsWith('/rest/v1/')) {
     const body = req.method === 'GET' ? undefined : JSON.parse((await req.text()) || 'null'); calls.rest.push({ m: req.method, p: url.pathname, body });
-    if (req.method === 'GET') { const row = { user_id: UID, account_size: 10000 }; return (req.headers.get('accept') ?? '').includes('vnd.pgrst.object') ? json(200, row) : json(200, [row]); }
+    /* #2802: push subscribe is Pro only, so the plan read answers a paid row. */
+    if (req.method === 'GET') { const row = url.pathname.endsWith('user_subscriptions') ? { role: 'pro', trial_ends_at: null, current_period_end: null } : { user_id: UID, account_size: 10000 }; return (req.headers.get('accept') ?? '').includes('vnd.pgrst.object') ? json(200, row) : json(200, [row]); }
     return new Response(null, { status: 201 });
   }
   throw new Error(`stand-in does not know ${req.method} ${req.url}`);
