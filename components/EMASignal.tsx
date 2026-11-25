@@ -119,15 +119,15 @@ function FreeLockedSignal({ coin }: { coin?: string }) {
 function LockedSignal({ lock, coin }: { lock: 'signed_out' | 'free'; coin?: string }) {
   const { t } = useLabels();
   const base = signalLockCopy(lock);
-  // Free and trial: labelled in every language (#1596). The signed-out line is unchanged.
+  // Free and trial, and the signed-out line and button (#1263): labelled in every language.
   /* FREE: one line, no button (owner, 2026-11-17): "EMA signals for HYPE - Pro" with the lock icon. Signed out keeps its sign-up link. */
   if (lock === 'free') return <FreeLockedSignal coin={coin} />;
   const copy = base;
   return (
     <div data-testid="signal-locked" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', border: '0.5px solid var(--bdr)', background: 'var(--bg2)' }}>
       <Lock size={14} style={{ color: 'var(--txt3)' }} />
-      <span style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)' }}>{copy.text}</span>
-      <Link href={copy.href} data-testid="signal-locked-link" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 14px', border: '1px solid var(--accent)', color: 'var(--accent)', fontSize: 'var(--fs-label)', fontWeight: 700, textDecoration: 'none' }}>{copy.cta}</Link>
+      <span style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)' }}>{t('ARENA_SIGNED_OUT_LOCK_LINE')}</span>
+      <Link href={copy.href} data-testid="signal-locked-link" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 14px', border: '1px solid var(--accent)', color: 'var(--accent)', fontSize: 'var(--fs-label)', fontWeight: 700, textDecoration: 'none' }}>{t('ARENA_SIGNED_OUT_LOCK_CTA')}</Link>
     </div>
   );
 }
