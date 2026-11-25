@@ -151,7 +151,7 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     /* DRAFT, the release after v2026.11.27 (Dev 2026-11-25, PM). PM SETS THE DATE at the release: it must be the tagged commit's %cs (rule 22); the one below is the drafting day.
-       Tied to, in line order: #2798 + #2812; #2797; #2805; #2804; #2808; #2817 + #2821; #2818 + #2819 + #2840; #2823; #2825 + #2826; #2839.
+       Tied to, in line order: #2798 + #2812; #2797; #2805; #2804; #2808; #2821; #2818 + #2819 + #2840; #2823; #2825 + #2826; #2839.
        At most 10 lines a trader notices (PM). A line whose PR misses the tag is removed. Plain words, 12 words or fewer per line; facts only (QA checks each line). */
     date: '2026-11-25',
     tag: 'v2026.11.28',
@@ -159,9 +159,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Funding shows per 8 hours; history uses the same exchange as Current.",
       "Deep Research uses another exchange when one refuses the price read.",
       "Market Read no longer shows or scores the order wall.",
-      "Take-profit is now 2:1 from the entry shown on the card.",
+      "EMA setups now place take-profit 2:1 from the shown entry.",
       "Pro includes up to 50 active price alerts, and says so.",
-      "Outage prices show their age, and a chip flags backup feeds.",
+      "A chip says when prices are on backup or delayed.",
       "Liquidation figures say when they are unknown or incomplete.",
       "Trading Hours lists the next windows during quiet hours too.",
       "Price-alert errors and the signed-out signal line are translated.",
