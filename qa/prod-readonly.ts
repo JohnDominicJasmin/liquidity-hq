@@ -197,6 +197,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
 /** Every other spec, and why it is kept off production. A spec must appear in exactly one
  *  of the two lists; the unit test enforces it. */
 export const PROD_EXCLUDED: Readonly<Record<string, string>> = {
+  'release-batch-1131': 'signs in as a dev-project fixture; qa and staging only',
   'webkit-login-101': 'needs the WebKit install of its own test ref; submits only on a runner build',
   'webkit-46': 'needs the WebKit install of its own test ref; qa and staging',
   'a11y-45b': 'follow-up probe for qa and staging',
