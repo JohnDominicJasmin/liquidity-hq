@@ -50,8 +50,8 @@ test('#72 wizard keyboard focus, then #71 the tour Example tag', async ({ browse
       /* the skip button is only on the last step: answer the steps (nothing is saved, every write is answered by the test) */
       for (let s = 0; s < 6 && !(await page.locator('.obw-skip').isVisible().catch(() => false)); s++) {
         const country = page.getByRole('button', { name: /select your country/i }).or(page.getByRole('combobox', { name: /country|select/i })).first();
-        if (await country.isVisible().catch(() => false)) { await country.click(); await page.getByRole('option').first().click({ timeout: 10_000 }); }
-        await page.locator('.obw-row, .obw-chip').first().click({ timeout: 10_000 });
+        if (await country.isVisible().catch(() => false)) { await country.click(); await page.locator('.obw-menu-opt').first().click({ timeout: 10_000 }); }
+        await page.locator('.obw-tile, .obw-row, .obw-chip').first().click({ timeout: 10_000 });
         await page.locator('.obw-btn-next').click({ timeout: 10_000 }); await page.waitForTimeout(900);
       }
       await page.locator('.obw-skip').click({ timeout: 20_000 });
