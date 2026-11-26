@@ -53,6 +53,46 @@ export function isUntouchedSubscription(row: Record<string, unknown>): boolean {
   return row.role === 'free' && Object.entries(row).every(([column, value]) => SIGNUP_COLUMNS.has(column) || value === null);
 }
 
+type Removal = 'removed' | 'failed' | 'skipped' | 'removed_claim_left';
+
+/** One account, with the two rows its sign-up wrote.
+ *
+ *  - Its subscription row goes first: the database refuses to delete an account that still has one (no cascade on dev; prod's rule is not
+ *    known, and this works either way). If the account then cannot be deleted, the row is put back exactly as it was read.
+ *  - ITS TRIAL WAS NEVER USED, so the claim it made goes too, or signing up again would get none. Only AFTER the account is gone, so a
+ *    failed run never costs an account its claim. The claim is found by what was read beforehand (the database blanks its account id on
+ *    delete), and only a claim left with no account is removed. */
+async function removeAccount(admin: AdminClient, id: string): Promise<Removal> {
+  const claims = await admin.from(TRIAL_CLAIMS).select('normalized_email').eq('first_user_id', id);
+  if (claims.error) return 'failed';
+  const subs = await admin.from(T.user_subscriptions).select('*').eq('user_id', id);
+  if (subs.error) return 'failed';
+  const rows = (subs.data ?? []) as Record<string, unknown>[];
+  if (rows.some(row => !isUntouchedSubscription(row))) return 'skipped'; // used since the list was taken
+
+  if (rows.length) {
+    const gone = await admin.from(T.user_subscriptions).delete().eq('user_id', id).eq('role', 'free');
+    if (gone.error) return 'failed';
+  }
+  const { error } = await admin.auth.admin.deleteUser(id);
+  if (error) {
+    if (rows.length) {
+      const back = await admin.from(T.user_subscriptions).insert(rows);
+      if (back.error) console.error(`[unconfirmed-accounts] a sign-up row could not be put back: ${back.error.message}`);
+    }
+    return 'failed';
+  }
+  const emails = ((claims.data ?? []) as { normalized_email: string }[]).map(c => c.normalized_email);
+  if (emails.length) {
+    const cleared = await admin.from(TRIAL_CLAIMS).delete().in('normalized_email', emails).is('first_user_id', null);
+    if (cleared.error) {
+      console.error(`[unconfirmed-accounts] a trial claim could not be removed: ${cleared.error.message}`);
+      return 'removed_claim_left';
+    }
+  }
+  return 'removed';
+}
+
 export interface PurgeResult { candidates: number; kept: number; removed: number; failed: number }
 
 export async function purgeUnconfirmedAccounts(admin: AdminClient, opts: { nowMs?: number; dryRun?: boolean } = {}): Promise<PurgeResult> {
@@ -94,13 +134,10 @@ export async function purgeUnconfirmedAccounts(admin: AdminClient, opts: { nowMs
       // Read again just before deleting: the person may have confirmed since the list was taken.
       const now = await admin.auth.admin.getUserById(id);
       if (now.error || !now.data.user || !isStaleUnconfirmed(now.data.user as AuthAccount, nowMs)) continue;
-      /* ITS TRIAL WAS NEVER USED, so the claim this account made goes too, or signing up again would get none. Only the claim carrying
-         this account's id. It goes first: afterwards the database blanks that id and the claim could not be found. If it cannot be
-         removed the account stays. */
-      const claim = await admin.from(TRIAL_CLAIMS).delete().eq('first_user_id', id);
-      if (claim.error) { failed++; continue; }
-      const { error } = await admin.auth.admin.deleteUser(id);
-      if (error) failed++; else removed++;
+      const outcome = await removeAccount(admin, id);
+      if (outcome === 'removed') removed++;
+      else if (outcome === 'failed') failed++;
+      else if (outcome === 'removed_claim_left') { removed++; failed++; }
     }
   }
   return { candidates: removable.length, kept: used.size, removed, failed };
