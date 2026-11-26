@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
-import { ROUTES, BASELINE, gotoGuarded } from './_shared';
+import { ROUTES, BASELINE, gotoGuarded, expectServed } from './_shared';
 import { installMarketFixtures } from './_fixtures';
 
 /**
@@ -230,6 +230,7 @@ async function measure(page: Page, theme: string, route: string): Promise<Violat
    * own context. */
   await gotoGuarded(page, route, { waitUntil: 'domcontentloaded' });
   await settleForMeasurement(page);
+  expectServed(page, route);
 
   // Return null rather than [] when the theme did not take. An empty array here
   // would be scored as "no violations", which is how a broken measurement turns

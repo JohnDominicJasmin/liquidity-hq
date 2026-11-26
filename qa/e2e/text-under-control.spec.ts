@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { ROUTES, gotoGuarded } from './_shared';
+import { ROUTES, gotoGuarded, expectServed } from './_shared';
 import { signedInContext, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
 import { installMarketFixtures } from './_fixtures';
 import { installPaidAiFence } from './_no-paid-ai';
@@ -150,13 +150,18 @@ async function findTextUnderControls(page: Page): Promise<string[]> {
        * Inset by 2px so a probe on the boundary does not hit-test the neighbour
        * legitimately abutting it. */
       const I = 2;
-      const probes: [string, number, number][] = [
-        ['top',    b.left + b.width / 2, b.top + I],
-        ['bottom', b.left + b.width / 2, b.bottom - I],
-        ['left',   b.left + I,           b.top + b.height / 2],
-        ['right',  b.right - I,          b.top + b.height / 2],
-        ['centre', b.left + b.width / 2, b.top + b.height / 2],
-      ];
+      /* EACH PAINTED LINE, NOT THE BOX AROUND THEM (2026-11-27). An inline element that wraps has one box per line; the box around
+       * them also covers the part of line one that belongs to whatever precedes it. Probing that box reported the support address
+       * on /security as covering a sentence that only begins after it. A block element has one box, so nothing changes for it. */
+      const lines = Array.from(el.getClientRects()).filter((r) => r.width >= 2 && r.height >= 2
+        && r.bottom >= 0 && r.top <= innerHeight && r.right >= 0 && r.left <= innerWidth);
+      const probes: [string, number, number][] = lines.flatMap((r): [string, number, number][] => [
+        ['top',    r.left + r.width / 2, r.top + I],
+        ['bottom', r.left + r.width / 2, r.bottom - I],
+        ['left',   r.left + I,           r.top + r.height / 2],
+        ['right',  r.right - I,          r.top + r.height / 2],
+        ['centre', r.left + r.width / 2, r.top + r.height / 2],
+      ]);
 
       for (const [edge, px, py] of probes) {
         const x = Math.min(Math.max(px, 1), innerWidth - 1);
@@ -251,6 +256,32 @@ test.describe('text is not silently tappable as a control', () => {
    * this suite has produced it for real twice. So: build the #389 arrangement
    * deliberately - a control with an invisible overhang sitting over a caption -
    * and require the detector to catch it. */
+  test('a wrapped sentence is judged line by line: the link before it is not on it, a cover on its second line is', async ({ browser }, testInfo) => {
+    const { page, close } = await preparedPage(browser, testInfo.project.use.viewport ?? { width: 1440, height: 900 });
+    try {
+      await gotoGuarded(page, '/');
+      await settleForGeometry(page);
+      const build = (covered: boolean) => page.evaluate((cover) => {
+        document.getElementById('tuc-wrap-host')?.remove();
+        const host = document.createElement('div');
+        host.id = 'tuc-wrap-host';
+        host.style.cssText = 'position:fixed;left:40px;top:200px;width:220px;z-index:9999;background:#fff;color:#000;font:13px/22px monospace;';
+        host.innerHTML = '<a href="#tuc" class="tuc-lead" style="display:inline-block;width:150px;overflow:hidden;white-space:nowrap">support@example.test</a> <span id="tuc-sentence">and these words go on to fill a second line of their own here</span>'
+          + (cover ? '<button class="tuc-cover" style="position:absolute;left:0;width:220px;top:24px;height:18px;opacity:0"></button>' : '');
+        document.body.appendChild(host);
+        const span = document.getElementById('tuc-sentence')!, all = span.getBoundingClientRect(), hit = document.elementFromPoint(all.left + all.width / 2, all.top + 2);
+        return { lines: span.getClientRects().length, outerTopOnLink: !!hit?.closest('.tuc-lead') };
+      }, covered);
+      const shape = await build(false);
+      expect(shape.lines, 'CONTROL: the sentence did not wrap').toBeGreaterThan(1);
+      expect(shape.outerTopOnLink, 'CONTROL: the outer box\'s top edge is not over the link, so this fixture cannot show the old fault').toBe(true);
+      expect((await findTextUnderControls(page)).filter((x) => x.includes('and these words'))).toEqual([]);
+      await build(true);
+      expect((await findTextUnderControls(page)).filter((x) => x.includes('and these words') && x.includes('button.tuc-cover')).length,
+        'a control lying over the second line went unreported').toBeGreaterThan(0);
+    } finally { await close(); }
+  });
+
   test('the detector actually detects (guards against a vacuous pass)', async ({ browser }, testInfo) => {
     const { page, close } = await preparedPage(browser, testInfo.project.use.viewport ?? { width: 1440, height: 900 });
     try {
@@ -499,6 +530,7 @@ test.describe('text is not silently tappable as a control', () => {
       for (const route of ROUTES) {
         await gotoGuarded(page, route);
         await settleForGeometry(page);
+        expectServed(page, route);
 
         /* A route that renders nothing reports nothing, and nothing looks like
          * a pass. Same guard and same 50-element floor as a11y.spec.ts, which
