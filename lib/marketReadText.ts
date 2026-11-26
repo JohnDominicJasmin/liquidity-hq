@@ -31,12 +31,8 @@ const KEYS: Record<string, LabelKey> = {
   'Few signals line up and momentum is unclear.': 'MARKET_READ_TXT_SUB_WEAK',
   'Waiting for {items} data before giving a read.': 'MARKET_READ_TXT_WAITING',
   'and': 'MARKET_READ_TXT_AND',
-  'Order wall': 'MARKET_READ_TXT_ORDER_WALL',
   'Day': 'MARKET_READ_TXT_DAY',
   'Smart money': 'MARKET_READ_TXT_SMART_MONEY',
-  'Tight': 'MARKET_READ_TXT_TIGHT',
-  'Nearby': 'MARKET_READ_TXT_NEARBY',
-  'Far': 'MARKET_READ_TXT_FAR',
   'Extreme fear': 'MARKET_READ_TXT_FNG_EXTREME_FEAR',
   'Fear': 'MARKET_READ_TXT_FNG_FEAR',
   'Mild fear': 'MARKET_READ_TXT_FNG_MILD_FEAR',
@@ -51,7 +47,6 @@ const KEYS: Record<string, LabelKey> = {
   '2 of 3 crowd signals show heavy long positioning.': 'MARKET_READ_TXT_CROWD_LEAN_LONG',
   'All 3 crowd signals show heavy short positioning.': 'MARKET_READ_TXT_CROWD_ALL3_BULL',
   '2 of 3 crowd signals show heavy short positioning.': 'MARKET_READ_TXT_CROWD_LEAN_SHORT',
-  'no walls': 'MARKET_READ_TXT_NO_WALLS',
   'God Tier': 'SESSION_NAME_GOD',
   'Prime': 'SESSION_NAME_PRIME',
   'Mon Evening': 'SESSION_NAME_MON_EVE',
@@ -63,24 +58,12 @@ const KEYS: Record<string, LabelKey> = {
   'Ask AI': 'GROK_FAB_LABEL',
 };
 
-const WALL_PATTERNS: Array<[RegExp, LabelKey]> = [
-  [/^([\d.]+)% away · tight$/, 'MARKET_READ_TXT_WALL_TIGHT'],
-  [/^([\d.]+)% away · close$/, 'MARKET_READ_TXT_WALL_CLOSE'],
-  [/^([\d.]+)% away · far$/, 'MARKET_READ_TXT_WALL_FAR'],
-  [/^([\d.]+)% away$/, 'MARKET_READ_TXT_WALL_AWAY'],
-  [/^([\d.]+)% · too far$/, 'MARKET_READ_TXT_WALL_TOO_FAR'],
-];
-
 type T = (key: LabelKey, vars?: Record<string, string | number>) => string;
 
 /** The visitor's-language text for a string `lib/marketRead.ts` / `lib/session.ts` produced, or the string itself when it is not a known one. */
 export function trText(t: T, s: string): string {
   const key = KEYS[s];
   if (key) return t(key);
-  for (const [re, k] of WALL_PATTERNS) {
-    const m = s.match(re);
-    if (m) return t(k, { pct: m[1] });
-  }
   const w = s.match(/^Waiting for (.+) data before giving a read\.$/);
   if (w) {
     const items = w[1].split(' and ').map(x => (x === 'Fear & Greed' ? t('BRIEFING_FNG_LABEL') : x === 'funding' ? t('SETUP_SCANNER_STAT_FUNDING') : x));

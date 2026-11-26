@@ -11,7 +11,7 @@ import { deadlineSignal } from './deadlineSignal.ts';
 // Binance-first with a Bybit fallback for Bybit-only coins (e.g. HYPE), which
 // matches how the Arena chart itself sources candles (lib/useEMAStrategy.ts) -
 // a gap the old Binance-only checkEMASetup silently had.
-import { BINANCE_SYMS, BYBIT_SYMS, coinRow, symbolDenominationFactor } from '@/lib/coins';
+import { BINANCE_SYMS, BYBIT_SYMS, binanceKlineSource, coinRow, symbolDenominationFactor } from '@/lib/coins';
 import type { OHLCV } from '@/lib/strategyCore';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 import { exchangeFetch } from './exchangeGuard.ts';
@@ -162,14 +162,26 @@ export function clearCandleCache(): void {
   CANDLE_CACHE.clear();
 }
 
-async function fetchRibbonCandlesUncached(coin: string, tf: EMASignalTF, limit = 300): Promise<OHLCV[]> {
+/** The candles of the chart the reader is looking at, forming candle included (#1263). NEVER CACHED, so the last close is the exchange's
+ *  now, and from the SAME Binance market as the Arena's chart (`binanceKlineSource`: spot, or futures for a futures-only coin), so volumes
+ *  are in the same terms. For the AI's server-built chart; signals and alerts keep `fetchRibbonCandles`. */
+export function fetchChartCandles(coin: string, tf: EMASignalTF, limit = 300): Promise<OHLCV[]> {
+  return fetchRibbonCandlesUncached(coin, tf, limit, binanceKlineSource(coin));
+}
+
+const BINANCE_KLINE_URL = {
+  binance: 'https://api.binance.com/api/v3/klines',
+  'binance-futures': 'https://fapi.binance.com/fapi/v1/klines',
+} as const;
+
+async function fetchRibbonCandlesUncached(coin: string, tf: EMASignalTF, limit = 300, source: keyof typeof BINANCE_KLINE_URL = 'binance-futures'): Promise<OHLCV[]> {
   /* A COIN OUTSIDE THE 50 CURATED ONES (a tokenized stock, an ETF, a commodity: the Arena's TradFi tabs) has no entry in the editorial maps; its symbols come from its universe row (lib/coins.ts coinRow), the same rows the chart reads. */
   const universe = BINANCE_SYMS[coin] || BYBIT_SYMS[coin] ? undefined : coinRow(coin);
   const bnSym = BINANCE_SYMS[coin] ?? universe?.binance ?? undefined;
   if (bnSym) {
     try {
       const res = await exchangeFetch(
-        `https://fapi.binance.com/fapi/v1/klines?symbol=${bnSym}&interval=${tf}&limit=${limit}`,
+        `${BINANCE_KLINE_URL[source]}?symbol=${bnSym}&interval=${tf}&limit=${limit}`,
         { cache: 'no-store', signal: deadlineSignal(9_000) }
       );
       if (res.ok) {

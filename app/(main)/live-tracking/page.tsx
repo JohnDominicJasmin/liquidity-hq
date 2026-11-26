@@ -65,7 +65,10 @@ export default function LiveTrackingPage() {
         .order('signal_time', { ascending: true })
         .limit(5000); // safety cap - this table grows continuously via the tracking cron
       if (cancelled) return;
-      if (err) setError({ kind: 'query', message: err.message });
+      /* 42501: this visitor may not read the table at all (signed out, since anon lost SELECT on it). That is an empty list, as it was
+         when row level security simply returned no rows, not a failure to show. */
+      if (err?.code === '42501') setRows([]);
+      else if (err) setError({ kind: 'query', message: err.message });
       else setRows(data as LiveSignalRow[]);
       setLoading(false);
     })();

@@ -16,7 +16,7 @@ const userIdByEmailFn = process.env.NEXT_PUBLIC_APP_ENV === 'dev'
   ? 'lhq_dev_user_id_by_email'
   : 'lhq_user_id_by_email';
 
-// POST /api/auth/ban-reason { email, password }
+// POST /api/auth/ban-reason { email, password, captchaToken? }
 // Re-verifies the password server-side before ever looking at ban_reason -
 // this is the ownership proof. A bare client-supplied email with no proof
 // would let anyone probe whether an arbitrary address is banned and why;
@@ -38,9 +38,15 @@ export async function POST(req: NextRequest) {
   const email = typeof body.email === 'string' ? body.email.trim() : '';
   const password = typeof body.password === 'string' ? body.password : '';
   if (!email || !password) return NextResponse.json({ reason: null });
+  // And per address, whichever network the tries come from.
+  if (!rateLimit(`ban-reason-email:${email.toLowerCase()}`, 5, 15 * 60_000)) {
+    return NextResponse.json({ reason: null }, { status: 429 });
+  }
+  // The Turnstile token goes to the sign-in, where the auth service checks it when its CAPTCHA protection is on.
+  const captchaToken = typeof body.captchaToken === 'string' && body.captchaToken ? body.captchaToken : undefined;
 
   const sb = anonServerClient();
-  const { error } = await sb.auth.signInWithPassword({ email, password });
+  const { error } = await sb.auth.signInWithPassword({ email, password, ...(captchaToken ? { options: { captchaToken } } : {}) });
   if (!isBannedError(error)) return NextResponse.json({ reason: null });
 
   try {

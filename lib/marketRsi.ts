@@ -57,7 +57,7 @@
  */
 
 import { apiError } from './apiError.ts';
-import { BINANCE_SYMS, BYBIT_SYMS } from './coins.ts';
+import { BINANCE_SYMS, BYBIT_SYMS, COINS } from './coins.ts';
 import { cached, cachedRefresh, cachedAt, cachedPeek, cachedServable, STALE_WHILE_REFRESH_MS } from './apiCache.ts';
 
 /** When the oldest of the two RSI groups was fetched (epoch ms), or null when neither is cached: what the response's own time should be. */
@@ -166,13 +166,17 @@ function buildJobs(fast: boolean): Job[] {
     }
   }
 
-  const hypeSym = BYBIT_SYMS.hype;
-  if (hypeSym) {
+  /* COINS WITH NO BINANCE SPOT SYMBOL ARE ASKED AT BYBIT (#1651). Only HYPE was, so the three others missing from BINANCE_SYMS
+     (pepe and bonk, listed as 1000x contracts, and xau, futures only) were never asked and had no RSI. RSI is a ratio of price moves,
+     so a 1000x contract needs no price factor. HYPE keeps its Bybit read beside its Binance one. */
+  for (const coin of COINS) {
+    const bybitSym = BYBIT_SYMS[coin];
+    if (!bybitSym || (coin !== 'hype' && (BINANCE_SYMS as Record<string, string | undefined>)[coin])) continue;
     for (const tf of BB_TIMEFRAMES) {
       if (!wanted(tf.field)) continue;
       jobs.push({
-        coin: 'hype', field: tf.field, bybit: true,
-        url: () => `https://api.bybit.com/v5/market/kline?category=linear&symbol=${hypeSym}&interval=${tf.interval}&limit=${tf.limit}`,
+        coin, field: tf.field, bybit: true,
+        url: () => `https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${tf.interval}&limit=${tf.limit}`,
       });
     }
   }
@@ -314,7 +318,9 @@ async function fallbackMissing(
   const wanted = (f: RsiField) => FAST_FIELDS.has(f) === fast;
   const missing: Job[] = [];
 
-  for (const coin of Object.keys(BINANCE_SYMS)) {
+  /* EVERY COIN, NOT ONLY BINANCE'S (#1651). A 418/429 from Binance stops the first pool part way, and the Bybit-only jobs sit at its end;
+     walking BINANCE_SYMS here meant nobody asked for pepe, bonk or xau again, and they lost their RSI for that whole cache window. */
+  for (const coin of COINS) {
     const bbSym = BYBIT_SYMS[coin];
     if (!bbSym) continue; // fet - no Bybit linear perp (lib/coins.ts)
     for (const tf of BN_TIMEFRAMES) {

@@ -1042,7 +1042,7 @@ body::after {
    Same trap as .pf-footer-bottom-note and .st-locked-list; if this label needs
    to read as secondary, do it with weight or size, not alpha. */
 .mr-scale-good { font-weight: 600; }
-.mr-factors { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.mr-factors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .mr-factor { border: 0.5px solid var(--bdr); border-radius: 8px; padding: 8px 9px; background: var(--bg2);
   min-width: 0; }
 .mr-factor-k { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); letter-spacing: .1em;
@@ -2357,6 +2357,13 @@ body.ticker-on .breaking-alert { top: calc(var(--appbar-h) + var(--strip-h) + 32
 .klc-canvas {
   width: 100%; height: 800px; overflow: hidden; border-radius: 0;
 }
+/* THE CHART'S KEYBOARD FOCUS IS VISIBLE (#1185). The charting library focuses its own child and sets `outline: none` inline on it, and its
+   canvases would paint over a ring on that child, so the standard ring is drawn over the chart instead. :focus-visible: keyboard only. */
+.klc-canvas { position: relative; }
+.klc-canvas:has(> :focus-visible)::after {
+  content: ''; position: absolute; inset: 0; z-index: 10; pointer-events: none;
+  border: 2px solid var(--accent); border-radius: 3px;
+}
 @media (max-width: 520px) {
   .klc-canvas { height: 520px; }
 }
@@ -3388,8 +3395,9 @@ html[data-theme="light"] { background: var(--bg0); }
 .liqfeed-dot-connecting { background: #d97706; box-shadow: 0 0 6px #d97706; }
 .liqfeed-dot-error      { background: var(--red);   box-shadow: 0 0 6px var(--red); }
 
+/* Five children: longs, rule, events, rule, shorts. Three columns wrapped the last two onto a second line, with Shorts in the 40px one (#1185). */
 .liqfeed-stats {
-  display: grid; grid-template-columns: 1fr 40px 1fr;
+  display: grid; grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr);
   padding: 10px 14px; gap: 0; align-items: center;
   border-bottom: 0.5px solid var(--bdr);
 }
@@ -4400,35 +4408,6 @@ html[data-sess="1"] .usage-meter-host { min-height: 55px; }
 }
 .st-signout-btn:hover { background: rgba(248,113,113,0.18); }
 
-/* Cancel-a-plan confirm row (#1396). The two confirm buttons reuse the color
-   classes above (.st-signout-btn = "Yes, cancel", .st-save-btn = "Keep Pro"),
-   which the owner rejected for looking mismatched: .st-signout-btn carries
-   margin-top:10px, so in the flex row the red button sat 10px LOWER than the
-   purple one, and the two labels differ in length so the boxes were different
-   widths. This class, applied ON TOP of the color class on both buttons, makes
-   them one size: same min box (44px touch target), a shared min-width so the
-   labels no longer set the width, centered content, and margin-top:0 to undo
-   the sign-out push in this context only. It changes geometry, not color. */
-.st-confirm-btn {
-  margin-top: 0;
-  min-height: 44px;
-  min-width: 128px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-/* Contrast: measured over the composited button background in all four themes,
-   only the default LIGHT theme's "Yes, cancel" red (--red #B91C1C over the
-   0.1-alpha red tint over --accent-bg over #E8EAED = rgb(219,212,223)) came in
-   at 4.47:1, just under AA 4.5. The global --red token is deliberately audited
-   across ~28 places (see the terminal-theme --red comment), so it is NOT
-   touched; this darkens ONLY this one confirm button in ONLY that theme to
-   #A81818 = 5.16:1. Dark 6.58, terminal-dark 5.00, terminal-light 5.60 already
-   pass and are left alone. */
-[data-theme="light"]:not([data-design="terminal"]) .st-confirm-btn.st-signout-btn {
-  color: #A81818;
-}
-
 /* Telegram status */
 .st-tg-status { display: flex; align-items: center; gap: 6px; font-size: var(--fs-label); color: var(--txt); font-weight: 600; }
 .st-tg-dot    { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
@@ -4487,6 +4466,10 @@ html[data-sess="1"] .usage-meter-host { min-height: 55px; }
 .st-save-toast.conflict { background: var(--amber-bg); border-color: var(--amber-bdr); color: var(--amber); }
 /* The offline notice stays up, so it needs an opaque base under the translucent amber (the page showed through the text), (its placement over the Arena chart toolbar is PM's visual call: the owner rejected a bottom/right corner for toasts). */
 .offline-notice-region .st-save-toast { background: linear-gradient(var(--amber-bg), var(--amber-bg)), var(--bg2); }
+/* The price feed chip (#1651): in the page's flow, only while prices are not live. Empty, the region takes no room. */
+.feed-status-chip { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 8px; padding: 3px 10px; border-radius: 999px;
+  border: 0.5px solid var(--amber); background: linear-gradient(var(--amber-bg), var(--amber-bg)), var(--bg2); color: var(--txt);
+  font-size: var(--fs-caption); }
 /* Error: red token, an icon as well as the colour, and real buttons - so it
    takes pointer events, unlike the passive states. */
 .st-save-toast.error    { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.45); color: var(--red); pointer-events: auto; }

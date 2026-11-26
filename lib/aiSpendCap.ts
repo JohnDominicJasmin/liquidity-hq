@@ -167,11 +167,7 @@ export async function spendCapBlock(
     const siteRes = await db.rpc('lhq_ai_spend_all_since', { p_since: dayStart });
     if (siteRes.error) throw siteRes.error;
     if (spendSumToUsd(firstRow(siteRes.data)) >= SITE_FUSE_DAILY_USD) {
-      // The owner-ALERT on trip is the immediate /ops follow-up (it needs a
-      // once-a-day dedup store - one `cost_fuse_alerted` column - which this PR
-      // deliberately avoids, PM 2026-09-27 option A). Until that lands a tripped
-      // fuse BLOCKS SILENTLY: free/trial calls stop and it is visible only in
-      // /ops. The block is the protective half and ships now regardless.
+      // The caller (lib/aiUsage.ts) tells the owner the first time a day this trips (lib/aiCapAlert.ts).
       return { blocked: true, reason: 'fuse' };
     }
     return { blocked: false };

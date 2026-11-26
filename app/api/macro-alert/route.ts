@@ -28,6 +28,10 @@ const IMPACT_EMOJI: Record<string, string> = {
 const SENT: Map<string, number> = new Map();
 const SENT_TTL = 4 * 60 * 60 * 1000; // 4h - prune old entries
 
+function telegramText(value: unknown): string {
+  return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function dedupKey(type: string, isoDate: string): string {
   return `${type}_${isoDate}`;
 }
@@ -159,10 +163,11 @@ export async function GET(req: Request) {
 
     const msgIn = (timeZone: string | null) => {
       let msg = `${emoji} <b>Macro Event in ~${minsStr} min</b>\n\n`;
-      msg += `<b>${event.name}</b>\n`;
+      // The calendar's text goes into an HTML message, so it is escaped: a stray < or & makes Telegram refuse the whole message.
+      msg += `<b>${telegramText(event.name)}</b>\n`;
       msg += `🕐 ${eventTimeIn(event.isoDate, timeZone)}\n`;
       /* THE PARTS THAT EXIST, JOINED (off-site failing-text sweep, PM 2026-11-20): a previous value without an estimate no longer starts the line with a separator. */
-      const figures = [event.estimate ? `Estimate: <b>${event.estimate}</b>` : '', event.previous ? `Prev: ${event.previous}` : ''].filter(Boolean);
+      const figures = [event.estimate ? `Estimate: <b>${telegramText(event.estimate)}</b>` : '', event.previous ? `Prev: ${telegramText(event.previous)}` : ''].filter(Boolean);
       if (figures.length) msg += figures.join('  |  ') + '\n';
       msg += `\n<i>High-impact release</i>`;
       return msg;

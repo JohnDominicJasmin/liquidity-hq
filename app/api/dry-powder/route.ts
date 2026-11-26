@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
-import { getDryPowderNumbers } from '@/lib/dryPowderSeries';
+import { getDryPowderNumbersOrSaved } from '@/lib/dryPowderSeries';
 import { readDryPowderAnalysis, readLatestDryPowderAnalysis } from '@/lib/dryPowderAnalysis';
 import { hasProFeatures } from '@/lib/entitlements';
 import { getUserCompatForBilledCall } from '@/lib/authUser';
@@ -39,7 +39,8 @@ async function handle(req: NextRequest, marks: { auth?: number; plan?: number },
   try {
     /* ?part=numbers: the supply figures alone, no AI, so the card shows data in about a second (and instantly once the day's series is cached). */
     if (req.nextUrl.searchParams.get('part') === 'numbers') {
-      return NextResponse.json(await getDryPowderNumbers());
+      const { numbers, savedDay } = await getDryPowderNumbersOrSaved();
+      return NextResponse.json({ ...numbers, ...(savedDay ? { from: savedDay } : {}) });
     }
     const stored = await readDryPowderAnalysis();
     /* Today's text is not written yet (or the day's write is late): the most recent stored text, with the day it was written, so the card shows it dated instead of a gap. Only when nothing was ever stored is the answer "pending". */
@@ -47,9 +48,11 @@ async function handle(req: NextRequest, marks: { auth?: number; plan?: number },
     if (!latest) {
       return NextResponse.json({ pending: true }, { status: 202 });
     }
-    const { current, prev30, prev90, series } = await getDryPowderNumbers();
+    const { numbers: { current, prev30, prev90, series }, savedDay } = await getDryPowderNumbersOrSaved();
     const today = new Date().toISOString().slice(0, 10);
-    return NextResponse.json({ current, prev30, prev90, series, analysis: latest.analysis, ...(latest.day !== today ? { from: latest.day } : {}) });
+    /* The date shown is the OLDEST thing on the card: the text's day, or the saved figures' day when the live read failed. */
+    const oldest = savedDay && savedDay < latest.day ? savedDay : latest.day;
+    return NextResponse.json({ current, prev30, prev90, series, analysis: latest.analysis, ...(oldest !== today ? { from: oldest } : {}) });
   } catch (e) {
     return apiError('dry-powder', e, 502, 'Request failed');
   }

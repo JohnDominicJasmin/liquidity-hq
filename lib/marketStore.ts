@@ -240,6 +240,8 @@ export type MarketStore = {
     totalUsd: number;          // USD liquidated in the detection window
     ts: number;                // unix ms when cascade fired
   } | null;
+  /** When the liquidation feed behind that alert started receiving without a break (lib/liqWatch.ts); null while no feed is open. */
+  liqWatchSince: number | null;
 };
 
 export const defaultStore: MarketStore = {
@@ -287,6 +289,7 @@ export const defaultStore: MarketStore = {
   btcGexFlip: null,
   btcGexLevels: [],
   cascadeAlert: null,
+  liqWatchSince: null,
 };
 
 export const MarketContext = createContext<{

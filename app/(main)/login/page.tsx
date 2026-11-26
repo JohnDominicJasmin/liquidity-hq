@@ -56,6 +56,27 @@ function LoginInner() {
   const [pwCaptchaErr, setPwCaptchaErr] = useState(false);
   const [confirmEmailSent, setConfirmEmailSent] = useState(false);
   const pwTurnstileRef = useRef<TurnstileInstance>(null);
+  /* A sign-in refused as banned asks the server why, once there is a fresh Turnstile token: the one used to sign in is spent. */
+  const [banAsk, setBanAsk] = useState<{ email: string; password: string; message: string } | null>(null);
+
+  useEffect(() => {
+    if (!banAsk || (TURNSTILE_SITE_KEY && !pwCaptchaToken)) return;
+    const ask = banAsk;
+    const token = pwCaptchaToken;
+    setBanAsk(null);
+    // This token is spent by the question, so the form gets another.
+    if (token) { pwTurnstileRef.current?.reset(); setPwCaptchaToken(''); }
+    fetch('/api/auth/ban-reason', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: ask.email, password: ask.password, ...(token ? { captchaToken: token } : {}) }),
+    })
+      .then(res => res.json())
+      .then((j: { reason?: string | null }) => {
+        if (j.reason) setPwError(`${ask.message} Reason: ${j.reason}`);
+      })
+      .catch(() => {});
+  }, [banAsk, pwCaptchaToken]);
 
   // Already signed in - the login form has nothing to offer, go where the
   // user was headed (?next=) or to the dashboard.
@@ -137,6 +158,7 @@ function LoginInner() {
     if (!sb) { setPwError(t('LOGIN_ERROR_SUPABASE_NOT_CONFIGURED')); return; }
     setPwLoading(true);
     setPwError('');
+    setBanAsk(null);
 
     if (pwMode === 'signup') {
       track.signIn('password_signup');
@@ -194,18 +216,7 @@ function LoginInner() {
         // Password + this exact failure together prove account ownership -
         // the ban-reason endpoint re-verifies both server-side before ever
         // touching ban_reason, so this is safe to fire eagerly.
-        if (/banned/i.test(error.message)) {
-          fetch('/api/auth/ban-reason', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: trimmed, password }),
-          })
-            .then(res => res.json())
-            .then((j: { reason?: string | null }) => {
-              if (j.reason) setPwError(`${friendlyAuthError(error.message, t)} Reason: ${j.reason}`);
-            })
-            .catch(() => {});
-        }
+        if (/banned/i.test(error.message)) setBanAsk({ email: trimmed, password, message: friendlyAuthError(error.message, t) });
       }
       // On success, onAuthStateChange updates `user` and the redirect effect fires.
     }

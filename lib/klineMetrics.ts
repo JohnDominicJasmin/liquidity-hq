@@ -1,5 +1,6 @@
 import { computeRSI14 } from './rsi.ts';
 import { detectPatterns } from './patterns.ts';
+import { notEnoughMovement } from './deadSeries.ts';
 
 /* Everything MarketProvider used to derive from a coin's 15-minute candles,
  * lifted out verbatim so app/api/market/snapshot can compute it once on the
@@ -138,7 +139,9 @@ export function computeKlineMetrics(allKlines: string[][]): KlineMetrics | null 
   const patternCandles = klines.slice(-PATTERN_WINDOW - 1, -1).map(k => ({
     o: parseFloat(k[1]), h: parseFloat(k[2]), l: parseFloat(k[3]), c: parseFloat(k[4]),
   }));
-  const patterns = detectPatterns(patternCandles);
+  // No pattern is named on a series that did not move (#1651): a stuck price would read as a tight consolidation.
+  const dead = notEnoughMovement(allKlines.slice(0, -1).map(k => ({ close: parseFloat(k[4]), volume: parseFloat(k[5]) })));
+  const patterns = dead ? [] : detectPatterns(patternCandles);
 
   return {
     volRatio: avg > 0 ? current / avg : 1,

@@ -21,7 +21,7 @@ import { getSupabase, getAuthToken } from '@/lib/supabase';
 import { deadlineSignal } from '@/lib/deadlineSignal';
 import { friendlyAuthError } from '@/lib/authErrors';
 import { updatePassword } from '@/lib/authSession';
-import { subscriptionPanelView, futureDateOrNull, type SubPanelView } from '@/lib/subscriptionPanel';
+import { subscriptionPanelView, type SubPanelView } from '@/lib/subscriptionPanel';
 import { WHOP_MANAGE_URL } from '@/lib/checkout';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
@@ -223,10 +223,6 @@ export default function SettingsPage() {
   // `provider` and `cancelAtPeriodEnd` are #1630 Step 1: which processor the row is on, and whether it is set to stop renewing.
   type SubState = { role: string; lsStatus: string | null; currentPeriodEnd: string | null; hasSubscription: boolean; canCancel: boolean; provider?: string | null; cancelAtPeriodEnd?: boolean };
   const [sub, setSub] = useState<SubState | null>(null);
-  const [cancelConfirm, setCancelConfirm] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
-  const [cancelDone, setCancelDone] = useState<{ endsAt: string | null } | null>(null);
-  const [cancelError, setCancelError] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -252,28 +248,8 @@ export default function SettingsPage() {
     return () => { alive = false; if (timer) clearTimeout(timer); };
   }, [user]);
 
-  const doCancel = async () => {
-    if (cancelling) return;
-    setCancelling(true); setCancelError(false);
-    try {
-      const token = await getAuthToken();
-      const r = await fetch('/api/lemonsqueezy/cancel', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const j = await r.json().catch(() => ({}));
-      if (r.ok && j.ok) { setCancelDone({ endsAt: j.endsAt ?? null }); setCancelConfirm(false); }
-      else { setCancelError(true); }
-    } catch { setCancelError(true); }
-    finally { setCancelling(false); }
-  };
-
-  // Pure state -> view (lib/subscriptionPanel). A just-completed cancel overrides
-  // the fetched state so the panel updates without waiting for the webhook/refetch.
-  const subView: SubPanelView | null =
-    sub === null ? null
-    : cancelDone ? { kind: 'cancelled', untilDate: futureDateOrNull(cancelDone.endsAt, Date.now()) }
-    : subscriptionPanelView(sub);
+  // Pure state -> view (lib/subscriptionPanel).
+  const subView: SubPanelView | null = sub === null ? null : subscriptionPanelView(sub);
 
   // ── Password (set or change) - the client User object has no reliable
   // "has a password" flag (a magic-link-only account and a password account
@@ -593,9 +569,8 @@ export default function SettingsPage() {
         </button>
       </Section>
 
-      {/* ── Subscription / cancel-a-plan (#1396). VISUAL: wording + look need the
-             owner's approval before close (condition 5). Shown only to users who
-             have a plan to see; free/trial users get nothing here. ── */}
+      {/* ── Subscription (#1396). Shown only to users who have a plan to see; free/trial users get nothing here. There is no in-product
+             cancel: the only one called the switched-off Lemon Squeezy route, which no customer can need (#1630). ── */}
       {subView && subView.kind !== 'hidden' && (
         <Section title={t('SETTINGS_SECTION_SUBSCRIPTION')}>
           <div className="st-field">
@@ -606,32 +581,6 @@ export default function SettingsPage() {
                   ? t('SETTINGS_SUB_CANCELLED_UNTIL', { date: new Date(subView.untilDate).toLocaleDateString() })
                   : t('SETTINGS_SUB_CANCELLED_NO_DATE')}
               </div>
-            ) : subView.kind === 'cancellable' ? (
-              <>
-                <div className="st-field-value">{t('SETTINGS_SUB_ACTIVE')}</div>
-                {!cancelConfirm ? (
-                  <button className="st-signout-btn" onClick={() => setCancelConfirm(true)} style={{ marginTop: 8 }}>
-                    {t('SETTINGS_SUB_CANCEL_BUTTON')}
-                  </button>
-                ) : (
-                  <div style={{ marginTop: 8 }}>
-                    <div className="st-desc">
-                      {subView.untilDate
-                        ? t('SETTINGS_SUB_CANCEL_CONFIRM_DATED', { date: new Date(subView.untilDate).toLocaleDateString() })
-                        : t('SETTINGS_SUB_CANCEL_CONFIRM')}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                      <button className="st-confirm-btn st-signout-btn" disabled={cancelling} onClick={doCancel}>
-                        {cancelling ? <span className="login-spinner" /> : t('SETTINGS_SUB_CANCEL_CONFIRM_YES')}
-                      </button>
-                      <button className="st-confirm-btn st-save-btn" disabled={cancelling} onClick={() => setCancelConfirm(false)}>
-                        {t('SETTINGS_SUB_CANCEL_CONFIRM_NO')}
-                      </button>
-                    </div>
-                    {cancelError && <div className="login-error" data-testid="login-error">{t('SETTINGS_SUB_CANCEL_FAILED')}</div>}
-                  </div>
-                )}
-              </>
             ) : subView.kind === 'providerManaged' ? (
               /* A Whop subscriber: status, the real renewal date, and where to cancel. Before this they were shown "Managed by
                  support" - the admin-grant branch - because they have no Lemon Squeezy id and never will. The cancel itself is on
@@ -662,6 +611,7 @@ export default function SettingsPage() {
       <Section title={t('SETTINGS_SECTION_WATCHLIST')}>
         <div className="st-desc">{t('SETTINGS_WATCHLIST_DESC')}</div>
         <CoinMultiSelect
+          label={t('SETTINGS_SECTION_WATCHLIST')}
           value={settings.watchlist ?? []}
           onChange={next => update({ watchlist: next })}
         />
@@ -791,7 +741,8 @@ export default function SettingsPage() {
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
                 {pushError
                   ? <span role="alert" style={{ color: 'var(--red)' }}>{t('SETTINGS_PUSH_ENABLE_FAILED')}</span>
-                  : pushEnabled ? t('SETTINGS_PUSH_ACTIVE') : t('SETTINGS_PUSH_INACTIVE')}
+                  : pushEnabled ? t('SETTINGS_PUSH_ACTIVE')
+                    : entitlementStatus === 'not_entitled' ? t('UPGRADE_GATE_PRO_FEATURE_LABEL') : t('SETTINGS_PUSH_INACTIVE')}
               </div>
             </div>
             {/* aria-label was missing here while the Analytics toggle directly
@@ -806,9 +757,10 @@ export default function SettingsPage() {
               role="switch"
               aria-checked={pushEnabled}
               aria-label={t('SETTINGS_FIELD_PUSH_NOTIFICATIONS')}
-              disabled={pushWorking}
+              /* Pro only: a Free account cannot turn it on (it can still turn an old one off). */
+              disabled={pushWorking || (!pushEnabled && entitlementStatus === 'not_entitled')}
               onClick={handlePushToggle}
-              style={{ opacity: pushWorking ? 0.5 : 1 }}
+              style={{ opacity: pushWorking || (!pushEnabled && entitlementStatus === 'not_entitled') ? 0.5 : 1 }}
             >
               <span className="st-toggle-thumb" />
             </button>

@@ -27,9 +27,11 @@ interface Props {
    *  `value` stays string[] so every existing caller is untouched; a
    *  single-select consumer passes [current] and receives [picked]. */
   single?: boolean;
+  /** The drop-down's accessible name: the visible heading or label it sits under. */
+  label?: string;
 }
 
-export default function CoinMultiSelect({ value, onChange, previewCount = 3, single = false }: Props) {
+export default function CoinMultiSelect({ value, onChange, previewCount = 3, single = false, label }: Props) {
   const { t } = useLabels();
   const [open, setOpen]     = useState(false);
   const [search, setSearch] = useState('');
@@ -148,6 +150,8 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3, sin
         ref={triggerRef}
         type="button"
         role="combobox"
+        /* A combobox is not named by its contents (WCAG 4.1.2, #1185): without this it had no name at all. */
+        aria-label={label ?? t('COIN_SELECT_PLACEHOLDER')}
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-controls={open ? listId : undefined}

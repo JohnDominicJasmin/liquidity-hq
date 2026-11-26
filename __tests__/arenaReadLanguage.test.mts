@@ -104,7 +104,12 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       ? { model: 'grok-4.3', output: [{ type: 'message', content: [{ text, annotations: [] }] }], citations: [] }
       : { model: 'grok-4.3', choices: [{ message: { content: text } }] });
   }
-  { const answered = marketStandIn(req, url, { seen: (hp) => net.market.push(hp) }); if (answered) return answered; }
+  {
+    const answered = marketStandIn(req, url, { seen: (hp) => net.market.push(hp) });
+    /* #2815: a read's levels must lie inside the candles behind it. This file's answers quote XRP levels near $1 while the shared stand-in's candles sit near $100, so the 400-candle read gets one old low wick at $0.50 (the newest bars, and so the other figures, are the stand-in's). */
+    if (answered && url.pathname.endsWith('/klines') && url.searchParams.get('limit') === '400') { const rows = await answered.json() as string[][]; rows[0][3] = '0.5'; return json(200, rows); }
+    if (answered) return answered;
+  }
   if (url.origin !== SUPABASE) { net.stray.push(url.host); throw new Error(`stray request ${req.url}`); }
   const p = url.pathname;
   const one = (row: unknown) => ((req.headers.get('accept') ?? '').includes('vnd.pgrst.object') ? json(200, row) : json(200, [row]));

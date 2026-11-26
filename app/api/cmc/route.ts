@@ -4,9 +4,6 @@ import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
 import { cached, cachedPeek } from '@/lib/apiCache';
 import { polledCacheControl } from '@/lib/cacheHeaders';
-import { getUserCompat } from '@/lib/authUser';
-import { userClient } from '@/lib/supabase-user';
-import { bearerToken } from '@/lib/bearerToken';
 
 const CMC_KEY = process.env.CMC_API_KEY ?? '';
 const BASE    = 'https://pro-api.coinmarketcap.com';
@@ -35,25 +32,6 @@ function reportCmc(source: string, res: Response, body: unknown, items?: number)
        : status?.error_message ?? `HTTP ${res.status}`,
     items,
   );
-}
-
-function sb(token: string) {
-  return userClient(token);
-}
-
-// Still intentionally unauthenticated (public market data, called for
-// signed-out visitors too) - a bearer token is attached when the caller
-// happens to be signed in (see MarketProvider.tsx) so a quota spike is
-// attributable to an account, not just an IP, without requiring auth to use it.
-async function attributedUser(req: NextRequest): Promise<string> {
-  const token = bearerToken(req.headers);
-  if (!token) return 'anon';
-  try {
-    const { data } = await getUserCompat(token);
-    return data.user?.id ?? 'anon';
-  } catch {
-    return 'anon';
-  }
 }
 
 /* Shared edge cache (#177). CMC is CREDIT-METERED, so an uncached call is
@@ -105,8 +83,8 @@ export async function GET(req: NextRequest) {
   if (!rateLimit(`cmc:${ip}`, 120, 60_000)) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
-  const user = await attributedUser(req);
-  console.log(`[cmc] ip=${ip} user=${user} type=${req.nextUrl.searchParams.get('type')}`);
+  // Nothing about the caller is logged: no address, no account id.
+  console.log(`[cmc] type=${req.nextUrl.searchParams.get('type')}`);
 
   if (!CMC_KEY) {
     return NextResponse.json({ error: 'CMC_API_KEY not configured' }, { status: 500 });

@@ -148,6 +148,30 @@ jobs:
           echo "reason=$REASON" >> "$GITHUB_OUTPUT"
           echo "::notice::health check: $STATE ${REASON}"
 
+      # THE DATABASE FILLING UP HAS ITS OWN ISSUE (#1632): it is not "the site is unhealthy", so it neither opens nor closes the
+      # health issue. A size that could not be read changes nothing here: unknown is not "plenty of room".
+      - name: Warn when the database is nearly full
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          PCT=$(jq -r '.db_size.percent // empty' /tmp/health.json 2>/dev/null || echo "")
+          if [ -z "$PCT" ]; then echo "::notice::database size: unknown"; exit 0; fi
+          MB=$(jq -r '.db_size.size_mb' /tmp/health.json); CAP=$(jq -r '.db_size.cap_mb' /tmp/health.json)
+          echo "::notice::database size: ${MB} MB of ${CAP} MB (${PCT}%)"
+          gh label create database-size --repo "$REPO" --color D93F0B --description "The production database is at 80% of its limit or more" 2>/dev/null || echo "label database-size already present"
+          OPEN=$(gh issue list --repo "$REPO" --label database-size --state open --json number --jq '.[0].number // empty' 2>/dev/null || echo "")
+          LINE="Database at ${PCT}% of its limit on $(date -u '+%Y-%m-%d'): ${MB} MB of ${CAP} MB. ${RUN_URL}"
+          if awk -v p="$PCT" 'BEGIN { exit !(p >= 80) }'; then
+            if [ -n "$OPEN" ]; then gh issue comment "$OPEN" --repo "$REPO" --body "$LINE"
+            else gh issue create --repo "$REPO" --label database-size --title "Production database is nearly full" --body "$LINE"; fi
+          elif [ -n "$OPEN" ]; then
+            gh issue close "$OPEN" --repo "$REPO" --comment "Back under 80%. $LINE"
+          fi
+
       - name: Open, update or close the issue
         if: ${{ github.event.inputs.dry_run != 'true' }}
         env:

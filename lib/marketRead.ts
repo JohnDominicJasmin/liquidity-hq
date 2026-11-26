@@ -4,12 +4,13 @@
 // hero component stays presentation-only.
 //
 // Three inputs merged, each preserving its original math:
-//  - Conditions score (0-100): session timing, day, Fear & Greed, funding,
-//    order-wall proximity  (was RaidMeter.calcRPM)
+//  - Conditions score (0-100): session timing, day, Fear & Greed, funding
+//    (was RaidMeter.calcRPM). Order-wall proximity was removed (#1651): on the
+//    markets it was read for it was always "tight", so it carried no information.
 //  - Smart Money (-N..+N): 6-signal composite, shown as one factor
 //    (was SmartMoneyScore)
 //  - Contrarian flag: fires only at sentiment extremes (was SentimentExtremesAlert)
-import { classifyFunding, type MarketStore, type LiqWall } from '@/lib/marketStore';
+import { classifyFunding, type MarketStore } from '@/lib/marketStore';
 import { isGodTier, isPrime, isMonEvening, isLondon, isDead } from '@/lib/session';
 
 export type Band = 'good' | 'mid' | 'weak';
@@ -33,23 +34,6 @@ export interface MarketRead {
   fundingSide: FundingSide;    // effective side used (after any manual override)
   autoFundingSide: FundingSide; // what the data alone says
   contrarian: Contrarian | null;
-}
-
-/* ── Order-wall proximity (from RaidMeter) ── */
-function wallProximity(price: number, bid: LiqWall[] | null, ask: LiqWall[] | null) {
-  const has = bid !== null || ask !== null;
-  if (!has || price <= 0) return { score: 0, label: '', pct: null as number | null, has: false };
-  const all = [...(bid ?? []), ...(ask ?? [])];
-  if (all.length === 0) return { score: 0, label: 'no walls', pct: null, has: true };
-  const nearest = all.reduce((c, w) => (Math.abs(w.price - price) < Math.abs(c.price - price) ? w : c));
-  const pct = (Math.abs(nearest.price - price) / price) * 100;
-  let score = 0, label = '';
-  if (pct <= 0.5)      { score = 30; label = `${pct.toFixed(2)}% away · tight`; }
-  else if (pct <= 1.0) { score = 22; label = `${pct.toFixed(2)}% away · close`; }
-  else if (pct <= 1.5) { score = 15; label = `${pct.toFixed(2)}% away`; }
-  else if (pct <= 2.5) { score = 8;  label = `${pct.toFixed(2)}% away · far`; }
-  else                 { score = 0;  label = `${pct.toFixed(1)}% · too far`; }
-  return { score, label, pct, has: true };
 }
 
 /* ── Smart Money composite (from SmartMoneyScore, 6 signals ±2 each) ── */
@@ -102,19 +86,17 @@ export function computeContrarian(store: MarketStore): Contrarian | null {
 }
 
 /* ── The full read ── */
-/** `partial`: score WITHOUT a funding rate the selected coin does not have (a coin with no perpetual never gets one), the way order walls are already left out of
- *  the maximum when missing. Off by default: the read then waits for funding (#1494). The dashboard turns it on once its wait is over (#1185 D1). A missing Fear & Greed
+/** `partial`: score WITHOUT a funding rate the selected coin does not have (a coin with no perpetual never gets one), taken out of the
+ *  maximum as well as out of the sum. Off by default: the read then waits for funding (#1494). The dashboard turns it on once its wait is over (#1185 D1). A missing Fear & Greed
  *  still has no read: it is global and recovers on its own. */
 export function computeMarketRead(store: MarketStore, manualFund: FundingSide | null = null, opts: { partial?: boolean } = {}): MarketRead {
   const coin = store.coins[store.selectedCoin];
-  const price = coin?.price ?? 0;
 
   /* An input that has not loaded is not scored (#1494). "Unknown reads as no"
      is the defect class: `store.fng ?? 50` and a missing funding rate read as
      'neu' used to score as Neutral F&G (12/25) and neutral funding (8/30, the
-     lowest funding score). Order walls were already left out of the maximum
-     when missing; F&G and funding are too central to the score to leave out,
-     so the read waits for them instead. A manual funding override counts as
+     lowest funding score). F&G and funding are too central to the score to
+     leave out, so the read waits for them. A manual funding override counts as
      the funding input - the visitor has supplied it. */
   const missing: Array<'fng' | 'funding'> = [];
   if (store.fng == null) missing.push('fng');
@@ -163,14 +145,12 @@ export function computeMarketRead(store: MarketStore, manualFund: FundingSide | 
   const fundLabel = missing.includes('funding') ? 'Reading…'
     : fundingSide === 'pos' ? 'Long-heavy' : fundingSide === 'neg' ? 'Short-heavy' : 'Neutral';
 
-  const wall = wallProximity(price, coin?.orderBidWalls ?? null, coin?.orderAskWalls ?? null);
-
   const fundingLeftOut = opts.partial === true && missing.includes('funding');
   /* What the read is still WAITING on: with funding left out it is only Fear & Greed. Equal to `missing` unless `partial` is on. */
   const waiting = fundingLeftOut ? missing.filter(m => m !== 'funding') : missing;
   const pending = waiting.length > 0;
-  const raw = timeScore + dayScore + fngScore + (fundingLeftOut ? 0 : fundScore) + wall.score;
-  const maxTotal = 30 + 15 + 25 + (fundingLeftOut ? 0 : 30) + (wall.has ? 30 : 0);
+  const raw = timeScore + dayScore + fngScore + (fundingLeftOut ? 0 : fundScore);
+  const maxTotal = 30 + 15 + 25 + (fundingLeftOut ? 0 : 30);
   const score = pending ? null : Math.min(100, Math.round((raw / maxTotal) * 100));
 
   const band: Band | null = score == null ? null : score >= 70 ? 'good' : score >= 45 ? 'mid' : 'weak';
@@ -189,7 +169,6 @@ export function computeMarketRead(store: MarketStore, manualFund: FundingSide | 
   const sm = computeSmartMoney(store);
 
   const factors: Factor[] = [];
-  if (wall.has) factors.push({ key: 'wall', label: 'Order wall', value: wall.pct != null && wall.pct <= 1 ? 'Tight' : wall.label ? 'Nearby' : 'Far', sub: wall.label || undefined });
   factors.push({ key: 'fng', label: 'Fear & Greed', value: fngLabel, sub: fng == null ? undefined : String(fng) });
   /* The sub says how much the weekday adds to the score (out of 15), so the tile states why it is there (#1185). */
   factors.push({ key: 'day', label: 'Day', value: dayLabel, sub: `${dayScore}/15` });

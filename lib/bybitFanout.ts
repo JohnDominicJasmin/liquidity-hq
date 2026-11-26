@@ -78,6 +78,20 @@ export interface FanoutResult {
  * shape opened all ~45 at once, which is what produced the missing symbols this
  * text promised the caller would be told about.
  */
+/* THE WHOLE FAN-OUT HAS A DEADLINE (#1651). Each call had only the guard's own 15 s, so a host that hung made ~50 symbols wait in turn,
+   well past a minute, with the visitor's request held. Now the primary pass stops at FANOUT_PRIMARY_MS, the whole run at
+   FANOUT_DEADLINE_MS, and one call never gets more than FANOUT_CALL_MS. A symbol that did not make it is a miss like any other. */
+export const FANOUT_DEADLINE_MS = 20_000;
+export const FANOUT_PRIMARY_MS = 14_000;
+export const FANOUT_CALL_MS = 8_000;
+
+/** The signal for one call that must be over by `until`; throws when that time has already passed. */
+function callSignal(until: number): AbortSignal {
+  const left = until - Date.now();
+  if (left <= 0) throw new Error('fan-out deadline passed');
+  return AbortSignal.timeout(Math.min(FANOUT_CALL_MS, left));
+}
+
 export async function bybitFanout(
   key: string,
   ttlMs: number,
@@ -145,9 +159,11 @@ export async function symbolFanout(
      * agg-trades at api.binance.com on a 60s TTL - which is the host that
      * already banned this IP once (#228). */
     const data: Record<string, unknown> = {};
+    const started = Date.now();
+    const primaryUntil = started + (fallback ? FANOUT_PRIMARY_MS : FANOUT_DEADLINE_MS);
 
     const stopped = await runPool(symbols, DEFAULT_CONCURRENCY, async (sym) => {
-      const r = await exchangeFetch(buildUrl(sym), { cache: 'no-store' });
+      const r = await exchangeFetch(buildUrl(sym), { cache: 'no-store', signal: callSignal(primaryUntil) });
       if (!r.ok) throw new HttpStatusError(r.status, `${sym} ${r.status}`);
       const v = pick(await r.json());
       if (v != null) data[sym] = v;
@@ -158,7 +174,8 @@ export async function symbolFanout(
       const missing = symbols.filter(s => !(s in data));
       if (missing.length > 0) {
         await runPool(missing, DEFAULT_CONCURRENCY, async (sym) => {
-          const r = await exchangeFetch(fallback.buildUrl(sym), { cache: 'no-store' });
+          const url = fallback.buildUrl(sym);
+          const r = await exchangeFetch(url, { cache: 'no-store', signal: callSignal(started + FANOUT_DEADLINE_MS) });
           if (!r.ok) throw new HttpStatusError(r.status, `${sym} fallback ${r.status}`);
           const v = fallback.pick(await r.json(), sym);
           if (v != null) { data[sym] = v; viaFallback.push(sym); }

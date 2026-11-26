@@ -21,6 +21,7 @@ const EXACT: Record<string, LabelKey> = {
   'Price above 50 EMA - bearish breakdown not confirmed yet': 'EMA_PHASE_FREEZE_SHORT',
   'Between 20 and 50 EMA - ribbon aligned bearish, not in entry zone': 'EMA_PHASE_BETWEEN_SHORT',
   'No clear setup': 'EMA_PHASE_NO_SETUP',
+  'Not enough movement to judge': 'EMA_PHASE_NOT_ENOUGH_MOVEMENT',
   'Loading…': 'EMA_PHASE_LOADING',
   'Selected SMA disagrees with the entry - price at or below the 12-period rolling mean, waiting': 'EMA_PHASE_SEL_SMA_LONG',
   'Selected SMA disagrees with the entry - price at or above the 12-period rolling mean, waiting': 'EMA_PHASE_SEL_SMA_SHORT',

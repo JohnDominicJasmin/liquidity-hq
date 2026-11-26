@@ -109,7 +109,7 @@ test('F6. the route returns fixedLevels from readLevels: statement run on litera
   assert.deepEqual(run({ close: 62000, above: 62615, below: null }), { above: 62615, below: null });
   assert.equal(run(null), null, 'readLevels gave none: null, not an invented pair');
   /* the premise: `levels` IS the readLevels result and the SAME object the prompt quotes */
-  assert.match(route, /let levels: ReturnType<typeof readLevels> = null;/); assert.match(route, /levels = readLevels\(await fetchRibbonCandles\(/);
+  assert.match(route, /let levels: ReturnType<typeof readLevels> = null;/); assert.match(route, /const candles = await fetchRibbonCandles\([^;]*;\s*levels = readLevels\(candles,/);
   assert.match(route, /withReadLevels\([^;]*, levels, READ_TAKER_CONFIRM_PCT\)/, 'the prompt must quote the same `levels` the response carries');
   /* position: the assignment is on the answer that is returned, after the last mutation of result and before the one success response */
   const at = route.indexOf(m![0]), ret = route.indexOf('return NextResponse.json({ result, usage });'), restated = route.lastIndexOf('if (restated)');

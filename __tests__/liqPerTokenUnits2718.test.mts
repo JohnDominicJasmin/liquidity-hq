@@ -64,7 +64,7 @@ test('U4. the Arena page converts only the selected coin once and no longer gate
   const B = [{ coin: 'PEPE', price: 0.0000037, total: 5 }, { coin: 'pepe', price: 0.0000041, total: 3 }, { coin: 'BTC', price: 70_000, total: 9 }, { coin: 'SOL', price: 80, total: 2 }];
   const pepe = run(arenaPriceUnit, B, 'pepe'); assert.ok(near(pepe[0].price, 0.0037) && near(pepe[1].price, 0.0041), 'the selected coin is not in the chart unit'); assert.equal(pepe[2].price, 70_000); assert.equal(pepe[3].price, 80); assert.equal(B[0].price, 0.0000037, 'the input list was mutated');
   assert.deepEqual(run(arenaPriceUnit, B, 'btc'), B, 'an ordinary coin must be unchanged'); assert.ok(near(run(arenaPriceUnit, [{ coin: 'SATS', price: 0.00000042, total: 1 }], 'sats')[0].price, 0.0042), 'sats goes to the 10000x unit');
-  assert.match(page, /topClustersForCoin\(arenaLiqClusters, selectedCoin\)/); assert.match(page, /formatClustersForPrompt\(arenaLiqClusters, selectedCoin\)/); assert.match(page, /resultsCache, arenaLiqClusters, locale\]/, 'the AI context effect must depend on the converted list');
+  assert.match(page, /topClustersForCoin\(arenaLiqClusters, selectedCoin\)/); assert.match(page, /formatClustersForPrompt\(arenaLiqClusters, selectedCoin\)/); assert.match(page, /resultsCache, arenaLiqClusters, liqHistPartial, locale\]/, 'the AI context effect must depend on the converted list');
   assert.doesNotMatch(page, /liqUnitsMixed|liqMixedUnits/, 'the #2707 gating is still in the page'); assert.doesNotMatch(read('components/StrategyPanel.tsx'), /liqMixedUnits|STRATEGY_PANEL_LIQ_MIXED_UNITS/, 'the #2707 chip reason / note is still in the panel');
 });
 

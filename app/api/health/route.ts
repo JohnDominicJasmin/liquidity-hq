@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { _exchangeGuardStats, exchangeDegraded } from '@/lib/exchangeGuard';
 import { checkCronAuth } from '@/lib/cronAuth';
+import { databaseSize } from '@/lib/dbSize';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +39,10 @@ export const dynamic = 'force-dynamic';
  * never into the response.
  *
  * PUBLIC ON PURPOSE, like /api/version: the monitor sends no credentials. The
- * response is a status and two numbers - no key, host, error text or setting name.
+ * response is a status and a few numbers - no key, host, error text or setting name.
+ *
+ * `db_size` is { size_mb, cap_mb, percent } of the database plan's limit, or null when it
+ * could not be read (lib/dbSize.ts, cached for an hour). It never changes `ok`.
  *
  * ONE READ PER 30 s, whoever calls. The result is cached in this process and
  * concurrent callers share the read in flight, so an unauthenticated endpoint
@@ -109,7 +113,7 @@ function currentCheck(): Promise<Check> {
 }
 
 export async function GET(req: Request) {
-  const check = await currentCheck();
+  const [check, dbSize] = await Promise.all([currentCheck(), databaseSize()]);
 
   /* #1649: the exchange breakers, read AT REQUEST TIME and never cached. A cached breaker state reads as current, which is worse
      than no instrument at all - it would have reported "healthy" through the whole of today's Bybit cooldown, and a blip shorter
@@ -129,8 +133,12 @@ export async function GET(req: Request) {
 
   const body = {
     ...check.body,
+    /* Whether this host checks that a request came through Cloudflare before trusting its address headers (lib/rateLimit.ts). A yes or
+       no only, never the value. */
+    originAuthConfigured: Boolean(process.env.ORIGIN_AUTH_SECRET),
     checked_at: new Date(now).toISOString(),
     db_age_ms: dbAgeMs,
+    db_size: dbSize,
     exchanges,
     /* The detailed view is credentialed. /api/health is public, and strikes + cooling window + last upstream status together map
        how close this server is to being rate-limited and how long it stays down - coarse in public, detail behind the secret. */

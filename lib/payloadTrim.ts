@@ -18,7 +18,7 @@ const pick = (o: unknown, keys: readonly string[]): Obj => {
 /** The fields components/MarketProvider.tsx reads from a Bybit linear ticker. */
 export const BYBIT_TICKER_FIELDS = [
   'symbol', 'lastPrice', 'indexPrice', 'markPrice', 'openInterest', 'openInterestValue', 'fundingRate', 'nextFundingTime',
-  'highPrice24h', 'lowPrice24h', 'price24hPcnt', 'turnover24h',
+  'highPrice24h', 'lowPrice24h', 'price24hPcnt', 'turnover24h', 'fundingIntervalHour',
 ] as const;
 
 export function trimBybitTickers(body: unknown): unknown {
