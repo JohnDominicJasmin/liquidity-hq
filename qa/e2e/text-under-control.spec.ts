@@ -153,7 +153,8 @@ async function findTextUnderControls(page: Page): Promise<string[]> {
       /* EACH PAINTED LINE, NOT THE BOX AROUND THEM (2026-11-27). An inline element that wraps has one box per line; the box around
        * them also covers the part of line one that belongs to whatever precedes it. Probing that box reported the support address
        * on /security as covering a sentence that only begins after it. A block element has one box, so nothing changes for it. */
-      const lines = Array.from(el.getClientRects()).filter((r) => r.width >= 2 && r.height >= 2);
+      const lines = Array.from(el.getClientRects()).filter((r) => r.width >= 2 && r.height >= 2
+        && r.bottom >= 0 && r.top <= innerHeight && r.right >= 0 && r.left <= innerWidth);
       const probes: [string, number, number][] = lines.flatMap((r): [string, number, number][] => [
         ['top',    r.left + r.width / 2, r.top + I],
         ['bottom', r.left + r.width / 2, r.bottom - I],
