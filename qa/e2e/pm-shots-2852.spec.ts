@@ -46,43 +46,22 @@ async function open(browser: Browser, width: number, height: number, theme: 'dar
 }
 const ROW = { tour_seen: false, profile_complete: false, checklist_telegram: false, checklist_price_alert: false, checklist_grok: false, checklist_coins: false };
 
-test('#72 wizard keyboard focus, then #71 the tour Example tag', async ({ browser }) => {
+test('#72 what is under the country control', async ({ browser }) => {
   test.skip(!AUTH_READY, 'no fixtures');
-  for (const [w, h] of SIZES) for (const theme of THEMES) {
-    const { ctx, page, stubbed } = await open(browser, w, h, theme, ROW);
+  for (const theme of THEMES) {
+    const { ctx, page } = await open(browser, 390, 844, theme, ROW);
     try {
       await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 150_000 });
-      const shown = await page.locator('[class*="obw-"]').first().waitFor({ state: 'visible', timeout: 90_000 }).then(() => true, () => false); await page.waitForTimeout(3_000);
-      let focus: unknown = null;
-      for (let i = 0; shown && i < 30; i++) {
-        await page.keyboard.press('Tab'); await page.waitForTimeout(150);
-        focus = await page.evaluate(() => { const e = document.activeElement as HTMLElement | null; if (!e || !e.closest('[class*="obw"]')) return null; const s = getComputedStyle(e); return { tag: e.tagName.toLowerCase(), label: (e.innerText || e.getAttribute('aria-label') || e.getAttribute('placeholder') || '').replace(/\s+/g, ' ').slice(0, 40), outline: `${s.outlineWidth} ${s.outlineStyle} ${s.outlineColor}`, shadow: s.boxShadow.slice(0, 60), border: s.borderColor }; });
-        if (focus) break;
-      }
-      await page.waitForTimeout(500);
-      console.log(`[PM] 72 ${w} ${theme}: wizard=${shown} firstFocus=${JSON.stringify(focus)}`);
-      await snap(page, `pm72-wizard-focus-${w}-${theme}`); expect.soft(focus).not.toBeNull();
-      /* the skip button is only on the last step: answer the steps (nothing is saved, every write is answered by the test) */
-      for (let s = 0; s < 6 && !(await page.locator('.obw-skip').isVisible().catch(() => false)); s++) {
-        const country = page.getByRole('button', { name: /select your country/i }).or(page.getByRole('combobox', { name: /country|select/i })).first();
-        if (await country.isVisible().catch(() => false)) { await country.click(); await page.locator('.obw-menu-opt').first().click({ timeout: 10_000 }); }
-        await page.locator('.obw-tile, .obw-row, .obw-chip').first().click({ timeout: 10_000 });
-        await page.locator('.obw-btn-next').click({ timeout: 10_000 }); await page.waitForTimeout(900);
-      }
-      await page.locator('.obw-skip').click({ timeout: 20_000 });
-      const dialog = page.locator('.tour-term-wrap[role="dialog"]');
-      const opened = await dialog.waitFor({ state: 'visible', timeout: 60_000 }).then(() => true, () => false);
-      let found = false; let step = 1; const pressed: string[] = [];
-      for (; opened && step <= 8; step++) {
-        await page.waitForTimeout(800);
-        if (await dialog.getByText('Example', { exact: true }).isVisible().catch(() => false)) { found = true; break; }
-        const next = dialog.locator('button').last(); pressed.push((await next.innerText().catch(() => '')).trim()); await next.click();
-        await page.waitForTimeout(700); if (!(await dialog.isVisible().catch(() => false))) break;
-      }
-      if (found) await page.waitForTimeout(4_500);
-      console.log(`[PM] 71 tour ${w} ${theme}: opened=${opened} exampleTag=${found} onStep=${found ? step : null} pressed=${JSON.stringify(pressed)} writesAnsweredByTest=${JSON.stringify([...new Set(stubbed)])}`);
-      await snap(page, `pm71-tour-example-tag-${w}-${theme}`); expect.soft(found).toBe(true);
+      await page.locator('[class*="obw-"]').first().waitFor({ state: 'visible', timeout: 90_000 }); await page.waitForTimeout(3_000);
+      for (let k = 0; k < 30; k++) { await page.keyboard.press('Tab'); if (await page.evaluate(() => !!document.activeElement?.closest('.obw-select'))) break; }
+      const boxes: string[] = [];
+      for (const [name, loc] of [['.tnav-drop-email', page.locator('.tnav-drop-email')], ['email-text', page.locator('text=/\S+@\S+\.\w+/')]] as const)
+        for (const el of await loc.all()) boxes.push(name + ' ' + JSON.stringify(await el.evaluate((e) => { const r = e.getBoundingClientRect(); const c = getComputedStyle(e); return { tag: e.tagName.toLowerCase(), cls: String(e.className).slice(0, 60), inWizard: !!e.closest('[class*="obw"]'), box: [r.x, r.y, r.width, r.height].map(Math.round), visibility: c.visibility, display: c.display, text: (e.textContent ?? '').replace(/S+@S+.w+/g, '<address>').slice(0, 60) }; })));
+      const under = await page.evaluate(() => { const sel = document.querySelector('.obw-select')!.getBoundingClientRect(); const lab = document.querySelector('#obw-acct-label')!.getBoundingClientRect(); const top = (x: number, y: number) => { const e = document.elementFromPoint(x, y) as HTMLElement | null; return e ? e.tagName.toLowerCase() + '.' + String(e.className).slice(0, 40) + (e.id ? '#' + e.id : '') : null; };
+        return { select: [sel.x, sel.y, sel.width, sel.height].map(Math.round), label: [lab.x, lab.y, lab.width, lab.height].map(Math.round), topAtLabel: top(lab.x + 10, lab.y + lab.height / 2), menuOpen: !!document.querySelector('.obw-menu'), selects: document.querySelectorAll('select').length }; });
+      console.log('[PM] 72 ' + theme + ': dom=' + JSON.stringify(under));
+      console.log('[PM] 72 ' + theme + ': masked by my screenshot=' + JSON.stringify(boxes));
+      await page.screenshot({ path: 'qa/.shots/pm72-wizard-unmasked-region-' + theme + '.png', clip: { x: 0, y: Math.max(0, under.select[1] - 40), width: 390, height: 160 }, mask: [page.locator('.tnav-drop-email:visible')], maskColor: '#ff00ff' });
     } finally { await ctx.close().catch(() => {}); }
   }
 });
-
