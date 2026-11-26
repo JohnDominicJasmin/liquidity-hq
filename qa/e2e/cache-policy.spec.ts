@@ -46,7 +46,8 @@ const SHIPPED: Array<{
   note: string;
   perCaller?: { vary: string; why: string };
 }> = [
-  { path: '/api/market/snapshot', expect: /s-maxage=60\b/,   note: 'Binance + CMC' },
+  /* 45 and 60 since #1651: a shared cache must not hold an answer longer than the server keeps it (ticker 45 s, quote 60 s). */
+  { path: '/api/market/snapshot', expect: /s-maxage=45\b/,   note: 'Binance + CMC' },
   /* NOT A SHARED-CACHE ROUTE SINCE #1263, and this entry must never be "fixed" back.
    *
    * It asserted /s-maxage=60/ for 29 days after the route stopped sending it. The route is
@@ -63,7 +64,7 @@ const SHIPPED: Array<{
     note: 'per-caller merge since #1263 - private, NOT shared',
     perCaller: { vary: 'Authorization', why: 'the body merges Pro and free fields per caller (#1263)' },
   },
-  { path: '/api/macro',           expect: /s-maxage=300\b/,  note: 'Yahoo, er-api' },
+  { path: '/api/macro',           expect: /s-maxage=60\b/,   note: 'Yahoo, er-api' },
   { path: '/api/econ-calendar',   expect: /s-maxage=3600\b/, note: 'ForexFactory, Fed' },
   { path: '/api/ath',             expect: /s-maxage=3600\b/, note: 'CoinGecko' },
 
