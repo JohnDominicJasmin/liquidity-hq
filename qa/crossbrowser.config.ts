@@ -1,4 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
+import { join } from 'node:path';
+import { clearOldReport } from './clearReport.ts';
 import { isProductionTarget, assertProductionRunAllowed } from './prod-readonly.ts';
 
 /* THE CROSS-BROWSER PASS (#1410) - a SEPARATE config, run explicitly.
@@ -31,6 +33,8 @@ import { isProductionTarget, assertProductionRunAllowed } from './prod-readonly.
  * discipline as the control host in #1397's load measurement.
  */
 
+clearOldReport(join(__dirname, 'crossbrowser-report.json'));
+
 const BASE_URL = process.env.E2E_BASE_URL?.replace(/\/$/, '');
 if (!BASE_URL) {
   throw new Error(
@@ -60,6 +64,7 @@ const MOBILE = { width: 390, height: 844 };
 
 export default defineConfig({
   testDir: './e2e',
+  metadata: { target: BASE_URL, startedAt: new Date().toISOString() },
   /* Only this pass's own spec. The rest of the suite is Chromium-tuned - it signs in,
      stubs routes and asserts selector-level detail that has no business being a
      cross-engine claim - and running it here would produce failures nobody would act on. */

@@ -1,6 +1,7 @@
 // Summarise qa/crossbrowser-report.json: every annotation per page x project, then which values DIFFER across engines.
 const fs = require('fs');
 const rep = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+console.log(`run started ${rep.stats?.startTime ?? '(not recorded)'} against ${rep.config?.metadata?.target ?? '(not recorded)'}`);
 const rows = [];
 const walk = (s) => {
   for (const sp of s.specs ?? []) for (const t of sp.tests ?? []) for (const r of t.results ?? []) {
