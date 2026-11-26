@@ -40,6 +40,8 @@ export const ROUTES = [
   '/hours', '/econ-calendar', '/playbook', '/arena', '/dashboard', '/scanner',
   '/correlation', '/funding', '/liq', '/research', '/briefing',
   '/journal', '/alerts', '/settings', '/offline', '/ops/login',
+  /* added 2026-11-26 (#1185 item 82): shipped 2026-10-30 and swept by nothing until now */
+  '/help', '/changelog', '/security', '/status', '/accessibility',
 ] as const;
 
 /* Hidden behind a redirect, and asserted as such by `hidden-routes.spec.ts`.
@@ -741,6 +743,17 @@ export async function servedLabels(request: APIRequestContext, locale = 'en'): P
  * was visible at 375px and all elements collapsed to inline size. Numbers from
  * an unstyled render are worse than no numbers, because they look real.
  */
+/**
+ * THE PAGE ASKED FOR IS THE PAGE MEASURED. A redirect answers 200, so a sweep would score another page under this one's
+ * name and report it clean (#1185 item 82). Compares paths only; a query or a hash may differ. Routes that are meant to
+ * redirect are listed in HIDDEN_ROUTES and asserted by hidden-routes.spec.ts, never swept.
+ */
+export function expectServed(page: Page, path: string): void {
+  const asked = new URL(path, 'http://sweep.invalid').pathname;
+  const served = new URL(page.url()).pathname;
+  if (served !== asked) throw new Error(`${path} was served ${served}: this sweep would have measured the wrong page`);
+}
+
 export async function settle(page: Page, path: string): Promise<void> {
   const res = await gotoGuarded(page, path);
 
@@ -749,6 +762,7 @@ export async function settle(page: Page, path: string): Promise<void> {
   }
   // Client components fetch on mount; give them room before measuring.
   await page.waitForTimeout(2500);
+  expectServed(page, path);
 
   const css = await page.evaluate(() => {
     const bg = getComputedStyle(document.body).backgroundColor;

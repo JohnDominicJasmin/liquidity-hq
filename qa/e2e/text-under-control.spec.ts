@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { ROUTES, gotoGuarded } from './_shared';
+import { ROUTES, gotoGuarded, expectServed } from './_shared';
 import { signedInContext, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
 import { installMarketFixtures } from './_fixtures';
 import { installPaidAiFence } from './_no-paid-ai';
@@ -499,6 +499,7 @@ test.describe('text is not silently tappable as a control', () => {
       for (const route of ROUTES) {
         await gotoGuarded(page, route);
         await settleForGeometry(page);
+        expectServed(page, route);
 
         /* A route that renders nothing reports nothing, and nothing looks like
          * a pass. Same guard and same 50-element floor as a11y.spec.ts, which
