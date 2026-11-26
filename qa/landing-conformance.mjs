@@ -180,15 +180,10 @@ const DESKTOP = () => {
 
   /* C15 — Pro plan border-top */
   const accent = tok('--accent');
-  /* `.pop()` takes the DEEPEST element containing "$25" — the price <div>
-     itself, whose border-top is legitimately 0px. The card is an ANCESTOR of
-     that node. Walk up from the price until a border-top actually exists,
-     which is what the criterion is about. */
-  const priceNode = [...document.querySelectorAll('*')].filter(e => vis(e) && /\$25/.test(txt(e)) && txt(e).length < 400).pop();
-  let proCard = null;
-  for (let n = priceNode, hops = 0; n && hops < 6; n = n.parentElement, hops++) {
-    if (getComputedStyle(n).borderTopWidth !== '0px') { proCard = n; break; }
-  }
+  /* ANCHORED ON THE PRICING SECTION, NOT ON A PRICE. It looked for "$25" and so found nothing once Pro became $49.
+     A plan card is the parent of a price line inside #pricing; the Pro card is the one whose price is not $0. */
+  const priceLines = [...document.querySelectorAll('#pricing div')].filter(e => vis(e) && [...e.childNodes].some(n => n.nodeType === 3 && /^\s*\$\d/.test(n.textContent)));
+  const proCard = priceLines.find(e => !/^\s*\$0(?!\d)/.test(e.textContent))?.parentElement ?? null;
   const c15 = proCard ? { w: getComputedStyle(proCard).borderTopWidth, c: (hex(getComputedStyle(proCard).borderTopColor) || '').toLowerCase(), accent } : null;
 
   /* C16 — live read panel width */
@@ -270,8 +265,10 @@ const MOBILE = () => {
          return r.top < 200 && r.height > 0 && r.height < 60 && (e.textContent.match(/\$[\d,]+/g) || []).length >= 3;
        });
   const txt = e => (e.textContent || '').replace(/\s+/g, ' ').trim();
-  const free = [...document.querySelectorAll('*')].filter(e => vis(e) && /\$0/.test(txt(e)) && txt(e).length < 400).pop();
-  const pro = [...document.querySelectorAll('*')].filter(e => vis(e) && /\$25/.test(txt(e)) && txt(e).length < 400).pop();
+  /* The same anchor as C15: the two plan cards, whatever Pro costs. */
+  const priceLines = [...document.querySelectorAll('#pricing div')].filter(e => vis(e) && [...e.childNodes].some(n => n.nodeType === 3 && /^\s*\$\d/.test(n.textContent)));
+  const free = priceLines.find(e => /^\s*\$0(?!\d)/.test(e.textContent))?.parentElement ?? null;
+  const pro = priceLines.find(e => !/^\s*\$0(?!\d)/.test(e.textContent))?.parentElement ?? null;
   /* Same structural lookup as C5 — see the note there on why the class hook
      was wrong. */
   const footerEl = Q('footer, .pf-footer')[0];

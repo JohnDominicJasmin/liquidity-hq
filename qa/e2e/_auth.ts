@@ -9,10 +9,11 @@ import { gotoGuarded } from './_shared';
 /**
  * Credentials + token minting for the authenticated specs.
  *
- * Two accounts, both on the DEV Supabase project only. A is seeded with one row
- * in each table under test; B is deliberately empty, because the BOLA test is
- * "B asks for A's rows by id and must be refused" - giving B its own data would
- * only obscure that.
+ * All fixtures are on the DEV Supabase project only. WHICH ONE IS PRO: A. B is Free.
+ * C is the one a real purchase may change, T carries a trial date, ADMIN is the ops account.
+ * A is seeded with one row in each table under test. B has one price alert of its
+ * own (so A has a row it does not own to attempt) and is otherwise empty, because
+ * the BOLA test is "B asks for A's rows by id and must be refused".
  *
  * Passwords rather than tokens on purpose: a Supabase access token expires in
  * about an hour, so a pasted token passes once and then fails CI the next day.
@@ -224,7 +225,7 @@ export const BILLED_CALLS_SKIP_REASON =
  *   A -> role='pro',  trial_ends_at NULL
  *   B -> role='free', trial_ends_at NULL
  *
- * No third account, and no dates. Both were previously `free` with a trial
+ * These two carry no dates (C, T and ADMIN are separate and are not part of this pin). Both were previously `free` with a trial
  * running to 2026-08-19, which meant BOTH got Pro features - so B as a "free"
  * fixture would have proven nothing about the free boundary while the trial ran,
  * then started proving it silently on the 20th, mid-launch-week.
