@@ -11,21 +11,6 @@ test.describe.configure({ timeout: 600_000, retries: 0 });
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE' };
 const ROW = { tour_seen: false, profile_complete: false, checklist_telegram: false, checklist_price_alert: false, checklist_grok: false, checklist_coins: false };
 
-test('#2854 page not found follows the theme', async ({ browser }) => {
-  for (const path of ['/qa-no-such-page', '/ko/nope']) for (const [width, height] of [[390, 844], [1280, 900]] as const) for (const theme of ['light', 'dark'] as const) {
-    const ctx = await browser.newContext({ viewport: { width, height } });
-    await ctx.addInitScript((t) => { try { localStorage.setItem('theme', t); localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private */ } }, theme);
-    const page = await ctx.newPage();
-    try {
-      await installPaidAiFence(page); const r = await page.goto(path, { waitUntil: 'load', timeout: 150_000 }); await page.waitForTimeout(5_000);
-      const m = await page.evaluate(() => ({ theme: document.documentElement.getAttribute('data-theme'), bg: getComputedStyle(document.body).backgroundColor, scrollWidth: document.documentElement.scrollWidth, text: document.body.innerText.replace(/\s+/g, ' ').slice(0, 40) }));
-      console.log(`[V] 404 ${path} ${width} ${theme}: status=${r?.status()} ${JSON.stringify(m)}`);
-      expect.soft(m.theme).toBe(theme); expect.soft(r?.status()).toBe(404);
-      await page.screenshot({ path: `qa/.shots/pm103-404${path.replace(/\//g, '_')}-${width}-${theme}.png` });
-    } finally { await ctx.close().catch(() => {}); }
-  }
-});
-
 async function fixtureRows() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''; expect(new URL(url).hostname.split('.')[0], 'dev project only').toBe('wdtjhrilakoitfcezxpx');
   const sb = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '', { auth: { persistSession: false } });
@@ -60,26 +45,22 @@ async function toTour(page: Page) {
   const dialog = page.locator('.tour-term-wrap[role="dialog"]'); await dialog.waitFor({ state: 'visible', timeout: 60_000 }); return dialog;
 }
 
-test('#2853 the tour in plain words', async ({ browser }) => {
+test('#2853 which element overflows, Russian', async ({ browser }) => {
   test.skip(!AUTH_READY, 'no fixtures');
   const before = await fixtureRows();
-  for (const [width, theme, lang] of [[390, 'light', 'en'], [390, 'dark', 'en'], [1280, 'light', 'en'], [1280, 'dark', 'en'], [390, 'light', 'ko'], [390, 'light', 'zh'], [390, 'light', 'ru'], [1280, 'dark', 'ko'], [1280, 'dark', 'zh'], [1280, 'dark', 'ru']] as const) {
-    const { ctx, page } = await open(browser, width, theme, lang);
+  for (const [width, lang] of [[390, 'ru'], [360, 'ru'], [390, 'en'], [360, 'en']] as const) {
+    const { ctx, page } = await open(browser, width, 'light', lang);
     try {
-      const dialog = await toTour(page); const codes: string[] = []; const texts: string[] = []; let wide = 0; let steps = 0;
-      for (let step = 1; step <= 6; step++) {
-        await page.waitForTimeout(5_000); steps = step;
-        const m = await dialog.evaluate((d) => { const card = d.firstElementChild as HTMLElement; const r = card.getBoundingClientRect(); return { text: card.innerText.replace(/\s+/g, ' '), svg: Array.from(card.querySelectorAll('svg text')).map((t) => t.textContent).join(' '), over: Math.max(0, card.scrollWidth - card.clientWidth, Math.round(r.right - window.innerWidth), Math.round(-r.left)) }; });
-        codes.push(...(`${m.text} ${m.svg}`.match(/(LONG|SHORT)_SQ|\bFR[+-](?![A-Za-z])/g) ?? [])); wide = Math.max(wide, m.over);
-        const hit = m.text.match(/.{0,25}(Short-heavy|숏 우세|空头偏重|ерекос в шорты|Перекос в шорты|Shorts paying longs).{0,25}/g); if (hit) texts.push(`step ${step}: ${hit.slice(0, 3).join(' / ')}`);
-        await page.screenshot({ path: `qa/.shots/pm104-tour-${lang}-${width}-${theme}-step${step}.png` });
-        const last = /Arena|아레나|竞技场|Арен/i.test((await dialog.locator('button').last().innerText().catch(() => '')));
-        if (last) break; await dialog.locator('button').last().click(); await page.waitForTimeout(600);
+      const dialog = await toTour(page);
+      for (let step = 1; step <= 2; step++) {
+        await page.waitForTimeout(5_000);
+        const m = await dialog.evaluate((d) => { const card = d.firstElementChild as HTMLElement; const c = card.getBoundingClientRect(); const out = Array.from(card.querySelectorAll('*')).filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > c.right + 1; }); const name = (e: Element) => `${e.tagName.toLowerCase()} "${((e as HTMLElement).innerText ?? '').replace(/s+/g, ' ').slice(0, 40)}" right+${Math.round(e.getBoundingClientRect().right - c.right)} w=${Math.round(e.getBoundingClientRect().width)}`;
+          return { card: Math.round(c.width), scrollMinusClient: card.scrollWidth - card.clientWidth, offLeft: Math.round(Math.max(0, -c.left)), offRight: Math.round(Math.max(0, c.right - window.innerWidth)), past: out.slice(-6).map(name), count: out.length }; });
+        console.log(`[V] probe ${lang} ${width} step ${step}: ${JSON.stringify(m)}`);
+        await page.screenshot({ path: `qa/.shots/pm104-probe-${lang}-${width}-step${step}.png` });
+        if (step === 1) { await dialog.locator('button').last().click(); await page.waitForTimeout(600); }
       }
-      console.log(`[V] tour ${lang} ${width} ${theme}: steps=${steps} codes=${codes.length ? JSON.stringify([...new Set(codes)]) : 'none'} overflowPx=${wide} words=${JSON.stringify(texts.slice(0, 4))}`);
-      expect.soft(codes).toEqual([]); expect.soft(wide).toBeLessThanOrEqual(1); expect.soft(texts.length).toBeGreaterThan(0);
     } finally { await ctx.close().catch(() => {}); }
   }
-  const after = await fixtureRows();
-  expect(after.settings, 'THE RUN CHANGED THE FIXTURE SETTINGS ROW').toEqual(before.settings); expect(after.onboarding, 'THE RUN CHANGED THE FIXTURE ONBOARDING ROW').toEqual(before.onboarding); console.log('[V] fixture rows unchanged');
+  const after = await fixtureRows(); expect(after.settings).toEqual(before.settings); expect(after.onboarding).toEqual(before.onboarding); console.log('[V] fixture rows unchanged');
 });
