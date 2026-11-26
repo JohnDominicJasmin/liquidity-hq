@@ -146,7 +146,7 @@ function Step5Visual() {
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 7 }}>
       {/* Chart */}
       <div style={{ position: 'relative', background: BG0, border: `1px solid ${BDR}`, borderRadius: 10, padding: '8px 8px 4px' }}>
-        {/* Everything in this visual is fixed (BTC, 87, LONG_SQ, the alert)
+        {/* Everything in this visual is fixed (BTC, 87, the setup, the alert)
             and it sits beside copy saying the scanner is live, so it is marked
             as an illustration. Overlaid on the chart's empty top-left corner -
             the candles and EMA lines start well below it there - so it adds no
@@ -235,8 +235,9 @@ function Step5Visual() {
           <span style={{
             fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 100,
             background: withAlpha(GREEN, '18'), color: GREEN, fontFamily: MONO, fontWeight: 700, letterSpacing: '.05em',
-          }}>LONG_SQ</span>
-          {(['EMA ×', 'VOL 2.1×', 'FR+'] as const).map(chip => (
+          }}>{t('SETUP_WORD_SQUEEZE')}</span>
+          {/* The setup and the funding chip read in the app's own words (#1185), not internal codes. */}
+          {['EMA ×', 'VOL 2.1×', t('SPOTLIGHT_TOUR_CHIP_SHORTS_PAYING')].map(chip => (
             <span key={chip} style={{
               fontSize: 'var(--fs-caption)', padding: '2px 6px', borderRadius: 4, fontFamily: MONO, fontWeight: 600,
               background: withAlpha(ACCENT, '12'), color: ACCENT, border: `1px solid ${withAlpha(ACCENT, '22')}`,
