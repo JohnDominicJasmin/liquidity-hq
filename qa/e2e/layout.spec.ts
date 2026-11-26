@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { ROUTES, gotoGuarded } from './_shared';
+import { ROUTES, gotoGuarded, expectServed } from './_shared';
 import { installMarketFixtures } from './_fixtures';
 
 /* Does the page LAY OUT correctly — not "is the DOM right".
@@ -496,6 +496,7 @@ test.describe('layout', () => {
       for (const route of ROUTES) {
         await gotoGuarded(page, route, { waitUntil: 'domcontentloaded' });
         await settleForGeometry(page);
+        expectServed(page, route);
         const { obscured, zeroSized } = await findLayoutDefects(page);
         for (const o of obscured) found.add(`${route}: ${o}`);
         for (const z of zeroSized) zero.push(`${route}: ${z}`);
@@ -634,6 +635,7 @@ test.describe('layout', () => {
       for (const route of ROUTES) {
         await gotoGuarded(page, route, { waitUntil: 'domcontentloaded' });
         await settleForGeometry(page);
+        expectServed(page, route);
         const { obscured } = await findLayoutDefects(page);
         for (const o of obscured) found.add(`${route}: ${o}`);
       }
