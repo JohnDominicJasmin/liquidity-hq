@@ -30,7 +30,12 @@ for (const lang of ['en', 'ko'] as const) {
       await installPaidAiFence(page);
       for (const path of ['/help', '/about', '/scanner']) {
         await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 150_000 }); await page.waitForTimeout(9_000);
-        const t = await page.evaluate(() => document.body.textContent?.replace(/\s+/g, ' ') ?? '');
+        let t = await page.evaluate(() => document.body.textContent?.replace(/\s+/g, ' ') ?? '');
+        if (path === '/help') { /* answers are only in the page once opened */
+          t = ''; const q = page.locator('main button[aria-expanded]'); const n = await q.count();
+          for (let i = 0; i < n; i++) { await q.nth(i).click().catch(() => {}); await page.waitForTimeout(150); const now = await page.evaluate(() => document.querySelector('main')?.textContent?.replace(/\s+/g, ' ') ?? ''); if (!t.includes(now)) t += ' ' + now; }
+          console.log(`[E] ${lang} /help: opened ${n} questions`);
+        }
         const hits = [...t.matchAll(/.{0,50}(?<![\d.])(65|70)(\+| or (?:above|higher)| 이상).{0,20}/g)].map((m) => m[0]);
         console.log(`[E] ${lang} ${path}: ${hits.length ? JSON.stringify(hits.slice(0, 3)) : 'no score sentence found'}`);
         expect.soft(hits.join(' '), `${lang} ${path}`).toMatch(/65/); expect.soft(hits.join(' '), `${lang} ${path}`).not.toMatch(/70(\+| or | 이상)/);
