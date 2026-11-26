@@ -33,10 +33,8 @@ export default function NotFoundContent() {
           NO ANIMATION. An empty chart that animates is a chart pretending something is coming.
 
           COLOUR COMES FROM `currentColor`, NOT A TOKEN, so the same markup is correct on both 404s.
-          app/global-not-found.tsx hardcodes data-theme="dark" and carries no theme script (#1740),
-          while app/(main)/not-found.tsx inherits the viewer's theme through RootDocument - so a
-          token colour would be right on one page and wrong on the other. Inheriting the muted text
-          colour of whichever page renders it sidesteps that instead of waiting for #1740.
+          both app/global-not-found.tsx and app/(main)/not-found.tsx follow the viewer's theme, and
+          inheriting the muted text colour of whichever page renders it needs no token of its own.
 
           NO NEW CSS. app/globals.css is a landing-gated file (CONTRIBUTING 3c), and a grid of
           hairlines is not worth spending a rendered landing check on. Inline, like the rest of
