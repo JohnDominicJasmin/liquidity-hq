@@ -18,6 +18,8 @@ type Row = Record<string, unknown>;
 const OWN: Array<[string, string]> = [['user_settings', 'user_id'], ['user_onboarding', 'user_id'], ['user_status', 'user_id'], ['muted_alerts', 'user_id'], ['price_alerts', 'user_id'], ['push_subscriptions', 'user_id'], ['telegram_link_codes', 'user_id'],
   ['trades', 'user_id'], ['hypotheses', 'user_id'], ['hypothesis_evidence', 'user_id'], ['grok_usage', 'user_id'], ['ai_call_log', 'user_id'], ['admin_users', 'user_id'], ['admin_audit_log', 'target_user_id']];
 
+interface Chain { eq: (c: string, v: unknown) => Chain; in: (c: string, v: unknown[]) => Chain; is: (c: string, v: null) => Chain; then: (ok: (x: unknown) => unknown, bad?: (e: unknown) => unknown) => Promise<unknown> }
+
 function world(users: AuthAccount[], tables: Record<string, Row[]> = {}, o: { cascade?: boolean } = {}) {
   /* `fail` names one thing that is down: 'list', a table (its reads), 'one <table>' (only the read of a single account), 'delete <table>', 'insert <table>', 'delete account'. */
   const w = { users, tables, log: [] as string[], fail: [] as string[], noCount: '', confirmOnReread: '', changeOnReread: null as Row | null };
@@ -53,10 +55,10 @@ function world(users: AuthAccount[], tables: Record<string, Row[]> = {}, o: { ca
           return { data: head ? null : hit.map((r) => ({ ...r })), count: w.noCount === name ? null : hit.length, error: null };
         };
         const add = (keep: (r: Row) => boolean, text: string, one = false) => { filters.push({ keep, text, one }); return chain; };
-        const chain = {
-          eq: (c: string, v: unknown): typeof chain => add((r) => r[c] === v, `eq ${c}=${v}`, true),
-          in: (c: string, v: unknown[]): typeof chain => add((r) => v.includes(r[c]), `in ${c}=${v.join(',')}`),
-          is: (c: string, v: null): typeof chain => add((r) => (r[c] ?? null) === v, `is ${c}=${v}`),
+        const chain: Chain = {
+          eq: (c, v) => add((r) => r[c] === v, `eq ${c}=${v}`, true),
+          in: (c, v) => add((r) => v.includes(r[c]), `in ${c}=${v.join(',')}`),
+          is: (c, v) => add((r) => (r[c] ?? null) === v, `is ${c}=${v}`),
           then: (ok: (x: unknown) => unknown, bad?: (e: unknown) => unknown) => Promise.resolve(run()).then(ok, bad),
         };
         return chain;
