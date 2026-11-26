@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, BILLED_CALLS_READY, BILLED_CALLS_SKIP_REASON } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
 import { chip } from './_shared';
+import { writesAccountA } from './_one-at-a-time';
 
 /* #1348 item 1 (from #1347's audit) - the audit's headline target.
  *
@@ -52,6 +53,8 @@ import { chip } from './_shared';
  */
 
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+
+writesAccountA(test);
 test.skip(!BILLED_CALLS_READY, BILLED_CALLS_SKIP_REASON);
 
 test.describe('QUICK/DEEP must send the selection current at click time, not a stale one (#1348 item 1)', () => {

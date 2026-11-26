@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
 import { chip } from './_shared';
+import { writesAccountA } from './_one-at-a-time';
 
 /* #1253 (#1246): a chip clicked on the Strategy Panel before the settings
  * DB read lands must not write an empty/narrowed selection over a real
@@ -27,6 +28,8 @@ import { chip } from './_shared';
  */
 
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+
+writesAccountA(test);
 
 async function resetStrategySelection(page: import('@playwright/test').Page, selection: string[]) {
   const result = await page.evaluate(async (sel) => {

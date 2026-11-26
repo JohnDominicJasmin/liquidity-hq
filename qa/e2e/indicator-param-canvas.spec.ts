@@ -3,6 +3,7 @@ import { gotoSignedIn, signedInContext, AUTH_READY, AUTH_SKIP_REASON } from './_
 import { killTransitions, snapshotCanvases, quietSnapshot, chartChanged } from './_chart';
 import { installPaidAiFence } from './_no-paid-ai';
 import { chip } from './_shared';
+import { writesAccountA } from './_one-at-a-time';
 
 /**
  * Pins #1008's fix (Pro subscribers edit indicator parameters and the chart
@@ -27,6 +28,8 @@ import { chip } from './_shared';
  * rather than trusting the status code.
  */
 
+
+writesAccountA(test);
 test.describe('indicator parameter edits reach the chart (#1008)', () => {
   test.skip(!AUTH_READY, AUTH_SKIP_REASON);
 
