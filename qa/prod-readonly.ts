@@ -117,6 +117,7 @@ export const PROD_READONLY_SPECS: ReadonlyArray<{ spec: string; needs: Needs; no
   { spec: 'changelog-1127', needs: 'none', note: 'the /changelog top entries for v2026.11.27, .26 and .25 in order with the date; GETs only' },
   { spec: 'contrast-2790', needs: 'none', note: 'colour contrast of the Bybit venue labels on /funding and the ticker badge on /learn, both themes; signed out, nothing written' },
   { spec: 'nofail-sweep', needs: 'none', note: 'the no-failing-data sweep: every page signed out at 390 and 1280, GETs only, collects visible failing-data words and placeholders' },
+  { spec: 'prod-release-1128', needs: 'none', note: 'signed-out prod checks of release v2026.11.28: version, health, changelog, RSI for every coin, Market Read tiles, Live Liquidations; GETs only, every other request answered by the test' },
   { spec: 'funding-venue-33', needs: 'none', note: 'item 33: reads the /funding table and the responses the page itself receives, signed out, GETs only' },
   { spec: 'prod-release-1124', needs: 'none', note: 'signed-out prod checks of release v2026.11.24: changelog entry, the Liq layer in the chart unit for PEPE / BONK / sats / tag / toshi / turbo (one local chip toggle), version; GETs only, nothing written, no AI read' },
   { spec: 'a11y', needs: 'none', note: 'route sweep: spends the per-IP rate limit, one worker' },
