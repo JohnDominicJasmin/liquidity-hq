@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { stripTypeScriptTypes } from 'node:module';
+import ts from 'typescript';
 import { feedState } from '../lib/feedStatus.ts';
 
 const src = readFileSync(new URL('../components/MarketProvider.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
@@ -18,7 +18,7 @@ function lift(name: string) {
 type State = { pricesFailed: boolean; wsStatus: string; coins: Record<string, { price?: number; rsi?: number }> };
 function world(start: Partial<State> = {}, answer: () => Promise<unknown> = async () => []) {
   const box = { state: { pricesFailed: false, wsStatus: 'Connecting...', coins: {}, ...start } as State };
-  const code = stripTypeScriptTypes(['updateCoin', 'updateCoins', 'seedPrices', 'restPoll'].map(lift).join('\n'));
+  const code = ts.transpileModule(['updateCoin', 'updateCoins', 'seedPrices', 'restPoll'].map(lift).join('\n'), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const api = new Function('useCallback', 'setStore', 'fetch', 'BINANCE_SPOT_SYMS', 'SYM_MAP', 'deadlineSignal', 'REST_POLL_TIMEOUT_MS', `${code}\nreturn { updateCoin, updateCoins, seedPrices, restPoll };`)(
     (f: unknown) => f,
     (u: (s: State) => State) => { box.state = u(box.state); },
