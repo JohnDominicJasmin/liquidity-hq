@@ -18,13 +18,13 @@ for (const [width, height] of [[390, 844], [1280, 720]] as const) {
             const box = (r: DOMRect) => [r.left, r.top, r.right, r.bottom].map((v) => Math.round(v * 10) / 10);
             const A = a.getBoundingClientRect(); const cs = getComputedStyle(a); const parent = a.parentElement!; const pcs = getComputedStyle(parent);
             const hits: Array<Record<string, unknown>> = [];
-            const walker = document.createTreeWalker(parent.closest('p,li,div') ?? parent, NodeFilter.SHOW_TEXT);
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); /* every text on the page: the reached words sit in sibling blocks */
             for (let t = walker.nextNode(); t; t = walker.nextNode()) {
               const el = t.parentElement!; if (a.contains(el) || !t.textContent?.trim()) continue; const range = document.createRange(); range.selectNodeContents(t);
               for (const r of Array.from(range.getClientRects())) {
                 const overlapX = Math.min(r.right, A.right) - Math.max(r.left, A.left), overlapY = Math.min(r.bottom, A.bottom) - Math.max(r.top, A.top);
-                if (overlapX <= 0.5 || overlapY <= 0.5) continue;
-                const tapped: number[] = []; for (const dy of [0.5, 1.5, r.height / 2, r.height - 1.5]) { const x = Math.max(r.left, A.left) + overlapX / 2, y = r.top + dy; if (document.elementFromPoint(x, y)?.closest('a') === a) tapped.push(Math.round(dy * 10) / 10); }
+                if (overlapX <= 0.5 || overlapY <= 0.05) continue;
+                const tapped: number[] = []; for (const dy of [0.25, 0.5, 1, 1.5, 2, r.height / 2, r.height - 2, r.height - 1, r.height - 0.5]) { const x = Math.max(r.left, A.left) + overlapX / 2, y = r.top + dy; if (document.elementFromPoint(x, y)?.closest('a') === a) tapped.push(Math.round(dy * 10) / 10); }
                 hits.push({ element: el.tagName.toLowerCase() + (el.className ? '.' + String(el.className).split(' ')[0] : ''), text: t.textContent!.replace(/\s+/g, ' ').trim().slice(0, 50), line: box(r), overlap: [Math.round(overlapX), Math.round(overlapY * 10) / 10], tapAtDyReachesLink: tapped });
               }
             }
