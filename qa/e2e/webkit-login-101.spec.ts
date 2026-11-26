@@ -20,7 +20,7 @@ async function throughGate(ctx: BrowserContext) {
 async function login(playwright: typeof import('@playwright/test'), engine: 'webkit' | 'chromium', device: string) {
   const browser = await (playwright as unknown as Record<string, import('@playwright/test').BrowserType>)[engine].launch();
   const { defaultBrowserType: _ignored, ...d } = devices[device];
-  const ctx = await browser.newContext({ ...d, baseURL: process.env.E2E_BASE_URL || 'http://localhost:3100' });
+  const ctx = await browser.newContext({ ...d, baseURL: process.env.E2E_BASE_URL || 'http://localhost:3100', serviceWorkers: 'block' /* on WebKit the app's worker carried the sign-up POST past the stub (run 45811907745): one real unconfirmed account was made on dev */ });
   await throughGate(ctx);
   await ctx.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'en'); localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private */ } });
   const page = await ctx.newPage(); const errors: string[] = [];
@@ -70,7 +70,7 @@ for (const engine of ['webkit', 'chromium'] as const) for (const [profile, devic
     const { browser, page, errors } = await login(playwright as never, engine, device);
     try {
       let body: Record<string, unknown> | null = null;
-      await page.route(/\/auth\/v1\/signup/, async (route) => {
+      await page.context().route(/\/auth\/v1\/signup/, async (route) => {
         if (route.request().method() !== 'POST') { await route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST' } }); return; }
         body = route.request().postDataJSON() as Record<string, unknown>;
         await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ id: '00000000-0000-4000-8000-000000000101', aud: 'authenticated', role: '', email: 'qa-101@example.test', identities: [{ id: 'qa' }], created_at: new Date().toISOString() }) });
