@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { AUTH_READY, AUTH_SKIP_REASON, FIXTURES, SUPABASE_URL, SUPABASE_ANON } from './_auth';
+import { writesAccountA } from './_one-at-a-time';
 
 /* #1201 / #1188 part 3's exact "How to test (QA)" scenario, made automatic.
  *
@@ -34,6 +35,7 @@ import { AUTH_READY, AUTH_SKIP_REASON, FIXTURES, SUPABASE_URL, SUPABASE_ANON } f
 
 test.describe('settings survive a reload after a failed save (#1201, #1188 part 3)', () => {
   test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+  writesAccountA(test);
 
   test('a locally-unsaved account_size change is not silently overwritten by the DB on reload', async ({ browser }) => {
     const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {

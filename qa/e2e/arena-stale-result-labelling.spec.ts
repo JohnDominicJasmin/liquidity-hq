@@ -2,6 +2,7 @@ import { test, expect, type Page, type Browser } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
 import { servedLabels, chip } from './_shared';
 import { installPaidAiFence } from './_no-paid-ai';
+import { writesAccountA } from './_one-at-a-time';
 
 /* #1347 item 4 (#1365, fix by Dev Team) - a read computed for one indicator
  * selection kept being SHOWN after the trader changed the selection, and only
@@ -45,6 +46,8 @@ import { installPaidAiFence } from './_no-paid-ai';
  */
 
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+
+writesAccountA(test);
 
 const MARKER = 'STALE-MARKER-7741';
 

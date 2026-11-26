@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
+import { writesAccountA } from './_one-at-a-time';
 
 /* #1347 item 5 (#1368, fix by Dev Team, follow-up 91f388fd) - while the EMA
  * hook is LOADING (a coin or timeframe switch it has not finished fetching for),
@@ -59,6 +60,8 @@ import { installPaidAiFence } from './_no-paid-ai';
  */
 
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+
+writesAccountA(test);
 
 const CAVEAT = '[Still loading EMA technicals';
 

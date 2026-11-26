@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
 import { chip } from './_shared';
+import { writesAccountA } from './_one-at-a-time';
 
 /* #1347 item 11, chart half (#1369, fix by Dev Team) - the strategy-indicator
  * sync effect in KLineProChart had silent failure paths, so the chart could
@@ -49,6 +50,8 @@ import { chip } from './_shared';
  */
 
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+
+writesAccountA(test);
 
 const FLAG = '__LHQ_QA_FORCE_CHART_INDICATOR_FAIL__';
 const BADGE = /Couldn.t draw:/;

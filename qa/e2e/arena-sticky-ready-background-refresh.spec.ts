@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
 import { chip } from './_shared';
+import { writesAccountA } from './_one-at-a-time';
 
 /* PM/DevOps's own audit target on the #1347 fix, automated: a failed
  * BACKGROUND settings refresh must not demote an already-'ready' status
@@ -34,6 +35,8 @@ import { chip } from './_shared';
  */
 
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+
+writesAccountA(test);
 
 async function resetStrategySelection(page: import('@playwright/test').Page, selection: string[]) {
   const result = await page.evaluate(async (sel) => {

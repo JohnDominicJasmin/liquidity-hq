@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { signedInContext, gotoSignedIn, AUTH_READY, AUTH_SKIP_REASON, SUPABASE_URL } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
+import { writesAccountA } from './_one-at-a-time';
 
 /* #1347/#1348 item 19 (#1355, fix by Dev Team) - components/TimezoneSync.tsx
  * gated its automatic settings write on `loading`, which flips false as
@@ -46,6 +47,8 @@ import { installPaidAiFence } from './_no-paid-ai';
  */
 
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+
+writesAccountA(test);
 
 async function resetTimezone(page: import('@playwright/test').Page, timezone: string) {
   const result = await page.evaluate(async (tz) => {

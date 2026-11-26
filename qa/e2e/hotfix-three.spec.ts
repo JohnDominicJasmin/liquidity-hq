@@ -9,8 +9,10 @@ import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_
 import { installSyntheticSocket } from './_fixtures';
 import { installPaidAiFence } from './_no-paid-ai';
 import { chip } from './_shared';
+import { writesAccountA } from './_one-at-a-time';
 
 test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+
 
 async function saveSelection(page: Page, selection: string[]) {
   await page.evaluate(async (sel) => {
@@ -57,6 +59,10 @@ test('H2. the LiqFeed history asks for the NEWEST rows in pages (order ts desc, 
     expect(asks.length, `${asks.length} liq_events requests on load (budget 8: 5 pages for all coins + 3 for the coin)`).toBeLessThanOrEqual(8);
   } finally { await ctx.close(); }
 });
+
+/* Only H3 saves to the account; H2 reads, so it still runs on both legs. */
+test.describe('saves to fixture A', () => {
+  writesAccountA(test);
 
 test('H3. strategy menu with chips on: Let the read choose clears them and stays; Custom keeps them; zero chips + Custom stays Custom; a strategy then Custom keeps its chips', async ({ browser }) => {
   test.setTimeout(240_000);
@@ -114,4 +120,5 @@ test('H3. strategy menu with chips on: Let the read choose clears them and stays
     await saveSelection(page, []).catch(() => {});
     await ctx.close();
   }
+});
 });
