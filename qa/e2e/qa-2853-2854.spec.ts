@@ -58,6 +58,11 @@ test('#2853 which element overflows, Russian', async ({ browser }) => {
           return { card: Math.round(c.width), scrollMinusClient: card.scrollWidth - card.clientWidth, offLeft: Math.round(Math.max(0, -c.left)), offRight: Math.round(Math.max(0, c.right - window.innerWidth)), past: out.slice(-6).map(name), count: out.length }; });
         console.log(`[V] probe ${lang} ${width} step ${step}: ${JSON.stringify(m)}`);
         await page.screenshot({ path: `qa/.shots/pm104-probe-${lang}-${width}-step${step}.png` });
+        if (step === 1 && lang === 'ru') {
+          const old = await dialog.evaluate((d) => { const card = d.firstElementChild as HTMLElement; const sub = Array.from(card.querySelectorAll('div')).find((e) => e.childElementCount === 0 && /формируется сквиз/i.test(e.textContent ?? '')); if (!sub) return null; const now = sub.textContent!; const read = () => ({ over: card.scrollWidth - card.clientWidth, third: Math.round(sub.parentElement!.getBoundingClientRect().width), cards: Array.from(sub.parentElement!.parentElement!.children).map((c) => Math.round(c.getBoundingClientRect().width) + ' "' + (c as HTMLElement).innerText.replace(/\s+/g, ' ').slice(0, 50) + '"') });
+            const withNew = read(); sub.textContent = 'Формируется SHORT_SQ'; const withOld = read(); sub.textContent = ''; const withNone = read(); sub.textContent = now; return { withNew, withOld, withNone }; });
+          console.log('[V] control ' + width + ': ' + JSON.stringify(old));
+        }
         if (step === 1) { await dialog.locator('button').last().click(); await page.waitForTimeout(600); }
       }
     } finally { await ctx.close().catch(() => {}); }
