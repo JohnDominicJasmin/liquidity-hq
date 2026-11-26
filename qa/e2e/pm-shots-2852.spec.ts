@@ -4,12 +4,25 @@
 import { test, expect, type Browser, type Page } from '@playwright/test';
 import { AUTH_READY, signedInContext, gotoSignedIn } from './_auth';
 import { installPaidAiFence } from './_no-paid-ai';
+import { createClient } from '@supabase/supabase-js';
 
 test.skip(!process.env.E2E_BASE_URL, 'dispatch-only: reads a deployed site (-f base_url=<site>)');
 test.describe.configure({ timeout: 600_000, retries: 0 });
 const SIZES = [[390, 844], [1280, 900]] as const;
 const THEMES = ['dark', 'light'] as const;
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE' };
+
+/* THE FIXTURE MUST END AS IT STARTED. Read under the fixture's own sign-in, before and after; any difference fails the run. */
+async function fixtureRows() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''; expect(new URL(url).hostname.split('.')[0], 'dev project only').toBe('wdtjhrilakoitfcezxpx');
+  const sb = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '', { auth: { persistSession: false } });
+  const { data, error } = await sb.auth.signInWithPassword({ email: process.env.E2E_USER_A_EMAIL ?? '', password: process.env.E2E_USER_A_PASSWORD ?? '' }); expect(error?.message ?? null).toBeNull();
+  const one = async (t: string) => { const r = await sb.from(t).select('*').eq('user_id', data.user!.id).maybeSingle(); expect(r.error?.message ?? null, t).toBeNull(); return r.data; };
+  return { settings: await one('lhq_dev_user_settings'), onboarding: await one('lhq_dev_user_onboarding') };
+}
+let before: Awaited<ReturnType<typeof fixtureRows>> | null = null;
+test.beforeAll(async () => { if (AUTH_READY) before = await fixtureRows(); });
+test.afterAll(async () => { if (!before) return; const after = await fixtureRows(); expect(after.settings, 'THE RUN CHANGED THE FIXTURE SETTINGS ROW').toEqual(before.settings); expect(after.onboarding, 'THE RUN CHANGED THE FIXTURE ONBOARDING ROW').toEqual(before.onboarding); console.log('[PM] fixture rows unchanged'); });
 
 const snap = async (page: Page, name: string) => page.screenshot({ path: `qa/.shots/${name}.png`, mask: [page.locator('.tnav-drop-email'), page.locator('text=/\\S+@\\S+\\.\\w+/')], maskColor: '#000000' });
 async function open(browser: Browser, width: number, height: number, theme: 'dark' | 'light', row: Record<string, unknown> | null) {
