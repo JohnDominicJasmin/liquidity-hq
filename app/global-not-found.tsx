@@ -21,8 +21,9 @@ import NotFoundContent from '@/components/NotFoundContent';
  * sees, so apply your theme (class or attribute) inside this file."
  *
  * THE SHELL MIRRORS components/RootDocument.tsx rather than inventing one: same lang="en", same
- * data-theme="dark", same data-design="terminal". Those three are what the rest of the app serves,
- * and a 404 that renders in a different theme is a worse bug than the one this fixes.
+ * data-theme="dark", same data-design="terminal", and the same `theme-init` script in <head> that
+ * swaps in the visitor's theme before the first paint (#1185). Without it this page stayed dark for
+ * a light-theme visitor.
  *
  * DELIBERATELY LEANER THAN RootDocument, which the docs also ask for ("a smaller version of your
  * global styles, and a simpler font family could improve performance of this page"):
@@ -31,8 +32,8 @@ import NotFoundContent from '@/components/NotFoundContent';
  *     Figtree and the mono faces would be two more woff2 preloads nothing on this page reads.
  *   - NO AppShell. It carries MarketProvider, NewsProvider, AuthProvider, PostHog, onboarding and
  *     the chat widget - a 404 must not open market websockets.
- *   - NO beforeInteractive scripts. The theme is static here, there is no consent FAB to hold back,
- *     and the signed-in landing redirect is scoped to /, /ko and /zh.
+ *   - NO other head scripts. The theme one is the only one this page needs: there is no consent FAB
+ *     to hold back, and the signed-in landing redirect is scoped to /, /ko and /zh.
  *
  * LabelsProvider IS needed, and it is the one provider here. NotFoundContent reads its copy through
  * useLabels(), and outside a provider LabelsContext falls back to `t: (key) => key` - the page would
@@ -60,7 +61,11 @@ export const metadata: Metadata = {
 
 export default function GlobalNotFound() {
   return (
-    <html lang="en" data-theme="dark" data-design="terminal" className={plexSans.variable}>
+    <html lang="en" data-theme="dark" data-design="terminal" className={plexSans.variable} suppressHydrationWarning>
+      <head>
+        {/* Keep identical to theme-init in components/RootDocument.tsx. */}
+        <script id="theme-init" dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();` }} />
+      </head>
       <body>
         <LabelsProvider localeFromPath>
           <NotFoundContent />
