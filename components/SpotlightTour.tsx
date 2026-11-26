@@ -54,9 +54,11 @@ function Step1Visual() {
   ] as const;
   return (
     <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+      {/* NO CARD LEAVES THE TOUR CARD (#1185): a flex item is otherwise never narrower than its longest word, and the Russian ones pushed
+           the third card off a phone screen. Equal shares, and a long word hyphenates or breaks inside its card. */}
       {cards.map(c => (
         <div key={c.id} style={{
-          flex: 1, background: BG2, border: `1px solid ${BDR}`,
+          flex: '1 1 0', minWidth: 0, overflowWrap: 'anywhere', hyphens: 'auto', background: BG2, border: `1px solid ${BDR}`,
           borderRadius: 10, padding: '14px 10px', textAlign: 'center',
         }}>
           <div style={{ fontSize: 'var(--fs-micro)', color: TXT3, fontFamily: MONO, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 6 }}>
