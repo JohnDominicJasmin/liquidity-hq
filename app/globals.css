@@ -1344,7 +1344,9 @@ body[data-rpm-level="high"]::before {
 }
 .announcement-banner-text { color: var(--txt); font-size: var(--fs-label); text-align: center; }
 .announcement-banner-text a { color: var(--accent-2); text-decoration: underline; display: inline-flex; align-items: center; min-height: 24px; min-width: 24px; /* WCAG 2.5.8 hit area, same look */ }
-.support-mail-link { display: inline-flex; align-items: center; min-height: 24px; min-width: 24px; /* WCAG 2.5.8 hit area for the support address in body text, same look */ }
+/* The support address in body text: a 24 px tap target (WCAG 2.5.8) that stays clear of the words around it (#1185). The target is
+   the link's own line box, so the line makes room for it, with 2 px above and below so the next lines' letters are not under it. */
+.support-mail-link { display: inline-block; line-height: 24px; min-height: 24px; min-width: 24px; margin-block: 2px; }
 .announcement-banner-dismiss {
   position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
   background: none; border: none; color: var(--txt2); cursor: pointer;
