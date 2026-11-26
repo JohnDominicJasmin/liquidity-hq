@@ -38,7 +38,7 @@ const json = (status: number, body: unknown) =>
 const BINANCE_HOST = /^(?:api[0-9]?|fapi[0-9]?)\.binance\.com$/;
 
 /** True for any host the stand-in answers. Check this BEFORE a stray-request throw. */
-export const isMarketHost = (host: string): boolean => BINANCE_HOST.test(host) || host === 'api.bybit.com';
+export const isMarketHost = (host: string): boolean => BINANCE_HOST.test(host) || host === 'api.bybit.com' || host === 'api.hyperliquid.xyz';
 
 /** Optional bookkeeping, so each caller records into its own shape. */
 export type MarketRecord = {
@@ -55,6 +55,9 @@ export type MarketRecord = {
 export const marketStandIn = (req: Request, url: URL, record: MarketRecord = {}): Response | null => {
   if (!isMarketHost(url.host)) return null;
   record.seen?.(`${url.host}${url.pathname}`);
+
+  /* #2797: Hyperliquid is the third ticker venue, asked for coins Binance and Bybit did not answer. Answered with an EMPTY universe, so it adds no row: a caller that needs its figures builds its own (deepTickerFallback2797). */
+  if (url.host === 'api.hyperliquid.xyz') return json(200, [{ universe: [] }, []]);
 
   /* The mirror-walk pings each host to pick one; answering keeps it off the real network. */
   if (url.pathname.endsWith('/ping')) return json(200, {});

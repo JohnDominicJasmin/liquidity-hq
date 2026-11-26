@@ -38,8 +38,8 @@ const mk = (n: number, coin: (i: number) => string, t0 = 1_000_000): Row[] => Ar
 test('N1. the source: pages of the API cap, newest first, bounded, reversed to time order, trimmed by age', () => {
   assert.ok(!/\.limit\(\s*5000\s*\)/.test(code), 'a limit(5000) read is back (the API would answer 1000 rows)'); assert.ok(!/ascending:\s*true/.test(code), 'an ascending order is back on a LiqFeed query'); assert.ok(!/\.slice\(\s*-5000\s*\)/.test(code), 'the history is trimmed by a count of 5000 again');
   assert.deepEqual([SB_PAGE, SB_PAGES_ALL, SB_PAGES_COIN], [1000, 5, 3]); assert.ok(SB_PAGE <= 1000, 'a page larger than the API cap would be cut');
-  const fn = cut(/async function readStored\(/, 'readStored'); assert.match(fn, /\.order\('ts',\s*\{\s*ascending:\s*false\s*\}\)/); assert.match(fn, /\.range\(\s*page \* SB_PAGE,\s*page \* SB_PAGE \+ SB_PAGE - 1\s*\)/); assert.match(fn, /if \(error \|\| !data\) break;/); assert.match(fn, /if \(data\.length < SB_PAGE\) break;/); assert.match(fn, /return rows\.reverse\(\);/); assert.ok(!/\.limit\(/.test(fn));
-  assert.equal(num('HISTORY_MAX'), 20_000); assert.ok((code.match(/\.slice\(-HISTORY_MAX\)/g) ?? []).length >= 2, 'both history trims must use HISTORY_MAX'); assert.match(code, /readStored\(sb, since, null, SB_PAGES_ALL\)/); assert.match(code, /readStored\(sb, Date\.now\(\) - SB_WIN_MS, storedCoinNames\(cf\), SB_PAGES_COIN\)/);
+  const fn = cut(/async function readStored\(/, 'readStored'); assert.match(fn, /\.order\('ts',\s*\{\s*ascending:\s*false\s*\}\)/); assert.match(fn, /\.range\(\s*page \* SB_PAGE,\s*page \* SB_PAGE \+ SB_PAGE - 1\s*\)/); assert.match(fn, /if \(error \|\| !data\) \{ onPartial\?\.\(\); break; \}/); assert.match(fn, /if \(data\.length < SB_PAGE\) break;/); assert.match(fn, /return rows\.reverse\(\);/); assert.ok(!/\.limit\(/.test(fn));
+  assert.equal(num('HISTORY_MAX'), 20_000); assert.ok((code.match(/\.slice\(-HISTORY_MAX\)/g) ?? []).length >= 2, 'both history trims must use HISTORY_MAX'); assert.match(code, /readStored\(sb, since, null, SB_PAGES_ALL, \(\) => \{ partial = true; \}\)/); assert.match(code, /readStored\(sb, Date\.now\(\) - SB_WIN_MS, storedCoinNames\(cf\), SB_PAGES_COIN, \(\) => \{ partial = true; \}\)/);
 });
 
 test('N2. readStored against an API that answers at most 1000 rows per request', async () => {
@@ -67,4 +67,25 @@ test('N4. storedCoinNames: the coin id and the base of each venue symbol, for ev
 test('N5. the merge keeps the dedupe key, the per-token conversion and the one-venue rule', () => {
   const m = cut(/const mergeStored = useCallback\(/, 'mergeStored'); assert.match(m, /r\.price \* liqPerTokenFactor\(r\.coin, r\.source\)/, 'stored raw prices are no longer converted per token'); assert.match(m, /`\$\{e\.ts\}_\$\{e\.coin\}_\$\{e\.price\}_\$\{e\.side\}_\$\{e\.source\}`/); assert.match(m, /if \(perCoin \|\| !coinVenuesRef\.current\)/, 'the all-coins read may overwrite the coin read\'s one-venue note'); assert.match(m, /if \(perCoin\) coinVenuesRef\.current = true;/);
   assert.match(code, /loadedCoinsRef\.current\.has\(cf\)\) return;/, 'the coin read is no longer once per coin'); assert.match(code, /loadedCoinsRef\.current\.delete\(cf\)/, 'a failed coin read cannot be retried');
+});
+
+/* #2819 (#1651 owner item 31): a read that failed or hit its page limit leaves older events out, and says so. */
+test('N5. the partial callback fires on a failed read and on a full last page, never on a short one', async () => {
+  const withCb = readStored as unknown as (sb: unknown, since: number, coins: string[] | null, maxPages: number, onPartial?: () => void) => Promise<Row[]>;
+  const calls = async (rows: number, pages: number) => { let n = 0; await withCb(fakeSb(mk(rows, () => 'BTC'), 1000).sb, 0, null, pages, () => { n++; }); return n; };
+  assert.equal(await calls(0, 5), 0); assert.equal(await calls(999, 5), 0); assert.equal(await calls(2500, 5), 0, 'a short last page is a whole read');
+  assert.equal(await calls(4999, 5), 0); assert.equal(await calls(5000, 5), 1, 'every allowed page came back full'); assert.equal(await calls(12_000, 5), 1);
+  assert.equal(await calls(3000, 3), 1); assert.equal(await calls(2999, 3), 0);
+  const bad = { from: () => { const ch: Record<string, unknown> = { select: () => ch, gte: () => ch, order: () => ch, in: () => ch, range: async () => ({ data: null, error: { message: 'x' } }) }; return ch; } };
+  let n = 0; assert.deepEqual(await withCb(bad, 0, null, 5, () => { n++; }), []); assert.equal(n, 1, 'a failed read is not marked');
+});
+
+test('N6. the flag reaches the feed header, the chart tooltip and the AI line; a coin falls back to the all-coins read', () => {
+  const src = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const feed = src('components/LiqFeed.tsx'), page = src('app/(main)/arena/page.tsx'), chart = src('components/KLineProChart.tsx');
+  assert.ok(feed.includes('const historyPartial = partialBy[coinFilter] ?? partialBy.ALL ?? false;'));
+  assert.ok(feed.includes("{historyPartial && <> · {t('LIQ_HISTORY_PARTIAL')}</>}"));
+  assert.ok(feed.includes('onHistoryPartial?.(historyPartial);'));
+  assert.ok(page.includes('onHistoryPartial={setLiqHistPartial}') && page.includes('liqHistPartial={liqHistPartial}'));
+  assert.ok(chart.includes("${liqHistPartial ? ` ${tl('LIQ_HISTORY_PARTIAL')}` : ''}"));
 });

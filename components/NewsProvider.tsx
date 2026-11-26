@@ -25,6 +25,8 @@ export interface Alert {
   type: 'red' | 'amber' | 'purple';
   link?: string;
   image?: string;   // thumbnail URL from RSS <media:content> or Finnhub image field
+  /** Set on a calendar countdown: which event it is about, so its text can be kept true. */
+  calKey?: string;
 }
 
 export interface EconEvent {
@@ -148,9 +150,14 @@ function toLocalTime(dt: Date): string {
   }
 }
 
+/* How long after its start an event is still "Happening NOW". */
+const EVENT_NOW_HOURS = 0.5;
+
 function countdown(h: number, t: TFn): string {
-  if (h < 0) return t('NEWS_COUNTDOWN_PASSED');
-  if (h < 0.5) return t('NEWS_COUNTDOWN_NOW');
+  /* "Happening NOW" ONLY FROM THE START TIME (#1185): before it the minutes are counted. */
+  if (h <= -EVENT_NOW_HOURS) return t('NEWS_COUNTDOWN_PASSED');
+  if (h <= 0) return t('NEWS_COUNTDOWN_NOW');
+  if (h < 1) return t('NEWS_COUNTDOWN_MINUTES', { n: Math.max(1, Math.round(h * 60)) });
   if (h < 24) return t('NEWS_COUNTDOWN_HOURS', { n: Math.round(h) });
   const d = Math.floor(h / 24), r = Math.round(h % 24);
   return r ? t('NEWS_COUNTDOWN_DAYS', { d, r }) : t('NEWS_COUNTDOWN_DAYS_ONLY', { d });
@@ -209,8 +216,10 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     // notifications for news the user had already been told about. Only
     // genuinely live Realtime pushes should notify.
     notify = true,
+    // A calendar countdown: its text changes every minute, so it is told apart by event and phase instead of by its words.
+    calendar?: { calKey: string; phase: 'soon' | 'now' },
   ) => {
-    const key = headline.slice(0, 60);
+    const key = calendar ? `${calendar.calKey}|${calendar.phase}` : headline.slice(0, 60);
     if (seenRef.current.has(key)) return;
     seenRef.current.add(key);
     // Bound the dedup set. Set preserves insertion order, so dropping from the
@@ -238,7 +247,9 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     // ticker's 2h red window anyway, so keeping the newest ALERT_LIMIT costs no
     // visible behaviour. Trimmed from the front since alerts are appended.
     setAlerts(prev => {
-      const next = [...prev, { id, headline, source, ts, type, link, image }];
+      // A newer phase of the same event replaces the older line.
+      const kept = calendar ? prev.filter(a => a.calKey !== calendar.calKey) : prev;
+      const next = [...kept, { id, headline, source, ts, type, link, image, calKey: calendar?.calKey }];
       return next.length > ALERT_LIMIT ? next.slice(next.length - ALERT_LIMIT) : next;
     });
 
@@ -294,10 +305,34 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     setEconRaw(raw);
     setEconEvents(events);
     setEventsLoaded(true);
-    events.filter(e => e.h >= 0 && e.h < 1).forEach(e => {
-      pushAlert(tRef.current('NEWS_UPCOMING_ALERT', { name: e.name, countdown: countdown(e.h, tRef.current) }), 'Calendar', Math.floor(Date.now() / 1000), 'amber');
-    });
-  }, [pushAlert]);
+  }, []);
+
+  /* CALENDAR COUNTDOWNS (#1185): an event within the hour, or started less than 30 minutes ago, has one line in the ticker. It is
+     announced once before the start and once at it, its minutes are rewritten as they pass, and it is removed afterwards. */
+  useEffect(() => {
+    const announce = () => {
+      for (const e of econEvents) {
+        const h = (e.dt.getTime() - Date.now()) / 3600000;
+        if (h >= 1) continue;
+        const calKey = `calendar|${e.name}|${e.dt.getTime()}`;
+        if (h <= -EVENT_NOW_HOURS) {
+          setAlerts(prev => (prev.some(a => a.calKey === calKey) ? prev.filter(a => a.calKey !== calKey) : prev));
+          continue;
+        }
+        const headline = h <= 0
+          ? `${e.name} - ${countdown(h, tRef.current)}`
+          : tRef.current('NEWS_UPCOMING_ALERT', { name: e.name, countdown: countdown(h, tRef.current) });
+        pushAlert(headline, 'Calendar', Math.floor(Date.now() / 1000), 'amber', undefined, undefined, true, { calKey, phase: h <= 0 ? 'now' : 'soon' });
+        // Already announced: keep its words true (a line the reader dismissed stays gone).
+        setAlerts(prev => (prev.some(a => a.calKey === calKey && a.headline !== headline)
+          ? prev.map(a => (a.calKey === calKey ? { ...a, headline } : a))
+          : prev));
+      }
+    };
+    announce();
+    const id = setInterval(announce, 60_000);
+    return () => clearInterval(id);
+  }, [econEvents, pushAlert]);
 
   /* ALERTS ARE ALSO TRIMMED BY AGE (N12). They were trimmed only by count (ALERT_LIMIT), so a tab left open all day kept items older than 6 hours, the All and Crypto tabs showed "9h ago" stories as current and the alert count never
      shrank, while the ticker already filters by age. Every five minutes anything older than six hours is dropped. */

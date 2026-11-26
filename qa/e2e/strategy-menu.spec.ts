@@ -163,6 +163,8 @@ test.describe('one strategy menu (#2358)', () => {
   });
 
   test('M3. the call box sits directly under the menu in the same panel with every part; Let the read choose and Custom show none', async ({ browser }) => {
+    /* 2026-11-20 (release PR #2752 desktop run: 240 s timeout; alone on qa it takes 2.1 min): about fourteen picks with a 6 s wait each, so it needs the same headroom M3u has when the runner is loaded. */
+    test.setTimeout(420_000);
     const { ctx, page } = await openArena(browser, { saved: null, chips: [] });
     try {
       await expect(menu(page)).toBeVisible({ timeout: 30_000 });

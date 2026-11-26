@@ -30,3 +30,16 @@ export function readLevels(candles: readonly OHLCV[], tfMs: number, nowMs: numbe
   const prices = srPrices(closed, close);
   return { close, above: nearestLevel(prices, close, 'long'), below: nearestLevel(prices, close, 'short') };
 }
+
+/** The lowest low and highest high of the closed candles: the prices the chart behind a read has actually shown. Null with none. */
+export function candleRange(candles: readonly OHLCV[], tfMs: number, nowMs: number): { low: number; high: number } | null {
+  if (!(tfMs > 0)) return null;
+  const closed = dropForming(candles, tfMs, nowMs).filter(c => Number.isFinite(c.low) && Number.isFinite(c.high) && c.low > 0);
+  if (!closed.length) return null;
+  return { low: Math.min(...closed.map(c => c.low)), high: Math.max(...closed.map(c => c.high)) };
+}
+
+/** The levels inside that range. A level the chart never reached is not one to watch (#1651). With no range nothing is dropped. */
+export function levelsInside<L extends { price: number }>(levels: readonly L[], range: { low: number; high: number } | null): L[] {
+  return range ? levels.filter(l => l.price >= range.low && l.price <= range.high) : [...levels];
+}

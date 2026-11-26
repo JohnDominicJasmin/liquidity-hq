@@ -136,7 +136,6 @@ export async function GET(req: NextRequest) {
   if (!rateLimit(`econ-calendar:${ip}`, 20, 60_000)) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
-  console.log(`[econ-calendar] ip=${ip}`);
 
   try {
     const body = await cached('econ-calendar', CALENDAR_TTL_MS, buildCalendar);

@@ -1,13 +1,15 @@
 /* #2422 (#1651 medium): the server sends sums and trimmed lists instead of whole raw payloads. Expectations are the CONTRACTS Dev stated, written as literals; nothing is computed with the code under test.
  *   A  lib/aggTradesSummary.ts summarizeAggTrades: buy/sell sums equal the old per-trade sums (m true = the taker SOLD), whales = every trade with price x quantity >= 500,000 INCLUDING its id, maxId = the
  *      largest id (null for an empty window), a trade that does not parse counts for nothing (never NaN).
- *   B  lib/payloadTrim.ts: trimBybitTickers keeps exactly BYBIT_TICKER_FIELDS (12), trimDeribitBook exactly 4, trimLlamaStables only USDT and USDC with symbol + the three circulating readings; a body it does not
+ *   B  lib/payloadTrim.ts: trimBybitTickers keeps exactly BYBIT_TICKER_FIELDS (13), trimDeribitBook exactly 4, trimLlamaStables only USDT and USDC with symbol + the three circulating readings; a body it does not
  *      recognise comes back UNTOUCHED (the same object, ===), so a changed upstream shape reaches the caller as it is.
  *   C  the proxy route, run for real with a stand-in network: the Bybit fallback conversion is still served, X-Data-Source: bybit-fallback is still set on it, and the response is application/json; a
  *      primary answer is trimmed BEFORE it is cached and served.
  * WHAT IT CANNOT PROVE: that the browser reads the trimmed shape correctly (that is the CVD sweep's own cell, qa/e2e/_fixtures.ts), or any byte saving on a real network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import * as nodeModule from 'node:module';
 import { summarizeAggTrades, WHALE_USD_THRESHOLD } from '../lib/aggTradesSummary.ts';
 import { trimBybitTickers, trimDeribitBook, trimLlamaStables, BYBIT_TICKER_FIELDS, DERIBIT_BOOK_FIELDS } from '../lib/payloadTrim.ts';
 
@@ -45,14 +47,36 @@ test('A4. a trade that does not parse counts for nothing, and never turns a sum 
 
 /* ── B: the trims ────────────────────────────────────────────────────────────────── */
 
-test('B1. trimBybitTickers keeps exactly the 12 fields and nothing else, per contract', () => {
-  assert.deepEqual([...BYBIT_TICKER_FIELDS].sort(), ['fundingRate', 'highPrice24h', 'indexPrice', 'lastPrice', 'lowPrice24h', 'markPrice', 'nextFundingTime', 'openInterest', 'openInterestValue', 'price24hPcnt', 'symbol', 'turnover24h'].sort());
-  const row: Record<string, string> = { symbol: 'BTCUSDT', lastPrice: '1', indexPrice: '2', markPrice: '3', openInterest: '4', openInterestValue: '5', fundingRate: '6', nextFundingTime: '7', highPrice24h: '8', lowPrice24h: '9', price24hPcnt: '10', turnover24h: '11', volume24h: '12', bid1Price: '13', ask1Price: '14', prevPrice24h: '15', usdIndexPrice: '16' };
+test('B1. trimBybitTickers keeps exactly the 13 fields and nothing else, per contract', () => {
+  assert.deepEqual([...BYBIT_TICKER_FIELDS].sort(), ['fundingRate', 'highPrice24h', 'indexPrice', 'lastPrice', 'lowPrice24h', 'markPrice', 'nextFundingTime', 'openInterest', 'openInterestValue', 'price24hPcnt', 'symbol', 'turnover24h', 'fundingIntervalHour'].sort());
+  const row: Record<string, string> = { symbol: 'BTCUSDT', lastPrice: '1', indexPrice: '2', markPrice: '3', openInterest: '4', openInterestValue: '5', fundingRate: '6', nextFundingTime: '7', highPrice24h: '8', lowPrice24h: '9', price24hPcnt: '10', turnover24h: '11', fundingIntervalHour: '4', volume24h: '12', bid1Price: '13', ask1Price: '14', prevPrice24h: '15', usdIndexPrice: '16' };
   const out = trimBybitTickers({ retCode: 0, result: { category: 'linear', list: [row, { ...row, symbol: 'ETHUSDT' }] }, time: 1 }) as { retCode: number; time: number; result: { category: string; list: Array<Record<string, string>> } };
   assert.equal(out.retCode, 0); assert.equal(out.time, 1); assert.equal(out.result.category, 'linear');
   assert.equal(out.result.list.length, 2);
   for (const t of out.result.list) assert.deepEqual(Object.keys(t).sort(), [...BYBIT_TICKER_FIELDS].sort());
   assert.equal(out.result.list[1].symbol, 'ETHUSDT');
+});
+
+/* #1651 owner item 91: the trim dropped fundingIntervalHour, so the browser scaled every rate by 1 and a 4 hour contract showed half its per-8-hours funding. B1 pinned the list as written, which is why it stayed green; B1b pins the list against what the page READS. */
+const MP = readFileSync(new URL('../components/MarketProvider.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+
+test('B1b. every field the page reads off a Bybit ticker is a field the trim keeps', () => {
+  const from = MP.indexOf('const fetchBybit = useCallback('), to = MP.indexOf('const bnOnly = Object.keys(UNIVERSE_BINANCE_ONLY)');
+  assert.ok(from > 0 && to > from, 'CONTROL: the Bybit ticker fill was not found in MarketProvider');
+  const read = [...new Set([...MP.slice(from, to).matchAll(/\b(?:item|t)\.([A-Za-z][A-Za-z0-9]*)/g)].map((m) => m[1]))];
+  assert.ok(read.includes('fundingRate') && read.includes('fundingIntervalHour') && read.length >= 12, `CONTROL: the scan found only ${read.join(', ')}`);
+  assert.deepEqual(read.filter((f) => !(BYBIT_TICKER_FIELDS as readonly string[]).includes(f)), [], 'read by the page and dropped by the trim');
+});
+
+test('B1c. a trimmed 4 hour ticker, put through the page\'s own scaling, reads per 8 hours (1 hour x8, 8 hours unchanged)', () => {
+  /* The slice is OUR OWN checked-in source, never input. */
+  const strip = (nodeModule as unknown as { stripTypeScriptTypes: (source: string) => string }).stripTypeScriptTypes;
+  const a = MP.indexOf('function fundingScaleTo8h('); assert.ok(a > 0, 'CONTROL: fundingScaleTo8h not found');
+  const scale = new Function(`return (${strip(MP.slice(a, MP.indexOf('\n}\n', a) + 3)).replace(/^function fundingScaleTo8h/, 'function')});`)() as (h: unknown) => number;
+  const list = [['PYTHUSDT', '0.00005', '4'], ['XUSDT', '0.00001', '1'], ['BTCUSDT', '0.00004', '8']].map(([symbol, fundingRate, fundingIntervalHour]) => ({ symbol, fundingRate, fundingIntervalHour, volume24h: '1' }));
+  const out = trimBybitTickers({ retCode: 0, result: { list } }) as { result: { list: Array<Record<string, string>> } };
+  const per8h = out.result.list.map((t) => Number((parseFloat(t.fundingRate) * scale(t.fundingIntervalHour)).toFixed(8)));
+  assert.deepEqual(per8h, [0.0001, 0.00008, 0.00004]);
 });
 
 test('B2. trimDeribitBook keeps exactly the 4 fields', () => {
@@ -121,8 +145,8 @@ test('C1. a Bybit-sourced fallback is still converted to the Binance array shape
   assert.equal(Number(body[0].priceChangePercent), 2, 'price24hPcnt 0.02 is 2 %');
 });
 
-test('C3. the Bybit tickers entry is TRIMMED before it is served (12 fields per contract), and a repeat read is the same small body', async () => {
-  const row = { symbol: 'BTCUSDT', lastPrice: '1', indexPrice: '2', markPrice: '3', openInterest: '4', openInterestValue: '5', fundingRate: '6', nextFundingTime: '7', highPrice24h: '8', lowPrice24h: '9', price24hPcnt: '10', turnover24h: '11', volume24h: 'DROP', bid1Price: 'DROP' };
+test('C3. the Bybit tickers entry is TRIMMED before it is served (13 fields per contract), and a repeat read is the same small body', async () => {
+  const row = { symbol: 'BTCUSDT', lastPrice: '1', indexPrice: '2', markPrice: '3', openInterest: '4', openInterestValue: '5', fundingRate: '6', nextFundingTime: '7', highPrice24h: '8', lowPrice24h: '9', price24hPcnt: '10', turnover24h: '11', fundingIntervalHour: '4', volume24h: 'DROP', bid1Price: 'DROP' };
   let upstream = 0;
   plan = (u) => { if (!u.includes('api.bybit.com/v5/market/tickers')) return null; upstream++; return json({ retCode: 0, result: { category: 'linear', list: [row] } }); };
   const a = await call('type=bybit-tickers'); const b = await call('type=bybit-tickers');
@@ -131,6 +155,7 @@ test('C3. the Bybit tickers entry is TRIMMED before it is served (12 fields per 
   }
   const body = await a.json() as { result: { list: Array<Record<string, string>> } };
   assert.deepEqual(Object.keys(body.result.list[0]).sort(), [...BYBIT_TICKER_FIELDS].sort(), 'the served ticker still carries fields nobody reads (or lost one somebody does)');
+  assert.equal(body.result.list[0].fundingIntervalHour, '4', 'the funding interval was not served as the exchange sent it');
   assert.deepEqual(await b.json(), body, 'the cached read differs from the first');
   assert.equal(upstream, 1, 'the second read went upstream again: the trimmed body was not cached');
 });

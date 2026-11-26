@@ -83,6 +83,7 @@ broken most often, in short — the full text and the rest are in that file:
 - **The product UI never names the AI vendor or model.** It says "AI". Only the
   FOUR legal strings name the processor (privacy law, and the trademark non-affiliation
   notice) - OWNER-RULES §5 lists them.
+- **ONE CLEAR PENDING NUMBER (OWNER-RULES 28).** Before saying done or N left, count unticked boxes in EVERY issue body, EVERY issue comment and EVERY PR body, open and closed. Each open tracker starts with a PENDING: N list of real tasks, no duplicates, who does each. Report only that number to the owner; never raw box counts.
 - **Short messages to him.** Under 80 words, bullets or a table, answer first.
   When asking him anything, give **clickable options with a recommendation**.
 
@@ -442,13 +443,14 @@ locally" caveat in Risk level. Promoting without it is deploying into silence.
 Keep it open while QA works; failures are reported as comments on it.
 
 **What "closed" means — the owner's definition, 2026-09-10. An issue is CLOSED
-only when ALL FIVE are true:**
+only when ALL SIX are true:**
 
 1. **QA tested it.**
 2. **QA audited it.**
 3. **It passed manual testing.**
 4. **PM/DevOps audited it.**
 5. **If it is VISUAL, PM verifies at 390/768/1280, light/dark, states, on a deployed URL (owner waiver 2026-11-06).** Until then this read "the OWNER approved it".
+6. **Zero unticked boxes anywhere on the issue: body AND every comment** (OWNER-RULES 28, added 2026-11-23). A box is ticked, or marked decided in place, or moved to the PENDING list of an open tracker. PM checks the body and every comment before closing, and says on the issue that the count is zero.
 
 **Steps 4 and 5 are the new ones.** The owner set this after finding PM/DevOps
 closing issues on QA's report alone. **Closing on a report is not auditing a

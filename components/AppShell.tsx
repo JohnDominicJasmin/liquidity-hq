@@ -34,12 +34,14 @@ import NewsTicker from './NewsTicker';
 import AuthProvider from './AuthProvider';
 import LabelsProvider from './LabelsProvider';
 import LanguageSync from './LanguageSync';
+import TabTitle from './TabTitle';
 import LanguageNavSwitcher from './LanguageNavSwitcher';
 import TimezoneSync from './TimezoneSync';
 import PostHogProvider from './PostHogProvider';
 import SettingsProvider from './SettingsProvider';
 import SettingsSaveToast from './SettingsSaveToast';
 import OfflineNotice from './OfflineNotice';
+import FeedStatusChip from './FeedStatusChip';
 import OnboardingProvider from './OnboardingProvider';
 import OnboardingGate from './OnboardingGate';
 import SetupChecklist from './SetupChecklist';
@@ -186,11 +188,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <OnboardingProvider>
                   <GrokUsageProvider>
                     <LanguageSync />
+                    <TabTitle />
                     <TimezoneSync />
                     <AnnouncementBanner banner={config?.announcementBanner ?? null} />
                     <NavDrawer />
                     <NewsTicker />
                     <main className="app-content">
+                      <FeedStatusChip />
                       <TrialBanner />
                       <ProLockProvider key={pathname}><OnboardingGate>{children}</OnboardingGate></ProLockProvider>
                       <PlatformFooter />

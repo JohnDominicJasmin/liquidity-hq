@@ -430,6 +430,8 @@ interface Props {
   showRsi?:      boolean;
   /** The only venue in the stored 24 h liquidation history, when it is just one: the Liq button then says so instead of looking complete. */
   liqHistOnly?: 'BN' | 'BB' | null;
+  /** The stored 24 h liquidation history behind the clusters is incomplete. */
+  liqHistPartial?: boolean;
   /* Called when a confirmed-Free visitor taps the locked Draw Structure button. The PAGE owns the
      upsell, the same way it owns the fast-timeframe gate - this chart has no router and no opinion
      about what an upgrade prompt looks like, and `onUnlock` is already the established prop name for
@@ -681,7 +683,7 @@ function qaForcedChartFailure(): QaChartFailMode | null {
   return v === 'override-throw' || v === 'create-null' || v === 'create-throw' ? v : null;
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, showEma = true, showRsi = true, onUnlock, strategyOverlay, strategyNoSetup }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, liqClusters, liqHistOnly, liqHistPartial, onStructure, onLiveBars, indicators, indicatorParams, showSR, onShowSRChange, showLiq, onShowLiqChange, showEma = true, showRsi = true, onUnlock, strategyOverlay, strategyNoSetup }: Props) {
   const showEmaRef = useRef(showEma);
   showEmaRef.current = showEma;
   /* THE ADJUSTABLE LAYER SETTINGS (owner, 2026-11-17): the four EMA ribbon lengths and the RSI length + overbought / oversold lines. Chart only: the strategy signals keep the standard lengths. Clamped here as well as in the panel, so a stale saved value cannot break the chart. */
@@ -3920,7 +3922,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             className={`klc-tool-btn${showLiq ? ' on' : ''}`}
             aria-pressed={showLiq}
             onClick={() => onShowLiqChange(!showLiq)}
-            title={`${tl('CHART_LIQ_TITLE')}${liqHistOnly ? ` ${tl('CHART_LIQ_HIST_FROM', { venue: liqHistOnly === 'BN' ? 'Binance' : 'Bybit' })}` : ''}`}
+            title={`${tl('CHART_LIQ_TITLE')}${liqHistOnly ? ` ${tl('CHART_LIQ_HIST_FROM', { venue: liqHistOnly === 'BN' ? 'Binance' : 'Bybit' })}` : ''}${liqHistPartial ? ` ${tl('LIQ_HISTORY_PARTIAL')}` : ''}`}
           >
             {tl('CHART_LIQ')}{liqHistOnly ? ` · ${tl('CHART_LIQ_VENUE_ONLY', { venue: liqHistOnly === 'BN' ? 'Binance' : 'Bybit' })}` : ''}
           </button>

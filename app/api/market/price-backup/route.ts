@@ -14,7 +14,7 @@
  * treats a non-OK answer as "no backup" and keeps whatever its cell already says.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { cached } from '@/lib/apiCache';
+import { cached, cachedPeek } from '@/lib/apiCache';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
@@ -23,6 +23,8 @@ import { HL_INFO_URL } from '@/lib/hyperliquid';
 import { exchangeFetch } from '@/lib/exchangeGuard';
 
 const TTL_MS = 30_000;
+/* When the venue does not answer, the last good quotes are still served this long, flagged with their age (#1651). */
+const LAST_GOOD_MS = 10 * 60_000;
 
 type Quote = { price: number; change: number | null; vol24: number | null };
 
@@ -81,6 +83,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(body);
   } catch (e) {
     reportHealth('hyperliquid:price-backup', 'market', false, e instanceof Error ? e.message.slice(0, 120) : 'failed');
+    const last = cachedPeek<Map<string, Quote>>('price-backup:v1', LAST_GOOD_MS);
+    if (last) {
+      const body: Record<string, Quote> = {};
+      for (const id of asked) {
+        const q = last.data.get(HL_PRICE_BACKUP[id]);
+        if (q) body[id] = q;
+      }
+      return NextResponse.json(body, {
+        headers: { 'Cache-Control': 'no-store', 'x-data-stale': '1', 'x-data-age-ms': String(Date.now() - last.ts) },
+      });
+    }
     return apiError('price-backup', e, 502, 'Price backup unavailable.');
   }
 }

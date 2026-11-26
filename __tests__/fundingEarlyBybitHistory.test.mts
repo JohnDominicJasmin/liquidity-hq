@@ -88,16 +88,16 @@ test('(3)(4)(5) each answer lands on its own coin; state is written only after t
   assert.equal(r.history['pepe']?.[0].rate, 5, 'PEPE got another coin\'s history');
   assert.equal(r.history['bonk']?.[0].rate, 7, 'BONK got another coin\'s history');
   assert.equal(r.history['xau'], undefined, 'an empty Bybit answer must write no history');
-  assert.deepEqual([...r.tags].sort(), ['bonk', 'pepe'], 'bybitCoins must hold only the coins whose Bybit points arrived (XAU empty, BTC is Binance-sourced)');
+  assert.deepEqual([...r.tags].sort(), ['bonk', 'btc', 'pepe'], 'bybitCoins must hold the coins whose Bybit points arrived: the batch row (Bybit since #2812) and the two early ones; XAU came back empty');
   assert.ok(r.history['btc'], 'the batch rows must survive the merges (a merge must not clobber `first`)');
   r.cleanup();
 });
 
-test('(5) the Binance-fallback tag still comes from `via` and a late Bybit-only coin is added to it, not replacing it', async () => {
-  const r = rig({ binance: { ETHUSDT: pts(2) }, via: ['ETHUSDT'] });
+test('(5) a batch coin named in `via` is from Binance and is not tagged; the other batch coin is, and a late Bybit-only coin is added, not replacing it', async () => {
+  const r = rig({ binance: { ETHUSDT: pts(2), SOLUSDT: pts(4) }, via: ['ETHUSDT'] });
   await tick(); r.releaseBatch(); await tick(); await tick();
   r.bybit.get(BYBIT_SYMS['pepe'])!.resolve(pts(9)); await tick(); await tick();
-  assert.deepEqual([...r.tags].sort(), ['eth', 'pepe']);
+  assert.deepEqual([...r.tags].sort(), ['pepe', 'sol']);
   r.cleanup();
 });
 

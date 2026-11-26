@@ -10,9 +10,9 @@ import { answerText, searchCitations, searchTools, searchWindow } from '@/lib/xa
 import { chartFromCandles } from '@/lib/arenaChartServer';
 import { coinKind } from '@/lib/coins';
 import { usCashOpen } from '@/lib/marketHours';
-import { READ_TAKER_CONFIRM_PCT, readLevels } from '@/lib/readLevels';
+import { READ_TAKER_CONFIRM_PCT, readLevels, candleRange, levelsInside } from '@/lib/readLevels';
 import { TF_MS } from '@/lib/candles';
-import { EMA_SIGNAL_TFS, fetchRibbonCandles, type EMASignalTF } from '@/lib/ribbonCandles';
+import { EMA_SIGNAL_TFS, fetchChartCandles, fetchRibbonCandles, type EMASignalTF } from '@/lib/ribbonCandles';
 import { T } from '@/lib/tables';
 import { getPlanSnapshot, getUsageTierStatus } from '@/lib/entitlements';
 import { selectionForPlan } from '@/lib/strategyRegistry';
@@ -415,7 +415,8 @@ export async function POST(req: NextRequest) {
   let promptChart = chart;
   if (process.env.GROK_SERVER_CHART === '1' && coin && (EMA_SIGNAL_TFS as readonly string[]).includes(tf)) {
     try {
-      const built = chartFromCandles(tf, await fetchRibbonCandles(coin, tf as EMASignalTF));
+      // Fresh, and from the chart's own market (lib/ribbonCandles.ts fetchChartCandles): the cached series holds an old forming candle.
+      const built = chartFromCandles(tf, await fetchChartCandles(coin, tf as EMASignalTF));
       if (built) promptChart = built; else console.warn(`[grok] server chart: too few candles for ${logTag(coin)}/${tf}, keeping the browser's`);
     } catch {
       console.warn(`[grok] server chart: candle fetch failed for ${logTag(coin)}/${tf}, keeping the browser's`);
@@ -431,8 +432,13 @@ export async function POST(req: NextRequest) {
   /* THE LEVELS THE READ QUOTES ARE THE SERVER'S (lib/readLevels.ts): the nearest support and resistance of the closed candles and one taker threshold, identical for Quick and Deep and for every read until a candle closes. A failed fetch or too little
      history leaves the prompt as it was. */
   let levels: ReturnType<typeof readLevels> = null;
+  let range: ReturnType<typeof candleRange> = null;
   if (coin && (EMA_SIGNAL_TFS as readonly string[]).includes(tf) && TF_MS[tf]) {
-    try { levels = readLevels(await fetchRibbonCandles(coin, tf as EMASignalTF, Date.now(), 400), TF_MS[tf], Date.now()); } catch { levels = null; }
+    try {
+      const candles = await fetchRibbonCandles(coin, tf as EMASignalTF, Date.now(), 400);
+      levels = readLevels(candles, TF_MS[tf], Date.now());
+      range = candleRange(candles, TF_MS[tf], Date.now());
+    } catch { levels = null; range = null; }
   }
     const prompt = withReadLanguage(withMarketClosedNote(withReadLevels(withStrategyRead(buildArenaPrompt({ ...ctx, ...gathered.fields }, promptChart, type, planSelection), strategyRead), levels, READ_TAKER_CONFIRM_PCT), stockClosed, coin, String(({ ...ctx, ...gathered.fields }).price)), locale);
 
@@ -707,5 +713,12 @@ export async function POST(req: NextRequest) {
 
   /* The server's fixed watch levels travel with the read (lib/readLevels.ts): the headline under a directional verdict falls back to them when the read's own LEVELS hold no usable support or resistance (PM 2026-11-20). */
   result.fixedLevels = levels ? { above: levels.above, below: levels.below } : null;
+  /* THE MODEL'S OWN LEVELS STAY INSIDE THE CHART (#1651): one outside the candles' high and low is dropped, so the headline never says to
+     watch a price the chart has not reached; the server's fixed levels then fill an empty side. */
+  const inside = levelsInside(result.levels ?? [], range);
+  if (inside.length !== (result.levels ?? []).length) {
+    (result.checks ??= []).push(`level dropped: outside the candles' range (${result.levels.filter(l => !inside.includes(l)).map(l => `${l.type} ${l.price}`).join(', ')})`);
+    result.levels = inside;
+  }
   return NextResponse.json({ result, usage });
 }

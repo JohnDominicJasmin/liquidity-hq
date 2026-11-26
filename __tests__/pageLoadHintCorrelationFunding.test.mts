@@ -8,6 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as nodeModule from 'node:module';
+import { perEightHours } from '../lib/fundingHistory.ts';
 
 const stripTypeScriptTypes = (nodeModule as unknown as { stripTypeScriptTypes: (source: string) => string }).stripTypeScriptTypes;
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
@@ -59,18 +60,22 @@ test('H4. /funding paints from the snapshot: no table-wide gate; batch shown fir
   /* #2680: the batch is MERGED over what an earlier attempt delivered (a retry never blanks a coin that had history) and still shown before loading clears */
   const showAt = fund.indexOf('setHistory(prev => ({ ...prev, ...first }));'); assert.ok(showAt > 0 && showAt < fund.indexOf('setLoading(false);'), 'the batch is not shown before loading clears');
   assert.ok(fund.includes('setHistory(prev => ({ ...prev, [id]: pts }));'), 'a Bybit fallback replaces the history instead of merging into it'); assert.ok(fund.includes('if (!cancelled && pts.length)'), 'a late fallback writes after unmount or with no data');
-  assert.ok(fund.includes("fetch('/api/market/funding-rate?limit=42', { signal: deadlineSignal(10_000) })"), 'the batch has no 10 s deadline');
+  assert.ok(fund.includes("fetch('/api/market/funding-rate?limit=200', { signal: deadlineSignal(22_000) })"), 'the batch has no 22 s deadline');
+  /* #2841 (#94): the page must outwait the server, or it throws the answer away and asks once per coin */
+  const server = /export const FANOUT_DEADLINE_MS = ([\d_]+);/.exec(readFileSync(new URL('../lib/bybitFanout.ts', import.meta.url), 'utf8'));
+  assert.ok(server && 22_000 > Number(server[1].replace(/_/g, '')), `the server's own limit (${server?.[1]}) is not shorter than the page's wait`);
 });
 const fa = fund.indexOf('async function fetchAllBinanceFR'); assert.ok(fa > 0, 'CONTROL: fetchAllBinanceFR not found'); const fb = fund.indexOf('\n}\n', fa) + 2;
 /* the slice is OUR OWN checked-in source, never input; fetch and deadlineSignal are stubbed */
-const makeFetchAll = (fetchImpl: () => Promise<unknown>) => new Function('fetch', 'deadlineSignal', `${stripTypeScriptTypes(fund.slice(fa, fb).replace(/^async function/, 'async function'))}\nreturn fetchAllBinanceFR;`)(fetchImpl, () => undefined) as () => Promise<{ out: Record<string, { rate: number; ts: number }[]>; via: string[] }>;
+const makeFetchAll = (fetchImpl: () => Promise<unknown>) => new Function('fetch', 'deadlineSignal', 'perEightHours', `${stripTypeScriptTypes(fund.slice(fa, fb).replace(/^async function/, 'async function'))}\nreturn fetchAllBinanceFR;`)(fetchImpl, () => undefined, perEightHours) as () => Promise<{ out: Record<string, { rate: number; ts: number }[]>; via: string[] }>;
 test('H4b. /funding history batch (REAL function, stub fetch): a failure of any kind is an empty answer (never a hang or a throw), rows are parsed and sorted by time, the route\'s viaFallback list is passed on', async () => {
   const json = (body: unknown, ok = true) => () => Promise.resolve({ ok, json: () => Promise.resolve(body) });
   const empty = JSON.stringify({ out: {}, via: [] });
   assert.equal(JSON.stringify(await makeFetchAll(json({ data: { BTCUSDT: [{ fundingRate: '0.1', fundingTime: 1 }] }, viaFallback: ['X'] }, false))()), empty, 'a non-ok answer is not an empty batch');
   assert.equal(JSON.stringify(await makeFetchAll(() => Promise.reject(new Error('net')))()), empty, 'a thrown fetch is not an empty batch');
   assert.equal(JSON.stringify(await makeFetchAll(() => Promise.resolve({ ok: true, json: () => Promise.reject(new Error('bad json')) }))()), empty, 'a malformed body is not an empty batch');
-  const r = await makeFetchAll(json({ data: { BTCUSDT: [{ fundingRate: '0.0002', fundingTime: 2000 }, { fundingRate: '0.0001', fundingTime: 1000 }] }, viaFallback: ['ETHUSDT'] }))();
-  assert.deepEqual(r.out.BTCUSDT.map((p) => [p.rate, p.ts]), [[0.0001, 1000], [0.0002, 2000]], 'rows are not parsed and sorted oldest first'); assert.deepEqual([...r.via], ['ETHUSDT'], 'the route\'s viaFallback was dropped');
+  /* 8 hours apart, so the per-8h scaling (#2812) leaves the figures as sent */
+  const r = await makeFetchAll(json({ data: { BTCUSDT: [{ fundingRate: '0.0002', fundingTime: 57_600_000 }, { fundingRate: '0.0001', fundingTime: 28_800_000 }] }, viaFallback: ['ETHUSDT'] }))();
+  assert.deepEqual(r.out.BTCUSDT.map((p) => [p.rate, p.ts]), [[0.0001, 28_800_000], [0.0002, 57_600_000]], 'rows are not parsed and sorted oldest first'); assert.deepEqual([...r.via], ['ETHUSDT'], 'the route\'s viaFallback was dropped');
   assert.deepEqual([...(await makeFetchAll(json({ data: {} }))()).via], [], 'a missing viaFallback is not []');
 });

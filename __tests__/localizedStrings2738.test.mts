@@ -220,7 +220,9 @@ test('A2. login (5), forgot-password (1), reset-password (1), settings (1), auth
   /* the five are ALL the callers: a sixth page that calls it with one argument keeps English for ko / zh / ru and nothing here would see it */
   const callers = ['app', 'components', 'lib'].flatMap((d) => walk(new URL(`../${d}/`, import.meta.url))).filter((p) => /friendlyAuthError\(/.test(readFileSync(p.replace(/^\/(?=[A-Za-z]:)/, ''), 'utf8')) && !/lib\/authErrors\.ts$/.test(p)).map((p) => p.replace(/^.*\/(app|components|lib)\//, '$1/')).sort();
   assert.deepEqual(callers, PAGES.map(([f]) => f).sort(), 'the set of pages that call friendlyAuthError changed');
-  assert.ok(read('app/(main)/login/page.tsx').includes('`${friendlyAuthError(error.message, t)} Reason: ${j.reason}`'), 'the suspended "Reason:" line must go through t too');
+  /* #2835: the reason is asked for once a fresh Turnstile token exists, so the translated sentence is kept with the question and printed with the answer */
+  const login = read('app/(main)/login/page.tsx');
+  assert.ok(login.includes('setBanAsk({ email: trimmed, password, message: friendlyAuthError(error.message, t) })') && login.includes('`${ask.message} Reason: ${j.reason}`'), 'the suspended "Reason:" line must go through t too');
 });
 test('A2-CONTROL. a one-argument call, a missing call, and a call outside the component that holds t are flagged', () => {
   const good = '\nfunction P() {\n  const { t } = useLabels();\n  const f = () => { setError(friendlyAuthError(error.message, t)); };\n}\n';
@@ -403,18 +405,20 @@ type Fns = {
 function buildFns(s: typeof SRC): Fns {
   const hToHM = load<(h: number) => string>(cutBlock(s.briefing, 'function hToHM('), 'hToHM');
   const hToHMt = load<(h: number, t: T) => string>(cutBlock(s.briefing, 'function hToHMt('), 'hToHMt'); // RE-PINNED 2026-11-20 for #2741
-  const countdown = load<Fns['countdown']>(cutBlock(s.provider, 'function countdown('), 'countdown');
+  const nowHours = /const EVENT_NOW_HOURS = [^;]+;/.exec(s.provider)?.[0] ?? ''; // #2831: countdown reads it
+  const countdown = load<Fns['countdown']>(`${nowHours}
+${cutBlock(s.provider, 'function countdown(')}`, 'countdown');
   const lineOf = (src: string, needle: string) => { const i = src.indexOf(needle); assert.ok(i >= 0, `CONTROL: anchor not found: ${needle}`); const a = src.lastIndexOf('\n', i) + 1; return src.slice(a, src.indexOf('\n', i)); };
   const brief = lineOf(s.briefing, 'const label = mins < 1 ?').trim().replace(/^const label = /, '').replace(/;$/, '');
   const yenLine = lineOf(s.briefing, 'BRIEFING_YEN_UPDATED'); const yenX = yenLine.slice(yenLine.indexOf('time: ') + 6, yenLine.lastIndexOf(' })}'));
   const evLine = lineOf(s.briefing, "isPast ? t('ALERTS_AGO_MINUTES'").trim().replace(/^\{/, '').replace(/\}$/, '');
   const upI = s.provider.indexOf("tRef.current('NEWS_UPCOMING_ALERT'"); assert.ok(upI >= 0, 'CONTROL: the upcoming-alert call moved');
-  const upX = s.provider.slice(upI, s.provider.indexOf(", 'Calendar'", upI));
-  const f1 = expr(brief, ['t', 'mins']); const f2 = expr(yenX, ['t', 'jpyMinutesAgo']); const f3 = expr(evLine, ['t', 'isPast', 'lh', 'hToHMt']); const f4 = expr(upX, ['tRef', 'e', 'countdown']);
+  const upX = s.provider.slice(upI, s.provider.indexOf(';', upI)); // RE-PINNED for #2831: the call is its own statement
+  const f1 = expr(brief, ['t', 'mins']); const f2 = expr(yenX, ['t', 'jpyMinutesAgo']); const f3 = expr(evLine, ['t', 'isPast', 'lh', 'hToHMt']); const f4 = expr(upX, ['tRef', 'e', 'countdown', 'h']);
   return {
     tsAgo: load(cutBlock(s.briefing, 'function tsAgo('), 'tsAgo'), relTime: load(cutBlock(s.chat, 'function relTime('), 'relTime'), tickerAgo: load(cutBlock(s.ticker, 'function timeAgo('), 'timeAgo'),
     providerAgo: load(cutBlock(s.provider, 'function timeAgo('), 'timeAgo'), countdown, fmtAge: load(cutBlock(s.ms, 'function fmtAge('), 'fmtAge'), hToHM,
-    briefLabel: (t, mins) => f1(t, mins), yen: (t, m) => f2(t, m), eventRow: (t, p, lh) => f3(t, p, lh, hToHMt), upcoming: (t, e) => f4({ current: t }, e, countdown),
+    briefLabel: (t, mins) => f1(t, mins), yen: (t, m) => f2(t, m), eventRow: (t, p, lh) => f3(t, p, lh, hToHMt), upcoming: (t, e) => f4({ current: t }, e, countdown, e.h),
   };
 }
 /* label text per language: the new keys from the migration, the existing ALERTS_AGO_* / NEWS_TIME_* from the migrations that seeded them (ko, zh) and from the English defaults; ru has no repo row for those two families */
@@ -426,6 +430,7 @@ function labelT(l: Lang): T {
     if (l === 'en') raw = defaults[k];
     else if (NEW_KEYS.includes(k)) raw = newRow(prodRows, k, l);
     else if (k.startsWith('BRIEFING_DUR_')) raw = newRow(batch3Rows, k, l); // RE-PINNED 2026-11-20 for #2741: the duration units come from 20261128c
+    else if (k === 'NEWS_COUNTDOWN_MINUTES') raw = seedRow('20261130k_labels_event_minutes_away.sql', k, l); // #2831
     else if (EXISTING.includes(k)) raw = l === 'ko' ? seedRow('20260731a_labels_seed_translation_ko.sql', k, 'ko') : l === 'zh' ? seedRow('20260801a_labels_seed_translation_zh.sql', k, 'zh') : undefined;
     else raw = undefined;
     return raw === undefined ? `<<no ${l} row: ${k}>>` : interpolate(raw, v ?? {});
@@ -460,7 +465,11 @@ const CASES: Case[] = [
   { id: 'provider timeAgo 30 s', run: (f, t) => f.providerAgo(AGE(30), t), routed: 'NEWS_TIME_JUST_NOW', text: { en: 'just now', ko: '방금', zh: '刚刚' } },
   { id: 'provider timeAgo 7200 s', run: (f, t) => f.providerAgo(AGE(7200), t), routed: 'NEWS_TIME_HOURS_AGO{"n":2}', text: { en: '2h ago', ko: '2시간 전', zh: '2小时前' } },
   { id: 'countdown -1 h', run: (f, t) => f.countdown(-1, t), routed: 'NEWS_COUNTDOWN_PASSED', text: { en: 'Just passed', ko: '방금 지남', zh: '刚刚结束', ru: 'Только что прошло' } },
-  { id: 'countdown 0.2 h', run: (f, t) => f.countdown(0.2, t), routed: 'NEWS_COUNTDOWN_NOW', text: { en: 'Happening NOW', ko: '지금 진행 중', zh: '正在进行', ru: 'Идёт сейчас' } },
+  { id: 'countdown 0.2 h (12 min to go)', run: (f, t) => f.countdown(0.2, t), routed: 'NEWS_COUNTDOWN_MINUTES{"n":12}', text: { en: 'in 12 min', ko: '12분 후', zh: '12 分钟后', ru: 'через 12 мин' } },
+  { id: 'countdown 0.001 h (never "in 0 min")', run: (f, t) => f.countdown(0.001, t), routed: 'NEWS_COUNTDOWN_MINUTES{"n":1}', text: { en: 'in 1 min', ko: '1분 후', zh: '1 分钟后', ru: 'через 1 мин' } },
+  { id: 'countdown 0 (the start)', run: (f, t) => f.countdown(0, t), routed: 'NEWS_COUNTDOWN_NOW', text: { en: 'Happening NOW', ko: '지금 진행 중', zh: '正在进行', ru: 'Идёт сейчас' } },
+  { id: 'countdown -0.49 h', run: (f, t) => f.countdown(-0.49, t), routed: 'NEWS_COUNTDOWN_NOW', text: { en: 'Happening NOW', ko: '지금 진행 중', zh: '正在进行', ru: 'Идёт сейчас' } },
+  { id: 'countdown -0.5 h', run: (f, t) => f.countdown(-0.5, t), routed: 'NEWS_COUNTDOWN_PASSED', text: { en: 'Just passed', ko: '방금 지남', zh: '刚刚结束', ru: 'Только что прошло' } },
   { id: 'countdown 1 h', run: (f, t) => f.countdown(1, t), routed: 'NEWS_COUNTDOWN_HOURS{"n":1}', text: { en: '1h away', ko: '1시간 후', zh: '1 小时后', ru: 'через 1 ч' } },
   { id: 'countdown 5.4 h', run: (f, t) => f.countdown(5.4, t), routed: 'NEWS_COUNTDOWN_HOURS{"n":5}', text: { en: '5h away', ko: '5시간 후', zh: '5 小时后', ru: 'через 5 ч' } },
   { id: 'countdown 24 h', run: (f, t) => f.countdown(24, t), routed: 'NEWS_COUNTDOWN_DAYS_ONLY{"d":1}', text: { en: '1d away', ko: '1일 후', zh: '1 天后', ru: 'через 1 дн' } },
@@ -480,8 +489,8 @@ const CASES: Case[] = [
   { id: 'event row past 30 min', run: (f, t) => f.eventRow(t, true, -0.5), routed: 'ALERTS_AGO_MINUTES{"n":30}', text: { en: '30m ago', ko: '30분 전', zh: '30分钟前' } },
   { id: 'event row now', run: (f, t) => f.eventRow(t, false, 0.01), routed: 'BRIEFING_EVENT_NOW', text: { en: 'NOW', ko: '지금', zh: '现在', ru: 'СЕЙЧАС' } },
   { id: 'event row in 2 h 30 m', run: (f, t) => f.eventRow(t, false, 2.5), routed: 'BRIEFING_EVENT_IN{"time":"BRIEFING_DUR_HM{\\"h\\":2,\\"m\\":30}"}', text: { en: 'in 2h 30m', ko: '2시간 30분 후', zh: '2 小时 30 分钟后', ru: 'через 2 ч 30 мин' } }, // RE-PINNED 2026-11-20 for #2741
-  { id: 'upcoming alert, happening now', run: (f, t) => f.upcoming(t, { name: 'FOMC', h: 0.4 }), routed: 'NEWS_UPCOMING_ALERT{"name":"FOMC","countdown":"NEWS_COUNTDOWN_NOW"}', text: { en: 'Upcoming: FOMC - Happening NOW', ko: '예정: FOMC - 지금 진행 중', zh: '即将发生：FOMC - 正在进行', ru: 'Скоро: FOMC - Идёт сейчас' } },
-  { id: 'upcoming alert, 1 h away', run: (f, t) => f.upcoming(t, { name: 'CPI', h: 0.9 }), routed: 'NEWS_UPCOMING_ALERT{"name":"CPI","countdown":"NEWS_COUNTDOWN_HOURS{\\"n\\":1}"}', text: { en: 'Upcoming: CPI - 1h away', ko: '예정: CPI - 1시간 후', zh: '即将发生：CPI - 1 小时后', ru: 'Скоро: CPI - через 1 ч' } },
+  { id: 'upcoming alert, 24 min away', run: (f, t) => f.upcoming(t, { name: 'FOMC', h: 0.4 }), routed: 'NEWS_UPCOMING_ALERT{"name":"FOMC","countdown":"NEWS_COUNTDOWN_MINUTES{\\"n\\":24}"}', text: { en: 'Upcoming: FOMC - in 24 min', ko: '예정: FOMC - 24분 후', zh: '即将发生：FOMC - 24 分钟后', ru: 'Скоро: FOMC - через 24 мин' } },
+  { id: 'upcoming alert, 54 min away', run: (f, t) => f.upcoming(t, { name: 'CPI', h: 0.9 }), routed: 'NEWS_UPCOMING_ALERT{"name":"CPI","countdown":"NEWS_COUNTDOWN_MINUTES{\\"n\\":54}"}', text: { en: 'Upcoming: CPI - in 54 min', ko: '예정: CPI - 54분 후', zh: '即将发生：CPI - 54 分钟后', ru: 'Скоро: CPI - через 54 мин' } },
 ];
 /** mismatches of the real functions against the pinned table: key routing (recorder) and rendered text per language */
 function timeViolations(f: Fns): string[] {
@@ -522,16 +531,16 @@ test('T1-CONTROL. a function that sends minutes to the hours key, swaps a variab
   m('provider', "t('NEWS_TIME_JUST_NOW')", "'just now'", 'provider just now reverts to English');
   m('provider', "return r ? t('NEWS_COUNTDOWN_DAYS', { d, r }) : t('NEWS_COUNTDOWN_DAYS_ONLY', { d });", "return t('NEWS_COUNTDOWN_DAYS', { d, r });", 'countdown loses the days-only branch');
   m('provider', "t('NEWS_COUNTDOWN_NOW')", "t('NEWS_COUNTDOWN_PASSED')", 'countdown NOW / PASSED swapped');
-  m('provider', "countdown: countdown(e.h, tRef.current)", "countdown: ''", 'upcoming alert loses its countdown');
+  m('provider', "countdown: countdown(h, tRef.current)", "countdown: ''", 'upcoming alert loses its countdown');
   m('ms', "t('MARKET_STRUCTURE_AGO_DH', { d, r })", "t('MARKET_STRUCTURE_AGO_D', { d })", 'fmtAge loses the hours');
   m('ms', "t('MARKET_STRUCTURE_AGO_H', { h })", "`~${h}h ago`", 'fmtAge reverts to English');
 });
 test('T2. every call of the time helpers passes t; the alert source id and the stable pushAlert are as written', () => {
   const need = (src: string, name: string, n: number, last: string) => assert.deepEqual(siteViolations(src, name, n, last, false), [], name);
   need(SRC.briefing, 'tsAgo', 2, 't'); need(SRC.chat, 'relTime', 1, 't'); need(SRC.ticker, 'timeAgo', 1, 't'); need(SRC.ms, 'fmtAge', 2, 't');
-  need(SRC.provider, 'timeAgo', 1, 'tRef.current'); need(SRC.provider, 'countdown', 1, 'tRef.current');
+  need(SRC.provider, 'timeAgo', 1, 'tRef.current'); need(SRC.provider, 'countdown', 2, 'tRef.current'); // #2831: the upcoming line and the happening-now line
   assert.match(SRC.ticker, /\[sorted, t\]\);/, 'the ticker text memo does not depend on t: a language change would not re-render it');
-  assert.ok(SRC.provider.includes("'Calendar', Math.floor(Date.now() / 1000), 'amber')"), "the upcoming alert's source id 'Calendar' changed (the code compares it)");
+  assert.ok(SRC.provider.includes("'Calendar', Math.floor(Date.now() / 1000), 'amber',"), "the upcoming alert's source id 'Calendar' changed (the code compares it)");
   assert.match(SRC.provider, /const tRef = useRef\(t\);\n\s*tRef\.current = t;/, 'NewsProvider does not read t through a ref');
   assert.equal(/const pushAlert = useCallback\([\s\S]*?\n  \}, (\[[^\]]*\])\);/.exec(SRC.provider)?.[1], '[]', 'pushAlert has dependencies again (it would rebuild on a language change)');
   assert.ok(SRC.chat.includes("t('CHAT_HISTORY_MESSAGES', { n: c.messages.length })"), 'the chat history row does not read its message-count key');
