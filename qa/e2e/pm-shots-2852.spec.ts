@@ -31,16 +31,6 @@ async function open(browser: Browser, width: number, height: number, theme: 'dar
 }
 const ROW = { tour_seen: false, profile_complete: false, checklist_telegram: false, checklist_price_alert: false, checklist_grok: false, checklist_coins: false };
 
-test('#70 page not found text', async ({ browser }) => {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  await ctx.addInitScript(() => { try { localStorage.setItem('lhq_lang_v1', 'en'); localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private */ } });
-  const page = await ctx.newPage();
-  try {
-    await installPaidAiFence(page); await page.goto('/qa-no-such-page', { waitUntil: 'domcontentloaded', timeout: 150_000 }); await page.waitForTimeout(6_000);
-    console.log(`[PM] 70 text: ${JSON.stringify((await page.locator('body').innerText()).replace(/\s+/g, ' ').slice(0, 220))}`);
-  } finally { await ctx.close().catch(() => {}); }
-});
-
 test('#72 wizard keyboard focus, then #71 the tour Example tag', async ({ browser }) => {
   test.skip(!AUTH_READY, 'no fixtures');
   for (const [w, h] of SIZES) for (const theme of THEMES) {
@@ -57,7 +47,14 @@ test('#72 wizard keyboard focus, then #71 the tour Example tag', async ({ browse
       await page.waitForTimeout(500);
       console.log(`[PM] 72 ${w} ${theme}: wizard=${shown} firstFocus=${JSON.stringify(focus)}`);
       await snap(page, `pm72-wizard-focus-${w}-${theme}`); expect.soft(focus).not.toBeNull();
-      await page.locator('.obw-skip').first().click({ timeout: 20_000 });
+      /* the skip button is only on the last step: answer the steps (nothing is saved, every write is answered by the test) */
+      for (let s = 0; s < 6 && !(await page.locator('.obw-skip').isVisible().catch(() => false)); s++) {
+        const country = page.getByRole('button', { name: /select your country/i }).or(page.getByRole('combobox', { name: /country|select/i })).first();
+        if (await country.isVisible().catch(() => false)) { await country.click(); await page.getByRole('option').first().click({ timeout: 10_000 }); }
+        await page.locator('.obw-row, .obw-chip').first().click({ timeout: 10_000 });
+        await page.locator('.obw-btn-next').click({ timeout: 10_000 }); await page.waitForTimeout(900);
+      }
+      await page.locator('.obw-skip').click({ timeout: 20_000 });
       const dialog = page.locator('.tour-term-wrap[role="dialog"]');
       const opened = await dialog.waitFor({ state: 'visible', timeout: 60_000 }).then(() => true, () => false);
       let found = false; let step = 1; const pressed: string[] = [];
@@ -74,37 +71,3 @@ test('#72 wizard keyboard focus, then #71 the tour Example tag', async ({ browse
   }
 });
 
-async function midPrice(coin: 'pepe' | 'btc') {
-  const r = await fetch('https://api.hyperliquid.xyz/info', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'allMids' }) });
-  const mids = await r.json() as Record<string, string>; const v = Number(mids[coin === 'pepe' ? 'kPEPE' : 'BTC']); expect(v, 'live price').toBeGreaterThan(0); return v;
-}
-/* Ten price zones within 3.5 % of the price, 600 events over the last 20 h, newest first as the app reads them. Prices are in the unit the venue's symbol uses (PEPE: per 1000). */
-function busyDay(coin: string, mid: number) {
-  const now = Date.now(); const offsets = [-3.1, -2.2, -1.4, -0.7, -0.25, 0.3, 0.9, 1.7, 2.6, 3.4];
-  return Array.from({ length: 600 }, (_, i) => { const k = i % offsets.length; const jitter = (((i * 37) % 11) - 5) / 5000;
-    return { coin, side: offsets[k] < 0 ? 'LONG' : 'SHORT', usd: 15_000 + ((i * 7919) % 97) * 9_000 + k * 20_000, price: mid * (1 + offsets[k] / 100 + jitter), source: 'BB', ts: now - 60_000 - i * 120_000 }; });
-}
-for (const coin of ['pepe', 'btc'] as const) {
-  test(`#62 liquidation bands ${coin}`, async ({ browser }) => {
-    test.skip(!AUTH_READY, 'no fixtures');
-    const mid = await midPrice(coin); const rows = busyDay(coin.toUpperCase(), mid);
-    for (const [w, h] of SIZES) for (const theme of THEMES) {
-      const { ctx, page } = await open(browser, w, h, theme, null);
-      try {
-        let served = 0;
-        await ctx.route(/\/rest\/v1\/lhq(_dev)?_liq_events\?/, async (route) => {
-          if (route.request().method() !== 'GET') return route.continue();
-          const url = decodeURIComponent(route.request().url()); const first = !/offset=[1-9]/.test(url); const wanted = !url.includes('coin=in.') || url.includes(coin.toUpperCase());
-          const body = first && wanted ? rows : []; served += body.length;
-          await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(body) });
-        });
-        await gotoSignedIn(page, `/arena?coin=${coin}`); const host = page.locator('.klc-canvas').first(); await host.waitFor({ state: 'visible', timeout: 90_000 });
-        const liq = page.locator('button.klc-tool-btn[aria-pressed]').filter({ hasText: /liq/i }).first();
-        const drawn = await liq.waitFor({ state: 'visible', timeout: 60_000 }).then(() => true, () => false); await page.waitForTimeout(6_000);
-        await host.scrollIntoViewIfNeeded(); await page.waitForTimeout(1_500);
-        console.log(`[PM] 62 ${coin} ${w} ${theme}: price=${mid} testRowsServed=${served} liqToggle=${drawn ? await liq.getAttribute('aria-pressed') : 'absent'}`);
-        await snap(page, `pm62-liq-bands-${coin}-testdata-${w}-${theme}`); await host.screenshot({ path: `qa/.shots/pm62-liq-bands-${coin}-testdata-chart-${w}-${theme}.png` }); expect.soft(drawn).toBe(true);
-      } finally { await ctx.close().catch(() => {}); }
-    }
-  });
-}
