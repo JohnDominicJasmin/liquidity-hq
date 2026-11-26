@@ -25,6 +25,8 @@ async function open(browser: Browser, width: number, height: number, theme: 'dar
       const one = /vnd\.pgrst\.object/.test(req.headers().accept ?? '');
       return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(one ? row : [row]) });
     });
+    /* THE APP ALSO SAVES THROUGH ITS OWN ROUTES (/api/settings): without this the wizard really saved its answers to the fixture (run 45827918086). */
+    await ctx.route(/\/api\//, async (route) => { const req = route.request(); if (req.method() === 'GET' || req.method() === 'HEAD') return route.fallback(); stubbed.push(`${req.method()} ${new URL(req.url()).pathname}`); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ accepted: [], rejected: [], settings: null }) }); });
   }
   const page = await ctx.newPage(); await installPaidAiFence(page);
   return { ctx, page, stubbed };
