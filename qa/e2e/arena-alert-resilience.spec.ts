@@ -115,8 +115,11 @@ test.describe('arena price-alert save resilience (#1176, #1168)', () => {
         timeout: 15_000,
       }).toBeGreaterThan(0);
 
+      /* Since #2825 (owner item 66) the page says its own translated line and never the server's words. */
+      await expect(page.getByText('Failed to add alert'),
+        'a failed save must say it failed - #1176').toBeVisible({ timeout: 10_000 });
       await expect(page.getByText('fixture: db unavailable'),
-        'the server error message must surface, not a generic swallow').toBeVisible({ timeout: 10_000 });
+        "the server's own words must not be shown - #2825").toHaveCount(0);
       await expect(page.getByText(/Alert set/),
         'a failed save must never show the success message - #1176').toHaveCount(0);
 
